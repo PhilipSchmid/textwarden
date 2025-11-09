@@ -1,0 +1,56 @@
+# Specify framework (internal tooling)
+.specify/
+
+# Claude Code configuration (user-specific)
+.claude/
+CLAUDE.md
+
+# Internal planning and specification documents
+specs/**/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+*.xcworkspace/*
+!*.xcworkspace/contents.xcworkspacedata
+!*.xcworkspace/xcshareddata/
+xcuserdata/
+DerivedData/
+*.moved-aside
+*.xccheckout
+*.xcscmblueprint
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+Packages/
+Package.pins
+Package.resolved
+
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+
+# Build artifacts
+*.app
+*.dmg
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.log
+*.tmp
