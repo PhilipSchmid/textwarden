@@ -11,7 +11,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		E8AC081C2EC11FBB008E37E6 /* Gnau */ = {
+		E8AC081C2EC11FBB008E37E6 /* Sources */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Sources;
 			sourceTree = "<group>";
@@ -32,7 +32,7 @@
 		E8AC08112EC11FBB008E37E6 = {
 			isa = PBXGroup;
 			children = (
-				E8AC081C2EC11FBB008E37E6 /* Gnau */,
+				E8AC081C2EC11FBB008E37E6 /* Sources */,
 				E8AC081B2EC11FBB008E37E6 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -55,13 +55,14 @@
 				E8AC08162EC11FBB008E37E6 /* Sources */,
 				E8AC08172EC11FBB008E37E6 /* Frameworks */,
 				E8AC08182EC11FBB008E37E6 /* Resources */,
+				E8AC086E2EC12139008E37E6 /* ShellScript */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				E8AC081C2EC11FBB008E37E6 /* Gnau */,
+				E8AC081C2EC11FBB008E37E6 /* Sources */,
 			);
 			name = Gnau;
 			packageProductDependencies = (
@@ -113,6 +114,26 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		E8AC086E2EC12139008E37E6 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		E8AC08162EC11FBB008E37E6 /* Sources */ = {
@@ -269,9 +290,9 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/GrammarEngine/target";
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				OTHER_LDFLAGS = "-lgrammar_engine_universal";
+				MACOSX_DEPLOYMENT_TARGET = 15.7;
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = "-lgrammar_engine_universal";
 				PRODUCT_BUNDLE_IDENTIFIER = app.gnau.Gnau;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -316,9 +337,9 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/GrammarEngine/target";
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				OTHER_LDFLAGS = "-lgrammar_engine_universal";
+				MACOSX_DEPLOYMENT_TARGET = 15.7;
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = "-lgrammar_engine_universal";
 				PRODUCT_BUNDLE_IDENTIFIER = app.gnau.Gnau;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
