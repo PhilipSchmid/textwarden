@@ -86,4 +86,4 @@ Apache License 2.0 - see [LICENSE](LICENSE) for details.
 
 ## Why "Gnau"?
 
-Gnau (pronounced "now") is derived from the Welsh word "gnau" meaning "to know" or "to recognize"—fitting for a tool that recognizes grammar patterns in your writing.
+Gnau is Swiss German for the German word "genau" (meaning "exact" or "precise")—fitting for a tool that helps you write with grammatical precision.
