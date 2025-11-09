@@ -10,9 +10,9 @@
 
 ### Required Software
 
-1. **macOS 13.0+ (Ventura or later)**
+1. **macOS 15.7+ (Sequoia or later)**
    - Check version: `sw_vers`
-   - Gnau targets macOS 13.0+ exclusively
+   - Gnau targets macOS 15.7+ exclusively
 
 2. **Xcode 15+**
    - Install from Mac App Store or https://developer.apple.com/xcode/
