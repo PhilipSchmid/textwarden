@@ -52,10 +52,10 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = E8AC08252EC11FBD008E37E6 /* Build configuration list for PBXNativeTarget "Gnau" */;
 			buildPhases = (
+				E8AC086E2EC12139008E37E6 /* ShellScript */,
 				E8AC08162EC11FBB008E37E6 /* Sources */,
 				E8AC08172EC11FBB008E37E6 /* Frameworks */,
 				E8AC08182EC11FBB008E37E6 /* Resources */,
-				E8AC086E2EC12139008E37E6 /* ShellScript */,
 			);
 			buildRules = (
 			);
@@ -125,13 +125,15 @@
 			);
 			inputPaths = (
 			);
+			name = "Build Rust Grammar Engine";
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(PROJECT_DIR)/GrammarEngine/target/libgrammar_engine_universal.a",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n";
+			shellScript = "${PROJECT_DIR}/Scripts/build-rust.sh\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
