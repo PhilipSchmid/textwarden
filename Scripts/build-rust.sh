@@ -28,25 +28,23 @@ fi
 cd "$GRAMMAR_ENGINE_DIR"
 
 # Determine build configuration
-CARGO_BUILD_TYPE="release"
-if [ "$CONFIGURATION" = "Debug" ]; then
-    CARGO_BUILD_TYPE="debug"
+if [ "$CONFIGURATION" = "Release" ]; then
+    CARGO_BUILD_FLAG="--release"
+    BUILD_DIR="release"
+else
+    CARGO_BUILD_FLAG=""
+    BUILD_DIR="debug"
 fi
 
-echo -e "${GREEN}Building for x86_64-apple-darwin ($CARGO_BUILD_TYPE)...${NC}"
-cargo build --target x86_64-apple-darwin ${CARGO_BUILD_TYPE:+--$CARGO_BUILD_TYPE}
+echo -e "${GREEN}Building for x86_64-apple-darwin (${BUILD_DIR})...${NC}"
+cargo build $CARGO_BUILD_FLAG --target x86_64-apple-darwin
 
-echo -e "${GREEN}Building for aarch64-apple-darwin ($CARGO_BUILD_TYPE)...${NC}"
-cargo build --target aarch64-apple-darwin ${CARGO_BUILD_TYPE:+--$CARGO_BUILD_TYPE}
+echo -e "${GREEN}Building for aarch64-apple-darwin (${BUILD_DIR})...${NC}"
+cargo build $CARGO_BUILD_FLAG --target aarch64-apple-darwin
 
 # Determine paths based on build type
-if [ "$CARGO_BUILD_TYPE" = "release" ]; then
-    X86_LIB="$TARGET_DIR/x86_64-apple-darwin/release/libgrammar_engine.a"
-    ARM_LIB="$TARGET_DIR/aarch64-apple-darwin/release/libgrammar_engine.a"
-else
-    X86_LIB="$TARGET_DIR/x86_64-apple-darwin/debug/libgrammar_engine.a"
-    ARM_LIB="$TARGET_DIR/aarch64-apple-darwin/debug/libgrammar_engine.a"
-fi
+X86_LIB="$TARGET_DIR/x86_64-apple-darwin/${BUILD_DIR}/libgrammar_engine.a"
+ARM_LIB="$TARGET_DIR/aarch64-apple-darwin/${BUILD_DIR}/libgrammar_engine.a"
 
 UNIVERSAL_LIB="$TARGET_DIR/libgrammar_engine_universal.a"
 
