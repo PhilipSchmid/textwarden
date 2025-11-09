@@ -55,7 +55,7 @@ After installation, grant Accessibility permissions in **System Settings → Pri
 
 ## Requirements
 
-- macOS 13.0 (Ventura) or later
+- macOS 15.7 (Sequoia) or later
 - Intel (x86_64) or Apple Silicon (arm64)
 
 ## Development
