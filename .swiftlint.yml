@@ -1,0 +1,79 @@
+# SwiftLint Configuration for Gnau
+# Enforces Swift API Design Guidelines and project code quality standards
+
+# Paths to include for linting
+included:
+  - Sources
+  - Tests
+
+# Paths to exclude from linting
+excluded:
+  - Pods
+  - .build
+  - DerivedData
+  - GrammarEngine
+
+# Disabled rules (with justification)
+disabled_rules:
+  - todo # Allow TODO comments during development
+  - line_length # Handled by formatter
+
+# Opt-in rules
+opt_in_rules:
+  - explicit_type_interface
+  - closure_end_indentation
+  - closure_spacing
+  - empty_count
+  - force_unwrapping
+  - implicit_return
+  - multiline_parameters
+  - overridden_super_call
+  - redundant_nil_coalescing
+  - sorted_imports
+  - unneeded_parentheses_in_closure_argument
+  - vertical_whitespace_closing_braces
+
+# Rule configurations
+force_unwrapping:
+  severity: error
+
+type_name:
+  min_length: 3
+  max_length: 40
+
+identifier_name:
+  min_length: 2
+  max_length: 40
+  excluded:
+    - id
+    - x
+    - y
+    - z
+
+file_length:
+  warning: 400
+  error: 500
+
+function_body_length:
+  warning: 40
+  error: 60
+
+type_body_length:
+  warning: 250
+  error: 350
+
+cyclomatic_complexity:
+  warning: 10
+  error: 15
+
+nesting:
+  type_level: 2
+  statement_level: 5
+
+# Custom rules
+custom_rules:
+  no_print:
+    name: "No Print Statements"
+    regex: '(?<!//\s)print\('
+    message: "Use os_log instead of print for logging"
+    severity: warning
