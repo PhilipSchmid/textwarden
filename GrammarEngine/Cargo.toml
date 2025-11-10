@@ -7,9 +7,12 @@ edition = "2021"
 crate-type = ["staticlib"]
 
 [dependencies]
-harper-core = "0.11"
-swift-bridge = "0.1"
+harper-core = "0.61"
+swift-bridge = "0.1.57"
 uuid = { version = "1.0", features = ["v4"] }
+
+[build-dependencies]
+swift-bridge-build = "0.1.57"
 
 [profile.release]
 opt-level = 3
