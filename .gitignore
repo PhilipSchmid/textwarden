@@ -34,15 +34,24 @@ DerivedData/
 Packages/
 Package.pins
 Package.resolved
+*.swiftpm/
 
 # Rust
 target/
 Cargo.lock
 **/*.rs.bk
+*.rlib
+debug/
+release/
+**/generated/
 
 # Build artifacts
 *.app
 *.dmg
+build/
+*.o
+*.a
+*.dylib
 
 # IDEs
 .vscode/
