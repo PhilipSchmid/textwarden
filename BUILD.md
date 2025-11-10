@@ -67,7 +67,7 @@ The first build will:
 4. Compile Swift code
 5. Link everything together
 
-**Total time:** ~5 minutes for first build, <30 seconds for incremental builds.
+**Total time:** ~5 minutes for first build, ~1-2 seconds for incremental builds.
 
 ---
 
@@ -84,6 +84,26 @@ rustup target add x86_64-apple-darwin aarch64-apple-darwin
 ```bash
 chmod +x Scripts/build-rust.sh
 ```
+
+### "can't find crate for 'core'" or "target may not be installed"
+
+This usually means you have both Homebrew Rust and rustup Rust installed, and they're conflicting.
+
+**Solution:** Remove the Homebrew Rust package (keep rustup):
+
+```bash
+# Check if you have Homebrew Rust installed
+brew list | grep rust
+
+# If you see both 'rust' and 'rustup', uninstall 'rust'
+brew uninstall rust
+
+# Verify rustup toolchain is active
+rustup default stable
+rustup show
+```
+
+The build script will automatically detect and use the rustup toolchain.
 
 ### "Library not found"
 

@@ -4,6 +4,25 @@ set -e
 # Build script for Rust grammar engine universal binary
 # Creates fat binary supporting both Intel (x86_64) and Apple Silicon (arm64)
 
+# Configure Rust environment for Xcode builds
+export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
+export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
+export MACOSX_DEPLOYMENT_TARGET="14.0"
+
+# Add common Rust installation locations to PATH first
+export PATH="/opt/homebrew/bin:/usr/local/bin:$CARGO_HOME/bin:$PATH"
+
+# Determine the Rust toolchain to use
+# First, try to find rustup and use it to determine the active toolchain
+if command -v rustup >/dev/null 2>&1; then
+    RUSTUP_TOOLCHAIN=$(rustup show active-toolchain 2>/dev/null | awk '{print $1}')
+    if [ -n "$RUSTUP_TOOLCHAIN" ] && [ -d "$RUSTUP_HOME/toolchains/$RUSTUP_TOOLCHAIN" ]; then
+        RUST_BIN_DIR="$RUSTUP_HOME/toolchains/$RUSTUP_TOOLCHAIN/bin"
+        # Prepend the specific toolchain bin directory
+        export PATH="$RUST_BIN_DIR:$PATH"
+    fi
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 GRAMMAR_ENGINE_DIR="$PROJECT_ROOT/GrammarEngine"
