@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import os.log
 
 @main
 struct GnauApp: App {
@@ -36,30 +37,61 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var menuBarController: MenuBarController?
     var analysisCoordinator: AnalysisCoordinator?
 
+    func logToFile(_ message: String) {
+        let logPath = "/tmp/gnau-debug.log"
+        let timestamp = Date()
+        let logMessage = "[\(timestamp)] \(message)\n"
+        if let data = logMessage.data(using: .utf8) {
+            if FileManager.default.fileExists(atPath: logPath) {
+                if let fileHandle = FileHandle(forWritingAtPath: logPath) {
+                    fileHandle.seekToEndOfFile()
+                    fileHandle.write(data)
+                    fileHandle.closeFile()
+                }
+            } else {
+                try? data.write(to: URL(fileURLWithPath: logPath))
+            }
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
-        print("🚀 Gnau: Application launched")
+        logToFile("🚀 Gnau: Application launched")
+        NSLog("🚀 Gnau: Application launched")
+
+        // Record app session for statistics
+        UserStatistics.shared.recordSession()
 
         // Hide dock icon for menu bar-only app
         NSApp.setActivationPolicy(.accessory)
-        print("📍 Gnau: Set as menu bar app (no dock icon)")
+        logToFile("📍 Gnau: Set as menu bar app (no dock icon)")
+        NSLog("📍 Gnau: Set as menu bar app (no dock icon)")
 
         // Initialize menu bar controller
         menuBarController = MenuBarController()
-        print("📍 Gnau: Menu bar controller initialized")
+        logToFile("📍 Gnau: Menu bar controller initialized")
+        NSLog("📍 Gnau: Menu bar controller initialized")
 
         // Check permissions on launch (T055)
         let permissionManager = PermissionManager.shared
         let hasPermission = permissionManager.isPermissionGranted
-        print("🔐 Gnau: Accessibility permission check: \(hasPermission ? "✅ Granted" : "❌ Not granted")")
+        logToFile("🔐 Gnau: Accessibility permission check: \(hasPermission ? "✅ Granted" : "❌ Not granted")")
+        NSLog("🔐 Gnau: Accessibility permission check: \(hasPermission ? "✅ Granted" : "❌ Not granted")")
 
         if hasPermission {
             // Permission already granted - start grammar checking immediately
-            print("✅ Gnau: Starting grammar checking...")
+            logToFile("✅ Gnau: Starting grammar checking...")
+            logToFile("📊 Gnau: Grammar checking enabled: \(UserPreferences.shared.isEnabled)")
+            logToFile("📊 Gnau: Disabled applications: \(UserPreferences.shared.disabledApplications)")
+            NSLog("✅ Gnau: Starting grammar checking...")
+            NSLog("📊 Gnau: Grammar checking enabled: \(UserPreferences.shared.isEnabled)")
+            NSLog("📊 Gnau: Disabled applications: \(UserPreferences.shared.disabledApplications)")
             analysisCoordinator = AnalysisCoordinator.shared
-            print("📍 Gnau: Analysis coordinator initialized")
+            logToFile("📍 Gnau: Analysis coordinator initialized")
+            NSLog("📍 Gnau: Analysis coordinator initialized")
         } else {
             // No permission - show onboarding to request it (T056)
-            print("⚠️ Gnau: Accessibility permission not granted - showing onboarding")
+            logToFile("⚠️ Gnau: Accessibility permission not granted - showing onboarding")
+            NSLog("⚠️ Gnau: Accessibility permission not granted - showing onboarding")
 
             // Set up callback to start grammar checking when permission is granted
             permissionManager.onPermissionGranted = { [weak self] in

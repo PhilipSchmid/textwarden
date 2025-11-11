@@ -17,6 +17,11 @@ struct PreferencesView: View {
                     Label("General", systemImage: "gearshape")
                 }
 
+            StatisticsView()
+                .tabItem {
+                    Label("Statistics", systemImage: "chart.bar.fill")
+                }
+
             ApplicationSettingsView(preferences: preferences)
                 .tabItem {
                     Label("Applications", systemImage: "app.badge")
@@ -42,12 +47,419 @@ struct PreferencesView: View {
                     Label("Shortcuts", systemImage: "command")
                 }
 
+            SystemStatusView()
+                .tabItem {
+                    Label("System", systemImage: "checkmark.shield")
+                }
+
             AboutView()
                 .tabItem {
                     Label("About", systemImage: "info.circle")
                 }
         }
-        .frame(width: 600, height: 500)
+        .frame(width: 800, height: 650)
+    }
+}
+
+// MARK: - Statistics View
+
+struct StatisticsView: View {
+    @ObservedObject private var statistics = UserStatistics.shared
+    @State private var showResetConfirmation = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                // Header
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Image(systemName: "chart.bar.fill")
+                            .font(.system(size: 48))
+                            .foregroundColor(.accentColor)
+                        Spacer()
+                    }
+                    Text("Your Grammar Journey")
+                        .font(.system(size: 32, weight: .bold))
+                    Text("Track your improvements and writing progress")
+                        .font(.title3)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.bottom, 8)
+
+                // Core Metrics Grid
+                LazyVGrid(columns: [
+                    GridItem(.flexible()),
+                    GridItem(.flexible()),
+                    GridItem(.flexible())
+                ], spacing: 16) {
+                    MetricCard(
+                        title: "Grammar Issues",
+                        value: "\(statistics.errorsFound)",
+                        subtitle: "Detected",
+                        icon: "exclamationmark.triangle.fill",
+                        color: .orange
+                    )
+
+                    MetricCard(
+                        title: "Improvements",
+                        value: "\(statistics.suggestionsApplied)",
+                        subtitle: "Made",
+                        icon: "checkmark.circle.fill",
+                        color: .green
+                    )
+
+                    MetricCard(
+                        title: "Words Checked",
+                        value: formatNumber(statistics.wordsAnalyzed),
+                        subtitle: "Analyzed",
+                        icon: "doc.text.fill",
+                        color: .blue
+                    )
+
+                    MetricCard(
+                        title: "Documents",
+                        value: "\(statistics.analysisSessions)",
+                        subtitle: "Analyzed",
+                        icon: "folder.fill",
+                        color: .purple
+                    )
+
+                    MetricCard(
+                        title: "Active Days",
+                        value: "\(statistics.activeDays.count)",
+                        subtitle: "Writing",
+                        icon: "calendar.badge.clock",
+                        color: .pink
+                    )
+
+                    MetricCard(
+                        title: "Time Saved",
+                        value: statistics.timeSavedFormatted,
+                        subtitle: "Estimated",
+                        icon: "clock.fill",
+                        color: .cyan
+                    )
+                }
+
+                Divider()
+                    .padding(.vertical, 8)
+
+                // Improvement Rate
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "percent")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                            .frame(width: 28)
+                        Text("Improvement Rate")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+
+                    HStack(spacing: 16) {
+                        // Progress bar
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("\(Int(statistics.improvementRate))%")
+                                    .font(.system(size: 36, weight: .bold))
+                                    .foregroundColor(.accentColor)
+                                Spacer()
+                                Text("\(statistics.suggestionsApplied) of \(statistics.suggestionsApplied + statistics.suggestionsDismissed) suggestions applied")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            GeometryReader { geometry in
+                                ZStack(alignment: .leading) {
+                                    // Background
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Color.accentColor.opacity(0.15))
+                                        .frame(height: 16)
+
+                                    // Progress
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Color.accentColor)
+                                        .frame(
+                                            width: geometry.size.width * CGFloat(statistics.improvementRate / 100.0),
+                                            height: 16
+                                        )
+                                }
+                            }
+                            .frame(height: 16)
+                        }
+                    }
+                    .padding()
+                    .background(Color.accentColor.opacity(0.05))
+                    .cornerRadius(12)
+                }
+
+                Divider()
+                    .padding(.vertical, 8)
+
+                // Category Breakdown
+                if !statistics.categoryBreakdown.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image(systemName: "chart.pie.fill")
+                                .font(.title2)
+                                .foregroundColor(.accentColor)
+                                .frame(width: 28)
+                            Text("Error Categories")
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(sortedCategories, id: \.0) { category, count in
+                                CategoryRow(
+                                    category: category,
+                                    count: count,
+                                    total: statistics.suggestionsApplied,
+                                    isTopCategory: category == statistics.mostCommonCategory
+                                )
+                            }
+                        }
+                        .padding()
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(12)
+                    }
+
+                    Divider()
+                        .padding(.vertical, 8)
+                }
+
+                // Additional Stats
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                            .frame(width: 28)
+                        Text("Insights")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+
+                    VStack(spacing: 12) {
+                        InsightRow(
+                            icon: "lightbulb.fill",
+                            title: "Average Errors per Document",
+                            value: String(format: "%.1f", statistics.averageErrorsPerSession),
+                            color: .yellow
+                        )
+
+                        InsightRow(
+                            icon: "star.fill",
+                            title: "Most Common Issue",
+                            value: formatCategoryName(statistics.mostCommonCategory),
+                            color: .orange
+                        )
+
+                        InsightRow(
+                            icon: "book.fill",
+                            title: "Personal Dictionary",
+                            value: "\(statistics.customDictionarySize) words",
+                            color: .indigo
+                        )
+
+                        InsightRow(
+                            icon: "app.badge",
+                            title: "Total Sessions",
+                            value: "\(statistics.sessionCount) launches",
+                            color: .teal
+                        )
+                    }
+                    .padding()
+                    .background(Color(NSColor.controlBackgroundColor))
+                    .cornerRadius(12)
+                }
+
+                Divider()
+                    .padding(.vertical, 8)
+
+                // Reset Button
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        showResetConfirmation = true
+                    }) {
+                        Label("Reset All Statistics", systemImage: "arrow.counterclockwise")
+                            .foregroundColor(.red)
+                    }
+                    .buttonStyle(.bordered)
+                    .alert("Reset Statistics?", isPresented: $showResetConfirmation) {
+                        Button("Cancel", role: .cancel) { }
+                        Button("Reset", role: .destructive) {
+                            statistics.resetAllStatistics()
+                        }
+                    } message: {
+                        Text("This will permanently delete all your statistics. This action cannot be undone.")
+                    }
+                    Spacer()
+                }
+            }
+            .padding(24)
+        }
+    }
+
+    private var sortedCategories: [(String, Int)] {
+        statistics.categoryBreakdown.sorted { $0.value > $1.value }
+    }
+
+    private func formatNumber(_ number: Int) -> String {
+        if number >= 1_000_000 {
+            return String(format: "%.1fM", Double(number) / 1_000_000.0)
+        } else if number >= 1_000 {
+            return String(format: "%.1fK", Double(number) / 1_000.0)
+        } else {
+            return "\(number)"
+        }
+    }
+
+    private func formatCategoryName(_ category: String) -> String {
+        guard category != "None" else { return category }
+
+        var result = ""
+        for (index, char) in category.enumerated() {
+            if index > 0 && char.isUppercase {
+                result += " "
+            }
+            result.append(char)
+        }
+        return result
+    }
+}
+
+// MARK: - Statistics Supporting Views
+
+private struct MetricCard: View {
+    let title: String
+    let value: String
+    let subtitle: String
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.title2)
+                    .foregroundColor(color)
+                Spacer()
+            }
+
+            Text(value)
+                .font(.system(size: 28, weight: .bold))
+                .foregroundColor(.primary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(NSColor.controlBackgroundColor))
+        .cornerRadius(12)
+    }
+}
+
+private struct CategoryRow: View {
+    let category: String
+    let count: Int
+    let total: Int
+    let isTopCategory: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Category name
+            HStack(spacing: 6) {
+                if isTopCategory {
+                    Image(systemName: "crown.fill")
+                        .font(.caption)
+                        .foregroundColor(.yellow)
+                }
+                Text(formatCategoryName(category))
+                    .font(.body)
+                    .fontWeight(isTopCategory ? .semibold : .regular)
+            }
+
+            Spacer()
+
+            // Count and percentage
+            HStack(spacing: 12) {
+                Text("\(count)")
+                    .font(.body)
+                    .fontWeight(.medium)
+                    .foregroundColor(.secondary)
+                    .frame(minWidth: 30, alignment: .trailing)
+
+                // Progress bar
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.accentColor.opacity(0.15))
+                            .frame(height: 8)
+
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(isTopCategory ? Color.accentColor : Color.accentColor.opacity(0.6))
+                            .frame(
+                                width: geometry.size.width * CGFloat(Double(count) / Double(total)),
+                                height: 8
+                            )
+                    }
+                }
+                .frame(width: 100, height: 8)
+
+                Text("\(Int(Double(count) / Double(total) * 100))%")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .frame(minWidth: 35, alignment: .trailing)
+            }
+        }
+        .padding(.vertical, 6)
+    }
+
+    private func formatCategoryName(_ category: String) -> String {
+        var result = ""
+        for (index, char) in category.enumerated() {
+            if index > 0 && char.isUppercase {
+                result += " "
+            }
+            result.append(char)
+        }
+        return result
+    }
+}
+
+private struct InsightRow: View {
+    let icon: String
+    let title: String
+    let value: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(color)
+                .frame(width: 28)
+
+            Text(title)
+                .font(.body)
+                .foregroundColor(.secondary)
+
+            Spacer()
+
+            Text(value)
+                .font(.body)
+                .fontWeight(.semibold)
+        }
+        .padding(.vertical, 4)
     }
 }
 
@@ -137,7 +549,7 @@ struct ApplicationSettingsView: View {
             .listStyle(.inset)
 
             // Info text
-            Text("Applications are automatically discovered when you type in them. Toggle to enable or disable grammar checking per application.")
+            Text("Applications are automatically discovered when you activate them. This list includes common apps, running apps, and apps you've used. Toggle to enable or disable grammar checking per application.")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -165,9 +577,9 @@ struct ApplicationSettingsView: View {
 
     /// Load discovered applications (T071)
     private func loadDiscoveredApplications() {
-        var apps: [ApplicationInfo] = []
+        var bundleIDs = Set<String>()
 
-        // Add common applications
+        // 1. Add common applications (always show these)
         let commonBundleIDs = [
             "com.apple.TextEdit",
             "com.microsoft.VSCode",
@@ -184,19 +596,29 @@ struct ApplicationSettingsView: View {
             "md.obsidian",
             "com.literatureandlatte.scrivener3"
         ]
+        bundleIDs.formUnion(commonBundleIDs)
 
-        for bundleID in commonBundleIDs {
-            if let app = getApplicationInfo(for: bundleID) {
-                apps.append(app)
+        // 2. Add all discovered applications (apps that have been used)
+        bundleIDs.formUnion(preferences.discoveredApplications)
+
+        // 3. Add currently running applications with GUI
+        let workspace = NSWorkspace.shared
+        for app in workspace.runningApplications {
+            // Only include apps with a bundle ID and that are not background-only
+            if let bundleID = app.bundleIdentifier,
+               app.activationPolicy == .regular {
+                bundleIDs.insert(bundleID)
             }
         }
 
-        // Add any apps from disabled list that weren't in common list
-        for bundleID in preferences.disabledApplications {
-            if !apps.contains(where: { $0.bundleIdentifier == bundleID }) {
-                if let app = getApplicationInfo(for: bundleID) {
-                    apps.append(app)
-                }
+        // 4. Add apps from disabled list (in case they're not running but disabled)
+        bundleIDs.formUnion(preferences.disabledApplications)
+
+        // Convert bundle IDs to ApplicationInfo
+        var apps: [ApplicationInfo] = []
+        for bundleID in bundleIDs {
+            if let app = getApplicationInfo(for: bundleID) {
+                apps.append(app)
             }
         }
 
@@ -328,14 +750,6 @@ struct GeneralPreferencesView: View {
                     .foregroundColor(.secondary)
             } header: {
                 Text("Language")
-                    .font(.headline)
-            }
-
-            Section {
-                Toggle("Automatically check for updates", isOn: $preferences.autoCheckForUpdates)
-                    .help("Check for app updates automatically")
-            } header: {
-                Text("Updates")
                     .font(.headline)
             }
 
@@ -804,6 +1218,233 @@ struct CustomVocabularyView: View {
     }
 }
 
+// MARK: - System Status View
+
+struct SystemStatusView: View {
+    @ObservedObject private var permissionManager = PermissionManager.shared
+    @ObservedObject private var applicationTracker = ApplicationTracker.shared
+    @State private var showingPermissionDialog = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                // Header
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Image(systemName: "checkmark.shield.fill")
+                            .font(.system(size: 48))
+                            .foregroundColor(permissionManager.isPermissionGranted ? .green : .orange)
+                        Spacer()
+                    }
+                    Text("System Status")
+                        .font(.system(size: 32, weight: .bold))
+                    Text("Monitor accessibility permissions and app status")
+                        .font(.title3)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.bottom, 8)
+
+                // Permission Status Card
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack {
+                        Image(systemName: permissionManager.isPermissionGranted ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            .font(.title)
+                            .foregroundColor(permissionManager.isPermissionGranted ? .green : .red)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Accessibility Permission")
+                                .font(.headline)
+                            Text(permissionManager.isPermissionGranted ? "Granted" : "Not Granted")
+                                .font(.subheadline)
+                                .foregroundColor(permissionManager.isPermissionGranted ? .green : .red)
+                        }
+
+                        Spacer()
+                    }
+
+                    Text(permissionManager.isPermissionGranted ?
+                         "Gnau has the necessary permissions to monitor your text and provide grammar checking." :
+                         "Gnau needs Accessibility permissions to monitor your text. Click the button below to grant permission.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.top, 4)
+
+                    HStack(spacing: 12) {
+                        if !permissionManager.isPermissionGranted {
+                            Button {
+                                permissionManager.requestPermission()
+                                showingPermissionDialog = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "lock.open")
+                                    Text("Request Permission")
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+
+                        Button {
+                            permissionManager.openSystemSettings()
+                        } label: {
+                            HStack {
+                                Image(systemName: "gearshape")
+                                Text("Open System Settings")
+                            }
+                        }
+                        .buttonStyle(.bordered)
+
+                        Spacer()
+                    }
+                    .padding(.top, 8)
+                }
+                .padding(20)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(12)
+
+                // Monitoring Status Card
+                if permissionManager.isPermissionGranted {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            Image(systemName: "eye.fill")
+                                .font(.title2)
+                                .foregroundColor(.blue)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Currently Monitoring")
+                                    .font(.headline)
+                                if let app = applicationTracker.activeApplication {
+                                    Text(app.applicationName)
+                                        .font(.subheadline)
+                                        .foregroundColor(.blue)
+                                } else {
+                                    Text("No application")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+
+                            Spacer()
+
+                            // Live indicator
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(Color.green)
+                                    .frame(width: 8, height: 8)
+                                    .opacity(applicationTracker.activeApplication != nil ? 1.0 : 0.3)
+                                Text("Live")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+
+                        if let app = applicationTracker.activeApplication {
+                            Divider()
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Text("Application:")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text(app.applicationName)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                }
+
+                                HStack {
+                                    Text("Bundle ID:")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text(app.bundleIdentifier)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .textSelection(.enabled)
+                                }
+
+                                HStack {
+                                    Text("Checking:")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text(app.shouldCheck() ? "Enabled" : "Disabled")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(app.shouldCheck() ? .green : .orange)
+                                }
+                            }
+                        }
+                    }
+                    .padding(20)
+                    .background(Color(NSColor.controlBackgroundColor))
+                    .cornerRadius(12)
+                }
+
+                // Permission Info
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("About Accessibility Permissions")
+                        .font(.headline)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        SystemInfoRow(
+                            icon: "doc.text.magnifyingglass",
+                            title: "Text Monitoring",
+                            description: "Gnau needs to read text you type to check for grammar errors."
+                        )
+
+                        SystemInfoRow(
+                            icon: "pencil.and.outline",
+                            title: "Text Replacement",
+                            description: "Gnau can replace text with suggested corrections when you click them."
+                        )
+
+                        SystemInfoRow(
+                            icon: "lock.shield",
+                            title: "Privacy",
+                            description: "All text analysis happens locally on your Mac. Nothing is sent to external servers."
+                        )
+                    }
+                }
+                .padding(20)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(12)
+
+                Spacer()
+            }
+            .padding(24)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .alert("Permission Requested", isPresented: $showingPermissionDialog) {
+            Button("OK") {
+                showingPermissionDialog = false
+            }
+        } message: {
+            Text("Please check System Settings to grant Accessibility permission to Gnau. The app will automatically detect when permission is granted.")
+        }
+    }
+}
+
+private struct SystemInfoRow: View {
+    let icon: String
+    let title: String
+    let description: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(.accentColor)
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                Text(description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+}
+
 // MARK: - About View
 
 struct AboutView: View {
@@ -814,17 +1455,16 @@ struct AboutView: View {
         ScrollView {
             VStack(spacing: 20) {
                 // App Icon and Title
-                Image(systemName: "text.badge.checkmark")
-                    .font(.system(size: 60))
-                    .foregroundColor(.accentColor)
-                    .symbolRenderingMode(.hierarchical)
+                Image("GnauLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 80, height: 80)
 
                 Text("Gnau")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
+                    .font(.system(size: 42, weight: .bold))
 
                 Text("Real-time Grammar Checking for macOS")
-                    .font(.headline)
+                    .font(.title3)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
 
@@ -832,7 +1472,7 @@ struct AboutView: View {
                     .padding(.horizontal, 40)
 
                 // Version Information
-                VStack(spacing: 12) {
+                VStack(spacing: 14) {
                     InfoRow(label: "Version", value: "\(appVersion) (\(buildNumber))")
                     InfoRow(label: "Grammar Engine", value: "Harper 0.61")
                     InfoRow(label: "Supported Dialects", value: "American, British, Canadian, Australian")
@@ -845,9 +1485,10 @@ struct AboutView: View {
                     .padding(.horizontal, 40)
 
                 // Features
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 14) {
                     Text("Features")
-                        .font(.headline)
+                        .font(.title3)
+                        .fontWeight(.semibold)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     FeatureRow(icon: "text.badge.checkmark", title: "Real-time Grammar Checking", description: "Instant feedback as you type")
@@ -863,44 +1504,69 @@ struct AboutView: View {
                     .padding(.horizontal, 40)
 
                 // Links
-                VStack(spacing: 8) {
+                VStack(spacing: 12) {
                     Link(destination: URL(string: "https://github.com/philipschmid/gnau")!) {
-                        HStack {
-                            Image(systemName: "link.circle.fill")
+                        HStack(spacing: 12) {
+                            Image(systemName: "arrow.up.forward.square.fill")
+                                .font(.title2)
+                                .foregroundColor(.accentColor)
+                                .frame(width: 32)
                             Text("View on GitHub")
+                                .font(.body)
                         }
-                        .font(.subheadline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 16)
+                        .background(Color.accentColor.opacity(0.1))
+                        .cornerRadius(8)
                     }
                     .buttonStyle(.plain)
 
                     Link(destination: URL(string: "https://github.com/philipschmid/gnau/blob/main/LICENSE")!) {
-                        HStack {
-                            Image(systemName: "doc.text.fill")
+                        HStack(spacing: 12) {
+                            Image(systemName: "doc.plaintext.fill")
+                                .font(.title2)
+                                .foregroundColor(.accentColor)
+                                .frame(width: 32)
                             Text("View License")
+                                .font(.body)
                         }
-                        .font(.subheadline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 16)
+                        .background(Color.accentColor.opacity(0.1))
+                        .cornerRadius(8)
                     }
                     .buttonStyle(.plain)
 
                     Link(destination: URL(string: "https://github.com/philipschmid/gnau/issues")!) {
-                        HStack {
-                            Image(systemName: "exclamationmark.bubble.fill")
+                        HStack(spacing: 12) {
+                            Image(systemName: "ladybug.fill")
+                                .font(.title2)
+                                .foregroundColor(.accentColor)
+                                .frame(width: 32)
                             Text("Report an Issue")
+                                .font(.body)
                         }
-                        .font(.subheadline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 16)
+                        .background(Color.accentColor.opacity(0.1))
+                        .cornerRadius(8)
                     }
                     .buttonStyle(.plain)
                 }
+                .padding(.horizontal, 40)
 
                 Spacer()
 
-                VStack(spacing: 4) {
+                VStack(spacing: 6) {
                     Text("Built with Swift, Rust, and Harper")
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
 
                     Text("© 2025 Philip Schmid. All rights reserved.")
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
             }
@@ -929,9 +1595,11 @@ private struct InfoRow: View {
     var body: some View {
         HStack {
             Text(label)
+                .font(.body)
                 .foregroundColor(.secondary)
             Spacer()
             Text(value)
+                .font(.body)
                 .fontWeight(.medium)
         }
     }
@@ -943,18 +1611,18 @@ private struct FeatureRow: View {
     let description: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: 14) {
             Image(systemName: icon)
-                .font(.title3)
+                .font(.title2)
                 .foregroundColor(.accentColor)
-                .frame(width: 24)
+                .frame(width: 28)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.subheadline)
+                    .font(.body)
                     .fontWeight(.medium)
                 Text(description)
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundColor(.secondary)
             }
         }

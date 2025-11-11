@@ -76,6 +76,15 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Discovered applications (apps that have been activated while Gnau is running)
+    @Published var discoveredApplications: Set<String> {
+        didSet {
+            if let encoded = try? encoder.encode(discoveredApplications) {
+                defaults.set(encoded, forKey: Keys.discoveredApplications)
+            }
+        }
+    }
+
     /// Custom words to ignore
     @Published var customDictionary: Set<String> {
         didSet {
@@ -233,20 +242,12 @@ class UserPreferences: ObservableObject {
         "Dark"
     ]
 
-    // MARK: - Updates
-
-    /// Automatically check for updates
-    @Published var autoCheckForUpdates: Bool {
-        didSet {
-            defaults.set(autoCheckForUpdates, forKey: Keys.autoCheckForUpdates)
-        }
-    }
-
     private init() {
         // Initialize with default values first
         self.pauseDuration = .active
         self.pausedUntil = nil
         self.disabledApplications = []
+        self.discoveredApplications = []
         self.customDictionary = []
         self.ignoredRules = []
         self.analysisDelayMs = 20
@@ -268,9 +269,6 @@ class UserPreferences: ObservableObject {
         self.suggestionPosition = "Auto"
         self.suggestionTheme = "System"
 
-        // Updates
-        self.autoCheckForUpdates = true
-
         // Then load saved preferences
         if let pauseString = defaults.string(forKey: Keys.pauseDuration),
            let pause = PauseDuration(rawValue: pauseString) {
@@ -282,6 +280,11 @@ class UserPreferences: ObservableObject {
         if let data = defaults.data(forKey: Keys.disabledApplications),
            let set = try? decoder.decode(Set<String>.self, from: data) {
             self.disabledApplications = set
+        }
+
+        if let data = defaults.data(forKey: Keys.discoveredApplications),
+           let set = try? decoder.decode(Set<String>.self, from: data) {
+            self.discoveredApplications = set
         }
 
         if let data = defaults.data(forKey: Keys.customDictionary),
@@ -317,9 +320,6 @@ class UserPreferences: ObservableObject {
         self.suggestionTextSize = defaults.object(forKey: Keys.suggestionTextSize) as? Double ?? 13.0
         self.suggestionPosition = defaults.string(forKey: Keys.suggestionPosition) ?? "Auto"
         self.suggestionTheme = defaults.string(forKey: Keys.suggestionTheme) ?? "System"
-
-        // Updates
-        self.autoCheckForUpdates = defaults.object(forKey: Keys.autoCheckForUpdates) as? Bool ?? true
 
         // Set up timer if paused for 1 hour
         if pauseDuration == .oneHour, let until = pausedUntil, Date() < until {
@@ -412,6 +412,8 @@ class UserPreferences: ObservableObject {
         pauseDuration = .active
         pausedUntil = nil
         disabledApplications = []
+        // Note: We intentionally don't reset discoveredApplications
+        // as it's useful to remember which apps have been used
         customDictionary = []
         ignoredRules = []
         analysisDelayMs = 20
@@ -425,7 +427,6 @@ class UserPreferences: ObservableObject {
         suggestionTextSize = 13.0
         suggestionPosition = "Auto"
         suggestionTheme = "System"
-        autoCheckForUpdates = true
     }
 
     // MARK: - UserDefaults Keys
@@ -434,6 +435,7 @@ class UserPreferences: ObservableObject {
         static let pauseDuration = "pauseDuration"
         static let pausedUntil = "pausedUntil"
         static let disabledApplications = "disabledApplications"
+        static let discoveredApplications = "discoveredApplications"
         static let customDictionary = "customDictionary"
         static let ignoredRules = "ignoredRules"
         static let analysisDelayMs = "analysisDelayMs"
@@ -454,8 +456,5 @@ class UserPreferences: ObservableObject {
         static let suggestionTextSize = "suggestionTextSize"
         static let suggestionPosition = "suggestionPosition"
         static let suggestionTheme = "suggestionTheme"
-
-        // Updates
-        static let autoCheckForUpdates = "autoCheckForUpdates"
     }
 }
