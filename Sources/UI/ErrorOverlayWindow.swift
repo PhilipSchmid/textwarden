@@ -3,7 +3,6 @@
 //  Gnau
 //
 //  Transparent overlay window for drawing error underlines
-//  Inspired by (redacted) and (redacted)'s visual feedback
 //
 
 import AppKit
@@ -19,6 +18,12 @@ class ErrorOverlayWindow: NSWindow {
 
     /// Underline view
     private var underlineView: UnderlineView?
+
+    /// Currently hovered error underline
+    private var hoveredUnderline: ErrorUnderline?
+
+    /// Track if window is currently visible
+    private var isCurrentlyVisible = false
 
     /// Callback when user hovers over an error
     var onErrorHover: ((GrammarErrorModel, CGPoint) -> Void)?
@@ -112,8 +117,14 @@ class ErrorOverlayWindow: NSWindow {
         underlineView?.needsDisplay = true
 
         if !underlines.isEmpty {
-            print("✅ ErrorOverlay: Showing overlay window")
-            orderFrontRegardless()
+            // Only order window if not already visible to avoid window ordering spam
+            if !isCurrentlyVisible {
+                print("✅ ErrorOverlay: Showing overlay window (first time)")
+                orderFrontRegardless()
+                isCurrentlyVisible = true
+            } else {
+                print("✅ ErrorOverlay: Updating overlay (already visible, not reordering)")
+            }
         } else {
             print("⚠️ ErrorOverlay: No underlines - hiding")
             hide()
@@ -122,7 +133,10 @@ class ErrorOverlayWindow: NSWindow {
 
     /// Hide overlay
     func hide() {
-        orderOut(nil)
+        if isCurrentlyVisible {
+            orderOut(nil)
+            isCurrentlyVisible = false
+        }
         underlineView?.underlines = []
     }
 
@@ -189,15 +203,24 @@ class ErrorOverlayWindow: NSWindow {
 
     /// Convert screen coordinates to overlay-local coordinates
     private func convertToLocal(_ screenBounds: CGRect, from elementFrame: CGRect) -> CGRect {
+        // Both screen and window use bottom-left origin, so simple subtraction
+        let localX = screenBounds.origin.x - elementFrame.origin.x
+        let localY = screenBounds.origin.y - elementFrame.origin.y
+
+        print("📐 ConvertToLocal:")
+        print("   Screen bounds: \(screenBounds)")
+        print("   Element frame: \(elementFrame)")
+        print("   Local X: \(localX), Local Y: \(localY)")
+
         return CGRect(
-            x: screenBounds.origin.x - elementFrame.origin.x,
-            y: screenBounds.origin.y - elementFrame.origin.y,
+            x: localX,
+            y: localY,
             width: screenBounds.width,
             height: screenBounds.height
         )
     }
 
-    /// Get underline color for severity ((redacted) style)
+    /// Get underline color for severity
     private func underlineColor(for severity: GrammarErrorSeverity) -> NSColor {
         switch severity {
         case .error:
@@ -214,19 +237,59 @@ class ErrorOverlayWindow: NSWindow {
         guard let underlineView = underlineView else { return }
 
         let location = event.locationInWindow
+        print("🖱️ ErrorOverlay: Mouse at window coords: \(location)")
 
         // Check if hovering over any underline
-        if let hoveredUnderline = underlineView.underlines.first(where: { $0.bounds.contains(location) }) {
+        if let newHoveredUnderline = underlineView.underlines.first(where: { $0.bounds.contains(location) }) {
+            print("📍 ErrorOverlay: Hovering over error at bounds: \(newHoveredUnderline.bounds)")
+
+            // Update hovered underline if changed
+            if hoveredUnderline?.error.start != newHoveredUnderline.error.start ||
+               hoveredUnderline?.error.end != newHoveredUnderline.error.end {
+                hoveredUnderline = newHoveredUnderline
+                underlineView.hoveredUnderline = newHoveredUnderline
+                underlineView.needsDisplay = true
+            }
+
             // Convert to screen coordinates for popup positioning
-            let screenLocation = convertPoint(toScreen: location)
-            onErrorHover?(hoveredUnderline.error, screenLocation)
+            // Get the error's bounds center point for better popup positioning
+            let errorCenter = CGPoint(
+                x: newHoveredUnderline.bounds.midX,
+                y: newHoveredUnderline.bounds.midY
+            )
+
+            print("📍 ErrorOverlay: Error center (window coords): \(errorCenter)")
+
+            // Convert window coordinates to screen coordinates
+            let windowOrigin = self.frame.origin
+            let screenLocation = CGPoint(
+                x: windowOrigin.x + errorCenter.x,
+                y: windowOrigin.y + errorCenter.y
+            )
+
+            print("📍 ErrorOverlay: Window origin (screen): \(windowOrigin)")
+            print("📍 ErrorOverlay: Popup position (screen): \(screenLocation)")
+
+            onErrorHover?(newHoveredUnderline.error, screenLocation)
         } else {
+            // Clear hovered state
+            if hoveredUnderline != nil {
+                hoveredUnderline = nil
+                underlineView.hoveredUnderline = nil
+                underlineView.needsDisplay = true
+            }
             onHoverEnd?()
         }
     }
 
     /// Handle mouse exit
     override func mouseExited(with event: NSEvent) {
+        // Clear hovered state
+        if hoveredUnderline != nil {
+            hoveredUnderline = nil
+            underlineView?.hoveredUnderline = nil
+            underlineView?.needsDisplay = true
+        }
         onHoverEnd?()
     }
 }
@@ -243,6 +306,7 @@ struct ErrorUnderline {
 
 class UnderlineView: NSView {
     var underlines: [ErrorUnderline] = []
+    var hoveredUnderline: ErrorUnderline?
 
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
@@ -250,34 +314,37 @@ class UnderlineView: NSView {
         // Clear background
         context.clear(bounds)
 
+        // Draw highlight for hovered underline first (behind the underlines)
+        if let hovered = hoveredUnderline {
+            drawHighlight(in: context, bounds: hovered.bounds, color: hovered.color)
+        }
+
         // Draw each underline
         for underline in underlines {
             drawWavyUnderline(in: context, bounds: underline.bounds, color: underline.color)
         }
     }
 
-    /// Draw wavy underline ((redacted)/(redacted) style)
+    /// Draw straight underline
     private func drawWavyUnderline(in context: CGContext, bounds: CGRect, color: NSColor) {
         context.setStrokeColor(color.cgColor)
         context.setLineWidth(2.0)
 
-        // Draw wavy line at bottom of bounds
-        let y = bounds.minY + 2 // Slight offset from bottom
-        let waveHeight: CGFloat = 2.0
-        let waveLength: CGFloat = 4.0
+        // Draw straight line at bottom of bounds
+        let y = bounds.maxY - 2 // Position at bottom of text
 
         let path = CGMutablePath()
-        var x = bounds.minX
-        path.move(to: CGPoint(x: x, y: y))
-
-        while x < bounds.maxX {
-            x += waveLength / 2
-            path.addLine(to: CGPoint(x: min(x, bounds.maxX), y: y + waveHeight))
-            x += waveLength / 2
-            path.addLine(to: CGPoint(x: min(x, bounds.maxX), y: y))
-        }
+        path.move(to: CGPoint(x: bounds.minX, y: y))
+        path.addLine(to: CGPoint(x: bounds.maxX, y: y))
 
         context.addPath(path)
         context.strokePath()
+    }
+
+    /// Draw highlight background for hovered error
+    private func drawHighlight(in context: CGContext, bounds: CGRect, color: NSColor) {
+        // Draw a semi-transparent background highlight
+        context.setFillColor(color.withAlphaComponent(0.15).cgColor)
+        context.fill(bounds)
     }
 }

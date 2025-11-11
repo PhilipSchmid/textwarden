@@ -9,6 +9,24 @@ import Foundation
 import ApplicationServices
 import Combine
 
+/// Debug file logging
+func logToDebugFile(_ message: String) {
+    let logPath = "/tmp/gnau-debug.log"
+    let timestamp = Date()
+    let logMessage = "[\(timestamp)] \(message)\n"
+    if let data = logMessage.data(using: .utf8) {
+        if FileManager.default.fileExists(atPath: logPath) {
+            if let fileHandle = FileHandle(forWritingAtPath: logPath) {
+                fileHandle.seekToEndOfFile()
+                fileHandle.write(data)
+                fileHandle.closeFile()
+            }
+        } else {
+            try? data.write(to: URL(fileURLWithPath: logPath))
+        }
+    }
+}
+
 /// Coordinates grammar analysis workflow: monitoring → analysis → UI
 class AnalysisCoordinator: ObservableObject {
     static let shared = AnalysisCoordinator()
@@ -46,6 +64,9 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Current text segment being analyzed
     @Published private(set) var currentSegment: TextSegment?
+
+    /// Currently monitored application context
+    private var monitoredContext: ApplicationContext?
 
     /// Analysis queue for background processing
     private let analysisQueue = DispatchQueue(label: "com.gnau.analysis", qos: .userInitiated)
@@ -114,13 +135,51 @@ class AnalysisCoordinator: ObservableObject {
             guard let self = self else { return }
             print("📱 AnalysisCoordinator: Application changed to \(context.applicationName) (\(context.bundleIdentifier))")
 
+            // Check if this is the same app we're already monitoring
+            let isSameApp = self.monitoredContext?.bundleIdentifier == context.bundleIdentifier
+
+            // Hide overlay and popover from previous application
+            self.errorOverlay.hide()
+            self.suggestionPopover.hide()
+
             // Start monitoring new application if enabled
             if context.shouldCheck() {
-                print("✅ AnalysisCoordinator: Application should be checked - starting monitoring")
-                self.startMonitoring(context: context)
+                if isSameApp {
+                    print("🔄 AnalysisCoordinator: Returning to same app - forcing re-analysis")
+                    // Same app - but we might have missed an intermediate app switch (e.g., Gnau's menu bar)
+                    // Force re-analysis by temporarily clearing previousText
+                    let savedPreviousText = self.previousText
+                    self.previousText = ""
+
+                    if let element = self.textMonitor.monitoredElement {
+                        self.textMonitor.extractText(from: element)
+                    }
+
+                    // Restore previousText after extraction to prevent unnecessary re-analysis on next edit
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        if self.previousText.isEmpty {
+                            self.previousText = savedPreviousText
+                        }
+                    }
+                } else {
+                    print("✅ AnalysisCoordinator: New application - starting monitoring")
+                    self.startMonitoring(context: context)
+                    self.monitoredContext = context
+
+                    // Trigger re-analysis after monitoring is established
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        if let element = self.textMonitor.monitoredElement {
+                            print("🔄 AnalysisCoordinator: Re-extracting text after new app monitoring established")
+                            self.textMonitor.extractText(from: element)
+                        } else {
+                            print("⚠️ AnalysisCoordinator: No monitored element found after app switch")
+                        }
+                    }
+                }
             } else {
                 print("⏸️ AnalysisCoordinator: Application not in check list - stopping monitoring")
                 self.stopMonitoring()
+                self.monitoredContext = nil
             }
         }
 
@@ -144,30 +203,61 @@ class AnalysisCoordinator: ObservableObject {
 
         // CRITICAL FIX: Check if there's already an active application
         if let currentApp = applicationTracker.activeApplication {
-            print("📱 AnalysisCoordinator: Found existing active application: \(currentApp.applicationName)")
+            let logMsg1 = "📱 AnalysisCoordinator: Found existing active application: \(currentApp.applicationName) (\(currentApp.bundleIdentifier))"
+            let logMsg2 = "📊 AnalysisCoordinator: Should check? \(currentApp.shouldCheck())"
+            let logMsg3 = "📊 AnalysisCoordinator: Context isEnabled: \(currentApp.isEnabled)"
+            let logMsg4 = "📊 AnalysisCoordinator: Global isEnabled: \(UserPreferences.shared.isEnabled)"
+            let logMsg5 = "📊 AnalysisCoordinator: Is in disabled apps? \(UserPreferences.shared.disabledApplications.contains(currentApp.bundleIdentifier))"
+            NSLog(logMsg1)
+            NSLog(logMsg2)
+            NSLog(logMsg3)
+            NSLog(logMsg4)
+            NSLog(logMsg5)
+            logToDebugFile(logMsg1)
+            logToDebugFile(logMsg2)
+            logToDebugFile(logMsg3)
+            logToDebugFile(logMsg4)
+            logToDebugFile(logMsg5)
             if currentApp.shouldCheck() {
-                print("✅ AnalysisCoordinator: Starting monitoring for existing app")
+                let msg = "✅ AnalysisCoordinator: Starting monitoring for existing app"
+                NSLog(msg)
+                logToDebugFile(msg)
                 startMonitoring(context: currentApp)
             } else {
-                print("⏸️ AnalysisCoordinator: Existing app not in check list")
+                let msg = "⏸️ AnalysisCoordinator: Existing app not in check list"
+                NSLog(msg)
+                logToDebugFile(msg)
             }
         } else {
-            print("⚠️ AnalysisCoordinator: No active application detected yet")
+            let msg = "⚠️ AnalysisCoordinator: No active application detected yet"
+            NSLog(msg)
+            logToDebugFile(msg)
         }
     }
 
     /// Start monitoring a specific application
     private func startMonitoring(context: ApplicationContext) {
+        let msg1 = "🎯 AnalysisCoordinator: startMonitoring called for \(context.applicationName)"
+        NSLog(msg1)
+        logToDebugFile(msg1)
         guard permissionManager.isPermissionGranted else {
-            print("Accessibility permissions not granted")
+            let msg = "❌ AnalysisCoordinator: Accessibility permissions not granted"
+            NSLog(msg)
+            logToDebugFile(msg)
             return
         }
 
+        let msg2 = "✅ AnalysisCoordinator: Permission granted, calling textMonitor.startMonitoring"
+        NSLog(msg2)
+        logToDebugFile(msg2)
         textMonitor.startMonitoring(
             processID: context.processID,
             bundleIdentifier: context.bundleIdentifier,
             appName: context.applicationName
         )
+        let msg3 = "✅ AnalysisCoordinator: textMonitor.startMonitoring completed"
+        NSLog(msg3)
+        logToDebugFile(msg3)
     }
 
     /// Stop monitoring
@@ -175,6 +265,7 @@ class AnalysisCoordinator: ObservableObject {
         textMonitor.stopMonitoring()
         currentErrors = []
         currentSegment = nil
+        previousText = ""  // Clear previous text so analysis runs when we return
         errorOverlay.hide()
         suggestionPopover.hide()
     }
@@ -189,7 +280,9 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Handle text change and trigger analysis (T038)
     private func handleTextChange(_ text: String, in context: ApplicationContext) {
-        print("📝 Analysis: Text changed in \(context.applicationName) (\(text.count) chars)")
+        let msg1 = "📝 AnalysisCoordinator: Text changed in \(context.applicationName) (\(text.count) chars)"
+        NSLog(msg1)
+        logToDebugFile(msg1)
 
         let segment = TextSegment(
             content: text,
@@ -201,10 +294,20 @@ class AnalysisCoordinator: ObservableObject {
         currentSegment = segment
 
         // Perform analysis
-        if UserPreferences.shared.isEnabled {
+        let isEnabled = UserPreferences.shared.isEnabled
+        let msg2 = "📊 AnalysisCoordinator: Grammar checking enabled: \(isEnabled)"
+        NSLog(msg2)
+        logToDebugFile(msg2)
+
+        if isEnabled {
+            let msg3 = "✅ AnalysisCoordinator: Calling analyzeText()"
+            NSLog(msg3)
+            logToDebugFile(msg3)
             analyzeText(segment)
         } else {
-            print("⏸️ Analysis: Disabled in preferences")
+            let msg3 = "⏸️ AnalysisCoordinator: Analysis disabled in preferences"
+            NSLog(msg3)
+            logToDebugFile(msg3)
         }
     }
 
@@ -233,6 +336,10 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Analyze full text
     private func analyzeFullText(_ segment: TextSegment) {
+        let msg1 = "🔬 AnalysisCoordinator: analyzeFullText called"
+        NSLog(msg1)
+        logToDebugFile(msg1)
+
         // CRITICAL: Capture the monitored element BEFORE async operation
         let capturedElement = textMonitor.monitoredElement
         let segmentContent = segment.content
@@ -240,12 +347,35 @@ class AnalysisCoordinator: ObservableObject {
         analysisQueue.async { [weak self] in
             guard let self = self else { return }
 
+            let msg2 = "🧬 AnalysisCoordinator: Calling Harper grammar engine..."
+            NSLog(msg2)
+            logToDebugFile(msg2)
+
             let dialect = UserPreferences.shared.selectedDialect
             let result = GrammarEngine.shared.analyzeText(segmentContent, dialect: dialect)
 
+            let msg3 = "📊 AnalysisCoordinator: Harper returned \(result.errors.count) error(s)"
+            NSLog(msg3)
+            logToDebugFile(msg3)
+
             DispatchQueue.main.async {
+                let msg4 = "💾 AnalysisCoordinator: Updating error cache and applying filters..."
+                NSLog(msg4)
+                logToDebugFile(msg4)
+
                 self.updateErrorCache(for: segment, with: result.errors)
                 self.applyFilters(to: result.errors, sourceText: segmentContent, element: capturedElement)
+
+                // Record statistics
+                let wordCount = segmentContent.split(separator: " ").count
+                UserStatistics.shared.recordAnalysisSession(
+                    wordsProcessed: wordCount,
+                    errorsFound: result.errors.count
+                )
+
+                let msg5 = "✅ AnalysisCoordinator: Analysis complete"
+                NSLog(msg5)
+                logToDebugFile(msg5)
             }
         }
     }
@@ -267,6 +397,13 @@ class AnalysisCoordinator: ObservableObject {
             DispatchQueue.main.async {
                 self.updateErrorCache(for: segment, with: result.errors)
                 self.applyFilters(to: result.errors, sourceText: segmentContent, element: capturedElement)
+
+                // Record statistics
+                let wordCount = segmentContent.split(separator: " ").count
+                UserStatistics.shared.recordAnalysisSession(
+                    wordsProcessed: wordCount,
+                    errorsFound: result.errors.count
+                )
             }
         }
     }
@@ -283,15 +420,84 @@ class AnalysisCoordinator: ObservableObject {
 
     // Note: updateErrorCache is now implemented in the Performance Optimizations extension
 
+    /// Deduplicate consecutive identical errors
+    /// This prevents flooding the UI with 157 "Horizontal ellipsis" errors
+    private func deduplicateErrors(_ errors: [GrammarErrorModel]) -> [GrammarErrorModel] {
+        guard !errors.isEmpty else { return errors }
+
+        var deduplicated: [GrammarErrorModel] = []
+        var currentGroup: [GrammarErrorModel] = [errors[0]]
+
+        for i in 1..<errors.count {
+            let current = errors[i]
+            let previous = errors[i-1]
+
+            // Check if this error is identical to the previous one
+            if current.message == previous.message &&
+               current.category == previous.category &&
+               current.lintId == previous.lintId {
+                // Same error - add to current group
+                currentGroup.append(current)
+            } else {
+                // Different error - save one representative from the group
+                if let representative = currentGroup.first {
+                    deduplicated.append(representative)
+                }
+                // Start new group
+                currentGroup = [current]
+            }
+        }
+
+        // Don't forget the last group
+        if let representative = currentGroup.first {
+            deduplicated.append(representative)
+        }
+
+        return deduplicated
+    }
+
     /// Apply filters based on user preferences (T049, T050, T103)
     private func applyFilters(to errors: [GrammarErrorModel], sourceText: String, element: AXUIElement?) {
+        let msg1 = "🔍 AnalysisCoordinator: applyFilters called with \(errors.count) errors"
+        NSLog(msg1)
+        logToDebugFile(msg1)
+
         var filteredErrors = errors
+
+        // Log error categories
+        for error in errors {
+            let msg = "  📋 Error category: '\(error.category)', message: '\(error.message)'"
+            NSLog(msg)
+            logToDebugFile(msg)
+        }
 
         // Filter by category (e.g., Spelling, Grammar, Style)
         let enabledCategories = UserPreferences.shared.enabledCategories
+        let msgCat = "🏷️ AnalysisCoordinator: Enabled categories: \(enabledCategories)"
+        NSLog(msgCat)
+        logToDebugFile(msgCat)
+
         filteredErrors = filteredErrors.filter { error in
-            enabledCategories.contains(error.category)
+            let contains = enabledCategories.contains(error.category)
+            if !contains {
+                let msg = "  ❌ Filtering out error with category: '\(error.category)'"
+                NSLog(msg)
+                logToDebugFile(msg)
+            }
+            return contains
         }
+
+        let msg2 = "  After category filter: \(filteredErrors.count) errors"
+        NSLog(msg2)
+        logToDebugFile(msg2)
+
+        // Deduplicate consecutive identical errors (Issue #2)
+        // This prevents 157 "Horizontal ellipsis" errors from flooding the UI
+        filteredErrors = deduplicateErrors(filteredErrors)
+
+        let msg3 = "  After deduplication: \(filteredErrors.count) errors"
+        NSLog(msg3)
+        logToDebugFile(msg3)
 
         // Filter by dismissed rules (T050)
         let dismissedRules = UserPreferences.shared.ignoredRules
@@ -348,6 +554,9 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Dismiss error for current session (T048)
     func dismissError(_ error: GrammarErrorModel) {
+        // Record statistics
+        UserStatistics.shared.recordSuggestionDismissed()
+
         currentErrors.removeAll { $0.start == error.start && $0.end == error.end }
     }
 
@@ -409,6 +618,9 @@ class AnalysisCoordinator: ObservableObject {
         )
 
         if setError == .success {
+            // Record statistics
+            UserStatistics.shared.recordSuggestionApplied(category: error.category)
+
             // Invalidate cache (T044a)
             invalidateCacheAfterReplacement(at: error.start..<error.end)
         } else {

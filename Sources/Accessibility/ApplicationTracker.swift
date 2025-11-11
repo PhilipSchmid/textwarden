@@ -78,6 +78,9 @@ class ApplicationTracker: ObservableObject {
             applicationName: applicationName
         )
 
+        // Record this app as discovered
+        UserPreferences.shared.discoveredApplications.insert(bundleIdentifier)
+
         DispatchQueue.main.async {
             self.activeApplication = context
             self.onApplicationChange?(context)
