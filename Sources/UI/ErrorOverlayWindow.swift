@@ -170,7 +170,16 @@ class ErrorOverlayWindow: NSWindow {
         AXValueGetValue(positionValue as! AXValue, .cgPoint, &position)
         AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
 
-        return CGRect(origin: position, size: size)
+        var frame = CGRect(origin: position, size: size)
+
+        // CRITICAL: AX API returns coordinates in top-left origin system (Quartz)
+        // NSWindow uses bottom-left origin (AppKit)
+        // Must flip Y coordinate using screen height
+        if let screenHeight = NSScreen.main?.frame.height {
+            frame.origin.y = screenHeight - frame.origin.y - frame.height
+        }
+
+        return frame
     }
 
     /// Get bounds for specific error range
@@ -198,7 +207,16 @@ class ErrorOverlayWindow: NSWindow {
         var rect = CGRect.zero
         let success = AXValueGetValue(axValue as! AXValue, .cgRect, &rect)
 
-        return success ? rect : nil
+        guard success else { return nil }
+
+        // CRITICAL: AX API returns coordinates in top-left origin system (Quartz)
+        // NSWindow uses bottom-left origin (AppKit)
+        // Must flip Y coordinate using screen height
+        if let screenHeight = NSScreen.main?.frame.height {
+            rect.origin.y = screenHeight - rect.origin.y - rect.height
+        }
+
+        return rect
     }
 
     /// Convert screen coordinates to overlay-local coordinates
@@ -261,6 +279,7 @@ class ErrorOverlayWindow: NSWindow {
             print("📍 ErrorOverlay: Error center (window coords): \(errorCenter)")
 
             // Convert window coordinates to screen coordinates
+            // Both window and our view use bottom-left origin at this point (already converted)
             let windowOrigin = self.frame.origin
             let screenLocation = CGPoint(
                 x: windowOrigin.x + errorCenter.x,
@@ -330,8 +349,10 @@ class UnderlineView: NSView {
         context.setStrokeColor(color.cgColor)
         context.setLineWidth(2.0)
 
-        // Draw straight line at bottom of bounds
-        let y = bounds.maxY - 2 // Position at bottom of text
+        // Draw straight line at bottom of text
+        // In bottom-left origin system: minY is bottom, maxY is top
+        // Draw at minY to put line at bottom of bounds (underneath the text)
+        let y = bounds.minY + 1 // Position just above bottom edge
 
         let path = CGMutablePath()
         path.move(to: CGPoint(x: bounds.minX, y: y))
