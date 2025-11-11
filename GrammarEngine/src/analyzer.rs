@@ -67,7 +67,7 @@ pub fn analyze_text(text: &str, dialect_str: &str) -> AnalysisResult {
     let dictionary = Arc::new(MutableDictionary::curated());
 
     // Initialize Harper linter with curated rules for selected dialect
-    let mut linter = LintGroup::new_curated_empty_config(dictionary, dialect);
+    let mut linter = LintGroup::new_curated(dictionary, dialect);
 
     // Parse the text into a Document
     let document = Document::new_plain_english_curated(text);

@@ -36,6 +36,10 @@ class TextMonitor: ObservableObject {
     func startMonitoring(processID: pid_t, bundleIdentifier: String, appName: String) {
         stopMonitoring()
 
+        let msg1 = "📍 TextMonitor: startMonitoring for \(appName) (PID: \(processID))"
+        NSLog(msg1)
+        logToDebugFile(msg1)
+
         let context = ApplicationContext(
             bundleIdentifier: bundleIdentifier,
             processID: processID,
@@ -43,7 +47,9 @@ class TextMonitor: ObservableObject {
         )
 
         guard context.shouldCheck() else {
-            print("Grammar checking disabled for \(appName)")
+            let msg = "⏸️ TextMonitor: Grammar checking disabled for \(appName)"
+            NSLog(msg)
+            logToDebugFile(msg)
             return
         }
 
@@ -57,11 +63,16 @@ class TextMonitor: ObservableObject {
         let error = AXObserverCreate(processID, axObserverCallback, &observerRef)
 
         guard error == .success, let observer = observerRef else {
-            print("Failed to create AX observer: \(error.rawValue)")
+            let msg = "❌ TextMonitor: Failed to create AX observer for \(appName): \(error.rawValue)"
+            NSLog(msg)
+            logToDebugFile(msg)
             return
         }
 
         self.observer = observer
+        let msg2 = "✅ TextMonitor: Created AX observer for \(appName)"
+        NSLog(msg2)
+        logToDebugFile(msg2)
 
         // Add observer to run loop
         CFRunLoopAddSource(
@@ -70,17 +81,25 @@ class TextMonitor: ObservableObject {
             .defaultMode
         )
 
+        let msg3 = "✅ TextMonitor: Added observer to run loop"
+        NSLog(msg3)
+        logToDebugFile(msg3)
+
         // Try to monitor focused element
         monitorFocusedElement(in: appElement)
 
         // Add notification for focus changes
         let contextPtr = Unmanaged.passUnretained(self).toOpaque()
-        AXObserverAddNotification(
+        let focusResult = AXObserverAddNotification(
             observer,
             appElement,
             kAXFocusedUIElementChangedNotification as CFString,
             contextPtr
         )
+
+        let msg4 = "✅ TextMonitor: Added focus change notification (result: \(focusResult.rawValue))"
+        NSLog(msg4)
+        logToDebugFile(msg4)
     }
 
     /// Stop monitoring
@@ -102,6 +121,10 @@ class TextMonitor: ObservableObject {
 
     /// Monitor the focused UI element
     private func monitorFocusedElement(in appElement: AXUIElement) {
+        let msg1 = "🔍 TextMonitor: Getting focused element..."
+        NSLog(msg1)
+        logToDebugFile(msg1)
+
         var focusedElement: CFTypeRef?
         let error = AXUIElementCopyAttributeValue(
             appElement,
@@ -110,9 +133,15 @@ class TextMonitor: ObservableObject {
         )
 
         guard error == .success, let element = focusedElement else {
-            print("Failed to get focused element: \(error.rawValue)")
+            let msg = "❌ TextMonitor: Failed to get focused element: \(error.rawValue)"
+            NSLog(msg)
+            logToDebugFile(msg)
             return
         }
+
+        let msg2 = "✅ TextMonitor: Got focused element, checking if editable..."
+        NSLog(msg2)
+        logToDebugFile(msg2)
 
         let axElement = element as! AXUIElement
         monitorElement(axElement)
@@ -120,12 +149,23 @@ class TextMonitor: ObservableObject {
 
     /// Monitor a specific UI element for text changes
     fileprivate func monitorElement(_ element: AXUIElement) {
-        guard let observer = observer else { return }
+        let msg1 = "🎯 TextMonitor: monitorElement called"
+        NSLog(msg1)
+        logToDebugFile(msg1)
+
+        guard let observer = observer else {
+            let msg = "❌ TextMonitor: No observer available"
+            NSLog(msg)
+            logToDebugFile(msg)
+            return
+        }
 
         // CRITICAL: Only monitor editable text fields, not read-only content
         // This prevents checking terminal output, chat history, etc.
         guard isEditableElement(element) else {
-            print("⏭️ TextMonitor: Skipping non-editable element")
+            let msg = "⏭️ TextMonitor: Skipping non-editable element"
+            NSLog(msg)
+            logToDebugFile(msg)
             return
         }
 
@@ -136,10 +176,15 @@ class TextMonitor: ObservableObject {
                 previousElement,
                 kAXValueChangedNotification as CFString
             )
+            let msg = "🗑️ TextMonitor: Removed previous element monitoring"
+            NSLog(msg)
+            logToDebugFile(msg)
         }
 
         monitoredElement = element
-        print("✅ TextMonitor: Now monitoring editable text field")
+        let msg2 = "✅ TextMonitor: Now monitoring editable text field"
+        NSLog(msg2)
+        logToDebugFile(msg2)
 
         // Add value changed notification
         let contextPtr = Unmanaged.passUnretained(self).toOpaque()
@@ -150,17 +195,32 @@ class TextMonitor: ObservableObject {
             contextPtr
         )
 
+        let msg3 = "📡 TextMonitor: Added value changed notification (result: \(result.rawValue))"
+        NSLog(msg3)
+        logToDebugFile(msg3)
+
         if result == .success {
+            let msg4 = "📄 TextMonitor: Extracting initial text..."
+            NSLog(msg4)
+            logToDebugFile(msg4)
             // Extract initial text
             extractText(from: element)
+        } else {
+            let msg = "❌ TextMonitor: Failed to add value changed notification: \(result.rawValue)"
+            NSLog(msg)
+            logToDebugFile(msg)
         }
     }
 
     /// Maximum text length to analyze (prevent analyzing huge terminal buffers)
-    private let maxTextLength = 10_000
+    private let maxTextLength = 100_000
 
     /// Extract text from UI element (T035)
     func extractText(from element: AXUIElement) {
+        let msg1 = "📤 TextMonitor: extractText called"
+        NSLog(msg1)
+        logToDebugFile(msg1)
+
         var value: CFTypeRef?
 
         // Try to get AXValue (text content)
@@ -173,8 +233,19 @@ class TextMonitor: ObservableObject {
         var extractedText: String?
 
         if valueError == .success, let textValue = value as? String {
+            let msg = "✅ TextMonitor: Got AXValue text (\(textValue.count) chars)"
+            NSLog(msg)
+            logToDebugFile(msg)
+            // Log first 200 chars to see what we're actually getting
+            let preview = String(textValue.prefix(200))
+            let previewMsg = "📄 TextMonitor: Text preview: \"\(preview)\""
+            NSLog(previewMsg)
+            logToDebugFile(previewMsg)
             extractedText = textValue
         } else {
+            let msg = "⚠️ TextMonitor: Failed to get AXValue (error: \(valueError.rawValue)), trying AXSelectedText"
+            NSLog(msg)
+            logToDebugFile(msg)
             // Fallback: try AXSelectedText
             var selectedText: CFTypeRef?
             let selectedError = AXUIElementCopyAttributeValue(
@@ -184,18 +255,34 @@ class TextMonitor: ObservableObject {
             )
 
             if selectedError == .success, let selected = selectedText as? String {
+                let msg2 = "✅ TextMonitor: Got AXSelectedText (\(selected.count) chars)"
+                NSLog(msg2)
+                logToDebugFile(msg2)
                 extractedText = selected
+            } else {
+                let msg2 = "❌ TextMonitor: Failed to get AXSelectedText (error: \(selectedError.rawValue))"
+                NSLog(msg2)
+                logToDebugFile(msg2)
             }
         }
 
         if let text = extractedText, !text.isEmpty {
             // Skip analyzing huge text buffers (terminals, logs, etc.)
             if text.count > maxTextLength {
-                print("⏭️ TextMonitor: Text too long (\(text.count) chars) - skipping analysis")
+                let msg = "⏭️ TextMonitor: Text too long (\(text.count) chars) - skipping analysis"
+                NSLog(msg)
+                logToDebugFile(msg)
                 return
             }
 
+            let msg = "✅ TextMonitor: Handling text change (\(text.count) chars)"
+            NSLog(msg)
+            logToDebugFile(msg)
             handleTextChange(text)
+        } else {
+            let msg = "⚠️ TextMonitor: No text extracted or text is empty"
+            NSLog(msg)
+            logToDebugFile(msg)
         }
     }
 
@@ -225,7 +312,16 @@ private func axObserverCallback(
     notification: CFString,
     userData: UnsafeMutableRawPointer?
 ) {
-    guard let userData = userData else { return }
+    let msg1 = "🔔 axObserverCallback: Received notification: \(notification as String)"
+    NSLog(msg1)
+    logToDebugFile(msg1)
+
+    guard let userData = userData else {
+        let msg = "❌ axObserverCallback: No userData"
+        NSLog(msg)
+        logToDebugFile(msg)
+        return
+    }
 
     let monitor = Unmanaged<TextMonitor>.fromOpaque(userData).takeUnretainedValue()
 
@@ -233,12 +329,21 @@ private func axObserverCallback(
 
     switch notificationName {
     case kAXValueChangedNotification as String:
+        let msg = "📝 axObserverCallback: Value changed - extracting text"
+        NSLog(msg)
+        logToDebugFile(msg)
         monitor.extractText(from: element)
 
     case kAXFocusedUIElementChangedNotification as String:
+        let msg = "🎯 axObserverCallback: Focus changed - monitoring new element"
+        NSLog(msg)
+        logToDebugFile(msg)
         monitor.monitorElement(element)
 
     default:
+        let msg = "❓ axObserverCallback: Unknown notification: \(notificationName)"
+        NSLog(msg)
+        logToDebugFile(msg)
         break
     }
 }
@@ -253,11 +358,15 @@ extension TextMonitor {
         AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
 
         guard let roleString = role as? String else {
-            print("⚠️ TextMonitor: Could not get role for element")
+            let msg = "⚠️ TextMonitor: Could not get role for element"
+            NSLog(msg)
+            logToDebugFile(msg)
             return false
         }
 
-        print("🔍 TextMonitor: Checking element with role: \(roleString)")
+        let roleMsg = "🔍 TextMonitor: Checking element with role: \(roleString)"
+        NSLog(roleMsg)
+        logToDebugFile(roleMsg)
 
         // Check if it's a static text element (read-only)
         // These are what we want to EXCLUDE (terminal output, chat history)
@@ -269,7 +378,9 @@ extension TextMonitor {
         ]
 
         if readOnlyRoles.contains(roleString) {
-            print("⏭️ TextMonitor: Role '\(roleString)' is read-only - skipping")
+            let msg = "⏭️ TextMonitor: Role '\(roleString)' is read-only - skipping"
+            NSLog(msg)
+            logToDebugFile(msg)
             return false
         }
 
@@ -281,13 +392,17 @@ extension TextMonitor {
         ]
 
         if !editableRoles.contains(roleString) {
-            print("⏭️ TextMonitor: Role '\(roleString)' is not in editable whitelist - skipping")
+            let msg = "⏭️ TextMonitor: Role '\(roleString)' is not in editable whitelist - skipping"
+            NSLog(msg)
+            logToDebugFile(msg)
             return false
         }
 
         // For all other roles, check if the element has AXValue and is enabled
         // This allows TextEdit, TextFields, TextAreas, etc.
-        print("✅ TextMonitor: Role '\(roleString)' is editable, checking attributes...")
+        let msg = "✅ TextMonitor: Role '\(roleString)' is editable, checking attributes..."
+        NSLog(msg)
+        logToDebugFile(msg)
 
         // Additional check: verify element is not read-only
         // Some text areas might be marked as read-only

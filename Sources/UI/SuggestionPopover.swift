@@ -17,6 +17,9 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// The popover panel
     private var panel: NSPanel?
 
+    /// Timer for delayed hiding
+    private var hideTimer: Timer?
+
     /// Current error being displayed
     @Published private(set) var currentError: GrammarErrorModel?
 
@@ -58,12 +61,37 @@ class SuggestionPopover: NSObject, ObservableObject {
         panel?.makeKey()
     }
 
-    /// Hide popover
-    func hide() {
+    /// Schedule hiding of popover with a delay
+    func scheduleHide() {
+        // Cancel any existing timer
+        hideTimer?.invalidate()
+
+        // Schedule hide after 300ms delay
+        hideTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { [weak self] _ in
+            self?.performHide()
+        }
+    }
+
+    /// Cancel scheduled hide
+    func cancelHide() {
+        hideTimer?.invalidate()
+        hideTimer = nil
+    }
+
+    /// Perform immediate hide
+    private func performHide() {
         panel?.orderOut(nil)
         currentError = nil
         allErrors = []
         currentIndex = 0
+        hideTimer = nil
+    }
+
+    /// Hide popover immediately
+    func hide() {
+        hideTimer?.invalidate()
+        hideTimer = nil
+        performHide()
     }
 
     /// Create the panel
@@ -92,21 +120,66 @@ class SuggestionPopover: NSObject, ObservableObject {
         // Handle close button
         panel?.standardWindowButton(.closeButton)?.target = self
         panel?.standardWindowButton(.closeButton)?.action = #selector(handleClose)
+
+        // Setup mouse tracking
+        if let contentView = panel?.contentView {
+            let trackingArea = NSTrackingArea(
+                rect: contentView.bounds,
+                options: [.activeAlways, .mouseEnteredAndExited, .inVisibleRect],
+                owner: self,
+                userInfo: nil
+            )
+            contentView.addTrackingArea(trackingArea)
+        }
+    }
+
+    /// Mouse entered the popover - cancel hiding
+    func mouseEntered(with event: NSEvent) {
+        cancelHide()
+    }
+
+    /// Mouse exited the popover - schedule hiding
+    func mouseExited(with event: NSEvent) {
+        scheduleHide()
     }
 
     /// Position panel near cursor (T042)
     private func positionPanel(at cursorPosition: CGPoint) {
         guard let panel = panel, let screen = NSScreen.main else { return }
 
+        print("📍 Popover: Input cursor position (screen): \(cursorPosition)")
+
         let panelSize = panel.frame.size
+        let preferences = UserPreferences.shared
         var origin = cursorPosition
 
-        // Offset below and to the right of cursor
-        origin.x += 10
-        origin.y -= panelSize.height + 20
+        // Offset horizontally
+        origin.x += 5
+
+        // Determine vertical positioning based on user preference
+        let shouldPositionAbove: Bool
+        switch preferences.suggestionPosition {
+        case "Above":
+            shouldPositionAbove = true
+        case "Below":
+            shouldPositionAbove = false
+        default: // "Auto"
+            // Auto: position below if there's room, otherwise above
+            let roomBelow = cursorPosition.y - panelSize.height - 5 >= screen.visibleFrame.minY
+            shouldPositionAbove = !roomBelow
+        }
+
+        if shouldPositionAbove {
+            origin.y = cursorPosition.y + 5 // Above
+        } else {
+            origin.y = cursorPosition.y - panelSize.height - 5 // Below
+        }
+
+        print("📍 Popover: After offset, before bounds check: \(origin)")
 
         // Ensure panel stays on screen
         let screenFrame = screen.visibleFrame
+        print("📍 Popover: Screen visible frame: \(screenFrame)")
 
         // Adjust horizontal position
         if origin.x + panelSize.width > screenFrame.maxX {
@@ -116,14 +189,15 @@ class SuggestionPopover: NSObject, ObservableObject {
             origin.x = screenFrame.minX + 10
         }
 
-        // Adjust vertical position
+        // Adjust vertical position to stay on screen
         if origin.y < screenFrame.minY {
-            origin.y = cursorPosition.y + 20 // Show above cursor instead
+            origin.y = screenFrame.minY + 5
         }
         if origin.y + panelSize.height > screenFrame.maxY {
-            origin.y = screenFrame.maxY - panelSize.height - 10
+            origin.y = screenFrame.maxY - panelSize.height - 5
         }
 
+        print("✅ Popover: Final position: \(origin)")
         panel.setFrameOrigin(origin)
     }
 
@@ -212,10 +286,23 @@ class SuggestionPopover: NSObject, ObservableObject {
 }
 
 /// SwiftUI content view for popover (T043)
-/// Designed to match (redacted)'s popup style
 struct PopoverContentView: View {
     @ObservedObject var popover: SuggestionPopover
+    @ObservedObject var preferences = UserPreferences.shared
     @Environment(\.dynamicTypeSize) var dynamicTypeSize
+    @Environment(\.colorScheme) var systemColorScheme
+
+    /// Effective color scheme based on user preference
+    private var effectiveColorScheme: ColorScheme {
+        switch preferences.suggestionTheme {
+        case "Light":
+            return .light
+        case "Dark":
+            return .dark
+        default: // "System"
+            return systemColorScheme
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -257,7 +344,7 @@ struct PopoverContentView: View {
                     .padding(.bottom, 8)
                     .accessibilityLabel("Error: \(error.message)") // T121, T130
 
-                // Suggestions section - prominent like (redacted)
+                // Suggestions section
                 if !error.suggestions.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Suggestions:")
@@ -277,15 +364,15 @@ struct PopoverContentView: View {
                                         .foregroundColor(.primary)
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                     Image(systemName: "arrow.turn.down.left")
-                                        .foregroundColor(.green)
+                                        .foregroundColor(.blue)
                                         .font(.caption)
                                 }
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 10)
-                                .background(Color.green.opacity(0.05))
+                                .background(Color.blue.opacity(0.08))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 6)
-                                        .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                                        .stroke(Color.blue.opacity(0.3), lineWidth: 1)
                                 )
                             }
                             .buttonStyle(.plain)
@@ -309,7 +396,7 @@ struct PopoverContentView: View {
 
                 Divider()
 
-                // Action bar - compact like (redacted) (T124: Keyboard shortcuts)
+                // Action bar (T124: Keyboard shortcuts)
                 HStack(spacing: 12) {
                     Button(action: { popover.dismissError() }) {
                         Text("Ignore")
@@ -373,6 +460,9 @@ struct PopoverContentView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .cornerRadius(8)
         .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 4)
+        .opacity(preferences.suggestionOpacity)
+        .font(.system(size: CGFloat(preferences.suggestionTextSize)))
+        .colorScheme(effectiveColorScheme)
         .accessibilityElement(children: .contain) // T121: VoiceOver container
     }
 
