@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import AppKit
 import ApplicationServices
 import Combine
 
@@ -105,6 +106,12 @@ class AnalysisCoordinator: ObservableObject {
             guard let self = self else { return }
             self.ignoreRulePermanently(ruleId)
         }
+
+        // Handle add to dictionary
+        suggestionPopover.onAddToDictionary = { [weak self] error in
+            guard let self = self else { return }
+            self.addToDictionary(error)
+        }
     }
 
     /// Setup overlay callbacks for hover-based popup
@@ -112,6 +119,8 @@ class AnalysisCoordinator: ObservableObject {
         // Show popup when hovering over error underline
         errorOverlay.onErrorHover = { [weak self] error, position in
             guard let self = self else { return }
+            // Cancel any pending hide when showing new error
+            self.suggestionPopover.cancelHide()
             self.suggestionPopover.show(
                 error: error,
                 allErrors: self.currentErrors,
@@ -119,10 +128,12 @@ class AnalysisCoordinator: ObservableObject {
             )
         }
 
-        // Hide popup when hover ends
+        // Don't schedule hide when hover ends - let the popover's own mouse tracking handle it
+        // This allows users to freely move between the underline and popover without triggering hide
         errorOverlay.onHoverEnd = { [weak self] in
             guard let self = self else { return }
-            self.suggestionPopover.hide()
+            // Don't call scheduleHide() here - the popover will hide when mouse leaves IT, not the underline
+            print("📍 AnalysisCoordinator: Hover ended on underline (not scheduling hide)")
         }
     }
 
@@ -521,6 +532,22 @@ class AnalysisCoordinator: ObservableObject {
             return !vocabulary.containsAnyWord(in: errorText)
         }
 
+        // Filter by globally ignored error texts
+        // Skip errors that match texts the user has chosen to ignore globally
+        let ignoredTexts = UserPreferences.shared.ignoredErrorTexts
+        filteredErrors = filteredErrors.filter { error in
+            // Extract error text from source using start/end indices
+            guard error.start < sourceText.count, error.end <= sourceText.count, error.start < error.end else {
+                return true // Keep error if indices are invalid
+            }
+
+            let startIndex = sourceText.index(sourceText.startIndex, offsetBy: error.start)
+            let endIndex = sourceText.index(sourceText.startIndex, offsetBy: error.end)
+            let errorText = String(sourceText[startIndex..<endIndex])
+
+            return !ignoredTexts.contains(errorText)
+        }
+
         currentErrors = filteredErrors
 
         // Show underlines for errors (hover-based popup)
@@ -529,21 +556,29 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Show visual underlines for errors (LanguageTool/Grammarly style)
     private func showErrorUnderlines(_ errors: [GrammarErrorModel], element: AXUIElement?) {
-        print("📍 AnalysisCoordinator: showErrorUnderlines called with \(errors.count) errors")
+        let msg1 = "📍 AnalysisCoordinator: showErrorUnderlines called with \(errors.count) errors"
+        NSLog(msg1)
+        logToDebugFile(msg1)
 
         guard let monitoredElement = element else {
-            print("⚠️ AnalysisCoordinator: No monitored element - hiding overlay")
+            let msg = "⚠️ AnalysisCoordinator: No monitored element - hiding overlay"
+            NSLog(msg)
+            logToDebugFile(msg)
             errorOverlay.hide()
             return
         }
 
         if errors.isEmpty {
-            print("📍 AnalysisCoordinator: No errors - hiding overlay")
+            let msg = "📍 AnalysisCoordinator: No errors - hiding overlay"
+            NSLog(msg)
+            logToDebugFile(msg)
             errorOverlay.hide()
         } else {
-            print("✅ AnalysisCoordinator: Showing overlay with \(errors.count) errors")
+            let msg = "✅ AnalysisCoordinator: Showing overlay with \(errors.count) errors"
+            NSLog(msg)
+            logToDebugFile(msg)
             // Update overlay with errors and monitored element
-            errorOverlay.update(errors: errors, element: monitoredElement)
+            errorOverlay.update(errors: errors, element: monitoredElement, context: monitoredContext)
         }
     }
 
@@ -557,7 +592,27 @@ class AnalysisCoordinator: ObservableObject {
         // Record statistics
         UserStatistics.shared.recordSuggestionDismissed()
 
+        // Extract error text and persist it globally
+        if let sourceText = currentSegment?.content {
+            guard error.start < sourceText.count, error.end <= sourceText.count, error.start < error.end else {
+                // Invalid indices, just remove from current errors
+                currentErrors.removeAll { $0.start == error.start && $0.end == error.end }
+                return
+            }
+
+            let startIndex = sourceText.index(sourceText.startIndex, offsetBy: error.start)
+            let endIndex = sourceText.index(sourceText.startIndex, offsetBy: error.end)
+            let errorText = String(sourceText[startIndex..<endIndex])
+
+            // Persist this error text globally
+            UserPreferences.shared.ignoreErrorText(errorText)
+        }
+
         currentErrors.removeAll { $0.start == error.start && $0.end == error.end }
+
+        // Re-filter to immediately remove any other occurrences
+        let sourceText = currentSegment?.content ?? ""
+        applyFilters(to: currentErrors, sourceText: sourceText, element: textMonitor.monitoredElement)
     }
 
     /// Ignore rule permanently (T050)
@@ -566,6 +621,31 @@ class AnalysisCoordinator: ObservableObject {
 
         // Re-filter current errors
         let sourceText = currentSegment?.content ?? ""
+        applyFilters(to: currentErrors, sourceText: sourceText, element: textMonitor.monitoredElement)
+    }
+
+    /// Add word to custom dictionary
+    func addToDictionary(_ error: GrammarErrorModel) {
+        // Extract the error text
+        guard let sourceText = currentSegment?.content else { return }
+
+        guard error.start < sourceText.count, error.end <= sourceText.count, error.start < error.end else {
+            return
+        }
+
+        let startIndex = sourceText.index(sourceText.startIndex, offsetBy: error.start)
+        let endIndex = sourceText.index(sourceText.startIndex, offsetBy: error.end)
+        let errorText = String(sourceText[startIndex..<endIndex])
+
+        // Add to custom vocabulary (use CustomVocabulary, not UserPreferences)
+        do {
+            try CustomVocabulary.shared.addWord(errorText)
+            print("✅ Added '\(errorText)' to custom dictionary")
+        } catch {
+            print("❌ Failed to add '\(errorText)' to dictionary: \(error)")
+        }
+
+        // Re-filter current errors to immediately remove this word
         applyFilters(to: currentErrors, sourceText: sourceText, element: textMonitor.monitoredElement)
     }
 
@@ -583,49 +663,167 @@ class AnalysisCoordinator: ObservableObject {
             return
         }
 
-        // Get current text
-        var currentValue: CFTypeRef?
-        let valueError = AXUIElementCopyAttributeValue(
-            element,
-            kAXValueAttribute as CFString,
-            &currentValue
-        )
+        // Inspired by Grammarly: Use keyboard automation directly for known Electron apps
+        // This avoids trying the AX API which is known to fail on Electron
+        if let context = monitoredContext, context.requiresKeyboardReplacement {
+            let msg = "🎯 Detected Electron app (\(context.applicationName)) - using keyboard automation directly"
+            NSLog(msg)
+            logToDebugFile(msg)
 
-        guard valueError == .success,
-              let text = currentValue as? String else {
-            print("Failed to get current text value")
+            applyTextReplacementViaKeyboard(for: error, with: suggestion, element: element)
             return
         }
 
-        // Calculate replacement
-        let startIndex = text.index(text.startIndex, offsetBy: error.start, limitedBy: text.endIndex)
-        let endIndex = text.index(text.startIndex, offsetBy: error.end, limitedBy: text.endIndex)
+        // For native macOS apps, try AX API first (it's faster and preserves formatting)
+        // Use selection-based replacement to preserve formatting (bold, links, code, etc.)
+        // Step 1: Save current selection
+        var originalSelection: CFTypeRef?
+        let _ = AXUIElementCopyAttributeValue(
+            element,
+            kAXSelectedTextRangeAttribute as CFString,
+            &originalSelection
+        )
 
-        guard let start = startIndex, let end = endIndex else {
-            print("Invalid error range for replacement")
+        // Step 2: Set selection to error range
+        var errorRange = CFRange(location: error.start, length: error.end - error.start)
+        let rangeValue = AXValueCreate(.cfRange, &errorRange)!
+
+        let selectError = AXUIElementSetAttributeValue(
+            element,
+            kAXSelectedTextRangeAttribute as CFString,
+            rangeValue
+        )
+
+        if selectError != .success {
+            // AX API failed
+            // Fallback: Use clipboard + keyboard simulation
+            let msg = "⚠️ AX API selection failed (\(selectError.rawValue)), using keyboard fallback"
+            NSLog(msg)
+            logToDebugFile(msg)
+
+            applyTextReplacementViaKeyboard(for: error, with: suggestion, element: element)
             return
         }
 
-        // Replace text
-        var newText = text
-        newText.replaceSubrange(start..<end, with: suggestion)
-
-        // Set new text value
-        let setError = AXUIElementSetAttributeValue(
+        // Step 3: Replace selected text with suggestion
+        // Using kAXSelectedTextAttribute preserves formatting of the surrounding text
+        let replaceError = AXUIElementSetAttributeValue(
             element,
-            kAXValueAttribute as CFString,
-            newText as CFTypeRef
+            kAXSelectedTextAttribute as CFString,
+            suggestion as CFTypeRef
         )
 
-        if setError == .success {
+        if replaceError == .success {
             // Record statistics
             UserStatistics.shared.recordSuggestionApplied(category: error.category)
 
             // Invalidate cache (T044a)
             invalidateCacheAfterReplacement(at: error.start..<error.end)
+
+            // Step 4: Restore original selection (optional, move cursor after replacement)
+            // Most apps expect cursor to be after the replacement
+            var newPosition = CFRange(location: error.start + suggestion.count, length: 0)
+            let newRangeValue = AXValueCreate(.cfRange, &newPosition)!
+            let _ = AXUIElementSetAttributeValue(
+                element,
+                kAXSelectedTextRangeAttribute as CFString,
+                newRangeValue
+            )
         } else {
-            print("Failed to set text value: \(setError.rawValue)")
+            // AX API replacement failed
+            let msg = "⚠️ AX API replacement failed (\(replaceError.rawValue)), trying keyboard fallback"
+            NSLog(msg)
+            logToDebugFile(msg)
+
+            // Try keyboard fallback
+            applyTextReplacementViaKeyboard(for: error, with: suggestion, element: element)
         }
+    }
+
+    /// Apply text replacement using keyboard simulation (for Electron apps)
+    /// Inspired by Grammarly's hybrid replacement approach
+    private func applyTextReplacementViaKeyboard(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement) {
+        guard let context = self.monitoredContext else {
+            NSLog("❌ No context available for keyboard replacement")
+            return
+        }
+
+        let msg1 = "⌨️ Using keyboard simulation for text replacement (Electron app: \(context.applicationName))"
+        NSLog(msg1)
+        logToDebugFile(msg1)
+
+        // Get app-specific timing based on Grammarly's approach
+        let delay = context.keyboardOperationDelay
+        let msg2 = "⏱️ Using \(delay)s delay for \(context.applicationName) (isElectron: \(context.isElectronApp))"
+        NSLog(msg2)
+        logToDebugFile(msg2)
+
+        // Save suggestion to clipboard
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(suggestion, forType: .string)
+
+        let msg3 = "📋 Copied suggestion to clipboard: \(suggestion)"
+        NSLog(msg3)
+        logToDebugFile(msg3)
+
+        // Use keyboard navigation to select and replace text
+        // This works for all Electron apps regardless of font/size
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            // Step 1: Go to beginning of text field (Cmd+Left = Home)
+            self.pressKey(key: 123, flags: .maskCommand) // Cmd+Left (Home)
+
+            // Wait for navigation
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                // Step 2: Navigate to error start position using Right arrow
+                for _ in 0..<error.start {
+                    self.pressKey(key: 124, flags: []) // Right arrow
+                }
+
+                // Wait for navigation
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    // Step 3: Select error text using Shift+Right arrow
+                    let errorLength = error.end - error.start
+                    for _ in 0..<errorLength {
+                        self.pressKey(key: 124, flags: .maskShift) // Shift+Right arrow
+                    }
+
+                    // Wait for selection (longer delay for Slack/Discord)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                        // Step 4: Paste suggestion (Cmd+V)
+                        self.pressKey(key: 9, flags: .maskCommand) // Cmd+V
+
+                        let msg = "✅ Keyboard-based text replacement complete"
+                        NSLog(msg)
+                        logToDebugFile(msg)
+
+                        // Record statistics
+                        UserStatistics.shared.recordSuggestionApplied(category: error.category)
+
+                        // Invalidate cache
+                        self.invalidateCacheAfterReplacement(at: error.start..<error.end)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Simulate key press event
+    private func pressKey(key: CGKeyCode, flags: CGEventFlags) {
+        // Create key down event
+        if let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: true) {
+            keyDown.flags = flags
+            keyDown.post(tap: .cghidEventTap)
+        }
+
+        // Create key up event
+        if let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: false) {
+            keyUp.flags = flags
+            keyUp.post(tap: .cghidEventTap)
+        }
+
+        // Small delay between keys
+        Thread.sleep(forTimeInterval: 0.01)
     }
 
     /// Invalidate cache after text replacement (T044a)
