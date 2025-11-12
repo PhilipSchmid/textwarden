@@ -150,18 +150,26 @@ class MenuBarController: NSObject {
     }
 
     @objc private func openPreferences() {
-        // Open Settings window
-        if #available(macOS 13, *) {
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-        } else {
-            NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-        }
+        // Activate app to ensure Settings window appears
+        // This is intentional when user explicitly clicks "Preferences..."
         NSApp.activate(ignoringOtherApps: true)
+
+        // Open Settings window
+        // The Settings scene is defined in GnauApp.swift and SwiftUI handles window management
+        if #available(macOS 13, *) {
+            NSApp.sendAction(Selector("showSettingsWindow:"), to: nil, from: nil)
+        } else {
+            NSApp.sendAction(Selector("showPreferencesWindow:"), to: nil, from: nil)
+        }
     }
 
     @objc private func showAbout() {
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.orderFrontStandardAboutPanel(nil)
+        // Open preferences window with About tab instead of separate about panel
+        // Set the selected tab to About first
+        UserDefaults.standard.set(8, forKey: "PreferencesSelectedTab") // 8 = About tab index
+
+        // Then open preferences
+        openPreferences()
     }
 
     @objc private func quitApp() {

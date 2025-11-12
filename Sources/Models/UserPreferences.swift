@@ -103,6 +103,16 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Globally ignored error texts (for "Ignore Everywhere")
+    /// Stores error texts that should be ignored across all documents
+    @Published var ignoredErrorTexts: Set<String> {
+        didSet {
+            if let encoded = try? encoder.encode(ignoredErrorTexts) {
+                defaults.set(encoded, forKey: Keys.ignoredErrorTexts)
+            }
+        }
+    }
+
     /// Analysis delay in milliseconds (for performance tuning)
     @Published var analysisDelayMs: Int {
         didSet {
@@ -242,6 +252,13 @@ class UserPreferences: ObservableObject {
         "Dark"
     ]
 
+    /// Error underline thickness (1.0 to 5.0)
+    @Published var underlineThickness: Double {
+        didSet {
+            defaults.set(underlineThickness, forKey: Keys.underlineThickness)
+        }
+    }
+
     private init() {
         // Initialize with default values first
         self.pauseDuration = .active
@@ -250,6 +267,7 @@ class UserPreferences: ObservableObject {
         self.discoveredApplications = []
         self.customDictionary = []
         self.ignoredRules = []
+        self.ignoredErrorTexts = []
         self.analysisDelayMs = 20
         self.enabledCategories = UserPreferences.allCategories // All categories enabled by default
         self.launchAtLogin = false
@@ -268,6 +286,7 @@ class UserPreferences: ObservableObject {
         self.suggestionTextSize = 13.0
         self.suggestionPosition = "Auto"
         self.suggestionTheme = "System"
+        self.underlineThickness = 3.0
 
         // Then load saved preferences
         if let pauseString = defaults.string(forKey: Keys.pauseDuration),
@@ -297,6 +316,11 @@ class UserPreferences: ObservableObject {
             self.ignoredRules = set
         }
 
+        if let data = defaults.data(forKey: Keys.ignoredErrorTexts),
+           let set = try? decoder.decode(Set<String>.self, from: data) {
+            self.ignoredErrorTexts = set
+        }
+
         self.analysisDelayMs = defaults.object(forKey: Keys.analysisDelayMs) as? Int ?? 20
 
         if let data = defaults.data(forKey: Keys.enabledCategories),
@@ -320,6 +344,7 @@ class UserPreferences: ObservableObject {
         self.suggestionTextSize = defaults.object(forKey: Keys.suggestionTextSize) as? Double ?? 13.0
         self.suggestionPosition = defaults.string(forKey: Keys.suggestionPosition) ?? "Auto"
         self.suggestionTheme = defaults.string(forKey: Keys.suggestionTheme) ?? "System"
+        self.underlineThickness = defaults.object(forKey: Keys.underlineThickness) as? Double ?? 3.0
 
         // Set up timer if paused for 1 hour
         if pauseDuration == .oneHour, let until = pausedUntil, Date() < until {
@@ -407,6 +432,25 @@ class UserPreferences: ObservableObject {
         ignoredRules.remove(ruleId)
     }
 
+    /// Ignore a specific error text globally
+    func ignoreErrorText(_ text: String) {
+        guard ignoredErrorTexts.count < 1000 else {
+            print("Ignored error texts limit reached (1000 entries)")
+            return
+        }
+        ignoredErrorTexts.insert(text)
+    }
+
+    /// Remove an error text from the ignored list
+    func unignoreErrorText(_ text: String) {
+        ignoredErrorTexts.remove(text)
+    }
+
+    /// Check if an error text is ignored
+    func isErrorTextIgnored(_ text: String) -> Bool {
+        return ignoredErrorTexts.contains(text)
+    }
+
     /// Reset all preferences to defaults
     func resetToDefaults() {
         pauseDuration = .active
@@ -427,6 +471,7 @@ class UserPreferences: ObservableObject {
         suggestionTextSize = 13.0
         suggestionPosition = "Auto"
         suggestionTheme = "System"
+        underlineThickness = 3.0
     }
 
     // MARK: - UserDefaults Keys
@@ -438,6 +483,7 @@ class UserPreferences: ObservableObject {
         static let discoveredApplications = "discoveredApplications"
         static let customDictionary = "customDictionary"
         static let ignoredRules = "ignoredRules"
+        static let ignoredErrorTexts = "ignoredErrorTexts"
         static let analysisDelayMs = "analysisDelayMs"
         static let enabledCategories = "enabledCategories"
         static let launchAtLogin = "launchAtLogin"
@@ -456,5 +502,6 @@ class UserPreferences: ObservableObject {
         static let suggestionTextSize = "suggestionTextSize"
         static let suggestionPosition = "suggestionPosition"
         static let suggestionTheme = "suggestionTheme"
+        static let underlineThickness = "underlineThickness"
     }
 }

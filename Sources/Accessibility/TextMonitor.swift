@@ -58,6 +58,26 @@ class TextMonitor: ObservableObject {
         // Create AXUIElement for the application
         let appElement = AXUIElementCreateApplication(processID)
 
+        // Enable manual accessibility for Electron apps (and all apps)
+        // This is required for Electron apps like Slack, Discord, VS Code, etc.
+        // Without this, Electron apps don't expose their accessibility hierarchy
+        // unless VoiceOver is running. 
+        let manualAccessibilityResult = AXUIElementSetAttributeValue(
+            appElement,
+            "AXManualAccessibility" as CFString,
+            kCFBooleanTrue
+        )
+
+        if manualAccessibilityResult == .success {
+            let msg = "✅ TextMonitor: Enabled AXManualAccessibility for \(appName)"
+            NSLog(msg)
+            logToDebugFile(msg)
+        } else {
+            let msg = "⚠️ TextMonitor: Could not enable AXManualAccessibility (error: \(manualAccessibilityResult.rawValue)) - app might still work"
+            NSLog(msg)
+            logToDebugFile(msg)
+        }
+
         // Create observer
         var observerRef: AXObserver?
         let error = AXObserverCreate(processID, axObserverCallback, &observerRef)
@@ -388,7 +408,11 @@ extension TextMonitor {
         let editableRoles = [
             kAXTextFieldRole as String,   // Single-line text input
             kAXTextAreaRole as String,    // Multi-line text input
-            kAXComboBoxRole as String     // Combo boxes with text input
+            kAXComboBoxRole as String,    // Combo boxes with text input
+            "AXWebArea",                  // Web content area (Electron/Chrome)
+            "AXTextField",                // Web-based text fields (Electron/Chrome)
+            "AXTextMarker",               // Contenteditable areas (Electron/Chrome)
+            "AXHTMLElement"               // HTML elements with contenteditable (Electron)
         ]
 
         if !editableRoles.contains(roleString) {

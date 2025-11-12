@@ -45,7 +45,7 @@ class ErrorOverlayWindow: NSWindow {
         self.backgroundColor = .clear
         self.hasShadow = false
         self.level = .floating
-        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         self.ignoresMouseEvents = false // Need to detect hover
 
         // Create underline view
@@ -57,6 +57,16 @@ class ErrorOverlayWindow: NSWindow {
 
         // Setup mouse tracking
         setupMouseTracking()
+    }
+
+    /// Prevent window from becoming key (stealing focus)
+    override var canBecomeKey: Bool {
+        return false
+    }
+
+    /// Prevent window from becoming main (stealing focus)
+    override var canBecomeMain: Bool {
+        return false
     }
 
     /// Setup mouse tracking for hover detection
@@ -73,45 +83,122 @@ class ErrorOverlayWindow: NSWindow {
     }
 
     /// Update overlay with new errors and monitored element
-    func update(errors: [GrammarErrorModel], element: AXUIElement) {
-        print("🎨 ErrorOverlay: update() called with \(errors.count) errors")
+    func update(errors: [GrammarErrorModel], element: AXUIElement, context: ApplicationContext?) {
+        let msg1 = "🎨 ErrorOverlay: update() called with \(errors.count) errors"
+        NSLog(msg1)
+        logToDebugFile(msg1)
         self.errors = errors
         self.monitoredElement = element
 
         // Get element bounds
-        guard let elementFrame = getElementFrame(element) else {
-            print("⚠️ ErrorOverlay: Could not get element frame - hiding")
-            hide()
-            return
+        // For Electron apps (like Slack), AX APIs return invalid bounds
+        // Fall back to mouse cursor position as a workaround
+        let elementFrame: CGRect
+        if let frame = getElementFrame(element) {
+            elementFrame = frame
+            let msg = "📐 ErrorOverlay: Got element frame from AX API: \(elementFrame)"
+            NSLog(msg)
+            logToDebugFile(msg)
+        } else {
+            // Fallback: Use mouse cursor position (for Electron apps)
+            let mouseLocation = NSEvent.mouseLocation
+            // Create a reasonable-sized window area around the cursor
+            elementFrame = CGRect(x: mouseLocation.x - 200, y: mouseLocation.y - 100, width: 800, height: 200)
+            let msg2 = "⚠️ ErrorOverlay: Could not get element frame from AX API"
+            NSLog(msg2)
+            logToDebugFile(msg2)
+            let msg3 = "📍 ErrorOverlay: Using mouse cursor fallback: \(elementFrame)"
+            NSLog(msg3)
+            logToDebugFile(msg3)
         }
 
-        print("📐 ErrorOverlay: Element frame: \(elementFrame)")
+        let msg2 = "📐 ErrorOverlay: Final element frame: \(elementFrame)"
+        NSLog(msg2)
+        logToDebugFile(msg2)
 
         // Position overlay window to match element
         setFrame(elementFrame, display: true)
-        print("✅ ErrorOverlay: Window positioned at \(elementFrame)")
+        let msg3 = "✅ ErrorOverlay: Window positioned at \(elementFrame)"
+        NSLog(msg3)
+        logToDebugFile(msg3)
 
         // Calculate underline positions for each error
         let underlines = errors.compactMap { error -> ErrorUnderline? in
-            guard let bounds = getErrorBounds(for: error, in: element) else {
-                print("⚠️ ErrorOverlay: Could not get bounds for error at \(error.start)-\(error.end)")
-                return nil
+            var bounds: CGRect
+
+            // Try to get bounds from AX API
+            if let axBounds = getErrorBounds(for: error, in: element) {
+                let msg = "🔍 ErrorOverlay: AX API returned bounds: \(axBounds)"
+                NSLog(msg)
+                logToDebugFile(msg)
+
+                // Validate the bounds before using them
+                // Pass bundle identifier so validator can apply app-specific rules
+                if BoundsValidator.isPlausible(
+                    axBounds,
+                    context: "Error at \(error.start)-\(error.end)",
+                    bundleIdentifier: context?.bundleIdentifier
+                ) {
+                    bounds = axBounds
+                    let msg2 = "✅ ErrorOverlay: Using validated AX API bounds: \(bounds)"
+                    NSLog(msg2)
+                    logToDebugFile(msg2)
+                } else {
+                    // Bounds failed validation - try to estimate instead
+                    let msg2 = "⚠️ ErrorOverlay: AX bounds failed validation, using fallback estimation"
+                    NSLog(msg2)
+                    logToDebugFile(msg2)
+                    bounds = estimateErrorBounds(for: error, in: element, elementFrame: elementFrame, context: context)
+                    let msg3 = "📍 ErrorOverlay: Estimated error bounds: \(bounds)"
+                    NSLog(msg3)
+                    logToDebugFile(msg3)
+                }
+            } else {
+                // AX API didn't return bounds at all
+                let msg = "❌ ErrorOverlay: AX API failed to get bounds for error at \(error.start)-\(error.end), using fallback"
+                NSLog(msg)
+                logToDebugFile(msg)
+                bounds = estimateErrorBounds(for: error, in: element, elementFrame: elementFrame, context: context)
+                let msg2 = "📍 ErrorOverlay: Estimated error bounds: \(bounds)"
+                NSLog(msg2)
+                logToDebugFile(msg2)
             }
 
-            print("📍 ErrorOverlay: Error bounds (screen): \(bounds)")
+            let msg4 = "📍 ErrorOverlay: Final error bounds (screen): \(bounds)"
+            NSLog(msg4)
+            logToDebugFile(msg4)
 
             // Convert to overlay-local coordinates
             let localBounds = convertToLocal(bounds, from: elementFrame)
-            print("📍 ErrorOverlay: Error bounds (local): \(localBounds)")
+            let msg5 = "📍 ErrorOverlay: Error bounds (local): \(localBounds)"
+            NSLog(msg5)
+            logToDebugFile(msg5)
+
+            // Expand bounds downward to include the underline area
+            // The underline is drawn below the text, so we need to extend the hit area
+            let thickness = CGFloat(UserPreferences.shared.underlineThickness)
+            let offset = max(2.0, thickness / 2.0)
+            let expandedBounds = CGRect(
+                x: localBounds.minX,
+                y: localBounds.minY - offset - thickness - 2.0, // Extend down to include underline + extra padding
+                width: localBounds.width,
+                height: localBounds.height + offset + thickness + 2.0 // Increase height to cover underline area
+            )
+            let msg6 = "📍 ErrorOverlay: Expanded bounds for hit detection: \(expandedBounds)"
+            NSLog(msg6)
+            logToDebugFile(msg6)
 
             return ErrorUnderline(
-                bounds: localBounds,
-                color: underlineColor(for: error.severity),
+                bounds: expandedBounds,
+                drawingBounds: localBounds,
+                color: underlineColor(for: error.category),
                 error: error
             )
         }
 
-        print("🎨 ErrorOverlay: Created \(underlines.count) underlines")
+        let msg7 = "🎨 ErrorOverlay: Created \(underlines.count) underlines"
+        NSLog(msg7)
+        logToDebugFile(msg7)
 
         underlineView?.underlines = underlines
         underlineView?.needsDisplay = true
@@ -119,14 +206,21 @@ class ErrorOverlayWindow: NSWindow {
         if !underlines.isEmpty {
             // Only order window if not already visible to avoid window ordering spam
             if !isCurrentlyVisible {
-                print("✅ ErrorOverlay: Showing overlay window (first time)")
-                orderFrontRegardless()
+                let msg = "✅ ErrorOverlay: Showing overlay window (first time)"
+                NSLog(msg)
+                logToDebugFile(msg)
+                // Use order(.above) instead of orderFrontRegardless() to avoid activating the app
+                order(.above, relativeTo: 0)
                 isCurrentlyVisible = true
             } else {
-                print("✅ ErrorOverlay: Updating overlay (already visible, not reordering)")
+                let msg = "✅ ErrorOverlay: Updating overlay (already visible, not reordering)"
+                NSLog(msg)
+                logToDebugFile(msg)
             }
         } else {
-            print("⚠️ ErrorOverlay: No underlines - hiding")
+            let msg = "⚠️ ErrorOverlay: No underlines - hiding"
+            NSLog(msg)
+            logToDebugFile(msg)
             hide()
         }
     }
@@ -219,16 +313,132 @@ class ErrorOverlayWindow: NSWindow {
         return rect
     }
 
+    /// Estimate error bounds when AX API fails (Electron apps fallback)
+    /// Uses ContentParser architecture for app-specific bounds calculation
+    private func estimateErrorBounds(for error: GrammarErrorModel, in element: AXUIElement, elementFrame: CGRect, context: ApplicationContext?) -> CGRect {
+        // Get the full text content
+        var textValue: CFTypeRef?
+        let textError = AXUIElementCopyAttributeValue(
+            element,
+            kAXValueAttribute as CFString,
+            &textValue
+        )
+
+        guard textError == .success, let fullText = textValue as? String else {
+            let msg = "⚠️ ErrorOverlay: Could not get text for measurement, using simple fallback"
+            NSLog(msg)
+            logToDebugFile(msg)
+            return simpleFallbackBounds(for: error, elementFrame: elementFrame, context: context)
+        }
+
+        // Extract the text before and at the error position
+        let safeStart = min(error.start, fullText.count)
+        let safeEnd = min(error.end, fullText.count)
+
+        // CRITICAL FIX: Find the start of the current line
+        // In multiline text fields (like Slack), we need to measure text only from the
+        // start of the current line, not from the beginning of the entire text field
+        let textUpToError = String(fullText.prefix(safeStart))
+        let lineStart: Int
+        if let lastNewlineIndex = textUpToError.lastIndex(of: "\n") {
+            lineStart = fullText.distance(from: fullText.startIndex, to: lastNewlineIndex) + 1
+        } else {
+            lineStart = 0
+        }
+
+        // Extract only the text on the current line before the error
+        let textBeforeError = String(fullText[fullText.index(fullText.startIndex, offsetBy: lineStart)..<fullText.index(fullText.startIndex, offsetBy: safeStart)])
+        let errorText = String(fullText[fullText.index(fullText.startIndex, offsetBy: safeStart)..<fullText.index(fullText.startIndex, offsetBy: safeEnd)])
+
+        let lineMsg = "📏 ErrorOverlay: Multiline handling - lineStart: \(lineStart), textOnLine: '\(textBeforeError)', error: '\(errorText)'"
+        NSLog(lineMsg)
+        logToDebugFile(lineMsg)
+
+        // USE CONTENT PARSER ARCHITECTURE
+        // Get app-specific parser from factory
+        let bundleID = context?.bundleIdentifier ?? "unknown"
+        let parser = ContentParserFactory.shared.parser(for: bundleID)
+
+        // Create error range
+        let errorRange = NSRange(location: safeStart, length: safeEnd - safeStart)
+
+        // Ask parser to adjust bounds with app-specific logic
+        if let adjustedBounds = parser.adjustBounds(
+            element: element,
+            errorRange: errorRange,
+            textBeforeError: textBeforeError,
+            errorText: errorText,
+            fullText: fullText
+        ) {
+            // Convert position to CGRect format expected by overlay
+            let estimatedX = adjustedBounds.position.x
+            let estimatedWidth = adjustedBounds.errorWidth
+
+            // Constrain to element bounds
+            let maxX = elementFrame.maxX - 10.0
+            let clampedWidth: CGFloat
+            if estimatedX + estimatedWidth > maxX {
+                clampedWidth = max(20.0, maxX - estimatedX)
+            } else {
+                clampedWidth = estimatedWidth
+            }
+
+            // Position vertically in the middle of the text area
+            let estimatedY = elementFrame.origin.y + (elementFrame.height * 0.25)
+            let estimatedHeight = elementFrame.height * 0.5
+
+            let estimatedBounds = CGRect(
+                x: estimatedX,
+                y: estimatedY,
+                width: clampedWidth,
+                height: estimatedHeight
+            )
+
+            let msg = "📐 ErrorOverlay: ContentParser (\(parser.parserName)) bounds - confidence: \(adjustedBounds.confidence), context: \(adjustedBounds.uiContext ?? "none")"
+            NSLog(msg)
+            logToDebugFile(msg)
+            let msg2 = "📐 ErrorOverlay: \(adjustedBounds.debugInfo)"
+            NSLog(msg2)
+            logToDebugFile(msg2)
+            let msg3 = "📐 ErrorOverlay: Final bounds at \(error.start)-\(error.end): \(estimatedBounds)"
+            NSLog(msg3)
+            logToDebugFile(msg3)
+
+            return estimatedBounds
+        }
+
+        // Final fallback if parser fails
+        Logger.error("ContentParser failed for \(bundleID), using simple fallback")
+        return simpleFallbackBounds(for: error, elementFrame: elementFrame, context: context)
+    }
+
+    /// Simple fallback when we can't measure text
+    private func simpleFallbackBounds(for error: GrammarErrorModel, elementFrame: CGRect, context: ApplicationContext?) -> CGRect {
+        let averageCharWidth: CGFloat = 9.0
+        let leftPadding = context?.estimatedLeftPadding ?? 16.0
+        let errorLength = error.end - error.start
+
+        let estimatedX = elementFrame.origin.x + leftPadding + (CGFloat(error.start) * averageCharWidth)
+        let estimatedWidth = max(20.0, CGFloat(errorLength) * averageCharWidth)
+
+        let maxX = elementFrame.maxX - 10.0
+        let clampedWidth = (estimatedX + estimatedWidth > maxX) ? max(20.0, maxX - estimatedX) : estimatedWidth
+
+        let estimatedY = elementFrame.origin.y + (elementFrame.height * 0.25)
+        let estimatedHeight = elementFrame.height * 0.5
+
+        return CGRect(x: estimatedX, y: estimatedY, width: clampedWidth, height: estimatedHeight)
+    }
+
     /// Convert screen coordinates to overlay-local coordinates
     private func convertToLocal(_ screenBounds: CGRect, from elementFrame: CGRect) -> CGRect {
         // Both screen and window use bottom-left origin, so simple subtraction
         let localX = screenBounds.origin.x - elementFrame.origin.x
         let localY = screenBounds.origin.y - elementFrame.origin.y
 
-        print("📐 ConvertToLocal:")
-        print("   Screen bounds: \(screenBounds)")
-        print("   Element frame: \(elementFrame)")
-        print("   Local X: \(localX), Local Y: \(localY)")
+        let msg1 = "📐 ConvertToLocal: Screen bounds: \(screenBounds), Element frame: \(elementFrame), Local X: \(localX), Local Y: \(localY)"
+        NSLog(msg1)
+        logToDebugFile(msg1)
 
         return CGRect(
             x: localX,
@@ -238,15 +448,29 @@ class ErrorOverlayWindow: NSWindow {
         )
     }
 
-    /// Get underline color for severity
-    private func underlineColor(for severity: GrammarErrorSeverity) -> NSColor {
-        switch severity {
-        case .error:
-            return NSColor.systemRed      // Red for critical errors
-        case .warning:
-            return NSColor.systemOrange   // Orange for warnings
-        case .info:
-            return NSColor.systemBlue     // Blue for suggestions
+    /// Get underline color for category (high-level categorization)
+    private func underlineColor(for category: String) -> NSColor {
+        // Group categories into high-level color categories
+        switch category {
+        // Spelling and typos: Red (critical, obvious errors)
+        case "Spelling", "Typo":
+            return NSColor.systemRed
+
+        // Grammar and structure: Orange (grammatical correctness)
+        case "Grammar", "Agreement", "BoundaryError", "Capitalization", "Nonstandard", "Punctuation":
+            return NSColor.systemOrange
+
+        // Style and enhancement: Blue (style improvements)
+        case "Style", "Enhancement", "WordChoice", "Readability", "Redundancy", "Formatting":
+            return NSColor.systemBlue
+
+        // Usage and word choice issues: Purple
+        case "Usage", "Eggcorn", "Malapropism", "Regionalism", "Repetition":
+            return NSColor.systemPurple
+
+        // Miscellaneous: Gray (fallback)
+        default:
+            return NSColor.systemGray
         }
     }
 
@@ -255,11 +479,15 @@ class ErrorOverlayWindow: NSWindow {
         guard let underlineView = underlineView else { return }
 
         let location = event.locationInWindow
-        print("🖱️ ErrorOverlay: Mouse at window coords: \(location)")
+        let msg1 = "🖱️ ErrorOverlay: Mouse at window coords: \(location)"
+        NSLog(msg1)
+        logToDebugFile(msg1)
 
         // Check if hovering over any underline
         if let newHoveredUnderline = underlineView.underlines.first(where: { $0.bounds.contains(location) }) {
-            print("📍 ErrorOverlay: Hovering over error at bounds: \(newHoveredUnderline.bounds)")
+            let msg2 = "📍 ErrorOverlay: Hovering over error at bounds: \(newHoveredUnderline.bounds)"
+            NSLog(msg2)
+            logToDebugFile(msg2)
 
             // Update hovered underline if changed
             if hoveredUnderline?.error.start != newHoveredUnderline.error.start ||
@@ -276,7 +504,9 @@ class ErrorOverlayWindow: NSWindow {
                 y: newHoveredUnderline.bounds.midY
             )
 
-            print("📍 ErrorOverlay: Error center (window coords): \(errorCenter)")
+            let msg3 = "📍 ErrorOverlay: Error center (window coords): \(errorCenter)"
+            NSLog(msg3)
+            logToDebugFile(msg3)
 
             // Convert window coordinates to screen coordinates
             // Both window and our view use bottom-left origin at this point (already converted)
@@ -286,8 +516,12 @@ class ErrorOverlayWindow: NSWindow {
                 y: windowOrigin.y + errorCenter.y
             )
 
-            print("📍 ErrorOverlay: Window origin (screen): \(windowOrigin)")
-            print("📍 ErrorOverlay: Popup position (screen): \(screenLocation)")
+            let msg4 = "📍 ErrorOverlay: Window origin (screen): \(windowOrigin)"
+            NSLog(msg4)
+            logToDebugFile(msg4)
+            let msg5 = "📍 ErrorOverlay: Popup position (screen): \(screenLocation)"
+            NSLog(msg5)
+            logToDebugFile(msg5)
 
             onErrorHover?(newHoveredUnderline.error, screenLocation)
         } else {
@@ -316,7 +550,8 @@ class ErrorOverlayWindow: NSWindow {
 // MARK: - Error Underline Model
 
 struct ErrorUnderline {
-    let bounds: CGRect
+    let bounds: CGRect // Bounds for hit detection (expanded to include underline area)
+    let drawingBounds: CGRect // Original bounds for drawing position
     let color: NSColor
     let error: GrammarErrorModel
 }
@@ -335,24 +570,28 @@ class UnderlineView: NSView {
 
         // Draw highlight for hovered underline first (behind the underlines)
         if let hovered = hoveredUnderline {
-            drawHighlight(in: context, bounds: hovered.bounds, color: hovered.color)
+            drawHighlight(in: context, bounds: hovered.drawingBounds, color: hovered.color)
         }
 
         // Draw each underline
         for underline in underlines {
-            drawWavyUnderline(in: context, bounds: underline.bounds, color: underline.color)
+            drawWavyUnderline(in: context, bounds: underline.drawingBounds, color: underline.color)
         }
     }
 
     /// Draw straight underline
     private func drawWavyUnderline(in context: CGContext, bounds: CGRect, color: NSColor) {
         context.setStrokeColor(color.cgColor)
-        context.setLineWidth(2.0)
 
-        // Draw straight line at bottom of text
+        // Get user's preferred thickness from preferences
+        let thickness = CGFloat(UserPreferences.shared.underlineThickness)
+        context.setLineWidth(thickness)
+
+        // Draw straight line below the text
         // In bottom-left origin system: minY is bottom, maxY is top
-        // Draw at minY to put line at bottom of bounds (underneath the text)
-        let y = bounds.minY + 1 // Position just above bottom edge
+        // Position the line below the text, offset by thickness to avoid covering text
+        let offset = max(2.0, thickness / 2.0) // Minimum 2pt offset, or half thickness
+        let y = bounds.minY - offset
 
         let path = CGMutablePath()
         path.move(to: CGPoint(x: bounds.minX, y: y))
@@ -364,8 +603,21 @@ class UnderlineView: NSView {
 
     /// Draw highlight background for hovered error
     private func drawHighlight(in context: CGContext, bounds: CGRect, color: NSColor) {
-        // Draw a semi-transparent background highlight
-        context.setFillColor(color.withAlphaComponent(0.15).cgColor)
+        // Draw a more intense background highlight with better dark/light mode contrast
+        // Use higher opacity for better visibility
+        let highlightOpacity: CGFloat
+
+        // Check if we're in dark mode for better contrast
+        if let appearance = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]),
+           appearance == .darkAqua {
+            // Dark mode: use lighter/brighter highlight with higher opacity
+            highlightOpacity = 0.35
+        } else {
+            // Light mode: use more saturated highlight with good opacity
+            highlightOpacity = 0.30
+        }
+
+        context.setFillColor(color.withAlphaComponent(highlightOpacity).cgColor)
         context.fill(bounds)
     }
 }
