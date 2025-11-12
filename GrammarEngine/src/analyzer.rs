@@ -88,13 +88,36 @@ pub fn analyze_text(text: &str, dialect_str: &str) -> AnalysisResult {
             // Extract the category from Harper's LintKind
             let category = lint.lint_kind.to_string_key();
 
-            // Use a descriptive lint_id (can be used for "ignore this rule" feature)
-            let lint_id = format!("{:?}", lint.lint_kind);
+            // Create a unique lint_id by combining category with normalized message
+            // This ensures each specific rule gets its own identifier
+            // Example: "Formatting::horizontal_ellipsis_must_have_3_dots"
+            let message_key = message
+                .to_lowercase()
+                .chars()
+                .map(|c| if c.is_alphanumeric() { c } else { '_' })
+                .collect::<String>()
+                .split('_')
+                .filter(|s| !s.is_empty())
+                .take(8) // Limit to first 8 words to avoid very long IDs
+                .collect::<Vec<&str>>()
+                .join("_");
+            let lint_id = format!("{}::{}", category, message_key);
 
             // Extract suggestions from Harper's lint
-            // TODO: Harper's Suggestion struct needs investigation
-            // For now, use empty vector - suggestions will be added in future
-            let suggestions: Vec<String> = vec![];
+            // Harper provides suggestions as Suggestion enum with ReplaceWith variant
+            let suggestions: Vec<String> = lint.suggestions
+                .iter()
+                .filter_map(|suggestion| {
+                    // Extract text from ReplaceWith variant
+                    // Each suggestion contains a Vec<char> with the replacement text
+                    match suggestion {
+                        harper_core::linting::Suggestion::ReplaceWith(chars) => {
+                            Some(chars.iter().collect())
+                        }
+                        _ => None
+                    }
+                })
+                .collect();
 
             // Map Harper priority to our ErrorSeverity (kept for backwards compatibility)
             // Higher priority = more severe
@@ -151,6 +174,75 @@ mod tests {
         assert!(result.word_count > 0);
         // Note: Harper may or may not catch this specific error depending on version
         // The test mainly verifies the analyzer runs without crashing
+    }
+
+    #[test]
+    fn test_harper_suggestions_debug() {
+        use harper_core::{Document, linting::{Linter, LintGroup}, Dialect};
+        use harper_core::spell::MutableDictionary;
+        use std::sync::Arc;
+
+        // Create a dictionary
+        let dictionary = Arc::new(MutableDictionary::curated());
+
+        // Initialize linter
+        let mut linter = LintGroup::new_curated(dictionary, Dialect::American);
+
+        // Test text with obvious errors that should generate suggestions
+        let test_text = "Teh quick brown fox jumps over teh lazy dog. I can has cheezburger?";
+        let document = Document::new_plain_english_curated(test_text);
+
+        // Get lints
+        let lints = linter.lint(&document);
+
+        println!("\n=== HARPER SUGGESTIONS DEBUG ===");
+        println!("Found {} lints", lints.len());
+
+        for (i, lint) in lints.iter().enumerate() {
+            println!("\n--- Lint {} ---", i + 1);
+            println!("Message: {}", lint.message);
+            println!("Span: {:?}", lint.span);
+            println!("Priority: {}", lint.priority);
+            println!("Lint Kind: {:?}", lint.lint_kind);
+            println!("Suggestions count: {}", lint.suggestions.len());
+
+            for (j, suggestion) in lint.suggestions.iter().enumerate() {
+                println!("  Suggestion {}: {:?}", j + 1, suggestion);
+            }
+        }
+        println!("=== END DEBUG ===\n");
+    }
+
+    #[test]
+    fn test_suggestions_extraction() {
+        // Test that suggestions are properly extracted from Harper
+        let result = analyze_text("Teh quick brown fox.", "American");
+
+        // Should find at least one error for "Teh"
+        assert!(!result.errors.is_empty(), "Should detect 'Teh' as an error");
+
+        // Find the error for "Teh"
+        let teh_error = result.errors.iter()
+            .find(|e| e.start == 0 && e.end == 3)
+            .expect("Should find error for 'Teh'");
+
+        // Should have suggestions
+        assert!(!teh_error.suggestions.is_empty(),
+                "Error for 'Teh' should have suggestions");
+
+        println!("\n=== SUGGESTIONS EXTRACTION TEST ===");
+        println!("Error: {}", teh_error.message);
+        println!("Suggestions ({}): {:?}",
+                 teh_error.suggestions.len(),
+                 teh_error.suggestions);
+
+        // Verify suggestions are strings, not empty
+        for suggestion in &teh_error.suggestions {
+            assert!(!suggestion.is_empty(), "Suggestion should not be empty");
+            assert!(suggestion.chars().all(|c| c.is_alphabetic()),
+                    "Suggestion should contain only letters");
+        }
+        println!("=== END TEST ===\n");
     }
 
     #[test]

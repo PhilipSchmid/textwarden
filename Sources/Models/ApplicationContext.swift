@@ -124,3 +124,122 @@ extension ApplicationContext {
         )
     }
 }
+
+// MARK: - App Type Detection (inspired by (redacted)'s approach)
+
+extension ApplicationContext {
+    /// Known Electron-based apps that require special handling
+    /// Based on reverse engineering (redacted) and Refine.app
+    private static let electronApps: Set<String> = [
+        "com.tinyspeck.slackmacgap",      // Slack
+        "com.hnc.Discord",                 // Discord
+        "com.microsoft.VSCode",            // VS Code
+        "com.electron.app",                // Generic Electron
+        "com.github.GitHubClient",         // GitHub Desktop
+        "com.microsoft.teams",             // Microsoft Teams (Electron)
+        "com.notion.desktop"               // Notion
+    ]
+
+    /// Known Chromium-based apps
+    private static let chromiumApps: Set<String> = [
+        "com.google.Chrome",
+        "com.google.Chrome.beta",
+        "com.microsoft.edgemac",
+        "com.brave.Browser",
+        "com.vivaldi.Vivaldi",
+        "org.chromium.Chromium"
+    ]
+
+    /// Check if this is an Electron-based application
+    /// Electron apps require keyboard-based text replacement due to broken AX APIs
+    var isElectronApp: Bool {
+        Self.electronApps.contains(bundleIdentifier) ||
+        bundleIdentifier.contains("electron")
+    }
+
+    /// Check if this is a Chromium-based application
+    /// Chromium apps may have accessibility tree issues
+    var isChromiumBased: Bool {
+        Self.chromiumApps.contains(bundleIdentifier) ||
+        bundleIdentifier.contains("chromium")
+    }
+
+    /// Check if this app requires keyboard-based text replacement
+    /// Returns true for Electron apps where AX API is known to fail
+    var requiresKeyboardReplacement: Bool {
+        isElectronApp
+    }
+
+    /// Get recommended timing delay for keyboard operations (in seconds)
+    /// Based on (redacted)'s "fast_batching_selection_wait" approach
+    var keyboardOperationDelay: TimeInterval {
+        switch bundleIdentifier {
+        case "com.tinyspeck.slackmacgap":
+            // Slack needs longer delays due to React rendering
+            return 0.15
+        case "com.hnc.Discord":
+            // Discord is also React-based
+            return 0.15
+        case "com.microsoft.VSCode":
+            // VS Code is faster
+            return 0.08
+        default:
+            // Default delay for other Electron apps
+            return isElectronApp ? 0.1 : 0.05
+        }
+    }
+
+    /// Check if this app supports format-preserving replacements
+    /// Future feature: preserve bold/italic/links when replacing text
+    var supportsFormatPreservation: Bool {
+        // For now, only native macOS apps support this
+        return !isElectronApp && !isChromiumBased
+    }
+
+    /// Estimated font size for text measurement (heuristic-based)
+    /// Used when AX API bounds are unavailable or implausible
+    var estimatedFontSize: CGFloat {
+        switch bundleIdentifier {
+        case "com.tinyspeck.slackmacgap":
+            return 15.0
+        case "com.hnc.Discord":
+            return 15.0
+        case "com.microsoft.VSCode":
+            return 14.0
+        default:
+            return isElectronApp ? 15.0 : 13.0
+        }
+    }
+
+    /// Character width correction factor (per character)
+    /// Accounts for cumulative rendering differences between NSFont measurement
+    /// and actual app rendering. Applied as: measuredWidth - (charCount * correction)
+    var characterWidthCorrection: CGFloat {
+        switch bundleIdentifier {
+        case "com.tinyspeck.slackmacgap":
+            // Disable correction - use raw NSFont measurement
+            // Font measurement appears more accurate than expected
+            return 0.0
+        case "com.hnc.Discord":
+            return 0.0
+        default:
+            return 0.0
+        }
+    }
+
+    /// Horizontal padding inside text input elements
+    /// Used for estimation when AX API fails
+    var estimatedLeftPadding: CGFloat {
+        switch bundleIdentifier {
+        case "com.tinyspeck.slackmacgap":
+            // Slack's message input has approximately 12px left padding
+            return 12.0
+        case "com.hnc.Discord":
+            return 12.0
+        case "com.microsoft.VSCode":
+            return 10.0
+        default:
+            return isElectronApp ? 12.0 : 8.0
+        }
+    }
+}

@@ -9,55 +9,74 @@ import SwiftUI
 
 struct PreferencesView: View {
     @ObservedObject private var preferences = UserPreferences.shared
+    @State private var selectedTab: Int = 0
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             GeneralPreferencesView(preferences: preferences)
                 .tabItem {
                     Label("General", systemImage: "gearshape")
                 }
+                .tag(0)
 
             StatisticsView()
                 .tabItem {
                     Label("Statistics", systemImage: "chart.bar.fill")
                 }
+                .tag(1)
 
             ApplicationSettingsView(preferences: preferences)
                 .tabItem {
                     Label("Applications", systemImage: "app.badge")
                 }
+                .tag(2)
 
             FilteringPreferencesView(preferences: preferences)
                 .tabItem {
                     Label("Categories", systemImage: "line.3.horizontal.decrease.circle")
                 }
+                .tag(3)
 
             CustomVocabularyView()
                 .tabItem {
                     Label("Dictionary", systemImage: "text.book.closed")
                 }
+                .tag(4)
 
             AppearancePreferencesView(preferences: preferences)
                 .tabItem {
                     Label("Appearance", systemImage: "paintbrush")
                 }
+                .tag(5)
 
             KeyboardShortcutsView(preferences: preferences)
                 .tabItem {
                     Label("Shortcuts", systemImage: "command")
                 }
+                .tag(6)
 
             SystemStatusView()
                 .tabItem {
                     Label("System", systemImage: "checkmark.shield")
                 }
+                .tag(7)
 
             AboutView()
                 .tabItem {
                     Label("About", systemImage: "info.circle")
                 }
+                .tag(8)
         }
         .frame(width: 800, height: 650)
+        .onAppear {
+            // Check if a specific tab was requested (e.g., About from menu)
+            let requestedTab = UserDefaults.standard.integer(forKey: "PreferencesSelectedTab")
+            if requestedTab > 0 {
+                selectedTab = requestedTab
+                // Reset to default after reading
+                UserDefaults.standard.set(0, forKey: "PreferencesSelectedTab")
+            }
+        }
     }
 }
 
@@ -772,6 +791,12 @@ struct GeneralPreferencesView: View {
                     }
                     .buttonStyle(.bordered)
                     .help("Re-enable all previously ignored grammar rules")
+
+                    Button("Clear Ignored Error Texts") {
+                        preferences.ignoredErrorTexts.removeAll()
+                    }
+                    .buttonStyle(.bordered)
+                    .help("Clear all error texts ignored with 'Ignore Everywhere'")
                 }
             } header: {
                 Text("Reset Options")
@@ -1025,17 +1050,31 @@ struct FilteringPreferencesView: View {
 
     /// Format rule ID from PascalCase/camelCase to readable text
     /// Examples: "SubjectVerbDisagreement" -> "Subject Verb Disagreement"
-    ///           "UnclearReferent" -> "Unclear Referent"
+    ///           "Formatting::horizontal_ellipsis_must_have_3_dots" -> "Horizontal Ellipsis Must Have 3 Dots"
     private func formatRuleName(_ ruleId: String) -> String {
-        // Insert spaces before uppercase letters (except the first one)
+        // Handle new format with category prefix (e.g., "Formatting::rule_name")
+        let components = ruleId.split(separator: ":", maxSplits: 1)
+        var nameToFormat = components.count > 1 ? String(components[1]) : ruleId
+        // Remove any leading colons (from the "::" separator)
+        nameToFormat = nameToFormat.trimmingCharacters(in: CharacterSet(charactersIn: ":"))
+
+        // Replace underscores with spaces and capitalize each word
+        let words = nameToFormat.split(separator: "_")
+        if !words.isEmpty {
+            return words.map { word in
+                word.prefix(1).uppercased() + word.dropFirst().lowercased()
+            }.joined(separator: " ")
+        }
+
+        // Fallback: Insert spaces before uppercase letters (for PascalCase/camelCase)
         var result = ""
-        for (index, char) in ruleId.enumerated() {
+        for (index, char) in nameToFormat.enumerated() {
             if index > 0 && char.isUppercase {
                 result += " "
             }
             result.append(char)
         }
-        return result
+        return result.isEmpty ? ruleId : result
     }
 }
 
@@ -1639,14 +1678,14 @@ struct AppearancePreferencesView: View {
             Section {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("Opacity:")
+                        Text("Transparency:")
                         Spacer()
                         Text(String(format: "%.0f%%", preferences.suggestionOpacity * 100))
                             .foregroundColor(.secondary)
                     }
-                    Slider(value: $preferences.suggestionOpacity, in: 0.7...1.0, step: 0.05)
+                    Slider(value: $preferences.suggestionOpacity, in: 0.2...1.0, step: 0.05)
 
-                    Text("Adjust the transparency of suggestion popovers")
+                    Text("Adjust the background transparency of suggestion popovers")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -1703,6 +1742,25 @@ struct AppearancePreferencesView: View {
                     .foregroundColor(.secondary)
             } header: {
                 Text("Color Scheme")
+                    .font(.headline)
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Thickness:")
+                        Spacer()
+                        Text(String(format: "%.1fpt", preferences.underlineThickness))
+                            .foregroundColor(.secondary)
+                    }
+                    Slider(value: $preferences.underlineThickness, in: 1.0...5.0, step: 0.5)
+
+                    Text("Adjust the thickness of error underlines")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            } header: {
+                Text("Underlines")
                     .font(.headline)
             }
         }
