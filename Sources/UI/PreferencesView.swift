@@ -514,42 +514,61 @@ struct ApplicationSettingsView: View {
             List {
                 Section {
                     ForEach(filteredApps, id: \.bundleIdentifier) { app in
-                        HStack {
-                            // App icon (if available)
-                            if let icon = app.icon {
-                                Image(nsImage: icon)
-                                    .resizable()
-                                    .frame(width: 24, height: 24)
-                            } else {
-                                Image(systemName: "app")
-                                    .foregroundColor(.secondary)
-                                    .frame(width: 24, height: 24)
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                // App icon (if available)
+                                if let icon = app.icon {
+                                    Image(nsImage: icon)
+                                        .resizable()
+                                        .frame(width: 24, height: 24)
+                                } else {
+                                    Image(systemName: "app")
+                                        .foregroundColor(.secondary)
+                                        .frame(width: 24, height: 24)
+                                }
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(app.name)
+                                        .font(.body)
+                                    Text(app.bundleIdentifier)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+
+                                // Pause duration picker (T069, T073)
+                                Picker("", selection: Binding(
+                                    get: {
+                                        preferences.getPauseDuration(for: app.bundleIdentifier)
+                                    },
+                                    set: { duration in
+                                        preferences.setPauseDuration(for: app.bundleIdentifier, duration: duration)
+                                    }
+                                )) {
+                                    Text("Active").tag(PauseDuration.active)
+                                    Text("Paused for 1 Hour").tag(PauseDuration.oneHour)
+                                    Text("Paused for 24 Hours").tag(PauseDuration.twentyFourHours)
+                                    Text("Paused Until Resumed").tag(PauseDuration.indefinite)
+                                }
+                                .pickerStyle(.menu)
+                                .frame(width: 200)
+                                .help("Set pause duration for \(app.name)")
                             }
 
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(app.name)
-                                    .font(.body)
-                                Text(app.bundleIdentifier)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-
-                            Spacer()
-
-                            // Toggle for enable/disable (T069, T073)
-                            Toggle("", isOn: Binding(
-                                get: {
-                                    !preferences.disabledApplications.contains(app.bundleIdentifier)
-                                },
-                                set: { enabled in
-                                    if enabled {
-                                        preferences.disabledApplications.remove(app.bundleIdentifier)
-                                    } else {
-                                        preferences.disabledApplications.insert(app.bundleIdentifier)
+                            // Show resume time for timed pause
+                            if let until = preferences.getPausedUntil(for: app.bundleIdentifier) {
+                                let pauseState = preferences.getPauseDuration(for: app.bundleIdentifier)
+                                if pauseState == .oneHour || pauseState == .twentyFourHours {
+                                    HStack {
+                                        Spacer()
+                                        Text("Will resume at \(formatTime(until))")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                            .padding(.trailing, 4)
                                     }
                                 }
-                            ))
-                            .help("Enable or disable grammar checking for \(app.name)")
+                            }
                         }
                         .padding(.vertical, 4)
                     }
@@ -568,7 +587,7 @@ struct ApplicationSettingsView: View {
             .listStyle(.inset)
 
             // Info text
-            Text("Applications are automatically discovered when you activate them. This list includes common apps, running apps, and apps you've used. Toggle to enable or disable grammar checking per application.")
+            Text("Applications are automatically discovered when you activate them. This list includes common apps, running apps, and apps you've used. Set pause duration to control grammar checking per application: Active (enabled), Paused for 1 Hour (temporarily disabled), or Paused Until Resumed (disabled until you re-enable it).")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -579,6 +598,10 @@ struct ApplicationSettingsView: View {
         }
         .onChange(of: preferences.disabledApplications) {
             // Reload to reflect changes (T072, T073)
+            loadDiscoveredApplications()
+        }
+        .onChange(of: preferences.appPauseDurations) {
+            // Reload to reflect pause duration changes
             loadDiscoveredApplications()
         }
     }
@@ -672,6 +695,13 @@ struct ApplicationSettingsView: View {
             bundleIdentifier: bundleID,
             icon: icon
         )
+    }
+
+    /// Format time for display
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 }
 
