@@ -16,6 +16,9 @@ class ApplicationTracker: ObservableObject {
     /// Currently active application context
     @Published private(set) var activeApplication: ApplicationContext?
 
+    /// Previous active application (for menu bar display)
+    @Published private(set) var previousApplication: ApplicationContext?
+
     /// Callback for application changes
     var onApplicationChange: ((ApplicationContext) -> Void)?
 
@@ -62,7 +65,9 @@ class ApplicationTracker: ObservableObject {
         }
     }
 
-    /// Update active application from workspace
+    /// Updates the active application from the workspace asynchronously.
+    /// Queries NSWorkspace for the frontmost application and updates state on the main thread.
+    /// Triggers the `onApplicationChange` callback if the application has changed.
     func updateActiveApplication() {
         guard let app = workspace.frontmostApplication,
               let bundleIdentifier = app.bundleIdentifier else {
@@ -82,9 +87,64 @@ class ApplicationTracker: ObservableObject {
         UserPreferences.shared.discoveredApplications.insert(bundleIdentifier)
 
         DispatchQueue.main.async {
+            // Track previous app before updating current
+            if let current = self.activeApplication, current.bundleIdentifier != bundleIdentifier {
+                self.previousApplication = current
+            }
+
             self.activeApplication = context
             self.onApplicationChange?(context)
         }
+    }
+
+    /// Updates the active application from the workspace synchronously.
+    /// Similar to `updateActiveApplication()` but executes on the current thread without async dispatch.
+    /// Use this when you need immediate, synchronous access to the latest application state (e.g., before displaying a menu).
+    /// - Note: Must be called on the main thread to ensure thread safety with @Published properties
+    func updateActiveApplicationSync() {
+        guard let app = workspace.frontmostApplication,
+              let bundleIdentifier = app.bundleIdentifier else {
+            return
+        }
+
+        let applicationName = app.localizedName ?? bundleIdentifier
+        let processID = app.processIdentifier
+
+        let context = ApplicationContext(
+            bundleIdentifier: bundleIdentifier,
+            processID: processID,
+            applicationName: applicationName
+        )
+
+        // Record this app as discovered
+        UserPreferences.shared.discoveredApplications.insert(bundleIdentifier)
+
+        // Track previous app before updating current
+        if let current = self.activeApplication, current.bundleIdentifier != bundleIdentifier {
+            self.previousApplication = current
+        }
+
+        // Update synchronously - no async dispatch
+        self.activeApplication = context
+        self.onApplicationChange?(context)
+    }
+
+    /// Gets the most relevant application to display in the menu bar.
+    /// Prioritizes showing the current active app unless it's Gnau itself, in which case it shows the previous app.
+    /// This prevents the menu from showing "Gnau" when the user opens the menu bar.
+    /// - Returns: The application context to display, or `nil` if no suitable app is available
+    func getMenuDisplayApp() -> ApplicationContext? {
+        // If current app is not Gnau, use it
+        if let current = activeApplication, current.bundleIdentifier != "app.gnau.Gnau" {
+            return current
+        }
+
+        // Otherwise, use previous app (the one before Gnau became active)
+        if let previous = previousApplication, previous.bundleIdentifier != "app.gnau.Gnau" {
+            return previous
+        }
+
+        return nil
     }
 
     /// Get context for a specific application
