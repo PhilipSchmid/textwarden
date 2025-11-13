@@ -12,6 +12,7 @@ import Combine
 enum PauseDuration: String, CaseIterable, Codable {
     case active = "Active"
     case oneHour = "Paused for 1 Hour"
+    case twentyFourHours = "Paused for 24 Hours"
     case indefinite = "Paused Until Resumed"
 }
 
@@ -23,6 +24,7 @@ class UserPreferences: ObservableObject {
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
     private var resumeTimer: Timer?
+    private var cleanupTimer: Timer?
 
     /// Current pause state for grammar checking
     @Published var pauseDuration: PauseDuration {
@@ -48,7 +50,7 @@ class UserPreferences: ObservableObject {
         switch pauseDuration {
         case .active:
             return true
-        case .oneHour:
+        case .oneHour, .twentyFourHours:
             // Check if pause has expired
             if let until = pausedUntil, Date() < until {
                 return false
@@ -72,6 +74,24 @@ class UserPreferences: ObservableObject {
         didSet {
             if let encoded = try? encoder.encode(disabledApplications) {
                 defaults.set(encoded, forKey: Keys.disabledApplications)
+            }
+        }
+    }
+
+    /// Per-application pause durations
+    @Published var appPauseDurations: [String: PauseDuration] {
+        didSet {
+            if let encoded = try? encoder.encode(appPauseDurations) {
+                defaults.set(encoded, forKey: Keys.appPauseDurations)
+            }
+        }
+    }
+
+    /// Per-application pause expiry dates (for timed pauses)
+    @Published var appPausedUntil: [String: Date] {
+        didSet {
+            if let encoded = try? encoder.encode(appPausedUntil) {
+                defaults.set(encoded, forKey: Keys.appPausedUntil)
             }
         }
     }
@@ -265,6 +285,8 @@ class UserPreferences: ObservableObject {
         self.pausedUntil = nil
         self.disabledApplications = []
         self.discoveredApplications = []
+        self.appPauseDurations = [:]
+        self.appPausedUntil = [:]
         self.customDictionary = []
         self.ignoredRules = []
         self.ignoredErrorTexts = []
@@ -304,6 +326,16 @@ class UserPreferences: ObservableObject {
         if let data = defaults.data(forKey: Keys.discoveredApplications),
            let set = try? decoder.decode(Set<String>.self, from: data) {
             self.discoveredApplications = set
+        }
+
+        if let data = defaults.data(forKey: Keys.appPauseDurations),
+           let dict = try? decoder.decode([String: PauseDuration].self, from: data) {
+            self.appPauseDurations = dict
+        }
+
+        if let data = defaults.data(forKey: Keys.appPausedUntil),
+           let dict = try? decoder.decode([String: Date].self, from: data) {
+            self.appPausedUntil = dict
         }
 
         if let data = defaults.data(forKey: Keys.customDictionary),
@@ -350,6 +382,11 @@ class UserPreferences: ObservableObject {
         if pauseDuration == .oneHour, let until = pausedUntil, Date() < until {
             setupResumeTimer(until: until)
         }
+
+        // Set up cleanup timer to check for expired app-specific pauses every minute
+        cleanupTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            self?.cleanupExpiredAppPauses()
+        }
     }
 
     /// Handle pause duration changes
@@ -366,6 +403,12 @@ class UserPreferences: ObservableObject {
         case .oneHour:
             // Set pausedUntil to 1 hour from now
             let until = Date().addingTimeInterval(3600) // 1 hour
+            pausedUntil = until
+            setupResumeTimer(until: until)
+
+        case .twentyFourHours:
+            // Set pausedUntil to 24 hours from now
+            let until = Date().addingTimeInterval(86400) // 24 hours
             pausedUntil = until
             setupResumeTimer(until: until)
 
@@ -403,9 +446,64 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Periodically checks for and removes expired app-specific pause durations.
+    /// Called automatically by a timer every 60 seconds. Updates menu bar if any changes are made.
+    private func cleanupExpiredAppPauses() {
+        var needsUpdate = false
+
+        for (bundleID, duration) in appPauseDurations {
+            if duration == .oneHour || duration == .twentyFourHours {
+                if let until = appPausedUntil[bundleID], Date() >= until {
+                    appPauseDurations.removeValue(forKey: bundleID)
+                    appPausedUntil.removeValue(forKey: bundleID)
+                    needsUpdate = true
+                }
+            }
+        }
+
+        if needsUpdate {
+            DispatchQueue.main.async {
+                MenuBarController.shared?.updateMenu()
+            }
+        }
+    }
+
+    /// Checks if a timed app-specific pause has expired.
+    /// This is a pure function with no side effects - cleanup is handled separately by the timer.
+    /// - Parameter bundleIdentifier: The bundle identifier of the application
+    /// - Returns: `true` if the pause has expired or doesn't exist, `false` if still active
+    private func isAppPauseExpired(for bundleIdentifier: String) -> Bool {
+        guard let duration = appPauseDurations[bundleIdentifier] else { return false }
+        guard duration == .oneHour || duration == .twentyFourHours else { return false }
+        guard let until = appPausedUntil[bundleIdentifier] else { return true }
+        return Date() >= until
+    }
+
     /// Check if grammar checking is enabled for a specific application
     func isEnabled(for bundleIdentifier: String) -> Bool {
-        return isEnabled && !disabledApplications.contains(bundleIdentifier)
+        // First check global pause state
+        guard isEnabled else { return false }
+
+        // Check if app is permanently disabled
+        if disabledApplications.contains(bundleIdentifier) {
+            return false
+        }
+
+        // Check app-specific pause
+        guard let appPause = appPauseDurations[bundleIdentifier] else {
+            return true // No app-specific pause set
+        }
+
+        switch appPause {
+        case .active:
+            return true
+        case .oneHour, .twentyFourHours:
+            // Check if pause has expired (no mutation - cleanup happens via timer)
+            // If expired, grammar checking is enabled; otherwise disabled
+            return isAppPauseExpired(for: bundleIdentifier)
+        case .indefinite:
+            return false
+        }
     }
 
     /// Add a word to the custom dictionary
@@ -451,6 +549,71 @@ class UserPreferences: ObservableObject {
         return ignoredErrorTexts.contains(text)
     }
 
+    // MARK: - App-Specific Pause Management
+
+    /// Sets the pause duration for a specific application.
+    /// - Parameters:
+    ///   - bundleIdentifier: The bundle identifier of the application
+    ///   - duration: The pause duration to set (.active, .oneHour, .twentyFourHours, or .indefinite)
+    /// - Note: Automatically updates the menu bar and notifies observers of the change
+    func setPauseDuration(for bundleIdentifier: String, duration: PauseDuration) {
+        switch duration {
+        case .active:
+            // Remove app-specific pause
+            appPauseDurations.removeValue(forKey: bundleIdentifier)
+            appPausedUntil.removeValue(forKey: bundleIdentifier)
+
+        case .oneHour:
+            // Set 1 hour pause for app
+            let until = Date().addingTimeInterval(3600)
+            appPauseDurations[bundleIdentifier] = duration
+            appPausedUntil[bundleIdentifier] = until
+
+        case .twentyFourHours:
+            // Set 24 hour pause for app
+            let until = Date().addingTimeInterval(86400)
+            appPauseDurations[bundleIdentifier] = duration
+            appPausedUntil[bundleIdentifier] = until
+
+        case .indefinite:
+            // Set indefinite pause for app
+            appPauseDurations[bundleIdentifier] = duration
+            appPausedUntil.removeValue(forKey: bundleIdentifier)
+        }
+
+        // Update menu bar
+        DispatchQueue.main.async {
+            MenuBarController.shared?.updateMenu()
+        }
+
+        // Notify observers
+        objectWillChange.send()
+    }
+
+    /// Gets the current pause duration for a specific application.
+    /// - Parameter bundleIdentifier: The bundle identifier of the application
+    /// - Returns: The current pause duration, or `.active` if no pause is set or if a timed pause has expired
+    /// - Note: This is a read-only query - expired pauses are cleaned up automatically by a background timer
+    func getPauseDuration(for bundleIdentifier: String) -> PauseDuration {
+        guard let duration = appPauseDurations[bundleIdentifier] else {
+            return .active
+        }
+
+        // Check if timed pause has expired (no mutation - cleanup happens via timer)
+        if isAppPauseExpired(for: bundleIdentifier) {
+            return .active
+        }
+
+        return duration
+    }
+
+    /// Gets the expiry date for a timed app-specific pause.
+    /// - Parameter bundleIdentifier: The bundle identifier of the application
+    /// - Returns: The date when the pause will expire, or `nil` if no timed pause is set
+    func getPausedUntil(for bundleIdentifier: String) -> Date? {
+        return appPausedUntil[bundleIdentifier]
+    }
+
     /// Reset all preferences to defaults
     func resetToDefaults() {
         pauseDuration = .active
@@ -481,6 +644,8 @@ class UserPreferences: ObservableObject {
         static let pausedUntil = "pausedUntil"
         static let disabledApplications = "disabledApplications"
         static let discoveredApplications = "discoveredApplications"
+        static let appPauseDurations = "appPauseDurations"
+        static let appPausedUntil = "appPausedUntil"
         static let customDictionary = "customDictionary"
         static let ignoredRules = "ignoredRules"
         static let ignoredErrorTexts = "ignoredErrorTexts"
