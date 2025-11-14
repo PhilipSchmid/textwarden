@@ -4,3 +4,4 @@
 
 pub mod bridge;
 pub mod analyzer;
+pub mod slang_dict;

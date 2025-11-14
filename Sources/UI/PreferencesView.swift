@@ -1112,6 +1112,7 @@ struct FilteringPreferencesView: View {
 
 struct CustomVocabularyView: View {
     @ObservedObject private var vocabulary = CustomVocabulary.shared
+    @ObservedObject private var preferences = UserPreferences.shared
     @State private var newWord = ""
     @State private var searchText = ""
     @State private var errorMessage: String?
@@ -1127,6 +1128,79 @@ struct CustomVocabularyView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Predefined Wordlists section
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "list.bullet.rectangle")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                        Text("Predefined Wordlists")
+                            .font(.headline)
+                    }
+
+                    Text("Enable recognition of specialized vocabulary and informal language")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.bottom, 4)
+
+                    Divider()
+
+                    // Internet Abbreviations
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle("Internet Abbreviations", isOn: $preferences.enableInternetAbbreviations)
+                            .help("Accept common abbreviations like BTW, FYI, LOL, ASAP, etc.")
+
+                        Text("3,200+ abbreviations (BTW, FYI, LOL, ASAP, AFAICT, etc.) • Case-insensitive")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .padding(.leading, 20)
+                    }
+
+                    Divider()
+
+                    // Gen Z Slang
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle("Gen Z Slang", isOn: $preferences.enableGenZSlang)
+                            .help("Accept modern slang words like ghosting, sus, slay, etc.")
+
+                        Text("270+ modern terms (ghosting, sus, slay, vibe, etc.) • Case-insensitive")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .padding(.leading, 20)
+                    }
+
+                    // Future wordlists will be added here
+                    // Example structure for IT terminology:
+                    // Divider()
+                    // VStack(alignment: .leading, spacing: 4) {
+                    //     Toggle("IT & Tech Terminology", isOn: $preferences.enableITTerminology)
+                    //         .help("Accept technical terms like API, JSON, localhost, etc.")
+                    //     Text("XXX+ technical terms (API, JSON, localhost, etc.) • Case-insensitive")
+                    //         .font(.caption2)
+                    //         .foregroundColor(.secondary)
+                    //         .padding(.leading, 20)
+                    // }
+                }
+                .padding(.vertical, 4)
+            }
+            .padding()
+
+            Divider()
+
+            // Custom Dictionary header
+            HStack {
+                Image(systemName: "plus.circle")
+                    .font(.title2)
+                    .foregroundColor(.accentColor)
+                Text("Custom Dictionary")
+                    .font(.headline)
+            }
+            .padding(.horizontal)
+            .padding(.top, 16)
+            .padding(.bottom, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
             // Add word section - modern macOS style
             GroupBox {
                 HStack(spacing: 12) {

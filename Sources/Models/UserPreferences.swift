@@ -198,6 +198,39 @@ class UserPreferences: ObservableObject {
         "Australian"
     ]
 
+    // MARK: - Predefined Wordlists
+    // Each wordlist has a Bool toggle that enables/disables it
+    // To add a new wordlist:
+    // 1. Add a @Published var property here (e.g., enableITTerminology)
+    // 2. Add the corresponding Keys constant in the Keys enum below
+    // 3. Initialize the property in init() with a default value
+    // 4. Load the saved value in init() from UserDefaults
+    // 5. Add the toggle to CustomVocabularyView in PreferencesView.swift
+    // 6. Add the wordlist category to WordlistCategory enum in slang_dict.rs
+    // 7. Update analyzer.rs to conditionally load the wordlist
+
+    /// Enable recognition of internet abbreviations (BTW, FYI, LOL, etc.)
+    @Published var enableInternetAbbreviations: Bool {
+        didSet {
+            defaults.set(enableInternetAbbreviations, forKey: Keys.enableInternetAbbreviations)
+        }
+    }
+
+    /// Enable recognition of Gen Z slang (ghosting, sus, slay, etc.)
+    @Published var enableGenZSlang: Bool {
+        didSet {
+            defaults.set(enableGenZSlang, forKey: Keys.enableGenZSlang)
+        }
+    }
+
+    // Future wordlists follow the same pattern:
+    // /// Enable recognition of IT and technical terminology (API, JSON, localhost, etc.)
+    // @Published var enableITTerminology: Bool {
+    //     didSet {
+    //         defaults.set(enableITTerminology, forKey: Keys.enableITTerminology)
+    //     }
+    // }
+
     // MARK: - Keyboard Shortcuts
 
     /// Enable keyboard shortcuts
@@ -296,6 +329,8 @@ class UserPreferences: ObservableObject {
 
         // Language & Dialect
         self.selectedDialect = "American"
+        self.enableInternetAbbreviations = true
+        self.enableGenZSlang = true
 
         // Keyboard Shortcuts
         self.keyboardShortcutsEnabled = true
@@ -364,6 +399,8 @@ class UserPreferences: ObservableObject {
 
         // Language & Dialect
         self.selectedDialect = defaults.string(forKey: Keys.selectedDialect) ?? "American"
+        self.enableInternetAbbreviations = defaults.object(forKey: Keys.enableInternetAbbreviations) as? Bool ?? true
+        self.enableGenZSlang = defaults.object(forKey: Keys.enableGenZSlang) as? Bool ?? true
 
         // Keyboard Shortcuts
         self.keyboardShortcutsEnabled = defaults.object(forKey: Keys.keyboardShortcutsEnabled) as? Bool ?? true
@@ -626,6 +663,8 @@ class UserPreferences: ObservableObject {
         analysisDelayMs = 20
         enabledCategories = UserPreferences.allCategories
         selectedDialect = "American"
+        enableInternetAbbreviations = true
+        enableGenZSlang = true
         keyboardShortcutsEnabled = true
         toggleShortcut = "⌘⇧G"
         acceptSuggestionShortcut = "⇥"
@@ -655,6 +694,8 @@ class UserPreferences: ObservableObject {
 
         // Language & Dialect
         static let selectedDialect = "selectedDialect"
+        static let enableInternetAbbreviations = "enableInternetAbbreviations"
+        static let enableGenZSlang = "enableGenZSlang"
 
         // Keyboard Shortcuts
         static let keyboardShortcutsEnabled = "keyboardShortcutsEnabled"
