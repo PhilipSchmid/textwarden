@@ -35,7 +35,12 @@ mod ffi {
     }
 
     extern "Rust" {
-        fn analyze_text(text: String, dialect: String) -> AnalysisResult;
+        fn analyze_text(
+            text: String,
+            dialect: String,
+            enable_internet_abbrev: bool,
+            enable_genz_slang: bool
+        ) -> AnalysisResult;
     }
 }
 
@@ -106,8 +111,13 @@ impl AnalysisResult {
 }
 
 // FFI wrapper that calls the analyzer and converts types
-fn analyze_text(text: String, dialect: String) -> AnalysisResult {
-    let result = analyzer::analyze_text(&text, &dialect);
+fn analyze_text(
+    text: String,
+    dialect: String,
+    enable_internet_abbrev: bool,
+    enable_genz_slang: bool
+) -> AnalysisResult {
+    let result = analyzer::analyze_text(&text, &dialect, enable_internet_abbrev, enable_genz_slang);
 
     // Convert analyzer types to FFI types
     let errors = result.errors

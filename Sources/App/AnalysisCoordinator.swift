@@ -363,7 +363,9 @@ class AnalysisCoordinator: ObservableObject {
             logToDebugFile(msg2)
 
             let dialect = UserPreferences.shared.selectedDialect
-            let result = GrammarEngine.shared.analyzeText(segmentContent, dialect: dialect)
+            let enableInternetAbbrev = UserPreferences.shared.enableInternetAbbreviations
+            let enableGenZSlang = UserPreferences.shared.enableGenZSlang
+            let result = GrammarEngine.shared.analyzeText(segmentContent, dialect: dialect, enableInternetAbbrev: enableInternetAbbrev, enableGenZSlang: enableGenZSlang)
 
             let msg3 = "📊 AnalysisCoordinator: Harper returned \(result.errors.count) error(s)"
             NSLog(msg3)
@@ -403,7 +405,9 @@ class AnalysisCoordinator: ObservableObject {
             guard let self = self else { return }
 
             let dialect = UserPreferences.shared.selectedDialect
-            let result = GrammarEngine.shared.analyzeText(segmentContent, dialect: dialect)
+            let enableInternetAbbrev = UserPreferences.shared.enableInternetAbbreviations
+            let enableGenZSlang = UserPreferences.shared.enableGenZSlang
+            let result = GrammarEngine.shared.analyzeText(segmentContent, dialect: dialect, enableInternetAbbrev: enableInternetAbbrev, enableGenZSlang: enableGenZSlang)
 
             DispatchQueue.main.async {
                 self.updateErrorCache(for: segment, with: result.errors)
