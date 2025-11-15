@@ -365,7 +365,16 @@ class AnalysisCoordinator: ObservableObject {
             let dialect = UserPreferences.shared.selectedDialect
             let enableInternetAbbrev = UserPreferences.shared.enableInternetAbbreviations
             let enableGenZSlang = UserPreferences.shared.enableGenZSlang
-            let result = GrammarEngine.shared.analyzeText(segmentContent, dialect: dialect, enableInternetAbbrev: enableInternetAbbrev, enableGenZSlang: enableGenZSlang)
+            let enableLanguageDetection = UserPreferences.shared.enableLanguageDetection
+            let excludedLanguages = Array(UserPreferences.shared.excludedLanguages.map { UserPreferences.languageCode(for: $0) })
+            let result = GrammarEngine.shared.analyzeText(
+                segmentContent,
+                dialect: dialect,
+                enableInternetAbbrev: enableInternetAbbrev,
+                enableGenZSlang: enableGenZSlang,
+                enableLanguageDetection: enableLanguageDetection,
+                excludedLanguages: excludedLanguages
+            )
 
             let msg3 = "📊 AnalysisCoordinator: Harper returned \(result.errors.count) error(s)"
             NSLog(msg3)
@@ -407,7 +416,16 @@ class AnalysisCoordinator: ObservableObject {
             let dialect = UserPreferences.shared.selectedDialect
             let enableInternetAbbrev = UserPreferences.shared.enableInternetAbbreviations
             let enableGenZSlang = UserPreferences.shared.enableGenZSlang
-            let result = GrammarEngine.shared.analyzeText(segmentContent, dialect: dialect, enableInternetAbbrev: enableInternetAbbrev, enableGenZSlang: enableGenZSlang)
+            let enableLanguageDetection = UserPreferences.shared.enableLanguageDetection
+            let excludedLanguages = Array(UserPreferences.shared.excludedLanguages.map { UserPreferences.languageCode(for: $0) })
+            let result = GrammarEngine.shared.analyzeText(
+                segmentContent,
+                dialect: dialect,
+                enableInternetAbbrev: enableInternetAbbrev,
+                enableGenZSlang: enableGenZSlang,
+                enableLanguageDetection: enableLanguageDetection,
+                excludedLanguages: excludedLanguages
+            )
 
             DispatchQueue.main.async {
                 self.updateErrorCache(for: segment, with: result.errors)
