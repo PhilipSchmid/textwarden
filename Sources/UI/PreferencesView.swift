@@ -1188,6 +1188,76 @@ struct CustomVocabularyView: View {
 
             Divider()
 
+            // Language Detection section
+            HStack {
+                Image(systemName: "globe")
+                    .font(.title2)
+                    .foregroundColor(.accentColor)
+                Text("Language Detection")
+                    .font(.headline)
+            }
+            .padding(.horizontal)
+            .padding(.top, 16)
+            .padding(.bottom, 8)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle("Detect non-English words", isOn: $preferences.enableLanguageDetection)
+                    .help("Automatically detect and ignore errors in non-English words")
+
+                Text("Skip grammar checking for words detected in selected languages")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                if preferences.enableLanguageDetection {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Languages to ignore:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.top, 8)
+
+                        // Language selection grid with fixed columns
+                        LazyVGrid(columns: [
+                            GridItem(.fixed(150), alignment: .leading),
+                            GridItem(.fixed(150), alignment: .leading),
+                            GridItem(.fixed(150), alignment: .leading),
+                            GridItem(.fixed(150), alignment: .leading)
+                        ], alignment: .leading, spacing: 6) {
+                            ForEach(UserPreferences.availableLanguages.filter { $0 != "English" }.sorted(), id: \.self) { language in
+                                Toggle(language, isOn: Binding(
+                                    get: { preferences.excludedLanguages.contains(language) },
+                                    set: { isSelected in
+                                        if isSelected {
+                                            preferences.excludedLanguages.insert(language)
+                                        } else {
+                                            preferences.excludedLanguages.remove(language)
+                                        }
+                                    }
+                                ))
+                                .toggleStyle(.checkbox)
+                                .font(.system(size: 11))
+                            }
+                        }
+                        .padding(.leading, 20)
+
+                        if !preferences.excludedLanguages.isEmpty {
+                            HStack(spacing: 4) {
+                                Image(systemName: "info.circle")
+                                    .foregroundColor(.blue)
+                                    .font(.caption2)
+                                Text("Words detected as \(preferences.excludedLanguages.sorted().joined(separator: ", ")) will not be marked as errors")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.top, 8)
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+            .padding(.horizontal)
+
+            Divider()
+
             // Custom Dictionary header
             HStack {
                 Image(systemName: "plus.circle")

@@ -20,10 +20,34 @@ import Foundation
     ///   - dialect: English dialect (American, British, Canadian, Australian)
     ///   - enableInternetAbbrev: Enable recognition of internet abbreviations (BTW, FYI, LOL, etc.)
     ///   - enableGenZSlang: Enable recognition of Gen Z slang (ghosting, sus, slay, etc.)
+    ///   - enableLanguageDetection: Enable detection and filtering of non-English words
+    ///   - excludedLanguages: Array of language codes to exclude (e.g., ["spanish", "german"])
     /// - Returns: Result containing analysis result or error
-    @objc public func analyzeText(_ text: String, dialect: String, enableInternetAbbrev: Bool, enableGenZSlang: Bool) -> GrammarAnalysisResult {
-        // Call FFI function with dialect and slang options
-        let ffiResult = analyze_text(text, dialect, enableInternetAbbrev, enableGenZSlang)
+    @objc public func analyzeText(
+        _ text: String,
+        dialect: String,
+        enableInternetAbbrev: Bool,
+        enableGenZSlang: Bool,
+        enableLanguageDetection: Bool = false,
+        excludedLanguages: [String] = []
+    ) -> GrammarAnalysisResult {
+        // Call FFI function with all parameters
+        // Convert Swift strings to RustString and create RustVec for language list
+        let rustText = RustString(text)
+        let rustDialect = RustString(dialect)
+        var rustVec = RustVec<RustString>()
+        for lang in excludedLanguages {
+            rustVec.push(value: RustString(lang))
+        }
+
+        let ffiResult = analyze_text(
+            rustText,
+            rustDialect,
+            enableInternetAbbrev,
+            enableGenZSlang,
+            enableLanguageDetection,
+            rustVec
+        )
 
         // Convert FFI result to Swift model
         return GrammarAnalysisResult(ffiResult: ffiResult)
@@ -36,12 +60,36 @@ import Foundation
     ///   - dialect: English dialect (American, British, Canadian, Australian)
     ///   - enableInternetAbbrev: Enable recognition of internet abbreviations (BTW, FYI, LOL, etc.)
     ///   - enableGenZSlang: Enable recognition of Gen Z slang (ghosting, sus, slay, etc.)
+    ///   - enableLanguageDetection: Enable detection and filtering of non-English words
+    ///   - excludedLanguages: Array of language codes to exclude (e.g., ["spanish", "german"])
     /// - Returns: Analysis result
     @available(macOS 10.15, *)
-    public func analyzeText(_ text: String, dialect: String, enableInternetAbbrev: Bool, enableGenZSlang: Bool) async -> GrammarAnalysisResult {
-        await Task.detached(priority: .userInitiated) { [text, dialect, enableInternetAbbrev, enableGenZSlang] in
+    public func analyzeText(
+        _ text: String,
+        dialect: String,
+        enableInternetAbbrev: Bool,
+        enableGenZSlang: Bool,
+        enableLanguageDetection: Bool = false,
+        excludedLanguages: [String] = []
+    ) async -> GrammarAnalysisResult {
+        await Task.detached(priority: .userInitiated) { [text, dialect, enableInternetAbbrev, enableGenZSlang, enableLanguageDetection, excludedLanguages] in
             // Call FFI function directly in detached task
-            let ffiResult = analyze_text(text, dialect, enableInternetAbbrev, enableGenZSlang)
+            // Convert Swift strings to RustString and create RustVec for language list
+            let rustText = RustString(text)
+            let rustDialect = RustString(dialect)
+            var rustVec = RustVec<RustString>()
+            for lang in excludedLanguages {
+                rustVec.push(value: RustString(lang))
+            }
+
+            let ffiResult = analyze_text(
+                rustText,
+                rustDialect,
+                enableInternetAbbrev,
+                enableGenZSlang,
+                enableLanguageDetection,
+                rustVec
+            )
             return GrammarAnalysisResult(ffiResult: ffiResult)
         }.value
     }
@@ -53,7 +101,14 @@ import Foundation
     /// - Parameter text: The text to analyze
     /// - Returns: Result containing analysis result or error
     @objc public func analyzeText(_ text: String) -> GrammarAnalysisResult {
-        analyzeText(text, dialect: "American", enableInternetAbbrev: true, enableGenZSlang: true)
+        analyzeText(
+            text,
+            dialect: "American",
+            enableInternetAbbrev: true,
+            enableGenZSlang: true,
+            enableLanguageDetection: false,
+            excludedLanguages: []
+        )
     }
 
     /// Convenience method for analyzing text with specified dialect
@@ -63,7 +118,14 @@ import Foundation
     ///   - dialect: English dialect (American, British, Canadian, Australian)
     /// - Returns: Result containing analysis result or error
     @objc public func analyzeText(_ text: String, dialect: String) -> GrammarAnalysisResult {
-        analyzeText(text, dialect: dialect, enableInternetAbbrev: true, enableGenZSlang: true)
+        analyzeText(
+            text,
+            dialect: dialect,
+            enableInternetAbbrev: true,
+            enableGenZSlang: true,
+            enableLanguageDetection: false,
+            excludedLanguages: []
+        )
     }
 
     /// Async convenience method for analyzing text with default parameters
@@ -72,7 +134,14 @@ import Foundation
     /// - Returns: Analysis result
     @available(macOS 10.15, *)
     public func analyzeText(_ text: String) async -> GrammarAnalysisResult {
-        await analyzeText(text, dialect: "American", enableInternetAbbrev: true, enableGenZSlang: true)
+        await analyzeText(
+            text,
+            dialect: "American",
+            enableInternetAbbrev: true,
+            enableGenZSlang: true,
+            enableLanguageDetection: false,
+            excludedLanguages: []
+        )
     }
 
     /// Async convenience method for analyzing text with specified dialect
@@ -83,6 +152,13 @@ import Foundation
     /// - Returns: Analysis result
     @available(macOS 10.15, *)
     public func analyzeText(_ text: String, dialect: String) async -> GrammarAnalysisResult {
-        await analyzeText(text, dialect: dialect, enableInternetAbbrev: true, enableGenZSlang: true)
+        await analyzeText(
+            text,
+            dialect: dialect,
+            enableInternetAbbrev: true,
+            enableGenZSlang: true,
+            enableLanguageDetection: false,
+            excludedLanguages: []
+        )
     }
 }

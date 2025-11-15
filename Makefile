@@ -66,7 +66,12 @@ xcode: ## Open in Xcode
 
 ##@ Testing
 
-test: quick-test ## Run quick smoke test
+test: test-rust quick-test ## Run all tests (Rust unit tests + Swift smoke tests)
+
+test-rust: ## Run Rust library tests
+	@echo "$(BLUE)🦀 Running Rust tests...$(NC)"
+	@export PATH="$$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$$PATH" && \
+	 cd $(RUST_DIR) && cargo test --lib && echo "$(GREEN)✅ Rust tests passed$(NC)"
 
 quick-test: ## Run automated smoke tests
 	@echo "$(BLUE)🧪 Running quick tests...$(NC)"
