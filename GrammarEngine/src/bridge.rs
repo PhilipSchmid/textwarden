@@ -39,7 +39,9 @@ mod ffi {
             text: String,
             dialect: String,
             enable_internet_abbrev: bool,
-            enable_genz_slang: bool
+            enable_genz_slang: bool,
+            enable_language_detection: bool,
+            excluded_languages: Vec<String>
         ) -> AnalysisResult;
     }
 }
@@ -115,9 +117,18 @@ fn analyze_text(
     text: String,
     dialect: String,
     enable_internet_abbrev: bool,
-    enable_genz_slang: bool
+    enable_genz_slang: bool,
+    enable_language_detection: bool,
+    excluded_languages: Vec<String>
 ) -> AnalysisResult {
-    let result = analyzer::analyze_text(&text, &dialect, enable_internet_abbrev, enable_genz_slang);
+    let result = analyzer::analyze_text(
+        &text,
+        &dialect,
+        enable_internet_abbrev,
+        enable_genz_slang,
+        enable_language_detection,
+        excluded_languages
+    );
 
     // Convert analyzer types to FFI types
     let errors = result.errors

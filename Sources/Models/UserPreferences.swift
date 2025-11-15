@@ -223,6 +223,55 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    // MARK: - Language Detection
+
+    /// Enable detection and filtering of non-English words
+    @Published var enableLanguageDetection: Bool {
+        didSet {
+            defaults.set(enableLanguageDetection, forKey: Keys.enableLanguageDetection)
+        }
+    }
+
+    /// Languages to exclude from grammar checking (e.g., "spanish", "german")
+    @Published var excludedLanguages: Set<String> {
+        didSet {
+            if let encoded = try? encoder.encode(excludedLanguages) {
+                defaults.set(encoded, forKey: Keys.excludedLanguages)
+            }
+        }
+    }
+
+    /// Available languages for detection (from whichlang library)
+    static let availableLanguages = [
+        "Arabic", "Dutch", "English", "French", "German",
+        "Hindi", "Italian", "Japanese", "Korean", "Mandarin",
+        "Portuguese", "Russian", "Spanish", "Swedish",
+        "Turkish", "Vietnamese"
+    ]
+
+    /// Map UI-friendly names to language codes for Rust
+    static func languageCode(for name: String) -> String {
+        switch name {
+        case "Arabic": return "arabic"
+        case "Dutch": return "dutch"
+        case "English": return "english"
+        case "French": return "french"
+        case "German": return "german"
+        case "Hindi": return "hindi"
+        case "Italian": return "italian"
+        case "Japanese": return "japanese"
+        case "Korean": return "korean"
+        case "Mandarin": return "mandarin"
+        case "Portuguese": return "portuguese"
+        case "Russian": return "russian"
+        case "Spanish": return "spanish"
+        case "Swedish": return "swedish"
+        case "Turkish": return "turkish"
+        case "Vietnamese": return "vietnamese"
+        default: return name.lowercased()
+        }
+    }
+
     // Future wordlists follow the same pattern:
     // /// Enable recognition of IT and technical terminology (API, JSON, localhost, etc.)
     // @Published var enableITTerminology: Bool {
@@ -331,6 +380,8 @@ class UserPreferences: ObservableObject {
         self.selectedDialect = "American"
         self.enableInternetAbbreviations = true
         self.enableGenZSlang = true
+        self.enableLanguageDetection = false  // Opt-in feature
+        self.excludedLanguages = []
 
         // Keyboard Shortcuts
         self.keyboardShortcutsEnabled = true
@@ -401,6 +452,11 @@ class UserPreferences: ObservableObject {
         self.selectedDialect = defaults.string(forKey: Keys.selectedDialect) ?? "American"
         self.enableInternetAbbreviations = defaults.object(forKey: Keys.enableInternetAbbreviations) as? Bool ?? true
         self.enableGenZSlang = defaults.object(forKey: Keys.enableGenZSlang) as? Bool ?? true
+        self.enableLanguageDetection = defaults.object(forKey: Keys.enableLanguageDetection) as? Bool ?? false
+        if let data = defaults.data(forKey: Keys.excludedLanguages),
+           let set = try? decoder.decode(Set<String>.self, from: data) {
+            self.excludedLanguages = set
+        }
 
         // Keyboard Shortcuts
         self.keyboardShortcutsEnabled = defaults.object(forKey: Keys.keyboardShortcutsEnabled) as? Bool ?? true
@@ -696,6 +752,8 @@ class UserPreferences: ObservableObject {
         static let selectedDialect = "selectedDialect"
         static let enableInternetAbbreviations = "enableInternetAbbreviations"
         static let enableGenZSlang = "enableGenZSlang"
+        static let enableLanguageDetection = "enableLanguageDetection"
+        static let excludedLanguages = "excludedLanguages"
 
         // Keyboard Shortcuts
         static let keyboardShortcutsEnabled = "keyboardShortcutsEnabled"
