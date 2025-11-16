@@ -1,0 +1,104 @@
+# Linux Filesystems
+# Source: Linux kernel fs/Kconfig + include/uapi/linux/magic.h
+# Extracted from: https://github.com/torvalds/linux/master
+# License: GPLv2 (Linux kernel)
+# Extraction date: 2025-11-16
+#
+# Methodology:
+# 1. Fetched fs/Kconfig to extract filesystem configuration options
+# 2. Fetched include/uapi/linux/magic.h to extract filesystem magic numbers
+# 3. Combined and deduplicated filesystem names
+# 4. Sorted alphabetically, lowercase
+#
+# Total filesystems: 77
+
+9p
+aafs
+adfs
+affs
+afs
+anon_inode_fs
+autofs
+bcachefs
+befs
+bfs
+binderfs
+btrfs
+ceph
+cgroup
+cgroup2
+cifs
+coda
+configfs
+cramfs
+debugfs
+devmem
+devpts
+dma_buf
+ecryptfs
+efs
+efivarfs
+erofs
+exfat
+ext2
+ext3
+ext4
+f2fs
+fat
+freevxfs
+fuse
+futexfs
+gfs2
+hfs
+hfsplus
+hostfs
+hpfs
+hugetlbfs
+isofs
+jbd2
+jffs2
+jfs
+kernfs
+minix
+minix2
+minix3
+msdos
+mtd_inode_fs
+ncp
+nfs
+nfsd
+nilfs
+nilfs2
+nsfs
+ntfs3
+ocfs2
+omfs
+openprom
+orangefs
+overlayfs
+pid_fs
+proc
+pstorefs
+qnx4
+qnx6
+ramfs
+rdtgroup
+reiserfs
+romfs
+securityfs
+selinux
+smack
+smb
+smb2
+sockfs
+squashfs
+sysfs
+tmpfs
+ubifs
+udf
+ufs
+usbdevice
+vboxsf
+xenfs
+xfs
+zonefs
