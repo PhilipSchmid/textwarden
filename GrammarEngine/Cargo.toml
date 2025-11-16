@@ -26,10 +26,6 @@ codegen-units = 1
 [profile.dev]
 opt-level = 1
 
-[[bench]]
-name = "language_filter"
-harness = false
-
 [lints.clippy]
 # Default lints for code quality
 all = "warn"

@@ -223,6 +223,13 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Enable recognition of IT terminology (kubernetes, docker, API, etc.)
+    @Published var enableITTerminology: Bool {
+        didSet {
+            defaults.set(enableITTerminology, forKey: Keys.enableITTerminology)
+        }
+    }
+
     // MARK: - Language Detection
 
     /// Enable detection and filtering of non-English words
@@ -380,6 +387,7 @@ class UserPreferences: ObservableObject {
         self.selectedDialect = "American"
         self.enableInternetAbbreviations = true
         self.enableGenZSlang = true
+        self.enableITTerminology = true
         self.enableLanguageDetection = false  // Opt-in feature
         self.excludedLanguages = []
 
@@ -452,6 +460,7 @@ class UserPreferences: ObservableObject {
         self.selectedDialect = defaults.string(forKey: Keys.selectedDialect) ?? "American"
         self.enableInternetAbbreviations = defaults.object(forKey: Keys.enableInternetAbbreviations) as? Bool ?? true
         self.enableGenZSlang = defaults.object(forKey: Keys.enableGenZSlang) as? Bool ?? true
+        self.enableITTerminology = defaults.object(forKey: Keys.enableITTerminology) as? Bool ?? true
         self.enableLanguageDetection = defaults.object(forKey: Keys.enableLanguageDetection) as? Bool ?? false
         if let data = defaults.data(forKey: Keys.excludedLanguages),
            let set = try? decoder.decode(Set<String>.self, from: data) {
@@ -721,6 +730,7 @@ class UserPreferences: ObservableObject {
         selectedDialect = "American"
         enableInternetAbbreviations = true
         enableGenZSlang = true
+        enableITTerminology = true
         keyboardShortcutsEnabled = true
         toggleShortcut = "⌘⇧G"
         acceptSuggestionShortcut = "⇥"
@@ -752,6 +762,7 @@ class UserPreferences: ObservableObject {
         static let selectedDialect = "selectedDialect"
         static let enableInternetAbbreviations = "enableInternetAbbreviations"
         static let enableGenZSlang = "enableGenZSlang"
+        static let enableITTerminology = "enableITTerminology"
         static let enableLanguageDetection = "enableLanguageDetection"
         static let excludedLanguages = "excludedLanguages"
 

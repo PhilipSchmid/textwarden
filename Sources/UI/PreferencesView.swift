@@ -1170,17 +1170,18 @@ struct CustomVocabularyView: View {
                             .padding(.leading, 20)
                     }
 
-                    // Future wordlists will be added here
-                    // Example structure for IT terminology:
-                    // Divider()
-                    // VStack(alignment: .leading, spacing: 4) {
-                    //     Toggle("IT & Tech Terminology", isOn: $preferences.enableITTerminology)
-                    //         .help("Accept technical terms like API, JSON, localhost, etc.")
-                    //     Text("XXX+ technical terms (API, JSON, localhost, etc.) • Case-insensitive")
-                    //         .font(.caption2)
-                    //         .foregroundColor(.secondary)
-                    //         .padding(.leading, 20)
-                    // }
+                    Divider()
+
+                    // IT Terminology
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle("IT & Tech Terminology", isOn: $preferences.enableITTerminology)
+                            .help("Accept technical terms like kubernetes, docker, API, JSON, localhost, etc.")
+
+                        Text("10,000+ technical terms (kubernetes, docker, nginx, API, JSON, etc.) • Case-insensitive")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .padding(.leading, 20)
+                    }
                 }
                 .padding(.vertical, 4)
             }
