@@ -14,10 +14,10 @@ pub enum WordlistCategory {
     InternetAbbreviations,
     /// Gen Z slang (ghosting, sus, slay, etc.)
     GenZSlang,
+    /// IT and technical terminology (API, JSON, localhost, kubernetes, etc.)
+    ITTerminology,
     // Future wordlists can be added here:
-    // /// IT and technical terminology (API, JSON, localhost, etc.)
-    // ITTerminology,
-    // /// Medical terminology (diagnosis,症状, medication, etc.)
+    // /// Medical terminology (diagnosis, medication, etc.)
     // MedicalTerms,
     // /// Legal terminology (plaintiff, defendant, jurisdiction, etc.)
     // LegalTerms,
@@ -47,6 +47,12 @@ impl WordlistCategory {
                 description: "Modern slang and informal language",
                 word_count_estimate: 270,
             },
+            WordlistCategory::ITTerminology => WordlistInfo {
+                category: *self,
+                name: "IT Terminology",
+                description: "Technical IT terms from NIST, IANA, Linux, CNCF, and more",
+                word_count_estimate: 10000,
+            },
         }
     }
 
@@ -63,56 +69,12 @@ impl WordlistCategory {
                 const GENZ_SLANG: &str = include_str!("../wordlists/genz_slang.txt");
                 load_words_lowercase_only(GENZ_SLANG)
             }
-            // Future wordlists:
-            // WordlistCategory::ITTerminology => {
-            //     const IT_TERMS: &str = include_str!("../wordlists/it_terminology.txt");
-            //     load_words_lowercase_only(IT_TERMS)
-            // }
+            WordlistCategory::ITTerminology => {
+                const IT_TERMS: &str = include_str!("../wordlists/it_terminology.txt");
+                load_words_lowercase_only(IT_TERMS)
+            }
         }
     }
-}
-
-/// Load internet abbreviations from embedded file
-/// Returns a Vec of (CharString, WordMetadata) tuples
-/// Stores words in lowercase - Harper's spell checker will match any case automatically
-///
-/// DEPRECATED: Use WordlistCategory::InternetAbbreviations.load_words() instead
-/// This function is kept for backward compatibility
-pub fn load_internet_abbreviations() -> Vec<(CharString, WordMetadata)> {
-    WordlistCategory::InternetAbbreviations.load_words()
-}
-
-/// Load Gen Z slang words from embedded file
-/// Returns a Vec of (CharString, WordMetadata) tuples
-/// Stores words in lowercase - Harper's spell checker will match any case automatically
-///
-/// DEPRECATED: Use WordlistCategory::GenZSlang.load_words() instead
-/// This function is kept for backward compatibility
-pub fn load_genz_slang() -> Vec<(CharString, WordMetadata)> {
-    WordlistCategory::GenZSlang.load_words()
-}
-
-/// Parse text file with one word per line (ignoring comments and empty lines)
-/// Returns a Vec of (CharString, WordMetadata) tuples
-fn load_words_from_text(text: &str) -> Vec<(CharString, WordMetadata)> {
-    text.lines()
-        .filter_map(|line| {
-            let trimmed = line.trim();
-            // Skip empty lines and comments
-            if trimmed.is_empty() || trimmed.starts_with('#') {
-                return None;
-            }
-
-            // Convert to CharString (Vec<char>)
-            let char_string: CharString = trimmed.chars().collect();
-
-            // Create default metadata for the word
-            // This marks it as a valid word with no special grammatical properties
-            let metadata = WordMetadata::default();
-
-            Some((char_string, metadata))
-        })
-        .collect()
 }
 
 /// Parse text file and convert all words to lowercase
@@ -145,7 +107,7 @@ mod tests {
 
     #[test]
     fn test_load_internet_abbreviations() {
-        let abbrevs = load_internet_abbreviations();
+        let abbrevs = WordlistCategory::InternetAbbreviations.load_words();
 
         // Should have loaded many abbreviations (lowercase only now)
         assert!(abbrevs.len() > 3000, "Should have 3000+ abbreviations");
@@ -165,7 +127,7 @@ mod tests {
 
     #[test]
     fn test_load_genz_slang() {
-        let slang = load_genz_slang();
+        let slang = WordlistCategory::GenZSlang.load_words();
 
         // Should have loaded slang words
         assert!(slang.len() > 100, "Should have 100+ slang terms");
@@ -184,7 +146,7 @@ mod tests {
     #[test]
     fn test_comments_and_empty_lines_ignored() {
         let test_text = "# This is a comment\nBTW\n\n  \nFYI\n# Another comment\nLOL";
-        let words = load_words_from_text(test_text);
+        let words = load_words_lowercase_only(test_text);
 
         assert_eq!(words.len(), 3, "Should only load 3 words, ignoring comments and empty lines");
 
@@ -192,7 +154,7 @@ mod tests {
             .map(|(chars, _)| chars.iter().collect())
             .collect();
 
-        assert_eq!(word_strings, vec!["BTW", "FYI", "LOL"]);
+        assert_eq!(word_strings, vec!["btw", "fyi", "lol"]);
     }
 
     #[test]
@@ -221,7 +183,7 @@ mod tests {
     #[test]
     fn test_real_abbreviations_loaded() {
         // Test that real abbreviations are loaded (lowercase only)
-        let abbrevs = load_internet_abbreviations();
+        let abbrevs = WordlistCategory::InternetAbbreviations.load_words();
 
         // Should have 3000+ abbreviations (no case variants)
         assert!(abbrevs.len() > 3000, "Should have 3000+ abbreviations");
@@ -242,5 +204,112 @@ mod tests {
         assert!(!abbrev_strings.contains(&"AFAICT".to_string()), "Should NOT contain 'AFAICT'");
 
         println!("Loaded {} total abbreviations (lowercase only)", abbrevs.len());
+    }
+
+    #[test]
+    fn test_load_it_terminology() {
+        let it_terms = WordlistCategory::ITTerminology.load_words();
+
+        // Should have 10000+ terms
+        assert!(it_terms.len() > 10000, "Should have 10000+ IT terms, got {}", it_terms.len());
+
+        // Check for some common IT terms
+        let term_strings: Vec<String> = it_terms.iter()
+            .map(|(chars, _)| chars.iter().collect())
+            .collect();
+
+        // Cloud/DevOps terms
+        assert!(term_strings.contains(&"kubernetes".to_string()), "Should contain 'kubernetes'");
+        assert!(term_strings.contains(&"docker".to_string()), "Should contain 'docker'");
+        assert!(term_strings.contains(&"nginx".to_string()), "Should contain 'nginx'");
+
+        // Programming terms
+        assert!(term_strings.contains(&"javascript".to_string()), "Should contain 'javascript'");
+        assert!(term_strings.contains(&"python".to_string()), "Should contain 'python'");
+        assert!(term_strings.contains(&"api".to_string()), "Should contain 'api'");
+        assert!(term_strings.contains(&"json".to_string()), "Should contain 'json'");
+
+        // Networking terms
+        assert!(term_strings.contains(&"http".to_string()), "Should contain 'http'");
+        assert!(term_strings.contains(&"tcp".to_string()), "Should contain 'tcp'");
+        assert!(term_strings.contains(&"ssh".to_string()), "Should contain 'ssh'");
+
+        // Security terms
+        assert!(term_strings.contains(&"encryption".to_string()), "Should contain 'encryption'");
+        assert!(term_strings.contains(&"firewall".to_string()), "Should contain 'firewall'");
+
+        // Linux terms
+        assert!(term_strings.contains(&"chmod".to_string()), "Should contain 'chmod'");
+
+        println!("Loaded {} total IT terms", it_terms.len());
+    }
+
+    #[test]
+    fn test_it_terminology_hyphenated_compounds() {
+        let it_terms = WordlistCategory::ITTerminology.load_words();
+        let term_strings: Vec<String> = it_terms.iter()
+            .map(|(chars, _)| chars.iter().collect())
+            .collect();
+
+        // Test that important hyphenated compounds are preserved
+        assert!(term_strings.contains(&"real-time".to_string()), "Should contain 'real-time'");
+        assert!(term_strings.contains(&"end-to-end".to_string()), "Should contain 'end-to-end'");
+        assert!(term_strings.contains(&"peer-to-peer".to_string()), "Should contain 'peer-to-peer'");
+        assert!(term_strings.contains(&"serverless".to_string()), "Should contain 'serverless'");
+    }
+
+    #[test]
+    fn test_it_terminology_vendor_and_technology_names() {
+        let it_terms = WordlistCategory::ITTerminology.load_words();
+        let term_strings: Vec<String> = it_terms.iter()
+            .map(|(chars, _)| chars.iter().collect())
+            .collect();
+
+        // Technology names should be included (both individual and compound forms)
+        assert!(term_strings.contains(&"apache".to_string()), "Should contain 'apache'");
+        assert!(term_strings.contains(&"kafka".to_string()), "Should contain 'kafka'");
+        // Compound forms may also be included for common technology stacks
+        assert!(term_strings.contains(&"apache-kafka".to_string()), "Should contain 'apache-kafka'");
+    }
+
+    #[test]
+    fn test_wordlist_category_info() {
+        // Test metadata for all categories
+        let internet_info = WordlistCategory::InternetAbbreviations.info();
+        assert_eq!(internet_info.name, "Internet Abbreviations");
+        assert!(internet_info.word_count_estimate > 3000);
+
+        let genz_info = WordlistCategory::GenZSlang.info();
+        assert_eq!(genz_info.name, "Gen Z Slang");
+        assert!(genz_info.word_count_estimate > 200);
+
+        let it_info = WordlistCategory::ITTerminology.info();
+        assert_eq!(it_info.name, "IT Terminology");
+        assert!(it_info.word_count_estimate > 9000);
+    }
+
+    #[test]
+    fn test_it_terminology_source_variety() {
+        let it_terms = WordlistCategory::ITTerminology.load_words();
+        let term_strings: Vec<String> = it_terms.iter()
+            .map(|(chars, _)| chars.iter().collect())
+            .collect();
+
+        // Terms from different sources to verify comprehensive coverage
+
+        // NIST cybersecurity terms
+        assert!(term_strings.contains(&"authentication".to_string()), "Should contain NIST term 'authentication'");
+
+        // IANA protocols
+        assert!(term_strings.contains(&"ssh".to_string()), "Should contain IANA protocol 'ssh'");
+
+        // Linux syscalls
+        assert!(term_strings.contains(&"open".to_string()), "Should contain Linux syscall 'open'");
+
+        // Programming languages from GitHub Linguist
+        assert!(term_strings.contains(&"rust".to_string()), "Should contain programming language 'rust'");
+
+        // CNCF technologies
+        assert!(term_strings.contains(&"prometheus".to_string()), "Should contain CNCF tech 'prometheus'");
     }
 }

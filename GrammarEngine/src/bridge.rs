@@ -40,6 +40,7 @@ mod ffi {
             dialect: String,
             enable_internet_abbrev: bool,
             enable_genz_slang: bool,
+            enable_it_terminology: bool,
             enable_language_detection: bool,
             excluded_languages: Vec<String>
         ) -> AnalysisResult;
@@ -118,6 +119,7 @@ fn analyze_text(
     dialect: String,
     enable_internet_abbrev: bool,
     enable_genz_slang: bool,
+    enable_it_terminology: bool,
     enable_language_detection: bool,
     excluded_languages: Vec<String>
 ) -> AnalysisResult {
@@ -126,6 +128,7 @@ fn analyze_text(
         &dialect,
         enable_internet_abbrev,
         enable_genz_slang,
+        enable_it_terminology,
         enable_language_detection,
         excluded_languages
     );

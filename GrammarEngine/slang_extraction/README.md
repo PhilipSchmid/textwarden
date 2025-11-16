@@ -15,7 +15,8 @@ slang_extraction/
 
 ../wordlists/            # Final wordlists (✓ in git)
 ├── internet_abbreviations.txt  # 3,211 internet abbreviations
-└── genz_slang.txt              # 274 Gen Z slang terms
+├── genz_slang.txt              # 274 Gen Z slang terms
+└── it_terminology.txt          # 10,041 IT technical terms
 ```
 
 ## Wordlists
@@ -47,20 +48,47 @@ Modern slang words and phrases used in informal digital communication and social
 
 **License:** MIT License + Community datasets (publicly available)
 
+### IT Terminology (10,041 terms)
+
+Technical IT terms from authoritative sources covering cloud, DevOps, programming, networking, security, and system administration.
+
+**Examples:** kubernetes, docker, nginx, api, json, http, tcp, ssh, firewall, encryption, python, javascript, chmod
+
+**Sources:**
+- NIST Cybersecurity Glossary (CSRC)
+- IANA Protocol/Service Names
+- Linux System Calls and Commands
+- CNCF Technologies
+- GitHub Linguist Programming Languages
+- And more (see ../it_terminology_extraction/README.md)
+
+**License:** Public domain / Open source terms
+
 ## Current Statistics
 
-- **Total Wordlists**: 2
+- **Total Wordlists**: 3
 - **Internet Abbreviations**: 3,211 terms
 - **Gen Z Slang**: 274 terms
-- **Total Terms**: 3,485 unique entries
+- **IT Terminology**: 10,041 terms
+- **Total Terms**: 13,526 unique entries
 
 ## Usage
 
 These wordlists are directly referenced by the Gnau grammar engine via `include_str!()` in `src/slang_dict.rs`:
 
 ```rust
-const ABBREVIATIONS: &str = include_str!("../wordlists/internet_abbreviations.txt");
-const GENZ_SLANG: &str = include_str!("../wordlists/genz_slang.txt");
+WordlistCategory::InternetAbbreviations => {
+    const ABBREVIATIONS: &str = include_str!("../wordlists/internet_abbreviations.txt");
+    load_words_lowercase_only(ABBREVIATIONS)
+}
+WordlistCategory::GenZSlang => {
+    const GENZ_SLANG: &str = include_str!("../wordlists/genz_slang.txt");
+    load_words_lowercase_only(GENZ_SLANG)
+}
+WordlistCategory::ITTerminology => {
+    const IT_TERMS: &str = include_str!("../wordlists/it_terminology.txt");
+    load_words_lowercase_only(IT_TERMS)
+}
 ```
 
 ## Updating Wordlists
@@ -72,6 +100,7 @@ Since these are curated wordlists, they are manually updated:
 1. Edit the wordlist files directly:
    - `../wordlists/internet_abbreviations.txt`
    - `../wordlists/genz_slang.txt`
+   - `../wordlists/it_terminology.txt`
 
 2. Format: One term per line
    ```

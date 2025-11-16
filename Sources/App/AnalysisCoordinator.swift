@@ -365,6 +365,7 @@ class AnalysisCoordinator: ObservableObject {
             let dialect = UserPreferences.shared.selectedDialect
             let enableInternetAbbrev = UserPreferences.shared.enableInternetAbbreviations
             let enableGenZSlang = UserPreferences.shared.enableGenZSlang
+            let enableITTerminology = UserPreferences.shared.enableITTerminology
             let enableLanguageDetection = UserPreferences.shared.enableLanguageDetection
             let excludedLanguages = Array(UserPreferences.shared.excludedLanguages.map { UserPreferences.languageCode(for: $0) })
             let result = GrammarEngine.shared.analyzeText(
@@ -372,6 +373,7 @@ class AnalysisCoordinator: ObservableObject {
                 dialect: dialect,
                 enableInternetAbbrev: enableInternetAbbrev,
                 enableGenZSlang: enableGenZSlang,
+                enableITTerminology: enableITTerminology,
                 enableLanguageDetection: enableLanguageDetection,
                 excludedLanguages: excludedLanguages
             )
@@ -416,6 +418,7 @@ class AnalysisCoordinator: ObservableObject {
             let dialect = UserPreferences.shared.selectedDialect
             let enableInternetAbbrev = UserPreferences.shared.enableInternetAbbreviations
             let enableGenZSlang = UserPreferences.shared.enableGenZSlang
+            let enableITTerminology = UserPreferences.shared.enableITTerminology
             let enableLanguageDetection = UserPreferences.shared.enableLanguageDetection
             let excludedLanguages = Array(UserPreferences.shared.excludedLanguages.map { UserPreferences.languageCode(for: $0) })
             let result = GrammarEngine.shared.analyzeText(
@@ -423,6 +426,7 @@ class AnalysisCoordinator: ObservableObject {
                 dialect: dialect,
                 enableInternetAbbrev: enableInternetAbbrev,
                 enableGenZSlang: enableGenZSlang,
+                enableITTerminology: enableITTerminology,
                 enableLanguageDetection: enableLanguageDetection,
                 excludedLanguages: excludedLanguages
             )
