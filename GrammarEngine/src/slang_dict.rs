@@ -56,16 +56,16 @@ impl WordlistCategory {
     pub fn load_words(&self) -> Vec<(CharString, WordMetadata)> {
         match self {
             WordlistCategory::InternetAbbreviations => {
-                const ABBREVIATIONS: &str = include_str!("../internet_abbreviations.txt");
+                const ABBREVIATIONS: &str = include_str!("../wordlists/internet_abbreviations.txt");
                 load_words_lowercase_only(ABBREVIATIONS)
             }
             WordlistCategory::GenZSlang => {
-                const GENZ_SLANG: &str = include_str!("../genz_slang.txt");
+                const GENZ_SLANG: &str = include_str!("../wordlists/genz_slang.txt");
                 load_words_lowercase_only(GENZ_SLANG)
             }
             // Future wordlists:
             // WordlistCategory::ITTerminology => {
-            //     const IT_TERMS: &str = include_str!("../it_terminology.txt");
+            //     const IT_TERMS: &str = include_str!("../wordlists/it_terminology.txt");
             //     load_words_lowercase_only(IT_TERMS)
             // }
         }

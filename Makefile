@@ -73,6 +73,11 @@ test-rust: ## Run Rust library tests
 	@export PATH="$$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$$PATH" && \
 	 cd $(RUST_DIR) && cargo test --lib && echo "$(GREEN)✅ Rust tests passed$(NC)"
 
+update-terminology: ## Regenerate IT terminology wordlist from sources
+	@echo "$(BLUE)📝 Regenerating IT terminology wordlist...$(NC)"
+	@cd $(RUST_DIR)/it_terminology_extraction/scripts && ./regenerate_wordlist.sh
+	@echo "$(GREEN)✅ Terminology wordlist updated$(NC)"
+
 quick-test: ## Run automated smoke tests
 	@echo "$(BLUE)🧪 Running quick tests...$(NC)"
 	@./Scripts/quick-test.sh
