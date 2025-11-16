@@ -215,7 +215,7 @@ pub fn analyze_text(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use harper_core::WordMetadata;
+    use harper_core::DictWordMetadata;
 
     #[test]
     fn test_dictionary_contains_abbreviations() {
@@ -780,7 +780,7 @@ mod tests {
         // Create a custom dictionary with a test word
         let mut custom_dict = MutableDictionary::new();
         let test_word: Vec<char> = "testabbrev".chars().collect();
-        custom_dict.extend_words(vec![(test_word.clone(), WordMetadata::default())]);
+        custom_dict.extend_words(vec![(test_word.clone(), DictWordMetadata::default())]);
 
         // Create merged dictionary
         let mut merged = MergedDictionary::new();
