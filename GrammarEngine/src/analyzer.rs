@@ -110,22 +110,9 @@ pub fn analyze_text(
     // Clone the Arc so we can use the dictionary for both linting and document parsing
     let mut linter = LintGroup::new_curated(dictionary.clone(), dialect);
 
-    // If internet abbreviations are enabled, disable Harper's initialism expansion rules
-    // These rules suggest expanding abbreviations like "btw" → "by the way", "fyi" → "for your information"
-    // When the user explicitly enables abbreviations, they don't want these suggestions
-    if enable_internet_abbrev {
-        linter.config.set_rule_enabled("ByTheWay", false);
-        linter.config.set_rule_enabled("ForYourInformation", false);
-        linter.config.set_rule_enabled("AsSoonAsPossible", false);
-        linter.config.set_rule_enabled("InMyOpinion", false);
-        linter.config.set_rule_enabled("InMyHumbleOpinion", false);
-        linter.config.set_rule_enabled("OhMyGod", false);
-        linter.config.set_rule_enabled("BeRightBack", false);
-        linter.config.set_rule_enabled("TalkToYouLater", false);
-        linter.config.set_rule_enabled("NeverMind", false);
-        linter.config.set_rule_enabled("ToBeHonest", false);
-        linter.config.set_rule_enabled("AsFarAsIKnow", false);
-    }
+    // Don't disable any Harper rules - let all style suggestions through.
+    // The dictionary handles word recognition (preventing spelling errors).
+    // Harper's rules handle style improvements (capitalization, expansion suggestions, etc.)
 
     // Parse the text into a Document using our merged dictionary
     // This ensures abbreviations and slang are recognized during parsing
