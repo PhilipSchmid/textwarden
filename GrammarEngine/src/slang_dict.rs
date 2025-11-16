@@ -4,7 +4,7 @@
 // Supports internet abbreviations, Gen Z slang, and future wordlists (IT, medical, legal, etc.)
 
 use harper_core::CharString;
-use harper_core::WordMetadata;
+use harper_core::DictWordMetadata;
 
 /// Wordlist categories available in the system
 /// Add new variants here when introducing new wordlists
@@ -57,9 +57,9 @@ impl WordlistCategory {
     }
 
     /// Load words for this wordlist category
-    /// Returns a Vec of (CharString, WordMetadata) tuples
+    /// Returns a Vec of (CharString, DictWordMetadata) tuples
     /// All words are stored in lowercase - Harper's spell checker will match any case automatically
-    pub fn load_words(&self) -> Vec<(CharString, WordMetadata)> {
+    pub fn load_words(&self) -> Vec<(CharString, DictWordMetadata)> {
         match self {
             WordlistCategory::InternetAbbreviations => {
                 const ABBREVIATIONS: &str = include_str!("../wordlists/internet_abbreviations.txt");
@@ -80,8 +80,8 @@ impl WordlistCategory {
 /// Parse text file and convert all words to lowercase
 /// Harper's spell checker automatically accepts any case when words are stored in lowercase
 /// This works because SpellCheck checks both exact match and to_lower() match
-/// Returns a Vec of (CharString, WordMetadata) tuples
-fn load_words_lowercase_only(text: &str) -> Vec<(CharString, WordMetadata)> {
+/// Returns a Vec of (CharString, DictWordMetadata) tuples
+fn load_words_lowercase_only(text: &str) -> Vec<(CharString, DictWordMetadata)> {
     text.lines()
         .filter_map(|line| {
             let trimmed = line.trim();
@@ -94,7 +94,7 @@ fn load_words_lowercase_only(text: &str) -> Vec<(CharString, WordMetadata)> {
             let lowercase: CharString = trimmed.to_lowercase().chars().collect();
 
             // Create default metadata for the word
-            let metadata = WordMetadata::default();
+            let metadata = DictWordMetadata::default();
 
             Some((lowercase, metadata))
         })
