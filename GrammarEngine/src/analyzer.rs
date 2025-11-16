@@ -328,6 +328,64 @@ mod tests {
     }
 
     #[test]
+    fn test_wordlist_overlap_with_harper() {
+        // Check how much overlap exists between our custom wordlists and Harper's curated dictionary
+        use harper_core::spell::{Dictionary, MutableDictionary};
+
+        let harper_dict = MutableDictionary::curated();
+
+        println!("\n=== WORDLIST OVERLAP ANALYSIS ===");
+
+        // Check each wordlist category
+        let categories = vec![
+            ("Internet Abbreviations", slang_dict::WordlistCategory::InternetAbbreviations),
+            ("Gen Z Slang", slang_dict::WordlistCategory::GenZSlang),
+            ("IT Terminology", slang_dict::WordlistCategory::ITTerminology),
+        ];
+
+        for (name, category) in categories {
+            let words = category.load_words();
+            let total_count = words.len();
+
+            let mut overlap_count = 0;
+            let mut overlap_examples = Vec::new();
+            let mut unique_examples = Vec::new();
+
+            for (chars, _) in &words {
+                let word: String = chars.iter().collect();
+
+                if harper_dict.contains_word(chars) {
+                    overlap_count += 1;
+                    if overlap_examples.len() < 10 {
+                        overlap_examples.push(word.clone());
+                    }
+                } else {
+                    if unique_examples.len() < 10 {
+                        unique_examples.push(word.clone());
+                    }
+                }
+            }
+
+            let overlap_percent = (overlap_count as f64 / total_count as f64) * 100.0;
+            let unique_count = total_count - overlap_count;
+
+            println!("\n{}: ", name);
+            println!("  Total words: {}", total_count);
+            println!("  Already in Harper: {} ({:.1}%)", overlap_count, overlap_percent);
+            println!("  Unique to our list: {} ({:.1}%)", unique_count, 100.0 - overlap_percent);
+
+            if !overlap_examples.is_empty() {
+                println!("  Example overlaps: {}", overlap_examples.join(", "));
+            }
+            if !unique_examples.is_empty() {
+                println!("  Example uniques: {}", unique_examples.join(", "));
+            }
+        }
+
+        println!("\n=== END ANALYSIS ===\n");
+    }
+
+    #[test]
     fn test_suggestions_extraction() {
         // Test that suggestions are properly extracted from Harper
         let result = analyze_text("Teh quick brown fox.", "American", false, false, false, false, vec![]);
@@ -462,19 +520,21 @@ mod tests {
             println!("    - {}: {}", &text[error.start..error.end], error.message);
         }
 
-        // Critical assertion: with slang enabled, these specific abbreviations should NOT be flagged
-        let flagged_words_when_enabled: Vec<String> = result_enabled.errors.iter()
+        // Critical assertion: with slang enabled, these should NOT have SPELLING errors
+        // (Style suggestions like capitalization/expansion are OK and desired)
+        let spelling_errors: Vec<String> = result_enabled.errors.iter()
+            .filter(|e| e.category == "Spelling")
             .map(|e| text[e.start..e.end].to_string())
             .collect();
 
-        assert!(!flagged_words_when_enabled.contains(&"AFAICT".to_string()),
-                "AFAICT should not be flagged when internet abbreviations are enabled");
-        assert!(!flagged_words_when_enabled.contains(&"FYI".to_string()),
-                "FYI should not be flagged when internet abbreviations are enabled");
-        assert!(!flagged_words_when_enabled.contains(&"BTW".to_string()),
-                "BTW should not be flagged when internet abbreviations are enabled");
-        assert!(!flagged_words_when_enabled.contains(&"LOL".to_string()),
-                "LOL should not be flagged when internet abbreviations are enabled");
+        assert!(!spelling_errors.contains(&"AFAICT".to_string()),
+                "AFAICT should not have spelling errors when internet abbreviations are enabled");
+        assert!(!spelling_errors.contains(&"FYI".to_string()),
+                "FYI should not have spelling errors when internet abbreviations are enabled");
+        assert!(!spelling_errors.contains(&"BTW".to_string()),
+                "BTW should not have spelling errors when internet abbreviations are enabled");
+        assert!(!spelling_errors.contains(&"LOL".to_string()),
+                "LOL should not have spelling errors when internet abbreviations are enabled");
 
         println!("=== TEST PASSED ===\n");
     }
@@ -497,15 +557,16 @@ mod tests {
             println!("\nTesting: '{}'", text);
             println!("Errors: {}", result.errors.len());
 
-            // The abbreviation itself should not be flagged
-            let flagged_abbrev = result.errors.iter()
+            // The abbreviation should not have SPELLING errors
+            // (Style suggestions are OK and desired)
+            let spelling_error = result.errors.iter()
                 .any(|e| {
                     let word = &text[e.start..e.end];
-                    word.to_lowercase() == "btw" || word.to_lowercase() == "fyi"
+                    e.category == "Spelling" && (word.to_lowercase() == "btw" || word.to_lowercase() == "fyi")
                 });
 
-            assert!(!flagged_abbrev,
-                    "Abbreviation should not be flagged in any case: '{}'", text);
+            assert!(!spelling_error,
+                    "Abbreviation should not have spelling errors: '{}'", text);
         }
     }
 
@@ -640,13 +701,13 @@ mod tests {
             let text_title = format!("I think {} is common", abbrev_title);
             let result_title = analyze_text(&text_title, "American", true, false, false, false, vec![]);
 
-            // Check none are flagged
+            // Check none have SPELLING errors (style suggestions are OK)
             let lower_ok = !result_lower.errors.iter()
-                .any(|e| text_lower[e.start..e.end].to_lowercase() == *abbrev);
+                .any(|e| e.category == "Spelling" && text_lower[e.start..e.end].to_lowercase() == *abbrev);
             let upper_ok = !result_upper.errors.iter()
-                .any(|e| text_upper[e.start..e.end].to_lowercase() == *abbrev);
+                .any(|e| e.category == "Spelling" && text_upper[e.start..e.end].to_lowercase() == *abbrev);
             let title_ok = !result_title.errors.iter()
-                .any(|e| text_title[e.start..e.end].to_lowercase() == *abbrev);
+                .any(|e| e.category == "Spelling" && text_title[e.start..e.end].to_lowercase() == *abbrev);
 
             println!("{}: lowercase={}, UPPERCASE={}, Title={}",
                 abbrev,
@@ -655,9 +716,9 @@ mod tests {
                 if title_ok { "✓" } else { "✗" }
             );
 
-            assert!(lower_ok, "{} (lowercase) should be recognized", abbrev);
-            assert!(upper_ok, "{} (UPPERCASE) should be recognized", abbrev_upper);
-            assert!(title_ok, "{} (Title) should be recognized", abbrev_title);
+            assert!(lower_ok, "{} (lowercase) should not have spelling errors", abbrev);
+            assert!(upper_ok, "{} (UPPERCASE) should not have spelling errors", abbrev_upper);
+            assert!(title_ok, "{} (Title) should not have spelling errors", abbrev_title);
         }
 
         println!("=== All {} abbreviations passed in all cases ===", common_abbreviations.len() * 3);
@@ -709,7 +770,9 @@ mod tests {
     fn test_user_screenshot_scenario() {
         // Test the exact scenario from the user's screenshot:
         // "btw, lol, omg, afaict, AFAICT, lol, LMK, Teh,"
-        // Only "Teh" should be marked as an error
+        // Abbreviations should be recognized as valid words (no spelling errors)
+        // But Harper may still suggest style improvements (capitalization, expansion) - which is desired!
+        // Only "Teh" should be flagged as a spelling error
 
         let text = "btw, lol, omg, afaict, AFAICT, lol, LMK, Teh,";
         let result = analyze_text(text, "American", true, false, false, false, vec![]);
@@ -720,36 +783,46 @@ mod tests {
 
         for error in &result.errors {
             let error_word = &text[error.start..error.end];
-            println!("  - '{}': {}", error_word, error.message);
+            println!("  - '{}' [{}]: {}", error_word, error.category, error.message);
         }
 
-        // Check each word
-        let btw_ok = !result.errors.iter().any(|e| &text[e.start..e.end] == "btw");
-        let lol_ok = !result.errors.iter().any(|e| &text[e.start..e.end] == "lol");
-        let omg_ok = !result.errors.iter().any(|e| &text[e.start..e.end] == "omg");
-        let afaict_lower_ok = !result.errors.iter().any(|e| &text[e.start..e.end] == "afaict");
-        let afaict_upper_ok = !result.errors.iter().any(|e| &text[e.start..e.end] == "AFAICT");
-        let lmk_ok = !result.errors.iter().any(|e| &text[e.start..e.end] == "LMK");
-        let teh_error = result.errors.iter().any(|e| &text[e.start..e.end] == "Teh");
+        // Check that abbreviations don't have SPELLING errors (but style suggestions are OK)
+        let btw_spelling = result.errors.iter()
+            .any(|e| &text[e.start..e.end] == "btw" && e.category == "Spelling");
+        let omg_spelling = result.errors.iter()
+            .any(|e| &text[e.start..e.end] == "omg" && e.category == "Spelling");
+        let lol_spelling = result.errors.iter()
+            .any(|e| &text[e.start..e.end] == "lol" && e.category == "Spelling");
+        let afaict_lower_spelling = result.errors.iter()
+            .any(|e| &text[e.start..e.end] == "afaict" && e.category == "Spelling");
+        let afaict_upper_spelling = result.errors.iter()
+            .any(|e| &text[e.start..e.end] == "AFAICT" && e.category == "Spelling");
+        let lmk_spelling = result.errors.iter()
+            .any(|e| &text[e.start..e.end] == "LMK" && e.category == "Spelling");
 
-        println!("\nResults:");
-        println!("  btw: {}", if btw_ok { "✓" } else { "✗ FLAGGED" });
-        println!("  lol: {}", if lol_ok { "✓" } else { "✗ FLAGGED" });
-        println!("  omg: {}", if omg_ok { "✓" } else { "✗ FLAGGED" });
-        println!("  afaict: {}", if afaict_lower_ok { "✓" } else { "✗ FLAGGED" });
-        println!("  AFAICT: {}", if afaict_upper_ok { "✓" } else { "✗ FLAGGED" });
-        println!("  LMK: {}", if lmk_ok { "✓" } else { "✗ FLAGGED" });
-        println!("  Teh: {}", if teh_error { "✓ CORRECTLY FLAGGED" } else { "✗ NOT FLAGGED" });
+        // Check that "Teh" is flagged as a spelling error
+        let teh_spelling = result.errors.iter()
+            .any(|e| &text[e.start..e.end] == "Teh" && e.category == "Spelling");
 
-        assert!(btw_ok, "btw should not be flagged");
-        assert!(lol_ok, "lol should not be flagged");
-        assert!(omg_ok, "omg should not be flagged");
-        assert!(afaict_lower_ok, "afaict (lowercase) should not be flagged");
-        assert!(afaict_upper_ok, "AFAICT (uppercase) should not be flagged");
-        assert!(lmk_ok, "LMK should not be flagged");
-        assert!(teh_error, "Teh should be flagged as an error");
+        println!("\nSpelling Error Check (should all be false except Teh):");
+        println!("  btw: {}", btw_spelling);
+        println!("  lol: {}", lol_spelling);
+        println!("  omg: {}", omg_spelling);
+        println!("  afaict: {}", afaict_lower_spelling);
+        println!("  AFAICT: {}", afaict_upper_spelling);
+        println!("  LMK: {}", lmk_spelling);
+        println!("  Teh: {} (should be true)", teh_spelling);
+
+        assert!(!btw_spelling, "btw should be recognized as valid word (no spelling error)");
+        assert!(!lol_spelling, "lol should be recognized as valid word (no spelling error)");
+        assert!(!omg_spelling, "omg should be recognized as valid word (no spelling error)");
+        assert!(!afaict_lower_spelling, "afaict should be recognized as valid word (no spelling error)");
+        assert!(!afaict_upper_spelling, "AFAICT should be recognized as valid word (no spelling error)");
+        assert!(!lmk_spelling, "LMK should be recognized as valid word (no spelling error)");
+        assert!(teh_spelling, "Teh should be flagged as spelling error");
 
         println!("\n=== Screenshot scenario test passed ===");
+        println!("Note: Style suggestions (capitalization, expansion) for abbreviations are intentionally kept!");
     }
 
     #[test]
@@ -1027,13 +1100,16 @@ mod tests {
         // Errors in Spanish sentence (0..25) should be filtered
         let spanish_errors = result.errors.iter().filter(|e| e.start < 25).count();
 
-        // "BTW" and "sus" in English sentence should NOT be flagged (slang dictionaries)
-        let has_btw = result.errors.iter().any(|e| &text[e.start..e.end] == "BTW");
-        let has_sus = result.errors.iter().any(|e| &text[e.start..e.end] == "sus");
+        // "BTW" and "sus" in English sentence should NOT have SPELLING errors (slang dictionaries)
+        // (Style suggestions are OK)
+        let btw_spelling = result.errors.iter()
+            .any(|e| &text[e.start..e.end] == "BTW" && e.category == "Spelling");
+        let sus_spelling = result.errors.iter()
+            .any(|e| &text[e.start..e.end] == "sus" && e.category == "Spelling");
 
         assert_eq!(spanish_errors, 0, "Spanish sentence errors should be filtered");
-        assert!(!has_btw, "BTW should not be flagged (internet abbreviations)");
-        assert!(!has_sus, "sus should not be flagged (Gen Z slang)");
+        assert!(!btw_spelling, "BTW should not have spelling errors (internet abbreviations)");
+        assert!(!sus_spelling, "sus should not have spelling errors (Gen Z slang)");
     }
 
     #[test]
@@ -1810,21 +1886,21 @@ mod tests {
             let result_disabled = analyze_text(text, "American", false, false, false, false, vec![]);
             let result_enabled = analyze_text(text, "American", false, false, true, false, vec![]);
 
-            // Check if the term is flagged as an error when disabled
-            let term_flagged_when_disabled = result_disabled.errors.iter()
-                .any(|e| text[e.start..e.end].to_lowercase().contains(&term.to_lowercase()));
+            // Check if the term has SPELLING errors when disabled
+            let spelling_when_disabled = result_disabled.errors.iter()
+                .any(|e| e.category == "Spelling" && text[e.start..e.end].to_lowercase().contains(&term.to_lowercase()));
 
-            // The term should NOT be flagged when enabled
-            let term_flagged_when_enabled = result_enabled.errors.iter()
-                .any(|e| text[e.start..e.end].to_lowercase().contains(&term.to_lowercase()));
+            // The term should NOT have SPELLING errors when enabled
+            let spelling_when_enabled = result_enabled.errors.iter()
+                .any(|e| e.category == "Spelling" && text[e.start..e.end].to_lowercase().contains(&term.to_lowercase()));
 
-            println!("Term '{}': flagged_disabled={}, flagged_enabled={}",
-                     term, term_flagged_when_disabled, term_flagged_when_enabled);
+            println!("Term '{}': spelling_disabled={}, spelling_enabled={}",
+                     term, spelling_when_disabled, spelling_when_enabled);
 
-            // If the term was flagged when disabled, it should not be flagged when enabled
-            if term_flagged_when_disabled {
-                assert!(!term_flagged_when_enabled,
-                        "Term '{}' should be recognized when IT terminology is enabled", term);
+            // If the term had spelling errors when disabled, it should not have them when enabled
+            if spelling_when_disabled {
+                assert!(!spelling_when_enabled,
+                        "Term '{}' should not have spelling errors when IT terminology is enabled", term);
             }
         }
     }
@@ -1845,15 +1921,16 @@ mod tests {
             println!("  - {}: {}", &text[error.start..error.end], error.message);
         }
 
-        // Should not flag BTW, kubernetes, sus, NGL, docker, fire, IMHO, nginx, ASAP
-        let flagged_words: Vec<String> = result.errors.iter()
+        // Should not have SPELLING errors for BTW, kubernetes, sus, NGL, docker, fire, IMHO, nginx, ASAP
+        let spelling_errors: Vec<String> = result.errors.iter()
+            .filter(|e| e.category == "Spelling")
             .map(|e| text[e.start..e.end].to_string())
             .collect();
 
-        // These should NOT be in the flagged words
+        // These should NOT have spelling errors (style suggestions are OK)
         for term in &["BTW", "kubernetes", "sus", "NGL", "docker", "fire", "IMHO", "nginx", "ASAP"] {
-            assert!(!flagged_words.iter().any(|w| w.to_lowercase() == term.to_lowercase()),
-                    "Term '{}' should not be flagged when wordlists are enabled", term);
+            assert!(!spelling_errors.iter().any(|w| w.to_lowercase() == term.to_lowercase()),
+                    "Term '{}' should not have spelling errors when wordlists are enabled", term);
         }
     }
 
