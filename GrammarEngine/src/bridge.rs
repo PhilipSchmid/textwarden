@@ -2,6 +2,9 @@
 //
 // Defines FFI-safe structs and functions for Swift integration.
 
+// Allow non-camel-case types for swift-bridge generated code
+#![allow(non_camel_case_types)]
+
 use crate::analyzer;
 
 #[swift_bridge::bridge]
