@@ -533,6 +533,10 @@ struct ApplicationSettingsView: View {
                                     Text(app.bundleIdentifier)
                                         .font(.caption)
                                         .foregroundColor(.secondary)
+                                        .onTapGesture(count: 2) {
+                                            copyToClipboard(app.bundleIdentifier)
+                                        }
+                                        .help("Double-click to copy bundle identifier")
                                 }
 
                                 Spacer()
@@ -617,6 +621,41 @@ struct ApplicationSettingsView: View {
         }
     }
 
+    /// Check if a bundle ID is a system background service that should be filtered out
+    private func isSystemBackgroundService(_ bundleID: String) -> Bool {
+        // List of system services that users typically don't interact with
+        let systemServices = [
+            "app.gnau.Gnau",  // Don't check grammar in Gnau's own UI
+            "com.apple.loginwindow",
+            "com.apple.UserNotificationCenter",
+            "com.apple.notificationcenterui",
+            "com.apple.accessibility.universalAccessAuthWarn",
+            "com.apple.controlcenter",
+            "com.apple.systemuiserver",
+            "com.apple.QuickLookUIService",
+            "com.apple.appkit.xpc.openAndSavePanelService",
+            "com.apple.CloudKit.ShareBear",
+            "com.apple.bird",
+            "com.apple.CommCenter",
+            "com.apple.cloudphotosd",
+            "com.apple.iCloudHelper",
+            "com.apple.InputMethodKit.TextReplacementService",
+            "com.apple.Console",
+            "com.apple.dock",
+            "com.apple.systempreferences"
+        ]
+
+        // Check for exact matches (case-insensitive)
+        let lowercaseBundleID = bundleID.lowercased()
+        for service in systemServices {
+            if lowercaseBundleID == service.lowercased() {
+                return true
+            }
+        }
+
+        return false
+    }
+
     /// Load discovered applications (T071)
     private func loadDiscoveredApplications() {
         var bundleIDs = Set<String>()
@@ -640,15 +679,20 @@ struct ApplicationSettingsView: View {
         ]
         bundleIDs.formUnion(commonBundleIDs)
 
-        // 2. Add all discovered applications (apps that have been used)
-        bundleIDs.formUnion(preferences.discoveredApplications)
+        // 2. Add all discovered applications (apps that have been used), excluding system services
+        for bundleID in preferences.discoveredApplications {
+            if !isSystemBackgroundService(bundleID) {
+                bundleIDs.insert(bundleID)
+            }
+        }
 
-        // 3. Add currently running applications with GUI
+        // 3. Add currently running applications with GUI, excluding system services
         let workspace = NSWorkspace.shared
         for app in workspace.runningApplications {
-            // Only include apps with a bundle ID and that are not background-only
+            // Only include apps with a bundle ID and that are not background-only or system services
             if let bundleID = app.bundleIdentifier,
-               app.activationPolicy == .regular {
+               app.activationPolicy == .regular,
+               !isSystemBackgroundService(bundleID) {
                 bundleIDs.insert(bundleID)
             }
         }
@@ -702,6 +746,13 @@ struct ApplicationSettingsView: View {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
         return formatter.string(from: date)
+    }
+
+    /// Copy text to clipboard
+    private func copyToClipboard(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
     }
 }
 
