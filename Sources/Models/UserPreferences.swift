@@ -583,6 +583,11 @@ class UserPreferences: ObservableObject {
 
     /// Check if grammar checking is enabled for a specific application
     func isEnabled(for bundleIdentifier: String) -> Bool {
+        // Never check grammar in Gnau's own UI
+        if bundleIdentifier == "app.gnau.Gnau" {
+            return false
+        }
+
         // First check global pause state
         guard isEnabled else { return false }
 
