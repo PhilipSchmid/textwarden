@@ -20,6 +20,7 @@ import Foundation
     ///   - dialect: English dialect (American, British, Canadian, Australian)
     ///   - enableInternetAbbrev: Enable recognition of internet abbreviations (BTW, FYI, LOL, etc.)
     ///   - enableGenZSlang: Enable recognition of Gen Z slang (ghosting, sus, slay, etc.)
+    ///   - enableITTerminology: Enable recognition of IT terminology (kubernetes, docker, API, etc.)
     ///   - enableLanguageDetection: Enable detection and filtering of non-English words
     ///   - excludedLanguages: Array of language codes to exclude (e.g., ["spanish", "german"])
     /// - Returns: Result containing analysis result or error
@@ -28,6 +29,7 @@ import Foundation
         dialect: String,
         enableInternetAbbrev: Bool,
         enableGenZSlang: Bool,
+        enableITTerminology: Bool,
         enableLanguageDetection: Bool = false,
         excludedLanguages: [String] = []
     ) -> GrammarAnalysisResult {
@@ -45,6 +47,7 @@ import Foundation
             rustDialect,
             enableInternetAbbrev,
             enableGenZSlang,
+            enableITTerminology,
             enableLanguageDetection,
             rustVec
         )
@@ -60,6 +63,7 @@ import Foundation
     ///   - dialect: English dialect (American, British, Canadian, Australian)
     ///   - enableInternetAbbrev: Enable recognition of internet abbreviations (BTW, FYI, LOL, etc.)
     ///   - enableGenZSlang: Enable recognition of Gen Z slang (ghosting, sus, slay, etc.)
+    ///   - enableITTerminology: Enable recognition of IT terminology (kubernetes, docker, API, etc.)
     ///   - enableLanguageDetection: Enable detection and filtering of non-English words
     ///   - excludedLanguages: Array of language codes to exclude (e.g., ["spanish", "german"])
     /// - Returns: Analysis result
@@ -69,10 +73,11 @@ import Foundation
         dialect: String,
         enableInternetAbbrev: Bool,
         enableGenZSlang: Bool,
+        enableITTerminology: Bool,
         enableLanguageDetection: Bool = false,
         excludedLanguages: [String] = []
     ) async -> GrammarAnalysisResult {
-        await Task.detached(priority: .userInitiated) { [text, dialect, enableInternetAbbrev, enableGenZSlang, enableLanguageDetection, excludedLanguages] in
+        await Task.detached(priority: .userInitiated) { [text, dialect, enableInternetAbbrev, enableGenZSlang, enableITTerminology, enableLanguageDetection, excludedLanguages] in
             // Call FFI function directly in detached task
             // Convert Swift strings to RustString and create RustVec for language list
             let rustText = RustString(text)
@@ -87,6 +92,7 @@ import Foundation
                 rustDialect,
                 enableInternetAbbrev,
                 enableGenZSlang,
+                enableITTerminology,
                 enableLanguageDetection,
                 rustVec
             )
@@ -106,6 +112,7 @@ import Foundation
             dialect: "American",
             enableInternetAbbrev: true,
             enableGenZSlang: true,
+            enableITTerminology: true,
             enableLanguageDetection: false,
             excludedLanguages: []
         )
@@ -123,6 +130,7 @@ import Foundation
             dialect: dialect,
             enableInternetAbbrev: true,
             enableGenZSlang: true,
+            enableITTerminology: true,
             enableLanguageDetection: false,
             excludedLanguages: []
         )
@@ -139,6 +147,7 @@ import Foundation
             dialect: "American",
             enableInternetAbbrev: true,
             enableGenZSlang: true,
+            enableITTerminology: true,
             enableLanguageDetection: false,
             excludedLanguages: []
         )
@@ -157,6 +166,7 @@ import Foundation
             dialect: dialect,
             enableInternetAbbrev: true,
             enableGenZSlang: true,
+            enableITTerminology: true,
             enableLanguageDetection: false,
             excludedLanguages: []
         )

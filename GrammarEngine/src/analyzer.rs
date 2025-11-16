@@ -58,6 +58,7 @@ fn parse_dialect(dialect_str: &str) -> Dialect {
 /// * `dialect_str` - English dialect: "American", "British", "Canadian", or "Australian"
 /// * `enable_internet_abbrev` - Enable internet abbreviations (BTW, FYI, LOL, etc.)
 /// * `enable_genz_slang` - Enable Gen Z slang words (ghosting, sus, slay, etc.)
+/// * `enable_it_terminology` - Enable IT terminology (kubernetes, docker, localhost, etc.)
 /// * `enable_language_detection` - Enable detection and filtering of non-English words
 /// * `excluded_languages` - List of languages to exclude from error detection (e.g., ["spanish", "german"])
 ///
@@ -68,6 +69,7 @@ pub fn analyze_text(
     dialect_str: &str,
     enable_internet_abbrev: bool,
     enable_genz_slang: bool,
+    enable_it_terminology: bool,
     enable_language_detection: bool,
     excluded_languages: Vec<String>,
 ) -> AnalysisResult {
@@ -82,17 +84,24 @@ pub fn analyze_text(
     merged.add_dictionary(MutableDictionary::curated());
 
     if enable_internet_abbrev {
-        let abbrev_words = slang_dict::load_internet_abbreviations();
+        let abbrev_words = slang_dict::WordlistCategory::InternetAbbreviations.load_words();
         let mut abbrev_dict = MutableDictionary::new();
         abbrev_dict.extend_words(abbrev_words);
         merged.add_dictionary(Arc::new(abbrev_dict));
     }
 
     if enable_genz_slang {
-        let genz_words = slang_dict::load_genz_slang();
+        let genz_words = slang_dict::WordlistCategory::GenZSlang.load_words();
         let mut genz_dict = MutableDictionary::new();
         genz_dict.extend_words(genz_words);
         merged.add_dictionary(Arc::new(genz_dict));
+    }
+
+    if enable_it_terminology {
+        let it_words = slang_dict::WordlistCategory::ITTerminology.load_words();
+        let mut it_dict = MutableDictionary::new();
+        it_dict.extend_words(it_words);
+        merged.add_dictionary(Arc::new(it_dict));
     }
 
     let dictionary = Arc::new(merged);
@@ -214,7 +223,7 @@ mod tests {
         use harper_core::spell::{Dictionary, MutableDictionary, MergedDictionary};
         use crate::slang_dict;
 
-        let abbrev_words = slang_dict::load_internet_abbreviations();
+        let abbrev_words = slang_dict::WordlistCategory::InternetAbbreviations.load_words();
         println!("\n=== LOADING ABBREVIATIONS ===");
         println!("Total words loaded: {}", abbrev_words.len());
 
@@ -272,14 +281,14 @@ mod tests {
 
     #[test]
     fn test_analyze_empty_text() {
-        let result = analyze_text("", "American", false, false, false, vec![]);
+        let result = analyze_text("", "American", false, false, false, false, vec![]);
         assert_eq!(result.errors.len(), 0);
         assert_eq!(result.word_count, 0);
     }
 
     #[test]
     fn test_analyze_correct_text() {
-        let result = analyze_text("This is a well-written sentence.", "American", false, false, false, vec![]);
+        let result = analyze_text("This is a well-written sentence.", "American", false, false, false, false, vec![]);
         // Well-written text may still have style suggestions, so we just verify it runs
         assert!(result.word_count > 0);
         // analysis_time_ms is unsigned, so always >= 0 (no need to assert)
@@ -288,7 +297,7 @@ mod tests {
     #[test]
     fn test_analyze_incorrect_text() {
         // Subject-verb disagreement: "team are" should be "team is"
-        let result = analyze_text("The team are working on it.", "American", false, false, false, vec![]);
+        let result = analyze_text("The team are working on it.", "American", false, false, false, false, vec![]);
         assert!(result.word_count > 0);
         // Note: Harper may or may not catch this specific error depending on version
         // The test mainly verifies the analyzer runs without crashing
@@ -334,7 +343,7 @@ mod tests {
     #[test]
     fn test_suggestions_extraction() {
         // Test that suggestions are properly extracted from Harper
-        let result = analyze_text("Teh quick brown fox.", "American", false, false, false, vec![]);
+        let result = analyze_text("Teh quick brown fox.", "American", false, false, false, false, vec![]);
 
         // Should find at least one error for "Teh"
         assert!(!result.errors.is_empty(), "Should detect 'Teh' as an error");
@@ -366,7 +375,7 @@ mod tests {
     #[test]
     fn test_analyze_performance() {
         let text = &"The quick brown fox jumps over the lazy dog. ".repeat(100);
-        let result = analyze_text(text, "American", false, false, false, vec![]);
+        let result = analyze_text(text, "American", false, false, false, false, vec![]);
         // Analysis should complete in under 1500ms for ~900 words (test mode with opt-level=1)
         // Note: Release builds are ~3x faster (~500ms)
         assert!(result.analysis_time_ms < 1500,
@@ -378,11 +387,11 @@ mod tests {
     fn test_analyze_dialects() {
         // Test that different dialects can be parsed correctly
         let text = "This is a test.";
-        let result_american = analyze_text(text, "American", false, false, false, vec![]);
-        let result_british = analyze_text(text, "British", false, false, false, vec![]);
-        let result_canadian = analyze_text(text, "Canadian", false, false, false, vec![]);
-        let result_australian = analyze_text(text, "Australian", false, false, false, vec![]);
-        let result_invalid = analyze_text(text, "Invalid", false, false, false, vec![]);
+        let result_american = analyze_text(text, "American", false, false, false, false, vec![]);
+        let result_british = analyze_text(text, "British", false, false, false, false, vec![]);
+        let result_canadian = analyze_text(text, "Canadian", false, false, false, false, vec![]);
+        let result_australian = analyze_text(text, "Australian", false, false, false, false, vec![]);
+        let result_invalid = analyze_text(text, "Invalid", false, false, false, false, vec![]);
 
         // All should run without crashing
         assert!(result_american.word_count > 0);
@@ -398,10 +407,10 @@ mod tests {
         let text = "BTW, FYI the meeting is ASAP. LOL!";
 
         // With slang disabled, should flag abbreviations as errors
-        let result_disabled = analyze_text(text, "American", false, false, false, vec![]);
+        let result_disabled = analyze_text(text, "American", false, false, false, false, vec![]);
 
         // With slang enabled, should NOT flag abbreviations
-        let result_enabled = analyze_text(text, "American", true, false, false, vec![]);
+        let result_enabled = analyze_text(text, "American", true, false, false, false, vec![]);
 
         // We expect fewer errors with slang enabled
         println!("Errors without slang: {}", result_disabled.errors.len());
@@ -417,10 +426,10 @@ mod tests {
         let text = "That is so sus. She is ghosting me. You slayed!";
 
         // With slang disabled, may flag slang words
-        let result_disabled = analyze_text(text, "American", false, false, false, vec![]);
+        let result_disabled = analyze_text(text, "American", false, false, false, false, vec![]);
 
         // With slang enabled, should recognize these words
-        let result_enabled = analyze_text(text, "American", false, true, false, vec![]);
+        let result_enabled = analyze_text(text, "American", false, true, false, false, vec![]);
 
         println!("Errors without Gen Z slang: {}", result_disabled.errors.len());
         println!("Errors with Gen Z slang: {}", result_enabled.errors.len());
@@ -431,7 +440,7 @@ mod tests {
         // Test with both slang options enabled
         let text = "BTW your vibe is totally slay! NGL you ghosted me ASAP.";
 
-        let result = analyze_text(text, "American", true, true, false, vec![]);
+        let result = analyze_text(text, "American", true, true, false, false, vec![]);
 
         println!("Text with both slang types enabled:");
         println!("Errors: {}", result.errors.len());
@@ -447,10 +456,10 @@ mod tests {
         let text = "AFAICT, FYI, BTW, and LOL are common abbreviations.";
 
         // Without slang, should flag as spelling errors
-        let result_disabled = analyze_text(text, "American", false, false, false, vec![]);
+        let result_disabled = analyze_text(text, "American", false, false, false, false, vec![]);
 
         // With slang enabled, should NOT flag these
-        let result_enabled = analyze_text(text, "American", true, false, false, vec![]);
+        let result_enabled = analyze_text(text, "American", true, false, false, false, vec![]);
 
         println!("\n=== UPPERCASE ABBREVIATIONS TEST ===");
         println!("Text: {}", text);
@@ -496,7 +505,7 @@ mod tests {
         ];
 
         for text in test_cases {
-            let result = analyze_text(text, "American", true, false, false, vec![]);
+            let result = analyze_text(text, "American", true, false, false, false, vec![]);
 
             println!("\nTesting: '{}'", text);
             println!("Errors: {}", result.errors.len());
@@ -520,8 +529,8 @@ mod tests {
         let text_with_slang = "That vibe is sus and totally slay.";
 
         // Test internet abbreviations toggle
-        let abbrev_disabled = analyze_text(text_with_abbrevs, "American", false, false, false, vec![]);
-        let abbrev_enabled = analyze_text(text_with_abbrevs, "American", true, false, false, vec![]);
+        let abbrev_disabled = analyze_text(text_with_abbrevs, "American", false, false, false, false, vec![]);
+        let abbrev_enabled = analyze_text(text_with_abbrevs, "American", true, false, false, false, vec![]);
 
         println!("\n=== INTERNET ABBREVIATIONS TOGGLE TEST ===");
         println!("Text: {}", text_with_abbrevs);
@@ -533,8 +542,8 @@ mod tests {
                 "Enabling abbreviations should not increase error count");
 
         // Test Gen Z slang toggle
-        let slang_disabled = analyze_text(text_with_slang, "American", false, false, false, vec![]);
-        let slang_enabled = analyze_text(text_with_slang, "American", false, true, false, vec![]);
+        let slang_disabled = analyze_text(text_with_slang, "American", false, false, false, false, vec![]);
+        let slang_enabled = analyze_text(text_with_slang, "American", false, true, false, false, vec![]);
 
         println!("\n=== GEN Z SLANG TOGGLE TEST ===");
         println!("Text: {}", text_with_slang);
@@ -553,22 +562,22 @@ mod tests {
         // Test edge cases and special scenarios
 
         // Empty text
-        let result = analyze_text("", "American", true, true, false, vec![]);
+        let result = analyze_text("", "American", true, true, false, false, vec![]);
         assert_eq!(result.errors.len(), 0, "Empty text should have no errors");
         assert_eq!(result.word_count, 0, "Empty text should have 0 words");
 
         // Only abbreviations
-        let result = analyze_text("BTW FYI LOL ASAP", "American", true, false, false, vec![]);
+        let result = analyze_text("BTW FYI LOL ASAP", "American", true, false, false, false, vec![]);
         println!("\nOnly abbreviations - Errors: {}", result.errors.len());
         // These should all be recognized
         assert_eq!(result.word_count, 4, "Should count 4 words");
 
         // Abbreviations with punctuation
-        let result = analyze_text("BTW, FYI! LOL? ASAP.", "American", true, false, false, vec![]);
+        let result = analyze_text("BTW, FYI! LOL? ASAP.", "American", true, false, false, false, vec![]);
         println!("With punctuation - Errors: {}", result.errors.len());
 
         // Mixed slang types
-        let result = analyze_text("BTW that vibe is sus", "American", true, true, false, vec![]);
+        let result = analyze_text("BTW that vibe is sus", "American", true, true, false, false, vec![]);
         println!("Mixed slang types - Errors: {}", result.errors.len());
     }
 
@@ -590,7 +599,7 @@ mod tests {
 
         for (abbrev, description) in test_cases {
             let text = format!("I think {} this works", abbrev);
-            let result = analyze_text(&text, "American", true, false, false, vec![]);
+            let result = analyze_text(&text, "American", true, false, false, false, vec![]);
 
             println!("\nTesting {}: '{}'", description, text);
             println!("  Errors: {}", result.errors.len());
@@ -630,19 +639,19 @@ mod tests {
         for abbrev in &common_abbreviations {
             // Test lowercase
             let text_lower = format!("I think {} is common", abbrev);
-            let result_lower = analyze_text(&text_lower, "American", true, false, false, vec![]);
+            let result_lower = analyze_text(&text_lower, "American", true, false, false, false, vec![]);
 
             // Test UPPERCASE
             let abbrev_upper = abbrev.to_uppercase();
             let text_upper = format!("I think {} is common", abbrev_upper);
-            let result_upper = analyze_text(&text_upper, "American", true, false, false, vec![]);
+            let result_upper = analyze_text(&text_upper, "American", true, false, false, false, vec![]);
 
             // Test Title Case
             let abbrev_title: String = abbrev.chars().enumerate()
                 .map(|(i, c)| if i == 0 { c.to_uppercase().to_string() } else { c.to_string() })
                 .collect();
             let text_title = format!("I think {} is common", abbrev_title);
-            let result_title = analyze_text(&text_title, "American", true, false, false, vec![]);
+            let result_title = analyze_text(&text_title, "American", true, false, false, false, vec![]);
 
             // Check none are flagged
             let lower_ok = !result_lower.errors.iter()
@@ -682,7 +691,7 @@ mod tests {
         ];
 
         for (text, expected_error_word) in texts_with_errors {
-            let result = analyze_text(text, "American", true, true, false, vec![]);  // Both slang options ON
+            let result = analyze_text(text, "American", true, true, false, false, vec![]);  // Both slang options ON
 
             println!("\nText: '{}'", text);
             println!("Expected error word: '{}'", expected_error_word);
@@ -716,7 +725,7 @@ mod tests {
         // Only "Teh" should be marked as an error
 
         let text = "btw, lol, omg, afaict, AFAICT, lol, LMK, Teh,";
-        let result = analyze_text(text, "American", true, false, false, vec![]);
+        let result = analyze_text(text, "American", true, false, false, false, vec![]);
 
         println!("\n=== USER SCREENSHOT SCENARIO TEST ===");
         println!("Text: '{}'", text);
@@ -811,7 +820,7 @@ mod tests {
     fn test_language_detection_disabled_by_default() {
         // With language detection disabled, foreign words should still be flagged
         let text = "Hallo world";
-        let result = analyze_text(text, "American", false, false, false, vec![]);
+        let result = analyze_text(text, "American", false, false, false, false, vec![]);
 
         // "Hallo" should be flagged as unknown word
         let hallo_error = result.errors.iter()
@@ -831,6 +840,7 @@ mod tests {
             "American",
             false,
             false,
+            false, // IT terminology
             true, // Enable language detection
             vec!["german".to_string()]
         );
@@ -858,6 +868,7 @@ mod tests {
         let result = analyze_text(
             text,
             "American",
+            false,
             false,
             false,
             true,
@@ -893,6 +904,7 @@ mod tests {
             "American",
             false,
             false,
+            false,
             true,
             vec!["spanish".to_string()]
         );
@@ -921,6 +933,7 @@ mod tests {
             "American",
             false,
             false,
+            false,
             true,
             vec!["french".to_string()]
         );
@@ -947,6 +960,7 @@ mod tests {
         let result = analyze_text(
             text,
             "American",
+            false,
             false,
             false,
             true,
@@ -981,6 +995,7 @@ mod tests {
             "American",
             false,
             false,
+            false,
             true,
             vec!["spanish".to_string()] // Only Spanish excluded
         );
@@ -1010,6 +1025,7 @@ mod tests {
             "American",
             true, // Internet abbreviations ON
             true, // Gen Z slang ON
+            false, // IT terminology
             true, // Language detection ON
             vec!["spanish".to_string()]
         );
@@ -1042,6 +1058,7 @@ mod tests {
         let result = analyze_text(
             text,
             "American",
+            false,
             false,
             false,
             true,
@@ -1077,6 +1094,7 @@ mod tests {
             "American",
             false,
             false,
+            false,
             true,
             vec!["spanish".to_string()]
         );
@@ -1105,6 +1123,7 @@ mod tests {
             "American",
             false,
             false,
+            false,
             true,
             vec!["german".to_string()]
         );
@@ -1131,6 +1150,7 @@ mod tests {
             "American",
             false,
             false,
+            false,
             true,
             vec![] // Empty list
         );
@@ -1153,6 +1173,7 @@ mod tests {
             let result = analyze_text(
                 text,
                 dialect,
+                false,
                 false,
                 false,
                 true,
@@ -1178,6 +1199,7 @@ mod tests {
             "American",
             false,
             false,
+            false,
             true,
             vec!["german".to_string()]
         );
@@ -1193,6 +1215,7 @@ mod tests {
         let result = analyze_text(
             text,
             "American",
+            false,
             false,
             false,
             true,
@@ -1220,6 +1243,7 @@ mod tests {
             "American",
             false,
             false,
+            false,
             true,
             vec!["portuguese".to_string()]
         );
@@ -1243,6 +1267,7 @@ mod tests {
         let result = analyze_text(
             text,
             "American",
+            false,
             false,
             false,
             true,
@@ -1270,6 +1295,7 @@ mod tests {
             "American",
             false,
             false,
+            false,
             true,
             vec!["swedish".to_string()]
         );
@@ -1293,6 +1319,7 @@ mod tests {
         let result = analyze_text(
             text,
             "American",
+            false,
             false,
             false,
             true,
@@ -1319,6 +1346,7 @@ mod tests {
         let result = analyze_text(
             text,
             "American",
+            false,
             false,
             false,
             true,
@@ -1350,6 +1378,7 @@ mod tests {
             "American",
             false,
             false,
+            false,
             true,
             vec!["french".to_string(), "spanish".to_string()]
         );
@@ -1376,6 +1405,7 @@ mod tests {
             "American",
             false,
             false,
+            false,
             true,
             vec!["japanese".to_string(), "korean".to_string()]
         );
@@ -1398,6 +1428,7 @@ mod tests {
         let result = analyze_text(
             text,
             "American",
+            false,
             false,
             false,
             true,
@@ -1432,7 +1463,7 @@ mod tests {
                     ".repeat(4);
 
         let start = Instant::now();
-        let result = analyze_text(&text, "American", false, false, false, vec![]);
+        let result = analyze_text(&text, "American", false, false, false, false, vec![]);
         let elapsed = start.elapsed();
 
         println!("\n=== PERFORMANCE: Baseline Analysis ===");
@@ -1460,7 +1491,7 @@ mod tests {
                     ".repeat(10);
 
         let start = Instant::now();
-        let result = analyze_text(&text, "American", false, false, false, vec![]);
+        let result = analyze_text(&text, "American", false, false, false, false, vec![]);
         let elapsed = start.elapsed();
 
         println!("\n=== PERFORMANCE: Language Detection Disabled ===");
@@ -1490,6 +1521,7 @@ mod tests {
         let result = analyze_text(
             &text,
             "American",
+            false,
             false,
             false,
             true,
@@ -1526,6 +1558,7 @@ mod tests {
         let result = analyze_text(
             &text,
             "American",
+            false,
             false,
             false,
             true,
@@ -1566,7 +1599,7 @@ mod tests {
                     ".repeat(10);
 
         let start = Instant::now();
-        let result = analyze_text(&text, "American", false, false, true, all_langs);
+        let result = analyze_text(&text, "American", false, false, false, true, all_langs);
         let elapsed = start.elapsed();
 
         println!("\n=== PERFORMANCE: All Languages Excluded ===");
@@ -1593,7 +1626,7 @@ mod tests {
                     ".repeat(10);
 
         let start = Instant::now();
-        let result = analyze_text(&text, "American", true, true, false, vec![]);
+        let result = analyze_text(&text, "American", true, true, false, false, vec![]);
         let elapsed = start.elapsed();
 
         println!("\n=== PERFORMANCE: Abbreviations and Slang ===");
@@ -1626,6 +1659,7 @@ mod tests {
             "American",
             true, // internet abbreviations
             true, // slang
+            false, // IT terminology
             true, // language detection
             vec!["german".to_string(), "spanish".to_string()]
         );
@@ -1659,6 +1693,7 @@ mod tests {
             "American",
             true,
             true,
+            false,
             true,
             vec!["german".to_string()]
         );
@@ -1690,7 +1725,7 @@ mod tests {
         let text = paragraph.repeat(50); // ~1000 words
 
         let start = Instant::now();
-        let result = analyze_text(&text, "American", true, true, false, vec![]);
+        let result = analyze_text(&text, "American", true, true, false, false, vec![]);
         let elapsed = start.elapsed();
 
         println!("\n=== PERFORMANCE: Long Document ===");
@@ -1701,6 +1736,195 @@ mod tests {
         assert!(
             elapsed.as_millis() < 500,
             "Long document analysis too slow: {} ms (expected < 500 ms)",
+            elapsed.as_millis()
+        );
+    }
+
+    // ==================== IT Terminology Tests ====================
+
+    #[test]
+    fn test_it_terminology() {
+        // Test that IT terminology is recognized when enabled
+        let text = "The kubernetes cluster uses docker containers and nginx as a reverse proxy. \
+                    We need to configure the API endpoints and set up localhost testing.";
+
+        // With IT terminology disabled, may flag technical terms
+        let result_disabled = analyze_text(text, "American", false, false, false, false, vec![]);
+
+        // With IT terminology enabled, should recognize these terms
+        let result_enabled = analyze_text(text, "American", false, false, true, false, vec![]);
+
+        println!("\n=== IT TERMINOLOGY TEST ===");
+        println!("Text: {}", text);
+        println!("Errors without IT terminology: {}", result_disabled.errors.len());
+        for error in &result_disabled.errors {
+            println!("  - {}: {}", &text[error.start..error.end], error.message);
+        }
+        println!("Errors with IT terminology: {}", result_enabled.errors.len());
+        for error in &result_enabled.errors {
+            println!("  - {}: {}", &text[error.start..error.end], error.message);
+        }
+
+        // Should have fewer or equal errors when enabled
+        assert!(result_enabled.errors.len() <= result_disabled.errors.len(),
+                "Enabling IT terminology should not increase error count");
+    }
+
+    #[test]
+    fn test_it_terminology_toggle_effectiveness() {
+        // Verify that toggling IT terminology actually changes the analysis results
+        let text = "The kubernetes API uses JSON for serialization. \
+                    Configure localhost with TCP port 8080. \
+                    Use HTTP for the nginx reverse proxy.";
+
+        // Test IT terminology toggle
+        let disabled = analyze_text(text, "American", false, false, false, false, vec![]);
+        let enabled = analyze_text(text, "American", false, false, true, false, vec![]);
+
+        println!("\n=== IT TERMINOLOGY TOGGLE TEST ===");
+        println!("Text: {}", text);
+        println!("Errors (disabled): {}", disabled.errors.len());
+        for error in &disabled.errors {
+            println!("  - {}: {}", &text[error.start..error.end], error.message);
+        }
+        println!("Errors (enabled): {}", enabled.errors.len());
+        for error in &enabled.errors {
+            println!("  - {}: {}", &text[error.start..error.end], error.message);
+        }
+
+        // Should have fewer or equal errors when enabled
+        assert!(enabled.errors.len() <= disabled.errors.len(),
+                "Enabling IT terminology should not increase error count");
+    }
+
+    #[test]
+    fn test_it_terminology_common_terms() {
+        // Regression test: Common IT terms should be recognized
+        // This tests specific terms that MUST be in the IT terminology wordlist
+        let test_cases = vec![
+            ("The docker container is running", "docker"),
+            ("We use kubernetes for orchestration", "kubernetes"),
+            ("The nginx server handles requests", "nginx"),
+            ("The API endpoint returns JSON", "API"),
+            ("Connect to localhost on port 8080", "localhost"),
+            ("Use SSH for secure access", "SSH"),
+            ("The TCP connection was established", "TCP"),
+            ("Configure the firewall rules", "firewall"),
+            ("Implement proper encryption", "encryption"),
+            ("Use grep to search files", "grep"),
+            ("Run chmod to change permissions", "chmod"),
+            ("The HTTP protocol is stateless", "HTTP"),
+            ("Write python code for automation", "python"),
+            ("Use javascript for the frontend", "javascript"),
+        ];
+
+        println!("\n=== IT TERMINOLOGY COMMON TERMS TEST ===");
+        for (text, term) in test_cases {
+            let result_disabled = analyze_text(text, "American", false, false, false, false, vec![]);
+            let result_enabled = analyze_text(text, "American", false, false, true, false, vec![]);
+
+            // Check if the term is flagged as an error when disabled
+            let term_flagged_when_disabled = result_disabled.errors.iter()
+                .any(|e| text[e.start..e.end].to_lowercase().contains(&term.to_lowercase()));
+
+            // The term should NOT be flagged when enabled
+            let term_flagged_when_enabled = result_enabled.errors.iter()
+                .any(|e| text[e.start..e.end].to_lowercase().contains(&term.to_lowercase()));
+
+            println!("Term '{}': flagged_disabled={}, flagged_enabled={}",
+                     term, term_flagged_when_disabled, term_flagged_when_enabled);
+
+            // If the term was flagged when disabled, it should not be flagged when enabled
+            if term_flagged_when_disabled {
+                assert!(!term_flagged_when_enabled,
+                        "Term '{}' should be recognized when IT terminology is enabled", term);
+            }
+        }
+    }
+
+    #[test]
+    fn test_it_terminology_with_slang() {
+        // Test that IT terminology works together with other wordlists
+        let text = "BTW, the kubernetes API is super sus. NGL, the docker setup is fire. \
+                    IMHO we should use nginx ASAP.";
+
+        // All features enabled
+        let result = analyze_text(text, "American", true, true, true, false, vec![]);
+
+        println!("\n=== IT TERMINOLOGY + SLANG TEST ===");
+        println!("Text: {}", text);
+        println!("Errors: {}", result.errors.len());
+        for error in &result.errors {
+            println!("  - {}: {}", &text[error.start..error.end], error.message);
+        }
+
+        // Should not flag BTW, kubernetes, sus, NGL, docker, fire, IMHO, nginx, ASAP
+        let flagged_words: Vec<String> = result.errors.iter()
+            .map(|e| text[e.start..e.end].to_string())
+            .collect();
+
+        // These should NOT be in the flagged words
+        for term in &["BTW", "kubernetes", "sus", "NGL", "docker", "fire", "IMHO", "nginx", "ASAP"] {
+            assert!(!flagged_words.iter().any(|w| w.to_lowercase() == term.to_lowercase()),
+                    "Term '{}' should not be flagged when wordlists are enabled", term);
+        }
+    }
+
+    #[test]
+    fn test_performance_it_terminology() {
+        // Performance regression test: IT terminology processing
+        // Target: < 450ms for text with technical terms (test mode)
+        // Note: Release builds are ~3x faster (~150ms)
+        use std::time::Instant;
+
+        let text = "kubernetes docker nginx API JSON localhost TCP HTTP SSH \
+                    firewall encryption python javascript grep chmod \
+                    The infrastructure uses kubernetes for container orchestration. \
+                    Docker containers are deployed behind nginx reverse proxies. \
+                    The API endpoints return JSON data over HTTP. \
+                    Connect to localhost using SSH on TCP port 22. \
+                    Configure firewall rules and enable encryption. \
+                    Use python or javascript for automation scripts. \
+                    ".repeat(10);
+
+        let start = Instant::now();
+        let result = analyze_text(&text, "American", false, false, true, false, vec![]);
+        let elapsed = start.elapsed();
+
+        println!("\n=== PERFORMANCE: IT Terminology ===");
+        println!("Analysis time: {} ms", elapsed.as_millis());
+        println!("Errors: {}", result.errors.len());
+
+        assert!(
+            elapsed.as_millis() < 450,
+            "IT terminology analysis too slow: {} ms (expected < 450 ms)",
+            elapsed.as_millis()
+        );
+    }
+
+    #[test]
+    fn test_performance_all_wordlists() {
+        // Performance regression test: All wordlists enabled
+        // Target: < 500ms for text with abbreviations, slang, and IT terms (test mode)
+        use std::time::Instant;
+
+        let text = "BTW the kubernetes API is sus LOL. IMHO docker is fire ASAP. \
+                    NGL the nginx config is lowkey complicated. FYI we need python scripts. \
+                    The localhost server uses HTTP and TCP. Configure SSH and firewall. \
+                    Use grep and chmod for file permissions. The JSON endpoint is lit. \
+                    ".repeat(10);
+
+        let start = Instant::now();
+        let result = analyze_text(&text, "American", true, true, true, false, vec![]);
+        let elapsed = start.elapsed();
+
+        println!("\n=== PERFORMANCE: All Wordlists ===");
+        println!("Analysis time: {} ms", elapsed.as_millis());
+        println!("Errors: {}", result.errors.len());
+
+        assert!(
+            elapsed.as_millis() < 500,
+            "All wordlists analysis too slow: {} ms (expected < 500 ms)",
             elapsed.as_millis()
         );
     }
