@@ -391,6 +391,7 @@ class AnalysisCoordinator: ObservableObject {
             let enableITTerminology = UserPreferences.shared.enableITTerminology
             let enableLanguageDetection = UserPreferences.shared.enableLanguageDetection
             let excludedLanguages = Array(UserPreferences.shared.excludedLanguages.map { UserPreferences.languageCode(for: $0) })
+            let enableSentenceStartCapitalization = UserPreferences.shared.enableSentenceStartCapitalization
             let result = GrammarEngine.shared.analyzeText(
                 segmentContent,
                 dialect: dialect,
@@ -398,7 +399,8 @@ class AnalysisCoordinator: ObservableObject {
                 enableGenZSlang: enableGenZSlang,
                 enableITTerminology: enableITTerminology,
                 enableLanguageDetection: enableLanguageDetection,
-                excludedLanguages: excludedLanguages
+                excludedLanguages: excludedLanguages,
+                enableSentenceStartCapitalization: enableSentenceStartCapitalization
             )
 
             let msg3 = "📊 AnalysisCoordinator: Harper returned \(result.errors.count) error(s)"
@@ -444,6 +446,7 @@ class AnalysisCoordinator: ObservableObject {
             let enableITTerminology = UserPreferences.shared.enableITTerminology
             let enableLanguageDetection = UserPreferences.shared.enableLanguageDetection
             let excludedLanguages = Array(UserPreferences.shared.excludedLanguages.map { UserPreferences.languageCode(for: $0) })
+            let enableSentenceStartCapitalization = UserPreferences.shared.enableSentenceStartCapitalization
             let result = GrammarEngine.shared.analyzeText(
                 segmentContent,
                 dialect: dialect,
@@ -451,7 +454,8 @@ class AnalysisCoordinator: ObservableObject {
                 enableGenZSlang: enableGenZSlang,
                 enableITTerminology: enableITTerminology,
                 enableLanguageDetection: enableLanguageDetection,
-                excludedLanguages: excludedLanguages
+                excludedLanguages: excludedLanguages,
+                enableSentenceStartCapitalization: enableSentenceStartCapitalization
             )
 
             DispatchQueue.main.async {
