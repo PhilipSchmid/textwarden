@@ -648,7 +648,8 @@ class AnalysisCoordinator: ObservableObject {
                 NSLog(msg)
                 logToDebugFile(msg)
                 floatingIndicator.update(errors: errors, element: monitoredElement, context: monitoredContext)
-                MenuBarController.shared?.setIconState(.error)
+                // Keep icon state as active - user preference to not show error indicator
+                MenuBarController.shared?.setIconState(.active)
             } else {
                 let msg = "✅ AnalysisCoordinator: Showing \(underlinesCreated) visual underlines"
                 NSLog(msg)
