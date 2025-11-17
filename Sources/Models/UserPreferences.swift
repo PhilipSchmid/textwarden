@@ -173,6 +173,18 @@ class UserPreferences: ObservableObject {
         "WordChoice"
     ]
 
+    /// Terminal applications disabled by default (users can enable them in Applications preferences)
+    /// These apps are set to .indefinite pause on first run to avoid false positives from command output
+    static let terminalApplications: Set<String> = [
+        "com.apple.Terminal",
+        "com.googlecode.iterm2",
+        "co.zeit.hyper",
+        "dev.warp.Warp-Stable",
+        "org.alacritty",
+        "net.kovidgoyal.kitty",
+        "com.github.wez.wezterm"
+    ]
+
     /// Launch Gnau automatically at login
     @Published var launchAtLogin: Bool {
         didSet {
@@ -511,6 +523,15 @@ class UserPreferences: ObservableObject {
         self.suggestionTheme = defaults.string(forKey: Keys.suggestionTheme) ?? "System"
         self.underlineThickness = defaults.object(forKey: Keys.underlineThickness) as? Double ?? 3.0
         self.indicatorPosition = defaults.string(forKey: Keys.indicatorPosition) ?? "Bottom Right"
+
+        // Set terminal apps to .indefinite pause by default if not already configured
+        // This prevents grammar checking in terminals where command output can cause false positives
+        // Users can still enable terminals individually via Applications preferences
+        for terminalID in Self.terminalApplications {
+            if appPauseDurations[terminalID] == nil {
+                appPauseDurations[terminalID] = .indefinite
+            }
+        }
 
         // Set up timer if paused for 1 hour
         if pauseDuration == .oneHour, let until = pausedUntil, Date() < until {
