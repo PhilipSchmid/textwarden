@@ -295,10 +295,33 @@ class TextMonitor: ObservableObject {
                 return
             }
 
-            let msg = "✅ TextMonitor: Handling text change (\(text.count) chars)"
+            // Apply app-specific text preprocessing
+            guard let context = currentContext else {
+                let msg = "⚠️ TextMonitor: No current context available"
+                NSLog(msg)
+                logToDebugFile(msg)
+                return
+            }
+
+            let parser = ContentParserFactory.shared.parser(for: context.bundleIdentifier)
+            guard let processedText = parser.preprocessText(text) else {
+                let msg = "⏭️ TextMonitor: Preprocessing filtered out text - skipping analysis"
+                NSLog(msg)
+                logToDebugFile(msg)
+                return
+            }
+
+            let msg = "✅ TextMonitor: Handling text change (\(processedText.count) chars after preprocessing)"
             NSLog(msg)
             logToDebugFile(msg)
-            handleTextChange(text)
+
+            // Log the preprocessed text that will be grammar-checked
+            let preprocessedPreview = String(processedText.prefix(200))
+            let preprocessedMsg = "📝 TextMonitor: Preprocessed text for grammar checking: \"\(preprocessedPreview)\""
+            NSLog(preprocessedMsg)
+            logToDebugFile(preprocessedMsg)
+
+            handleTextChange(processedText)
         } else {
             let msg = "⚠️ TextMonitor: No text extracted or text is empty"
             NSLog(msg)
