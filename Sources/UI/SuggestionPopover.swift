@@ -59,14 +59,22 @@ class SuggestionPopover: NSObject, ObservableObject {
             createPanel()
         } else {
             // Update panel size for new content
-            if let hostingView = panel?.contentView?.subviews.first as? NSHostingView<PopoverContentView> {
+            if let trackingView = panel?.contentView as? PopoverTrackingView,
+               let hostingView = trackingView.subviews.first as? NSHostingView<PopoverContentView> {
+                // Force layout update
+                hostingView.invalidateIntrinsicContentSize()
+                hostingView.needsLayout = true
+                hostingView.layoutSubtreeIfNeeded()
+
                 let fittingSize = hostingView.fittingSize
-                let width = max(fittingSize.width, 280)
+                let width = min(max(fittingSize.width, 300), 450)  // Match frame constraints
                 let height = fittingSize.height
 
                 hostingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
-                panel?.contentView?.frame = NSRect(x: 0, y: 0, width: width, height: height)
+                trackingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
                 panel?.setContentSize(NSSize(width: width, height: height))
+
+                print("📐 Popover: Updated size to \(width) x \(height) (fitting: \(fittingSize))")
             }
         }
 
@@ -143,10 +151,16 @@ class SuggestionPopover: NSObject, ObservableObject {
         let contentView = PopoverContentView(popover: self)
 
         let hostingView = NSHostingView(rootView: contentView)
+        // Force initial layout
+        hostingView.needsLayout = true
+        hostingView.layoutSubtreeIfNeeded()
+
         // Let SwiftUI determine the size based on content
         let fittingSize = hostingView.fittingSize
-        let width = max(fittingSize.width, 280)
+        let width = min(max(fittingSize.width, 300), 450)  // Match frame constraints
         let height = fittingSize.height
+
+        print("📐 Popover: Initial creation size: \(width) x \(height) (fitting: \(fittingSize))")
 
         hostingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
 
@@ -188,53 +202,78 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         let panelSize = panel.frame.size
         let preferences = UserPreferences.shared
-        var origin = cursorPosition
+        let screenFrame = screen.visibleFrame
 
-        // Offset horizontally
-        origin.x += 5
+        print("📍 Popover: Panel size: \(panelSize), Screen visible frame: \(screenFrame)")
 
-        // Determine vertical positioning based on user preference
-        let shouldPositionAbove: Bool
+        // Calculate available space in all directions
+        let padding: CGFloat = 10
+        let roomAbove = screenFrame.maxY - cursorPosition.y
+        let roomBelow = cursorPosition.y - screenFrame.minY
+        let roomLeft = cursorPosition.x - screenFrame.minX
+        let roomRight = screenFrame.maxX - cursorPosition.x
+
+        print("📍 Popover: Room - Above: \(roomAbove), Below: \(roomBelow), Left: \(roomLeft), Right: \(roomRight)")
+
+        // Determine vertical positioning
+        var shouldPositionAbove: Bool
         switch preferences.suggestionPosition {
         case "Above":
             shouldPositionAbove = true
         case "Below":
             shouldPositionAbove = false
         default: // "Auto"
-            // Auto: position below if there's room, otherwise above
-            let roomBelow = cursorPosition.y - panelSize.height - 5 >= screen.visibleFrame.minY
-            shouldPositionAbove = !roomBelow
+            // Prefer above for floating indicators, but only if there's enough room
+            shouldPositionAbove = roomAbove >= panelSize.height + padding * 2
+            if !shouldPositionAbove && roomBelow < panelSize.height + padding * 2 {
+                // Neither direction has enough room - choose the one with more space
+                shouldPositionAbove = roomAbove > roomBelow
+            }
         }
 
+        print("📍 Popover: shouldPositionAbove: \(shouldPositionAbove)")
+
+        // Calculate vertical position
+        var origin = CGPoint.zero
         if shouldPositionAbove {
-            origin.y = cursorPosition.y + 10 // Above with spacing
+            origin.y = cursorPosition.y + padding
         } else {
-            origin.y = cursorPosition.y - panelSize.height - 10 // Below with spacing
+            origin.y = cursorPosition.y - panelSize.height - padding
         }
 
-        print("📍 Popover: After offset, before bounds check: \(origin)")
-
-        // Ensure panel stays on screen
-        let screenFrame = screen.visibleFrame
-        print("📍 Popover: Screen visible frame: \(screenFrame)")
-
-        // Adjust horizontal position
-        if origin.x + panelSize.width > screenFrame.maxX {
-            origin.x = screenFrame.maxX - panelSize.width - 10
-        }
-        if origin.x < screenFrame.minX {
-            origin.x = screenFrame.minX + 10
+        // Determine horizontal positioning (prefer left for floating indicator at right edge)
+        let shouldPositionLeft = roomLeft >= panelSize.width + padding * 2
+        if shouldPositionLeft {
+            origin.x = cursorPosition.x - panelSize.width - padding
+        } else if roomRight >= panelSize.width + padding * 2 {
+            origin.x = cursorPosition.x + padding
+        } else {
+            // Neither side has enough room - center it as best we can
+            origin.x = max(screenFrame.minX + padding, min(cursorPosition.x - panelSize.width / 2, screenFrame.maxX - panelSize.width - padding))
         }
 
-        // Adjust vertical position to stay on screen
-        if origin.y < screenFrame.minY {
-            origin.y = screenFrame.minY + 5
+        print("📍 Popover: Initial position: \(origin)")
+
+        // Final bounds check to ensure panel stays fully on screen
+        // Horizontal clamping
+        if origin.x < screenFrame.minX + padding {
+            origin.x = screenFrame.minX + padding
         }
-        if origin.y + panelSize.height > screenFrame.maxY {
-            origin.y = screenFrame.maxY - panelSize.height - 5
+        if origin.x + panelSize.width > screenFrame.maxX - padding {
+            origin.x = screenFrame.maxX - panelSize.width - padding
         }
 
-        print("✅ Popover: Final position: \(origin)")
+        // Vertical clamping (ensure entire panel is visible)
+        if origin.y < screenFrame.minY + padding {
+            origin.y = screenFrame.minY + padding
+            print("📍 Popover: Clamped to minY: \(origin.y)")
+        }
+        if origin.y + panelSize.height > screenFrame.maxY - padding {
+            origin.y = screenFrame.maxY - panelSize.height - padding
+            print("📍 Popover: Clamped to maxY: \(origin.y)")
+        }
+
+        print("✅ Popover: Final position: \(origin), will show at: (\(origin.x), \(origin.y)) to (\(origin.x + panelSize.width), \(origin.y + panelSize.height))")
         panel.setFrameOrigin(origin)
     }
 
@@ -243,11 +282,47 @@ class SuggestionPopover: NSObject, ObservableObject {
         hide()
     }
 
+    /// Resize panel to fit current content
+    private func resizePanel() {
+        guard let panel = panel else { return }
+
+        // Get the hosting view (wrapped in tracking view)
+        if let trackingView = panel.contentView as? PopoverTrackingView,
+           let hostingView = trackingView.subviews.first as? NSHostingView<PopoverContentView> {
+
+            // Force SwiftUI to recalculate size
+            hostingView.invalidateIntrinsicContentSize()
+            hostingView.needsLayout = true
+            hostingView.layoutSubtreeIfNeeded()
+
+            let fittingSize = hostingView.fittingSize
+            let width = min(max(fittingSize.width, 300), 450)  // Match frame constraints
+            let height = fittingSize.height
+
+            // Update all frames
+            hostingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
+            trackingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
+
+            // Get current origin to maintain position
+            let currentOrigin = panel.frame.origin
+
+            // Resize panel while keeping same origin
+            panel.setFrame(NSRect(x: currentOrigin.x, y: currentOrigin.y, width: width, height: height), display: true, animate: false)
+
+            print("📐 Popover: Resized to \(width) x \(height) (fitting: \(fittingSize))")
+        }
+    }
+
     /// Navigate to next error (T047)
     func nextError() {
         guard !allErrors.isEmpty else { return }
         currentIndex = (currentIndex + 1) % allErrors.count
         currentError = allErrors[currentIndex]
+
+        // Resize panel after slight delay to let SwiftUI update
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            self?.resizePanel()
+        }
     }
 
     /// Navigate to previous error (T047)
@@ -255,6 +330,11 @@ class SuggestionPopover: NSObject, ObservableObject {
         guard !allErrors.isEmpty else { return }
         currentIndex = (currentIndex - 1 + allErrors.count) % allErrors.count
         currentError = allErrors[currentIndex]
+
+        // Resize panel after slight delay to let SwiftUI update
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            self?.resizePanel()
+        }
     }
 
     /// Apply suggestion (T044)
@@ -273,6 +353,11 @@ class SuggestionPopover: NSObject, ObservableObject {
 
             if currentError == nil {
                 hide()
+            } else {
+                // Resize panel after slight delay to let SwiftUI update
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                    self?.resizePanel()
+                }
             }
         } else {
             hide()
@@ -294,6 +379,11 @@ class SuggestionPopover: NSObject, ObservableObject {
 
             if currentError == nil {
                 hide()
+            } else {
+                // Resize panel after slight delay to let SwiftUI update
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                    self?.resizePanel()
+                }
             }
         } else {
             hide()
@@ -315,6 +405,11 @@ class SuggestionPopover: NSObject, ObservableObject {
 
             if currentError == nil {
                 hide()
+            } else {
+                // Resize panel after slight delay to let SwiftUI update
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                    self?.resizePanel()
+                }
             }
         } else {
             hide()
@@ -336,6 +431,11 @@ class SuggestionPopover: NSObject, ObservableObject {
 
             if currentError == nil {
                 hide()
+            } else {
+                // Resize panel after slight delay to let SwiftUI update
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                    self?.resizePanel()
+                }
             }
         } else {
             hide()
@@ -362,6 +462,11 @@ struct PopoverContentView: View {
         }
     }
 
+    /// App color scheme
+    private var colors: AppColors {
+        AppColors(for: effectiveColorScheme)
+    }
+
     /// Base text size from preferences
     private var baseTextSize: CGFloat {
         CGFloat(preferences.suggestionTextSize)
@@ -380,46 +485,50 @@ struct PopoverContentView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let error = popover.currentError {
-                // Main content with severity dot and message
-                HStack(alignment: .top, spacing: 12) {
-                    // Category indicator dot (matches underline color)
+                // Main content with category indicator and message
+                HStack(alignment: .top, spacing: 16) {
+                    // Subtle category indicator
                     Circle()
-                        .fill(categoryColor(for: error.category))
-                        .frame(width: 8, height: 8)
-                        .padding(.top, 6)
+                        .fill(colors.categoryColor(for: error.category))
+                        .frame(width: 6, height: 6)
+                        .padding(.top, 8)
                         .accessibilityLabel("Category: \(error.category)")
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        // Category label (small, secondary)
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Clean category label
                         Text(error.category.uppercased())
-                            .font(.system(size: captionTextSize, weight: .medium))
-                            .foregroundColor(.secondary)
+                            .font(.system(size: captionTextSize, weight: .semibold, design: .rounded))
+                            .foregroundColor(colors.textSecondary)
+                            .tracking(0.6)
                             .accessibilityLabel("Category: \(error.category)")
 
                         // Error message (only show if no suggestions available)
                         if error.suggestions.isEmpty {
                             Text(error.message)
                                 .font(.system(size: bodyTextSize))
-                                .foregroundColor(.primary)
+                                .foregroundColor(colors.textPrimary)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .accessibilityLabel("Error: \(error.message)")
                         }
 
-                        // Suggestions
+                        // Clean blue suggestion buttons
                         if !error.suggestions.isEmpty {
-                            HStack(spacing: 8) {
+                            HStack(spacing: 10) {
                                 ForEach(Array(error.suggestions.prefix(3).enumerated()), id: \.offset) { index, suggestion in
                                     Button(action: {
                                         popover.applySuggestion(suggestion)
                                     }) {
                                         Text(suggestion)
-                                            .font(.system(size: bodyTextSize))
+                                            .font(.system(size: bodyTextSize, weight: .medium))
                                             .foregroundColor(.white)
                                             .lineLimit(1)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                            .background(Color.blue)
-                                            .cornerRadius(6)
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 10)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 7)
+                                                    .fill(colors.primary)
+                                            )
+                                            .shadow(color: colors.primary.opacity(0.25), radius: 4, x: 0, y: 2)
                                     }
                                     .buttonStyle(.plain)
                                     .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
@@ -433,66 +542,110 @@ struct PopoverContentView: View {
 
                     Spacer()
 
-                    // Close button (minimal, top-right)
+                    // Clean close button
                     Button(action: { popover.hide() }) {
                         Image(systemName: "xmark")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(colors.textSecondary)
+                            .frame(width: 20, height: 20)
+                            .background(colors.backgroundRaised)
+                            .cornerRadius(4)
                     }
                     .buttonStyle(.plain)
                     .keyboardShortcut(.escape, modifiers: [])
                     .help("Close (Esc)")
                     .accessibilityLabel("Close suggestion popover")
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 18)
 
-                // Bottom action bar (minimal)
+                // Bottom action bar with subtle border
                 Divider()
+                    .background(colors.border)
 
                 HStack(spacing: 12) {
-                    // Ignore button (strikethrough eye icon)
+                    // Ignore button - Light blue accent
                     Button(action: { popover.dismissError() }) {
                         ZStack {
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.blue.opacity(0.2))
-                                .frame(width: 28, height: 28)
+                            RoundedRectangle(cornerRadius: 7)
+                                .fill(
+                                    Color(
+                                        hue: 215/360,
+                                        saturation: 0.30,
+                                        brightness: effectiveColorScheme == .dark ? 0.18 : 0.93
+                                    )
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 7)
+                                        .strokeBorder(
+                                            Color(hue: 215/360, saturation: 0.40, brightness: effectiveColorScheme == .dark ? 0.30 : 0.80),
+                                            lineWidth: 1
+                                        )
+                                )
+                                .frame(width: 34, height: 34)
                             Image(systemName: "eye.slash")
-                                .font(.system(size: 14))
-                                .foregroundColor(.primary)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(
+                                    Color(hue: 215/360, saturation: 0.70, brightness: effectiveColorScheme == .dark ? 0.75 : 0.45)
+                                )
                         }
                     }
                     .buttonStyle(.plain)
-                    .help("Ignore this error")  // Try standard .help() first
+                    .help("Ignore this error")
 
-                    // Ignore Rule button (prohibition icon)
+                    // Ignore Rule button - Medium blue accent
                     Button(action: { popover.ignoreRule() }) {
                         ZStack {
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.blue.opacity(0.2))
-                                .frame(width: 28, height: 28)
+                            RoundedRectangle(cornerRadius: 7)
+                                .fill(
+                                    Color(
+                                        hue: 215/360,
+                                        saturation: 0.35,
+                                        brightness: effectiveColorScheme == .dark ? 0.20 : 0.91
+                                    )
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 7)
+                                        .strokeBorder(
+                                            Color(hue: 215/360, saturation: 0.45, brightness: effectiveColorScheme == .dark ? 0.35 : 0.75),
+                                            lineWidth: 1
+                                        )
+                                )
+                                .frame(width: 34, height: 34)
                             Image(systemName: "nosign")
-                                .font(.system(size: 14))
-                                .foregroundColor(.primary)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(
+                                    Color(hue: 215/360, saturation: 0.75, brightness: effectiveColorScheme == .dark ? 0.70 : 0.40)
+                                )
                         }
                     }
                     .buttonStyle(.plain)
-                    .help("Never show this rule again")  // Try standard .help() first
+                    .help("Never show this rule again")
 
-                    // Add to Dictionary button (plus icon, only for Spelling errors)
+                    // Add to Dictionary button - Vibrant blue
                     if error.category == "Spelling" {
                         Button(action: { popover.addToDictionary() }) {
                             ZStack {
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(Color.blue.opacity(0.2))
-                                    .frame(width: 28, height: 28)
+                                RoundedRectangle(cornerRadius: 7)
+                                    .fill(
+                                        Color(
+                                            hue: 215/360,
+                                            saturation: 0.50,
+                                            brightness: effectiveColorScheme == .dark ? 0.25 : 0.88
+                                        )
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 7)
+                                            .strokeBorder(colors.primary.opacity(0.5), lineWidth: 1)
+                                    )
+                                    .frame(width: 34, height: 34)
                                 Image(systemName: "plus")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(.primary)
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundColor(colors.primary)
                             }
                         }
                         .buttonStyle(.plain)
-                        .help("Add this word to your personal dictionary")  // Try standard .help() first
+                        .help("Add this word to your personal dictionary")
                     }
 
                     Spacer()
@@ -500,13 +653,29 @@ struct PopoverContentView: View {
                     // Navigation controls (only show when multiple errors)
                     if popover.allErrors.count > 1 {
                         Text("\(popover.currentIndex + 1) of \(popover.allErrors.count)")
-                            .font(.system(size: captionTextSize))
-                            .foregroundColor(.secondary)
+                            .font(.system(size: captionTextSize, weight: .semibold))
+                            .foregroundColor(
+                                Color(hue: 215/360, saturation: 0.65, brightness: effectiveColorScheme == .dark ? 0.80 : 0.50)
+                            )
 
-                        HStack(spacing: 4) {
+                        HStack(spacing: 6) {
                             Button(action: { popover.previousError() }) {
                                 Image(systemName: "chevron.left")
-                                    .font(.system(size: 12))
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 26, height: 26)
+                                    .background(
+                                        LinearGradient(
+                                            colors: [
+                                                Color(hue: 215/360, saturation: 0.70, brightness: effectiveColorScheme == .dark ? 0.60 : 0.55),
+                                                Color(hue: 215/360, saturation: 0.75, brightness: effectiveColorScheme == .dark ? 0.50 : 0.48)
+                                            ],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .cornerRadius(6)
+                                    .shadow(color: colors.primary.opacity(0.2), radius: 2, x: 0, y: 1)
                             }
                             .buttonStyle(.plain)
                             .keyboardShortcut(.upArrow, modifiers: [])
@@ -514,7 +683,21 @@ struct PopoverContentView: View {
 
                             Button(action: { popover.nextError() }) {
                                 Image(systemName: "chevron.right")
-                                    .font(.system(size: 12))
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 26, height: 26)
+                                    .background(
+                                        LinearGradient(
+                                            colors: [
+                                                Color(hue: 215/360, saturation: 0.70, brightness: effectiveColorScheme == .dark ? 0.60 : 0.55),
+                                                Color(hue: 215/360, saturation: 0.75, brightness: effectiveColorScheme == .dark ? 0.50 : 0.48)
+                                            ],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .cornerRadius(6)
+                                    .shadow(color: colors.primary.opacity(0.2), radius: 2, x: 0, y: 1)
                             }
                             .buttonStyle(.plain)
                             .keyboardShortcut(.downArrow, modifiers: [])
@@ -522,23 +705,68 @@ struct PopoverContentView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
             } else {
                 Text("No errors to display")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(colors.textSecondary)
                     .padding()
                     .accessibilityLabel("No grammar errors to display")
             }
         }
-        .frame(minWidth: 280, maxWidth: 400)
-        .fixedSize(horizontal: true, vertical: false)
+        .frame(minWidth: 300, idealWidth: 350, maxWidth: 450)
+        .fixedSize(horizontal: false, vertical: true)
         .background(
-            // Use white/black with alpha for proper transparency without gray tint
-            Color(white: effectiveColorScheme == .dark ? 0.15 : 1.0, opacity: preferences.suggestionOpacity)
+            ZStack {
+                // Gradient background with blue tones
+                LinearGradient(
+                    colors: [
+                        Color(
+                            hue: 215/360,
+                            saturation: effectiveColorScheme == .dark ? 0.12 : 0.08,
+                            brightness: effectiveColorScheme == .dark ? 0.11 : 0.96
+                        ),
+                        Color(
+                            hue: 215/360,
+                            saturation: effectiveColorScheme == .dark ? 0.18 : 0.12,
+                            brightness: effectiveColorScheme == .dark ? 0.09 : 0.94
+                        )
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .opacity(preferences.suggestionOpacity)
+
+                // Subtle blue accent glow in top-right corner
+                RadialGradient(
+                    colors: [
+                        Color(hue: 215/360, saturation: 0.60, brightness: effectiveColorScheme == .dark ? 0.25 : 0.85).opacity(effectiveColorScheme == .dark ? 0.08 : 0.06),
+                        Color.clear
+                    ],
+                    center: .topTrailing,
+                    startRadius: 0,
+                    endRadius: 200
+                )
+            }
+        )
+        .overlay(
+            // Border with blue gradient
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            Color(hue: 215/360, saturation: 0.40, brightness: effectiveColorScheme == .dark ? 0.35 : 0.70).opacity(0.4),
+                            Color(hue: 215/360, saturation: 0.30, brightness: effectiveColorScheme == .dark ? 0.25 : 0.80).opacity(0.3)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.0
+                )
         )
         .cornerRadius(10)
-        .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 2)
+        .shadow(color: colors.shadowColor, radius: 12, x: 0, y: 4)
+        .shadow(color: Color(hue: 215/360, saturation: 0.60, brightness: 0.50).opacity(0.10), radius: 6, x: 0, y: 2)
         .colorScheme(effectiveColorScheme)
         .accessibilityElement(children: .contain)
     }
@@ -577,31 +805,6 @@ struct PopoverContentView: View {
         }
     }
 
-    /// Get category color matching the underline color
-    private func categoryColor(for category: String) -> Color {
-        // Match the color scheme from ErrorOverlayWindow.underlineColor()
-        switch category {
-        // Spelling and typos: Red (critical, obvious errors)
-        case "Spelling", "Typo":
-            return .red
-
-        // Grammar and structure: Orange (grammatical correctness)
-        case "Grammar", "Agreement", "BoundaryError", "Capitalization", "Nonstandard", "Punctuation":
-            return .orange
-
-        // Style and enhancement: Blue (style improvements)
-        case "Style", "Enhancement", "WordChoice", "Readability", "Redundancy", "Formatting":
-            return .blue
-
-        // Usage and word choice issues: Purple
-        case "Usage", "Eggcorn", "Malapropism", "Regionalism", "Repetition":
-            return .purple
-
-        // Miscellaneous: Gray (fallback)
-        default:
-            return .gray
-        }
-    }
 
     /// Get severity color for high contrast mode (T128)
     @ViewBuilder
