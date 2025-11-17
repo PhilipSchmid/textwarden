@@ -81,6 +81,23 @@ protocol ContentParser {
     /// - Parameter bundleID: Bundle identifier to check
     /// - Returns: True if this parser can handle the app
     func supports(bundleID: String) -> Bool
+
+    /// Preprocess text before grammar analysis
+    /// Allows app-specific filtering of text (e.g., terminal output removal)
+    /// - Parameter text: Raw text extracted from UI element
+    /// - Returns: Filtered text ready for grammar checking, or nil to skip analysis
+    func preprocessText(_ text: String) -> String?
+
+    /// Whether this parser wants to disable visual underlines
+    /// Used for apps where positioning is unreliable (terminals, some Electron apps)
+    /// When true, errors will use alternative notification (floating indicator)
+    var disablesVisualUnderlines: Bool { get }
+
+    /// Offset to add to error positions when applying text replacements
+    /// Used by terminal parsers where error positions are based on preprocessed text
+    /// but replacements need to be applied to the full text (including prompt)
+    /// Returns 0 for most parsers, only non-zero for terminal parsers
+    var textReplacementOffset: Int { get }
 }
 
 // MARK: - Default Implementations
@@ -88,6 +105,21 @@ protocol ContentParser {
 extension ContentParser {
     func supports(bundleID: String) -> Bool {
         return bundleID == bundleIdentifier
+    }
+
+    /// Default implementation: no preprocessing, return text as-is
+    func preprocessText(_ text: String) -> String? {
+        return text
+    }
+
+    /// Default: allow visual underlines
+    var disablesVisualUnderlines: Bool {
+        return false
+    }
+
+    /// Default: no offset needed for text replacement
+    var textReplacementOffset: Int {
+        return 0
     }
 
     /// Default bounds adjustment using generic text measurement

@@ -150,6 +150,17 @@ extension ApplicationContext {
         "org.chromium.Chromium"
     ]
 
+    /// Known terminal applications
+    private static let terminalApps: Set<String> = [
+        "com.apple.Terminal",
+        "com.googlecode.iterm2",
+        "co.zeit.hyper",
+        "dev.warp.Warp-Stable",
+        "org.alacritty",
+        "net.kovidgoyal.kitty",
+        "com.github.wez.wezterm"
+    ]
+
     /// Check if this is an Electron-based application
     /// Electron apps require keyboard-based text replacement due to broken AX APIs
     var isElectronApp: Bool {
@@ -164,10 +175,16 @@ extension ApplicationContext {
         bundleIdentifier.contains("chromium")
     }
 
+    /// Check if this is a terminal application
+    /// Terminal apps require special text filtering to avoid checking command output
+    var isTerminalApp: Bool {
+        Self.terminalApps.contains(bundleIdentifier)
+    }
+
     /// Check if this app requires keyboard-based text replacement
-    /// Returns true for Electron apps where AX API is known to fail
+    /// Returns true for Electron apps and Terminal apps where AX API is known to fail
     var requiresKeyboardReplacement: Bool {
-        isElectronApp
+        isElectronApp || isTerminalApp
     }
 
     /// Get recommended timing delay for keyboard operations (in seconds)

@@ -20,6 +20,11 @@ class ContentParserFactory {
         // Register known parsers
         registerParser(SlackContentParser())
 
+        // Register terminal parsers for all supported terminal apps
+        for (bundleID, _) in TerminalContentParser.supportedTerminals {
+            registerParser(TerminalContentParser(bundleIdentifier: bundleID))
+        }
+
         // Future parsers to add:
         // registerParser(DiscordContentParser())
         // registerParser(VSCodeContentParser())
