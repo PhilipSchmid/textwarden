@@ -675,7 +675,10 @@ struct ApplicationSettingsView: View {
             "com.tinyspeck.slackmacgap",
             "notion.id",
             "md.obsidian",
-            "com.literatureandlatte.scrivener3"
+            "com.literatureandlatte.scrivener3",
+            "com.apple.Terminal",
+            "com.googlecode.iterm2",
+            "dev.warp.Warp-Stable"
         ]
         bundleIDs.formUnion(commonBundleIDs)
 
@@ -1987,6 +1990,22 @@ struct AppearancePreferencesView: View {
                 }
             } header: {
                 Text("Underlines")
+                    .font(.headline)
+            }
+
+            Section {
+                Picker("Position:", selection: $preferences.indicatorPosition) {
+                    ForEach(UserPreferences.indicatorPositions, id: \.self) { position in
+                        Text(position).tag(position)
+                    }
+                }
+                .help("Choose where the error counter appears in Terminal and other apps")
+
+                Text("Position of the floating error indicator badge")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } header: {
+                Text("Error Indicator")
                     .font(.headline)
             }
         }

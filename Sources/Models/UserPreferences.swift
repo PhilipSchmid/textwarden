@@ -368,6 +368,23 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Error indicator position in Terminal and other apps
+    @Published var indicatorPosition: String {
+        didSet {
+            defaults.set(indicatorPosition, forKey: Keys.indicatorPosition)
+        }
+    }
+
+    /// Available indicator position options
+    static let indicatorPositions = [
+        "Top Left",
+        "Top Right",
+        "Center Left",
+        "Center Right",
+        "Bottom Left",
+        "Bottom Right"
+    ]
+
     private init() {
         // Initialize with default values first
         self.pauseDuration = .active
@@ -403,6 +420,7 @@ class UserPreferences: ObservableObject {
         self.suggestionPosition = "Auto"
         self.suggestionTheme = "System"
         self.underlineThickness = 3.0
+        self.indicatorPosition = "Bottom Right"
 
         // Then load saved preferences
         if let pauseString = defaults.string(forKey: Keys.pauseDuration),
@@ -479,6 +497,7 @@ class UserPreferences: ObservableObject {
         self.suggestionPosition = defaults.string(forKey: Keys.suggestionPosition) ?? "Auto"
         self.suggestionTheme = defaults.string(forKey: Keys.suggestionTheme) ?? "System"
         self.underlineThickness = defaults.object(forKey: Keys.underlineThickness) as? Double ?? 3.0
+        self.indicatorPosition = defaults.string(forKey: Keys.indicatorPosition) ?? "Bottom Right"
 
         // Set up timer if paused for 1 hour
         if pauseDuration == .oneHour, let until = pausedUntil, Date() < until {
@@ -745,6 +764,7 @@ class UserPreferences: ObservableObject {
         suggestionPosition = "Auto"
         suggestionTheme = "System"
         underlineThickness = 3.0
+        indicatorPosition = "Bottom Right"
     }
 
     // MARK: - UserDefaults Keys
@@ -783,5 +803,6 @@ class UserPreferences: ObservableObject {
         static let suggestionPosition = "suggestionPosition"
         static let suggestionTheme = "suggestionTheme"
         static let underlineThickness = "underlineThickness"
+        static let indicatorPosition = "indicatorPosition"
     }
 }
