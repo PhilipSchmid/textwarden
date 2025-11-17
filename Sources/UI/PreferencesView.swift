@@ -1076,6 +1076,15 @@ struct FilteringPreferencesView: View {
                     .font(.headline)
             }
 
+            // Gnau Enhancements
+            Section {
+                Toggle("Sentence-Start Capitalization", isOn: $preferences.enableSentenceStartCapitalization)
+                    .help("Automatically capitalize suggestions at the beginning of sentences")
+            } header: {
+                Text("Gnau Enhancements")
+                    .font(.headline)
+            }
+
             Section {
                 if preferences.ignoredRules.isEmpty {
                     HStack {

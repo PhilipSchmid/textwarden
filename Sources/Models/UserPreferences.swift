@@ -248,6 +248,16 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    // MARK: - Gnau Enhancements
+
+    /// Enable sentence-start capitalization (Gnau enhancement to Harper's suggestions)
+    /// When enabled, ensures suggestions at sentence starts are properly capitalized
+    @Published var enableSentenceStartCapitalization: Bool {
+        didSet {
+            defaults.set(enableSentenceStartCapitalization, forKey: Keys.enableSentenceStartCapitalization)
+        }
+    }
+
     /// Available languages for detection (from whichlang library)
     static let availableLanguages = [
         "Arabic", "Dutch", "English", "French", "German",
@@ -484,6 +494,9 @@ class UserPreferences: ObservableObject {
            let set = try? decoder.decode(Set<String>.self, from: data) {
             self.excludedLanguages = set
         }
+
+        // Gnau Enhancements
+        self.enableSentenceStartCapitalization = defaults.object(forKey: Keys.enableSentenceStartCapitalization) as? Bool ?? true
 
         // Keyboard Shortcuts
         self.keyboardShortcutsEnabled = defaults.object(forKey: Keys.keyboardShortcutsEnabled) as? Bool ?? true
@@ -755,6 +768,7 @@ class UserPreferences: ObservableObject {
         enableInternetAbbreviations = true
         enableGenZSlang = true
         enableITTerminology = true
+        enableSentenceStartCapitalization = true
         keyboardShortcutsEnabled = true
         toggleShortcut = "⌘⇧G"
         acceptSuggestionShortcut = "⇥"
@@ -790,6 +804,9 @@ class UserPreferences: ObservableObject {
         static let enableITTerminology = "enableITTerminology"
         static let enableLanguageDetection = "enableLanguageDetection"
         static let excludedLanguages = "excludedLanguages"
+
+        // Gnau Enhancements
+        static let enableSentenceStartCapitalization = "enableSentenceStartCapitalization"
 
         // Keyboard Shortcuts
         static let keyboardShortcutsEnabled = "keyboardShortcutsEnabled"

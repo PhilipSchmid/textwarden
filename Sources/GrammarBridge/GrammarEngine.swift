@@ -23,6 +23,7 @@ import Foundation
     ///   - enableITTerminology: Enable recognition of IT terminology (kubernetes, docker, API, etc.)
     ///   - enableLanguageDetection: Enable detection and filtering of non-English words
     ///   - excludedLanguages: Array of language codes to exclude (e.g., ["spanish", "german"])
+    ///   - enableSentenceStartCapitalization: Enable capitalization of suggestions at sentence starts
     /// - Returns: Result containing analysis result or error
     @objc public func analyzeText(
         _ text: String,
@@ -31,7 +32,8 @@ import Foundation
         enableGenZSlang: Bool,
         enableITTerminology: Bool,
         enableLanguageDetection: Bool = false,
-        excludedLanguages: [String] = []
+        excludedLanguages: [String] = [],
+        enableSentenceStartCapitalization: Bool = true
     ) -> GrammarAnalysisResult {
         // Call FFI function with all parameters
         // Convert Swift strings to RustString and create RustVec for language list
@@ -49,7 +51,8 @@ import Foundation
             enableGenZSlang,
             enableITTerminology,
             enableLanguageDetection,
-            rustVec
+            rustVec,
+            enableSentenceStartCapitalization
         )
 
         // Convert FFI result to Swift model
@@ -66,6 +69,7 @@ import Foundation
     ///   - enableITTerminology: Enable recognition of IT terminology (kubernetes, docker, API, etc.)
     ///   - enableLanguageDetection: Enable detection and filtering of non-English words
     ///   - excludedLanguages: Array of language codes to exclude (e.g., ["spanish", "german"])
+    ///   - enableSentenceStartCapitalization: Enable capitalization of suggestions at sentence starts
     /// - Returns: Analysis result
     @available(macOS 10.15, *)
     public func analyzeText(
@@ -75,9 +79,10 @@ import Foundation
         enableGenZSlang: Bool,
         enableITTerminology: Bool,
         enableLanguageDetection: Bool = false,
-        excludedLanguages: [String] = []
+        excludedLanguages: [String] = [],
+        enableSentenceStartCapitalization: Bool = true
     ) async -> GrammarAnalysisResult {
-        await Task.detached(priority: .userInitiated) { [text, dialect, enableInternetAbbrev, enableGenZSlang, enableITTerminology, enableLanguageDetection, excludedLanguages] in
+        await Task.detached(priority: .userInitiated) { [text, dialect, enableInternetAbbrev, enableGenZSlang, enableITTerminology, enableLanguageDetection, excludedLanguages, enableSentenceStartCapitalization] in
             // Call FFI function directly in detached task
             // Convert Swift strings to RustString and create RustVec for language list
             let rustText = RustString(text)
@@ -94,7 +99,8 @@ import Foundation
                 enableGenZSlang,
                 enableITTerminology,
                 enableLanguageDetection,
-                rustVec
+                rustVec,
+                enableSentenceStartCapitalization
             )
             return GrammarAnalysisResult(ffiResult: ffiResult)
         }.value
@@ -114,7 +120,8 @@ import Foundation
             enableGenZSlang: true,
             enableITTerminology: true,
             enableLanguageDetection: false,
-            excludedLanguages: []
+            excludedLanguages: [],
+            enableSentenceStartCapitalization: true
         )
     }
 
@@ -132,7 +139,8 @@ import Foundation
             enableGenZSlang: true,
             enableITTerminology: true,
             enableLanguageDetection: false,
-            excludedLanguages: []
+            excludedLanguages: [],
+            enableSentenceStartCapitalization: true
         )
     }
 
@@ -149,7 +157,8 @@ import Foundation
             enableGenZSlang: true,
             enableITTerminology: true,
             enableLanguageDetection: false,
-            excludedLanguages: []
+            excludedLanguages: [],
+            enableSentenceStartCapitalization: true
         )
     }
 
@@ -168,7 +177,8 @@ import Foundation
             enableGenZSlang: true,
             enableITTerminology: true,
             enableLanguageDetection: false,
-            excludedLanguages: []
+            excludedLanguages: [],
+            enableSentenceStartCapitalization: true
         )
     }
 }

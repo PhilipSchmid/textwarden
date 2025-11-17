@@ -45,7 +45,8 @@ mod ffi {
             enable_genz_slang: bool,
             enable_it_terminology: bool,
             enable_language_detection: bool,
-            excluded_languages: Vec<String>
+            excluded_languages: Vec<String>,
+            enable_sentence_start_capitalization: bool
         ) -> AnalysisResult;
     }
 }
@@ -124,7 +125,8 @@ fn analyze_text(
     enable_genz_slang: bool,
     enable_it_terminology: bool,
     enable_language_detection: bool,
-    excluded_languages: Vec<String>
+    excluded_languages: Vec<String>,
+    enable_sentence_start_capitalization: bool
 ) -> AnalysisResult {
     let result = analyzer::analyze_text(
         &text,
@@ -133,7 +135,8 @@ fn analyze_text(
         enable_genz_slang,
         enable_it_terminology,
         enable_language_detection,
-        excluded_languages
+        excluded_languages,
+        enable_sentence_start_capitalization
     );
 
     // Convert analyzer types to FFI types
