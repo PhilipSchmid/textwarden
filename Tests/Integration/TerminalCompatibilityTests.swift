@@ -99,6 +99,93 @@ final class TerminalCompatibilityTests: XCTestCase {
 
         // Should handle gracefully even if AX is limited
         XCTAssertTrue(context.shouldCheck())
+        XCTAssertTrue(context.isTerminalApp)
+    }
+
+    // MARK: - Terminal Text Preprocessing Tests
+
+    func testTerminalOutputFiltering() {
+        // Test that terminal output is filtered, only user input is checked
+        let parser = TerminalContentParser(bundleIdentifier: "com.apple.Terminal")
+
+        // Simulate terminal buffer with lots of output
+        let terminalBuffer = """
+        user@host:~$ ls -la
+        total 48
+        drwxr-xr-x  12 user  staff   384 Nov 16 10:00 .
+        drwxr-xr-x   6 root  admin   192 Nov 15 09:00 ..
+        -rw-r--r--   1 user  staff  1024 Nov 16 10:00 file1.txt
+        -rw-r--r--   1 user  staff  2048 Nov 16 10:00 file2.txt
+        user@host:~$ git status
+        On branch main
+        Your branch is up to date with 'origin/main'.
+
+        nothing to commit, working tree clean
+        user@host:~$ echo "This is what Im typing now"
+        """
+
+        let result = parser.preprocessText(terminalBuffer)
+
+        // Should extract only the last line (user input)
+        XCTAssertNotNil(result)
+        XCTAssertTrue(result!.contains("This is what Im typing now"))
+        XCTAssertFalse(result!.contains("total 48"))
+        XCTAssertFalse(result!.contains("nothing to commit"))
+    }
+
+    func testTerminalPromptExtraction() {
+        // Test extraction of text after various prompt styles
+        let parser = TerminalContentParser(bundleIdentifier: "com.apple.Terminal")
+
+        // Test various prompt styles
+        let prompts = [
+            ("$ git commit -m 'fix bug'", "git commit -m 'fix bug'"),
+            ("user@host:~/project$ npm install", "npm install"),
+            ("❯ cargo build --release", "cargo build --release"),
+            ("➜  ~ cd Documents", "cd Documents")
+        ]
+
+        for (input, expected) in prompts {
+            let result = parser.preprocessText(input)
+            XCTAssertNotNil(result)
+            XCTAssertTrue(result!.contains(expected.split(separator: " ").first!))
+        }
+    }
+
+    func testTerminalHugeBufferHandling() {
+        // Test that huge terminal buffers are handled gracefully
+        let parser = TerminalContentParser(bundleIdentifier: "com.apple.Terminal")
+
+        // Create a massive buffer (simulating scrollback)
+        var hugeBuffer = ""
+        for i in 0..<10000 {
+            hugeBuffer += "line \(i) with some output data\n"
+        }
+        hugeBuffer += "user@host:~$ echo final command"
+
+        let result = parser.preprocessText(hugeBuffer)
+
+        // Should handle without crashing and extract user input
+        XCTAssertNotNil(result)
+        XCTAssertTrue(result!.contains("final command"))
+        // Result should be much smaller than input
+        XCTAssertLessThan(result!.count, 1000)
+    }
+
+    func testTerminalPureOutputSkipped() {
+        // Test that pure output (no prompt) is skipped
+        let parser = TerminalContentParser(bundleIdentifier: "com.apple.Terminal")
+
+        let pureOutput = """
+        [2024-11-16 10:00:00] INFO: Starting server
+        [2024-11-16 10:00:01] INFO: Listening on port 8080
+        [2024-11-16 10:00:02] INFO: Connected to database
+        """
+
+        let result = parser.preprocessText(pureOutput)
+
+        // Should skip pure output
+        XCTAssertNil(result)
     }
 
     func testITermCompatibility() {
