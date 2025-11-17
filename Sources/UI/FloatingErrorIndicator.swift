@@ -8,6 +8,7 @@
 
 import Cocoa
 import AppKit
+import Combine
 
 /// Floating error indicator window (like Grammarly's badge)
 class FloatingErrorIndicator: NSWindow {
@@ -25,6 +26,9 @@ class FloatingErrorIndicator: NSWindow {
 
     /// Custom view for drawing the indicator
     private var indicatorView: IndicatorView?
+
+    /// Cancellables for Combine subscriptions
+    private var cancellables = Set<AnyCancellable>()
 
     private init() {
         // Create a small circular window
@@ -61,6 +65,27 @@ class FloatingErrorIndicator: NSWindow {
         }
         self.indicatorView = indicatorView
         self.contentView = indicatorView
+
+        // Listen to indicator position changes for immediate repositioning
+        setupPositionObserver()
+    }
+
+    /// Setup observer for indicator position preference changes
+    private func setupPositionObserver() {
+        UserPreferences.shared.$indicatorPosition
+            .dropFirst()  // Skip initial value
+            .sink { [weak self] newPosition in
+                guard let self = self else { return }
+                let msg = "🔴 FloatingErrorIndicator: Position preference changed to '\(newPosition)' - repositioning"
+                NSLog(msg)
+                logToDebugFile(msg)
+
+                // If indicator is currently visible, reposition it immediately
+                if self.isVisible, let element = self.monitoredElement {
+                    self.positionIndicator(for: element)
+                }
+            }
+            .store(in: &cancellables)
     }
 
     /// Update indicator with errors
