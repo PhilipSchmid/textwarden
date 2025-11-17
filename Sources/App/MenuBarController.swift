@@ -184,6 +184,19 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
     /// Add utility menu items (Preferences, About, Quit)
     private func addUtilityMenuItems() {
+        // Show errors if any exist (useful for terminals and apps without visual underlines)
+        let errorCount = AnalysisCoordinator.shared.getCurrentErrors().count
+        if errorCount > 0 {
+            let errorItem = NSMenuItem(
+                title: "Show \(errorCount) Grammar \(errorCount == 1 ? "Issue" : "Issues")...",
+                action: #selector(showCurrentErrors),
+                keyEquivalent: ""
+            )
+            errorItem.target = self
+            menu?.addItem(errorItem)
+            menu?.addItem(NSMenuItem.separator())
+        }
+
         // Preferences
         let preferencesItem = NSMenuItem(
             title: "Preferences...",
@@ -351,6 +364,25 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         // Then open preferences
         openPreferences()
+    }
+
+    @objc private func showCurrentErrors() {
+        // Get current errors from AnalysisCoordinator
+        let errors = AnalysisCoordinator.shared.getCurrentErrors()
+        guard let firstError = errors.first else { return }
+
+        // Show popover with the first error (user can navigate to others)
+        // Position near menu bar icon since we don't have text field position
+        if let button = statusItem?.button {
+            let buttonFrame = button.window?.convertToScreen(button.convert(button.bounds, to: nil)) ?? .zero
+            let position = NSPoint(x: buttonFrame.midX, y: buttonFrame.minY)
+
+            SuggestionPopover.shared.show(
+                error: firstError,
+                allErrors: errors,
+                at: position
+            )
+        }
     }
 
     @objc private func quitApp() {
