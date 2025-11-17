@@ -112,9 +112,9 @@ class TerminalContentParser: ContentParser {
 
         // Common shell prompt patterns
         let promptPatterns = [
-            #"[\$%#>] "#,                    // Basic prompts: $ % # >
-            #"[~\/\w-]+[\$%#>] "#,           // Path + prompt: ~/path$
-            #"\w+@\w+.*?[\$%#>] "#,          // user@host$
+            #"[\w-]+@[\w-]+.*?[%$#>] "#,     // user@host (with hyphens): user@host-name ~ %
+            #"[~\/].*?[%$#>] "#,              // Path-based: ~/path %
+            #"[%$#>] "#,                      // Simple: % or $ or # or >
             #"❯ "#,                           // Starship/modern prompts
             #"➜  "#,                          // Oh My Zsh
             #"λ "#,                           // Lambda prompt
@@ -201,32 +201,11 @@ class TerminalContentParser: ContentParser {
             }
         }
 
-        // Fallback: If text is short enough and doesn't look like pure output, check it
-        // This handles cases like git commit messages in nano/vim
-        if text.count < 500 {
-            // Check if text looks like command output (lots of special chars, numbers, paths)
-            let outputIndicators = [
-                #"^\s*\["#,           // Log lines
-                #"^\s*\d+\s"#,        // Numbered lines
-                #"^[rwx-]{10}"#,      // ls -l output
-                #"^\S+:\s"#,          // Key: value output
-            ]
-
-            let looksLikeOutput = outputIndicators.contains { pattern in
-                (try? NSRegularExpression(pattern: pattern, options: .anchorsMatchLines))?.firstMatch(
-                    in: text,
-                    range: NSRange(text.startIndex..., in: text)
-                ) != nil
-            }
-
-            if !looksLikeOutput {
-                Logger.debug("TerminalContentParser: Short text without prompt, allowing: \"\(text.prefix(100))...\"")
-                return text
-            }
-        }
-
-        // Skip this text - it's likely just output
-        Logger.debug("TerminalContentParser: Skipping terminal output")
+        // No prompt found - skip analysis
+        // For terminals, we should ONLY analyze text when we can reliably identify
+        // the prompt and extract user input. Without a prompt, we cannot distinguish
+        // between user input and command output, so it's safer to skip.
+        Logger.debug("TerminalContentParser: No prompt found - skipping analysis to avoid false positives from command output")
         return nil
     }
 }
