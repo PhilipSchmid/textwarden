@@ -27,7 +27,7 @@ class TextMonitor: ObservableObject {
     private var debounceTimer: Timer?
 
     /// Debounce interval in seconds
-    private let debounceInterval: TimeInterval = 0.1  // 100ms
+    private let debounceInterval: TimeInterval = 0.05  // 50ms for snappier UX
 
     /// Callback for text changes
     var onTextChange: ((String, ApplicationContext) -> Void)?
