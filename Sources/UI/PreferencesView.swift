@@ -995,22 +995,22 @@ struct FilteringPreferencesView: View {
             // Core Grammar Checks
             Section {
                 Toggle("Spelling", isOn: categoryBinding("Spelling"))
-                    .help("Check for misspelled words")
+                    .help("When your brain doesn't know the right spelling")
 
                 Toggle("Typos", isOn: categoryBinding("Typo"))
-                    .help("Detect typing mistakes (e.g., 'seem' → 'seen')")
+                    .help("When your brain knows the right spelling but your fingers made a mistake")
 
                 Toggle("Grammar", isOn: categoryBinding("Grammar"))
-                    .help("Check grammatical correctness")
+                    .help("Detect grammatical errors and incorrect sentence structure")
 
                 Toggle("Agreement", isOn: categoryBinding("Agreement"))
-                    .help("Check subject-verb agreement")
+                    .help("Check subject-verb and pronoun agreement (e.g., 'he go' → 'he goes')")
 
                 Toggle("Punctuation", isOn: categoryBinding("Punctuation"))
-                    .help("Check punctuation usage")
+                    .help("Check punctuation usage, including hyphenation in compound adjectives")
 
                 Toggle("Capitalization", isOn: categoryBinding("Capitalization"))
-                    .help("Check proper capitalization")
+                    .help("Check proper capitalization of words and sentences")
             } header: {
                 Text("Core Checks")
                     .font(.headline)
@@ -1019,19 +1019,19 @@ struct FilteringPreferencesView: View {
             // Writing Style
             Section {
                 Toggle("Style", isOn: categoryBinding("Style"))
-                    .help("Suggest style improvements")
+                    .help("Check cases where multiple options are correct but one is preferred")
 
                 Toggle("Readability", isOn: categoryBinding("Readability"))
-                    .help("Improve text readability")
+                    .help("Improve text flow and make writing easier to understand")
 
                 Toggle("Enhancement", isOn: categoryBinding("Enhancement"))
-                    .help("Suggest clarity improvements")
+                    .help("Suggest improvements that enhance clarity or impact without fixing errors")
 
                 Toggle("Redundancy", isOn: categoryBinding("Redundancy"))
-                    .help("Detect redundant phrases")
+                    .help("Detect cases where words duplicate meaning that's already expressed")
 
                 Toggle("Repetition", isOn: categoryBinding("Repetition"))
-                    .help("Detect repeated words")
+                    .help("Detect repeated words or phrases in nearby sentences")
             } header: {
                 Text("Style & Clarity")
                     .font(.headline)
@@ -1040,16 +1040,16 @@ struct FilteringPreferencesView: View {
             // Word Usage
             Section {
                 Toggle("Word Choice", isOn: categoryBinding("WordChoice"))
-                    .help("Suggest better word choices")
+                    .help("Suggest choosing between different words or phrases in a given context")
 
                 Toggle("Usage", isOn: categoryBinding("Usage"))
-                    .help("Check conventional word usage")
+                    .help("Check conventional word usage and standard collocations")
 
                 Toggle("Eggcorns", isOn: categoryBinding("Eggcorn"))
-                    .help("Detect word substitutions (e.g., 'egg corn' for 'acorn')")
+                    .help("Detect cases where a word or phrase is misused for a similar-sounding word or phrase (e.g., 'for all intensive purposes' → 'for all intents and purposes')")
 
                 Toggle("Malapropisms", isOn: categoryBinding("Malapropism"))
-                    .help("Detect similar-sounding wrong words")
+                    .help("Detect cases where a word is mistakenly used for a similar-sounding word with a different meaning (e.g., 'escape goat' → 'scapegoat')")
             } header: {
                 Text("Word Usage")
                     .font(.headline)
@@ -1058,19 +1058,19 @@ struct FilteringPreferencesView: View {
             // Advanced
             Section {
                 Toggle("Formatting", isOn: categoryBinding("Formatting"))
-                    .help("Check text formatting")
+                    .help("Check text formatting issues such as spacing and special characters")
 
                 Toggle("Boundary Errors", isOn: categoryBinding("BoundaryError"))
-                    .help("Check word boundaries (e.g., 'each and everyone')")
+                    .help("Detect errors where words are joined or split at the wrong boundaries (e.g., 'each and everyone' → 'each and every one')")
 
                 Toggle("Regionalism", isOn: categoryBinding("Regionalism"))
-                    .help("Detect regional variations")
+                    .help("Detect variations that are standard in some regions or dialects but not others")
 
                 Toggle("Nonstandard", isOn: categoryBinding("Nonstandard"))
-                    .help("Detect non-standard usage")
+                    .help("Detect non-standard language usage that may be informal or colloquial")
 
                 Toggle("Miscellaneous", isOn: categoryBinding("Miscellaneous"))
-                    .help("Other grammar checks")
+                    .help("Check for any other grammar issues that don't fit neatly into other categories")
             } header: {
                 Text("Advanced")
                     .font(.headline)
