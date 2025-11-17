@@ -74,14 +74,15 @@ class FloatingErrorIndicator: NSWindow {
     private func setupPositionObserver() {
         UserPreferences.shared.$indicatorPosition
             .dropFirst()  // Skip initial value
+            .receive(on: DispatchQueue.main)  // Ensure UI updates on main thread
             .sink { [weak self] newPosition in
                 guard let self = self else { return }
-                let msg = "🔴 FloatingErrorIndicator: Position preference changed to '\(newPosition)' - repositioning"
-                NSLog(msg)
-                logToDebugFile(msg)
 
-                // If indicator is currently visible, reposition it immediately
-                if self.isVisible, let element = self.monitoredElement {
+                // If indicator is currently visible with errors, reposition immediately
+                if self.isVisible, let element = self.monitoredElement, !self.errors.isEmpty {
+                    let msg = "🔴 FloatingErrorIndicator: Position changed to '\(newPosition)' - repositioning"
+                    NSLog(msg)
+                    logToDebugFile(msg)
                     self.positionIndicator(for: element)
                 }
             }
