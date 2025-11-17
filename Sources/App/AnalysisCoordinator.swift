@@ -159,41 +159,55 @@ class AnalysisCoordinator: ObservableObject {
             // Start monitoring new application if enabled
             if context.shouldCheck() {
                 if isSameApp {
-                    print("🔄 AnalysisCoordinator: Returning to same app - forcing re-analysis")
+                    let msg = "🔄 AnalysisCoordinator: Returning to same app - forcing immediate re-analysis"
+                    NSLog(msg)
+                    logToDebugFile(msg)
                     // CRITICAL: Set context even for same app (might have been cleared when switching away)
                     self.monitoredContext = context
-                    // Same app - but we might have missed an intermediate app switch (e.g., Gnau's menu bar)
-                    // Force re-analysis by temporarily clearing previousText
-                    let savedPreviousText = self.previousText
+                    // Same app - force immediate re-analysis by clearing previousText
                     self.previousText = ""
 
                     if let element = self.textMonitor.monitoredElement {
                         self.textMonitor.extractText(from: element)
                     }
-
-                    // Restore previousText after extraction to prevent unnecessary re-analysis on next edit
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        if self.previousText.isEmpty {
-                            self.previousText = savedPreviousText
-                        }
-                    }
                 } else {
-                    print("✅ AnalysisCoordinator: New application - starting monitoring")
+                    let msg1 = "✅ AnalysisCoordinator: New application - starting monitoring"
+                    NSLog(msg1)
+                    logToDebugFile(msg1)
                     self.monitoredContext = context  // Set BEFORE startMonitoring
                     self.startMonitoring(context: context)
 
-                    // Trigger re-analysis after monitoring is established
+                    // Trigger immediate extraction, then retry a few times to catch delayed element readiness
+                    if let element = self.textMonitor.monitoredElement {
+                        let msg2 = "🔄 AnalysisCoordinator: Immediate text extraction"
+                        NSLog(msg2)
+                        logToDebugFile(msg2)
+                        self.textMonitor.extractText(from: element)
+                    }
+
+                    // Retry after short delays to catch cases where element wasn't ready immediately
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        if let element = self.textMonitor.monitoredElement {
+                            let msg3 = "🔄 AnalysisCoordinator: Retry 1 - extracting text"
+                            NSLog(msg3)
+                            logToDebugFile(msg3)
+                            self.textMonitor.extractText(from: element)
+                        }
+                    }
+
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         if let element = self.textMonitor.monitoredElement {
-                            print("🔄 AnalysisCoordinator: Re-extracting text after new app monitoring established")
+                            let msg4 = "🔄 AnalysisCoordinator: Retry 2 - extracting text"
+                            NSLog(msg4)
+                            logToDebugFile(msg4)
                             self.textMonitor.extractText(from: element)
-                        } else {
-                            print("⚠️ AnalysisCoordinator: No monitored element found after app switch")
                         }
                     }
                 }
             } else {
-                print("⏸️ AnalysisCoordinator: Application not in check list - stopping monitoring")
+                let msg = "⏸️ AnalysisCoordinator: Application not in check list - stopping monitoring"
+                NSLog(msg)
+                logToDebugFile(msg)
                 self.stopMonitoring()
                 self.monitoredContext = nil
             }
