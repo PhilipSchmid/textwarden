@@ -83,12 +83,31 @@ class ErrorOverlayWindow: NSWindow {
     }
 
     /// Update overlay with new errors and monitored element
-    func update(errors: [GrammarErrorModel], element: AXUIElement, context: ApplicationContext?) {
+    /// Returns the number of underlines that were successfully created
+    @discardableResult
+    func update(errors: [GrammarErrorModel], element: AXUIElement, context: ApplicationContext?) -> Int {
         let msg1 = "🎨 ErrorOverlay: update() called with \(errors.count) errors"
         NSLog(msg1)
         logToDebugFile(msg1)
         self.errors = errors
         self.monitoredElement = element
+
+        // Check if the parser wants to disable visual underlines
+        let bundleID = context?.bundleIdentifier ?? "unknown"
+        let parser = ContentParserFactory.shared.parser(for: bundleID)
+        let msg = "🔍 ErrorOverlay: Using parser '\(parser.parserName)' for bundleID '\(bundleID)', disablesVisualUnderlines=\(parser.disablesVisualUnderlines)"
+        NSLog(msg)
+        logToDebugFile(msg)
+        print(msg)  // Force print to console
+
+        if parser.disablesVisualUnderlines {
+            let msg2 = "⏭️ ErrorOverlay: Parser '\(parser.parserName)' disables visual underlines - skipping and showing floating indicator"
+            NSLog(msg2)
+            logToDebugFile(msg2)
+            print(msg2)  // Force print to console
+            hide()
+            return 0
+        }
 
         // Get element bounds
         // For Electron apps (like Slack), AX APIs return invalid bounds
@@ -124,7 +143,7 @@ class ErrorOverlayWindow: NSWindow {
 
         // Calculate underline positions for each error
         let underlines = errors.compactMap { error -> ErrorUnderline? in
-            var bounds: CGRect
+            let bounds: CGRect
 
             // Try to get bounds from AX API
             if let axBounds = getErrorBounds(for: error, in: element) {
@@ -148,7 +167,13 @@ class ErrorOverlayWindow: NSWindow {
                     let msg2 = "⚠️ ErrorOverlay: AX bounds failed validation, using fallback estimation"
                     NSLog(msg2)
                     logToDebugFile(msg2)
-                    bounds = estimateErrorBounds(for: error, in: element, elementFrame: elementFrame, context: context)
+                    guard let estimatedBounds = estimateErrorBounds(for: error, in: element, elementFrame: elementFrame, context: context) else {
+                        let msg3 = "⏭️ ErrorOverlay: Parser disabled visual underline for this error"
+                        NSLog(msg3)
+                        logToDebugFile(msg3)
+                        return nil
+                    }
+                    bounds = estimatedBounds
                     let msg3 = "📍 ErrorOverlay: Estimated error bounds: \(bounds)"
                     NSLog(msg3)
                     logToDebugFile(msg3)
@@ -158,7 +183,13 @@ class ErrorOverlayWindow: NSWindow {
                 let msg = "❌ ErrorOverlay: AX API failed to get bounds for error at \(error.start)-\(error.end), using fallback"
                 NSLog(msg)
                 logToDebugFile(msg)
-                bounds = estimateErrorBounds(for: error, in: element, elementFrame: elementFrame, context: context)
+                guard let estimatedBounds = estimateErrorBounds(for: error, in: element, elementFrame: elementFrame, context: context) else {
+                    let msg2 = "⏭️ ErrorOverlay: Parser disabled visual underline for this error"
+                    NSLog(msg2)
+                    logToDebugFile(msg2)
+                    return nil
+                }
+                bounds = estimatedBounds
                 let msg2 = "📍 ErrorOverlay: Estimated error bounds: \(bounds)"
                 NSLog(msg2)
                 logToDebugFile(msg2)
@@ -223,6 +254,8 @@ class ErrorOverlayWindow: NSWindow {
             logToDebugFile(msg)
             hide()
         }
+
+        return underlines.count
     }
 
     /// Hide overlay
@@ -315,7 +348,8 @@ class ErrorOverlayWindow: NSWindow {
 
     /// Estimate error bounds when AX API fails (Electron apps fallback)
     /// Uses ContentParser architecture for app-specific bounds calculation
-    private func estimateErrorBounds(for error: GrammarErrorModel, in element: AXUIElement, elementFrame: CGRect, context: ApplicationContext?) -> CGRect {
+    /// Returns nil if the parser explicitly disables visual underlines
+    private func estimateErrorBounds(for error: GrammarErrorModel, in element: AXUIElement, elementFrame: CGRect, context: ApplicationContext?) -> CGRect? {
         // Get the full text content
         var textValue: CFTypeRef?
         let textError = AXUIElementCopyAttributeValue(
@@ -407,9 +441,10 @@ class ErrorOverlayWindow: NSWindow {
             return estimatedBounds
         }
 
-        // Final fallback if parser fails
-        Logger.error("ContentParser failed for \(bundleID), using simple fallback")
-        return simpleFallbackBounds(for: error, elementFrame: elementFrame, context: context)
+        // Parser explicitly returned nil - this means the parser wants to disable visual underlines
+        // (e.g., for terminals where positioning is unreliable)
+        Logger.debug("ContentParser returned nil for \(bundleID) - disabling visual underline")
+        return nil
     }
 
     /// Simple fallback when we can't measure text

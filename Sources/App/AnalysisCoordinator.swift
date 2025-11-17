@@ -51,6 +51,9 @@ class AnalysisCoordinator: ObservableObject {
         return window
     }()
 
+    /// Floating error indicator ((redacted)-style) for apps without visual underlines
+    private let floatingIndicator = FloatingErrorIndicator.shared
+
     /// Error cache mapping text segments to detected errors
     private var errorCache: [String: [GrammarErrorModel]] = [:]
 
@@ -157,6 +160,8 @@ class AnalysisCoordinator: ObservableObject {
             if context.shouldCheck() {
                 if isSameApp {
                     print("🔄 AnalysisCoordinator: Returning to same app - forcing re-analysis")
+                    // CRITICAL: Set context even for same app (might have been cleared when switching away)
+                    self.monitoredContext = context
                     // Same app - but we might have missed an intermediate app switch (e.g., Gnau's menu bar)
                     // Force re-analysis by temporarily clearing previousText
                     let savedPreviousText = self.previousText
@@ -174,8 +179,8 @@ class AnalysisCoordinator: ObservableObject {
                     }
                 } else {
                     print("✅ AnalysisCoordinator: New application - starting monitoring")
+                    self.monitoredContext = context  // Set BEFORE startMonitoring
                     self.startMonitoring(context: context)
-                    self.monitoredContext = context
 
                     // Trigger re-analysis after monitoring is established
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -233,6 +238,7 @@ class AnalysisCoordinator: ObservableObject {
                 let msg = "✅ AnalysisCoordinator: Starting monitoring for existing app"
                 NSLog(msg)
                 logToDebugFile(msg)
+                self.monitoredContext = currentApp  // Set BEFORE startMonitoring
                 startMonitoring(context: currentApp)
             } else {
                 let msg = "⏸️ AnalysisCoordinator: Existing app not in check list"
@@ -278,13 +284,16 @@ class AnalysisCoordinator: ObservableObject {
         currentSegment = nil
         previousText = ""  // Clear previous text so analysis runs when we return
         errorOverlay.hide()
+        floatingIndicator.hide()
         suggestionPopover.hide()
+        MenuBarController.shared?.setIconState(.active)
     }
 
     /// Resume monitoring after permission grant
     private func resumeMonitoring() {
         if let context = applicationTracker.activeApplication,
            context.shouldCheck() {
+            self.monitoredContext = context  // Set BEFORE startMonitoring
             startMonitoring(context: context)
         }
     }
@@ -587,24 +596,52 @@ class AnalysisCoordinator: ObservableObject {
         logToDebugFile(msg1)
 
         guard let monitoredElement = element else {
-            let msg = "⚠️ AnalysisCoordinator: No monitored element - hiding overlay"
+            let msg = "⚠️ AnalysisCoordinator: No monitored element - hiding overlays"
             NSLog(msg)
             logToDebugFile(msg)
             errorOverlay.hide()
+            floatingIndicator.hide()
+            MenuBarController.shared?.setIconState(.active)
             return
         }
 
         if errors.isEmpty {
-            let msg = "📍 AnalysisCoordinator: No errors - hiding overlay"
+            let msg = "📍 AnalysisCoordinator: No errors - hiding overlays"
             NSLog(msg)
             logToDebugFile(msg)
             errorOverlay.hide()
+            floatingIndicator.hide()
+            MenuBarController.shared?.setIconState(.active)
         } else {
-            let msg = "✅ AnalysisCoordinator: Showing overlay with \(errors.count) errors"
+            // Debug: Log context before passing to errorOverlay
+            let bundleID = monitoredContext?.bundleIdentifier ?? "nil"
+            let appName = monitoredContext?.applicationName ?? "nil"
+            let msg = "🔍 AnalysisCoordinator: About to call errorOverlay.update() with context - bundleID: '\(bundleID)', appName: '\(appName)'"
             NSLog(msg)
             logToDebugFile(msg)
-            // Update overlay with errors and monitored element
-            errorOverlay.update(errors: errors, element: monitoredElement, context: monitoredContext)
+
+            // Try to show visual underlines
+            let underlinesCreated = errorOverlay.update(errors: errors, element: monitoredElement, context: monitoredContext)
+
+            // If we have errors but no underlines were created, show floating indicator
+            // This happens when:
+            // - Terminal apps (positioning unreliable)
+            // - Electron apps with broken AX APIs
+            // - Any app where bounds calculation fails
+            if underlinesCreated == 0 {
+                let appName = monitoredContext?.applicationName ?? "unknown"
+                let msg = "⚠️ AnalysisCoordinator: \(errors.count) errors detected in '\(appName)' but no underlines created - showing floating indicator"
+                NSLog(msg)
+                logToDebugFile(msg)
+                floatingIndicator.update(errors: errors, element: monitoredElement, context: monitoredContext)
+                MenuBarController.shared?.setIconState(.error)
+            } else {
+                let msg = "✅ AnalysisCoordinator: Showing \(underlinesCreated) visual underlines"
+                NSLog(msg)
+                logToDebugFile(msg)
+                floatingIndicator.hide()  // Hide floating indicator when showing visual underlines
+                MenuBarController.shared?.setIconState(.active)
+            }
         }
     }
 
@@ -766,7 +803,7 @@ class AnalysisCoordinator: ObservableObject {
         }
     }
 
-    /// Apply text replacement using keyboard simulation (for Electron apps)
+    /// Apply text replacement using keyboard simulation (for Electron apps and Terminals)
     /// Inspired by (redacted)'s hybrid replacement approach
     private func applyTextReplacementViaKeyboard(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement) {
         guard let context = self.monitoredContext else {
@@ -774,13 +811,249 @@ class AnalysisCoordinator: ObservableObject {
             return
         }
 
-        let msg1 = "⌨️ Using keyboard simulation for text replacement (Electron app: \(context.applicationName))"
+        let msg1 = "⌨️ Using keyboard simulation for text replacement (app: \(context.applicationName), isTerminal: \(context.isTerminalApp))"
         NSLog(msg1)
         logToDebugFile(msg1)
 
+        // SPECIAL HANDLING FOR TERMINALS
+        // Terminal.app's AX API is completely broken - both selection AND text setting fail
+        // Solution: Clear the entire command line and paste the corrected full text
+        if context.isTerminalApp {
+            // Try to get original cursor position via AXSelectedTextRange
+            var selectedRangeValue: CFTypeRef?
+            let rangeResult = AXUIElementCopyAttributeValue(
+                element,
+                kAXSelectedTextRangeAttribute as CFString,
+                &selectedRangeValue
+            )
+
+            var originalCursorPosition: Int?
+            if rangeResult == .success, let rangeValue = selectedRangeValue {
+                let range = rangeValue as! AXValue
+                var cfRange = CFRange()
+                let success = AXValueGetValue(range, .cfRange, &cfRange)
+                if success {
+                    originalCursorPosition = cfRange.location
+                    let msg = "📍 Terminal: Original cursor position: \(cfRange.location) (selection length: \(cfRange.length))"
+                    NSLog(msg)
+                    logToDebugFile(msg)
+                } else {
+                    let msg = "⚠️ Terminal: Could not extract CFRange from AXSelectedTextRange"
+                    NSLog(msg)
+                    logToDebugFile(msg)
+                }
+            } else {
+                let msg = "⚠️ Terminal: Could not query AXSelectedTextRange (error: \(rangeResult.rawValue))"
+                NSLog(msg)
+                logToDebugFile(msg)
+            }
+
+            // Get the current text and apply the correction
+            var currentTextValue: CFTypeRef?
+            let getTextResult = AXUIElementCopyAttributeValue(
+                element,
+                kAXValueAttribute as CFString,
+                &currentTextValue
+            )
+
+            guard getTextResult == .success, let fullText = currentTextValue as? String else {
+                let msg = "❌ Failed to get current text for Terminal replacement"
+                NSLog(msg)
+                logToDebugFile(msg)
+                return
+            }
+
+            // Apply preprocessing to get just the command line text
+            let parser = ContentParserFactory.shared.parser(for: context.bundleIdentifier)
+            guard let commandLineText = parser.preprocessText(fullText) else {
+                let msg = "❌ Failed to preprocess text for Terminal"
+                NSLog(msg)
+                logToDebugFile(msg)
+                return
+            }
+
+            // Apply the correction to the command line text
+            let startIndex = commandLineText.index(commandLineText.startIndex, offsetBy: error.start)
+            let endIndex = commandLineText.index(commandLineText.startIndex, offsetBy: error.end)
+            var correctedText = commandLineText
+            correctedText.replaceSubrange(startIndex..<endIndex, with: suggestion)
+
+            let msg2 = "📝 Terminal: Original command: '\(commandLineText)'"
+            NSLog(msg2)
+            logToDebugFile(msg2)
+
+            let msg3 = "📝 Terminal: Corrected command: '\(correctedText)'"
+            NSLog(msg3)
+            logToDebugFile(msg3)
+
+            // Calculate target cursor position for restoration
+            var targetCursorPosition: Int?
+            if let axCursorPos = originalCursorPosition {
+                // Map cursor position from full text to command line coordinates
+                // Find where the command line starts in the full text
+                let commandRange = (fullText as NSString).range(of: commandLineText)
+                if commandRange.location != NSNotFound {
+                    let promptOffset = commandRange.location
+                    let cursorInCommandLine = axCursorPos - promptOffset
+
+                    let msg = "📍 Terminal: Cursor in command line: \(cursorInCommandLine) (AX position: \(axCursorPos), prompt offset: \(promptOffset))"
+                    NSLog(msg)
+                    logToDebugFile(msg)
+
+                    // Calculate new cursor position after replacement
+                    let errorLength = error.end - error.start
+                    let replacementLength = suggestion.count
+                    let lengthDelta = replacementLength - errorLength
+
+                    if cursorInCommandLine < error.start {
+                        // Cursor before error - position unchanged
+                        targetCursorPosition = cursorInCommandLine
+                        let msg2 = "📍 Cursor before error - keeping at position \(cursorInCommandLine)"
+                        NSLog(msg2)
+                        logToDebugFile(msg2)
+                    } else if cursorInCommandLine >= error.end {
+                        // Cursor after error - shift by length delta
+                        targetCursorPosition = cursorInCommandLine + lengthDelta
+                        let msg2 = "📍 Cursor after error - moving to position \(cursorInCommandLine + lengthDelta)"
+                        NSLog(msg2)
+                        logToDebugFile(msg2)
+                    } else {
+                        // Cursor inside error - move to end of replacement
+                        targetCursorPosition = error.start + replacementLength
+                        let msg2 = "📍 Cursor inside error - moving to end of replacement at position \(error.start + replacementLength)"
+                        NSLog(msg2)
+                        logToDebugFile(msg2)
+                    }
+                } else {
+                    let msg = "⚠️ Terminal: Could not find command line in full text - cannot map cursor position"
+                    NSLog(msg)
+                    logToDebugFile(msg)
+                }
+            }
+
+            // Copy corrected text to clipboard
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(correctedText, forType: .string)
+
+            let msg4 = "📋 Copied corrected command to clipboard"
+            NSLog(msg4)
+            logToDebugFile(msg4)
+
+            // Activate Terminal
+            let apps = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier)
+            if let targetApp = apps.first {
+                targetApp.activate(options: .activateIgnoringOtherApps)
+                let msg = "🎯 Activated Terminal for keyboard commands"
+                NSLog(msg)
+                logToDebugFile(msg)
+            }
+
+            // Wait for activation, then clear line and paste
+            // Terminal replacement strategy (T044-Terminal):
+            // 1. Query AXSelectedTextRange to get original cursor position
+            // 2. Ctrl+A: Move cursor to beginning of line
+            // 3. Ctrl+K: Kill (delete) from cursor to end of line
+            // 4. Cmd+V: Paste corrected text from clipboard
+            // 5. Ctrl+A: Move back to beginning
+            // 6. Send N right arrows to restore cursor position (calculated based on replacement)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                // Step 1: Ctrl+A to go to beginning of line
+                self.pressKey(key: VirtualKeyCode.a, flags: .maskControl)
+
+                let msg1 = "⌨️ Sent Ctrl+A"
+                NSLog(msg1)
+                logToDebugFile(msg1)
+
+                // Small delay before Ctrl+K
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    // Step 2: Ctrl+K to kill (delete) to end of line
+                    self.pressKey(key: VirtualKeyCode.k, flags: .maskControl)
+
+                    let msg2 = "⌨️ Sent Ctrl+K"
+                    NSLog(msg2)
+                    logToDebugFile(msg2)
+
+                    // Small delay before paste
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        // Step 3: Paste the corrected text
+                        self.pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
+
+                        let msg3 = "⌨️ Sent Cmd+V"
+                        NSLog(msg3)
+                        logToDebugFile(msg3)
+
+                        // Step 4: Position cursor at target location
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                            if let targetPos = targetCursorPosition {
+                                // Navigate to target cursor position
+                                // First move to beginning
+                                self.pressKey(key: VirtualKeyCode.a, flags: .maskControl)
+
+                                let msg = "⌨️ Sent Ctrl+A to move to beginning before cursor positioning"
+                                NSLog(msg)
+                                logToDebugFile(msg)
+
+                                // Small delay, then send right arrows to reach target position
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+                                    // Send all right arrow keys rapidly (no delays between them to avoid animation)
+                                    for _ in 0..<targetPos {
+                                        self.pressKey(key: VirtualKeyCode.rightArrow, flags: [], withDelay: false)
+                                    }
+
+                                    let msg2 = "✅ Terminal replacement complete (cursor at position \(targetPos))"
+                                    NSLog(msg2)
+                                    logToDebugFile(msg2)
+
+                                    // Record statistics
+                                    UserStatistics.shared.recordSuggestionApplied(category: error.category)
+
+                                    // Invalidate cache
+                                    self.invalidateCacheAfterReplacement(at: error.start..<error.end)
+                                }
+                            } else {
+                                // Fallback: move to end if we couldn't determine target position
+                                self.pressKey(key: VirtualKeyCode.e, flags: .maskControl)
+
+                                let msg = "✅ Terminal replacement complete (cursor at end - position unknown)"
+                                NSLog(msg)
+                                logToDebugFile(msg)
+
+                                // Record statistics
+                                UserStatistics.shared.recordSuggestionApplied(category: error.category)
+
+                                // Invalidate cache
+                                self.invalidateCacheAfterReplacement(at: error.start..<error.end)
+                            }
+                        }
+                    }
+                }
+            }
+
+            return
+        }
+
+        // For non-terminal apps, use standard keyboard navigation
+        // CRITICAL FIX: Activate the target application before sending keyboard events
+        // CGEventPost only sends keyboard events to the frontmost application
+        // When user clicks the popover, Terminal loses focus, so we must restore it
+        let apps = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier)
+        if let targetApp = apps.first {
+            let msg = "🎯 Activating \(context.applicationName) to make it frontmost"
+            NSLog(msg)
+            logToDebugFile(msg)
+            targetApp.activate(options: .activateIgnoringOtherApps)
+        } else {
+            let msg = "⚠️ Could not find running app with bundle ID \(context.bundleIdentifier)"
+            NSLog(msg)
+            logToDebugFile(msg)
+        }
+
         // Get app-specific timing based on (redacted)'s approach
         let delay = context.keyboardOperationDelay
-        let msg2 = "⏱️ Using \(delay)s delay for \(context.applicationName) (isElectron: \(context.isElectronApp))"
+        // Add extra delay for app activation to complete
+        let activationDelay: TimeInterval = 0.2
+        let msg2 = "⏱️ Using \(delay)s keyboard delay + \(activationDelay)s activation delay for \(context.applicationName)"
         NSLog(msg2)
         logToDebugFile(msg2)
 
@@ -794,28 +1067,21 @@ class AnalysisCoordinator: ObservableObject {
         logToDebugFile(msg3)
 
         // Use keyboard navigation to select and replace text
-        // This works for all Electron apps regardless of font/size
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+        // Wait for app activation to complete before sending keyboard events
+        DispatchQueue.main.asyncAfter(deadline: .now() + activationDelay) {
             // Step 1: Go to beginning of text field (Cmd+Left = Home)
-            self.pressKey(key: 123, flags: .maskCommand) // Cmd+Left (Home)
+            self.pressKey(key: 123, flags: .maskCommand)
 
             // Wait for navigation
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 // Step 2: Navigate to error start position using Right arrow
-                for _ in 0..<error.start {
-                    self.pressKey(key: 124, flags: []) // Right arrow
-                }
+                let navigationDelay: TimeInterval = 0.001
 
-                // Wait for navigation
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                // Navigate to error start
+                self.sendArrowKeys(count: error.start, keyCode: 124, flags: [], delay: navigationDelay) {
                     // Step 3: Select error text using Shift+Right arrow
                     let errorLength = error.end - error.start
-                    for _ in 0..<errorLength {
-                        self.pressKey(key: 124, flags: .maskShift) // Shift+Right arrow
-                    }
-
-                    // Wait for selection (longer delay for Slack/Discord)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    self.sendArrowKeys(count: errorLength, keyCode: 124, flags: .maskShift, delay: navigationDelay) {
                         // Step 4: Paste suggestion (Cmd+V)
                         self.pressKey(key: 9, flags: .maskCommand) // Cmd+V
 
@@ -834,22 +1100,153 @@ class AnalysisCoordinator: ObservableObject {
         }
     }
 
-    /// Simulate key press event
-    private func pressKey(key: CGKeyCode, flags: CGEventFlags) {
-        // Create key down event
-        if let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: true) {
-            keyDown.flags = flags
+    /// Try to replace text using AX API selection (for Terminal)
+    /// Returns true if successful, false if needs to fall back to keyboard simulation
+    private func tryAXSelectionReplacement(element: AXUIElement, start: Int, end: Int, suggestion: String, error: GrammarErrorModel) -> Bool {
+        let msg1 = "🔧 Attempting AX API selection-based replacement for range \(start)-\(end)"
+        NSLog(msg1)
+        logToDebugFile(msg1)
+
+        // Read the original text before modification
+        var textValue: CFTypeRef?
+        let getTextResult = AXUIElementCopyAttributeValue(
+            element,
+            kAXValueAttribute as CFString,
+            &textValue
+        )
+
+        let originalText: String
+        if getTextResult == .success, let text = textValue as? String {
+            originalText = text
+        } else {
+            let msg = "❌ Failed to read original text for verification"
+            NSLog(msg)
+            logToDebugFile(msg)
+            return false
+        }
+
+        // Step 1: Set the selection range to the error range
+        var selectionRange = CFRange(location: start, length: end - start)
+        let rangeValue = AXValueCreate(.cfRange, &selectionRange)!
+
+        let setRangeResult = AXUIElementSetAttributeValue(
+            element,
+            kAXSelectedTextRangeAttribute as CFString,
+            rangeValue
+        )
+
+        if setRangeResult != .success {
+            let msg = "❌ Failed to set AXSelectedTextRange: error \(setRangeResult.rawValue)"
+            NSLog(msg)
+            logToDebugFile(msg)
+            return false
+        }
+
+        let msg2 = "✅ AX API accepted selection range \(start)-\(end)"
+        NSLog(msg2)
+        logToDebugFile(msg2)
+
+        // Step 2: Replace the selected text with the suggestion
+        let setTextResult = AXUIElementSetAttributeValue(
+            element,
+            kAXSelectedTextAttribute as CFString,
+            suggestion as CFTypeRef
+        )
+
+        if setTextResult != .success {
+            let msg = "❌ Failed to set AXSelectedText: error \(setTextResult.rawValue)"
+            NSLog(msg)
+            logToDebugFile(msg)
+            return false
+        }
+
+        // DON'T try to set the text via AX API - Terminal.app's implementation is broken
+        // Selection worked - caller will handle paste after activating Terminal
+        let msg3 = "✅ AX API selection successful at \(start)-\(end), returning for paste"
+        NSLog(msg3)
+        logToDebugFile(msg3)
+
+        return true  // Success - selection is set, caller will paste
+    }
+
+    /// Send multiple arrow keys with delay between each
+    private func sendArrowKeys(count: Int, keyCode: CGKeyCode, flags: CGEventFlags, delay: TimeInterval, completion: @escaping () -> Void) {
+        guard count > 0 else {
+            completion()
+            return
+        }
+
+        var remaining = count
+        func sendNext() {
+            guard remaining > 0 else {
+                completion()
+                return
+            }
+
+            self.pressKey(key: keyCode, flags: flags)
+            remaining -= 1
+
+            if remaining > 0 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    sendNext()
+                }
+            } else {
+                completion()
+            }
+        }
+
+        sendNext()
+    }
+
+    /// Simulate a key press event via CGEventPost
+    ///
+    /// This function sends keyboard events to the frontmost application using the
+    /// CoreGraphics event system. Requires Accessibility permission.
+    ///
+    /// - Parameters:
+    ///   - key: Virtual key code (use VirtualKeyCode constants)
+    ///   - flags: Modifier flags (e.g., .maskControl, .maskCommand)
+    ///
+    /// - Important: macOS has a bug where Control modifier doesn't work unless
+    ///   SecondaryFn flag is also set. This function applies the workaround automatically.
+    ///
+    /// - Note: This method should only be called after ensuring the target application
+    ///   is frontmost, as CGEventPost sends events to the active application.
+    private func pressKey(key: CGKeyCode, flags: CGEventFlags, withDelay: Bool = true) {
+        // Create proper event source (required for reliable keyboard simulation)
+        guard let eventSource = CGEventSource(stateID: .hidSystemState) else {
+            let msg = "❌ Failed to create CGEventSource for key press"
+            NSLog(msg)
+            logToDebugFile(msg)
+            return
+        }
+
+        // Apply macOS Control modifier bug workaround
+        // The Control modifier flag doesn't work in CGEventPost unless you also
+        // add SecondaryFn flag. This is a documented macOS bug.
+        // Reference: https://stackoverflow.com/questions/27484330/simulate-keypress-using-swift
+        var adjustedFlags = flags
+        if flags.contains(.maskControl) {
+            adjustedFlags.insert(.maskSecondaryFn)
+        }
+
+        // Create and post key down event
+        if let keyDown = CGEvent(keyboardEventSource: eventSource, virtualKey: key, keyDown: true) {
+            keyDown.flags = adjustedFlags
             keyDown.post(tap: .cghidEventTap)
         }
 
-        // Create key up event
-        if let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: false) {
-            keyUp.flags = flags
+        // Create and post key up event
+        if let keyUp = CGEvent(keyboardEventSource: eventSource, virtualKey: key, keyDown: false) {
+            keyUp.flags = adjustedFlags
             keyUp.post(tap: .cghidEventTap)
         }
 
-        // Small delay between keys
-        Thread.sleep(forTimeInterval: 0.01)
+        // Small delay between key events (prevents event ordering issues)
+        // Can be disabled for rapid repeated keys (like arrow navigation)
+        if withDelay {
+            Thread.sleep(forTimeInterval: 0.01)
+        }
     }
 
     /// Invalidate cache after text replacement (T044a)
