@@ -51,7 +51,7 @@ class AnalysisCoordinator: ObservableObject {
         return window
     }()
 
-    /// Floating error indicator (Grammarly-style) for apps without visual underlines
+    /// Floating error indicator for apps without visual underlines
     private let floatingIndicator = FloatingErrorIndicator.shared
 
     /// Error cache mapping text segments to detected errors
@@ -142,19 +142,33 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Setup text monitoring and application tracking (T037)
     private func setupMonitoring() {
-        print("📍 AnalysisCoordinator: Setting up monitoring...")
-
         // Monitor application changes
         applicationTracker.onApplicationChange = { [weak self] context in
+            // Update menu bar (replaces MenuBarController's callback)
+            MenuBarController.shared?.updateMenu()
+
             guard let self = self else { return }
-            print("📱 AnalysisCoordinator: Application changed to \(context.applicationName) (\(context.bundleIdentifier))")
+
+            let msg = "📱 AnalysisCoordinator: App switched to \(context.applicationName) (\(context.bundleIdentifier))"
+            NSLog(msg)
+            logToDebugFile(msg)
 
             // Check if this is the same app we're already monitoring
             let isSameApp = self.monitoredContext?.bundleIdentifier == context.bundleIdentifier
 
+            // CRITICAL: Stop monitoring the previous app to prevent delayed AX notifications
+            // from showing overlays for the old app after switching
+            if !isSameApp {
+                let msg = "🛑 AnalysisCoordinator: Stopping monitoring for previous app"
+                NSLog(msg)
+                logToDebugFile(msg)
+                self.textMonitor.stopMonitoring()
+            }
+
             // Hide overlay and popover from previous application
             self.errorOverlay.hide()
             self.suggestionPopover.hide()
+            self.floatingIndicator.hide()
 
             // Start monitoring new application if enabled
             if context.shouldCheck() {
@@ -607,19 +621,39 @@ class AnalysisCoordinator: ObservableObject {
         showErrorUnderlines(filteredErrors, element: element)
     }
 
-    /// Show visual underlines for errors (LanguageTool/Grammarly style)
+    /// Show visual underlines for errors
     private func showErrorUnderlines(_ errors: [GrammarErrorModel], element: AXUIElement?) {
         let msg1 = "📍 AnalysisCoordinator: showErrorUnderlines called with \(errors.count) errors"
         NSLog(msg1)
         logToDebugFile(msg1)
 
-        guard let monitoredElement = element else {
+        guard let providedElement = element else {
             let msg = "⚠️ AnalysisCoordinator: No monitored element - hiding overlays"
             NSLog(msg)
             logToDebugFile(msg)
             errorOverlay.hide()
             floatingIndicator.hide()
             MenuBarController.shared?.setIconState(.active)
+            return
+        }
+
+        // CRITICAL: Check if this is still the currently monitored element
+        // If user switched apps while async analysis was running, the captured element
+        // will be different from the current textMonitor.monitoredElement
+        // In that case, we should ignore these results (they're stale)
+        if let currentElement = textMonitor.monitoredElement {
+            // Compare element pointers to see if they're the same
+            if providedElement != currentElement {
+                let msg = "⚠️ AnalysisCoordinator: Ignoring stale analysis results - element mismatch (user switched apps)"
+                NSLog(msg)
+                logToDebugFile(msg)
+                return
+            }
+        } else {
+            // No current element being monitored - these results are stale
+            let msg = "⚠️ AnalysisCoordinator: Ignoring stale analysis results - no element currently monitored"
+            NSLog(msg)
+            logToDebugFile(msg)
             return
         }
 
@@ -639,7 +673,7 @@ class AnalysisCoordinator: ObservableObject {
             logToDebugFile(msg)
 
             // Try to show visual underlines
-            let underlinesCreated = errorOverlay.update(errors: errors, element: monitoredElement, context: monitoredContext)
+            let underlinesCreated = errorOverlay.update(errors: errors, element: providedElement, context: monitoredContext)
 
             // If we have errors but no underlines were created, show floating indicator
             // This happens when:
@@ -651,7 +685,7 @@ class AnalysisCoordinator: ObservableObject {
                 let msg = "⚠️ AnalysisCoordinator: \(errors.count) errors detected in '\(appName)' but no underlines created - showing floating indicator"
                 NSLog(msg)
                 logToDebugFile(msg)
-                floatingIndicator.update(errors: errors, element: monitoredElement, context: monitoredContext)
+                floatingIndicator.update(errors: errors, element: providedElement, context: monitoredContext)
                 // Keep icon state as active - user preference to not show error indicator
                 MenuBarController.shared?.setIconState(.active)
             } else {
@@ -756,7 +790,7 @@ class AnalysisCoordinator: ObservableObject {
         NSLog(msg1)
         logToDebugFile(msg1)
 
-        // Inspired by Grammarly: Use keyboard automation directly for known Electron apps
+        // Use keyboard automation directly for known Electron apps
         // This avoids trying the AX API which is known to fail on Electron
         if let context = monitoredContext, context.requiresKeyboardReplacement {
             let msg = "🎯 Detected Electron app (\(context.applicationName)) - using keyboard automation directly"
@@ -1021,7 +1055,7 @@ class AnalysisCoordinator: ObservableObject {
     }
 
     /// Apply text replacement using keyboard simulation (for Electron apps and Terminals)
-    /// Inspired by Grammarly's hybrid replacement approach
+    /// Uses hybrid replacement approach: try AX API first, fall back to keyboard
     private func applyTextReplacementViaKeyboard(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement) {
         guard let context = self.monitoredContext else {
             NSLog("❌ No context available for keyboard replacement")
@@ -1275,7 +1309,7 @@ class AnalysisCoordinator: ObservableObject {
             logToDebugFile(msg)
         }
 
-        // Get app-specific timing based on Grammarly's approach
+        // Get app-specific timing for keyboard operations
         let delay = context.keyboardOperationDelay
         // Add extra delay for app activation to complete
         let activationDelay: TimeInterval = 0.2
