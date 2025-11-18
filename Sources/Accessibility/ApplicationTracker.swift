@@ -25,20 +25,26 @@ class ApplicationTracker: ObservableObject {
     /// Workspace for monitoring application changes
     private let workspace = NSWorkspace.shared
 
+    /// Polling timer for fast app switching detection
+    /// Menu bar apps (NSUIElement) don't receive timely NSWorkspace notifications,
+    /// so we poll every 250ms for instant detection.
+    /// Using DispatchSourceTimer instead of Timer because it's GCD-based and doesn't rely on run loops
+    private var pollingTimer: DispatchSourceTimer?
+
     private init() {
         setupNotifications()
-        updateActiveApplication()
+        // Use synchronous update during init to ensure activeApplication is set
+        // before AnalysisCoordinator initializes and checks for it
+        updateActiveApplicationSync()
+        // Start polling for instant app switch detection
+        startPolling()
     }
 
-    /// Setup workspace notifications
+    /// Setup workspace notifications for app termination
+    /// Note: We no longer use didActivateApplicationNotification because it's delayed by 30+ seconds
+    /// for LSUIElement apps. Instead, we use polling (startPolling) for instant app switch detection.
     private func setupNotifications() {
-        workspace.notificationCenter.addObserver(
-            self,
-            selector: #selector(handleApplicationActivated(_:)),
-            name: NSWorkspace.didActivateApplicationNotification,
-            object: nil
-        )
-
+        // Only listen for app termination to clean up state
         workspace.notificationCenter.addObserver(
             self,
             selector: #selector(handleApplicationTerminated(_:)),
@@ -47,9 +53,38 @@ class ApplicationTracker: ObservableObject {
         )
     }
 
-    /// Handle application activation
-    @objc private func handleApplicationActivated(_ notification: Notification) {
-        updateActiveApplication()
+    /// Start polling for frontmost application changes
+    /// Poll every 250ms for instant detection using GCD-based DispatchSourceTimer
+    private func startPolling() {
+        // Create GCD timer (doesn't rely on run loops, more reliable for menu bar apps)
+        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.main)
+        timer.schedule(deadline: .now(), repeating: 0.25)
+        timer.setEventHandler { [weak self] in
+            self?.checkForApplicationChange()
+        }
+        timer.resume()
+
+        pollingTimer = timer
+
+        let msg = "🔄 ApplicationTracker: Polling started (250ms interval)"
+        NSLog(msg)
+        logToDebugFile(msg)
+    }
+
+    /// Check if frontmost application has changed
+    private func checkForApplicationChange() {
+        guard let app = workspace.frontmostApplication,
+              let bundleIdentifier = app.bundleIdentifier else {
+            return
+        }
+
+        // Only trigger callback if app actually changed
+        if activeApplication?.bundleIdentifier != bundleIdentifier {
+            let msg = "🔄 ApplicationTracker: App switch detected: \(activeApplication?.bundleIdentifier ?? "nil") → \(bundleIdentifier)"
+            NSLog(msg)
+            logToDebugFile(msg)
+            updateActiveApplicationSync()
+        }
     }
 
     /// Handle application termination
@@ -65,41 +100,9 @@ class ApplicationTracker: ObservableObject {
         }
     }
 
-    /// Updates the active application from the workspace asynchronously.
-    /// Queries NSWorkspace for the frontmost application and updates state on the main thread.
-    /// Triggers the `onApplicationChange` callback if the application has changed.
-    func updateActiveApplication() {
-        guard let app = workspace.frontmostApplication,
-              let bundleIdentifier = app.bundleIdentifier else {
-            return
-        }
-
-        let applicationName = app.localizedName ?? bundleIdentifier
-        let processID = app.processIdentifier
-
-        let context = ApplicationContext(
-            bundleIdentifier: bundleIdentifier,
-            processID: processID,
-            applicationName: applicationName
-        )
-
-        // Record this app as discovered
-        UserPreferences.shared.discoveredApplications.insert(bundleIdentifier)
-
-        DispatchQueue.main.async {
-            // Track previous app before updating current
-            if let current = self.activeApplication, current.bundleIdentifier != bundleIdentifier {
-                self.previousApplication = current
-            }
-
-            self.activeApplication = context
-            self.onApplicationChange?(context)
-        }
-    }
-
     /// Updates the active application from the workspace synchronously.
-    /// Similar to `updateActiveApplication()` but executes on the current thread without async dispatch.
-    /// Use this when you need immediate, synchronous access to the latest application state (e.g., before displaying a menu).
+    /// Queries NSWorkspace for the frontmost application and updates state immediately.
+    /// Triggers the `onApplicationChange` callback if the application has changed.
     /// - Note: Must be called on the main thread to ensure thread safety with @Published properties
     func updateActiveApplicationSync() {
         guard let app = workspace.frontmostApplication,
@@ -126,6 +129,8 @@ class ApplicationTracker: ObservableObject {
 
         // Update synchronously - no async dispatch
         self.activeApplication = context
+
+        // Trigger callback for app change
         self.onApplicationChange?(context)
     }
 
@@ -172,6 +177,7 @@ class ApplicationTracker: ObservableObject {
     }
 
     deinit {
+        pollingTimer?.cancel()
         workspace.notificationCenter.removeObserver(self)
     }
 }
