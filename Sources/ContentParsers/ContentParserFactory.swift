@@ -25,6 +25,11 @@ class ContentParserFactory {
             registerParser(TerminalContentParser(bundleIdentifier: bundleID))
         }
 
+        // Register browser parsers for all supported browsers
+        for bundleID in BrowserContentParser.supportedBrowsers {
+            registerParser(BrowserContentParser(bundleIdentifier: bundleID))
+        }
+
         // Future parsers to add:
         // registerParser(DiscordContentParser())
         // registerParser(VSCodeContentParser())
