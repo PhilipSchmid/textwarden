@@ -81,9 +81,8 @@ class SuggestionPopover: NSObject, ObservableObject {
         // Position near cursor
         positionPanel(at: position)
 
-        // Show panel
+        // Show panel without stealing focus (panel is already .nonactivatingPanel)
         panel?.orderFrontRegardless()
-        panel?.makeKey()
 
         // Set up Escape key monitor
         setupEscapeKeyMonitor()
