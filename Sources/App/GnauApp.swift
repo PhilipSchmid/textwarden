@@ -157,16 +157,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Creates window manually for reliable reopening behavior
     /// Tab selection is controlled by PreferencesWindowController.shared
     @objc func openSettingsWindow(selectedTab: Int = 0) {
-        logToFile("🪟 Gnau: openSettingsWindow called")
-        NSLog("🪟 Gnau: openSettingsWindow called")
+        logToFile("🪟 Gnau: openSettingsWindow called - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+        NSLog("🪟 Gnau: openSettingsWindow called - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
 
         // If window exists, just show it (tab is already set by PreferencesWindowController)
         if let window = settingsWindow {
             logToFile("🪟 Gnau: Reusing existing settings window")
             NSLog("🪟 Gnau: Reusing existing settings window")
 
+            logToFile("🪟 Gnau: Switching to .regular mode to show settings")
+            NSLog("🪟 Gnau: Switching to .regular mode to show settings")
+
             // Temporarily switch to regular mode to show window
             NSApp.setActivationPolicy(.regular)
+
+            logToFile("🪟 Gnau: AFTER setActivationPolicy(.regular) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+            NSLog("🪟 Gnau: AFTER setActivationPolicy(.regular) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
 
             // Force window to front
             window.orderFrontRegardless()
@@ -210,6 +216,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Temporarily switch to regular mode to show window
         NSApp.setActivationPolicy(.regular)
 
+        logToFile("🪟 Gnau: AFTER setActivationPolicy(.regular) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+        NSLog("🪟 Gnau: AFTER setActivationPolicy(.regular) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+
         // Show window aggressively
         window.orderFrontRegardless()
         window.makeKeyAndOrderFront(nil)
@@ -227,7 +236,13 @@ extension AppDelegate: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         // When settings window closes, return to menu bar only mode
         if let window = notification.object as? NSWindow, window == settingsWindow {
+            logToFile("🪟 Gnau: windowWillClose - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+            NSLog("🪟 Gnau: windowWillClose - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+
             NSApp.setActivationPolicy(.accessory)
+
+            logToFile("🪟 Gnau: windowWillClose - AFTER setActivationPolicy(.accessory) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+            NSLog("🪟 Gnau: windowWillClose - AFTER setActivationPolicy(.accessory) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
         }
     }
 }
