@@ -27,12 +27,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         setupMenuBar()
 
-        // Update menu when active application changes
-        ApplicationTracker.shared.onApplicationChange = { [weak self] _ in
-            DispatchQueue.main.async {
-                self?.updateMenu()
-            }
-        }
+        // NOTE: onApplicationChange callback is set by AnalysisCoordinator, which calls updateMenu()
+        // This prevents the callback from being overwritten and ensures both monitoring and menu updates happen
     }
 
     deinit {
