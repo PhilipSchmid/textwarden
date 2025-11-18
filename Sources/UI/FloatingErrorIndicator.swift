@@ -2,7 +2,7 @@
 //  FloatingErrorIndicator.swift
 //  Gnau
 //
-//  Floating error indicator (Grammarly-style)
+//  Floating error indicator
 //  Shows a small circular badge in the bottom-right corner of text fields
 //
 
@@ -10,7 +10,7 @@ import Cocoa
 import AppKit
 import Combine
 
-/// Floating error indicator window (like Grammarly's badge)
+/// Floating error indicator window
 class FloatingErrorIndicator: NSWindow {
     /// Shared singleton instance
     static let shared = FloatingErrorIndicator()
@@ -141,7 +141,7 @@ class FloatingErrorIndicator: NSWindow {
     private func positionIndicator(for element: AXUIElement) {
         // For terminals, the AX window frame often includes scrollback buffer
         // which can be huge (thousands of pixels). Use screen bounds instead
-        // to ensure reliable positioning, similar to Grammarly.
+        // to ensure reliable positioning.
 
         // Try to get the actual visible window frame using NSWindow if possible
         if let visibleFrame = getVisibleWindowFrame(for: element) {

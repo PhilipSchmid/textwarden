@@ -61,8 +61,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Hide dock icon for menu bar-only app (like VoiceInk)
         NSApp.setActivationPolicy(.accessory)
+
         logToFile("📍 Gnau: Set as menu bar app (no dock icon)")
         NSLog("📍 Gnau: Set as menu bar app (no dock icon)")
+
+        // CRITICAL: LSUIElement apps don't receive activation events, so the main run loop
+        // doesn't fully "spin" until something creates a Cocoa event. This causes timers,
+        // GCD on main queue, and NSWorkspace notifications to be delayed by 30+ seconds.
+        // Calling activate() manually kick-starts the event loop, but it must be delayed
+        // until after the app infrastructure is fully initialized (research shows calling it
+        // too early can cause it to fail silently).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            let msg = "⚡ Gnau: Calling NSApp.activate() to kick-start event loop"
+            self.logToFile(msg)
+            NSLog(msg)
+            NSApp.activate(ignoringOtherApps: false)
+            let msg2 = "✅ Gnau: NSApp.activate() completed"
+            self.logToFile(msg2)
+            NSLog(msg2)
+        }
 
         // Initialize menu bar controller
         menuBarController = MenuBarController()
