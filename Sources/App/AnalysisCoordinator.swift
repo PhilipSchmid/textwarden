@@ -822,6 +822,193 @@ class AnalysisCoordinator: ObservableObject {
         }
     }
 
+    /// Apply text replacement for browsers using menu action with keyboard fallback
+    /// Browsers often have silently failing AX APIs, so we use SelectedTextKit's approach:
+    /// 1. Try to select text range via AX API (even if it silently fails)
+    /// 2. Copy suggestion to clipboard
+    /// 3. Try paste via menu action (more reliable)
+    /// 4. Fallback to Cmd+V if menu fails
+    private func applyBrowserTextReplacement(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement, context: ApplicationContext) {
+        let msg = "🌐 Browser text replacement for \(context.applicationName)"
+        NSLog(msg)
+        logToDebugFile(msg)
+
+        // Step 1: Try to select the error range using AX API
+        // This may silently fail in browsers, but it's fast and works sometimes
+        var errorRange = CFRange(location: error.start, length: error.end - error.start)
+        let rangeValue = AXValueCreate(.cfRange, &errorRange)!
+
+        let selectResult = AXUIElementSetAttributeValue(
+            element,
+            kAXSelectedTextRangeAttribute as CFString,
+            rangeValue
+        )
+
+        if selectResult == .success {
+            let msg2 = "✅ AX API accepted selection for browser (range: \(error.start)-\(error.end))"
+            NSLog(msg2)
+            logToDebugFile(msg2)
+        } else {
+            let msg2 = "⚠️ AX API selection failed for browser (error: \(selectResult.rawValue)) - will try paste anyway"
+            NSLog(msg2)
+            logToDebugFile(msg2)
+        }
+
+        // Step 2: Save original pasteboard content
+        // Note: We save the string content, not the items themselves
+        // NSPasteboardItem objects are bound to their original pasteboard
+        let pasteboard = NSPasteboard.general
+        let originalString = pasteboard.string(forType: .string)
+        let originalChangeCount = pasteboard.changeCount
+
+        // Step 3: Copy suggestion to clipboard
+        pasteboard.clearContents()
+        pasteboard.setString(suggestion, forType: .string)
+
+        let msg3 = "📋 Copied suggestion to clipboard: '\(suggestion)'"
+        NSLog(msg3)
+        logToDebugFile(msg3)
+
+        // Step 4: Activate the browser
+        let apps = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier)
+        if let targetApp = apps.first {
+            targetApp.activate(options: .activateIgnoringOtherApps)
+            let activateMsg = "🎯 Activated \(context.applicationName)"
+            NSLog(activateMsg)
+            logToDebugFile(activateMsg)
+        }
+
+        // Step 5: Wait for activation, then try paste via menu action
+        let delay = context.keyboardOperationDelay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            // Try menu action paste first (more reliable for browsers)
+            var pasteSucceeded = false
+
+            // Try to find and click the Paste menu item using AX API
+            if let frontmostApp = NSWorkspace.shared.frontmostApplication {
+                let appElement = AXUIElementCreateApplication(frontmostApp.processIdentifier)
+
+                // Try to find Edit > Paste menu
+                if let pasteMenuItem = self.findPasteMenuItem(in: appElement) {
+                    let pressResult = AXUIElementPerformAction(pasteMenuItem, kAXPressAction as CFString)
+                    if pressResult == .success {
+                        pasteSucceeded = true
+                        let menuMsg = "✅ Pasted via menu action"
+                        NSLog(menuMsg)
+                        logToDebugFile(menuMsg)
+                    } else {
+                        let menuMsg = "⚠️ Menu action press failed: \(pressResult.rawValue)"
+                        NSLog(menuMsg)
+                        logToDebugFile(menuMsg)
+                    }
+                } else {
+                    let menuMsg = "⚠️ Could not find Paste menu item"
+                    NSLog(menuMsg)
+                    logToDebugFile(menuMsg)
+                }
+            }
+
+            // Step 6: Fallback to keyboard shortcut if menu failed
+            if !pasteSucceeded {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    self.pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
+                    let fallbackMsg = "✅ Pasted via keyboard shortcut (Cmd+V fallback)"
+                    NSLog(fallbackMsg)
+                    logToDebugFile(fallbackMsg)
+                }
+            }
+
+            // Step 7: Restore original pasteboard after a delay (SelectedTextKit uses 50ms)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                // Only restore if the pasteboard hasn't been changed by something else
+                // This prevents us from overwriting user's deliberate clipboard actions
+                if pasteboard.changeCount == originalChangeCount + 1 {
+                    // Pasteboard only has our change - safe to restore
+                    if let originalContent = originalString {
+                        pasteboard.clearContents()
+                        pasteboard.setString(originalContent, forType: .string)
+                        let restoreMsg = "📋 Restored original pasteboard content: '\(originalContent.prefix(50))...'"
+                        NSLog(restoreMsg)
+                        logToDebugFile(restoreMsg)
+                    } else {
+                        // Original clipboard was empty - just clear it
+                        pasteboard.clearContents()
+                        let restoreMsg = "📋 Cleared pasteboard (original was empty)"
+                        NSLog(restoreMsg)
+                        logToDebugFile(restoreMsg)
+                    }
+                } else {
+                    // Clipboard was changed by user or another app - don't restore
+                    let skipMsg = "⏭️ Skipped pasteboard restore (user modified clipboard)"
+                    NSLog(skipMsg)
+                    logToDebugFile(skipMsg)
+                }
+
+                // Record statistics
+                UserStatistics.shared.recordSuggestionApplied(category: error.category)
+
+                // Invalidate cache
+                self.invalidateCacheAfterReplacement(at: error.start..<error.end)
+
+                let completeMsg = "✅ Browser text replacement complete"
+                NSLog(completeMsg)
+                logToDebugFile(completeMsg)
+            }
+        }
+    }
+
+    /// Find the Paste menu item in the application's menu bar
+    /// Returns the AXUIElement for the Paste menu item, or nil if not found
+    private func findPasteMenuItem(in appElement: AXUIElement) -> AXUIElement? {
+        // Try to get the menu bar
+        var menuBarValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(appElement, kAXMenuBarAttribute as CFString, &menuBarValue) == .success else {
+            return nil
+        }
+
+        let menuBar = menuBarValue as! AXUIElement
+
+        // Try to find "Edit" menu
+        var childrenValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(menuBar, kAXChildrenAttribute as CFString, &childrenValue) == .success else {
+            return nil
+        }
+
+        let children = childrenValue as! [AXUIElement]
+
+        for child in children {
+            var titleValue: CFTypeRef?
+            if AXUIElementCopyAttributeValue(child, kAXTitleAttribute as CFString, &titleValue) == .success,
+               let title = titleValue as? String,
+               title.lowercased().contains("edit") {
+
+                // Found Edit menu, now look for Paste
+                var menuChildrenValue: CFTypeRef?
+                if AXUIElementCopyAttributeValue(child, kAXChildrenAttribute as CFString, &menuChildrenValue) == .success,
+                   let menuChildren = menuChildrenValue as? [AXUIElement] {
+
+                    for menuChild in menuChildren {
+                        var itemChildrenValue: CFTypeRef?
+                        if AXUIElementCopyAttributeValue(menuChild, kAXChildrenAttribute as CFString, &itemChildrenValue) == .success,
+                           let items = itemChildrenValue as? [AXUIElement] {
+
+                            for item in items {
+                                var itemTitleValue: CFTypeRef?
+                                if AXUIElementCopyAttributeValue(item, kAXTitleAttribute as CFString, &itemTitleValue) == .success,
+                                   let itemTitle = itemTitleValue as? String,
+                                   itemTitle.lowercased().contains("paste") {
+                                    return item
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return nil
+    }
+
     /// Apply text replacement using keyboard simulation (for Electron apps and Terminals)
     /// Inspired by Grammarly's hybrid replacement approach
     private func applyTextReplacementViaKeyboard(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement) {
@@ -830,9 +1017,18 @@ class AnalysisCoordinator: ObservableObject {
             return
         }
 
-        let msg1 = "⌨️ Using keyboard simulation for text replacement (app: \(context.applicationName), isTerminal: \(context.isTerminalApp))"
+        let msg1 = "⌨️ Using keyboard simulation for text replacement (app: \(context.applicationName), isTerminal: \(context.isTerminalApp), isBrowser: \(context.isBrowser))"
         NSLog(msg1)
         logToDebugFile(msg1)
+
+        // SPECIAL HANDLING FOR BROWSERS
+        // Browsers have contenteditable areas where AX API often silently fails
+        // Use simplified approach: select via AX API, then paste via menu action or Cmd+V
+        // Inspired by SelectedTextKit's menu action approach
+        if context.isBrowser {
+            applyBrowserTextReplacement(for: error, with: suggestion, element: element, context: context)
+            return
+        }
 
         // SPECIAL HANDLING FOR TERMINALS
         // Terminal.app's AX API is completely broken - both selection AND text setting fail

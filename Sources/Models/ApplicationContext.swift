@@ -150,6 +150,15 @@ extension ApplicationContext {
         "org.chromium.Chromium"
     ]
 
+    /// Known browser applications (including non-Chromium browsers)
+    /// These require special handling because AX API often returns success but doesn't trigger browser events
+    private static let browserApps: Set<String> = [
+        "com.apple.Safari",
+        "org.mozilla.firefox",
+        "org.mozilla.firefoxdeveloperedition",
+        "com.operasoftware.Opera"
+    ]
+
     /// Known terminal applications
     private static let terminalApps: Set<String> = [
         "com.apple.Terminal",
@@ -181,10 +190,17 @@ extension ApplicationContext {
         Self.terminalApps.contains(bundleIdentifier)
     }
 
+    /// Check if this is a browser application (including both Chromium and non-Chromium browsers)
+    /// Browsers often have issues with AX API text replacement silently failing
+    var isBrowser: Bool {
+        isChromiumBased || Self.browserApps.contains(bundleIdentifier)
+    }
+
     /// Check if this app requires keyboard-based text replacement
-    /// Returns true for Electron apps and Terminal apps where AX API is known to fail
+    /// Returns true for Electron apps, Terminal apps, and browsers where AX API is known to fail
+    /// Inspired by SelectedTextKit and Grammarly's approach to browser text replacement
     var requiresKeyboardReplacement: Bool {
-        isElectronApp || isTerminalApp
+        isElectronApp || isTerminalApp || isBrowser
     }
 
     /// Get recommended timing delay for keyboard operations (in seconds)
@@ -200,8 +216,20 @@ extension ApplicationContext {
         case "com.microsoft.VSCode":
             // VS Code is faster
             return 0.08
+        case "com.google.Chrome", "com.google.Chrome.beta", "com.brave.Browser":
+            // Chromium browsers need moderate delays for contenteditable areas
+            return 0.10
+        case "com.apple.Safari":
+            // Safari is generally faster
+            return 0.08
+        case "org.mozilla.firefox", "org.mozilla.firefoxdeveloperedition":
+            // Firefox has known issues, use longer delay
+            return 0.12
         default:
-            // Default delay for other Electron apps
+            // Default delay: browsers/Electron apps need more time than native apps
+            if isBrowser {
+                return 0.10
+            }
             return isElectronApp ? 0.1 : 0.05
         }
     }
