@@ -86,6 +86,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             analysisCoordinator = AnalysisCoordinator.shared
             logToFile("📍 Gnau: Analysis coordinator initialized")
             NSLog("📍 Gnau: Analysis coordinator initialized")
+
+            // Check if user wants to open settings window in foreground
+            if UserPreferences.shared.openInForeground {
+                logToFile("📍 Gnau: Opening settings window in foreground (user preference)")
+                NSLog("📍 Gnau: Opening settings window in foreground (user preference)")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    self.openSettingsWindow()
+                }
+            }
         } else {
             // No permission - show onboarding to request it (T056)
             logToFile("⚠️ Gnau: Accessibility permission not granted - showing onboarding")

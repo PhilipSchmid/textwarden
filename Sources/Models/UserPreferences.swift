@@ -193,6 +193,13 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Always open settings window in foreground on launch
+    @Published var openInForeground: Bool {
+        didSet {
+            defaults.set(openInForeground, forKey: Keys.openInForeground)
+        }
+    }
+
     // MARK: - Language & Dialect
 
     /// Selected English dialect for grammar checking
@@ -421,6 +428,7 @@ class UserPreferences: ObservableObject {
         self.analysisDelayMs = 20
         self.enabledCategories = UserPreferences.allCategories // All categories enabled by default
         self.launchAtLogin = false
+        self.openInForeground = false
 
         // Language & Dialect
         self.selectedDialect = "American"
@@ -495,6 +503,7 @@ class UserPreferences: ObservableObject {
         }
 
         self.launchAtLogin = defaults.object(forKey: Keys.launchAtLogin) as? Bool ?? false
+        self.openInForeground = defaults.object(forKey: Keys.openInForeground) as? Bool ?? false
 
         // Language & Dialect
         self.selectedDialect = defaults.string(forKey: Keys.selectedDialect) ?? "American"
@@ -817,6 +826,7 @@ class UserPreferences: ObservableObject {
         static let analysisDelayMs = "analysisDelayMs"
         static let enabledCategories = "enabledCategories"
         static let launchAtLogin = "launchAtLogin"
+        static let openInForeground = "openInForeground"
 
         // Language & Dialect
         static let selectedDialect = "selectedDialect"
