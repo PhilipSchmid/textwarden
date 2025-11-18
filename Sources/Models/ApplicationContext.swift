@@ -125,11 +125,10 @@ extension ApplicationContext {
     }
 }
 
-// MARK: - App Type Detection (inspired by (redacted)'s approach)
+// MARK: - App Type Detection
 
 extension ApplicationContext {
     /// Known Electron-based apps that require special handling
-    /// Based on reverse engineering (redacted) and Refine.app
     private static let electronApps: Set<String> = [
         "com.tinyspeck.slackmacgap",      // Slack
         "com.hnc.Discord",                 // Discord
@@ -197,94 +196,51 @@ extension ApplicationContext {
     }
 
     /// Check if this app requires keyboard-based text replacement
-    /// Returns true for Electron apps, Terminal apps, and browsers where AX API is known to fail
-    /// Inspired by SelectedTextKit and (redacted)'s approach to browser text replacement
+    /// Returns true for Electron apps, Terminal apps, browsers, and Mac Catalyst apps where AX API is known to fail
     var requiresKeyboardReplacement: Bool {
-        isElectronApp || isTerminalApp || isBrowser
+        isElectronApp || isTerminalApp || isBrowser || isMacCatalystApp
+    }
+
+    /// Known Mac Catalyst apps (iOS apps running on macOS)
+    private static let macCatalystApps: Set<String> = [
+        "com.apple.MobileSMS",       // Messages
+        "com.apple.news",            // Apple News
+        "com.apple.stocks"           // Stocks
+    ]
+
+    /// Check if this is a Mac Catalyst app (iOS app running on macOS)
+    /// Mac Catalyst apps often have incomplete AX API support for text manipulation
+    var isMacCatalystApp: Bool {
+        Self.macCatalystApps.contains(bundleIdentifier)
     }
 
     /// Get recommended timing delay for keyboard operations (in seconds)
-    /// Based on (redacted)'s "fast_batching_selection_wait" approach
+    /// Delegates to ApplicationConfiguration for centralized config management
     var keyboardOperationDelay: TimeInterval {
-        switch bundleIdentifier {
-        case "com.tinyspeck.slackmacgap":
-            // Slack needs longer delays due to React rendering
-            return 0.15
-        case "com.hnc.Discord":
-            // Discord is also React-based
-            return 0.15
-        case "com.microsoft.VSCode":
-            // VS Code is faster
-            return 0.08
-        case "com.google.Chrome", "com.google.Chrome.beta", "com.brave.Browser":
-            // Chromium browsers need moderate delays for contenteditable areas
-            return 0.10
-        case "com.apple.Safari":
-            // Safari is generally faster
-            return 0.08
-        case "org.mozilla.firefox", "org.mozilla.firefoxdeveloperedition":
-            // Firefox has known issues, use longer delay
-            return 0.12
-        default:
-            // Default delay: browsers/Electron apps need more time than native apps
-            if isBrowser {
-                return 0.10
-            }
-            return isElectronApp ? 0.1 : 0.05
-        }
+        ApplicationConfiguration.keyboardOperationDelay(for: bundleIdentifier)
     }
 
     /// Check if this app supports format-preserving replacements
-    /// Future feature: preserve bold/italic/links when replacing text
+    /// Delegates to ApplicationConfiguration for centralized config management
     var supportsFormatPreservation: Bool {
-        // For now, only native macOS apps support this
-        return !isElectronApp && !isChromiumBased
+        ApplicationConfiguration.supportsFormatPreservation(for: bundleIdentifier)
     }
 
     /// Estimated font size for text measurement (heuristic-based)
-    /// Used when AX API bounds are unavailable or implausible
+    /// Delegates to ApplicationConfiguration for centralized config management
     var estimatedFontSize: CGFloat {
-        switch bundleIdentifier {
-        case "com.tinyspeck.slackmacgap":
-            return 15.0
-        case "com.hnc.Discord":
-            return 15.0
-        case "com.microsoft.VSCode":
-            return 14.0
-        default:
-            return isElectronApp ? 15.0 : 13.0
-        }
+        ApplicationConfiguration.estimatedFontSize(for: bundleIdentifier)
     }
 
     /// Character width correction factor (per character)
-    /// Accounts for cumulative rendering differences between NSFont measurement
-    /// and actual app rendering. Applied as: measuredWidth - (charCount * correction)
+    /// Delegates to ApplicationConfiguration for centralized config management
     var characterWidthCorrection: CGFloat {
-        switch bundleIdentifier {
-        case "com.tinyspeck.slackmacgap":
-            // Disable correction - use raw NSFont measurement
-            // Font measurement appears more accurate than expected
-            return 0.0
-        case "com.hnc.Discord":
-            return 0.0
-        default:
-            return 0.0
-        }
+        ApplicationConfiguration.characterWidthCorrection(for: bundleIdentifier)
     }
 
     /// Horizontal padding inside text input elements
-    /// Used for estimation when AX API fails
+    /// Delegates to ApplicationConfiguration for centralized config management
     var estimatedLeftPadding: CGFloat {
-        switch bundleIdentifier {
-        case "com.tinyspeck.slackmacgap":
-            // Slack's message input has approximately 12px left padding
-            return 12.0
-        case "com.hnc.Discord":
-            return 12.0
-        case "com.microsoft.VSCode":
-            return 10.0
-        default:
-            return isElectronApp ? 12.0 : 8.0
-        }
+        ApplicationConfiguration.estimatedLeftPadding(for: bundleIdentifier)
     }
 }
