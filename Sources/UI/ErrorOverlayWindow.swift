@@ -8,8 +8,9 @@
 import AppKit
 import ApplicationServices
 
-/// Manages a transparent overlay window that draws error underlines
-class ErrorOverlayWindow: NSWindow {
+/// Manages a transparent overlay panel that draws error underlines
+/// CRITICAL: Uses NSPanel to prevent activating the app
+class ErrorOverlayWindow: NSPanel {
     /// Current errors to display
     private var errors: [GrammarErrorModel] = []
 
@@ -25,6 +26,9 @@ class ErrorOverlayWindow: NSWindow {
     /// Track if window is currently visible
     private var isCurrentlyVisible = false
 
+    /// Global event monitor for mouse movement
+    private var mouseMonitor: Any?
+
     /// Callback when user hovers over an error
     var onErrorHover: ((GrammarErrorModel, CGPoint) -> Void)?
 
@@ -32,31 +36,41 @@ class ErrorOverlayWindow: NSWindow {
     var onHoverEnd: (() -> Void)?
 
     init() {
-        // Create transparent, borderless window
+        // Create transparent, non-activating panel
+        // CRITICAL: Use .nonactivatingPanel to prevent Gnau from stealing focus
         super.init(
             contentRect: .zero,
-            styleMask: [.borderless],
+            styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
             defer: false
         )
 
-        // Configure window properties
+        // Configure panel properties to prevent ANY focus stealing
         self.isOpaque = false
         self.backgroundColor = .clear
         self.hasShadow = false
-        self.level = .floating
+        // CRITICAL: Use .popUpMenu level - these windows NEVER activate the app
+        self.level = .popUpMenu
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        self.ignoresMouseEvents = false // Need to detect hover
+        // CRITICAL: Prevent this panel from affecting app activation
+        self.hidesOnDeactivate = false
+        self.worksWhenModal = false
+        // CRITICAL: This makes the panel resist becoming the key window
+        self.becomesKeyOnlyIfNeeded = true
+        // CRITICAL: Set ignoresMouseEvents = TRUE to allow ALL clicks/events to pass through to Chrome
+        // We'll use a global event monitor for hover detection instead of window's mouse tracking
+        self.ignoresMouseEvents = true
 
-        // Create underline view
+        // Create underline view with click pass-through
         let view = UnderlineView()
         view.wantsLayer = true
         view.layer?.backgroundColor = .clear
+        view.allowsClickPassThrough = true  // Custom property to enable click pass-through
         self.contentView = view
         self.underlineView = view
 
-        // Setup mouse tracking
-        setupMouseTracking()
+        // Setup global mouse monitor for hover detection
+        setupGlobalMouseMonitor()
     }
 
     /// Prevent window from becoming key (stealing focus)
@@ -69,17 +83,89 @@ class ErrorOverlayWindow: NSWindow {
         return false
     }
 
-    /// Setup mouse tracking for hover detection
-    private func setupMouseTracking() {
-        guard let contentView = contentView else { return }
+    /// Setup global mouse monitor for hover detection
+    /// Uses NSEvent.addGlobalMonitorForEvents instead of NSTrackingArea
+    /// because ignoresMouseEvents = true prevents tracking areas from working
+    private func setupGlobalMouseMonitor() {
+        // Monitor mouse moved events globally
+        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] event in
+            guard let self = self else { return }
 
-        let trackingArea = NSTrackingArea(
-            rect: contentView.bounds,
-            options: [.activeAlways, .mouseMoved, .mouseEnteredAndExited, .inVisibleRect],
-            owner: self,
-            userInfo: nil
-        )
-        contentView.addTrackingArea(trackingArea)
+            // Only process if window is visible
+            guard self.isCurrentlyVisible else { return }
+
+            // Get mouse location in screen coordinates
+            let mouseLocation = NSEvent.mouseLocation
+
+            // Check if mouse is within our window bounds
+            guard self.frame.contains(mouseLocation) else {
+                // Mouse left the window - clear hover state
+                if self.hoveredUnderline != nil {
+                    self.hoveredUnderline = nil
+                    self.underlineView?.hoveredUnderline = nil
+                    self.underlineView?.needsDisplay = true
+                    self.onHoverEnd?()
+                }
+                return
+            }
+
+            // Convert to window-local coordinates
+            let windowOrigin = self.frame.origin
+            let localPoint = CGPoint(
+                x: mouseLocation.x - windowOrigin.x,
+                y: mouseLocation.y - windowOrigin.y
+            )
+
+            let msg1 = "🖱️ ErrorOverlay: Global mouse at screen: \(mouseLocation), window-local: \(localPoint)"
+            NSLog(msg1)
+            self.logToDebugFile(msg1)
+
+            // Check if hovering over any underline
+            guard let underlineView = self.underlineView else { return }
+
+            if let newHoveredUnderline = underlineView.underlines.first(where: { $0.bounds.contains(localPoint) }) {
+                let msg2 = "📍 ErrorOverlay: Hovering over error at bounds: \(newHoveredUnderline.bounds)"
+                NSLog(msg2)
+                self.logToDebugFile(msg2)
+
+                // Update hovered underline if changed
+                if self.hoveredUnderline?.error.start != newHoveredUnderline.error.start ||
+                   self.hoveredUnderline?.error.end != newHoveredUnderline.error.end {
+                    self.hoveredUnderline = newHoveredUnderline
+                    underlineView.hoveredUnderline = newHoveredUnderline
+                    underlineView.needsDisplay = true
+                }
+
+                // Convert to screen coordinates for popup positioning
+                let errorCenter = CGPoint(
+                    x: newHoveredUnderline.bounds.midX,
+                    y: newHoveredUnderline.bounds.midY
+                )
+
+                let screenLocation = CGPoint(
+                    x: windowOrigin.x + errorCenter.x,
+                    y: windowOrigin.y + errorCenter.y
+                )
+
+                let msg3 = "📍 ErrorOverlay: Popup position (screen): \(screenLocation)"
+                NSLog(msg3)
+                self.logToDebugFile(msg3)
+
+                self.onErrorHover?(newHoveredUnderline.error, screenLocation)
+            } else {
+                // Clear hovered state
+                if self.hoveredUnderline != nil {
+                    self.hoveredUnderline = nil
+                    underlineView.hoveredUnderline = nil
+                    underlineView.needsDisplay = true
+                    self.onHoverEnd?()
+                }
+            }
+        }
+
+        let msg = "✅ ErrorOverlay: Global mouse monitor set up"
+        NSLog(msg)
+        logToDebugFile(msg)
     }
 
     /// Update overlay with new errors and monitored element
@@ -265,6 +351,37 @@ class ErrorOverlayWindow: NSWindow {
             isCurrentlyVisible = false
         }
         underlineView?.underlines = []
+
+        // Clear hover state
+        hoveredUnderline = nil
+        underlineView?.hoveredUnderline = nil
+    }
+
+    /// Clean up resources
+    deinit {
+        // Remove global mouse monitor
+        if let monitor = mouseMonitor {
+            NSEvent.removeMonitor(monitor)
+            mouseMonitor = nil
+        }
+    }
+
+    /// Log to debug file (same as GnauApp)
+    private func logToDebugFile(_ message: String) {
+        let logPath = "/tmp/gnau-debug.log"
+        let timestamp = Date()
+        let logMessage = "[\(timestamp)] \(message)\n"
+        if let data = logMessage.data(using: .utf8) {
+            if FileManager.default.fileExists(atPath: logPath) {
+                if let fileHandle = FileHandle(forWritingAtPath: logPath) {
+                    fileHandle.seekToEndOfFile()
+                    fileHandle.write(data)
+                    fileHandle.closeFile()
+                }
+            } else {
+                try? data.write(to: URL(fileURLWithPath: logPath))
+            }
+        }
     }
 
     /// Get frame of AX element
@@ -509,77 +626,6 @@ class ErrorOverlayWindow: NSWindow {
         }
     }
 
-    /// Handle mouse movement for hover detection
-    override func mouseMoved(with event: NSEvent) {
-        guard let underlineView = underlineView else { return }
-
-        let location = event.locationInWindow
-        let msg1 = "🖱️ ErrorOverlay: Mouse at window coords: \(location)"
-        NSLog(msg1)
-        logToDebugFile(msg1)
-
-        // Check if hovering over any underline
-        if let newHoveredUnderline = underlineView.underlines.first(where: { $0.bounds.contains(location) }) {
-            let msg2 = "📍 ErrorOverlay: Hovering over error at bounds: \(newHoveredUnderline.bounds)"
-            NSLog(msg2)
-            logToDebugFile(msg2)
-
-            // Update hovered underline if changed
-            if hoveredUnderline?.error.start != newHoveredUnderline.error.start ||
-               hoveredUnderline?.error.end != newHoveredUnderline.error.end {
-                hoveredUnderline = newHoveredUnderline
-                underlineView.hoveredUnderline = newHoveredUnderline
-                underlineView.needsDisplay = true
-            }
-
-            // Convert to screen coordinates for popup positioning
-            // Get the error's bounds center point for better popup positioning
-            let errorCenter = CGPoint(
-                x: newHoveredUnderline.bounds.midX,
-                y: newHoveredUnderline.bounds.midY
-            )
-
-            let msg3 = "📍 ErrorOverlay: Error center (window coords): \(errorCenter)"
-            NSLog(msg3)
-            logToDebugFile(msg3)
-
-            // Convert window coordinates to screen coordinates
-            // Both window and our view use bottom-left origin at this point (already converted)
-            let windowOrigin = self.frame.origin
-            let screenLocation = CGPoint(
-                x: windowOrigin.x + errorCenter.x,
-                y: windowOrigin.y + errorCenter.y
-            )
-
-            let msg4 = "📍 ErrorOverlay: Window origin (screen): \(windowOrigin)"
-            NSLog(msg4)
-            logToDebugFile(msg4)
-            let msg5 = "📍 ErrorOverlay: Popup position (screen): \(screenLocation)"
-            NSLog(msg5)
-            logToDebugFile(msg5)
-
-            onErrorHover?(newHoveredUnderline.error, screenLocation)
-        } else {
-            // Clear hovered state
-            if hoveredUnderline != nil {
-                hoveredUnderline = nil
-                underlineView.hoveredUnderline = nil
-                underlineView.needsDisplay = true
-            }
-            onHoverEnd?()
-        }
-    }
-
-    /// Handle mouse exit
-    override func mouseExited(with event: NSEvent) {
-        // Clear hovered state
-        if hoveredUnderline != nil {
-            hoveredUnderline = nil
-            underlineView?.hoveredUnderline = nil
-            underlineView?.needsDisplay = true
-        }
-        onHoverEnd?()
-    }
 }
 
 // MARK: - Error Underline Model
@@ -596,6 +642,16 @@ struct ErrorUnderline {
 class UnderlineView: NSView {
     var underlines: [ErrorUnderline] = []
     var hoveredUnderline: ErrorUnderline?
+    var allowsClickPassThrough: Bool = false
+
+    // CRITICAL: Override hitTest to return nil, which passes clicks through to the app below
+    // This allows Chrome (or other apps) to receive clicks while we still track mouse movement
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        if allowsClickPassThrough {
+            return nil  // Pass all clicks through to the app below
+        }
+        return super.hitTest(point)
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }

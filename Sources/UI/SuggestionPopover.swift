@@ -10,18 +10,37 @@ import AppKit
 import Combine
 import ApplicationServices
 
+/// Custom NSPanel subclass that prevents becoming key window
+/// This is CRITICAL to prevent Gnau from stealing focus from other apps
+class NonActivatingPanel: NSPanel {
+    // CRITICAL: Override canBecomeKey to return false
+    // This prevents the panel from stealing keyboard focus
+    override var canBecomeKey: Bool {
+        return false
+    }
+
+    // CRITICAL: Override canBecomeMain to return false
+    // This prevents the panel from becoming the main window
+    override var canBecomeMain: Bool {
+        return false
+    }
+}
+
 /// Manages the suggestion popover window
 class SuggestionPopover: NSObject, ObservableObject {
     static let shared = SuggestionPopover()
 
     /// The popover panel
-    private var panel: NSPanel?
+    private var panel: NonActivatingPanel?
 
     /// Timer for delayed hiding
     private var hideTimer: Timer?
 
     /// Event monitor for Escape key
     private var escapeKeyMonitor: Any?
+
+    /// Event monitor for mouse clicks outside popover
+    private var clickOutsideMonitor: Any?
 
     /// Current error being displayed
     @Published private(set) var currentError: GrammarErrorModel?
@@ -48,8 +67,31 @@ class SuggestionPopover: NSObject, ObservableObject {
         super.init()
     }
 
+    /// Log to file for debugging (same as GnauApp)
+    private func logToFile(_ message: String) {
+        let logPath = "/tmp/gnau-debug.log"
+        let timestamp = Date()
+        let logMessage = "[\(timestamp)] \(message)\n"
+        if let data = logMessage.data(using: .utf8) {
+            if FileManager.default.fileExists(atPath: logPath) {
+                if let fileHandle = FileHandle(forWritingAtPath: logPath) {
+                    fileHandle.seekToEndOfFile()
+                    fileHandle.write(data)
+                    fileHandle.closeFile()
+                }
+            } else {
+                try? data.write(to: URL(fileURLWithPath: logPath))
+            }
+        }
+    }
+
     /// Show popover with error at cursor position
     func show(error: GrammarErrorModel, allErrors: [GrammarErrorModel], at position: CGPoint) {
+        // DEBUG: Log activation policy BEFORE showing
+        let beforeMsg = "🔍 SuggestionPopover.show() - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)"
+        NSLog(beforeMsg)
+        logToFile(beforeMsg)
+
         self.currentError = error
         self.allErrors = allErrors
         self.currentIndex = allErrors.firstIndex(where: { $0.start == error.start && $0.end == error.end }) ?? 0
@@ -82,10 +124,19 @@ class SuggestionPopover: NSObject, ObservableObject {
         positionPanel(at: position)
 
         // Show panel without stealing focus (panel is already .nonactivatingPanel)
-        panel?.orderFrontRegardless()
+        // Use order(.above) instead of orderFrontRegardless() to prevent focus stealing
+        panel?.order(.above, relativeTo: 0)
+
+        // DEBUG: Log activation policy AFTER showing
+        let afterMsg = "🔍 SuggestionPopover.show() - AFTER order(.above) - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)"
+        NSLog(afterMsg)
+        logToFile(afterMsg)
 
         // Set up Escape key monitor
         setupEscapeKeyMonitor()
+
+        // Set up click outside monitor
+        setupClickOutsideMonitor()
     }
 
     /// Schedule hiding of popover with a delay
@@ -107,10 +158,20 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     /// Perform immediate hide
     private func performHide() {
+        let hideBeforeMsg = "🔍 SuggestionPopover.performHide() - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)"
+        NSLog(hideBeforeMsg)
+        logToFile(hideBeforeMsg)
+
         // Remove escape key monitor
         if let monitor = escapeKeyMonitor {
             NSEvent.removeMonitor(monitor)
             escapeKeyMonitor = nil
+        }
+
+        // Remove click outside monitor
+        if let monitor = clickOutsideMonitor {
+            NSEvent.removeMonitor(monitor)
+            clickOutsideMonitor = nil
         }
 
         panel?.orderOut(nil)
@@ -118,6 +179,17 @@ class SuggestionPopover: NSObject, ObservableObject {
         allErrors = []
         currentIndex = 0
         hideTimer = nil
+
+        // NOTE: We do NOT restore focus because our panels are .nonactivatingPanel
+        // They never steal focus in the first place, so there's nothing to restore.
+        // When the user clicks elsewhere, the click naturally activates the clicked app.
+        // Any attempt to call activate() would FIGHT with the app's natural activation,
+        // causing delays and making apps temporarily unclickable (especially on macOS 14+
+        // where activateIgnoringOtherApps is deprecated and ignored).
+
+        let hideAfterMsg = "🔍 SuggestionPopover.performHide() - AFTER - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)"
+        NSLog(hideAfterMsg)
+        logToFile(hideAfterMsg)
     }
 
     /// Hide popover immediately
@@ -139,9 +211,37 @@ class SuggestionPopover: NSObject, ObservableObject {
         // This is necessary because the panel is .nonactivatingPanel
         escapeKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == 53 { // Escape key
-                print("⌨️ Popover: Escape key pressed - hiding popover")
+                let escMsg = "⌨️ Popover: Escape key pressed - hiding popover"
+                NSLog(escMsg)
+                self?.logToFile(escMsg)
                 self?.hide()
             }
+        }
+    }
+
+    /// Setup click outside monitor to close popover when user clicks elsewhere
+    private func setupClickOutsideMonitor() {
+        // Remove existing monitor if any
+        if let monitor = clickOutsideMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+
+        // Use GLOBAL monitor to detect ALL clicks (including in other apps like Chrome)
+        // When user clicks outside, hide the popover
+        // The click will naturally activate the clicked app (we can't prevent event propagation)
+        clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            guard let self = self else { return }
+
+            let clickMsg = "🖱️ Popover: Global click detected - hiding popover"
+            NSLog(clickMsg)
+            self.logToFile(clickMsg)
+
+            // CRITICAL: Cancel any pending auto-hide timer
+            self.hideTimer?.invalidate()
+            self.hideTimer = nil
+
+            // Hide the popover - no need to restore focus as our panels are .nonactivatingPanel
+            self.hide()
         }
     }
 
@@ -170,7 +270,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         hostingView.frame = trackingView.bounds
         hostingView.autoresizingMask = [.width, .height]
 
-        panel = NSPanel(
+        panel = NonActivatingPanel(
             contentRect: NSRect(x: 0, y: 0, width: width, height: height),
             styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
@@ -179,7 +279,7 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         panel?.contentView = trackingView
         panel?.isFloatingPanel = true
-        panel?.level = .floating
+        panel?.level = .popUpMenu  // Use popUpMenu level - these never activate the app
         panel?.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel?.isMovableByWindowBackground = true
         panel?.title = "Grammar Suggestion"
@@ -187,6 +287,12 @@ class SuggestionPopover: NSObject, ObservableObject {
         // Make panel background transparent so SwiftUI content's opacity works
         panel?.backgroundColor = .clear
         panel?.isOpaque = false
+        // CRITICAL: Prevent this panel from affecting app activation
+        panel?.hidesOnDeactivate = false
+        panel?.worksWhenModal = false
+        // CRITICAL: This makes the panel resist becoming the key window
+        // According to Stack Overflow, this is essential for truly non-activating behavior
+        panel?.becomesKeyOnlyIfNeeded = true
 
         // Handle close button
         panel?.standardWindowButton(.closeButton)?.target = self
@@ -1172,9 +1278,9 @@ class TooltipPanel {
 
         panel.setFrame(tooltipFrame, display: true)
 
-        // Show tooltip
-        print("📍 [Tooltip Debug] TooltipPanel.show - calling orderFrontRegardless()")
-        panel.orderFrontRegardless()
+        // Show tooltip without stealing focus
+        print("📍 [Tooltip Debug] TooltipPanel.show - calling order(.above)")
+        panel.order(.above, relativeTo: 0)
         print("📍 [Tooltip Debug] TooltipPanel.show - panel level: \(panel.level.rawValue), isVisible: \(panel.isVisible)")
     }
 
