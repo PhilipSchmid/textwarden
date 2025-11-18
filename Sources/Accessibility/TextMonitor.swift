@@ -32,6 +32,9 @@ class TextMonitor: ObservableObject {
     /// Callback for text changes
     var onTextChange: ((String, ApplicationContext) -> Void)?
 
+    /// Retry scheduler for accessibility API operations
+    private let retryScheduler = RetryScheduler(config: .accessibilityAPI)
+
     /// Start monitoring an application
     func startMonitoring(processID: pid_t, bundleIdentifier: String, appName: String) {
         stopMonitoring()
@@ -124,6 +127,9 @@ class TextMonitor: ObservableObject {
 
     /// Stop monitoring
     func stopMonitoring() {
+        // Cancel any pending retry attempts
+        retryScheduler.cancel()
+
         if let observer = observer {
             CFRunLoopRemoveSource(
                 CFRunLoopGetCurrent(),
@@ -140,8 +146,9 @@ class TextMonitor: ObservableObject {
     }
 
     /// Monitor the focused UI element
-    private func monitorFocusedElement(in appElement: AXUIElement) {
-        let msg1 = "🔍 TextMonitor: Getting focused element..."
+    private func monitorFocusedElement(in appElement: AXUIElement, retryAttempt: Int = 0) {
+        let maxAttempts = RetryConfig.accessibilityAPI.maxAttempts
+        let msg1 = "🔍 TextMonitor: Getting focused element... (attempt \(retryAttempt + 1)/\(maxAttempts + 1))"
         NSLog(msg1)
         logToDebugFile(msg1)
 
@@ -153,9 +160,19 @@ class TextMonitor: ObservableObject {
         )
 
         guard error == .success, let element = focusedElement else {
-            let msg = "❌ TextMonitor: Failed to get focused element: \(error.rawValue)"
-            NSLog(msg)
-            logToDebugFile(msg)
+            // Retry if we haven't reached max attempts
+            if retryAttempt < maxAttempts {
+                scheduleRetry(attempt: retryAttempt) { [weak self] in
+                    self?.monitorFocusedElement(in: appElement, retryAttempt: retryAttempt + 1)
+                }
+                let msg = "⏱️ TextMonitor: Failed to get focused element (\(error.rawValue)), will retry..."
+                NSLog(msg)
+                logToDebugFile(msg)
+            } else {
+                let msg = "❌ TextMonitor: Failed to get focused element after \(maxAttempts + 1) attempts: \(error.rawValue)"
+                NSLog(msg)
+                logToDebugFile(msg)
+            }
             return
         }
 
@@ -164,12 +181,29 @@ class TextMonitor: ObservableObject {
         logToDebugFile(msg2)
 
         let axElement = element as! AXUIElement
-        monitorElement(axElement)
+        monitorElement(axElement, retryAttempt: retryAttempt)
+    }
+
+    /// Schedule a retry using RetryScheduler configuration
+    private func scheduleRetry(attempt: Int, action: @escaping () -> Void) {
+        // Cancel any existing retry
+        retryScheduler.cancel()
+
+        // Calculate delay using RetryConfig
+        let config = RetryConfig.accessibilityAPI
+        let delay = config.delay(for: attempt)
+
+        let msg = "🔄 TextMonitor: Scheduling retry \(attempt + 1) in \(String(format: "%.3f", delay))s"
+        NSLog(msg)
+        logToDebugFile(msg)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: action)
     }
 
     /// Monitor a specific UI element for text changes
-    fileprivate func monitorElement(_ element: AXUIElement) {
-        let msg1 = "🎯 TextMonitor: monitorElement called"
+    fileprivate func monitorElement(_ element: AXUIElement, retryAttempt: Int = 0) {
+        let maxAttempts = RetryConfig.accessibilityAPI.maxAttempts
+        let msg1 = "🎯 TextMonitor: monitorElement called (attempt \(retryAttempt + 1)/\(maxAttempts + 1))"
         NSLog(msg1)
         logToDebugFile(msg1)
 
@@ -183,11 +217,35 @@ class TextMonitor: ObservableObject {
         // CRITICAL: Only monitor editable text fields, not read-only content
         // This prevents checking terminal output, chat history, etc.
         guard isEditableElement(element) else {
-            let msg = "⏭️ TextMonitor: Skipping non-editable element"
-            NSLog(msg)
-            logToDebugFile(msg)
+            // Retry if we haven't reached max attempts and this isn't explicitly a read-only role
+            var role: CFTypeRef?
+            AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
+            let roleString = role as? String ?? "Unknown"
+
+            let readOnlyRoles = [
+                kAXStaticTextRole as String,
+                "AXScrollArea",
+                "AXLayoutArea"
+            ]
+
+            // Only retry if it's not explicitly a read-only role (e.g., AXGroup might become editable)
+            if retryAttempt < maxAttempts && !readOnlyRoles.contains(roleString) {
+                scheduleRetry(attempt: retryAttempt) { [weak self] in
+                    self?.monitorElement(element, retryAttempt: retryAttempt + 1)
+                }
+                let msg = "⏱️ TextMonitor: Element not editable yet (role: \(roleString)), will retry..."
+                NSLog(msg)
+                logToDebugFile(msg)
+            } else {
+                let msg = "⏭️ TextMonitor: Skipping non-editable element (role: \(roleString))"
+                NSLog(msg)
+                logToDebugFile(msg)
+            }
             return
         }
+
+        // Cancel any pending retries since we found an editable element
+        retryScheduler.cancel()
 
         // Remove previous notifications if any
         if let previousElement = monitoredElement {
