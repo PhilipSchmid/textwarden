@@ -70,6 +70,15 @@ class FloatingErrorIndicator: NSWindow {
         setupPositionObserver()
     }
 
+    // CRITICAL: Prevent this window from stealing focus from other applications
+    override var canBecomeKey: Bool {
+        return false
+    }
+
+    override var canBecomeMain: Bool {
+        return false
+    }
+
     /// Setup observer for indicator position preference changes
     private func setupPositionObserver() {
         UserPreferences.shared.$indicatorPosition
@@ -110,13 +119,12 @@ class FloatingErrorIndicator: NSWindow {
         // Position in bottom-right of text field
         positionIndicator(for: element)
 
-        // Show window
+        // Show window without stealing focus
         NSLog("🔴 FloatingErrorIndicator: Window level: \(self.level.rawValue), isVisible: \(isVisible)")
         if !isVisible {
-            NSLog("🔴 FloatingErrorIndicator: Calling orderFront")
-            orderFront(nil)
-            makeKeyAndOrderFront(nil)  // Force to front
-            NSLog("🔴 FloatingErrorIndicator: After orderFront, isVisible: \(isVisible)")
+            NSLog("🔴 FloatingErrorIndicator: Calling order(.above)")
+            order(.above, relativeTo: 0)  // Show window without stealing focus
+            NSLog("🔴 FloatingErrorIndicator: After order(.above), isVisible: \(isVisible)")
         } else {
             NSLog("🔴 FloatingErrorIndicator: Window already visible")
         }
