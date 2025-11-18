@@ -79,10 +79,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Permission already granted - start grammar checking immediately
             logToFile("✅ Gnau: Starting grammar checking...")
             logToFile("📊 Gnau: Grammar checking enabled: \(UserPreferences.shared.isEnabled)")
-            logToFile("📊 Gnau: Disabled applications: \(UserPreferences.shared.disabledApplications)")
+
+            // Log paused applications (excluding .active state)
+            let pausedApps = UserPreferences.shared.appPauseDurations.filter { $0.value != .active }
+            let pausedAppBundleIDs = pausedApps.keys.sorted()
+            logToFile("📊 Gnau: Paused applications (\(pausedApps.count)): \(pausedAppBundleIDs)")
+
             NSLog("✅ Gnau: Starting grammar checking...")
             NSLog("📊 Gnau: Grammar checking enabled: \(UserPreferences.shared.isEnabled)")
-            NSLog("📊 Gnau: Disabled applications: \(UserPreferences.shared.disabledApplications)")
+            NSLog("📊 Gnau: Paused applications (\(pausedApps.count)): \(pausedAppBundleIDs)")
+
             analysisCoordinator = AnalysisCoordinator.shared
             logToFile("📍 Gnau: Analysis coordinator initialized")
             NSLog("📍 Gnau: Analysis coordinator initialized")
