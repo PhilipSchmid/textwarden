@@ -740,10 +740,21 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Apply text replacement for error (T044)
     private func applyTextReplacement(for error: GrammarErrorModel, with suggestion: String) {
+        let msg0 = "🔧 applyTextReplacement called - error: '\(error.message)', suggestion: '\(suggestion)'"
+        NSLog(msg0)
+        logToDebugFile(msg0)
+
         guard let element = textMonitor.monitoredElement else {
-            print("No monitored element for text replacement")
+            let msg = "❌ No monitored element for text replacement"
+            NSLog(msg)
+            logToDebugFile(msg)
+            print(msg)
             return
         }
+
+        let msg1 = "✅ Have monitored element, context: \(monitoredContext?.applicationName ?? "nil")"
+        NSLog(msg1)
+        logToDebugFile(msg1)
 
         // Inspired by Grammarly: Use keyboard automation directly for known Electron apps
         // This avoids trying the AX API which is known to fail on Electron

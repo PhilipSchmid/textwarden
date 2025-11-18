@@ -36,7 +36,7 @@ struct BoundsValidator {
     static func isPlausible(_ bounds: CGRect, context: String = "", bundleIdentifier: String? = nil) -> Bool {
         let prefix = context.isEmpty ? "" : "[\(context)] "
 
-        // CRITICAL: Electron apps (especially Slack) often return bounds that pass
+        // CRITICAL: Electron apps and browsers often return bounds that pass
         // geometric validation but are positionally incorrect. For these apps,
         // estimation provides more reliable results.
         if let bundleId = bundleIdentifier {
@@ -46,8 +46,30 @@ struct BoundsValidator {
                 "com.microsoft.VSCode"          // VS Code
             ]
 
+            // Browsers have unreliable AX bounds, especially in contenteditable areas
+            // They sometimes return geometrically valid bounds that are positionally incorrect
+            let browserApps: Set<String> = [
+                "com.google.Chrome",
+                "com.google.Chrome.beta",
+                "com.microsoft.edgemac",         // Edge
+                "com.brave.Browser",
+                "com.vivaldi.Vivaldi",
+                "org.chromium.Chromium",
+                "com.apple.Safari",
+                "org.mozilla.firefox",
+                "org.mozilla.firefoxdeveloperedition",
+                "com.operasoftware.Opera"
+            ]
+
             if electronApps.contains(bundleId) {
                 let msg = "\(prefix)⚠️ BoundsValidator: Rejected - Electron app with known AX inaccuracy (\(bundleId))"
+                NSLog(msg)
+                logToDebugFile(msg)
+                return false
+            }
+
+            if browserApps.contains(bundleId) {
+                let msg = "\(prefix)⚠️ BoundsValidator: Rejected - Browser with known AX inaccuracy (\(bundleId))"
                 NSLog(msg)
                 logToDebugFile(msg)
                 return false
