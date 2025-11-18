@@ -9,10 +9,10 @@ import SwiftUI
 
 struct PreferencesView: View {
     @ObservedObject private var preferences = UserPreferences.shared
-    @State private var selectedTab: Int = 0
+    @ObservedObject private var windowController = PreferencesWindowController.shared
 
     var body: some View {
-        TabView(selection: $selectedTab) {
+        TabView(selection: $windowController.selectedTab) {
             GeneralPreferencesView(preferences: preferences)
                 .tabItem {
                     Label("General", systemImage: "gearshape")
@@ -67,16 +67,7 @@ struct PreferencesView: View {
                 }
                 .tag(8)
         }
-        .frame(width: 800, height: 650)
-        .onAppear {
-            // Check if a specific tab was requested (e.g., About from menu)
-            let requestedTab = UserDefaults.standard.integer(forKey: "PreferencesSelectedTab")
-            if requestedTab > 0 {
-                selectedTab = requestedTab
-                // Reset to default after reading
-                UserDefaults.standard.set(0, forKey: "PreferencesSelectedTab")
-            }
-        }
+        .frame(minWidth: 750, minHeight: 600)
     }
 }
 

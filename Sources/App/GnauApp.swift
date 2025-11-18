@@ -16,19 +16,16 @@ struct GnauApp: App {
     @StateObject private var permissionManager = PermissionManager.shared
 
     var body: some Scene {
-        // Settings window (can be opened from menu)
-        Settings {
-            PreferencesView()
-        }
-
-        // Onboarding window for first-time setup (T055, T056)
-        Window("Welcome to Gnau", id: "onboarding") {
-            OnboardingView()
+        // Menu bar app - minimal dummy scene required by SwiftUI
+        // Both settings and onboarding windows are created manually in AppDelegate for full control
+        // MenuBarController handles the actual menu bar icon
+        WindowGroup {
+            EmptyView()
+                .frame(width: 0, height: 0)
+                .hidden()
         }
         .windowStyle(.hiddenTitleBar)
-        .windowResizability(.contentSize)
-        .defaultPosition(.center)
-        .handlesExternalEvents(matching: Set(arrayLiteral: "onboarding"))
+        .defaultSize(width: 0, height: 0)
     }
 }
 
@@ -36,6 +33,7 @@ struct GnauApp: App {
 class AppDelegate: NSObject, NSApplicationDelegate {
     var menuBarController: MenuBarController?
     var analysisCoordinator: AnalysisCoordinator?
+    var settingsWindow: NSWindow?  // Keep strong reference to settings window
 
     func logToFile(_ message: String) {
         let logPath = "/tmp/gnau-debug.log"
@@ -61,7 +59,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Record app session for statistics
         UserStatistics.shared.recordSession()
 
-        // Hide dock icon for menu bar-only app
+        // Hide dock icon for menu bar-only app (like VoiceInk)
         NSApp.setActivationPolicy(.accessory)
         logToFile("📍 Gnau: Set as menu bar app (no dock icon)")
         NSLog("📍 Gnau: Set as menu bar app (no dock icon)")
@@ -96,41 +94,131 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Set up callback to start grammar checking when permission is granted
             permissionManager.onPermissionGranted = { [weak self] in
                 guard let self = self else { return }
-                print("✅ Gnau: Permission granted via onboarding - starting grammar checking...")
+                self.logToFile("✅ Gnau: Permission granted via onboarding - starting grammar checking...")
+                NSLog("✅ Gnau: Permission granted via onboarding - starting grammar checking...")
                 self.analysisCoordinator = AnalysisCoordinator.shared
-                print("📍 Gnau: Analysis coordinator initialized")
+                self.logToFile("📍 Gnau: Analysis coordinator initialized")
+                NSLog("📍 Gnau: Analysis coordinator initialized")
+
+                // Return to accessory mode after onboarding completes
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    NSApp.setActivationPolicy(.accessory)
+                    self.logToFile("📍 Gnau: Returned to menu bar only mode")
+                    NSLog("📍 Gnau: Returned to menu bar only mode")
+                }
             }
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                print("📱 Gnau: Opening onboarding window")
-                if let onboardingWindow = NSApp.windows.first(where: { $0.identifier?.rawValue == "onboarding" }) {
-                    onboardingWindow.makeKeyAndOrderFront(nil)
-                    NSApp.activate(ignoringOtherApps: true)
-                } else {
-                    // Fallback: Open onboarding programmatically
-                    self.openOnboardingWindow()
-                }
+            // Open onboarding window
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                self.openOnboardingWindow()
             }
         }
     }
 
     private func openOnboardingWindow() {
+        logToFile("📱 Gnau: Creating onboarding window")
+        NSLog("📱 Gnau: Creating onboarding window")
+
         let onboardingView = OnboardingView()
         let hostingController = NSHostingController(rootView: onboardingView)
 
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Welcome to Gnau"
         window.styleMask = [.titled, .closable]
-        window.isReleasedWhenClosed = false
+        window.isReleasedWhenClosed = true  // Can be released when closed
         window.setContentSize(NSSize(width: 550, height: 550))
         window.center()
-        window.makeKeyAndOrderFront(nil)
 
+        // Temporarily switch to regular mode to show window
+        NSApp.setActivationPolicy(.regular)
+
+        window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+
+        logToFile("✅ Gnau: Onboarding window displayed")
+        NSLog("✅ Gnau: Onboarding window displayed")
     }
 
     // Prevent app from quitting when all windows close (menu bar app)
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return false
+    }
+
+    /// Open or bring forward the settings window
+    /// Creates window manually for reliable reopening behavior
+    /// Tab selection is controlled by PreferencesWindowController.shared
+    @objc func openSettingsWindow(selectedTab: Int = 0) {
+        logToFile("🪟 Gnau: openSettingsWindow called")
+        NSLog("🪟 Gnau: openSettingsWindow called")
+
+        // If window exists, just show it (tab is already set by PreferencesWindowController)
+        if let window = settingsWindow {
+            logToFile("🪟 Gnau: Reusing existing settings window")
+            NSLog("🪟 Gnau: Reusing existing settings window")
+
+            // Temporarily switch to regular mode to show window
+            NSApp.setActivationPolicy(.regular)
+
+            // Force window to front
+            window.orderFrontRegardless()
+            window.makeKeyAndOrderFront(nil)
+
+            // Activate app
+            NSApp.activate(ignoringOtherApps: true)
+
+            logToFile("✅ Gnau: Settings window shown")
+            NSLog("✅ Gnau: Settings window shown")
+            return
+        }
+
+        // Create window first time
+        logToFile("🪟 Gnau: Creating new settings window")
+        NSLog("🪟 Gnau: Creating new settings window")
+
+        let preferencesView = PreferencesView()
+        let hostingController = NSHostingController(rootView: preferencesView)
+
+        let window = NSWindow(contentViewController: hostingController)
+        window.title = "Gnau Settings"
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.isReleasedWhenClosed = false  // CRITICAL: Keep window alive when closed
+        window.setContentSize(NSSize(width: 850, height: 700))
+        window.minSize = NSSize(width: 750, height: 600)
+        window.center()
+        window.delegate = self
+        window.level = .normal
+        window.toolbar = NSToolbar()
+        window.toolbar?.displayMode = .iconOnly
+
+        // Store window
+        settingsWindow = window
+
+        logToFile("🪟 Gnau: Window created, switching to regular mode")
+        NSLog("🪟 Gnau: Window created, switching to regular mode")
+
+        // Temporarily switch to regular mode to show window
+        NSApp.setActivationPolicy(.regular)
+
+        // Show window aggressively
+        window.orderFrontRegardless()
+        window.makeKeyAndOrderFront(nil)
+
+        // Activate app
+        NSApp.activate(ignoringOtherApps: true)
+
+        logToFile("✅ Gnau: Settings window displayed")
+        NSLog("✅ Gnau: Settings window displayed")
+    }
+}
+
+// MARK: - Window Delegate
+extension AppDelegate: NSWindowDelegate {
+    func windowWillClose(_ notification: Notification) {
+        // When settings window closes, return to menu bar only mode
+        if let window = notification.object as? NSWindow, window == settingsWindow {
+            NSApp.setActivationPolicy(.accessory)
+        }
     }
 }
