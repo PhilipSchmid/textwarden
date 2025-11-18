@@ -782,6 +782,9 @@ struct GeneralPreferencesView: View {
 
                 Toggle("Launch Gnau at login", isOn: $preferences.launchAtLogin)
                     .help("Automatically start Gnau when you log in")
+
+                Toggle("Always open in foreground", isOn: $preferences.openInForeground)
+                    .help("Show settings window when Gnau starts (default: background only)")
             } header: {
                 Text("General")
                     .font(.headline)
