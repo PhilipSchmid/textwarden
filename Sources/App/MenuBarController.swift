@@ -344,26 +344,37 @@ class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func openPreferences() {
-        // Activate app to ensure Settings window appears
-        // This is intentional when user explicitly clicks "Preferences..."
-        NSApp.activate(ignoringOtherApps: true)
+        NSLog("🔵 MenuBarController: openPreferences() called!")
+        print("🔵 MenuBarController: openPreferences() called!")
 
-        // Open Settings window
-        // The Settings scene is defined in GnauApp.swift and SwiftUI handles window management
-        if #available(macOS 13, *) {
-            NSApp.sendAction(Selector("showSettingsWindow:"), to: nil, from: nil)
-        } else {
-            NSApp.sendAction(Selector("showPreferencesWindow:"), to: nil, from: nil)
-        }
+        // Set tab to General (0)
+        PreferencesWindowController.shared.selectTab(0)
+
+        // Switch to regular mode temporarily
+        NSApp.setActivationPolicy(.regular)
+
+        // Use NSApp.sendAction to open settings - let AppKit find the target
+        NSApp.sendAction(#selector(AppDelegate.openSettingsWindow(selectedTab:)), to: nil, from: self)
+
+        NSLog("🔵 MenuBarController: Sent openSettingsWindow action for General tab")
+        print("🔵 MenuBarController: Sent openSettingsWindow action for General tab")
     }
 
     @objc private func showAbout() {
-        // Open preferences window with About tab instead of separate about panel
-        // Set the selected tab to About first
-        UserDefaults.standard.set(8, forKey: "PreferencesSelectedTab") // 8 = About tab index
+        NSLog("🔵 MenuBarController: showAbout() called!")
+        print("🔵 MenuBarController: showAbout() called!")
 
-        // Then open preferences
-        openPreferences()
+        // Set tab to About (8)
+        PreferencesWindowController.shared.selectTab(8)
+
+        // Switch to regular mode temporarily
+        NSApp.setActivationPolicy(.regular)
+
+        // Use NSApp.sendAction to open settings with About tab (index 8)
+        NSApp.sendAction(#selector(AppDelegate.openSettingsWindow(selectedTab:)), to: nil, from: self)
+
+        NSLog("🔵 MenuBarController: Sent openSettingsWindow action for About tab (8)")
+        print("🔵 MenuBarController: Sent openSettingsWindow action for About tab (8)")
     }
 
     @objc private func showCurrentErrors() {
