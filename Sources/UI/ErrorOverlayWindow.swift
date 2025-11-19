@@ -29,8 +29,8 @@ class ErrorOverlayWindow: NSPanel {
     /// Global event monitor for mouse movement
     private var mouseMonitor: Any?
 
-    /// Callback when user hovers over an error
-    var onErrorHover: ((GrammarErrorModel, CGPoint) -> Void)?
+    /// Callback when user hovers over an error (includes window frame for smart positioning)
+    var onErrorHover: ((GrammarErrorModel, CGPoint, CGRect?) -> Void)?
 
     /// Callback when hover ends
     var onHoverEnd: (() -> Void)?
@@ -151,7 +151,10 @@ class ErrorOverlayWindow: NSPanel {
                 NSLog(msg3)
                 self.logToDebugFile(msg3)
 
-                self.onErrorHover?(newHoveredUnderline.error, screenLocation)
+                // Get the application window frame for smart positioning
+                let appWindowFrame = self.getApplicationWindowFrame()
+
+                self.onErrorHover?(newHoveredUnderline.error, screenLocation, appWindowFrame)
             } else {
                 // Clear hovered state
                 if self.hoveredUnderline != nil {
@@ -382,6 +385,48 @@ class ErrorOverlayWindow: NSPanel {
                 try? data.write(to: URL(fileURLWithPath: logPath))
             }
         }
+    }
+
+    /// Get the application window frame for smart popover positioning
+    /// Returns the visible window frame if available
+    private func getApplicationWindowFrame() -> CGRect? {
+        guard let element = monitoredElement else { return nil }
+
+        // Try to get the window frame using CGWindowListCopyWindowInfo (most reliable)
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(element, &pid) == .success else { return nil }
+
+        let options = CGWindowListOption(arrayLiteral: .optionOnScreenOnly)
+        guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return nil
+        }
+
+        // Find the frontmost window for this PID
+        for windowInfo in windowList {
+            if let windowPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
+               windowPID == pid,
+               let boundsDict = windowInfo[kCGWindowBounds as String] as? [String: CGFloat] {
+
+                let x = boundsDict["X"] ?? 0
+                let y = boundsDict["Y"] ?? 0
+                let width = boundsDict["Width"] ?? 0
+                let height = boundsDict["Height"] ?? 0
+
+                // Convert from Quartz (top-left origin) to Cocoa (bottom-left origin)
+                if let screen = NSScreen.main {
+                    let screenHeight = screen.frame.height
+                    let cocoaY = screenHeight - y - height
+
+                    let frame = NSRect(x: x, y: cocoaY, width: width, height: height)
+                    let msg = "🪟 ErrorOverlay: Got application window frame: \(frame)"
+                    NSLog(msg)
+                    logToDebugFile(msg)
+                    return frame
+                }
+            }
+        }
+
+        return nil
     }
 
     /// Get frame of AX element

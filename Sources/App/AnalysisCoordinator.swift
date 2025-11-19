@@ -84,10 +84,22 @@ class AnalysisCoordinator: ObservableObject {
     /// Cache expiration time in seconds (T084)
     private let cacheExpirationTime: TimeInterval = 300 // 5 minutes
 
+    /// Window position tracking
+    private var lastWindowPosition: CGPoint?
+    private var windowPositionTimer: Timer?
+    private var windowMovementDebounceTimer: Timer?
+    private var overlaysHiddenDueToMovement = false
+
+    /// Hover switching timer - delays popover switching when hovering from one error to another
+    private var hoverSwitchTimer: Timer?
+    /// Pending error waiting for delayed hover switch
+    private var pendingHoverError: (error: GrammarErrorModel, position: CGPoint, windowFrame: CGRect?)?
+
     private init() {
         setupMonitoring()
         setupPopoverCallbacks()
         setupOverlayCallbacks()
+        // Window position monitoring will be started when we begin monitoring an app
     }
 
     /// Setup popover callbacks
@@ -115,29 +127,122 @@ class AnalysisCoordinator: ObservableObject {
             guard let self = self else { return }
             self.addToDictionary(error)
         }
+
+        // Handle mouse entered popover - cancel any pending delayed switches
+        suggestionPopover.onMouseEntered = { [weak self] in
+            guard let self = self else { return }
+            if self.hoverSwitchTimer != nil {
+                let msg = "🚫 AnalysisCoordinator: Mouse entered popover - cancelling delayed switch"
+                NSLog(msg)
+                logToDebugFile(msg)
+                self.hoverSwitchTimer?.invalidate()
+                self.hoverSwitchTimer = nil
+                self.pendingHoverError = nil
+            }
+        }
     }
 
     /// Setup overlay callbacks for hover-based popup
     private func setupOverlayCallbacks() {
         // Show popup when hovering over error underline
-        errorOverlay.onErrorHover = { [weak self] error, position in
+        errorOverlay.onErrorHover = { [weak self] error, position, windowFrame in
             guard let self = self else { return }
-            // Cancel any pending hide when showing new error
+
+            let msg = "🖱️ AnalysisCoordinator: onErrorHover - error at \(error.start)-\(error.end)"
+            NSLog(msg)
+            logToDebugFile(msg)
+
+            // Cancel any pending hide when mouse enters ANY error
             self.suggestionPopover.cancelHide()
-            self.suggestionPopover.show(
-                error: error,
-                allErrors: self.currentErrors,
-                at: position
-            )
+
+            // Check if popover is currently showing
+            let isPopoverShowing = self.suggestionPopover.currentError != nil
+
+            if !isPopoverShowing {
+                // No popover showing - show immediately (first hover)
+                let msg2 = "✅ AnalysisCoordinator: First hover - showing popover immediately"
+                NSLog(msg2)
+                logToDebugFile(msg2)
+                self.hoverSwitchTimer?.invalidate()
+                self.hoverSwitchTimer = nil
+                self.pendingHoverError = nil
+                self.suggestionPopover.show(
+                    error: error,
+                    allErrors: self.currentErrors,
+                    at: position,
+                    constrainToWindow: windowFrame
+                )
+            } else if self.isSameError(error, as: self.suggestionPopover.currentError) {
+                // Same error - just keep showing (cancel any pending switches)
+                let msg2 = "🔄 AnalysisCoordinator: Same error - keeping popover visible"
+                NSLog(msg2)
+                logToDebugFile(msg2)
+                self.hoverSwitchTimer?.invalidate()
+                self.hoverSwitchTimer = nil
+                self.pendingHoverError = nil
+            } else {
+                // Different error - delay the switch to give user time to reach the popover
+                let msg2 = "⏱️ AnalysisCoordinator: Different error - scheduling delayed switch (300ms)"
+                NSLog(msg2)
+                logToDebugFile(msg2)
+
+                // Cancel any existing timer
+                self.hoverSwitchTimer?.invalidate()
+
+                // Store pending hover info
+                self.pendingHoverError = (error: error, position: position, windowFrame: windowFrame)
+
+                // Schedule delayed switch (300ms)
+                self.hoverSwitchTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { [weak self] _ in
+                    guard let self = self,
+                          let pending = self.pendingHoverError else { return }
+
+                    let msg3 = "✅ AnalysisCoordinator: Delayed switch timer fired - showing new popover"
+                    NSLog(msg3)
+                    logToDebugFile(msg3)
+
+                    self.suggestionPopover.show(
+                        error: pending.error,
+                        allErrors: self.currentErrors,
+                        at: pending.position,
+                        constrainToWindow: pending.windowFrame
+                    )
+
+                    // Clear timer and pending state
+                    self.hoverSwitchTimer = nil
+                    self.pendingHoverError = nil
+                }
+            }
         }
 
-        // Don't schedule hide when hover ends - let the popover's own mouse tracking handle it
-        // This allows users to freely move between the underline and popover without triggering hide
+        // Cancel delayed switch when hover ends on underline
+        // This prevents the switch if user quickly moves mouse away
         errorOverlay.onHoverEnd = { [weak self] in
             guard let self = self else { return }
-            // Don't call scheduleHide() here - the popover will hide when mouse leaves IT, not the underline
-            print("📍 AnalysisCoordinator: Hover ended on underline (not scheduling hide)")
+
+            let msg = "📍 AnalysisCoordinator: Hover ended on underline"
+            NSLog(msg)
+            logToDebugFile(msg)
+
+            // Cancel any pending delayed switch
+            if self.hoverSwitchTimer != nil {
+                let msg2 = "🚫 AnalysisCoordinator: Cancelling delayed switch (mouse left underline)"
+                NSLog(msg2)
+                logToDebugFile(msg2)
+                self.hoverSwitchTimer?.invalidate()
+                self.hoverSwitchTimer = nil
+                self.pendingHoverError = nil
+            }
+
+            // Don't schedule hide here - let the popover's own mouse tracking handle it
+            // This allows users to freely move from underline to popover without hiding
         }
+    }
+
+    /// Check if two errors are the same (by position)
+    private func isSameError(_ error1: GrammarErrorModel?, as error2: GrammarErrorModel?) -> Bool {
+        guard let e1 = error1, let e2 = error2 else { return false }
+        return e1.start == e2.start && e1.end == e2.end
     }
 
     /// Setup text monitoring and application tracking (T037)
@@ -169,6 +274,11 @@ class AnalysisCoordinator: ObservableObject {
             self.errorOverlay.hide()
             self.suggestionPopover.hide()
             self.floatingIndicator.hide()
+
+            // Cancel any pending delayed switches
+            self.hoverSwitchTimer?.invalidate()
+            self.hoverSwitchTimer = nil
+            self.pendingHoverError = nil
 
             // Start monitoring new application if enabled
             if context.shouldCheck() {
@@ -303,6 +413,9 @@ class AnalysisCoordinator: ObservableObject {
         let msg3 = "✅ AnalysisCoordinator: textMonitor.startMonitoring completed"
         NSLog(msg3)
         logToDebugFile(msg3)
+
+        // Start window position monitoring now that we have an element to monitor
+        startWindowPositionMonitoring()
     }
 
     /// Stop monitoring
@@ -315,6 +428,7 @@ class AnalysisCoordinator: ObservableObject {
         floatingIndicator.hide()
         suggestionPopover.hide()
         MenuBarController.shared?.setIconState(.active)
+        stopWindowPositionMonitoring()
     }
 
     /// Resume monitoring after permission grant
@@ -324,6 +438,134 @@ class AnalysisCoordinator: ObservableObject {
             self.monitoredContext = context  // Set BEFORE startMonitoring
             startMonitoring(context: context)
         }
+    }
+
+    // MARK: - Window Movement Detection
+
+    /// Start monitoring window position to detect movement
+    private func startWindowPositionMonitoring() {
+        NSLog("🪟 Window monitoring: Starting position monitoring")
+        // Poll window position every 50ms (20 times per second)
+        // This is frequent enough to catch window movement quickly
+        windowPositionTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            self?.checkWindowPosition()
+        }
+        RunLoop.main.add(windowPositionTimer!, forMode: .common)
+        NSLog("🪟 Window monitoring: Timer scheduled on main RunLoop")
+    }
+
+    /// Stop monitoring window position
+    private func stopWindowPositionMonitoring() {
+        windowPositionTimer?.invalidate()
+        windowPositionTimer = nil
+        windowMovementDebounceTimer?.invalidate()
+        windowMovementDebounceTimer = nil
+        lastWindowPosition = nil
+        overlaysHiddenDueToMovement = false
+    }
+
+    /// Check if window has moved
+    private func checkWindowPosition() {
+        guard let element = textMonitor.monitoredElement else {
+            lastWindowPosition = nil
+            return
+        }
+
+        // Get current window position using CGWindowListCopyWindowInfo
+        guard let currentPosition = getWindowPosition(for: element) else {
+            NSLog("🪟 Window monitoring: Could not get window position")
+            return
+        }
+
+        // Check if position has changed
+        if let lastPosition = lastWindowPosition {
+            let threshold: CGFloat = 5.0  // Movement threshold in pixels
+            let distance = hypot(currentPosition.x - lastPosition.x, currentPosition.y - lastPosition.y)
+
+            if distance > threshold {
+                NSLog("🪟 Window monitoring: Movement detected - distance: \(distance)px, from: \(lastPosition) to: \(currentPosition)")
+                // Window is moving - hide overlays immediately
+                handleWindowMovementStarted()
+            } else {
+                // Window stopped moving - show overlays after debounce
+                handleWindowMovementStopped()
+            }
+        } else {
+            NSLog("🪟 Window monitoring: Initial position set: \(currentPosition)")
+        }
+
+        lastWindowPosition = currentPosition
+    }
+
+    /// Get window position for the given element
+    private func getWindowPosition(for element: AXUIElement) -> CGPoint? {
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(element, &pid) == .success else { return nil }
+
+        let options = CGWindowListOption(arrayLiteral: .optionOnScreenOnly)
+        guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return nil
+        }
+
+        // Find the frontmost window for this PID
+        for windowInfo in windowList {
+            if let windowPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
+               windowPID == pid,
+               let boundsDict = windowInfo[kCGWindowBounds as String] as? [String: CGFloat] {
+
+                let x = boundsDict["X"] ?? 0
+                let y = boundsDict["Y"] ?? 0
+                return CGPoint(x: x, y: y)
+            }
+        }
+
+        return nil
+    }
+
+    /// Handle window movement started
+    private func handleWindowMovementStarted() {
+        guard !overlaysHiddenDueToMovement else { return }
+
+        NSLog("🪟 Window monitoring: Movement started - hiding all overlays")
+        overlaysHiddenDueToMovement = true
+
+        // Immediately hide all overlays
+        errorOverlay.hide()
+        floatingIndicator.hide()
+        suggestionPopover.hide()
+
+        // Cancel any pending re-show
+        windowMovementDebounceTimer?.invalidate()
+        windowMovementDebounceTimer = nil
+    }
+
+    /// Handle window movement stopped
+    private func handleWindowMovementStopped() {
+        guard overlaysHiddenDueToMovement else { return }
+
+        // Don't create a new timer if one is already scheduled
+        // This prevents the timer from being constantly reset while the window is stationary
+        guard windowMovementDebounceTimer == nil else { return }
+
+        NSLog("🪟 Window monitoring: Movement stopped - scheduling re-show after 150ms")
+
+        // Wait 150ms after movement stops before re-showing overlays
+        // This provides a snappy UX while avoiding flickering during multi-step drags
+        windowMovementDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: false) { [weak self] _ in
+            self?.reshowOverlaysAfterMovement()
+        }
+    }
+
+    /// Re-show overlays after window movement has stopped
+    private func reshowOverlaysAfterMovement() {
+        NSLog("🪟 Window monitoring: Re-showing overlays at new position")
+        overlaysHiddenDueToMovement = false
+        windowMovementDebounceTimer = nil  // Clear timer reference so new timer can be created
+
+        // Re-show overlays by triggering a re-filter of current errors
+        // This will recalculate positions and show overlays at the new location
+        let sourceText = currentSegment?.content ?? ""
+        applyFilters(to: currentErrors, sourceText: sourceText, element: textMonitor.monitoredElement)
     }
 
     /// Handle text change and trigger analysis (T038)
