@@ -117,7 +117,7 @@ class SuggestionPopover: NSObject, ObservableObject {
                 hostingView.layoutSubtreeIfNeeded()
 
                 let fittingSize = hostingView.fittingSize
-                let width = min(max(fittingSize.width, 300), 600)  // Match frame constraints
+                let width = min(max(fittingSize.width, 300), 450)  // Match frame constraints - reduced from 600 to prevent cutoffs
                 let height = fittingSize.height
 
                 hostingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
@@ -264,7 +264,7 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         // Let SwiftUI determine the size based on content
         let fittingSize = hostingView.fittingSize
-        let width = min(max(fittingSize.width, 300), 600)  // Match frame constraints
+        let width = min(max(fittingSize.width, 300), 450)  // Match frame constraints - reduced from 600 to prevent cutoffs
         let height = fittingSize.height
 
         print("📐 Popover: Initial creation size: \(width) x \(height) (fitting: \(fittingSize))")
@@ -314,7 +314,9 @@ class SuggestionPopover: NSObject, ObservableObject {
     private func positionPanel(at cursorPosition: CGPoint, constrainToWindow: CGRect? = nil) {
         guard let panel = panel, let screen = NSScreen.main else { return }
 
-        print("📍 Popover: Input cursor position (screen): \(cursorPosition)")
+        let msg1 = "📍 Popover: Input cursor position (screen): \(cursorPosition)"
+        NSLog(msg1)
+        logToFile(msg1)
 
         let panelSize = panel.frame.size
         let preferences = UserPreferences.shared
@@ -323,12 +325,22 @@ class SuggestionPopover: NSObject, ObservableObject {
         let constraintFrame = constrainToWindow ?? screen.visibleFrame
 
         if let windowFrame = constrainToWindow {
-            print("📍 Popover: Using window constraint: \(windowFrame)")
+            let msg2 = "📍 Popover: Using window constraint: \(windowFrame)"
+            NSLog(msg2)
+            logToFile(msg2)
         } else {
-            print("📍 Popover: Using screen frame: \(screen.visibleFrame)")
+            let msg2 = "📍 Popover: Using screen frame: \(screen.visibleFrame)"
+            NSLog(msg2)
+            logToFile(msg2)
         }
 
-        print("📍 Popover: Panel size: \(panelSize), Constraint frame: \(constraintFrame)")
+        let msg3 = "📍 Popover: Panel size: \(panelSize), Constraint frame: \(constraintFrame)"
+        NSLog(msg3)
+        logToFile(msg3)
+
+        let msg3a = "📍 Popover: Cursor position: \(cursorPosition)"
+        NSLog(msg3a)
+        logToFile(msg3a)
 
         // Calculate available space in all directions
         let padding: CGFloat = 20  // Increased from 10 to give more breathing room
@@ -337,7 +349,28 @@ class SuggestionPopover: NSObject, ObservableObject {
         let roomLeft = cursorPosition.x - constraintFrame.minX
         let roomRight = constraintFrame.maxX - cursorPosition.x
 
-        print("📍 Popover: Room - Above: \(roomAbove), Below: \(roomBelow), Left: \(roomLeft), Right: \(roomRight)")
+        let msg4 = "📍 Popover: Room - Above: \(roomAbove), Below: \(roomBelow), Left: \(roomLeft), Right: \(roomRight)"
+        NSLog(msg4)
+        logToFile(msg4)
+
+        // Dynamically adjust panel width if it would exceed available space
+        var adjustedPanelSize = panelSize
+        let maxAvailableWidth = max(roomLeft, roomRight) - padding * 3  // Extra padding for safety
+        if panelSize.width > maxAvailableWidth {
+            adjustedPanelSize.width = max(300, maxAvailableWidth)  // Minimum 300px, or available space
+
+            let msg4a = "📐 Popover: Reducing width from \(panelSize.width) to \(adjustedPanelSize.width) (available: \(maxAvailableWidth))"
+            NSLog(msg4a)
+            logToFile(msg4a)
+
+            // Resize panel and content views
+            if let trackingView = panel.contentView as? PopoverTrackingView,
+               let hostingView = trackingView.subviews.first as? NSHostingView<PopoverContentView> {
+                hostingView.frame = NSRect(x: 0, y: 0, width: adjustedPanelSize.width, height: adjustedPanelSize.height)
+                trackingView.frame = NSRect(x: 0, y: 0, width: adjustedPanelSize.width, height: adjustedPanelSize.height)
+                panel.setContentSize(NSSize(width: adjustedPanelSize.width, height: adjustedPanelSize.height))
+            }
+        }
 
         // Determine vertical positioning
         var shouldPositionAbove: Bool
@@ -348,56 +381,74 @@ class SuggestionPopover: NSObject, ObservableObject {
             shouldPositionAbove = false
         default: // "Auto"
             // Prefer above for floating indicators, but only if there's enough room
-            shouldPositionAbove = roomAbove >= panelSize.height + padding * 2
-            if !shouldPositionAbove && roomBelow < panelSize.height + padding * 2 {
+            shouldPositionAbove = roomAbove >= adjustedPanelSize.height + padding * 2
+            if !shouldPositionAbove && roomBelow < adjustedPanelSize.height + padding * 2 {
                 // Neither direction has enough room - choose the one with more space
                 shouldPositionAbove = roomAbove > roomBelow
             }
         }
 
-        print("📍 Popover: shouldPositionAbove: \(shouldPositionAbove)")
+        let msg5 = "📍 Popover: shouldPositionAbove: \(shouldPositionAbove)"
+        NSLog(msg5)
+        logToFile(msg5)
 
         // Calculate vertical position
         var origin = CGPoint.zero
         if shouldPositionAbove {
             origin.y = cursorPosition.y + padding
         } else {
-            origin.y = cursorPosition.y - panelSize.height - padding
+            origin.y = cursorPosition.y - adjustedPanelSize.height - padding
         }
 
         // Determine horizontal positioning (prefer left for floating indicator at right edge)
-        let shouldPositionLeft = roomLeft >= panelSize.width + padding * 2
+        let shouldPositionLeft = roomLeft >= adjustedPanelSize.width + padding * 2
         if shouldPositionLeft {
-            origin.x = cursorPosition.x - panelSize.width - padding
-        } else if roomRight >= panelSize.width + padding * 2 {
+            origin.x = cursorPosition.x - adjustedPanelSize.width - padding
+        } else if roomRight >= adjustedPanelSize.width + padding * 2 {
             origin.x = cursorPosition.x + padding
         } else {
             // Neither side has enough room - center it as best we can
-            origin.x = max(constraintFrame.minX + padding, min(cursorPosition.x - panelSize.width / 2, constraintFrame.maxX - panelSize.width - padding))
+            origin.x = max(constraintFrame.minX + padding, min(cursorPosition.x - adjustedPanelSize.width / 2, constraintFrame.maxX - adjustedPanelSize.width - padding))
         }
 
-        print("📍 Popover: Initial position: \(origin)")
+        let msg6 = "📍 Popover: Initial position: \(origin)"
+        NSLog(msg6)
+        logToFile(msg6)
 
         // Final bounds check to ensure panel stays fully within constraint frame
-        // Horizontal clamping
+        // Horizontal clamping - ensure popover stays within bounds
         if origin.x < constraintFrame.minX + padding {
             origin.x = constraintFrame.minX + padding
+            let msg7 = "📍 Popover: Clamped to minX: \(origin.x)"
+            NSLog(msg7)
+            logToFile(msg7)
         }
-        if origin.x + panelSize.width > constraintFrame.maxX - padding {
-            origin.x = constraintFrame.maxX - panelSize.width - padding
+        if origin.x + adjustedPanelSize.width > constraintFrame.maxX - padding {
+            // Clamp to right edge, but don't push past left edge
+            let rightClamped = constraintFrame.maxX - adjustedPanelSize.width - padding
+            origin.x = max(constraintFrame.minX + padding, rightClamped)
+            let msg8 = "📍 Popover: Clamped to maxX: rightClamped=\(rightClamped), final=\(origin.x)"
+            NSLog(msg8)
+            logToFile(msg8)
         }
 
         // Vertical clamping (ensure entire panel is visible)
         if origin.y < constraintFrame.minY + padding {
             origin.y = constraintFrame.minY + padding
-            print("📍 Popover: Clamped to minY: \(origin.y)")
+            let msg9 = "📍 Popover: Clamped to minY: \(origin.y)"
+            NSLog(msg9)
+            logToFile(msg9)
         }
-        if origin.y + panelSize.height > constraintFrame.maxY - padding {
-            origin.y = constraintFrame.maxY - panelSize.height - padding
-            print("📍 Popover: Clamped to maxY: \(origin.y)")
+        if origin.y + adjustedPanelSize.height > constraintFrame.maxY - padding {
+            origin.y = constraintFrame.maxY - adjustedPanelSize.height - padding
+            let msg10 = "📍 Popover: Clamped to maxY: \(origin.y)"
+            NSLog(msg10)
+            logToFile(msg10)
         }
 
-        print("✅ Popover: Final position: \(origin), will show at: (\(origin.x), \(origin.y)) to (\(origin.x + panelSize.width), \(origin.y + panelSize.height))")
+        let msg11 = "✅ Popover: Final position: \(origin), will show at: (\(origin.x), \(origin.y)) to (\(origin.x + adjustedPanelSize.width), \(origin.y + adjustedPanelSize.height))"
+        NSLog(msg11)
+        logToFile(msg11)
         panel.setFrameOrigin(origin)
     }
 
@@ -420,7 +471,7 @@ class SuggestionPopover: NSObject, ObservableObject {
             hostingView.layoutSubtreeIfNeeded()
 
             let fittingSize = hostingView.fittingSize
-            let width = min(max(fittingSize.width, 300), 600)  // Match frame constraints
+            let width = min(max(fittingSize.width, 300), 450)  // Match frame constraints - reduced from 600 to prevent cutoffs
             let height = fittingSize.height
 
             // Update all frames
@@ -637,7 +688,7 @@ struct PopoverContentView: View {
 
                         // Clean blue suggestion buttons
                         if !error.suggestions.isEmpty {
-                            HStack(spacing: 10) {
+                            HStack(spacing: 4) {
                                 ForEach(Array(error.suggestions.prefix(3).enumerated()), id: \.offset) { index, suggestion in
                                     Button(action: {
                                         popover.applySuggestion(suggestion)
@@ -645,9 +696,9 @@ struct PopoverContentView: View {
                                         Text(suggestion)
                                             .font(.system(size: bodyTextSize, weight: .medium))
                                             .foregroundColor(.white)
-                                            .fixedSize(horizontal: true, vertical: false)
-                                            .padding(.horizontal, 16)
-                                            .padding(.vertical, 10)
+                                            .lineLimit(1)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 6)
                                             .background(
                                                 RoundedRectangle(cornerRadius: 7)
                                                     .fill(colors.primary)
@@ -663,24 +714,27 @@ struct PopoverContentView: View {
                             }
                         }
                     }
-
-                    Spacer()
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                     // Clean close button
-                    Button(action: { popover.hide() }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(colors.textSecondary)
-                            .frame(width: 20, height: 20)
-                            .background(colors.backgroundRaised)
-                            .cornerRadius(4)
+                    VStack {
+                        Button(action: { popover.hide() }) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(colors.textSecondary)
+                                .frame(width: 20, height: 20)
+                                .background(colors.backgroundRaised)
+                                .cornerRadius(4)
+                        }
+                        .buttonStyle(.plain)
+                        .keyboardShortcut(.escape, modifiers: [])
+                        .help("Close (Esc)")
+                        .accessibilityLabel("Close suggestion popover")
+
+                        Spacer()
                     }
-                    .buttonStyle(.plain)
-                    .keyboardShortcut(.escape, modifiers: [])
-                    .help("Close (Esc)")
-                    .accessibilityLabel("Close suggestion popover")
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 12)
                 .padding(.vertical, 18)
 
                 // Bottom action bar with subtle border
@@ -829,7 +883,7 @@ struct PopoverContentView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 12)
                 .padding(.vertical, 16)
             } else {
                 Text("No errors to display")
@@ -838,7 +892,7 @@ struct PopoverContentView: View {
                     .accessibilityLabel("No grammar errors to display")
             }
         }
-        .frame(minWidth: 300, idealWidth: 350, maxWidth: 600)
+        .frame(minWidth: 300, idealWidth: 350, maxWidth: 450)
         .fixedSize(horizontal: false, vertical: true)
         .background(
             ZStack {
