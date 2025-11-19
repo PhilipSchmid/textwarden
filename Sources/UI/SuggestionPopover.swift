@@ -63,6 +63,9 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Callback for adding word to dictionary
     var onAddToDictionary: ((GrammarErrorModel) -> Void)?
 
+    /// Callback when mouse enters popover (for cancelling delayed switches)
+    var onMouseEntered: (() -> Void)?
+
     private override init() {
         super.init()
     }
@@ -86,7 +89,12 @@ class SuggestionPopover: NSObject, ObservableObject {
     }
 
     /// Show popover with error at cursor position
-    func show(error: GrammarErrorModel, allErrors: [GrammarErrorModel], at position: CGPoint) {
+    /// - Parameters:
+    ///   - error: The error to display
+    ///   - allErrors: All errors for context
+    ///   - position: Screen position for the popover
+    ///   - constrainToWindow: Optional window frame to constrain popover positioning (keeps popover inside app window)
+    func show(error: GrammarErrorModel, allErrors: [GrammarErrorModel], at position: CGPoint, constrainToWindow: CGRect? = nil) {
         // DEBUG: Log activation policy BEFORE showing
         let beforeMsg = "🔍 SuggestionPopover.show() - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)"
         NSLog(beforeMsg)
@@ -109,7 +117,7 @@ class SuggestionPopover: NSObject, ObservableObject {
                 hostingView.layoutSubtreeIfNeeded()
 
                 let fittingSize = hostingView.fittingSize
-                let width = min(max(fittingSize.width, 300), 450)  // Match frame constraints
+                let width = min(max(fittingSize.width, 300), 600)  // Match frame constraints
                 let height = fittingSize.height
 
                 hostingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
@@ -120,8 +128,8 @@ class SuggestionPopover: NSObject, ObservableObject {
             }
         }
 
-        // Position near cursor
-        positionPanel(at: position)
+        // Position near cursor (with optional window constraint)
+        positionPanel(at: position, constrainToWindow: constrainToWindow)
 
         // Show panel without stealing focus (panel is already .nonactivatingPanel)
         // Use order(.above) instead of orderFrontRegardless() to prevent focus stealing
@@ -256,7 +264,7 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         // Let SwiftUI determine the size based on content
         let fittingSize = hostingView.fittingSize
-        let width = min(max(fittingSize.width, 300), 450)  // Match frame constraints
+        let width = min(max(fittingSize.width, 300), 600)  // Match frame constraints
         let height = fittingSize.height
 
         print("📐 Popover: Initial creation size: \(width) x \(height) (fitting: \(fittingSize))")
@@ -300,23 +308,34 @@ class SuggestionPopover: NSObject, ObservableObject {
     }
 
     /// Position panel near cursor (T042)
-    private func positionPanel(at cursorPosition: CGPoint) {
+    /// - Parameters:
+    ///   - cursorPosition: The screen position for the popover
+    ///   - constrainToWindow: Optional window frame to constrain positioning (keeps popover inside app window)
+    private func positionPanel(at cursorPosition: CGPoint, constrainToWindow: CGRect? = nil) {
         guard let panel = panel, let screen = NSScreen.main else { return }
 
         print("📍 Popover: Input cursor position (screen): \(cursorPosition)")
 
         let panelSize = panel.frame.size
         let preferences = UserPreferences.shared
-        let screenFrame = screen.visibleFrame
 
-        print("📍 Popover: Panel size: \(panelSize), Screen visible frame: \(screenFrame)")
+        // Use constrainToWindow if provided, otherwise use screen frame
+        let constraintFrame = constrainToWindow ?? screen.visibleFrame
+
+        if let windowFrame = constrainToWindow {
+            print("📍 Popover: Using window constraint: \(windowFrame)")
+        } else {
+            print("📍 Popover: Using screen frame: \(screen.visibleFrame)")
+        }
+
+        print("📍 Popover: Panel size: \(panelSize), Constraint frame: \(constraintFrame)")
 
         // Calculate available space in all directions
-        let padding: CGFloat = 10
-        let roomAbove = screenFrame.maxY - cursorPosition.y
-        let roomBelow = cursorPosition.y - screenFrame.minY
-        let roomLeft = cursorPosition.x - screenFrame.minX
-        let roomRight = screenFrame.maxX - cursorPosition.x
+        let padding: CGFloat = 20  // Increased from 10 to give more breathing room
+        let roomAbove = constraintFrame.maxY - cursorPosition.y
+        let roomBelow = cursorPosition.y - constraintFrame.minY
+        let roomLeft = cursorPosition.x - constraintFrame.minX
+        let roomRight = constraintFrame.maxX - cursorPosition.x
 
         print("📍 Popover: Room - Above: \(roomAbove), Below: \(roomBelow), Left: \(roomLeft), Right: \(roomRight)")
 
@@ -354,27 +373,27 @@ class SuggestionPopover: NSObject, ObservableObject {
             origin.x = cursorPosition.x + padding
         } else {
             // Neither side has enough room - center it as best we can
-            origin.x = max(screenFrame.minX + padding, min(cursorPosition.x - panelSize.width / 2, screenFrame.maxX - panelSize.width - padding))
+            origin.x = max(constraintFrame.minX + padding, min(cursorPosition.x - panelSize.width / 2, constraintFrame.maxX - panelSize.width - padding))
         }
 
         print("📍 Popover: Initial position: \(origin)")
 
-        // Final bounds check to ensure panel stays fully on screen
+        // Final bounds check to ensure panel stays fully within constraint frame
         // Horizontal clamping
-        if origin.x < screenFrame.minX + padding {
-            origin.x = screenFrame.minX + padding
+        if origin.x < constraintFrame.minX + padding {
+            origin.x = constraintFrame.minX + padding
         }
-        if origin.x + panelSize.width > screenFrame.maxX - padding {
-            origin.x = screenFrame.maxX - panelSize.width - padding
+        if origin.x + panelSize.width > constraintFrame.maxX - padding {
+            origin.x = constraintFrame.maxX - panelSize.width - padding
         }
 
         // Vertical clamping (ensure entire panel is visible)
-        if origin.y < screenFrame.minY + padding {
-            origin.y = screenFrame.minY + padding
+        if origin.y < constraintFrame.minY + padding {
+            origin.y = constraintFrame.minY + padding
             print("📍 Popover: Clamped to minY: \(origin.y)")
         }
-        if origin.y + panelSize.height > screenFrame.maxY - padding {
-            origin.y = screenFrame.maxY - panelSize.height - padding
+        if origin.y + panelSize.height > constraintFrame.maxY - padding {
+            origin.y = constraintFrame.maxY - panelSize.height - padding
             print("📍 Popover: Clamped to maxY: \(origin.y)")
         }
 
@@ -401,7 +420,7 @@ class SuggestionPopover: NSObject, ObservableObject {
             hostingView.layoutSubtreeIfNeeded()
 
             let fittingSize = hostingView.fittingSize
-            let width = min(max(fittingSize.width, 300), 450)  // Match frame constraints
+            let width = min(max(fittingSize.width, 300), 600)  // Match frame constraints
             let height = fittingSize.height
 
             // Update all frames
@@ -626,7 +645,7 @@ struct PopoverContentView: View {
                                         Text(suggestion)
                                             .font(.system(size: bodyTextSize, weight: .medium))
                                             .foregroundColor(.white)
-                                            .lineLimit(1)
+                                            .fixedSize(horizontal: true, vertical: false)
                                             .padding(.horizontal, 16)
                                             .padding(.vertical, 10)
                                             .background(
@@ -819,7 +838,7 @@ struct PopoverContentView: View {
                     .accessibilityLabel("No grammar errors to display")
             }
         }
-        .frame(minWidth: 300, idealWidth: 350, maxWidth: 450)
+        .frame(minWidth: 300, idealWidth: 350, maxWidth: 600)
         .fixedSize(horizontal: false, vertical: true)
         .background(
             ZStack {
@@ -1082,6 +1101,7 @@ class PopoverTrackingView: NSView {
     override func mouseEntered(with event: NSEvent) {
         print("🖱️ Popover: Mouse ENTERED tracking view")
         popover?.cancelHide()
+        popover?.onMouseEntered?()
     }
 
     override func mouseExited(with event: NSEvent) {
