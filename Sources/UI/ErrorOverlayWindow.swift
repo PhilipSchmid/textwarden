@@ -390,42 +390,193 @@ class ErrorOverlayWindow: NSPanel {
     /// Get the application window frame for smart popover positioning
     /// Returns the visible window frame if available
     private func getApplicationWindowFrame() -> CGRect? {
-        guard let element = monitoredElement else { return nil }
+        let msg0 = "🪟 ErrorOverlay: getApplicationWindowFrame() called"
+        NSLog(msg0)
+        logToDebugFile(msg0)
 
-        // Try to get the window frame using CGWindowListCopyWindowInfo (most reliable)
-        var pid: pid_t = 0
-        guard AXUIElementGetPid(element, &pid) == .success else { return nil }
-
-        let options = CGWindowListOption(arrayLiteral: .optionOnScreenOnly)
-        guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+        guard let element = monitoredElement else {
+            let msg = "🪟 ErrorOverlay: getApplicationWindowFrame() - no monitoredElement"
+            NSLog(msg)
+            logToDebugFile(msg)
             return nil
         }
 
-        // Find the frontmost window for this PID
-        for windowInfo in windowList {
-            if let windowPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
-               windowPID == pid,
-               let boundsDict = windowInfo[kCGWindowBounds as String] as? [String: CGFloat] {
+        // Get PID from the AXUIElement
+        var pid: pid_t = 0
+        let pidResult = AXUIElementGetPid(element, &pid)
+        guard pidResult == .success, pid > 0 else {
+            let msg = "🪟 ErrorOverlay: Could not get PID from element (result: \(pidResult.rawValue))"
+            NSLog(msg)
+            logToDebugFile(msg)
+            return nil
+        }
 
-                let x = boundsDict["X"] ?? 0
-                let y = boundsDict["Y"] ?? 0
-                let width = boundsDict["Width"] ?? 0
-                let height = boundsDict["Height"] ?? 0
+        let msgPID = "🪟 ErrorOverlay: Got PID \(pid) from element"
+        NSLog(msgPID)
+        logToDebugFile(msgPID)
 
-                // Convert from Quartz (top-left origin) to Cocoa (bottom-left origin)
-                if let screen = NSScreen.main {
-                    let screenHeight = screen.frame.height
-                    let cocoaY = screenHeight - y - height
+        // Try Method 1: CGWindow API (most reliable for regular apps)
+        let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
 
-                    let frame = NSRect(x: x, y: cocoaY, width: width, height: height)
-                    let msg = "🪟 ErrorOverlay: Got application window frame: \(frame)"
-                    NSLog(msg)
-                    logToDebugFile(msg)
-                    return frame
+        if let windowList = windowList {
+            let msg1 = "🪟 ErrorOverlay: Got \(windowList.count) windows from CGWindowListCopyWindowInfo"
+            NSLog(msg1)
+            logToDebugFile(msg1)
+
+            // Find windows belonging to the monitored app's PID
+            let appWindows = windowList.filter { dict in
+                guard let ownerPID = dict[kCGWindowOwnerPID as String] as? Int32 else { return false }
+                return ownerPID == pid
+            }
+
+            let msg2 = "🪟 ErrorOverlay: Found \(appWindows.count) windows for PID \(pid)"
+            NSLog(msg2)
+            logToDebugFile(msg2)
+
+            // Find the frontmost window (layer 0)
+            if let frontWindow = appWindows.first(where: { dict in
+                (dict[kCGWindowLayer as String] as? Int) == 0
+            }) {
+                if let boundsDict = frontWindow[kCGWindowBounds as String] as? [String: CGFloat],
+                   let x = boundsDict["X"],
+                   let y = boundsDict["Y"],
+                   let width = boundsDict["Width"],
+                   let height = boundsDict["Height"] {
+
+                    // CGWindow coordinates are in Quartz (top-left origin)
+                    // Convert to Cocoa (bottom-left origin)
+                    if let screen = NSScreen.main {
+                        let screenHeight = screen.frame.height
+                        let cocoaY = screenHeight - y - height
+                        var frame = NSRect(x: x, y: cocoaY, width: width, height: height)
+
+                        // Account for window chrome (title bar, borders)
+                        // Title bar is ~24px, add small margins on other sides
+                        let chromeTop: CGFloat = 24    // Title bar
+                        let chromeLeft: CGFloat = 2    // Left border
+                        let chromeRight: CGFloat = 2   // Right border
+                        let chromeBottom: CGFloat = 2  // Bottom border
+
+                        frame = frame.insetBy(dx: 0, dy: 0)
+                        frame.origin.x += chromeLeft
+                        frame.origin.y += chromeBottom
+                        frame.size.width -= (chromeLeft + chromeRight)
+                        frame.size.height -= (chromeTop + chromeBottom)
+
+                        let msg3 = "🪟 ErrorOverlay: Got window frame from CGWindow API (with chrome margins): \(frame)"
+                        NSLog(msg3)
+                        logToDebugFile(msg3)
+                        return frame
+                    }
                 }
             }
         }
 
+        // Try Method 2: Walk up AX hierarchy
+        let msg4 = "🪟 ErrorOverlay: CGWindow API failed, trying AX hierarchy"
+        NSLog(msg4)
+        logToDebugFile(msg4)
+
+        var windowElement: AXUIElement?
+        var currentElement: AXUIElement? = element
+
+        // Walk up the accessibility hierarchy to find the window
+        for level in 0..<10 { // Max 10 levels up
+            guard let current = currentElement else {
+                let msgBreak = "🪟 ErrorOverlay: AX walk stopped at level \(level) - no current element"
+                NSLog(msgBreak)
+                logToDebugFile(msgBreak)
+                break
+            }
+
+            var roleValue: CFTypeRef?
+            let roleResult = AXUIElementCopyAttributeValue(current, kAXRoleAttribute as CFString, &roleValue)
+
+            guard roleResult == .success, let role = roleValue as? String else {
+                let msgBreak2 = "🪟 ErrorOverlay: AX walk stopped at level \(level) - could not get role (result: \(roleResult.rawValue))"
+                NSLog(msgBreak2)
+                logToDebugFile(msgBreak2)
+                break
+            }
+
+            let msgLevel = "🪟 ErrorOverlay: AX walk level \(level) - role: \(role)"
+            NSLog(msgLevel)
+            logToDebugFile(msgLevel)
+
+            if role == "AXWindow" || role == kAXWindowRole as String {
+                windowElement = current
+                let msgFound = "🪟 ErrorOverlay: Found AXWindow at level \(level)"
+                NSLog(msgFound)
+                logToDebugFile(msgFound)
+                break
+            }
+
+            // Get parent element
+            var parentValue: CFTypeRef?
+            let parentResult = AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentValue)
+            guard parentResult == .success, let parent = parentValue else {
+                let msgBreak3 = "🪟 ErrorOverlay: AX walk stopped at level \(level) - could not get parent (result: \(parentResult.rawValue))"
+                NSLog(msgBreak3)
+                logToDebugFile(msgBreak3)
+                break
+            }
+            currentElement = (parent as! AXUIElement)
+        }
+
+        // If we found a window element, get its frame
+        if let window = windowElement {
+            let msg5 = "🪟 ErrorOverlay: Extracting frame from AXWindow element"
+            NSLog(msg5)
+            logToDebugFile(msg5)
+
+            var positionValue: CFTypeRef?
+            var sizeValue: CFTypeRef?
+
+            let positionResult = AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &positionValue)
+            let sizeResult = AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeValue)
+
+            if positionResult == .success, sizeResult == .success,
+               let position = positionValue, let size = sizeValue {
+
+                var origin = CGPoint.zero
+                var windowSize = CGSize.zero
+
+                AXValueGetValue(position as! AXValue, .cgPoint, &origin)
+                AXValueGetValue(size as! AXValue, .cgSize, &windowSize)
+
+                // Convert from Quartz (top-left origin) to Cocoa (bottom-left origin)
+                if let screen = NSScreen.main {
+                    let screenHeight = screen.frame.height
+                    let cocoaY = screenHeight - origin.y - windowSize.height
+
+                    var frame = NSRect(x: origin.x, y: cocoaY, width: windowSize.width, height: windowSize.height)
+
+                    // Account for window chrome (title bar, borders)
+                    let chromeTop: CGFloat = 24    // Title bar
+                    let chromeLeft: CGFloat = 2    // Left border
+                    let chromeRight: CGFloat = 2   // Right border
+                    let chromeBottom: CGFloat = 2  // Bottom border
+
+                    frame.origin.x += chromeLeft
+                    frame.origin.y += chromeBottom
+                    frame.size.width -= (chromeLeft + chromeRight)
+                    frame.size.height -= (chromeTop + chromeBottom)
+
+                    let msg6 = "🪟 ErrorOverlay: Got window frame from AX hierarchy (with chrome margins): \(frame)"
+                    NSLog(msg6)
+                    logToDebugFile(msg6)
+                    return frame
+                }
+            } else {
+                let msg7 = "🪟 ErrorOverlay: Could not extract position/size from AXWindow (pos result: \(positionResult.rawValue), size result: \(sizeResult.rawValue))"
+                NSLog(msg7)
+                logToDebugFile(msg7)
+            }
+        }
+
+        let msg8 = "🪟 ErrorOverlay: All methods failed, returning nil"
+        NSLog(msg8)
+        logToDebugFile(msg8)
         return nil
     }
 
