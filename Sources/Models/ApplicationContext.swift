@@ -205,7 +205,8 @@ extension ApplicationContext {
     private static let macCatalystApps: Set<String> = [
         "com.apple.MobileSMS",       // Messages
         "com.apple.news",            // Apple News
-        "com.apple.stocks"           // Stocks
+        "com.apple.stocks",          // Stocks
+        "net.whatsapp.WhatsApp"      // WhatsApp (Catalyst version)
     ]
 
     /// Check if this is a Mac Catalyst app (iOS app running on macOS)
