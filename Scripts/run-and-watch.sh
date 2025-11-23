@@ -11,17 +11,19 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-APP_PATH="$HOME/Library/Developer/Xcode/DerivedData/Gnau-azzjcqpbioaartckrqvohqnqkfno/Build/Products/Debug/Gnau.app"
+# Find the app dynamically from DerivedData (exclude Index.noindex)
+APP_PATH=$(find "$HOME/Library/Developer/Xcode/DerivedData/Gnau-"* -name "Gnau.app" -path "*/Build/Products/Debug/Gnau.app" 2>/dev/null | grep -v "Index.noindex" | head -1)
 
 echo -e "${GREEN}🚀 Gnau Runner with Live Logs${NC}"
 echo "================================"
 echo ""
 
 # 1. Check if app exists
-if [ ! -d "$APP_PATH" ]; then
+if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
     echo -e "${RED}❌ Gnau.app not found!${NC}"
     echo "Build it first:"
-    echo "  xcodebuild -project Gnau.xcodeproj -scheme Gnau build"
+    echo "  make build"
+    echo "  or: xcodebuild -project Gnau.xcodeproj -scheme Gnau build"
     exit 1
 fi
 
@@ -62,7 +64,8 @@ echo "  ⏱️  Starting permission polling"
 echo "  ✅ Permission granted"
 echo ""
 
-open "$APP_PATH"
+# Launch the executable directly in the background
+"$APP_PATH/Contents/MacOS/Gnau" &>/dev/null &
 
 echo -e "${GREEN}✅ Gnau launched!${NC}"
 echo ""
