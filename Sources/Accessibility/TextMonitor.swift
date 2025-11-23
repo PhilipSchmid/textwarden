@@ -1,6 +1,6 @@
 //
 //  TextMonitor.swift
-//  Gnau
+//  TextWarden
 //
 //  Monitors text changes in accessible applications using AX API
 //

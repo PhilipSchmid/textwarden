@@ -1,13 +1,13 @@
 //
 //  SuggestionPopoverTests.swift
-//  Gnau Integration Tests
+//  TextWarden Integration Tests
 //
 //  Integration tests for suggestion popover display and interaction
 //
 
 import XCTest
 import SwiftUI
-@testable import Gnau
+@testable import TextWarden
 
 final class SuggestionPopoverTests: XCTestCase {
 

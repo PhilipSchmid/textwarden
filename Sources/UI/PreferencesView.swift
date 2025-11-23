@@ -1,6 +1,6 @@
 //
 //  PreferencesView.swift
-//  Gnau
+//  TextWarden
 //
 //  Settings/Preferences window
 //
@@ -628,7 +628,7 @@ struct ApplicationSettingsView: View {
     private func isSystemBackgroundService(_ bundleID: String) -> Bool {
         // List of system services that users typically don't interact with
         let systemServices = [
-            "app.gnau.Gnau",  // Don't check grammar in Gnau's own UI
+            "com.philipschmid.TextWarden",  // Don't check grammar in Gnau's own UI
             "com.apple.loginwindow",
             "com.apple.UserNotificationCenter",
             "com.apple.notificationcenterui",
@@ -792,11 +792,11 @@ struct GeneralPreferencesView: View {
                     }
                 }
 
-                Toggle("Launch Gnau at login", isOn: $preferences.launchAtLogin)
-                    .help("Automatically start Gnau when you log in")
+                Toggle("Launch TextWarden at login", isOn: $preferences.launchAtLogin)
+                    .help("Automatically start TextWarden when you log in")
 
                 Toggle("Always open in foreground", isOn: $preferences.openInForeground)
-                    .help("Show settings window when Gnau starts (default: background only)")
+                    .help("Show settings window when TextWarden starts (default: background only)")
             } header: {
                 Text("General")
                     .font(.headline)
@@ -1082,12 +1082,12 @@ struct FilteringPreferencesView: View {
                     .font(.headline)
             }
 
-            // Gnau Enhancements
+            // TextWarden Enhancements
             Section {
                 Toggle("Sentence-Start Capitalization", isOn: $preferences.enableSentenceStartCapitalization)
                     .help("Automatically capitalize suggestions at the beginning of sentences")
             } header: {
-                Text("Gnau Enhancements")
+                Text("TextWarden Enhancements")
                     .font(.headline)
             }
 
@@ -1557,7 +1557,7 @@ struct DiagnosticsView: View {
                             .foregroundColor(.secondary)
                     }
 
-                    Text("When enabled, colored boxes will appear around text fields to show how Gnau calculates positions for grammar indicators. This is useful for troubleshooting position-related issues in specific applications.")
+                    Text("When enabled, colored boxes will appear around text fields to show how TextWarden calculates positions for grammar indicators. This is useful for troubleshooting position-related issues in specific applications.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.top, 4)
@@ -1617,8 +1617,8 @@ struct SystemStatusView: View {
                     }
 
                     Text(permissionManager.isPermissionGranted ?
-                         "Gnau has the necessary permissions to monitor your text and provide grammar checking." :
-                         "Gnau needs Accessibility permissions to monitor your text. Click the button below to grant permission.")
+                         "TextWarden has the necessary permissions to monitor your text and provide grammar checking." :
+                         "TextWarden needs Accessibility permissions to monitor your text. Click the button below to grant permission.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.top, 4)
@@ -1740,13 +1740,13 @@ struct SystemStatusView: View {
                         SystemInfoRow(
                             icon: "doc.text.magnifyingglass",
                             title: "Text Monitoring",
-                            description: "Gnau needs to read text you type to check for grammar errors."
+                            description: "TextWarden needs to read text you type to check for grammar errors."
                         )
 
                         SystemInfoRow(
                             icon: "pencil.and.outline",
                             title: "Text Replacement",
-                            description: "Gnau can replace text with suggested corrections when you click them."
+                            description: "TextWarden can replace text with suggested corrections when you click them."
                         )
 
                         SystemInfoRow(
@@ -1811,7 +1811,7 @@ struct AboutView: View {
                     .scaledToFit()
                     .frame(width: 80, height: 80)
 
-                Text("Gnau")
+                Text("TextWarden")
                     .font(.system(size: 42, weight: .bold))
 
                 Text("Real-time Grammar Checking for macOS")

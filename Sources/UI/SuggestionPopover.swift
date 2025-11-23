@@ -1,6 +1,6 @@
 //
 //  SuggestionPopover.swift
-//  Gnau
+//  TextWarden
 //
 //  Displays grammar error suggestions in a popover near the cursor
 //
@@ -11,7 +11,7 @@ import Combine
 import ApplicationServices
 
 /// Custom NSPanel subclass that prevents becoming key window
-/// This is CRITICAL to prevent Gnau from stealing focus from other apps
+/// This is CRITICAL to prevent TextWarden from stealing focus from other apps
 class NonActivatingPanel: NSPanel {
     // CRITICAL: Override canBecomeKey to return false
     // This prevents the panel from stealing keyboard focus
@@ -70,9 +70,9 @@ class SuggestionPopover: NSObject, ObservableObject {
         super.init()
     }
 
-    /// Log to file for debugging (same as GnauApp)
+    /// Log to file for debugging (same as TextWardenApp)
     private func logToFile(_ message: String) {
-        let logPath = "/tmp/gnau-debug.log"
+        let logPath = "/tmp/textwarden-debug.log"
         let timestamp = Date()
         let logMessage = "[\(timestamp)] \(message)\n"
         if let data = logMessage.data(using: .utf8) {

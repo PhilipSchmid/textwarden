@@ -8,7 +8,7 @@ class IndicatorPositionStore {
     static let shared = IndicatorPositionStore()
 
     private let defaults = UserDefaults.standard
-    private let positionsKey = "com.gnau.indicatorPositions"
+    private let positionsKey = "com.textwarden.indicatorPositions"
 
     private init() {}
 

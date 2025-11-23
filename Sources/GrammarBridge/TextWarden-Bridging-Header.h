@@ -1,5 +1,5 @@
 //
-//  Gnau-Bridging-Header.h
+//  TextWarden-Bridging-Header.h
 //  Gnau
 //
 //  Bridging header for Rust FFI integration via swift-bridge

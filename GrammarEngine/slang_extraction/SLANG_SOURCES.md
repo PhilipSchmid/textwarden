@@ -1,6 +1,6 @@
 # Internet Slang Dictionary Sources
 
-This document tracks the sources used to compile the slang dictionaries for gnau's grammar engine.
+This document tracks the sources used to compile the slang dictionaries for TextWarden's grammar engine.
 
 ## Internet Abbreviations Dictionary (`internet_abbreviations.txt`)
 

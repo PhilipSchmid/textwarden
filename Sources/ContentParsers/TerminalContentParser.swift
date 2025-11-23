@@ -1,6 +1,6 @@
 //
 //  TerminalContentParser.swift
-//  Gnau
+//  TextWarden
 //
 //  Terminal-specific content parser with intelligent text filtering
 //  Prevents checking command output, only checks user input at the prompt

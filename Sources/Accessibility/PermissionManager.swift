@@ -1,6 +1,6 @@
 //
 //  PermissionManager.swift
-//  Gnau
+//  TextWarden
 //
 //  Manages Accessibility permissions and status
 //

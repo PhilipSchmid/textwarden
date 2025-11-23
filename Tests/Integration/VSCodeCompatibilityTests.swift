@@ -1,12 +1,12 @@
 //
 //  VSCodeCompatibilityTests.swift
-//  Gnau Tests
+//  TextWarden Tests
 //
 //  Integration tests for VS Code compatibility (T090)
 //
 
 import XCTest
-@testable import Gnau
+@testable import TextWarden
 
 final class VSCodeCompatibilityTests: XCTestCase {
     var coordinator: AnalysisCoordinator!

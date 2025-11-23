@@ -1,6 +1,6 @@
 //
 //  OnboardingView.swift
-//  Gnau
+//  TextWarden
 //
 //  First-time setup and Accessibility permission onboarding
 //
@@ -92,7 +92,7 @@ struct OnboardingView: View {
             Text("Setup Required")
                 .font(.headline)
 
-            Text("Gnau needs Accessibility permissions to check grammar across all your applications.")
+            Text("TextWarden needs Accessibility permissions to check grammar across all your applications.")
                 .foregroundColor(.secondary)
 
             VStack(alignment: .leading, spacing: 12) {
@@ -102,7 +102,7 @@ struct OnboardingView: View {
             }
             .padding(.vertical, 8)
 
-            Text("This permission allows Gnau to read text from applications and provide grammar suggestions.")
+            Text("This permission allows TextWarden to read text from applications and provide grammar suggestions.")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .padding(.top, 8)
@@ -118,7 +118,7 @@ struct OnboardingView: View {
                 StepRow(number: 1, text: "Click 'Open System Settings' below")
                 StepRow(number: 2, text: "Navigate to Privacy & Security → Accessibility")
                 StepRow(number: 3, text: "Find 'Gnau' in the list and enable it")
-                StepRow(number: 4, text: "Return to Gnau - we'll detect the change automatically")
+                StepRow(number: 4, text: "Return to TextWarden - we'll detect the change automatically")
             }
             .padding(.vertical, 8)
 
@@ -190,7 +190,7 @@ struct OnboardingView: View {
 
             Divider()
 
-            Text("You're all set! Gnau will now check your grammar across all supported applications.")
+            Text("You're all set! TextWarden will now check your grammar across all supported applications.")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }

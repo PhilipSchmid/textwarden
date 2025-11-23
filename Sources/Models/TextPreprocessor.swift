@@ -1,6 +1,6 @@
 //
 //  TextPreprocessor.swift
-//  Gnau
+//  TextWarden
 //
 //  Text preprocessing for code editors and terminals (T094, T095)
 //

@@ -3,7 +3,7 @@
 # URL: https://csrc.nist.gov/glossary
 # Download: https://csrc.nist.gov/csrc/media/glossary/glossary-export.zip
 # License: Public Domain (US Government work)
-# Extraction date: /Users/phisch/git/github.com/philipschmid/gnau/GrammarEngine/it_terminology_extraction/scripts
+# Extraction date: /Users/phisch/git/github.com/philipschmid/textwarden/GrammarEngine/it_terminology_extraction/scripts
 #
 # Methodology:
 # 1. Downloaded ZIP containing glossary-export.json

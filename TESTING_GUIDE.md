@@ -370,7 +370,7 @@ To test the onboarding flow from scratch:
 3. [ ] **VERIFY**: Icon changes color in dark/light mode
 4. [ ] Click menu bar icon
 5. [ ] **VERIFY**: Menu appears with options:
-   - Gnau Grammar Checker (disabled header)
+   - TextWarden Grammar Checker (disabled header)
    - Preferences...
    - About Gnau
    - Quit Gnau
@@ -683,7 +683,7 @@ defaults read com.philipschmid.Gnau
 ### Check Build Info
 ```bash
 # Get app version
-defaults read /Users/phisch/Library/Developer/Xcode/DerivedData/Gnau-*/Build/Products/Debug/Gnau.app/Contents/Info.plist CFBundleShortVersionString
+defaults read /Users/phisch/Library/Developer/Xcode/DerivedData/TextWarden-*/Build/Products/Debug/TextWarden.app/Contents/Info.plist CFBundleShortVersionString
 ```
 
 ---

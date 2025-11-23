@@ -1,6 +1,6 @@
 //
 //  Logger.swift
-//  Gnau
+//  TextWarden
 //
 //  Structured logging system using os_log (T117, T118)
 //
@@ -10,7 +10,7 @@ import os.log
 
 /// Centralized logging system for Gnau
 struct Logger {
-    private static let subsystem = "com.gnau.app"
+    private static let subsystem = "com.textwarden.app"
 
     // MARK: - Log Categories (T117)
 

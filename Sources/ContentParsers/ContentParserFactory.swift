@@ -1,6 +1,6 @@
 //
 //  ContentParserFactory.swift
-//  Gnau
+//  TextWarden
 //
 //  Factory for creating app-specific content parsers
 //  Extensible architecture for adding new app support

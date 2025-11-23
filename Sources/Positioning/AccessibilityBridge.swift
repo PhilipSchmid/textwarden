@@ -1,6 +1,6 @@
 //
 //  AccessibilityBridge.swift
-//  Gnau
+//  TextWarden
 //
 //  Low-level Accessibility API wrapper
 //  Handles the complex C APIs with Swift-friendly interface

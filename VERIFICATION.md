@@ -74,7 +74,7 @@ According to spec.md, User Story 1 requires:
 
 To complete verification:
 
-1. ☐ Launch Gnau.app
+1. ☐ Launch TextWarden.app
 2. ☐ Grant Accessibility permissions
 3. ☐ Open TextEdit
 4. ☐ Type test sentence: "This are a test."

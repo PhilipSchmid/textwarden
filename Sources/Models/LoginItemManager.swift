@@ -1,6 +1,6 @@
 //
 //  LoginItemManager.swift
-//  Gnau
+//  TextWarden
 //
 //  Manages launch at login functionality using ServiceManagement
 //

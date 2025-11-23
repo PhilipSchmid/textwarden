@@ -167,7 +167,7 @@ pub fn analyze_text(
                 })
                 .collect();
 
-            // Post-process suggestions: capitalize if at sentence start (Gnau enhancement)
+            // Post-process suggestions: capitalize if at sentence start (TextWarden enhancement)
             // This is only applied if the user has enabled this feature in preferences
             if enable_sentence_start_capitalization {
                 // Check if this error is at the beginning of a sentence
@@ -2045,7 +2045,7 @@ mod tests {
 
     #[test]
     fn test_sentence_start_capitalization_toggle_enabled() {
-        // Test that sentence-start capitalization works when enabled (Gnau enhancement)
+        // Test that sentence-start capitalization works when enabled (TextWarden enhancement)
         let test_cases = vec![
             ("THis is a test.", "THis", "This"),  // Start of text
             ("Hello. tHat is wrong.", "tHat", "That"),  // After period

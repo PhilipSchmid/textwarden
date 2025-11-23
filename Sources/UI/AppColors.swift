@@ -1,6 +1,6 @@
 //
 //  AppColors.swift
-//  Gnau
+//  TextWarden
 //
 //  Modern color schema following HSL-based design principles
 //  - Neutral colors for backgrounds, text, and borders

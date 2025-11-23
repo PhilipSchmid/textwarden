@@ -1,6 +1,6 @@
 //
 //  PositionCache.swift
-//  Gnau
+//  TextWarden
 //
 //  High-performance cache for position calculations
 //  Dramatically reduces expensive AX API calls
@@ -30,7 +30,7 @@ class PositionCache {
     private var cache: [CacheKey: CacheEntry] = [:]
     private let maxEntries = 100
     private let maxAge: TimeInterval = 5.0  // 5 seconds
-    private let queue = DispatchQueue(label: "com.gnau.position-cache", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.textwarden.position-cache", qos: .userInitiated)
 
     // Statistics
     private var hits: Int = 0

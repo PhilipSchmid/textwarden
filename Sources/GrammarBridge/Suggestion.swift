@@ -1,6 +1,6 @@
 //
 //  Suggestion.swift
-//  Gnau
+//  TextWarden
 //
 //  Model for grammar correction suggestions
 //

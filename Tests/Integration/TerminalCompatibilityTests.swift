@@ -1,12 +1,12 @@
 //
 //  TerminalCompatibilityTests.swift
-//  Gnau Tests
+//  TextWarden Tests
 //
 //  Integration tests for Terminal compatibility (T091)
 //
 
 import XCTest
-@testable import Gnau
+@testable import TextWarden
 
 final class TerminalCompatibilityTests: XCTestCase {
     var coordinator: AnalysisCoordinator!

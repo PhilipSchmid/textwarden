@@ -1,6 +1,6 @@
 //
 //  SlackContentParser.swift
-//  Gnau
+//  TextWarden
 //
 //  Slack-specific content parser with UI context detection
 //  Handles different text rendering in message input vs search bar vs thread replies

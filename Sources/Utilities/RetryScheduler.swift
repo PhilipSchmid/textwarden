@@ -1,6 +1,6 @@
 //
 //  RetryScheduler.swift
-//  Gnau
+//  TextWarden
 //
 //  Reusable retry scheduler with exponential backoff
 //

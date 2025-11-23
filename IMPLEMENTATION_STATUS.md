@@ -1,4 +1,4 @@
-# Gnau Implementation Status
+# TextWarden Implementation Status
 
 **Last Updated**: 2025-11-09
 **Current Phase**: Phase 3 - User Story 1 (In Progress)
@@ -33,7 +33,7 @@
 - [X] Contract tests (11 tests)
 
 **Application Foundation:**
-- [X] GnauApp.swift with @main
+- [X] TextWardenApp.swift with @main
 - [X] MenuBarController.swift
 - [X] Menu bar icon + menus
 - [X] UserPreferences.swift with persistence
@@ -278,7 +278,7 @@
 
 ### Build Artifacts
 - ✅ libgrammar_engine_universal.a (69.11 MB)
-- ✅ Gnau.app (builds successfully)
+- ✅ TextWarden.app (builds successfully)
 - ⚠️ Not runnable for User Story 1 yet (AX not implemented)
 
 ---

@@ -1,6 +1,6 @@
 //
 //  CustomVocabulary.swift
-//  Gnau
+//  TextWarden
 //
 //  Custom vocabulary management with JSON persistence (T100, T107)
 //
@@ -24,7 +24,7 @@ class CustomVocabulary: ObservableObject {
             in: .userDomainMask
         ).first!
 
-        let gnauDir = appSupport.appendingPathComponent("Gnau")
+        let gnauDir = appSupport.appendingPathComponent("TextWarden")
 
         // Create directory if needed
         try? FileManager.default.createDirectory(

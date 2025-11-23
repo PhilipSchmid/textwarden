@@ -1,6 +1,6 @@
 //
 //  MenuBarController.swift
-//  Gnau
+//  TextWarden
 //
 //  Manages the NSStatusItem and menu bar icon for Gnau
 //
@@ -44,10 +44,10 @@ class MenuBarController: NSObject, NSMenuDelegate {
             return
         }
 
-        // Set menu bar icon - using custom Gnau icon
-        let icon = GnauIcon.create()
+        // Set menu bar icon - using custom TextWarden icon
+        let icon = TextWardenIcon.create()
         button.image = icon
-        button.toolTip = "Gnau Grammar Checker"
+        button.toolTip = "TextWarden Grammar Checker"
 
         // IMPORTANT: Do NOT set statusItem.menu here, as it prevents button.action from firing
         // Instead, we handle the click manually and show the menu programmatically
@@ -82,7 +82,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         menu = NSMenu()
 
         // Status header
-        let headerItem = NSMenuItem(title: "Gnau Grammar Checker", action: nil, keyEquivalent: "")
+        let headerItem = NSMenuItem(title: "TextWarden Grammar Checker", action: nil, keyEquivalent: "")
         headerItem.isEnabled = false
         menu?.addItem(headerItem)
         menu?.addItem(NSMenuItem.separator())
@@ -163,7 +163,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         // This was captured BEFORE the menu opened, so it's the app the user was in
         guard let targetApp = menuTargetApp,
               let bundleID = targetApp.bundleIdentifier,
-              bundleID != "app.gnau.Gnau" else {
+              bundleID != "com.philipschmid.TextWarden" else {
             return
         }
 
@@ -204,7 +204,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         // About
         let aboutItem = NSMenuItem(
-            title: "About Gnau",
+            title: "About TextWarden",
             action: #selector(showAbout),
             keyEquivalent: ""
         )
@@ -215,7 +215,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         // Quit
         let quitItem = NSMenuItem(
-            title: "Quit Gnau",
+            title: "Quit TextWarden",
             action: #selector(quitApp),
             keyEquivalent: "q"
         )
@@ -418,7 +418,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
             symbolName = "arrow.triangle.2.circlepath"
         }
 
-        if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Gnau - \(state)") {
+        if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "TextWarden - \(state)") {
             image.isTemplate = true
             button.image = image
         }

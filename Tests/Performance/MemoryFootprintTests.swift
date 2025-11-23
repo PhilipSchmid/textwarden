@@ -1,12 +1,12 @@
 //
 //  MemoryFootprintTests.swift
-//  Gnau Tests
+//  TextWarden Tests
 //
 //  Memory footprint tests for <100MB target (T078)
 //
 
 import XCTest
-@testable import Gnau
+@testable import TextWarden
 
 final class MemoryFootprintTests: XCTestCase {
     var coordinator: AnalysisCoordinator!

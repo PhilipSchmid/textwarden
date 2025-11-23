@@ -1,4 +1,4 @@
-# Building Gnau
+# Building TextWarden
 
 ## ✅ Automated Setup Complete
 
@@ -41,8 +41,8 @@ Before building, ensure you have:
 
 ### Option 1: Build in Xcode (Recommended)
 
-1. Open `Gnau.xcodeproj` in Xcode
-2. Select **Gnau** scheme
+1. Open `TextWarden.xcodeproj` in Xcode
+2. Select **TextWarden** scheme
 3. Press **⌘B** (Cmd+B) to build
 
 **Expected:**
@@ -53,7 +53,7 @@ Before building, ensure you have:
 ### Option 2: Build from Command Line
 
 ```bash
-xcodebuild -project Gnau.xcodeproj -scheme Gnau -configuration Debug build
+xcodebuild -project TextWarden.xcodeproj -scheme TextWarden -configuration Debug build
 ```
 
 ---
@@ -152,7 +152,7 @@ Once built:
 ```bash
 ⌘U in Xcode
 # or
-xcodebuild test -scheme Gnau
+xcodebuild test -scheme TextWarden
 ```
 
 **Rust tests:**

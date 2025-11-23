@@ -1,12 +1,12 @@
 //
 //  UserPreferencesTests.swift
-//  Gnau Tests
+//  TextWarden Tests
 //
 //  Unit tests for per-app settings (T064)
 //
 
 import XCTest
-@testable import Gnau
+@testable import TextWarden
 
 final class UserPreferencesTests: XCTestCase {
     var preferences: UserPreferences!

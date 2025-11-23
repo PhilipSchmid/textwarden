@@ -1,6 +1,6 @@
 //
 //  ApplicationConfiguration.swift
-//  Gnau
+//  TextWarden
 //
 //  Application-specific configuration (timing, fonts, layout)
 //  Separated from ApplicationContext to follow Single Responsibility Principle

@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Quick Smoke Test for Gnau
+# Quick Smoke Test for TextWarden
 # Automated checks for critical functionality
 
 set -e
 
-echo "🚀 Gnau Quick Smoke Test"
+echo "🚀 TextWarden Quick Smoke Test"
 echo "========================"
 echo ""
 
@@ -34,14 +34,14 @@ info() {
     echo -e "  ${BLUE}ℹ️  INFO${NC} - $1"
 }
 
-# Test 1: Check if Gnau is built
+# Test 1: Check if TextWarden is built
 echo -e "${YELLOW}Test 1: Build Check${NC}"
-APP_PATH="$HOME/Library/Developer/Xcode/DerivedData/Gnau-*/Build/Products/Debug/Gnau.app"
+APP_PATH="$HOME/Library/Developer/Xcode/DerivedData/TextWarden-*/Build/Products/Debug/TextWarden.app"
 if ls $APP_PATH 1> /dev/null 2>&1; then
     APP=$(ls -d $APP_PATH | head -1)
-    pass "Gnau.app found at: ${APP}"
+    pass "TextWarden.app found at: ${APP}"
 else
-    fail "Gnau.app not found. Run 'xcodebuild -project Gnau.xcodeproj -scheme Gnau build' first"
+    fail "TextWarden.app not found. Run 'xcodebuild -project TextWarden.xcodeproj -scheme TextWarden build' first"
     exit 1
 fi
 
@@ -76,7 +76,7 @@ else
     info "Code signing status unclear (may still work)"
 fi
 
-# Test 6: Check if Gnau is running
+# Test 6: Check if TextWarden is running
 echo -e "${YELLOW}Test 6: Runtime Check${NC}"
 if pgrep -x "Gnau" > /dev/null; then
     info "Gnau is currently running (PID: $(pgrep -x Gnau))"
@@ -85,14 +85,14 @@ if pgrep -x "Gnau" > /dev/null; then
     echo "  - [ ] Open TextEdit and type: 'This are a test'"
     echo "  - [ ] Does grammar popover appear?"
 else
-    info "Gnau not running. Launch from: ${APP}"
+    info "TextWarden not running. Launch from: ${APP}"
 fi
 
 # Test 7: Check preferences
 echo -e "${YELLOW}Test 7: Preferences Check${NC}"
-if defaults read com.philipschmid.Gnau 2>/dev/null | grep -q "isEnabled"; then
+if defaults read com.philipschmid.TextWarden 2>/dev/null | grep -q "isEnabled"; then
     pass "Preferences exist"
-    info "To view: defaults read com.philipschmid.Gnau"
+    info "To view: defaults read com.philipschmid.TextWarden"
 else
     info "No preferences found (expected for fresh install)"
 fi
@@ -101,7 +101,7 @@ fi
 echo -e "${YELLOW}Test 8: Accessibility Permission${NC}"
 # Note: Can't reliably check this via script, need manual verification
 info "Check manually: System Settings → Privacy & Security → Accessibility"
-echo "  Is Gnau in the list and enabled?"
+echo "  Is TextWarden in the list and enabled?"
 
 # Summary
 echo ""
@@ -113,7 +113,7 @@ if [ $FAILED -eq 0 ]; then
     echo -e "${GREEN}✅ All automated checks passed!${NC}"
     echo ""
     echo "Manual Testing Checklist:"
-    echo "  1. [ ] Launch Gnau"
+    echo "  1. [ ] Launch TextWarden"
     echo "  2. [ ] Onboarding appears (if no permission)"
     echo "  3. [ ] Grant permission"
     echo "  4. [ ] Open TextEdit"

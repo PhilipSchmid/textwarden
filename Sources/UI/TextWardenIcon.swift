@@ -1,14 +1,14 @@
 //
-//  GnauIcon.swift
-//  Gnau
+//  TextWardenIcon.swift
+//  TextWarden
 //
-//  Custom menu bar icon for Gnau grammar checker
+//  Custom menu bar icon for TextWarden grammar checker
 //
 
 import Cocoa
 
-struct GnauIcon {
-    /// Create the Gnau menu bar icon (monochrome template for menu bar)
+struct TextWardenIcon {
+    /// Create the TextWarden menu bar icon (monochrome template for menu bar)
     static func create(size: NSSize = NSSize(width: 22, height: 22)) -> NSImage {
         // Load logo from asset catalog
         guard let logo = NSImage(named: "GnauLogo") else {

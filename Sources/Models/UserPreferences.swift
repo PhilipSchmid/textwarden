@@ -1,6 +1,6 @@
 //
 //  UserPreferences.swift
-//  Gnau
+//  TextWarden
 //
 //  User preferences with UserDefaults persistence
 //
@@ -110,7 +110,7 @@ class UserPreferences: ObservableObject {
         }
     }
 
-    /// Discovered applications (apps that have been activated while Gnau is running)
+    /// Discovered applications (apps that have been activated while TextWarden is running)
     @Published var discoveredApplications: Set<String> {
         didSet {
             if let encoded = try? encoder.encode(discoveredApplications) {
@@ -199,7 +199,7 @@ class UserPreferences: ObservableObject {
         "com.github.wez.wezterm"
     ]
 
-    /// Launch Gnau automatically at login
+    /// Launch TextWarden automatically at login
     @Published var launchAtLogin: Bool {
         didSet {
             defaults.set(launchAtLogin, forKey: Keys.launchAtLogin)
@@ -281,9 +281,9 @@ class UserPreferences: ObservableObject {
         }
     }
 
-    // MARK: - Gnau Enhancements
+    // MARK: - TextWarden Enhancements
 
-    /// Enable sentence-start capitalization (Gnau enhancement to Harper's suggestions)
+    /// Enable sentence-start capitalization (TextWarden enhancement to Harper's suggestions)
     /// When enabled, ensures suggestions at sentence starts are properly capitalized
     @Published var enableSentenceStartCapitalization: Bool {
         didSet {
@@ -589,7 +589,7 @@ class UserPreferences: ObservableObject {
             self.excludedLanguages = set
         }
 
-        // Gnau Enhancements
+        // TextWarden Enhancements
         self.enableSentenceStartCapitalization = defaults.object(forKey: Keys.enableSentenceStartCapitalization) as? Bool ?? true
 
         // Keyboard Shortcuts
@@ -730,7 +730,7 @@ class UserPreferences: ObservableObject {
     /// Check if grammar checking is enabled for a specific application
     func isEnabled(for bundleIdentifier: String) -> Bool {
         // Never check grammar in Gnau's own UI
-        if bundleIdentifier == "app.gnau.Gnau" {
+        if bundleIdentifier == "com.philipschmid.TextWarden" {
             return false
         }
 
@@ -920,7 +920,7 @@ class UserPreferences: ObservableObject {
         static let enableLanguageDetection = "enableLanguageDetection"
         static let excludedLanguages = "excludedLanguages"
 
-        // Gnau Enhancements
+        // TextWarden Enhancements
         static let enableSentenceStartCapitalization = "enableSentenceStartCapitalization"
 
         // Keyboard Shortcuts

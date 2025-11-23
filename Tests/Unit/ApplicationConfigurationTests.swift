@@ -1,12 +1,12 @@
 //
 //  ApplicationConfigurationTests.swift
-//  Gnau
+//  TextWarden
 //
 //  Unit tests for ApplicationConfiguration
 //
 
 import XCTest
-@testable import Gnau
+@testable import TextWarden
 
 final class ApplicationConfigurationTests: XCTestCase {
 

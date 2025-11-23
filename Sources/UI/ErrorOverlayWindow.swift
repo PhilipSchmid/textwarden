@@ -1,6 +1,6 @@
 //
 //  ErrorOverlayWindow.swift
-//  Gnau
+//  TextWarden
 //
 //  Transparent overlay window for drawing error underlines
 //
@@ -37,7 +37,7 @@ class ErrorOverlayWindow: NSPanel {
 
     init() {
         // Create transparent, non-activating panel
-        // CRITICAL: Use .nonactivatingPanel to prevent Gnau from stealing focus
+        // CRITICAL: Use .nonactivatingPanel to prevent TextWarden from stealing focus
         super.init(
             contentRect: .zero,
             styleMask: [.nonactivatingPanel, .borderless],
@@ -378,9 +378,9 @@ class ErrorOverlayWindow: NSPanel {
         }
     }
 
-    /// Log to debug file (same as GnauApp)
+    /// Log to debug file (same as TextWardenApp)
     private func logToDebugFile(_ message: String) {
-        let logPath = "/tmp/gnau-debug.log"
+        let logPath = "/tmp/textwarden-debug.log"
         let timestamp = Date()
         let logMessage = "[\(timestamp)] \(message)\n"
         if let data = logMessage.data(using: .utf8) {

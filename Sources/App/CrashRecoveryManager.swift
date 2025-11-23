@@ -1,6 +1,6 @@
 //
 //  CrashRecoveryManager.swift
-//  Gnau
+//  TextWarden
 //
 //  Automatic crash recovery and restart management (T111, T112)
 //
@@ -98,7 +98,7 @@ class CrashRecoveryManager {
     private func showCrashDialog() {
         DispatchQueue.main.async {
             let alert = NSAlert()
-            alert.messageText = "Gnau encountered repeated crashes"
+            alert.messageText = "TextWarden encountered repeated crashes"
             alert.informativeText = """
             The app has crashed \(self.restartAttempts) times. \
             This may indicate a serious issue. Would you like to:
@@ -123,7 +123,7 @@ class CrashRecoveryManager {
                 Logger.info("Preferences reset, restarting", category: Logger.lifecycle)
 
             case .alertSecondButtonReturn:
-                // Open Console app filtered to Gnau logs
+                // Open Console app filtered to TextWarden logs
                 self.openConsoleLogs()
 
             default:
@@ -132,7 +132,7 @@ class CrashRecoveryManager {
         }
     }
 
-    /// Open Console.app with Gnau logs
+    /// Open Console.app with TextWarden logs
     private func openConsoleLogs() {
         let task = Process()
         task.launchPath = "/usr/bin/open"

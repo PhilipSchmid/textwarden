@@ -1,13 +1,13 @@
 //
 //  OnboardingViewTests.swift
-//  Gnau Integration Tests
+//  TextWarden Integration Tests
 //
 //  Integration tests for first-time onboarding flow
 //
 
 import XCTest
 import SwiftUI
-@testable import Gnau
+@testable import TextWarden
 
 final class OnboardingViewTests: XCTestCase {
 
@@ -69,7 +69,7 @@ final class OnboardingViewTests: XCTestCase {
             "2. OnboardingView appears as modal sheet",
             "3. User clicks 'Open System Settings' button",
             "4. System Settings opens to Privacy & Security > Accessibility",
-            "5. User enables Gnau in the list",
+            "5. User enables TextWarden in the list",
             "6. PermissionManager detects grant within 1 second",
             "7. OnboardingView auto-dismisses",
             "8. Grammar checking activates immediately"
@@ -131,19 +131,19 @@ final class OnboardingViewTests: XCTestCase {
         XCTAssertTrue(true, "Retry button should reopen System Settings deep link")
     }
 
-    // MARK: - Integration with GnauApp
+    // MARK: - Integration with TextWardenApp
 
     func testAppLaunchTriggersOnboarding() {
         // Given: App launches for first time
 
-        // When: GnauApp.init() runs
+        // When: TextWardenApp.init() runs
         // Then: Should check permission and show onboarding if needed
 
         // This test documents the expected behavior:
-        // GnauApp should call PermissionManager.isPermissionGranted on launch
+        // TextWardenApp should call PermissionManager.isPermissionGranted on launch
         // If false, should present OnboardingView as sheet
 
-        XCTAssertTrue(true, "GnauApp should check permissions on launch")
+        XCTAssertTrue(true, "TextWardenApp should check permissions on launch")
     }
 
     func testCompletedOnboardingFlow() {

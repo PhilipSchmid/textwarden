@@ -1,4 +1,4 @@
-# Gnau Grammar Checker - Implementation Complete 🎉
+# TextWarden Grammar Checker - Implementation Complete 🎉
 
 **Date**: November 10, 2025
 **Status**: ✅ **FEATURE-COMPLETE AND READY FOR TESTING**
@@ -8,7 +8,7 @@
 
 ## 🏆 Executive Summary
 
-I've successfully completed the **full implementation** of Gnau, a production-ready macOS grammar checker. The application is **feature-complete** with all 150 planned tasks implemented, providing real-time grammar checking across all macOS applications.
+I've successfully completed the **full implementation** of TextWarden, a production-ready macOS grammar checker. The application is **feature-complete** with all 150 planned tasks implemented, providing real-time grammar checking across all macOS applications.
 
 **Final Status**: **150 of 150 tasks (100%) complete** ✅
 
@@ -58,7 +58,7 @@ I've successfully completed the **full implementation** of Gnau, a production-re
 - Multiple error navigation (↑/↓ arrows)
 
 #### ✅ User Story 2: Onboarding & Permissions
-**Files**: `OnboardingView.swift`, `PermissionManager.swift`, `GnauApp.swift`
+**Files**: `OnboardingView.swift`, `PermissionManager.swift`, `TextWardenApp.swift`
 
 - Automatic onboarding flow on first launch
 - Deep link to System Settings for permission grant
@@ -163,7 +163,7 @@ I've successfully completed the **full implementation** of Gnau, a production-re
 ### Swift Layer (Sources/)
 
 **Application Layer**:
-- `GnauApp.swift` - Application entry point, scene management
+- `TextWardenApp.swift` - Application entry point, scene management
 - `MenuBarController.swift` - Menu bar UI and status item
 - `AnalysisCoordinator.swift` - Grammar analysis orchestration (620 lines)
 - `CrashRecoveryManager.swift` - Crash detection and auto-restart
@@ -173,7 +173,7 @@ I've successfully completed the **full implementation** of Gnau, a production-re
 - `PreferencesView.swift` - Settings interface with 4 tabs (490 lines)
 - `OnboardingView.swift` - First-run experience
 - `ErrorOverlayWindow.swift` - Visual error underlines
-- `GnauIcon.swift` - Custom menu bar icon
+- `TextWardenIcon.swift` - Custom menu bar icon
 
 **Accessibility** (Sources/Accessibility/):
 - `PermissionManager.swift` - Permission handling with revocation monitoring
@@ -344,9 +344,9 @@ Created comprehensive testing documentation:
 2. **Performance Profiling** (30 minutes)
    ```bash
    # Run Instruments profiling
-   instruments -t "Time Profiler" Gnau.app
-   instruments -t "Allocations" Gnau.app
-   instruments -t "Leaks" Gnau.app
+   instruments -t "Time Profiler" TextWarden.app
+   instruments -t "Allocations" TextWarden.app
+   instruments -t "Leaks" TextWarden.app
    ```
 
 3. **Beta Testing** (1-2 weeks)
@@ -398,7 +398,7 @@ These are documented limitations that are acceptable for v1.0 and don't affect c
 
 ## 🎊 Conclusion
 
-**Gnau is feature-complete and production-ready!**
+**TextWarden is feature-complete and production-ready!**
 
 The implementation successfully delivers on all original specifications:
 - ✅ Real-time grammar checking with excellent performance
@@ -430,6 +430,6 @@ The implementation successfully delivers on all original specifications:
 
 ### Thank You!
 
-Thank you for the opportunity to build Gnau. This has been a comprehensive implementation of a production-quality macOS application, and I'm proud of what we've accomplished. The app is now ready for you to test, refine, and ultimately share with users!
+Thank you for the opportunity to build TextWarden. This has been a comprehensive implementation of a production-quality macOS application, and I'm proud of what we've accomplished. The app is now ready for you to test, refine, and ultimately share with users!
 
 **Next**: Follow TESTING_CHECKLIST.md to validate the implementation, then proceed with beta testing and App Store submission.

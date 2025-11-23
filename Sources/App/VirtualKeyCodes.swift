@@ -1,6 +1,6 @@
 //
 //  VirtualKeyCodes.swift
-//  Gnau
+//  TextWarden
 //
 //  macOS Virtual Key Code Constants
 //  Reference: /System/Library/Frameworks/Carbon.framework/.../HIToolbox.framework/.../Events.h

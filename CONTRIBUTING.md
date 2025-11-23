@@ -1,6 +1,6 @@
-# Quickstart: Gnau Development Setup
+# Quickstart: TextWarden Development Setup
 
-**Purpose**: Get a development environment running for Gnau grammar checker
+**Purpose**: Get a development environment running for TextWarden grammar checker
 
 **Time**: ~20 minutes
 
@@ -12,7 +12,7 @@
 
 1. **macOS 15.7+ (Sequoia or later)**
    - Check version: `sw_vers`
-   - Gnau targets macOS 15.7+ exclusively
+   - TextWarden targets macOS 15.7+ exclusively
 
 2. **Xcode 15+**
    - Install from Mac App Store or https://developer.apple.com/xcode/
@@ -33,8 +33,8 @@
 ## Clone Repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/gnau.git
-cd gnau
+git clone https://github.com/YOUR_USERNAME/textwarden.git
+cd textwarden
 git checkout 001-grammar-checking  # Development branch
 ```
 
@@ -101,12 +101,12 @@ This creates a universal binary supporting both Intel and Apple Silicon Macs.
 
 ```bash
 cd ..  # Return to repo root
-open Gnau.xcodeproj
+open TextWarden.xcodeproj
 ```
 
 ### 2. Configure Build Settings
 
-1. Select **Gnau** target in Xcode
+1. Select **TextWarden** target in Xcode
 2. Go to **Build Settings**
 3. Search for "Library Search Paths"
 4. Add: `$(SRCROOT)/GrammarEngine/target`
@@ -115,7 +115,7 @@ open Gnau.xcodeproj
 
 ### 3. Link Rust Library
 
-1. Select **Gnau** target → **General** tab
+1. Select **TextWarden** target → **General** tab
 2. Under **Frameworks, Libraries, and Embedded Content**, click **+**
 3. Click **Add Other...** → **Add Files...**
 4. Navigate to `GrammarEngine/target/libgrammar_engine_universal.a`
@@ -136,7 +136,7 @@ If build fails with "library not found", ensure step 2 and 3 completed correctly
 
 ## Grant Accessibility Permissions (Development)
 
-Gnau requires Accessibility permissions to monitor text in other applications.
+TextWarden requires Accessibility permissions to monitor text in other applications.
 
 ### Option 1: Grant to Xcode (Recommended for Development)
 
@@ -150,10 +150,10 @@ Now apps run from Xcode inherit Accessibility permissions.
 
 ### Option 2: Grant to Built App
 
-1. Build and run Gnau from Xcode (⌘R)
+1. Build and run TextWarden from Xcode (⌘R)
 2. When prompted, click "Open System Settings"
-3. Enable Gnau in Accessibility list
-4. Restart Gnau
+3. Enable TextWarden in Accessibility list
+4. Restart TextWarden
 
 ---
 
@@ -179,20 +179,20 @@ cargo test
 
 ---
 
-## Run Gnau
+## Run TextWarden
 
 ### From Xcode
 
-1. Select **Gnau** scheme
+1. Select **TextWarden** scheme
 2. Press **⌘R** (Cmd+R) to run
-3. Menu bar icon should appear (look for Gnau icon in top-right)
+3. Menu bar icon should appear (look for TextWarden icon in top-right)
 4. Click icon → **Preferences** to verify UI loads
 
 ### From Terminal (Release Build)
 
 ```bash
-cd ~/Library/Developer/Xcode/DerivedData/Gnau-*/Build/Products/Release/
-open Gnau.app
+cd ~/Library/Developer/Xcode/DerivedData/TextWarden-*/Build/Products/Release/
+open TextWarden.app
 ```
 
 ---
@@ -245,7 +245,7 @@ If no underlines appear:
 1. In Xcode, **Product** → **Profile** (⌘I)
 2. Select **Time Profiler** template
 3. Click **Record**
-4. Perform grammar checking actions in Gnau
+4. Perform grammar checking actions in TextWarden
 5. Stop recording
 6. Analyze hotspots (look for Rust FFI overhead, Harper analysis time)
 
@@ -257,7 +257,7 @@ If no underlines appear:
 ### Run Performance Tests
 
 ```bash
-xcodebuild test -scheme Gnau -only-testing:GnauTests/PerformanceTests
+xcodebuild test -scheme TextWarden -only-testing:TextWardenTests/PerformanceTests
 ```
 
 View results in Xcode → **Test Navigator** → **Performance** tab.
@@ -282,11 +282,11 @@ In Swift code, use `os_log` for debugging:
 ```swift
 import os.log
 
-let logger = Logger(subsystem: "com.gnau.app", category: "grammar")
+let logger = Logger(subsystem: "com.textwarden.app", category: "grammar")
 logger.debug("Analyzed text: \(textSegment.content)")
 ```
 
-View logs in **Console.app** (filter by "com.gnau.app").
+View logs in **Console.app** (filter by "com.textwarden.app").
 
 ### Debug Accessibility API Issues
 
@@ -339,8 +339,8 @@ If `false`, app cannot monitor text. Grant permissions (see Step 4).
 
 ## Getting Help
 
-- **GitHub Issues**: https://github.com/YOUR_USERNAME/gnau/issues
-- **Discussions**: https://github.com/YOUR_USERNAME/gnau/discussions
+- **GitHub Issues**: https://github.com/YOUR_USERNAME/textwarden/issues
+- **Discussions**: https://github.com/YOUR_USERNAME/textwarden/discussions
 - **Contributing**: See [CONTRIBUTING.md](../CONTRIBUTING.md)
 
 ---
@@ -353,7 +353,7 @@ Save this as `dev-setup.sh` for one-command setup:
 #!/bin/bash
 set -e
 
-echo "🔧 Setting up Gnau development environment..."
+echo "🔧 Setting up TextWarden development environment..."
 
 # Check prerequisites
 command -v rustc >/dev/null 2>&1 || { echo "❌ Rust not installed. Run: curl https://sh.rustup.rs -sSf | sh"; exit 1; }
@@ -376,9 +376,9 @@ cargo test
 # Build Swift
 echo "📱 Building Swift app..."
 cd ..
-xcodebuild -scheme Gnau -configuration Debug build
+xcodebuild -scheme TextWarden -configuration Debug build
 
-echo "✅ Setup complete! Open Gnau.xcodeproj in Xcode to continue."
+echo "✅ Setup complete! Open TextWarden.xcodeproj in Xcode to continue."
 ```
 
 Run: `chmod +x dev-setup.sh && ./dev-setup.sh`

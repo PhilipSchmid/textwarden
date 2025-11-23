@@ -1,10 +1,10 @@
-# Gnau Quick Test Checklist
+# TextWarden Quick Test Checklist
 
 ## 🚀 Getting Started
 
 ### 1. Run Quick Automated Check
 ```bash
-cd /Users/phisch/git/github.com/philipschmid/gnau
+cd /Users/phisch/git/github.com/philipschmid/textwarden
 ./Scripts/quick-test.sh
 ```
 
@@ -18,7 +18,7 @@ cd /Users/phisch/git/github.com/philipschmid/gnau
 ## ✅ 5-Minute Smoke Test
 
 ### Phase 1: Onboarding (2 min)
-- [ ] Launch Gnau from Xcode or `/Build/Products/Debug/Gnau.app`
+- [ ] Launch TextWarden from Xcode or `/Build/Products/Debug/TextWarden.app`
 - [ ] ✅ Menu bar icon appears (text.badge.checkmark)
 - [ ] ✅ Onboarding window appears
 - [ ] ✅ All text visible (no cutoff)
@@ -26,7 +26,7 @@ cd /Users/phisch/git/github.com/philipschmid/gnau
 - [ ] ✅ **Permission dialog appears** ← KEY TEST
 - [ ] Click "Open System Settings"
 - [ ] ✅ System Settings opens to Accessibility
-- [ ] Enable Gnau in the list
+- [ ] Enable TextWarden in the list
 - [ ] ✅ **Window auto-advances to verification** ← KEY TEST
 - [ ] ✅ Green checkmark shows
 - [ ] Click "Done"
@@ -88,7 +88,7 @@ case .welcome:
 **Debug**:
 ```bash
 # Check logs
-log stream --predicate 'processImagePath contains "Gnau"' --level debug
+log stream --predicate 'processImagePath contains "TextWarden"' --level debug
 
 # Check permission
 open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
@@ -135,7 +135,7 @@ The quick brown fox jumps over the lazy dog. This are a test.
 ### Memory Test
 ```bash
 # Check memory usage
-top -pid $(pgrep Gnau) -stats pid,command,mem
+top -pid $(pgrep TextWarden) -stats pid,command,mem
 ```
 - [ ] ✅ Memory < 100MB
 - [ ] ✅ CPU near 0% when idle
@@ -152,7 +152,7 @@ top -pid $(pgrep Gnau) -stats pid,command,mem
 
 **Date**: ___________
 **macOS Version**: ___________
-**Gnau Version**: 1.0
+**TextWarden Version**: 1.0
 
 ### Results:
 - [ ] ✅ **PASS** - Onboarding works
@@ -178,19 +178,19 @@ _________________________________
 **View detailed logs:**
 ```bash
 # Console logs
-log stream --predicate 'processImagePath contains "Gnau"' --level debug
+log stream --predicate 'processImagePath contains "TextWarden"' --level debug
 
 # Or use Console.app
-# Filter by: process:Gnau
+# Filter by: process:TextWarden
 ```
 
 **Check current state:**
 ```bash
 # View preferences
-defaults read com.philipschmid.Gnau
+defaults read com.philipschmid.TextWarden
 
 # Check if running
-ps aux | grep Gnau
+ps aux | grep TextWarden
 
 # Check permission
 sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" \

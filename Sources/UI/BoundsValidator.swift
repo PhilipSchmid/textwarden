@@ -1,6 +1,6 @@
 //
 //  BoundsValidator.swift
-//  Gnau
+//  TextWarden
 //
 //  Validates bounds returned by Accessibility API to filter out implausible values
 //

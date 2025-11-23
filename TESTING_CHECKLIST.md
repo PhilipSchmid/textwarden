@@ -291,7 +291,7 @@ Another paragraph to check.
 #### Time Profiler (T147)
 ```bash
 # Record 30-second session
-instruments -t "Time Profiler" -D profile.trace /path/to/Gnau.app
+instruments -t "Time Profiler" -D profile.trace /path/to/TextWarden.app
 
 # Analyze hot paths
 # Verify Harper analysis <500ms for 10K words
@@ -301,7 +301,7 @@ instruments -t "Time Profiler" -D profile.trace /path/to/Gnau.app
 #### Allocations (T147)
 ```bash
 # Record memory allocations
-instruments -t "Allocations" -D allocations.trace /path/to/Gnau.app
+instruments -t "Allocations" -D allocations.trace /path/to/TextWarden.app
 
 # Check for:
 # - Memory leaks (should be 0)
@@ -312,7 +312,7 @@ instruments -t "Allocations" -D allocations.trace /path/to/Gnau.app
 #### Leaks (T147)
 ```bash
 # Detect memory leaks
-instruments -t "Leaks" -D leaks.trace /path/to/Gnau.app
+instruments -t "Leaks" -D leaks.trace /path/to/TextWarden.app
 
 # Verify: 0 leaks reported
 ```

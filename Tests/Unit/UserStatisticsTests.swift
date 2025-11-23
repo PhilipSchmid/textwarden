@@ -1,12 +1,12 @@
 //
 //  UserStatisticsTests.swift
-//  Gnau
+//  TextWarden
 //
 //  Unit tests for UserStatistics model
 //
 
 import XCTest
-@testable import Gnau
+@testable import TextWarden
 
 final class UserStatisticsTests: XCTestCase {
     var statistics: UserStatistics!
@@ -14,7 +14,7 @@ final class UserStatisticsTests: XCTestCase {
     override func setUp() {
         super.setUp()
         // Use a separate UserDefaults suite for testing to avoid affecting real data
-        statistics = UserStatistics(defaults: UserDefaults(suiteName: "test.gnau.statistics")!)
+        statistics = UserStatistics(defaults: UserDefaults(suiteName: "test.textwarden.statistics")!)
         statistics.resetAllStatistics()
     }
 
@@ -183,7 +183,7 @@ final class UserStatisticsTests: XCTestCase {
         statistics.recordSession()
 
         // Create a new instance with the same UserDefaults suite
-        let newStatistics = UserStatistics(defaults: UserDefaults(suiteName: "test.gnau.statistics")!)
+        let newStatistics = UserStatistics(defaults: UserDefaults(suiteName: "test.textwarden.statistics")!)
 
         XCTAssertEqual(newStatistics.analysisSessions, 1)
         XCTAssertEqual(newStatistics.wordsAnalyzed, 100)
@@ -196,7 +196,7 @@ final class UserStatisticsTests: XCTestCase {
         statistics.recordSuggestionApplied(category: "Spelling")
         statistics.recordSuggestionApplied(category: "Grammar")
 
-        let newStatistics = UserStatistics(defaults: UserDefaults(suiteName: "test.gnau.statistics")!)
+        let newStatistics = UserStatistics(defaults: UserDefaults(suiteName: "test.textwarden.statistics")!)
 
         XCTAssertEqual(newStatistics.categoryBreakdown["Spelling"], 1)
         XCTAssertEqual(newStatistics.categoryBreakdown["Grammar"], 1)
@@ -205,7 +205,7 @@ final class UserStatisticsTests: XCTestCase {
     func testActiveDaysPersistence() {
         statistics.recordAnalysisSession(wordsProcessed: 100, errorsFound: 5)
 
-        let newStatistics = UserStatistics(defaults: UserDefaults(suiteName: "test.gnau.statistics")!)
+        let newStatistics = UserStatistics(defaults: UserDefaults(suiteName: "test.textwarden.statistics")!)
 
         XCTAssertEqual(newStatistics.activeDays.count, 1)
     }

@@ -1,13 +1,13 @@
 //
 //  VirtualKeyCodeTests.swift
-//  Gnau
+//  TextWarden
 //
 //  Regression tests for virtual key codes to prevent accidental changes
 //  that could break Terminal text replacement (T044-Terminal)
 //
 
 import XCTest
-@testable import Gnau
+@testable import TextWarden
 
 final class VirtualKeyCodeTests: XCTestCase {
 

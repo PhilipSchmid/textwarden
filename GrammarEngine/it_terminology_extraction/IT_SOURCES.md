@@ -380,7 +380,7 @@ cd GrammarEngine/it_terminology_extraction/scripts
 
 To suggest additions or corrections to this wordlist:
 
-1. Open an issue at: https://github.com/PhilipSchmid/gnau/issues
+1. Open an issue at: https://github.com/philipschmid/textwarden/issues
 2. Provide the term(s) to add/remove with justification
 3. Reference a reliable source (IANA registry, RFC, official kernel documentation, etc.)
 4. Terms will be reviewed and added in the next scheduled update
