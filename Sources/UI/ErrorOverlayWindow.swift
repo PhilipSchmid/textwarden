@@ -47,6 +47,7 @@ class ErrorOverlayWindow: NSPanel {
 
         // Configure panel properties to prevent ANY focus stealing
         self.isOpaque = false
+        // DEBUG: Clear background - border and label shown in UnderlineView
         self.backgroundColor = .clear
         self.hasShadow = false
         // CRITICAL: Use .popUpMenu level - these windows NEVER activate the app
@@ -57,9 +58,10 @@ class ErrorOverlayWindow: NSPanel {
         self.worksWhenModal = false
         // CRITICAL: This makes the panel resist becoming the key window
         self.becomesKeyOnlyIfNeeded = true
-        // CRITICAL: Set ignoresMouseEvents = TRUE to allow ALL clicks/events to pass through to Chrome
-        // We'll use a global event monitor for hover detection instead of window's mouse tracking
-        self.ignoresMouseEvents = true
+        // DEBUG: Temporarily enable mouse events to allow window dragging for debugging
+        // TODO: Re-enable ignoresMouseEvents after debugging window sizing issues
+        self.ignoresMouseEvents = false
+        self.isMovableByWindowBackground = true
 
         // Create underline view with click pass-through
         let view = UnderlineView()
@@ -199,20 +201,22 @@ class ErrorOverlayWindow: NSPanel {
         }
 
         // Get element bounds
-        // For Electron apps (like Slack), AX APIs return invalid bounds
-        // Fall back to mouse cursor position as a workaround
+        // Use text field element's AX bounds (not window bounds!)
+        // The element passed is the actual text field, so we want ITS bounds
         let elementFrame: CGRect
+
+        // Strategy 1: Try AX API to get text field bounds
         if let frame = getElementFrame(element) {
             elementFrame = frame
-            let msg = "📐 ErrorOverlay: Got element frame from AX API: \(elementFrame)"
+            let msg = "✅ ErrorOverlay: Got text field bounds from AX API: \(elementFrame)"
             NSLog(msg)
             logToDebugFile(msg)
-        } else {
-            // Fallback: Use mouse cursor position (for Electron apps)
+        }
+        // Strategy 2: Last resort - mouse cursor position
+        else {
             let mouseLocation = NSEvent.mouseLocation
-            // Create a reasonable-sized window area around the cursor
             elementFrame = CGRect(x: mouseLocation.x - 200, y: mouseLocation.y - 100, width: 800, height: 200)
-            let msg2 = "⚠️ ErrorOverlay: Could not get element frame from AX API"
+            let msg2 = "⚠️ ErrorOverlay: AX API failed for text field bounds"
             NSLog(msg2)
             logToDebugFile(msg2)
             let msg3 = "📍 ErrorOverlay: Using mouse cursor fallback: \(elementFrame)"
@@ -224,69 +228,74 @@ class ErrorOverlayWindow: NSPanel {
         NSLog(msg2)
         logToDebugFile(msg2)
 
+        let msg2b = "🔍 DEBUG: Element frame details - X: \(elementFrame.origin.x), Y: \(elementFrame.origin.y), Width: \(elementFrame.width), Height: \(elementFrame.height)"
+        NSLog(msg2b)
+        logToDebugFile(msg2b)
+
         // Position overlay window to match element
         setFrame(elementFrame, display: true)
         let msg3 = "✅ ErrorOverlay: Window positioned at \(elementFrame)"
         NSLog(msg3)
         logToDebugFile(msg3)
 
-        // Calculate underline positions for each error
+        let msg3b = "🔍 DEBUG: Actual window frame after setFrame - \(self.frame)"
+        NSLog(msg3b)
+        logToDebugFile(msg3b)
+
+        // Extract full text once for all positioning calculations
+        var textValue: CFTypeRef?
+        let textError = AXUIElementCopyAttributeValue(
+            element,
+            kAXValueAttribute as CFString,
+            &textValue
+        )
+
+        guard textError == .success, let fullText = textValue as? String else {
+            let msg = "⚠️ ErrorOverlay: Could not extract text from element for positioning"
+            NSLog(msg)
+            logToDebugFile(msg)
+            hide()
+            return 0
+        }
+
+        // Calculate underline positions for each error using new positioning system
         let underlines = errors.compactMap { error -> ErrorUnderline? in
-            let bounds: CGRect
+            // Create error range
+            let errorRange = NSRange(location: error.start, length: error.end - error.start)
 
-            // Try to get bounds from AX API
-            if let axBounds = getErrorBounds(for: error, in: element) {
-                let msg = "🔍 ErrorOverlay: AX API returned bounds: \(axBounds)"
-                NSLog(msg)
-                logToDebugFile(msg)
+            // Use new multi-strategy positioning system
+            let debugMsg = "🔥 BEFORE calling parser.resolvePosition() - parser type: \(type(of: parser)), parserName: \(parser.parserName)"
+            NSLog(debugMsg)
+            logToDebugFile(debugMsg)
+            let geometryResult = parser.resolvePosition(
+                for: errorRange,
+                in: element,
+                text: fullText
+            )
 
-                // Validate the bounds before using them
-                // Pass bundle identifier so validator can apply app-specific rules
-                if BoundsValidator.isPlausible(
-                    axBounds,
-                    context: "Error at \(error.start)-\(error.end)",
-                    bundleIdentifier: context?.bundleIdentifier
-                ) {
-                    bounds = axBounds
-                    let msg2 = "✅ ErrorOverlay: Using validated AX API bounds: \(bounds)"
-                    NSLog(msg2)
-                    logToDebugFile(msg2)
-                } else {
-                    // Bounds failed validation - try to estimate instead
-                    let msg2 = "⚠️ ErrorOverlay: AX bounds failed validation, using fallback estimation"
-                    NSLog(msg2)
-                    logToDebugFile(msg2)
-                    guard let estimatedBounds = estimateErrorBounds(for: error, in: element, elementFrame: elementFrame, context: context) else {
-                        let msg3 = "⏭️ ErrorOverlay: Parser disabled visual underline for this error"
-                        NSLog(msg3)
-                        logToDebugFile(msg3)
-                        return nil
-                    }
-                    bounds = estimatedBounds
-                    let msg3 = "📍 ErrorOverlay: Estimated error bounds: \(bounds)"
-                    NSLog(msg3)
-                    logToDebugFile(msg3)
-                }
-            } else {
-                // AX API didn't return bounds at all
-                let msg = "❌ ErrorOverlay: AX API failed to get bounds for error at \(error.start)-\(error.end), using fallback"
-                NSLog(msg)
-                logToDebugFile(msg)
-                guard let estimatedBounds = estimateErrorBounds(for: error, in: element, elementFrame: elementFrame, context: context) else {
-                    let msg2 = "⏭️ ErrorOverlay: Parser disabled visual underline for this error"
-                    NSLog(msg2)
-                    logToDebugFile(msg2)
-                    return nil
-                }
-                bounds = estimatedBounds
-                let msg2 = "📍 ErrorOverlay: Estimated error bounds: \(bounds)"
+            let msg = "🎯 ErrorOverlay: PositionResolver returned bounds: \(geometryResult.bounds), strategy: \(geometryResult.strategy), confidence: \(geometryResult.confidence)"
+            NSLog(msg)
+            logToDebugFile(msg)
+
+            // Check if result is usable
+            guard geometryResult.isUsable else {
+                let msg2 = "⚠️ ErrorOverlay: Position result not usable (confidence: \(geometryResult.confidence))"
                 NSLog(msg2)
                 logToDebugFile(msg2)
+                return nil
             }
+
+            let bounds = geometryResult.bounds
 
             let msg4 = "📍 ErrorOverlay: Final error bounds (screen): \(bounds)"
             NSLog(msg4)
             logToDebugFile(msg4)
+
+            // getElementFrame() returns Quartz coordinates (top-left origin)
+            // NSPanel.setFrame() works directly with Quartz in multi-monitor setups
+            let msg4b = "📐 ErrorOverlay: Element frame (Quartz): \(elementFrame)"
+            NSLog(msg4b)
+            logToDebugFile(msg4b)
 
             // Convert to overlay-local coordinates
             let localBounds = convertToLocal(bounds, from: elementFrame)
@@ -610,13 +619,28 @@ class ErrorOverlayWindow: NSPanel {
         AXValueGetValue(positionValue as! AXValue, .cgPoint, &position)
         AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
 
+        let msg = "🔍 DEBUG getElementFrame: RAW AX data - Position: \(position), Size: \(size)"
+        NSLog(msg)
+        logToDebugFile(msg)
+
+        // Get element role for debugging
+        var roleValue: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue)
+        let role = roleValue as? String ?? "unknown"
+        let msg2 = "🔍 DEBUG getElementFrame: Element role: \(role)"
+        NSLog(msg2)
+        logToDebugFile(msg2)
+
         var frame = CGRect(origin: position, size: size)
 
-        // CRITICAL: AX API returns coordinates in top-left origin system (Quartz)
-        // NSWindow uses bottom-left origin (AppKit)
+        // CRITICAL: AX API returns coordinates in Quartz (top-left origin)
+        // NSPanel.setFrame() uses Cocoa coordinates (bottom-left origin)
         // Must flip Y coordinate using screen height
         if let screenHeight = NSScreen.main?.frame.height {
             frame.origin.y = screenHeight - frame.origin.y - frame.height
+            let msg3 = "🔍 DEBUG getElementFrame: Converted to Cocoa coords - Y from \(position.y) to \(frame.origin.y) (screen height: \(screenHeight))"
+            NSLog(msg3)
+            logToDebugFile(msg3)
         }
 
         return frame
@@ -780,17 +804,28 @@ class ErrorOverlayWindow: NSPanel {
 
     /// Convert screen coordinates to overlay-local coordinates
     private func convertToLocal(_ screenBounds: CGRect, from elementFrame: CGRect) -> CGRect {
-        // Both screen and window use bottom-left origin, so simple subtraction
-        let localX = screenBounds.origin.x - elementFrame.origin.x
-        let localY = screenBounds.origin.y - elementFrame.origin.y
+        // Screen coordinates are in Cocoa (bottom-left origin)
+        // UnderlineView uses flipped coordinates (top-left origin)
+        // Must convert from bottom-left to top-left reference
 
-        let msg1 = "📐 ConvertToLocal: Screen bounds: \(screenBounds), Element frame: \(elementFrame), Local X: \(localX), Local Y: \(localY)"
+        let localX = screenBounds.origin.x - elementFrame.origin.x
+
+        // Convert Y from Cocoa (bottom-origin) to flipped view (top-origin)
+        // In Cocoa: Y=0 is bottom, increases upward
+        // In flipped view: Y=0 is top, increases downward
+        let cocoaLocalY = screenBounds.origin.y - elementFrame.origin.y
+        let flippedLocalY = elementFrame.height - cocoaLocalY - screenBounds.height
+
+        let msg1 = "📐 ConvertToLocal: Screen bounds: \(screenBounds), Element frame: \(elementFrame)"
         NSLog(msg1)
         logToDebugFile(msg1)
+        let msg2 = "📐   Cocoa local Y: \(cocoaLocalY), Flipped local Y: \(flippedLocalY)"
+        NSLog(msg2)
+        logToDebugFile(msg2)
 
         return CGRect(
             x: localX,
-            y: localY,
+            y: flippedLocalY,
             width: screenBounds.width,
             height: screenBounds.height
         )
@@ -840,6 +875,12 @@ class UnderlineView: NSView {
     var hoveredUnderline: ErrorUnderline?
     var allowsClickPassThrough: Bool = false
 
+    // CRITICAL: Use flipped coordinates (top-left origin) to match window positioning
+    // When isFlipped = true: (0,0) is top-left, Y increases downward
+    override var isFlipped: Bool {
+        return true
+    }
+
     // CRITICAL: Override hitTest to return nil, which passes clicks through to the app below
     // This allows Chrome (or other apps) to receive clicks while we still track mouse movement
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -864,6 +905,23 @@ class UnderlineView: NSView {
         for underline in underlines {
             drawWavyUnderline(in: context, bounds: underline.drawingBounds, color: underline.color)
         }
+
+        // Draw debug border and label if enabled (like DebugBorderWindow)
+        if UserPreferences.shared.showDebugBorderTextFieldBounds {
+            let borderColor = NSColor.systemRed
+            context.setStrokeColor(borderColor.cgColor)
+            context.setLineWidth(5.0)
+            context.stroke(bounds.insetBy(dx: 2.5, dy: 2.5))
+
+            // Draw label in top left (in flipped coords, this is correct)
+            let label = "Text Field Bounds"
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.boldSystemFont(ofSize: 16),
+                .foregroundColor: borderColor
+            ]
+            let labelStr = label as NSString
+            labelStr.draw(at: NSPoint(x: 10, y: 10), withAttributes: attrs)
+        }
     }
 
     /// Draw straight underline
@@ -875,10 +933,10 @@ class UnderlineView: NSView {
         context.setLineWidth(thickness)
 
         // Draw straight line below the text
-        // In bottom-left origin system: minY is bottom, maxY is top
+        // View uses flipped coordinates (top-left origin): minY is top, maxY is bottom
         // Position the line below the text, offset by thickness to avoid covering text
         let offset = max(2.0, thickness / 2.0) // Minimum 2pt offset, or half thickness
-        let y = bounds.minY - offset
+        let y = bounds.maxY + offset  // In flipped coords, maxY is the bottom edge
 
         let path = CGMutablePath()
         path.move(to: CGPoint(x: bounds.minX, y: y))
