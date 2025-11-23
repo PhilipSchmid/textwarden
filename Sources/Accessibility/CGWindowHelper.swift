@@ -1,6 +1,6 @@
 //
 //  CGWindowHelper.swift
-//  Gnau
+//  TextWarden
 //
 //  Uses CGWindow API to get accurate window bounds ()
 //  AXUIElement bounds are unreliable for Electron apps

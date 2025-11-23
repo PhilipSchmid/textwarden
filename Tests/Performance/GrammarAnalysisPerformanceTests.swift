@@ -1,12 +1,12 @@
 //
 //  GrammarAnalysisPerformanceTests.swift
-//  Gnau Performance Tests
+//  TextWarden Performance Tests
 //
 //  Performance tests ensuring <20ms analysis for real-time detection
 //
 
 import XCTest
-@testable import Gnau
+@testable import TextWarden
 
 final class GrammarAnalysisPerformanceTests: XCTestCase {
 

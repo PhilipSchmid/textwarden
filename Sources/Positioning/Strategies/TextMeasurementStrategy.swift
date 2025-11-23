@@ -1,6 +1,6 @@
 //
 //  TextMeasurementStrategy.swift
-//  Gnau
+//  TextWarden
 //
 //  Estimation using text measurement
 //  Fallback strategy that works when AX APIs fail

@@ -1,6 +1,6 @@
 //
 //  ModernMarkerStrategy.swift
-//  Gnau
+//  TextWarden
 //
 //  Modern positioning using opaque markers
 //  Works in Electron, Chrome, Safari, and modern apps

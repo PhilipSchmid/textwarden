@@ -1,6 +1,6 @@
 //
 //  BrowserContentParser.swift
-//  Gnau
+//  TextWarden
 //
 //  Content parser for web browsers (Chrome, Safari, Firefox, etc.)
 //  Browsers have contenteditable areas with specific rendering characteristics

@@ -1,6 +1,6 @@
 //
 //  TextAnchor.swift
-//  Gnau
+//  TextWarden
 //
 //  Universal text position reference
 //  Abstracts over multiple Apple Accessibility position types

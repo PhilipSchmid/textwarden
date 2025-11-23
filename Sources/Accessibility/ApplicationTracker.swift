@@ -1,6 +1,6 @@
 //
 //  ApplicationTracker.swift
-//  Gnau
+//  TextWarden
 //
 //  Tracks active application changes using NSWorkspace
 //
@@ -135,17 +135,17 @@ class ApplicationTracker: ObservableObject {
     }
 
     /// Gets the most relevant application to display in the menu bar.
-    /// Prioritizes showing the current active app unless it's Gnau itself, in which case it shows the previous app.
-    /// This prevents the menu from showing "Gnau" when the user opens the menu bar.
+    /// Prioritizes showing the current active app unless it's TextWarden itself, in which case it shows the previous app.
+    /// This prevents the menu from showing "TextWarden" when the user opens the menu bar.
     /// - Returns: The application context to display, or `nil` if no suitable app is available
     func getMenuDisplayApp() -> ApplicationContext? {
         // If current app is not Gnau, use it
-        if let current = activeApplication, current.bundleIdentifier != "app.gnau.Gnau" {
+        if let current = activeApplication, current.bundleIdentifier != "com.philipschmid.TextWarden" {
             return current
         }
 
-        // Otherwise, use previous app (the one before Gnau became active)
-        if let previous = previousApplication, previous.bundleIdentifier != "app.gnau.Gnau" {
+        // Otherwise, use previous app (the one before TextWarden became active)
+        if let previous = previousApplication, previous.bundleIdentifier != "com.philipschmid.TextWarden" {
             return previous
         }
 

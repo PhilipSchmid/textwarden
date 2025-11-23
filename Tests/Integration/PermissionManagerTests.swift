@@ -1,13 +1,13 @@
 //
 //  PermissionManagerTests.swift
-//  Gnau Integration Tests
+//  TextWarden Integration Tests
 //
 //  Integration tests for Accessibility permission detection
 //
 
 import XCTest
 import ApplicationServices
-@testable import Gnau
+@testable import TextWarden
 
 final class PermissionManagerTests: XCTestCase {
 

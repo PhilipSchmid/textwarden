@@ -1,13 +1,13 @@
 //
 //  TextMonitorTests.swift
-//  Gnau Integration Tests
+//  TextWarden Integration Tests
 //
 //  Integration tests for Accessibility text extraction
 //
 
 import XCTest
 import ApplicationServices
-@testable import Gnau
+@testable import TextWarden
 
 final class TextMonitorTests: XCTestCase {
 

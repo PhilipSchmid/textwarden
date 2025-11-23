@@ -1,6 +1,6 @@
 //
 //  FloatingErrorIndicator.swift
-//  Gnau
+//  TextWarden
 //
 //  Floating error indicator
 //  Shows a small circular badge in the bottom-right corner of text fields

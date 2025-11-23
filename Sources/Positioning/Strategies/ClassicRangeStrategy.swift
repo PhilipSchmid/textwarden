@@ -1,6 +1,6 @@
 //
 //  ClassicRangeStrategy.swift
-//  Gnau
+//  TextWarden
 //
 //  Classic range-based positioning
 //  Works in TextEdit, Notes, Mail, and most native macOS apps

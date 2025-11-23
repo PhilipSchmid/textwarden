@@ -1,12 +1,12 @@
 //
 //  IncrementalAnalysisPerformanceTests.swift
-//  Gnau Tests
+//  TextWarden Tests
 //
 //  Performance tests for incremental re-analysis (T077)
 //
 
 import XCTest
-@testable import Gnau
+@testable import TextWarden
 
 final class IncrementalAnalysisPerformanceTests: XCTestCase {
     var coordinator: AnalysisCoordinator!

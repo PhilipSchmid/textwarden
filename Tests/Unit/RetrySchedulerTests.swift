@@ -1,12 +1,12 @@
 //
 //  RetrySchedulerTests.swift
-//  Gnau
+//  TextWarden
 //
 //  Unit tests for RetryScheduler
 //
 
 import XCTest
-@testable import Gnau
+@testable import TextWarden
 
 final class RetrySchedulerTests: XCTestCase {
 

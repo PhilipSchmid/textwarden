@@ -1,12 +1,12 @@
 //
 //  LargeDocumentPerformanceTests.swift
-//  Gnau Tests
+//  TextWarden Tests
 //
 //  Performance tests for 10,000-word document analysis (T076)
 //
 
 import XCTest
-@testable import Gnau
+@testable import TextWarden
 
 final class LargeDocumentPerformanceTests: XCTestCase {
     var grammarEngine: GrammarEngine!

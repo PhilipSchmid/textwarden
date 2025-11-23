@@ -1,6 +1,6 @@
 //
 //  BuildInfo.swift
-//  Gnau
+//  TextWarden
 //
 //  Build information and version tracking
 //

@@ -1,6 +1,6 @@
 # IT Terminology Wordlist Extraction
 
-Comprehensive documentation for the IT terminology wordlist generation system used by the Gnau grammar checker.
+Comprehensive documentation for the IT terminology wordlist generation system used by the TextWarden grammar checker.
 
 ## Quick Start
 
@@ -162,7 +162,7 @@ All sources are from public domain or permissively licensed data:
 
 To suggest additions or corrections:
 
-1. Open an issue at: https://github.com/PhilipSchmid/gnau/issues
+1. Open an issue at: https://github.com/philipschmid/textwarden/issues
 2. Provide the term(s) with justification
 3. Reference a reliable source (IANA, RFC, official docs, etc.)
 4. Terms reviewed and added in next scheduled update

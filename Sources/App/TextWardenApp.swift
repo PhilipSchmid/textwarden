@@ -1,17 +1,17 @@
 //
-//  GnauApp.swift
-//  Gnau
+//  TextWardenApp.swift
+//  TextWarden
 //
 //  Created by phisch on 09.11.2025.
 //
-//  Main entry point for Gnau menu bar application.
+//  Main entry point for TextWarden menu bar application.
 //
 
 import SwiftUI
 import os.log
 
 @main
-struct GnauApp: App {
+struct TextWardenApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var permissionManager = PermissionManager.shared
 
@@ -36,7 +36,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var settingsWindow: NSWindow?  // Keep strong reference to settings window
 
     func logToFile(_ message: String) {
-        let logPath = "/tmp/gnau-debug.log"
+        let logPath = "/tmp/textwarden-debug.log"
         let timestamp = Date()
         let logMessage = "[\(timestamp)] \(message)\n"
         if let data = logMessage.data(using: .utf8) {
@@ -57,11 +57,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSLog("🚀 Gnau: Application launched")
 
         // Log build information for debugging
-        logToFile("📦 Gnau Build Info:")
+        logToFile("📦 TextWarden Build Info:")
         logToFile("   Version: \(BuildInfo.fullVersion)")
         logToFile("   Build Timestamp: \(BuildInfo.buildTimestamp)")
         logToFile("   Build Age: \(BuildInfo.buildAge)")
-        NSLog("📦 Gnau Build Info: \(BuildInfo.fullVersion) | Built: \(BuildInfo.buildTimestamp) (\(BuildInfo.buildAge))")
+        NSLog("📦 TextWarden Build Info: \(BuildInfo.fullVersion) | Built: \(BuildInfo.buildTimestamp) (\(BuildInfo.buildAge))")
 
         // Record app session for statistics
         UserStatistics.shared.recordSession()
@@ -224,7 +224,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let hostingController = NSHostingController(rootView: preferencesView)
 
         let window = NSWindow(contentViewController: hostingController)
-        window.title = "Gnau Settings"
+        window.title = "TextWarden Settings"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden

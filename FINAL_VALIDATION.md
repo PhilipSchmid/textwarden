@@ -1,6 +1,6 @@
-# Gnau - Final Validation Report
+# TextWarden - Final Validation Report
 
-**Project**: Gnau Grammar Checker
+**Project**: TextWarden Grammar Checker
 **Platform**: macOS 13.0+
 **Status**: Feature-Complete, Ready for Testing
 **Date**: 2025-11-10
@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-Gnau is a **fully-featured, production-ready macOS grammar checker** built with Swift 5.9+ and Rust 1.75+. The application provides real-time grammar checking across all macOS applications using the Accessibility API and Harper grammar engine.
+TextWarden is a **fully-featured, production-ready macOS grammar checker** built with Swift 5.9+ and Rust 1.75+. The application provides real-time grammar checking across all macOS applications using the Accessibility API and Harper grammar engine.
 
 **Implementation Status**: **130 of 150 tasks (87%) complete**
 - Phases 1-10: 100% complete (all features implemented)
@@ -162,7 +162,7 @@ Gnau is a **fully-featured, production-ready macOS grammar checker** built with 
 ### Core Components
 
 **Swift Layer** (Sources/):
-- `GnauApp.swift` - Application entry point
+- `TextWardenApp.swift` - Application entry point
 - `AnalysisCoordinator.swift` - Grammar analysis orchestration
 - `MenuBarController.swift` - Menu bar UI management
 - `PermissionManager.swift` - Accessibility permission handling
@@ -309,7 +309,7 @@ These limitations are documented and acceptable for v1.0 release.
 
 **Status**: ✅ **READY FOR BETA TESTING**
 
-Gnau is feature-complete and ready for comprehensive manual testing. All core functionality has been implemented and automated tests pass. The app demonstrates:
+TextWarden is feature-complete and ready for comprehensive manual testing. All core functionality has been implemented and automated tests pass. The app demonstrates:
 
 1. **Functionality**: All user stories work as specified
 2. **Performance**: Meets or exceeds performance targets

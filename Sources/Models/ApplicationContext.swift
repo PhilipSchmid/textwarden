@@ -1,6 +1,6 @@
 //
 //  ApplicationContext.swift
-//  Gnau
+//  TextWarden
 //
 //  Model representing the context of an application being monitored
 //

@@ -64,10 +64,10 @@
 			fileSystemSynchronizedGroups = (
 				E8AC081C2EC11FBB008E37E6 /* Sources */,
 			);
-			name = Gnau;
+			name = TextWarden;
 			packageProductDependencies = (
 			);
-			productName = Gnau;
+			productName = TextWarden;
 			productReference = E8AC081A2EC11FBB008E37E6 /* Gnau.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -305,7 +305,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = unspecified;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "Sources/GrammarBridge/Gnau-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "Sources/GrammarBridge/TextWarden-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
@@ -354,7 +354,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = unspecified;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "Sources/GrammarBridge/Gnau-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "Sources/GrammarBridge/TextWarden-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";

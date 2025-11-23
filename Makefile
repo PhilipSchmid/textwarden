@@ -1,4 +1,4 @@
-# Makefile for Gnau Grammar Checker
+# Makefile for TextWarden Grammar Checker
 # macOS-native grammar checker with Rust + Swift
 
 .PHONY: help build run test clean reset logs quick-test install dev all
@@ -14,17 +14,17 @@ BLUE := \033[0;34m
 NC := \033[0m # No Color
 
 # Project paths
-PROJECT := Gnau.xcodeproj
-SCHEME := Gnau
+PROJECT := TextWarden.xcodeproj
+SCHEME := TextWarden
 CONFIGURATION := Debug
-BUILD_DIR := $(HOME)/Library/Developer/Xcode/DerivedData/Gnau-*/Build/Products/$(CONFIGURATION)
-APP_NAME := Gnau.app
+BUILD_DIR := $(HOME)/Library/Developer/Xcode/DerivedData/TextWarden-*/Build/Products/$(CONFIGURATION)
+APP_NAME := TextWarden.app
 RUST_DIR := GrammarEngine
 
 ##@ General
 
 help: ## Display this help message
-	@echo "$(GREEN)Gnau Grammar Checker - Build Commands$(NC)"
+	@echo "$(GREEN)TextWarden Grammar Checker - Build Commands$(NC)"
 	@echo ""
 	@awk 'BEGIN {FS = ":.*##"; printf "$(BLUE)Usage:$(NC)\n  make $(YELLOW)<target>$(NC)\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  $(YELLOW)%-15s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(BLUE)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
@@ -52,21 +52,21 @@ rebuild: clean build ## Clean and rebuild everything
 ##@ Running
 
 run: ## Build, install to /Applications, and run with live logs
-	@echo "$(GREEN)🚀 Building and running Gnau...$(NC)"
+	@echo "$(GREEN)🚀 Building and running TextWarden...$(NC)"
 	@make -s build-swift
 	@make -s install
 	@make -s run-only
 
-run-only: ## Run Gnau from /Applications without rebuilding
-	@echo "$(GREEN)🚀 Launching Gnau from /Applications...$(NC)"
-	@if pgrep -x "Gnau" > /dev/null; then \
-		echo "$(YELLOW)⚠️  Gnau is already running (PID: $$(pgrep -x Gnau))$(NC)"; \
+run-only: ## Run TextWarden from /Applications without rebuilding
+	@echo "$(GREEN)🚀 Launching TextWarden from /Applications...$(NC)"
+	@if pgrep -x "TextWarden" > /dev/null; then \
+		echo "$(YELLOW)⚠️  TextWarden is already running (PID: $$(pgrep -x TextWarden))$(NC)"; \
 		echo "Killing it..."; \
-		killall Gnau; \
+		killall TextWarden; \
 		sleep 1; \
 	fi
-	@open /Applications/Gnau.app
-	@echo "$(GREEN)✅ Gnau launched from /Applications$(NC)"
+	@open /Applications/TextWarden.app
+	@echo "$(GREEN)✅ TextWarden launched from /Applications$(NC)"
 	@echo "$(BLUE)Watch logs with: make logs$(NC)"
 
 xcode: ## Open in Xcode
@@ -92,7 +92,7 @@ quick-test: ## Run automated smoke tests
 	@./Scripts/quick-test.sh
 
 reset: ## Reset app to fresh state (clear permissions & preferences)
-	@echo "$(YELLOW)🔄 Resetting Gnau to fresh state...$(NC)"
+	@echo "$(YELLOW)🔄 Resetting TextWarden to fresh state...$(NC)"
 	@./Scripts/test-reset.sh
 
 test-guide: ## Open comprehensive testing guide
@@ -113,37 +113,37 @@ dev: ## Full dev cycle: clean, build, install, and run from /Applications
 	@make -s install
 	@make -s run-only
 
-logs: ## Watch live logs from running Gnau instance
-	@echo "$(BLUE)📊 Watching Gnau logs (Ctrl+C to stop)...$(NC)"
-	@log stream --predicate 'processImagePath CONTAINS "Gnau" AND NOT (subsystem CONTAINS "Preview")' --style compact 2>/dev/null | grep -v "PreviewsMessagingOS" || \
-	 log stream --predicate 'process == "Gnau"' --style compact 2>&1 | grep -v Preview
+logs: ## Watch live logs from running TextWarden instance
+	@echo "$(BLUE)📊 Watching TextWarden logs (Ctrl+C to stop)...$(NC)"
+	@log stream --predicate 'processImagePath CONTAINS "TextWarden" AND NOT (subsystem CONTAINS "Preview")' --style compact 2>/dev/null | grep -v "PreviewsMessagingOS" || \
+	 log stream --predicate 'process == "TextWarden"' --style compact 2>&1 | grep -v Preview
 
-kill: ## Kill running Gnau instance
-	@if pgrep -x "Gnau" > /dev/null; then \
-		echo "$(YELLOW)⚠️  Killing Gnau (PID: $$(pgrep -x Gnau))...$(NC)"; \
-		killall Gnau; \
-		echo "$(GREEN)✅ Gnau terminated$(NC)"; \
+kill: ## Kill running TextWarden instance
+	@if pgrep -x "TextWarden" > /dev/null; then \
+		echo "$(YELLOW)⚠️  Killing TextWarden (PID: $$(pgrep -x TextWarden))...$(NC)"; \
+		killall TextWarden; \
+		echo "$(GREEN)✅ TextWarden terminated$(NC)"; \
 	else \
-		echo "$(BLUE)ℹ️  Gnau is not running$(NC)"; \
+		echo "$(BLUE)ℹ️  TextWarden is not running$(NC)"; \
 	fi
 
-status: ## Check if Gnau is running and show stats
-	@echo "$(BLUE)📊 Gnau Status$(NC)"
+status: ## Check if TextWarden is running and show stats
+	@echo "$(BLUE)📊 TextWarden Status$(NC)"
 	@echo "━━━━━━━━━━━━━━"
-	@if pgrep -x "Gnau" > /dev/null; then \
-		echo "$(GREEN)✅ Running$(NC) (PID: $$(pgrep -x Gnau))"; \
+	@if pgrep -x "TextWarden" > /dev/null; then \
+		echo "$(GREEN)✅ Running$(NC) (PID: $$(pgrep -x TextWarden))"; \
 		echo ""; \
 		echo "Memory usage:"; \
-		ps -o pid,rss,vsz,command -p $$(pgrep -x Gnau) | tail -1; \
+		ps -o pid,rss,vsz,command -p $$(pgrep -x TextWarden) | tail -1; \
 		echo ""; \
 		echo "CPU usage:"; \
-		top -pid $$(pgrep -x Gnau) -l 1 -stats pid,cpu,time | tail -1; \
+		top -pid $$(pgrep -x TextWarden) -l 1 -stats pid,cpu,time | tail -1; \
 	else \
 		echo "$(RED)❌ Not running$(NC)"; \
 	fi
 	@echo ""
 	@echo "Permission status:"
-	@defaults read com.philipschmid.Gnau 2>/dev/null && echo "$(GREEN)✅ Preferences exist$(NC)" || echo "$(YELLOW)⚠️  No preferences found$(NC)"
+	@defaults read com.philipschmid.TextWarden 2>/dev/null && echo "$(GREEN)✅ Preferences exist$(NC)" || echo "$(YELLOW)⚠️  No preferences found$(NC)"
 
 ##@ Cleaning
 
@@ -159,7 +159,7 @@ clean-swift: ## Clean Xcode build artifacts
 
 clean-derived: ## Remove Xcode DerivedData
 	@echo "$(YELLOW)🧹 Removing DerivedData...$(NC)"
-	@rm -rf ~/Library/Developer/Xcode/DerivedData/Gnau-*
+	@rm -rf ~/Library/Developer/Xcode/DerivedData/TextWarden-*
 	@echo "$(GREEN)✅ DerivedData removed$(NC)"
 
 clean: clean-swift ## Clean build artifacts (Swift only, keeps Rust)
@@ -169,7 +169,7 @@ clean-all: clean-rust clean-swift clean-derived ## Deep clean everything includi
 ##@ Installation & Distribution
 
 install: build ## Build and install to Applications folder
-	@echo "$(BLUE)📦 Installing Gnau...$(NC)"
+	@echo "$(BLUE)📦 Installing TextWarden...$(NC)"
 	@APP=$$(ls -d $(BUILD_DIR)/$(APP_NAME) 2>/dev/null | head -1); \
 	if [ -z "$$APP" ]; then \
 		echo "$(RED)❌ App not found. Build first: make build$(NC)"; \
@@ -182,8 +182,8 @@ install: build ## Build and install to Applications folder
 	cp -R "$$APP" /Applications/; \
 	echo "$(GREEN)✅ Installed to /Applications/$(APP_NAME)$(NC)"
 
-uninstall: ## Remove Gnau from Applications folder
-	@echo "$(YELLOW)🗑️  Uninstalling Gnau...$(NC)"
+uninstall: ## Remove TextWarden from Applications folder
+	@echo "$(YELLOW)🗑️  Uninstalling TextWarden...$(NC)"
 	@if [ -d "/Applications/$(APP_NAME)" ]; then \
 		rm -rf "/Applications/$(APP_NAME)"; \
 		echo "$(GREEN)✅ Uninstalled$(NC)"; \
@@ -224,11 +224,11 @@ debug-swift: ## Show Xcode build paths
 		echo "$(RED)❌ App not found. Run: make build$(NC)"; \
 	fi
 
-console: ## Open Console.app filtered to Gnau
+console: ## Open Console.app filtered to TextWarden
 	@echo "$(BLUE)📊 Opening Console.app...$(NC)"
 	@open -a Console
 	@osascript -e 'tell application "Console" to activate'
-	@echo "$(YELLOW)Filter by: process:Gnau$(NC)"
+	@echo "$(YELLOW)Filter by: process:TextWarden$(NC)"
 
 ##@ Shortcuts
 
@@ -240,7 +240,7 @@ start: run ## Alias for 'make run'
 
 stop: kill ## Alias for 'make kill'
 
-restart: ## Kill and restart Gnau
+restart: ## Kill and restart TextWarden
 	@make -s kill
 	@sleep 1
 	@make -s run-only
@@ -259,7 +259,7 @@ docs: ## Open all documentation
 	@cat QUICK_TEST_CHECKLIST.md
 
 version: ## Show version information
-	@echo "$(BLUE)Gnau Version Information$(NC)"
+	@echo "$(BLUE)TextWarden Version Information$(NC)"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━"
 	@grep "CFBundleShortVersionString" Info.plist -A1 | grep string | sed 's/<[^>]*>//g' | xargs echo "App version:"
 	@rustc --version 2>/dev/null | xargs echo "Rust:" || echo "Rust: not found"

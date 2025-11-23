@@ -1,6 +1,6 @@
 //
 //  TextSegment.swift
-//  Gnau
+//  TextWarden
 //
 //  Model representing a segment of text with metadata
 //

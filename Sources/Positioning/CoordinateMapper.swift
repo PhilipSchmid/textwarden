@@ -1,6 +1,6 @@
 //
 //  CoordinateMapper.swift
-//  Gnau
+//  TextWarden
 //
 //  Handles coordinate system conversions
 //  macOS has THREE coordinate systems - we handle them all correctly

@@ -1,10 +1,10 @@
-# Gnau
+# TextWarden
 
 A privacy-first, offline grammar checker for macOS.
 
-## What is Gnau?
+## What is TextWarden?
 
-Gnau is a native macOS application that provides real-time grammar checking across all your applications—from TextEdit and Pages to VS Code and Slack. It runs entirely on your device with zero network access, ensuring your writing stays private.
+TextWarden is a native macOS application that provides real-time grammar checking across all your applications—from TextEdit and Pages to VS Code and Slack. It runs entirely on your device with zero network access, ensuring your writing stays private.
 
 ## Why Gnau?
 
@@ -30,7 +30,7 @@ Gnau is a native macOS application that provides real-time grammar checking acro
 
 ## How It Works
 
-Gnau uses the [Harper](https://github.com/elijah-potter/harper) grammar engine (Rust-based, rule-driven) for grammar analysis. The application integrates with macOS using:
+TextWarden uses the [Harper](https://github.com/elijah-potter/harper) grammar engine (Rust-based, rule-driven) for grammar analysis. The application integrates with macOS using:
 
 - **Accessibility API**: Monitors text changes across applications
 - **Swift/Rust FFI**: High-performance bridge via swift-bridge
@@ -39,7 +39,7 @@ Gnau uses the [Harper](https://github.com/elijah-potter/harper) grammar engine (
 ## Installation
 
 ```bash
-brew install --cask gnau
+brew install --cask textwarden
 ```
 
 After installation, grant Accessibility permissions in **System Settings → Privacy & Security → Accessibility**.

@@ -1,6 +1,6 @@
 //
 //  ContentParser.swift
-//  Gnau
+//  TextWarden
 //
 //  Protocol for app-specific content parsing and bounds adjustment
 //  Inspired by (redacted)'s architecture with dedicated parsers per application

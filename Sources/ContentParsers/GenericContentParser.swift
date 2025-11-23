@@ -1,6 +1,6 @@
 //
 //  GenericContentParser.swift
-//  Gnau
+//  TextWarden
 //
 //  Generic content parser for apps without specific implementations
 //  Uses standard AX API and reasonable defaults

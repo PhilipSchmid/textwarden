@@ -1,12 +1,12 @@
 //
 //  ApplicationTrackerTests.swift
-//  Gnau Tests
+//  TextWarden Tests
 //
 //  Integration tests for per-app filtering (T065)
 //
 
 import XCTest
-@testable import Gnau
+@testable import TextWarden
 
 final class ApplicationTrackerTests: XCTestCase {
     var tracker: ApplicationTracker!

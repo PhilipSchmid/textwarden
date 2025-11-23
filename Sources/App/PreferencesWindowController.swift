@@ -1,6 +1,6 @@
 //
 //  PreferencesWindowController.swift
-//  Gnau
+//  TextWarden
 //
 //  Controls which tab is shown in the preferences window
 //

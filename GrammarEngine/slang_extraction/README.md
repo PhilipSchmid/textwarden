@@ -1,10 +1,10 @@
 # Slang and Abbreviations Wordlist Extraction
 
-Documentation for the slang and abbreviations wordlists used by the Gnau grammar checker.
+Documentation for the slang and abbreviations wordlists used by the TextWarden grammar checker.
 
 ## Overview
 
-This directory contains manually curated slang and abbreviation wordlists from public educational sources and community datasets. These wordlists help Gnau recognize informal internet language and modern slang that might otherwise be flagged as spelling errors.
+This directory contains manually curated slang and abbreviation wordlists from public educational sources and community datasets. These wordlists help TextWarden recognize informal internet language and modern slang that might otherwise be flagged as spelling errors.
 
 ## Directory Structure
 
@@ -74,7 +74,7 @@ Technical IT terms from authoritative sources covering cloud, DevOps, programmin
 
 ## Usage
 
-These wordlists are directly referenced by the Gnau grammar engine via `include_str!()` in `src/slang_dict.rs`:
+These wordlists are directly referenced by the TextWarden grammar engine via `include_str!()` in `src/slang_dict.rs`:
 
 ```rust
 WordlistCategory::InternetAbbreviations => {

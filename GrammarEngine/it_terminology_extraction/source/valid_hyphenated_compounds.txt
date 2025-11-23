@@ -9,7 +9,7 @@
 # - Exact pattern matches (e.g., peer-to-peer)
 #
 # Total terms: 166
-# Generation date: /Users/phisch/git/github.com/philipschmid/gnau/GrammarEngine/it_terminology_extraction/scripts
+# Generation date: /Users/phisch/git/github.com/philipschmid/textwarden/GrammarEngine/it_terminology_extraction/scripts
 #
 # DO NOT EDIT - Regenerate with: scripts/extract_hyphenated_compounds.py
 

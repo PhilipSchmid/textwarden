@@ -1,6 +1,6 @@
 //
 //  GeometryProvider.swift
-//  Gnau
+//  TextWarden
 //
 //  Protocol for position calculation strategies
 //  Enables pluggable positioning algorithms with automatic fallback

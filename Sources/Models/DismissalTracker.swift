@@ -1,6 +1,6 @@
 //
 //  DismissalTracker.swift
-//  Gnau
+//  TextWarden
 //
 //  Tracks dismissed grammar rule patterns (T101, T108)
 //
@@ -21,7 +21,7 @@ class DismissalTracker {
             in: .userDomainMask
         ).first!
 
-        let gnauDir = appSupport.appendingPathComponent("Gnau")
+        let gnauDir = appSupport.appendingPathComponent("TextWarden")
 
         // Create directory if needed
         try? FileManager.default.createDirectory(

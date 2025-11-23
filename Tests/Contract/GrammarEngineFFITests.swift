@@ -1,12 +1,12 @@
 //
 //  GrammarEngineFFITests.swift
-//  Gnau Contract Tests
+//  TextWarden Contract Tests
 //
 //  Tests validating Rust-Swift FFI boundary integrity
 //
 
 import XCTest
-@testable import Gnau
+@testable import TextWarden
 
 final class GrammarEngineFFITests: XCTestCase {
 

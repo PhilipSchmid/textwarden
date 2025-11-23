@@ -1,6 +1,6 @@
 //
 //  PositionResolver.swift
-//  Gnau
+//  TextWarden
 //
 //  Multi-strategy position resolution engine
 //  Automatically selects best strategy and falls back on failure

@@ -1,6 +1,6 @@
 //
 //  AnalysisCoordinator.swift
-//  Gnau
+//  TextWarden
 //
 //  Orchestrates text monitoring, grammar analysis, and UI presentation
 //
@@ -12,7 +12,7 @@ import Combine
 
 /// Debug file logging
 func logToDebugFile(_ message: String) {
-    let logPath = "/tmp/gnau-debug.log"
+    let logPath = "/tmp/textwarden-debug.log"
     let timestamp = Date()
     let logMessage = "[\(timestamp)] \(message)\n"
     if let data = logMessage.data(using: .utf8) {
@@ -73,7 +73,7 @@ class AnalysisCoordinator: ObservableObject {
     private var monitoredContext: ApplicationContext?
 
     /// Analysis queue for background processing
-    private let analysisQueue = DispatchQueue(label: "com.gnau.analysis", qos: .userInitiated)
+    private let analysisQueue = DispatchQueue(label: "com.textwarden.analysis", qos: .userInitiated)
 
     /// Cancellables for Combine subscriptions
     private var cancellables = Set<AnyCancellable>()

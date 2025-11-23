@@ -1,6 +1,6 @@
 //
 //  UserStatistics.swift
-//  Gnau
+//  TextWarden
 //
 //  User statistics tracking with UserDefaults persistence
 //
