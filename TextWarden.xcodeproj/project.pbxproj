@@ -66,6 +66,7 @@
 			);
 			name = TextWarden;
 			packageProductDependencies = (
+				D48EA1252ED3B88E00CC5B73 /* LaunchAtLogin */,
 			);
 			productName = TextWarden;
 			productReference = E8AC081A2EC11FBB008E37E6 /* TextWarden.app */;
@@ -95,6 +96,9 @@
 			);
 			mainGroup = E8AC08112EC11FBB008E37E6;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				D48EA1242ED3B88E00CC5B73 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E8AC081B2EC11FBB008E37E6 /* Products */;
 			projectDirPath = "";
@@ -384,6 +388,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		D48EA1242ED3B88E00CC5B73 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/LaunchAtLogin-Modern";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		D48EA1252ED3B88E00CC5B73 /* LaunchAtLogin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D48EA1242ED3B88E00CC5B73 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */;
+			productName = LaunchAtLogin;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E8AC08122EC11FBB008E37E6 /* Project object */;
 }
