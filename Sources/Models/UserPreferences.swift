@@ -331,27 +331,6 @@ class UserPreferences: ObservableObject {
         }
     }
 
-    /// Shortcut to toggle grammar checking on/off
-    @Published var toggleShortcut: String {
-        didSet {
-            defaults.set(toggleShortcut, forKey: Keys.toggleShortcut)
-        }
-    }
-
-    /// Shortcut to accept current suggestion
-    @Published var acceptSuggestionShortcut: String {
-        didSet {
-            defaults.set(acceptSuggestionShortcut, forKey: Keys.acceptSuggestionShortcut)
-        }
-    }
-
-    /// Shortcut to dismiss current suggestion
-    @Published var dismissSuggestionShortcut: String {
-        didSet {
-            defaults.set(dismissSuggestionShortcut, forKey: Keys.dismissSuggestionShortcut)
-        }
-    }
-
     // MARK: - Suggestion Appearance
 
     /// Suggestion popover opacity (0.7 to 1.0)
@@ -496,9 +475,6 @@ class UserPreferences: ObservableObject {
 
         // Keyboard Shortcuts
         self.keyboardShortcutsEnabled = true
-        self.toggleShortcut = "⌘⇧G"
-        self.acceptSuggestionShortcut = "⇥"
-        self.dismissSuggestionShortcut = "⎋"
 
         // Suggestion Appearance
         self.suggestionOpacity = 0.95
@@ -584,9 +560,6 @@ class UserPreferences: ObservableObject {
 
         // Keyboard Shortcuts
         self.keyboardShortcutsEnabled = defaults.object(forKey: Keys.keyboardShortcutsEnabled) as? Bool ?? true
-        self.toggleShortcut = defaults.string(forKey: Keys.toggleShortcut) ?? "⌘⇧G"
-        self.acceptSuggestionShortcut = defaults.string(forKey: Keys.acceptSuggestionShortcut) ?? "⇥"
-        self.dismissSuggestionShortcut = defaults.string(forKey: Keys.dismissSuggestionShortcut) ?? "⎋"
 
         // Suggestion Appearance
         self.suggestionOpacity = defaults.object(forKey: Keys.suggestionOpacity) as? Double ?? 0.95
@@ -874,9 +847,6 @@ class UserPreferences: ObservableObject {
         enableITTerminology = true
         enableSentenceStartCapitalization = true
         keyboardShortcutsEnabled = true
-        toggleShortcut = "⌘⇧G"
-        acceptSuggestionShortcut = "⇥"
-        dismissSuggestionShortcut = "⎋"
         suggestionOpacity = 0.95
         suggestionTextSize = 13.0
         suggestionPosition = "Auto"
@@ -914,9 +884,6 @@ class UserPreferences: ObservableObject {
 
         // Keyboard Shortcuts
         static let keyboardShortcutsEnabled = "keyboardShortcutsEnabled"
-        static let toggleShortcut = "toggleShortcut"
-        static let acceptSuggestionShortcut = "acceptSuggestionShortcut"
-        static let dismissSuggestionShortcut = "dismissSuggestionShortcut"
 
         // Suggestion Appearance
         static let suggestionOpacity = "suggestionOpacity"
