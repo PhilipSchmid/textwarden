@@ -9,6 +9,7 @@
 
 import SwiftUI
 import os.log
+import KeyboardShortcuts
 
 @main
 struct TextWardenApp: App {
@@ -92,6 +93,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarController = MenuBarController()
         logToFile("📍 TextWarden: Menu bar controller initialized")
         NSLog("📍 TextWarden: Menu bar controller initialized")
+
+        // Setup keyboard shortcuts
+        setupKeyboardShortcuts()
+        logToFile("⌨️ TextWarden: Keyboard shortcuts initialized")
+        NSLog("⌨️ TextWarden: Keyboard shortcuts initialized")
 
         // Check permissions on launch (T055)
         let permissionManager = PermissionManager.shared
@@ -273,6 +279,118 @@ extension AppDelegate: NSWindowDelegate {
 
             logToFile("🪟 TextWarden: windowWillClose - AFTER setActivationPolicy(.accessory) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
             NSLog("🪟 TextWarden: windowWillClose - AFTER setActivationPolicy(.accessory) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+        }
+    }
+
+    // MARK: - Keyboard Shortcuts
+
+    /// Setup global keyboard shortcuts using KeyboardShortcuts package
+    private func setupKeyboardShortcuts() {
+        let preferences = UserPreferences.shared
+
+        // Toggle grammar checking (Cmd+Shift+G by default)
+        KeyboardShortcuts.onKeyUp(for: .toggleGrammarChecking) { [weak self] in
+            guard preferences.keyboardShortcutsEnabled else { return }
+
+            let msg = "⌨️ Keyboard shortcut: Toggle grammar checking"
+            self?.logToFile(msg)
+            NSLog(msg)
+
+            // Toggle pause duration between active and indefinite
+            if preferences.pauseDuration == .active {
+                preferences.pauseDuration = .indefinite
+            } else {
+                preferences.pauseDuration = .active
+            }
+        }
+
+        // Accept current suggestion (Tab by default)
+        KeyboardShortcuts.onKeyUp(for: .acceptSuggestion) { [weak self] in
+            guard preferences.keyboardShortcutsEnabled else { return }
+            guard let error = SuggestionPopover.shared.currentError else { return }
+            guard let firstSuggestion = error.suggestions.first else { return }
+
+            let msg = "⌨️ Keyboard shortcut: Accept suggestion - \(firstSuggestion)"
+            self?.logToFile(msg)
+            NSLog(msg)
+
+            SuggestionPopover.shared.applySuggestion(firstSuggestion)
+        }
+
+        // Dismiss suggestion popover (Escape by default)
+        KeyboardShortcuts.onKeyUp(for: .dismissSuggestion) { [weak self] in
+            guard preferences.keyboardShortcutsEnabled else { return }
+            guard SuggestionPopover.shared.currentError != nil else { return }
+
+            let msg = "⌨️ Keyboard shortcut: Dismiss suggestion"
+            self?.logToFile(msg)
+            NSLog(msg)
+
+            SuggestionPopover.shared.hide()
+        }
+
+        // Navigate to previous suggestion (Up arrow by default)
+        KeyboardShortcuts.onKeyUp(for: .previousSuggestion) { [weak self] in
+            guard preferences.keyboardShortcutsEnabled else { return }
+            guard SuggestionPopover.shared.currentError != nil else { return }
+
+            let msg = "⌨️ Keyboard shortcut: Previous suggestion"
+            self?.logToFile(msg)
+            NSLog(msg)
+
+            SuggestionPopover.shared.previousError()
+        }
+
+        // Navigate to next suggestion (Down arrow by default)
+        KeyboardShortcuts.onKeyUp(for: .nextSuggestion) { [weak self] in
+            guard preferences.keyboardShortcutsEnabled else { return }
+            guard SuggestionPopover.shared.currentError != nil else { return }
+
+            let msg = "⌨️ Keyboard shortcut: Next suggestion"
+            self?.logToFile(msg)
+            NSLog(msg)
+
+            SuggestionPopover.shared.nextError()
+        }
+
+        // Quick apply shortcuts (Cmd+1, Cmd+2, Cmd+3)
+        KeyboardShortcuts.onKeyUp(for: .applySuggestion1) { [weak self] in
+            guard preferences.keyboardShortcutsEnabled else { return }
+            guard let error = SuggestionPopover.shared.currentError else { return }
+            guard error.suggestions.count >= 1 else { return }
+
+            let suggestion = error.suggestions[0]
+            let msg = "⌨️ Keyboard shortcut: Apply suggestion 1 - \(suggestion)"
+            self?.logToFile(msg)
+            NSLog(msg)
+
+            SuggestionPopover.shared.applySuggestion(suggestion)
+        }
+
+        KeyboardShortcuts.onKeyUp(for: .applySuggestion2) { [weak self] in
+            guard preferences.keyboardShortcutsEnabled else { return }
+            guard let error = SuggestionPopover.shared.currentError else { return }
+            guard error.suggestions.count >= 2 else { return }
+
+            let suggestion = error.suggestions[1]
+            let msg = "⌨️ Keyboard shortcut: Apply suggestion 2 - \(suggestion)"
+            self?.logToFile(msg)
+            NSLog(msg)
+
+            SuggestionPopover.shared.applySuggestion(suggestion)
+        }
+
+        KeyboardShortcuts.onKeyUp(for: .applySuggestion3) { [weak self] in
+            guard preferences.keyboardShortcutsEnabled else { return }
+            guard let error = SuggestionPopover.shared.currentError else { return }
+            guard error.suggestions.count >= 3 else { return }
+
+            let suggestion = error.suggestions[2]
+            let msg = "⌨️ Keyboard shortcut: Apply suggestion 3 - \(suggestion)"
+            self?.logToFile(msg)
+            NSLog(msg)
+
+            SuggestionPopover.shared.applySuggestion(suggestion)
         }
     }
 }

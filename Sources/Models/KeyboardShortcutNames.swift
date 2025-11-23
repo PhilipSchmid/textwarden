@@ -23,10 +23,10 @@ extension KeyboardShortcuts.Name {
     static let dismissSuggestion = Self("dismissSuggestion", default: .init(.escape))
 
     /// Navigate to previous error/suggestion
-    static let previousSuggestion = Self("previousSuggestion", default: .init(.upArrow))
+    static let previousSuggestion = Self("previousSuggestion", default: .init(.leftArrow))
 
     /// Navigate to next error/suggestion
-    static let nextSuggestion = Self("nextSuggestion", default: .init(.downArrow))
+    static let nextSuggestion = Self("nextSuggestion", default: .init(.rightArrow))
 
     // MARK: - Quick Actions
 
