@@ -12,6 +12,85 @@
 import Foundation
 import AppKit
 
+// MARK: - Debug Border Window
+class DebugBorderWindow: NSPanel {
+    static var debugWindows: [DebugBorderWindow] = []
+
+    init(frame: NSRect, color: NSColor, label: String) {
+        super.init(
+            contentRect: frame,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+
+        self.isOpaque = false
+        self.backgroundColor = .clear
+        self.level = .screenSaver  // HIGHER than .floating to be on top
+        self.ignoresMouseEvents = true
+        self.hasShadow = false
+
+        // Create border view
+        let borderView = DebugBorderView(color: color, label: label)
+        self.contentView = borderView
+
+        self.orderFront(nil)
+        DebugBorderWindow.debugWindows.append(self)
+    }
+
+    static func clearAll() {
+        for window in debugWindows {
+            window.close()
+        }
+        debugWindows.removeAll()
+    }
+}
+
+class DebugBorderView: NSView {
+    let borderColor: NSColor
+    let label: String
+
+    init(color: NSColor, label: String) {
+        self.borderColor = color
+        self.label = label
+        super.init(frame: .zero)
+        self.wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        guard let context = NSGraphicsContext.current?.cgContext else { return }
+
+        // Draw THICK border only (no fill)
+        context.setStrokeColor(borderColor.cgColor)
+        context.setLineWidth(5.0)  // Thicker!
+        context.stroke(bounds.insetBy(dx: 2.5, dy: 2.5))
+
+        // Draw label
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.boldSystemFont(ofSize: 16),  // Bigger!
+            .foregroundColor: borderColor
+        ]
+        let labelStr = label as NSString
+        let textSize = labelStr.size(withAttributes: attrs)
+
+        // Position blue box label (CGWindow coords) in top right, others in top left
+        let xPosition: CGFloat
+        if label.contains("CGWindow") {
+            xPosition = bounds.width - textSize.width - 10  // Top right
+        } else {
+            xPosition = 10  // Top left
+        }
+
+        labelStr.draw(at: NSPoint(x: xPosition, y: bounds.height - 30), withAttributes: attrs)
+    }
+}
+
 /// Slack-specific content parser
 /// Handles Electron/React rendering quirks and multiple UI contexts
 class SlackContentParser: ContentParser {
@@ -160,15 +239,39 @@ class SlackContentParser: ContentParser {
         let multiplier = spacingMultiplier(context: context)
         let padding = horizontalPadding(context: context)
 
-        // Try AX bounds first (mostly for validation/debugging)
+        // STRATEGY: Use AX API to get bounds for FULL TEXT, then calculate average char width
+        // This adapts automatically to zoom levels, font sizes, DPI, etc.
+        let fullTextRange = NSRange(location: 0, length: fullText.count)
+        if let fullTextBounds = tryGetAXBounds(element: element, range: fullTextRange),
+           fullText.count > 0 {
+            // Calculate average character width from actual rendered text
+            let averageCharWidth = fullTextBounds.width / CGFloat(fullText.count)
+
+            // Position error based on character index
+            let xPosition = fullTextBounds.origin.x + (CGFloat(errorRange.location) * averageCharWidth)
+            let errorWidth = CGFloat(errorRange.length) * averageCharWidth
+
+            let debugInfo = "Slack: Using full text AX bounds. chars=\(fullText.count), avgWidth=\(String(format: "%.2f", averageCharWidth))px, textBounds=\(fullTextBounds)"
+            Logger.info(debugInfo)
+
+            return AdjustedBounds(
+                position: NSPoint(x: xPosition, y: fullTextBounds.origin.y + fullTextBounds.height - 2),
+                errorWidth: errorWidth,
+                confidence: 1.0,
+                uiContext: context,
+                debugInfo: debugInfo
+            )
+        }
+
+        // Try AX bounds for error range directly (fallback)
         if let axBounds = tryGetAXBounds(element: element, range: errorRange) {
-            Logger.debug("Slack: AX API returned valid bounds! context=\(context ?? "unknown"), bounds=\(axBounds)")
+            Logger.debug("Slack: AX API returned valid bounds for error range! context=\(context ?? "unknown"), bounds=\(axBounds)")
             return AdjustedBounds(
                 position: NSPoint(x: axBounds.origin.x, y: axBounds.origin.y),
                 errorWidth: axBounds.width,
                 confidence: 1.0,
                 uiContext: context,
-                debugInfo: "AX API (unexpected success in Slack)"
+                debugInfo: "AX API (direct error bounds)"
             )
         }
 
@@ -237,19 +340,35 @@ class SlackContentParser: ContentParser {
         let baseTextBeforeWidth = (textBeforeError as NSString).size(withAttributes: attributes).width
         let baseErrorWidth = (errorText as NSString).size(withAttributes: attributes).width
 
-        // NEW: Per-character pixel correction instead of percentage multiplier
-        // This avoids cumulative drift on long lines
-        // Slack renders each character ~0.4px narrower than NSFont measures
-        let pixelCorrectionPerChar: CGFloat = 0.4
-        let adjustedTextBeforeWidth = baseTextBeforeWidth - (CGFloat(textBeforeError.count) * pixelCorrectionPerChar)
+        // Apply spacing multiplier to match Slack's Chromium rendering
+        // Slack renders text ~6% narrower than NSFont measures (0.94x)
+        // Using multiplier instead of per-character correction avoids cumulative drift
+        let adjustedTextBeforeWidth = baseTextBeforeWidth * multiplier
+        let adjustedErrorWidth = baseErrorWidth * multiplier
 
         guard let elementFrame = getElementFrame(element: element) else {
             Logger.error("Slack: Failed to get element frame")
             return nil
         }
 
-        let xPosition = elementFrame.origin.x + padding + adjustedTextBeforeWidth
-        let yPosition = elementFrame.origin.y + elementFrame.height - 2
+        let msg1 = "🔧 SlackContentParser.adjustBounds: elementFrame (Quartz) = \(elementFrame)"
+        NSLog(msg1)
+        logToDebugFile(msg1)
+
+        // Element frame already includes text field position
+        // Only add padding if element frame is at window origin (indicating AX gave us raw window bounds)
+        // Otherwise element frame already accounts for padding
+        let xPosition = elementFrame.origin.x + adjustedTextBeforeWidth
+        // Position at text baseline in Quartz coordinates
+        // CRITICAL: The 'baseline' is where the BOTTOM of text sits, not the top!
+        // With errorHeight of 18px, bounds span from (baseline-18) to baseline
+        // For a 38px element, we need bounds at roughly 13-31px to leave room for drawing offset
+        // So baseline should be at ~31px: 31/38 = 0.82
+        let yPosition = elementFrame.origin.y + (elementFrame.height * 0.82)
+
+        let msg2 = "🔧 SlackContentParser: Calculated baseline Y (Quartz): \(yPosition) = elementFrame.y(\(elementFrame.origin.y)) + height*0.82(\(elementFrame.height * 0.82))"
+        NSLog(msg2)
+        logToDebugFile(msg2)
 
         let debugInfo = """
             Slack text measurement fallback: context=\(context ?? "unknown"), \
@@ -262,7 +381,7 @@ class SlackContentParser: ContentParser {
 
         return AdjustedBounds(
             position: NSPoint(x: xPosition, y: yPosition),
-            errorWidth: baseErrorWidth,
+            errorWidth: adjustedErrorWidth,
             confidence: 0.75,
             uiContext: context,
             debugInfo: debugInfo
@@ -306,6 +425,24 @@ class SlackContentParser: ContentParser {
     }
 
     private func getElementFrame(element: AXUIElement) -> NSRect? {
+        // Get text field element's AX bounds (not window bounds!)
+        // The element parameter is the actual text field, so we want ITS bounds
+        return getElementFrameFromAX(element: element)
+    }
+
+    /// Get element frame using AX API (fallback only)
+    private func getElementFrameFromAX(element: AXUIElement) -> NSRect? {
+        // Debug: Get element role and description
+        var roleValue: CFTypeRef?
+        var descValue: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue)
+        AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute as CFString, &descValue)
+        let role = roleValue as? String ?? "unknown"
+        let desc = descValue as? String ?? "none"
+        let msg0 = "🔍🔍🔍 SLACK ELEMENT INFO - Role: \(role), Description: \(desc)"
+        NSLog(msg0)
+        logToDebugFile(msg0)
+
         var positionValue: CFTypeRef?
         var sizeValue: CFTypeRef?
 
@@ -322,7 +459,117 @@ class SlackContentParser: ContentParser {
             return nil
         }
 
-        return NSRect(origin: position, size: size)
+        let msg1 = "🔍🔍🔍 SLACK RAW AX DATA - Position: \(position), Size: \(size)"
+        NSLog(msg1)
+        logToDebugFile(msg1)
+
+        var frame = NSRect(origin: position, size: size)
+
+        // CRITICAL FIX: Slack's Electron-based AX implementation returns negative X values as sentinel values
+        // This is a known Slack bug - we need to calculate the actual X position
+        if position.x < 0 {
+            let msg = "⚠️ SLACK BUG DETECTED: AX API returned X=\(position.x) (negative/sentinel value)"
+            NSLog(msg)
+            logToDebugFile(msg)
+
+            // Get the actual window position using CGWindowListCopyWindowInfo
+            if let windowFrame = getSlackWindowFrame(element: element, elementPosition: position) {
+                let msg2 = "✅ SLACK FIX: Got window frame: \(windowFrame)"
+                NSLog(msg2)
+                logToDebugFile(msg2)
+
+                // STRATEGY: Only X is broken, Y from AX API is actually correct!
+                // Use Y directly from AX API, calculate X from window
+                let leftPadding: CGFloat = 20.0
+                frame.origin.x = windowFrame.origin.x + leftPadding
+                frame.origin.y = position.y  // Use AX API Y - it's reliable!
+                frame.size = size
+
+                let msg3 = "✅ SLACK FIX: Using Quartz coordinates - X from window + padding, Y from AX API: \(frame)"
+                NSLog(msg3)
+                logToDebugFile(msg3)
+
+                // Return Quartz coordinates - no conversion needed!
+            } else {
+                let msg4 = "❌ SLACK FIX: Could not get window frame, using broken AX position"
+                NSLog(msg4)
+                logToDebugFile(msg4)
+            }
+        }
+
+        let msg2 = "🔍🔍🔍 SLACK FRAME - X: \(frame.origin.x), Y: \(frame.origin.y), Width: \(frame.width), Height: \(frame.height)"
+        NSLog(msg2)
+        logToDebugFile(msg2)
+
+        // Return raw Quartz coordinates - parser works in Quartz throughout
+        // Conversion to Cocoa happens later in TextMeasurementStrategy
+        Logger.debug("SlackContentParser: getElementFrameFromAX returned Quartz frame: \(frame)")
+        return frame
+    }
+
+    private func getSlackWindowFrame(element: AXUIElement, elementPosition: NSPoint) -> NSRect? {
+        // Get PID from element
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(element, &pid) == .success else {
+            return nil
+        }
+
+        // Get window list from CGWindowListCopyWindowInfo
+        guard let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+            return nil
+        }
+
+        // Find Slack's window that contains the text input element
+        // Element position Y is reliable even though X is broken
+        let elementY = elementPosition.y  // This is in Quartz coordinates
+
+        var candidateWindows: [(NSRect, String)] = []
+
+        for windowInfo in windowList {
+            guard let windowPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
+                  windowPID == pid,
+                  let boundsDict = windowInfo[kCGWindowBounds as String] as? [String: CGFloat],
+                  let x = boundsDict["X"],
+                  let y = boundsDict["Y"],
+                  let width = boundsDict["Width"],
+                  let height = boundsDict["Height"] else {
+                continue
+            }
+
+            let windowFrame = NSRect(x: x, y: y, width: width, height: height)
+            let windowName = (windowInfo[kCGWindowName as String] as? String) ?? "Unknown"
+            let windowLayer = windowInfo[kCGWindowLayer as String] as? Int ?? -1
+
+            candidateWindows.append((windowFrame, windowName))
+
+            let msg = "🔍 SLACK: Found window: \(windowName), Frame: \(windowFrame), Layer: \(windowLayer)"
+            NSLog(msg)
+            logToDebugFile(msg)
+
+            // Check if element Y position is within this window's Y range
+            let windowTop = y
+            let windowBottom = y + height
+
+            if elementY >= windowTop && elementY <= windowBottom {
+                let msg2 = "✅ SLACK: Window '\(windowName)' contains element (Y=\(elementY) in range \(windowTop)-\(windowBottom))"
+                NSLog(msg2)
+                logToDebugFile(msg2)
+
+                return windowFrame
+            }
+        }
+
+        // If no window contains the element, log all candidates and return the largest
+        if !candidateWindows.isEmpty {
+            let msg = "⚠️ SLACK: No window contains element Y=\(elementY). Found \(candidateWindows.count) windows. Using largest."
+            NSLog(msg)
+            logToDebugFile(msg)
+
+            let largest = candidateWindows.max(by: { $0.0.width * $0.0.height < $1.0.width * $1.0.height })
+            return largest?.0
+        }
+
+        return nil
     }
 
     private func measureErrorWidth(_ text: String, fontSize: CGFloat) -> CGFloat {
