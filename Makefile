@@ -51,14 +51,23 @@ rebuild: clean build ## Clean and rebuild everything
 
 ##@ Running
 
-run: ## Build and run Gnau with live logs
+run: ## Build, install to /Applications, and run with live logs
 	@echo "$(GREEN)🚀 Building and running Gnau...$(NC)"
 	@make -s build-swift
-	@./Scripts/run-and-watch.sh
+	@make -s install
+	@make -s run-only
 
-run-only: ## Run Gnau without rebuilding (use if already built)
-	@echo "$(GREEN)🚀 Launching Gnau...$(NC)"
-	@./Scripts/run-and-watch.sh
+run-only: ## Run Gnau from /Applications without rebuilding
+	@echo "$(GREEN)🚀 Launching Gnau from /Applications...$(NC)"
+	@if pgrep -x "Gnau" > /dev/null; then \
+		echo "$(YELLOW)⚠️  Gnau is already running (PID: $$(pgrep -x Gnau))$(NC)"; \
+		echo "Killing it..."; \
+		killall Gnau; \
+		sleep 1; \
+	fi
+	@open /Applications/Gnau.app
+	@echo "$(GREEN)✅ Gnau launched from /Applications$(NC)"
+	@echo "$(BLUE)Watch logs with: make logs$(NC)"
 
 xcode: ## Open in Xcode
 	@echo "$(BLUE)📱 Opening Xcode...$(NC)"
@@ -98,9 +107,10 @@ test-guide: ## Open comprehensive testing guide
 
 ##@ Development
 
-dev: ## Full dev cycle: clean, build, run with logs
+dev: ## Full dev cycle: clean, build, install, and run from /Applications
 	@make -s clean
 	@make -s build
+	@make -s install
 	@make -s run-only
 
 logs: ## Watch live logs from running Gnau instance
