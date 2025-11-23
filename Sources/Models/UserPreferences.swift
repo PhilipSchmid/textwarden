@@ -16,6 +16,20 @@ enum PauseDuration: String, CaseIterable, Codable {
     case indefinite = "Paused Until Resumed"
 }
 
+/// Calibration data for underline positioning in specific apps
+struct PositioningCalibration: Codable, Equatable {
+    /// Horizontal offset in pixels (positive = shift right, negative = shift left)
+    var horizontalOffset: CGFloat
+
+    /// Width multiplier for error underlines (e.g., 0.94 = 94% of calculated width)
+    var widthMultiplier: CGFloat
+
+    static let `default` = PositioningCalibration(horizontalOffset: 0, widthMultiplier: 1.0)
+
+    /// Common presets for known problematic apps
+    static let slackPreset = PositioningCalibration(horizontalOffset: 3, widthMultiplier: 0.92)
+}
+
 /// Observable user preferences with automatic persistence
 class UserPreferences: ObservableObject {
     static let shared = UserPreferences()
@@ -437,6 +451,34 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    // MARK: - Positioning Calibration
+
+    /// Per-application positioning calibration values
+    @Published var positioningCalibrations: [String: PositioningCalibration] {
+        didSet {
+            if let encoded = try? encoder.encode(positioningCalibrations) {
+                defaults.set(encoded, forKey: Keys.positioningCalibrations)
+            }
+        }
+    }
+
+    /// Get calibration for specific app, returning default if not set
+    func getCalibration(for bundleID: String) -> PositioningCalibration {
+        return positioningCalibrations[bundleID] ?? .default
+    }
+
+    /// Set calibration for specific app
+    func setCalibration(for bundleID: String, calibration: PositioningCalibration) {
+        positioningCalibrations[bundleID] = calibration
+    }
+
+    /// Apply preset calibration for known problematic apps
+    func applyPreset(for bundleID: String) {
+        if bundleID.contains("slack") {
+            positioningCalibrations[bundleID] = .slackPreset
+        }
+    }
+
     private init() {
         // Initialize with default values first
         self.pauseDuration = .active
@@ -479,6 +521,9 @@ class UserPreferences: ObservableObject {
         self.showDebugBorderTextFieldBounds = true
         self.showDebugBorderCGWindowCoords = true
         self.showDebugBorderCocoaCoords = true
+
+        // Positioning Calibration
+        self.positioningCalibrations = [:]
 
         // Then load saved preferences
         if let pauseString = defaults.string(forKey: Keys.pauseDuration),
@@ -565,6 +610,12 @@ class UserPreferences: ObservableObject {
         self.showDebugBorderTextFieldBounds = defaults.object(forKey: Keys.showDebugBorderTextFieldBounds) as? Bool ?? true
         self.showDebugBorderCGWindowCoords = defaults.object(forKey: Keys.showDebugBorderCGWindowCoords) as? Bool ?? true
         self.showDebugBorderCocoaCoords = defaults.object(forKey: Keys.showDebugBorderCocoaCoords) as? Bool ?? true
+
+        // Positioning Calibration
+        if let data = defaults.data(forKey: Keys.positioningCalibrations),
+           let calibrations = try? decoder.decode([String: PositioningCalibration].self, from: data) {
+            self.positioningCalibrations = calibrations
+        }
 
         // Set terminal apps to .indefinite pause by default if not already configured
         // This prevents grammar checking in terminals where command output can cause false positives
@@ -890,5 +941,8 @@ class UserPreferences: ObservableObject {
         static let showDebugBorderTextFieldBounds = "showDebugBorderTextFieldBounds"
         static let showDebugBorderCGWindowCoords = "showDebugBorderCGWindowCoords"
         static let showDebugBorderCocoaCoords = "showDebugBorderCocoaCoords"
+
+        // Positioning Calibration
+        static let positioningCalibrations = "positioningCalibrations"
     }
 }
