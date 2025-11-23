@@ -56,6 +56,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         logToFile("🚀 Gnau: Application launched")
         NSLog("🚀 Gnau: Application launched")
 
+        // Log build information for debugging
+        logToFile("📦 Gnau Build Info:")
+        logToFile("   Version: \(BuildInfo.fullVersion)")
+        logToFile("   Build Timestamp: \(BuildInfo.buildTimestamp)")
+        logToFile("   Build Age: \(BuildInfo.buildAge)")
+        NSLog("📦 Gnau Build Info: \(BuildInfo.fullVersion) | Built: \(BuildInfo.buildTimestamp) (\(BuildInfo.buildAge))")
+
         // Record app session for statistics
         UserStatistics.shared.recordSession()
 
