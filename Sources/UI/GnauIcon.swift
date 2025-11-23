@@ -10,6 +10,39 @@ import Cocoa
 struct GnauIcon {
     /// Create the Gnau menu bar icon (monochrome template for menu bar)
     static func create(size: NSSize = NSSize(width: 22, height: 22)) -> NSImage {
+        // Load logo from asset catalog
+        guard let logo = NSImage(named: "GnauLogo") else {
+            print("⚠️ GnauLogo asset not found for menubar icon, using fallback")
+            return createFallbackMenuBarIcon(size: size)
+        }
+
+        // Create a template version of the logo for the menubar
+        let templateImage = NSImage(size: size)
+        templateImage.lockFocus()
+
+        // Draw the logo in black (will be adjusted by macOS for light/dark mode)
+        if let context = NSGraphicsContext.current?.cgContext {
+            context.saveGState()
+
+            // Draw the logo scaled to fit
+            logo.draw(in: NSRect(origin: .zero, size: size),
+                     from: NSRect(origin: .zero, size: logo.size),
+                     operation: .sourceOver,
+                     fraction: 1.0)
+
+            context.restoreGState()
+        }
+
+        templateImage.unlockFocus()
+
+        // Mark as template so macOS will adjust it for light/dark mode
+        templateImage.isTemplate = true
+
+        return templateImage
+    }
+
+    /// Fallback menubar icon if asset not found
+    private static func createFallbackMenuBarIcon(size: NSSize) -> NSImage {
         let image = NSImage(size: size)
 
         image.lockFocus()
