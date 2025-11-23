@@ -7,6 +7,7 @@
 
 import SwiftUI
 import ApplicationServices
+import LaunchAtLogin
 
 /// Onboarding view guiding users through Accessibility permission setup
 struct OnboardingView: View {
@@ -299,8 +300,7 @@ struct OnboardingView: View {
 
     private func handleEnableLaunchAtLogin() {
         print("✅ Onboarding: Enabling launch at login...")
-        // TODO: Replace with LaunchAtLogin.isEnabled = true once LaunchAtLogin-Modern is added
-        LoginItemManager.shared.setLaunchAtLogin(true)
+        LaunchAtLogin.isEnabled = true
         dismiss()
     }
 

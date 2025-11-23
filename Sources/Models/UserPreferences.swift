@@ -199,14 +199,6 @@ class UserPreferences: ObservableObject {
         "com.github.wez.wezterm"
     ]
 
-    /// Launch TextWarden automatically at login
-    @Published var launchAtLogin: Bool {
-        didSet {
-            defaults.set(launchAtLogin, forKey: Keys.launchAtLogin)
-            LoginItemManager.shared.setLaunchAtLogin(launchAtLogin)
-        }
-    }
-
     /// Always open settings window in foreground on launch
     @Published var openInForeground: Bool {
         didSet {
@@ -492,7 +484,6 @@ class UserPreferences: ObservableObject {
         self.ignoredErrorTexts = []
         self.analysisDelayMs = 20
         self.enabledCategories = UserPreferences.allCategories // All categories enabled by default
-        self.launchAtLogin = false
         self.openInForeground = false
 
         // Language & Dialect
@@ -575,7 +566,6 @@ class UserPreferences: ObservableObject {
             self.enabledCategories = set
         }
 
-        self.launchAtLogin = defaults.object(forKey: Keys.launchAtLogin) as? Bool ?? false
         self.openInForeground = defaults.object(forKey: Keys.openInForeground) as? Bool ?? false
 
         // Language & Dialect
@@ -909,7 +899,6 @@ class UserPreferences: ObservableObject {
         static let ignoredErrorTexts = "ignoredErrorTexts"
         static let analysisDelayMs = "analysisDelayMs"
         static let enabledCategories = "enabledCategories"
-        static let launchAtLogin = "launchAtLogin"
         static let openInForeground = "openInForeground"
 
         // Language & Dialect

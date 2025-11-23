@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import LaunchAtLogin
 
 struct PreferencesView: View {
     @ObservedObject private var preferences = UserPreferences.shared
@@ -792,10 +793,7 @@ struct GeneralPreferencesView: View {
                     }
                 }
 
-                // TODO: Replace with LaunchAtLogin.Toggle() once LaunchAtLogin-Modern package is added
-                // LaunchAtLogin.Toggle()
-                Toggle("Launch TextWarden at login", isOn: $preferences.launchAtLogin)
-                    .help("Automatically start TextWarden when you log in")
+                LaunchAtLogin.Toggle()
 
                 Toggle("Always open in foreground", isOn: $preferences.openInForeground)
                     .help("Show settings window when TextWarden starts (default: background only)")
