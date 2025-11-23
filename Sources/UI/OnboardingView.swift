@@ -51,6 +51,8 @@ struct OnboardingView: View {
                         permissionRequestStep
                     case .verification:
                         verificationStep
+                    case .launchAtLogin:
+                        launchAtLoginStep
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -69,7 +71,20 @@ struct OnboardingView: View {
 
                     Spacer()
 
-                    actionButton
+                    // Show both buttons on launch at login step
+                    if currentStep == .launchAtLogin {
+                        Button("Not Now") {
+                            handleSkipLaunchAtLogin()
+                        }
+
+                        Button("Enable Launch at Login") {
+                            handleEnableLaunchAtLogin()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .keyboardShortcut(.defaultAction)
+                    } else {
+                        actionButton
+                    }
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
@@ -187,12 +202,43 @@ struct OnboardingView: View {
             }
             .font(.subheadline)
             .foregroundColor(.secondary)
+        }
+    }
+
+    private var launchAtLoginStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                Image(systemName: "power.circle.fill")
+                    .font(.system(size: 40))
+                    .foregroundColor(.accentColor)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Launch at Login")
+                        .font(.headline)
+
+                    Text("Start TextWarden automatically")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
 
             Divider()
 
-            Text("You're all set! TextWarden will now check your grammar across all supported applications.")
+            Text("Would you like TextWarden to start automatically when you log in?")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
+
+            VStack(alignment: .leading, spacing: 12) {
+                FeatureRow(icon: "checkmark.circle", title: "Always Protected", description: "Grammar checking available immediately")
+                FeatureRow(icon: "bolt.fill", title: "No Manual Launch", description: "TextWarden runs in the background automatically")
+                FeatureRow(icon: "minus.circle", title: "Easy to Disable", description: "Change this setting anytime in Preferences")
+            }
+            .padding(.vertical, 8)
+
+            Text("You can change this preference later in Settings → General.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .padding(.top, 8)
         }
     }
 
@@ -214,7 +260,9 @@ struct OnboardingView: View {
         case .permissionRequest:
             return showTimeoutWarning ? "Retry" : "Open System Settings"
         case .verification:
-            return "Done"
+            return "Continue"
+        case .launchAtLogin:
+            return "Finish Setup"
         }
     }
 
@@ -240,9 +288,25 @@ struct OnboardingView: View {
             elapsedTime = 0
 
         case .verification:
-            print("✅ Onboarding: Verification complete, closing...")
-            dismiss()
+            print("✅ Onboarding: Verification complete, moving to launch at login...")
+            currentStep = .launchAtLogin
+
+        case .launchAtLogin:
+            // Handled by separate buttons
+            break
         }
+    }
+
+    private func handleEnableLaunchAtLogin() {
+        print("✅ Onboarding: Enabling launch at login...")
+        // TODO: Replace with LaunchAtLogin.isEnabled = true once LaunchAtLogin-Modern is added
+        LoginItemManager.shared.setLaunchAtLogin(true)
+        dismiss()
+    }
+
+    private func handleSkipLaunchAtLogin() {
+        print("⏭️ Onboarding: Skipping launch at login...")
+        dismiss()
     }
 
     private func checkPermissionAndUpdateStep() {
@@ -344,6 +408,7 @@ private enum OnboardingStep {
     case welcome
     case permissionRequest
     case verification
+    case launchAtLogin
 }
 
 // MARK: - Preview
