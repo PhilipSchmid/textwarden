@@ -406,21 +406,20 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         previousIconState = state
 
-        let symbolName: String
+        // Always use the TextWarden marmot logo regardless of state
+        let icon = TextWardenIcon.create()
+        button.image = icon
+
+        // Update tooltip to reflect state
         switch state {
         case .active:
-            symbolName = "text.badge.checkmark"
+            button.toolTip = "TextWarden Grammar Checker"
         case .inactive:
-            symbolName = "text.badge.xmark"
+            button.toolTip = "TextWarden (Paused)"
         case .error:
-            symbolName = "exclamationmark.triangle"
+            button.toolTip = "TextWarden (Error)"
         case .restarting:
-            symbolName = "arrow.triangle.2.circlepath"
-        }
-
-        if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "TextWarden - \(state)") {
-            image.isTemplate = true
-            button.image = image
+            button.toolTip = "TextWarden (Restarting...)"
         }
     }
 
