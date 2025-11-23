@@ -7,6 +7,7 @@
 
 import SwiftUI
 import LaunchAtLogin
+import KeyboardShortcuts
 
 struct PreferencesView: View {
     @ObservedObject private var preferences = UserPreferences.shared
@@ -2100,39 +2101,48 @@ struct KeyboardShortcutsView: View {
             } header: {
                 Text("General")
                     .font(.headline)
+            } footer: {
+                Text("When disabled, keyboard shortcuts will not trigger any actions.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
 
             Section {
-                HStack {
-                    Text("Toggle grammar checking:")
-                    Spacer()
-                    Text(preferences.toggleShortcut)
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundColor(.secondary)
-                }
-
-                HStack {
-                    Text("Accept suggestion:")
-                    Spacer()
-                    Text(preferences.acceptSuggestionShortcut)
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundColor(.secondary)
-                }
-
-                HStack {
-                    Text("Dismiss suggestion:")
-                    Spacer()
-                    Text(preferences.dismissSuggestionShortcut)
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundColor(.secondary)
-                }
-
-                Text("Note: Keyboard shortcuts are currently display-only. Full customization will be available in a future update.")
-                    .font(.caption)
-                    .foregroundColor(.orange)
+                KeyboardShortcuts.Recorder("Toggle Grammar Checking:", name: .toggleGrammarChecking)
             } header: {
-                Text("Shortcuts")
+                Text("Global Shortcuts")
                     .font(.headline)
+            } footer: {
+                Text("Works system-wide, even when TextWarden isn't the active app.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Section {
+                KeyboardShortcuts.Recorder("Accept Suggestion:", name: .acceptSuggestion)
+                KeyboardShortcuts.Recorder("Dismiss Popover:", name: .dismissSuggestion)
+                KeyboardShortcuts.Recorder("Previous Suggestion:", name: .previousSuggestion)
+                KeyboardShortcuts.Recorder("Next Suggestion:", name: .nextSuggestion)
+            } header: {
+                Text("Suggestion Popover")
+                    .font(.headline)
+            } footer: {
+                Text("These shortcuts work when the suggestion popover is visible.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Section {
+                KeyboardShortcuts.Recorder("Apply 1st Suggestion:", name: .applySuggestion1)
+                KeyboardShortcuts.Recorder("Apply 2nd Suggestion:", name: .applySuggestion2)
+                KeyboardShortcuts.Recorder("Apply 3rd Suggestion:", name: .applySuggestion3)
+            } header: {
+                Text("Quick Apply")
+                    .font(.headline)
+            } footer: {
+                Text("Quickly apply suggestions by number from the popover.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
         }
         .formStyle(.grouped)
