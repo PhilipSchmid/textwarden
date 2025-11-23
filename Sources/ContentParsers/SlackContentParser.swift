@@ -239,6 +239,9 @@ class SlackContentParser: ContentParser {
         let multiplier = spacingMultiplier(context: context)
         let padding = horizontalPadding(context: context)
 
+        // Get calibration for this app
+        let calibration = UserPreferences.shared.getCalibration(for: bundleIdentifier)
+
         // STRATEGY: Use AX API to get bounds for FULL TEXT, then calculate average char width
         // This adapts automatically to zoom levels, font sizes, DPI, etc.
         let fullTextRange = NSRange(location: 0, length: fullText.count)
@@ -248,10 +251,14 @@ class SlackContentParser: ContentParser {
             let averageCharWidth = fullTextBounds.width / CGFloat(fullText.count)
 
             // Position error based on character index
-            let xPosition = fullTextBounds.origin.x + (CGFloat(errorRange.location) * averageCharWidth)
-            let errorWidth = CGFloat(errorRange.length) * averageCharWidth
+            let baseXPosition = fullTextBounds.origin.x + (CGFloat(errorRange.location) * averageCharWidth)
+            let baseErrorWidth = CGFloat(errorRange.length) * averageCharWidth
 
-            let debugInfo = "Slack: Using full text AX bounds. chars=\(fullText.count), avgWidth=\(String(format: "%.2f", averageCharWidth))px, textBounds=\(fullTextBounds)"
+            // Apply calibration
+            let xPosition = baseXPosition + calibration.horizontalOffset
+            let errorWidth = baseErrorWidth * calibration.widthMultiplier
+
+            let debugInfo = "Slack: Using full text AX bounds. chars=\(fullText.count), avgWidth=\(String(format: "%.2f", averageCharWidth))px, textBounds=\(fullTextBounds), calibration=(offset=\(calibration.horizontalOffset), width=\(calibration.widthMultiplier)x)"
             Logger.info(debugInfo)
 
             return AdjustedBounds(
@@ -265,13 +272,18 @@ class SlackContentParser: ContentParser {
 
         // Try AX bounds for error range directly (fallback)
         if let axBounds = tryGetAXBounds(element: element, range: errorRange) {
-            Logger.debug("Slack: AX API returned valid bounds for error range! context=\(context ?? "unknown"), bounds=\(axBounds)")
+            // Apply calibration
+            let xPosition = axBounds.origin.x + calibration.horizontalOffset
+            let errorWidth = axBounds.width * calibration.widthMultiplier
+
+            let debugInfo = "AX API (direct error bounds), calibration=(offset=\(calibration.horizontalOffset), width=\(calibration.widthMultiplier)x)"
+            Logger.debug("Slack: AX API returned valid bounds for error range! context=\(context ?? "unknown"), bounds=\(axBounds), \(debugInfo)")
             return AdjustedBounds(
-                position: NSPoint(x: axBounds.origin.x, y: axBounds.origin.y),
-                errorWidth: axBounds.width,
+                position: NSPoint(x: xPosition, y: axBounds.origin.y),
+                errorWidth: errorWidth,
                 confidence: 1.0,
                 uiContext: context,
-                debugInfo: "AX API (direct error bounds)"
+                debugInfo: debugInfo
             )
         }
 
@@ -302,22 +314,27 @@ class SlackContentParser: ContentParser {
             let lastCharBounds = characterBounds[characterBounds.count - 1]
 
             // X position where error starts = right edge of last character before error
-            let xPosition = lastCharBounds.origin.x + lastCharBounds.width
+            let baseXPosition = lastCharBounds.origin.x + lastCharBounds.width
 
             // Total width calculation for debugging
             let startX = firstCharBounds.origin.x
-            let totalWidth = xPosition - startX
+            let totalWidth = baseXPosition - startX
 
             // Get error width from AX or measurement
             let errorBounds = tryGetAXBounds(element: element, range: errorRange)
-            let errorWidth = errorBounds?.width ?? measureErrorWidth(errorText, fontSize: fontSize)
+            let baseErrorWidth = errorBounds?.width ?? measureErrorWidth(errorText, fontSize: fontSize)
+
+            // Apply calibration
+            let xPosition = baseXPosition + calibration.horizontalOffset
+            let errorWidth = baseErrorWidth * calibration.widthMultiplier
 
             let debugInfo = """
                 Slack AX bounds (LanguageTool method): \
                 charCount=\(textBeforeError.count), \
                 xPosition=\(String(format: "%.2f", xPosition))px, \
                 totalWidth=\(String(format: "%.2f", totalWidth))px, \
-                firstChar=\(firstCharBounds), lastChar=\(lastCharBounds)
+                firstChar=\(firstCharBounds), lastChar=\(lastCharBounds), \
+                calibration=(offset=\(calibration.horizontalOffset), width=\(calibration.widthMultiplier)x)
                 """
 
             Logger.info(debugInfo)
@@ -358,7 +375,12 @@ class SlackContentParser: ContentParser {
         // Element frame already includes text field position
         // Only add padding if element frame is at window origin (indicating AX gave us raw window bounds)
         // Otherwise element frame already accounts for padding
-        let xPosition = elementFrame.origin.x + adjustedTextBeforeWidth
+        let baseXPosition = elementFrame.origin.x + adjustedTextBeforeWidth
+
+        // Apply calibration
+        let xPosition = baseXPosition + calibration.horizontalOffset
+        let errorWidth = adjustedErrorWidth * calibration.widthMultiplier
+
         // Position at text baseline in Quartz coordinates
         // CRITICAL: The 'baseline' is where the BOTTOM of text sits, not the top!
         // With errorHeight of 18px, bounds span from (baseline-18) to baseline
@@ -374,14 +396,15 @@ class SlackContentParser: ContentParser {
             Slack text measurement fallback: context=\(context ?? "unknown"), \
             fontSize=\(fontSize)pt, multiplier=\(multiplier)x, padding=\(padding)px, \
             baseWidth=\(String(format: "%.2f", baseTextBeforeWidth))px, \
-            adjusted=\(String(format: "%.2f", adjustedTextBeforeWidth))px
+            adjusted=\(String(format: "%.2f", adjustedTextBeforeWidth))px, \
+            calibration=(offset=\(calibration.horizontalOffset), width=\(calibration.widthMultiplier)x)
             """
 
         Logger.debug(debugInfo)
 
         return AdjustedBounds(
             position: NSPoint(x: xPosition, y: yPosition),
-            errorWidth: adjustedErrorWidth,
+            errorWidth: errorWidth,
             confidence: 0.75,
             uiContext: context,
             debugInfo: debugInfo
