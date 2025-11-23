@@ -792,6 +792,8 @@ struct GeneralPreferencesView: View {
                     }
                 }
 
+                // TODO: Replace with LaunchAtLogin.Toggle() once LaunchAtLogin-Modern package is added
+                // LaunchAtLogin.Toggle()
                 Toggle("Launch TextWarden at login", isOn: $preferences.launchAtLogin)
                     .help("Automatically start TextWarden when you log in")
 
