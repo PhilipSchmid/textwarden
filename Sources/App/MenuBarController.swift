@@ -361,8 +361,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func showAbout() {
         NSLog("🔵 MenuBarController: showAbout() called - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
 
-        // Set tab to About (8)
-        PreferencesWindowController.shared.selectTab(8)
+        // Set tab to About (9)
+        PreferencesWindowController.shared.selectTab(9)
 
         NSLog("🔵 MenuBarController: Switching to .regular mode")
 
@@ -374,7 +374,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         // Use NSApp.sendAction to open settings with About tab (index 8)
         NSApp.sendAction(#selector(AppDelegate.openSettingsWindow(selectedTab:)), to: nil, from: self)
 
-        NSLog("🔵 MenuBarController: Sent openSettingsWindow action for About tab (8)")
+        NSLog("🔵 MenuBarController: Sent openSettingsWindow action for About tab (9)")
     }
 
     @objc private func showCurrentErrors() {

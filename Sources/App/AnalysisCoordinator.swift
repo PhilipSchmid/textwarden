@@ -917,26 +917,21 @@ class AnalysisCoordinator: ObservableObject {
             // Try to show visual underlines
             let underlinesCreated = errorOverlay.update(errors: errors, element: providedElement, context: monitoredContext)
 
-            // If we have errors but no underlines were created, show floating indicator
-            // This happens when:
-            // - Terminal apps (positioning unreliable)
-            // - Electron apps with broken AX APIs
-            // - Any app where bounds calculation fails
+            // Always show floating indicator when there are errors
+            // It provides quick access to error count and suggestions
             if underlinesCreated == 0 {
-                let appName = monitoredContext?.applicationName ?? "unknown"
-                let msg = "⚠️ AnalysisCoordinator: \(errors.count) errors detected in '\(appName)' but no underlines created - showing floating indicator"
+                let msg = "⚠️ AnalysisCoordinator: \(errors.count) errors detected in '\(appName)' but no underlines created - showing floating indicator only"
                 NSLog(msg)
                 logToDebugFile(msg)
-                floatingIndicator.update(errors: errors, element: providedElement, context: monitoredContext)
-                // Keep icon state as active - user preference to not show error indicator
-                MenuBarController.shared?.setIconState(.active)
             } else {
-                let msg = "✅ AnalysisCoordinator: Showing \(underlinesCreated) visual underlines"
+                let msg = "✅ AnalysisCoordinator: Showing \(underlinesCreated) visual underlines + floating indicator"
                 NSLog(msg)
                 logToDebugFile(msg)
-                floatingIndicator.hide()  // Hide floating indicator when showing visual underlines
-                MenuBarController.shared?.setIconState(.active)
             }
+
+            // Show floating indicator for all errors (complements visual underlines)
+            floatingIndicator.update(errors: errors, element: providedElement, context: monitoredContext)
+            MenuBarController.shared?.setIconState(.active)
         }
     }
 

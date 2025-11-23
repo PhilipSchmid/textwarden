@@ -181,6 +181,41 @@ class TextMonitor: ObservableObject {
         logToDebugFile(msg2)
 
         let axElement = element as! AXUIElement
+
+        // CRITICAL FIX: AXFocusedUIElement might return the wrong element (e.g., sidebar in Slack)
+        // If the focused element is not editable, search for editable text fields
+        //         if !isEditableElement(axElement) {
+            let searchMsg = "🔎 TextMonitor: Focused element is not editable, searching for editable field..."
+            NSLog(searchMsg)
+            logToDebugFile(searchMsg)
+
+            // Strategy 1: Search children of focused element
+            if let editableChild = findEditableChild(in: axElement) {
+                let foundMsg = "✅ TextMonitor: Found editable child in focused element!"
+                NSLog(foundMsg)
+                logToDebugFile(foundMsg)
+                monitorElement(editableChild, retryAttempt: retryAttempt)
+                return
+            }
+
+            // Strategy 2: Search from main window down ()
+            let windowMsg = "🔎 TextMonitor: No children found, searching from main window..."
+            NSLog(windowMsg)
+            logToDebugFile(windowMsg)
+
+            if let editableInWindow = findEditableInMainWindow(appElement) {
+                let foundWindowMsg = "✅ TextMonitor: Found editable field in main window!"
+                NSLog(foundWindowMsg)
+                logToDebugFile(foundWindowMsg)
+                monitorElement(editableInWindow, retryAttempt: retryAttempt)
+                return
+            }
+
+            let noChildMsg = "⚠️ TextMonitor: No editable field found, will monitor focused element anyway"
+            NSLog(noChildMsg)
+            logToDebugFile(noChildMsg)
+        }
+
         monitorElement(axElement, retryAttempt: retryAttempt)
     }
 
@@ -452,6 +487,84 @@ private func axObserverCallback(
 // MARK: - Helper Extensions
 
 extension TextMonitor {
+    /// Search for editable field from main window ()
+    /// This is more reliable than AXFocusedUIElement for Electron apps
+    private func findEditableInMainWindow(_ appElement: AXUIElement) -> AXUIElement? {
+        // Get main window or focused window
+        var windowRef: CFTypeRef?
+        var result = AXUIElementCopyAttributeValue(
+            appElement,
+            kAXMainWindowAttribute as CFString,
+            &windowRef
+        )
+
+        if result != .success {
+            // Try focused window instead
+            result = AXUIElementCopyAttributeValue(
+                appElement,
+                kAXFocusedWindowAttribute as CFString,
+                &windowRef
+            )
+        }
+
+        guard result == .success, let window = windowRef else {
+            let msg = "⚠️ TextMonitor: Could not get main/focused window"
+            NSLog(msg)
+            logToDebugFile(msg)
+            return nil
+        }
+
+        let windowElement = window as! AXUIElement
+
+        let searchMsg = "🔍 TextMonitor: Searching main window for editable field..."
+        NSLog(searchMsg)
+        logToDebugFile(searchMsg)
+
+        // Search window hierarchy for editable text field
+        return findEditableChild(in: windowElement, maxDepth: 10)
+    }
+
+    /// Recursively search for an editable child element
+    /// This is needed for Electron apps like Slack where AXFocusedUIElement returns wrong element
+    private func findEditableChild(in element: AXUIElement, maxDepth: Int = 5, currentDepth: Int = 0) -> AXUIElement? {
+        // Prevent infinite recursion
+        guard currentDepth < maxDepth else {
+            return nil
+        }
+
+        // Get children
+        var childrenRef: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(
+            element,
+            kAXChildrenAttribute as CFString,
+            &childrenRef
+        )
+
+        guard result == .success, let children = childrenRef as? [AXUIElement] else {
+            return nil
+        }
+
+        let searchMsg = "🔍 TextMonitor: Searching \(children.count) children at depth \(currentDepth)..."
+        NSLog(searchMsg)
+        logToDebugFile(searchMsg)
+
+        // First pass: look for direct editable children
+        for child in children {
+            if isEditableElement(child) {
+                return child
+            }
+        }
+
+        // Second pass: recursively search children
+        for child in children {
+            if let editableDescendant = findEditableChild(in: child, maxDepth: maxDepth, currentDepth: currentDepth + 1) {
+                return editableDescendant
+            }
+        }
+
+        return nil
+    }
+
     /// Check if element is an editable text field (not read-only content)
     func isEditableElement(_ element: AXUIElement) -> Bool {
         // Check role
