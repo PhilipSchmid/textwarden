@@ -98,6 +98,18 @@ protocol ContentParser {
     /// but replacements need to be applied to the full text (including prompt)
     /// Returns 0 for most parsers, only non-zero for terminal parsers
     var textReplacementOffset: Int { get }
+
+    /// Resolve position geometry for error range using multi-strategy engine
+    /// - Parameters:
+    ///   - errorRange: NSRange of the error within the text
+    ///   - element: AXUIElement containing the text
+    ///   - text: Full text content from the element
+    /// - Returns: GeometryResult with bounds and confidence information
+    func resolvePosition(
+        for errorRange: NSRange,
+        in element: AXUIElement,
+        text: String
+    ) -> GeometryResult
 }
 
 // MARK: - Default Implementations
@@ -229,5 +241,38 @@ extension ContentParser {
         }
 
         return NSRect(origin: position, size: size)
+    }
+
+    /// Resolve position geometry for error range using multi-strategy engine
+    /// This is the primary entry point for position calculation
+    /// Automatically tries multiple strategies in priority order with caching
+    ///
+    /// - Parameters:
+    ///   - errorRange: NSRange of the error within the text
+    ///   - element: AXUIElement containing the text
+    ///   - text: Full text content from the element
+    /// - Returns: GeometryResult with bounds and confidence information
+    func resolvePosition(
+        for errorRange: NSRange,
+        in element: AXUIElement,
+        text: String
+    ) -> GeometryResult {
+        NSLog("🚨 ContentParser.resolvePosition() called for bundleID: \(bundleIdentifier)")
+        logToDebugFile("🚨 ContentParser.resolvePosition() called for bundleID: \(bundleIdentifier)")
+        NSLog("🚨 About to call PositionResolver.shared")
+        logToDebugFile("🚨 About to call PositionResolver.shared")
+
+        let result = PositionResolver.shared.resolvePosition(
+            for: errorRange,
+            in: element,
+            text: text,
+            parser: self,
+            bundleID: bundleIdentifier
+        )
+
+        let msg = "🚨 PositionResolver returned: strategy=\(result.strategy), confidence=\(result.confidence)"
+        NSLog(msg)
+        logToDebugFile(msg)
+        return result
     }
 }
