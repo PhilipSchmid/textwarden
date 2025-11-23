@@ -53,8 +53,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        logToFile("🚀 Gnau: Application launched")
-        NSLog("🚀 Gnau: Application launched")
+        logToFile("🚀 TextWarden: Application launched")
+        NSLog("🚀 TextWarden: Application launched")
 
         // Log build information for debugging
         logToFile("📦 TextWarden Build Info:")
@@ -69,8 +69,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Hide dock icon for menu bar-only app (like VoiceInk)
         NSApp.setActivationPolicy(.accessory)
 
-        logToFile("📍 Gnau: Set as menu bar app (no dock icon)")
-        NSLog("📍 Gnau: Set as menu bar app (no dock icon)")
+        logToFile("📍 TextWarden: Set as menu bar app (no dock icon)")
+        NSLog("📍 TextWarden: Set as menu bar app (no dock icon)")
 
         // CRITICAL: LSUIElement apps don't receive activation events, so the main run loop
         // doesn't fully "spin" until something creates a Cocoa event. This causes timers,
@@ -79,71 +79,71 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // until after the app infrastructure is fully initialized (research shows calling it
         // too early can cause it to fail silently).
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            let msg = "⚡ Gnau: Calling NSApp.activate() to kick-start event loop"
+            let msg = "⚡ TextWarden: Calling NSApp.activate() to kick-start event loop"
             self.logToFile(msg)
             NSLog(msg)
             NSApp.activate(ignoringOtherApps: false)
-            let msg2 = "✅ Gnau: NSApp.activate() completed"
+            let msg2 = "✅ TextWarden: NSApp.activate() completed"
             self.logToFile(msg2)
             NSLog(msg2)
         }
 
         // Initialize menu bar controller
         menuBarController = MenuBarController()
-        logToFile("📍 Gnau: Menu bar controller initialized")
-        NSLog("📍 Gnau: Menu bar controller initialized")
+        logToFile("📍 TextWarden: Menu bar controller initialized")
+        NSLog("📍 TextWarden: Menu bar controller initialized")
 
         // Check permissions on launch (T055)
         let permissionManager = PermissionManager.shared
         let hasPermission = permissionManager.isPermissionGranted
-        logToFile("🔐 Gnau: Accessibility permission check: \(hasPermission ? "✅ Granted" : "❌ Not granted")")
-        NSLog("🔐 Gnau: Accessibility permission check: \(hasPermission ? "✅ Granted" : "❌ Not granted")")
+        logToFile("🔐 TextWarden: Accessibility permission check: \(hasPermission ? "✅ Granted" : "❌ Not granted")")
+        NSLog("🔐 TextWarden: Accessibility permission check: \(hasPermission ? "✅ Granted" : "❌ Not granted")")
 
         if hasPermission {
             // Permission already granted - start grammar checking immediately
-            logToFile("✅ Gnau: Starting grammar checking...")
-            logToFile("📊 Gnau: Grammar checking enabled: \(UserPreferences.shared.isEnabled)")
+            logToFile("✅ TextWarden: Starting grammar checking...")
+            logToFile("📊 TextWarden: Grammar checking enabled: \(UserPreferences.shared.isEnabled)")
 
             // Log paused applications (excluding .active state)
             let pausedApps = UserPreferences.shared.appPauseDurations.filter { $0.value != .active }
             let pausedAppBundleIDs = pausedApps.keys.sorted()
-            logToFile("📊 Gnau: Paused applications (\(pausedApps.count)): \(pausedAppBundleIDs)")
+            logToFile("📊 TextWarden: Paused applications (\(pausedApps.count)): \(pausedAppBundleIDs)")
 
-            NSLog("✅ Gnau: Starting grammar checking...")
-            NSLog("📊 Gnau: Grammar checking enabled: \(UserPreferences.shared.isEnabled)")
-            NSLog("📊 Gnau: Paused applications (\(pausedApps.count)): \(pausedAppBundleIDs)")
+            NSLog("✅ TextWarden: Starting grammar checking...")
+            NSLog("📊 TextWarden: Grammar checking enabled: \(UserPreferences.shared.isEnabled)")
+            NSLog("📊 TextWarden: Paused applications (\(pausedApps.count)): \(pausedAppBundleIDs)")
 
             analysisCoordinator = AnalysisCoordinator.shared
-            logToFile("📍 Gnau: Analysis coordinator initialized")
-            NSLog("📍 Gnau: Analysis coordinator initialized")
+            logToFile("📍 TextWarden: Analysis coordinator initialized")
+            NSLog("📍 TextWarden: Analysis coordinator initialized")
 
             // Check if user wants to open settings window in foreground
             if UserPreferences.shared.openInForeground {
-                logToFile("📍 Gnau: Opening settings window in foreground (user preference)")
-                NSLog("📍 Gnau: Opening settings window in foreground (user preference)")
+                logToFile("📍 TextWarden: Opening settings window in foreground (user preference)")
+                NSLog("📍 TextWarden: Opening settings window in foreground (user preference)")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     self.openSettingsWindow()
                 }
             }
         } else {
             // No permission - show onboarding to request it (T056)
-            logToFile("⚠️ Gnau: Accessibility permission not granted - showing onboarding")
-            NSLog("⚠️ Gnau: Accessibility permission not granted - showing onboarding")
+            logToFile("⚠️ TextWarden: Accessibility permission not granted - showing onboarding")
+            NSLog("⚠️ TextWarden: Accessibility permission not granted - showing onboarding")
 
             // Set up callback to start grammar checking when permission is granted
             permissionManager.onPermissionGranted = { [weak self] in
                 guard let self = self else { return }
-                self.logToFile("✅ Gnau: Permission granted via onboarding - starting grammar checking...")
-                NSLog("✅ Gnau: Permission granted via onboarding - starting grammar checking...")
+                self.logToFile("✅ TextWarden: Permission granted via onboarding - starting grammar checking...")
+                NSLog("✅ TextWarden: Permission granted via onboarding - starting grammar checking...")
                 self.analysisCoordinator = AnalysisCoordinator.shared
-                self.logToFile("📍 Gnau: Analysis coordinator initialized")
-                NSLog("📍 Gnau: Analysis coordinator initialized")
+                self.logToFile("📍 TextWarden: Analysis coordinator initialized")
+                NSLog("📍 TextWarden: Analysis coordinator initialized")
 
                 // Return to accessory mode after onboarding completes
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     NSApp.setActivationPolicy(.accessory)
-                    self.logToFile("📍 Gnau: Returned to menu bar only mode")
-                    NSLog("📍 Gnau: Returned to menu bar only mode")
+                    self.logToFile("📍 TextWarden: Returned to menu bar only mode")
+                    NSLog("📍 TextWarden: Returned to menu bar only mode")
                 }
             }
 
@@ -155,14 +155,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func openOnboardingWindow() {
-        logToFile("📱 Gnau: Creating onboarding window")
-        NSLog("📱 Gnau: Creating onboarding window")
+        logToFile("📱 TextWarden: Creating onboarding window")
+        NSLog("📱 TextWarden: Creating onboarding window")
 
         let onboardingView = OnboardingView()
         let hostingController = NSHostingController(rootView: onboardingView)
 
         let window = NSWindow(contentViewController: hostingController)
-        window.title = "Welcome to Gnau"
+        window.title = "Welcome to TextWarden"
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = true  // Can be released when closed
         window.setContentSize(NSSize(width: 550, height: 550))
@@ -174,8 +174,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
 
-        logToFile("✅ Gnau: Onboarding window displayed")
-        NSLog("✅ Gnau: Onboarding window displayed")
+        logToFile("✅ TextWarden: Onboarding window displayed")
+        NSLog("✅ TextWarden: Onboarding window displayed")
     }
 
     // Prevent app from quitting when all windows close (menu bar app)
@@ -187,22 +187,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Creates window manually for reliable reopening behavior
     /// Tab selection is controlled by PreferencesWindowController.shared
     @objc func openSettingsWindow(selectedTab: Int = 0) {
-        logToFile("🪟 Gnau: openSettingsWindow called - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
-        NSLog("🪟 Gnau: openSettingsWindow called - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+        logToFile("🪟 TextWarden: openSettingsWindow called - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+        NSLog("🪟 TextWarden: openSettingsWindow called - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
 
         // If window exists, just show it (tab is already set by PreferencesWindowController)
         if let window = settingsWindow {
-            logToFile("🪟 Gnau: Reusing existing settings window")
-            NSLog("🪟 Gnau: Reusing existing settings window")
+            logToFile("🪟 TextWarden: Reusing existing settings window")
+            NSLog("🪟 TextWarden: Reusing existing settings window")
 
-            logToFile("🪟 Gnau: Switching to .regular mode to show settings")
-            NSLog("🪟 Gnau: Switching to .regular mode to show settings")
+            logToFile("🪟 TextWarden: Switching to .regular mode to show settings")
+            NSLog("🪟 TextWarden: Switching to .regular mode to show settings")
 
             // Temporarily switch to regular mode to show window
             NSApp.setActivationPolicy(.regular)
 
-            logToFile("🪟 Gnau: AFTER setActivationPolicy(.regular) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
-            NSLog("🪟 Gnau: AFTER setActivationPolicy(.regular) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+            logToFile("🪟 TextWarden: AFTER setActivationPolicy(.regular) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+            NSLog("🪟 TextWarden: AFTER setActivationPolicy(.regular) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
 
             // Force window to front
             window.orderFrontRegardless()
@@ -211,14 +211,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Activate app
             NSApp.activate(ignoringOtherApps: true)
 
-            logToFile("✅ Gnau: Settings window shown")
-            NSLog("✅ Gnau: Settings window shown")
+            logToFile("✅ TextWarden: Settings window shown")
+            NSLog("✅ TextWarden: Settings window shown")
             return
         }
 
         // Create window first time
-        logToFile("🪟 Gnau: Creating new settings window")
-        NSLog("🪟 Gnau: Creating new settings window")
+        logToFile("🪟 TextWarden: Creating new settings window")
+        NSLog("🪟 TextWarden: Creating new settings window")
 
         let preferencesView = PreferencesView()
         let hostingController = NSHostingController(rootView: preferencesView)
@@ -240,14 +240,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Store window
         settingsWindow = window
 
-        logToFile("🪟 Gnau: Window created, switching to regular mode")
-        NSLog("🪟 Gnau: Window created, switching to regular mode")
+        logToFile("🪟 TextWarden: Window created, switching to regular mode")
+        NSLog("🪟 TextWarden: Window created, switching to regular mode")
 
         // Temporarily switch to regular mode to show window
         NSApp.setActivationPolicy(.regular)
 
-        logToFile("🪟 Gnau: AFTER setActivationPolicy(.regular) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
-        NSLog("🪟 Gnau: AFTER setActivationPolicy(.regular) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+        logToFile("🪟 TextWarden: AFTER setActivationPolicy(.regular) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+        NSLog("🪟 TextWarden: AFTER setActivationPolicy(.regular) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
 
         // Show window aggressively
         window.orderFrontRegardless()
@@ -256,8 +256,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Activate app
         NSApp.activate(ignoringOtherApps: true)
 
-        logToFile("✅ Gnau: Settings window displayed")
-        NSLog("✅ Gnau: Settings window displayed")
+        logToFile("✅ TextWarden: Settings window displayed")
+        NSLog("✅ TextWarden: Settings window displayed")
     }
 }
 
@@ -266,13 +266,13 @@ extension AppDelegate: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         // When settings window closes, return to menu bar only mode
         if let window = notification.object as? NSWindow, window == settingsWindow {
-            logToFile("🪟 Gnau: windowWillClose - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
-            NSLog("🪟 Gnau: windowWillClose - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+            logToFile("🪟 TextWarden: windowWillClose - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+            NSLog("🪟 TextWarden: windowWillClose - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
 
             NSApp.setActivationPolicy(.accessory)
 
-            logToFile("🪟 Gnau: windowWillClose - AFTER setActivationPolicy(.accessory) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
-            NSLog("🪟 Gnau: windowWillClose - AFTER setActivationPolicy(.accessory) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+            logToFile("🪟 TextWarden: windowWillClose - AFTER setActivationPolicy(.accessory) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+            NSLog("🪟 TextWarden: windowWillClose - AFTER setActivationPolicy(.accessory) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
         }
     }
 }

@@ -139,7 +139,7 @@ class ApplicationTracker: ObservableObject {
     /// This prevents the menu from showing "TextWarden" when the user opens the menu bar.
     /// - Returns: The application context to display, or `nil` if no suitable app is available
     func getMenuDisplayApp() -> ApplicationContext? {
-        // If current app is not Gnau, use it
+        // If current app is not TextWarden, use it
         if let current = activeApplication, current.bundleIdentifier != "com.philipschmid.TextWarden" {
             return current
         }

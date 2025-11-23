@@ -1,6 +1,6 @@
-# Gnau Testing Checklist
+# TextWarden Testing Checklist
 
-This document provides comprehensive manual testing procedures for the Gnau grammar checker.
+This document provides comprehensive manual testing procedures for the TextWarden grammar checker.
 
 ## Prerequisites
 
@@ -29,7 +29,7 @@ This document provides comprehensive manual testing procedures for the Gnau gram
 - [ ] Open Pages
 - [ ] Create new document
 - [ ] Type test sentences with errors
-- [ ] Verify Gnau suggestions don't conflict with Pages built-in checker
+- [ ] Verify TextWarden suggestions don't conflict with Pages built-in checker
 - [ ] Test with formatted text (bold, italic)
 - [ ] Verify underlines render correctly
 
@@ -232,7 +232,7 @@ Another paragraph to check.
 #### Dynamic Type Testing
 - [ ] System Settings → Accessibility → Display
 - [ ] Set text size to largest
-- [ ] Open Gnau popover
+- [ ] Open TextWarden popover
 - [ ] Verify text scales correctly
 - [ ] Verify popover remains usable
 - [ ] Open Preferences
@@ -254,19 +254,19 @@ Another paragraph to check.
 ### T150: Reliability Testing
 
 #### Permission Revocation
-- [ ] With Gnau running, open System Settings
+- [ ] With TextWarden running, open System Settings
 - [ ] Security & Privacy → Accessibility
-- [ ] Uncheck Gnau
-- [ ] Verify Gnau detects revocation
+- [ ] Uncheck TextWarden
+- [ ] Verify TextWarden detects revocation
 - [ ] Verify menu bar icon changes
 - [ ] Re-enable permission
-- [ ] Verify Gnau resumes automatically
+- [ ] Verify TextWarden resumes automatically
 
 **Expected Result**: Graceful permission handling
 
 #### Crash Recovery
-- [ ] Force quit Gnau (Cmd+Option+Esc)
-- [ ] Relaunch Gnau
+- [ ] Force quit TextWarden (Cmd+Option+Esc)
+- [ ] Relaunch TextWarden
 - [ ] Verify restart indicator briefly shown
 - [ ] Verify app resumes normally
 - [ ] Check preferences preserved
@@ -274,7 +274,7 @@ Another paragraph to check.
 **Expected Result**: Clean recovery from crashes
 
 #### Memory Leak Testing
-- [ ] Run Gnau for 1 hour
+- [ ] Run TextWarden for 1 hour
 - [ ] Analyze 50+ documents
 - [ ] Monitor memory in Activity Monitor
 - [ ] Verify memory <100MB

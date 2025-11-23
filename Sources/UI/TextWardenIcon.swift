@@ -11,8 +11,8 @@ struct TextWardenIcon {
     /// Create the TextWarden menu bar icon (monochrome template for menu bar)
     static func create(size: NSSize = NSSize(width: 22, height: 22)) -> NSImage {
         // Load logo from asset catalog
-        guard let logo = NSImage(named: "GnauLogo") else {
-            print("⚠️ GnauLogo asset not found for menubar icon, using fallback")
+        guard let logo = NSImage(named: "TextWardenLogo") else {
+            print("⚠️ TextWardenLogo asset not found for menubar icon, using fallback")
             return createFallbackMenuBarIcon(size: size)
         }
 
@@ -121,8 +121,8 @@ struct TextWardenIcon {
     /// Create app icon (color version for About panel, etc.) from asset catalog
     static func createAppIcon(size: NSSize = NSSize(width: 256, height: 256)) -> NSImage {
         // Load logo from asset catalog
-        guard let logo = NSImage(named: "GnauLogo") else {
-            print("⚠️ GnauLogo asset not found for app icon")
+        guard let logo = NSImage(named: "TextWardenLogo") else {
+            print("⚠️ TextWardenLogo asset not found for app icon")
             return createFallbackAppIcon(size: size)
         }
 

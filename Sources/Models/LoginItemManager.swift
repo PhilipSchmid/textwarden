@@ -54,7 +54,7 @@ class LoginItemManager {
         #if compiler(>=5.5)
         if #available(macOS 12.0, *) {
             // Use LSSharedFileList for macOS 12
-            let identifier = Bundle.main.bundleIdentifier ?? "com.philipschmid.Gnau"
+            let identifier = Bundle.main.bundleIdentifier ?? "com.philipschmid.TextWarden"
             if enabled {
                 print("⚠️ LoginItemManager: Legacy login item not implemented for macOS 12")
             } else {

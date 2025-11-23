@@ -24,15 +24,15 @@ class CustomVocabulary: ObservableObject {
             in: .userDomainMask
         ).first!
 
-        let gnauDir = appSupport.appendingPathComponent("TextWarden")
+        let textWardenDir = appSupport.appendingPathComponent("TextWarden")
 
         // Create directory if needed
         try? FileManager.default.createDirectory(
-            at: gnauDir,
+            at: textWardenDir,
             withIntermediateDirectories: true
         )
 
-        fileURL = gnauDir.appendingPathComponent("custom-vocabulary.json")
+        fileURL = textWardenDir.appendingPathComponent("custom-vocabulary.json")
 
         // Load existing vocabulary
         load()

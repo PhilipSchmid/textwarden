@@ -30,7 +30,7 @@ struct OnboardingView: View {
                         .font(.system(size: 60))
                         .foregroundColor(.accentColor)
 
-                    Text("Welcome to Gnau")
+                    Text("Welcome to TextWarden")
                         .font(.title)
                         .fontWeight(.bold)
 
@@ -117,7 +117,7 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 12) {
                 StepRow(number: 1, text: "Click 'Open System Settings' below")
                 StepRow(number: 2, text: "Navigate to Privacy & Security → Accessibility")
-                StepRow(number: 3, text: "Find 'Gnau' in the list and enable it")
+                StepRow(number: 3, text: "Find 'TextWarden' in the list and enable it")
                 StepRow(number: 4, text: "Return to TextWarden - we'll detect the change automatically")
             }
             .padding(.vertical, 8)
@@ -148,7 +148,7 @@ struct OnboardingView: View {
                         .font(.subheadline)
                         .fontWeight(.semibold)
 
-                    Text("• Make sure you're enabling 'Gnau' in the Accessibility list\n• You may need to unlock the settings pane first\n• Click 'Open System Settings' again to retry")
+                    Text("• Make sure you're enabling 'TextWarden' in the Accessibility list\n• You may need to unlock the settings pane first\n• Click 'Open System Settings' again to retry")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -183,7 +183,7 @@ struct OnboardingView: View {
 
                 Text("1. Open TextEdit or any text application")
                 Text("2. Type: 'This are a test'")
-                Text("3. Watch for Gnau's grammar suggestions")
+                Text("3. Watch for TextWarden's grammar suggestions")
             }
             .font(.subheadline)
             .foregroundColor(.secondary)

@@ -1,4 +1,4 @@
-# Gnau Comprehensive Testing Guide
+# TextWarden Comprehensive Testing Guide
 
 ## Pre-Test Setup
 
@@ -12,28 +12,28 @@
 
 To test the onboarding flow from scratch:
 
-1. **Remove Gnau from Accessibility permissions**:
+1. **Remove TextWarden from Accessibility permissions**:
    ```bash
    # Open System Settings
    open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
    ```
-   - Find "Gnau" in the list
+   - Find "TextWarden" in the list
    - Uncheck it (or remove it if needed)
    - Close System Settings
 
-2. **Quit Gnau completely**:
+2. **Quit TextWarden completely**:
    ```bash
    # Kill all instances
-   killall Gnau
+   killall TextWarden
    ```
 
 3. **Clear preferences** (optional, for full reset):
    ```bash
    # Remove user preferences
-   defaults delete com.philipschmid.Gnau 2>/dev/null || true
+   defaults delete com.philipschmid.TextWarden 2>/dev/null || true
 
    # Clear application support folder
-   rm -rf ~/Library/Application\ Support/Gnau/
+   rm -rf ~/Library/Application\ Support/TextWarden/
    ```
 
 ---
@@ -45,10 +45,10 @@ To test the onboarding flow from scratch:
 **Goal**: Verify onboarding flow completes in <5 minutes
 
 **Steps**:
-1. [ ] Launch Gnau from Xcode or Finder
+1. [ ] Launch TextWarden from Xcode or Finder
 2. [ ] **VERIFY**: Menu bar icon appears (text.badge.checkmark)
 3. [ ] **VERIFY**: Onboarding window appears automatically
-4. [ ] **VERIFY**: Window shows "Welcome to Gnau" with shield icon
+4. [ ] **VERIFY**: Window shows "Welcome to TextWarden" with shield icon
 5. [ ] **VERIFY**: All text is visible (no cutoff at top/bottom)
 6. [ ] **VERIFY**: Three features listed:
    - Privacy First
@@ -82,7 +82,7 @@ To test the onboarding flow from scratch:
 4. [ ] **VERIFY**: Polling indicator shows "Waiting for permission..."
 5. [ ] **START TIMER** ⏱️
 6. [ ] In System Settings, click the lock to unlock (enter password)
-7. [ ] Find "Gnau" in the list and check the checkbox
+7. [ ] Find "TextWarden" in the list and check the checkbox
 8. [ ] **STOP TIMER** ⏱️ (Should detect within 1 second)
 9. [ ] **VERIFY**: Onboarding auto-advances to "Verification" step
 10. [ ] **VERIFY**: Green checkmark shows "Permission Granted!"
@@ -111,10 +111,10 @@ To test the onboarding flow from scratch:
 
 ### Test 1.5: Onboarding Timeout Handling
 
-**Reset**: Remove Gnau from Accessibility again
+**Reset**: Remove TextWarden from Accessibility again
 
 **Steps**:
-1. [ ] Launch Gnau
+1. [ ] Launch TextWarden
 2. [ ] Click "Get Started"
 3. [ ] Click "Open System Settings" in permission dialog
 4. [ ] **DO NOT grant permission**
@@ -147,7 +147,7 @@ To test the onboarding flow from scratch:
 
 **Expected**: ✅ Error detected, popover shows suggestions
 
-**Debug if failing**: Check Console.app for Gnau logs
+**Debug if failing**: Check Console.app for TextWarden logs
 
 ---
 
@@ -210,11 +210,11 @@ To test the onboarding flow from scratch:
 3. [ ] Click "Dismiss" button
 4. [ ] **VERIFY**: Popover closes
 5. [ ] **VERIFY**: Error no longer highlighted
-6. [ ] **DO NOT QUIT GNAU**
+6. [ ] **DO NOT QUIT TEXTWARDEN**
 7. [ ] Delete the text and retype: `They was here`
 8. [ ] **VERIFY**: Error does NOT reappear (dismissed for session)
-9. [ ] **QUIT** Gnau completely
-10. [ ] **RELAUNCH** Gnau
+9. [ ] **QUIT** TextWarden completely
+10. [ ] **RELAUNCH** TextWarden
 11. [ ] Type again: `They was here`
 12. [ ] **VERIFY**: Error REAPPEARS (session-based dismissal)
 
@@ -234,7 +234,7 @@ To test the onboarding flow from scratch:
 7. [ ] **VERIFY**: Error does NOT appear
 8. [ ] Type different text with same rule: `She dont care`
 9. [ ] **VERIFY**: Error does NOT appear (rule ignored)
-10. [ ] **QUIT AND RELAUNCH** Gnau
+10. [ ] **QUIT AND RELAUNCH** TextWarden
 11. [ ] Type again: `He dont care`
 12. [ ] **VERIFY**: Error still does NOT appear (permanent)
 
@@ -372,8 +372,8 @@ To test the onboarding flow from scratch:
 5. [ ] **VERIFY**: Menu appears with options:
    - TextWarden Grammar Checker (disabled header)
    - Preferences...
-   - About Gnau
-   - Quit Gnau
+   - About TextWarden
+   - Quit TextWarden
 
 **Expected**: ✅ Menu bar icon functional with all menu items
 
@@ -382,9 +382,9 @@ To test the onboarding flow from scratch:
 ### Test 4.2: About Dialog
 
 **Steps**:
-1. [ ] Click menu bar icon → "About Gnau"
+1. [ ] Click menu bar icon → "About TextWarden"
 2. [ ] **VERIFY**: About panel appears
-3. [ ] **VERIFY**: Shows app name "Gnau"
+3. [ ] **VERIFY**: Shows app name "TextWarden"
 4. [ ] **VERIFY**: Shows version "1.0"
 5. [ ] **VERIFY**: Shows copyright notice
 6. [ ] Close about panel
@@ -407,7 +407,7 @@ To test the onboarding flow from scratch:
 ### Test 4.4: Quit Application
 
 **Steps**:
-1. [ ] Click menu bar icon → "Quit Gnau" (or Cmd+Q)
+1. [ ] Click menu bar icon → "Quit TextWarden" (or Cmd+Q)
 2. [ ] **VERIFY**: Application quits
 3. [ ] **VERIFY**: Menu bar icon disappears
 4. [ ] **VERIFY**: All windows close
@@ -421,9 +421,9 @@ To test the onboarding flow from scratch:
 ### Test 5.1: Permission Revoked While Running
 
 **Steps**:
-1. [ ] Ensure Gnau is running with permission granted
+1. [ ] Ensure TextWarden is running with permission granted
 2. [ ] Open System Settings → Privacy & Security → Accessibility
-3. [ ] **UNCHECK** Gnau while app is running
+3. [ ] **UNCHECK** TextWarden while app is running
 4. [ ] Return to TextEdit
 5. [ ] Type error: `This are wrong`
 6. [ ] **OBSERVE**: What happens?
@@ -495,7 +495,7 @@ To test the onboarding flow from scratch:
 
 **Steps**:
 1. [ ] Open Activity Monitor
-2. [ ] Find "Gnau" process
+2. [ ] Find "TextWarden" process
 3. [ ] **RECORD**: Initial memory usage (should be <100MB)
 4. [ ] Type in TextEdit for 5 minutes
 5. [ ] Check grammar in multiple apps
@@ -512,7 +512,7 @@ To test the onboarding flow from scratch:
 
 **Steps**:
 1. [ ] Open Activity Monitor
-2. [ ] Find "Gnau" process
+2. [ ] Find "TextWarden" process
 3. [ ] **OBSERVE**: CPU % when idle (should be ~0%)
 4. [ ] Type in TextEdit
 5. [ ] **OBSERVE**: CPU % during typing (brief spikes OK)
@@ -526,7 +526,7 @@ To test the onboarding flow from scratch:
 
 **MacBook only**:
 1. [ ] Disconnect from power
-2. [ ] Use Gnau normally for 30 minutes
+2. [ ] Use TextWarden normally for 30 minutes
 3. [ ] Check battery percentage drop
 4. [ ] **VERIFY**: Reasonable battery consumption
 
@@ -539,10 +539,10 @@ To test the onboarding flow from scratch:
 ### Test 7.1: Force Quit and Restart
 
 **Steps**:
-1. [ ] Run Gnau normally
-2. [ ] Force quit via Activity Monitor or `killall Gnau`
+1. [ ] Run TextWarden normally
+2. [ ] Force quit via Activity Monitor or `killall TextWarden`
 3. [ ] **WAIT**: 5 seconds
-4. [ ] Relaunch Gnau
+4. [ ] Relaunch TextWarden
 5. [ ] **VERIFY**: Launches correctly
 6. [ ] **VERIFY**: Preferences retained
 7. [ ] **VERIFY**: Ignored rules still ignored
@@ -554,9 +554,9 @@ To test the onboarding flow from scratch:
 ### Test 7.2: System Restart
 
 **Steps**:
-1. [ ] Run Gnau, ignore some rules
+1. [ ] Run TextWarden, ignore some rules
 2. [ ] Restart macOS
-3. [ ] After restart, launch Gnau
+3. [ ] After restart, launch TextWarden
 4. [ ] **VERIFY**: Ignored rules still ignored
 5. [ ] **VERIFY**: All preferences retained
 
@@ -657,27 +657,27 @@ Record any issues found during testing:
 
 ### View Console Logs
 ```bash
-# Watch Gnau logs in real-time
-log stream --predicate 'processImagePath contains "Gnau"' --level debug
+# Watch TextWarden logs in real-time
+log stream --predicate 'processImagePath contains "TextWarden"' --level debug
 
 # Or use Console.app
-# Filter: process:Gnau
+# Filter: process:TextWarden
 ```
 
 ### Check Permission Status
 ```bash
-# Check if Gnau has accessibility permission
+# Check if TextWarden has accessibility permission
 sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" \
-  "SELECT * FROM access WHERE service='kTCCServiceAccessibility' AND client LIKE '%Gnau%';"
+  "SELECT * FROM access WHERE service='kTCCServiceAccessibility' AND client LIKE '%TextWarden%';"
 ```
 
 ### Reset Preferences
 ```bash
 # Clear all preferences
-defaults delete com.philipschmid.Gnau
+defaults delete com.philipschmid.TextWarden
 
 # List current preferences
-defaults read com.philipschmid.Gnau
+defaults read com.philipschmid.TextWarden
 ```
 
 ### Check Build Info
@@ -692,7 +692,7 @@ defaults read /Users/phisch/Library/Developer/Xcode/DerivedData/TextWarden-*/Bui
 
 For rapid verification:
 
-1. [ ] Launch Gnau → Onboarding appears
+1. [ ] Launch TextWarden → Onboarding appears
 2. [ ] Click "Get Started" → Permission dialog appears
 3. [ ] Grant permission → Verification step shows
 4. [ ] Click "Done" → Window closes

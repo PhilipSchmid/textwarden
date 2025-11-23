@@ -28,10 +28,10 @@ if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
 fi
 
 # 2. Kill existing instance
-if pgrep -x "Gnau" > /dev/null; then
-    echo -e "${YELLOW}⚠️  Gnau is already running (PID: $(pgrep -x Gnau))${NC}"
+if pgrep -x "TextWarden" > /dev/null; then
+    echo -e "${YELLOW}⚠️  TextWarden is already running (PID: $(pgrep -x TextWarden))${NC}"
     echo -ne "Killing it... "
-    killall Gnau
+    killall TextWarden
     sleep 1
     echo "✅"
 fi

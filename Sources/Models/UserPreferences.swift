@@ -729,7 +729,7 @@ class UserPreferences: ObservableObject {
 
     /// Check if grammar checking is enabled for a specific application
     func isEnabled(for bundleIdentifier: String) -> Bool {
-        // Never check grammar in Gnau's own UI
+        // Never check grammar in TextWarden's own UI
         if bundleIdentifier == "com.philipschmid.TextWarden" {
             return false
         }

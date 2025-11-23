@@ -6,7 +6,7 @@ A privacy-first, offline grammar checker for macOS.
 
 TextWarden is a native macOS application that provides real-time grammar checking across all your applications—from TextEdit and Pages to VS Code and Slack. It runs entirely on your device with zero network access, ensuring your writing stays private.
 
-## Why Gnau?
+## Why TextWarden?
 
 **Privacy First**
 - All processing happens locally on your Mac
@@ -83,7 +83,3 @@ Contributions are welcome! Please:
 ## License
 
 Apache License 2.0 - see [LICENSE](LICENSE) for details.
-
-## Why "Gnau"?
-
-Gnau is Swiss German for the German word "genau" (meaning "exact" or "precise")—fitting for a tool that helps you write with grammatical precision.
