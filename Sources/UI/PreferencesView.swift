@@ -570,6 +570,12 @@ struct ApplicationSettingsView: View {
                                     }
                                 }
                             }
+
+                            // Position Calibration for Electron apps
+                            PositionCalibrationSection(
+                                preferences: preferences,
+                                app: app
+                            )
                         }
                         .padding(.vertical, 4)
                     }
@@ -757,7 +763,7 @@ struct ApplicationSettingsView: View {
 }
 
 /// Application info for display in preferences
-private struct ApplicationInfo {
+fileprivate struct ApplicationInfo {
     let name: String
     let bundleIdentifier: String
     let icon: NSImage?
@@ -1499,6 +1505,7 @@ struct CustomVocabularyView: View {
 
 struct DiagnosticsView: View {
     @ObservedObject var preferences: UserPreferences
+    @ObservedObject private var applicationTracker = ApplicationTracker.shared
 
     var body: some View {
         Form {
@@ -1556,7 +1563,7 @@ struct DiagnosticsView: View {
                         .padding(.top, 4)
                 }
             } header: {
-                Text("About Diagnostics")
+                Text("About Debug Overlays")
                     .font(.headline)
             }
         }
@@ -2130,6 +2137,223 @@ struct KeyboardShortcutsView: View {
         }
         .formStyle(.grouped)
         .padding()
+    }
+}
+
+// MARK: - Position Calibration Section
+
+fileprivate struct PositionCalibrationSection: View {
+    @ObservedObject var preferences: UserPreferences
+    let app: ApplicationInfo
+    @State private var isExpanded = false
+
+    var body: some View {
+        let calibration = preferences.getCalibration(for: app.bundleIdentifier)
+        let hasCustomCalibration = calibration != .default
+        let isElectronApp = app.bundleIdentifier.contains("electron") ||
+                           app.bundleIdentifier.contains("slack") ||
+                           app.bundleIdentifier.contains("discord") ||
+                           app.bundleIdentifier.contains("msteams") ||
+                           app.bundleIdentifier.contains("vscode")
+
+        // Show for all apps (collapsed by default unless customized or Electron app)
+        VStack(alignment: .leading, spacing: 0) {
+            // Clickable header
+            Button(action: {
+                withAnimation {
+                    isExpanded.toggle()
+                }
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Image(systemName: "ruler.fill")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                    Text("Position Calibration")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                    if hasCustomCalibration {
+                        Image(systemName: "circle.fill")
+                            .font(.system(size: 6))
+                            .foregroundColor(.orange)
+                    }
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.leading, 28)
+            .padding(.top, 8)
+
+            // Expandable content
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 12) {
+                        // Status indicator
+                        HStack {
+                            Image(systemName: calibration == .default ? "checkmark.circle" :
+                                  calibration == .slackPreset ? "star.circle" : "pencil.circle")
+                                .foregroundColor(calibration == .default ? .green :
+                                               calibration == .slackPreset ? .blue : .orange)
+                            Text(calibration == .default ? "Using default positioning" :
+                                 calibration == .slackPreset ? "Using Slack preset" :
+                                 "Using custom positioning")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 4)
+
+                        // Position Adjustment (Horizontal Offset)
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 4) {
+                                Text("Position Adjustment")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                Button {
+                                    // Show help tooltip
+                                } label: {
+                                    Image(systemName: "questionmark.circle")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Shifts underlines left or right to align with text. Use this if underlines appear offset from the actual error.")
+
+                                Spacer()
+
+                                Text("\(Int(calibration.horizontalOffset)) px")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .monospacedDigit()
+                            }
+
+                            HStack(spacing: 8) {
+                                Text("← Left")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .frame(width: 52, alignment: .leading)
+
+                                Slider(
+                                    value: Binding(
+                                        get: { calibration.horizontalOffset },
+                                        set: { newValue in
+                                            var updated = calibration
+                                            updated.horizontalOffset = newValue
+                                            preferences.setCalibration(for: app.bundleIdentifier, calibration: updated)
+                                        }
+                                    ),
+                                    in: -50...50,
+                                    step: 1
+                                )
+
+                                Text("Right →")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .frame(width: 52, alignment: .trailing)
+                            }
+                        }
+
+                        // Width Adjustment (Width Multiplier)
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 4) {
+                                Text("Width Adjustment")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                Button {
+                                    // Show help tooltip
+                                } label: {
+                                    Image(systemName: "questionmark.circle")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Adjusts the width of underlines. Use this if underlines are too wide or too narrow for the error text.")
+
+                                Spacer()
+
+                                Text(String(format: "%.0f%%", calibration.widthMultiplier * 100))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .monospacedDigit()
+                            }
+
+                            HStack(spacing: 8) {
+                                Text("Narrower")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .frame(width: 52, alignment: .leading)
+
+                                Slider(
+                                    value: Binding(
+                                        get: { calibration.widthMultiplier },
+                                        set: { newValue in
+                                            var updated = calibration
+                                            updated.widthMultiplier = newValue
+                                            preferences.setCalibration(for: app.bundleIdentifier, calibration: updated)
+                                        }
+                                    ),
+                                    in: 0.5...1.5,
+                                    step: 0.01
+                                )
+
+                                Text("Wider")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .frame(width: 52, alignment: .trailing)
+                            }
+                        }
+
+                        // Preset Buttons
+                        HStack(spacing: 8) {
+                            if isElectronApp {
+                                Button {
+                                    preferences.setCalibration(for: app.bundleIdentifier, calibration: .slackPreset)
+                                } label: {
+                                    Label("Electron Preset", systemImage: "wand.and.stars")
+                                        .font(.caption)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
+                                .help("Apply recommended settings for Electron apps (0.94x width)")
+                            }
+
+                            Button {
+                                preferences.setCalibration(for: app.bundleIdentifier, calibration: .default)
+                            } label: {
+                                Label("Reset", systemImage: "arrow.counterclockwise")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .help("Reset to default positioning")
+                        }
+                        .padding(.top, 4)
+
+                        // Info text
+                        Text("💡 Adjust these values while viewing errors in \(app.name) for real-time preview.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.top, 4)
+                    }
+                    .padding(.leading, 28)
+                    .padding(.vertical, 8)
+            }
+        }
+        .onAppear {
+                    // Auto-expand for Electron apps or apps with custom calibration
+                    let calibration = preferences.getCalibration(for: app.bundleIdentifier)
+                    let hasCustomCalibration = calibration != .default
+                    let isElectronApp = app.bundleIdentifier.contains("electron") ||
+                                       app.bundleIdentifier.contains("slack") ||
+                                       app.bundleIdentifier.contains("discord") ||
+                                       app.bundleIdentifier.contains("msteams") ||
+                                       app.bundleIdentifier.contains("vscode")
+
+                    if hasCustomCalibration || isElectronApp {
+                        isExpanded = true
+                    }
+                }
     }
 }
 
