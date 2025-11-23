@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		D48EA19C2ED3B90E00CC5B73 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = D48EA1252ED3B88E00CC5B73 /* LaunchAtLogin */; };
+		D48EA28C2ED3BACB00CC5B73 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = D48EA2152ED3B9D900CC5B73 /* KeyboardShortcuts */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		E8AC081A2EC11FBB008E37E6 /* TextWarden.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TextWarden.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +28,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D48EA28C2ED3BACB00CC5B73 /* KeyboardShortcuts in Frameworks */,
+				D48EA19C2ED3B90E00CC5B73 /* LaunchAtLogin in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -67,6 +74,7 @@
 			name = TextWarden;
 			packageProductDependencies = (
 				D48EA1252ED3B88E00CC5B73 /* LaunchAtLogin */,
+				D48EA2152ED3B9D900CC5B73 /* KeyboardShortcuts */,
 			);
 			productName = TextWarden;
 			productReference = E8AC081A2EC11FBB008E37E6 /* TextWarden.app */;
@@ -98,6 +106,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				D48EA1242ED3B88E00CC5B73 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */,
+				D48EA2142ED3B9D900CC5B73 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E8AC081B2EC11FBB008E37E6 /* Products */;
@@ -273,6 +282,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = textwarden_logo;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = KSW8RTNTKJ;
@@ -322,6 +332,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = textwarden_logo;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = KSW8RTNTKJ;
@@ -398,6 +409,14 @@
 				minimumVersion = 1.0.0;
 			};
 		};
+		D48EA2142ED3B9D900CC5B73 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -405,6 +424,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D48EA1242ED3B88E00CC5B73 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */;
 			productName = LaunchAtLogin;
+		};
+		D48EA2152ED3B9D900CC5B73 /* KeyboardShortcuts */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D48EA2142ED3B9D900CC5B73 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
+			productName = KeyboardShortcuts;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
