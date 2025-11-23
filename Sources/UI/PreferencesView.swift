@@ -1809,7 +1809,7 @@ struct AboutView: View {
                 Image("TextWardenLogo")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 80, height: 80)
+                    .frame(width: 150, height: 150)
 
                 Text("TextWarden")
                     .font(.system(size: 42, weight: .bold))
