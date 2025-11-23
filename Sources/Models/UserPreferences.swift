@@ -414,6 +414,29 @@ class UserPreferences: ObservableObject {
         "Bottom Right"
     ]
 
+    // MARK: - Diagnostics
+
+    /// Show debug border for text field bounds (red box)
+    @Published var showDebugBorderTextFieldBounds: Bool {
+        didSet {
+            defaults.set(showDebugBorderTextFieldBounds, forKey: Keys.showDebugBorderTextFieldBounds)
+        }
+    }
+
+    /// Show debug border for CGWindow coordinates (blue box)
+    @Published var showDebugBorderCGWindowCoords: Bool {
+        didSet {
+            defaults.set(showDebugBorderCGWindowCoords, forKey: Keys.showDebugBorderCGWindowCoords)
+        }
+    }
+
+    /// Show debug border for Cocoa coordinates (green box)
+    @Published var showDebugBorderCocoaCoords: Bool {
+        didSet {
+            defaults.set(showDebugBorderCocoaCoords, forKey: Keys.showDebugBorderCocoaCoords)
+        }
+    }
+
     private init() {
         // Initialize with default values first
         self.pauseDuration = .active
@@ -451,6 +474,11 @@ class UserPreferences: ObservableObject {
         self.suggestionTheme = "System"
         self.underlineThickness = 3.0
         self.indicatorPosition = "Bottom Right"
+
+        // Diagnostics
+        self.showDebugBorderTextFieldBounds = true
+        self.showDebugBorderCGWindowCoords = true
+        self.showDebugBorderCocoaCoords = true
 
         // Then load saved preferences
         if let pauseString = defaults.string(forKey: Keys.pauseDuration),
@@ -532,6 +560,11 @@ class UserPreferences: ObservableObject {
         self.suggestionTheme = defaults.string(forKey: Keys.suggestionTheme) ?? "System"
         self.underlineThickness = defaults.object(forKey: Keys.underlineThickness) as? Double ?? 3.0
         self.indicatorPosition = defaults.string(forKey: Keys.indicatorPosition) ?? "Bottom Right"
+
+        // Diagnostics
+        self.showDebugBorderTextFieldBounds = defaults.object(forKey: Keys.showDebugBorderTextFieldBounds) as? Bool ?? true
+        self.showDebugBorderCGWindowCoords = defaults.object(forKey: Keys.showDebugBorderCGWindowCoords) as? Bool ?? true
+        self.showDebugBorderCocoaCoords = defaults.object(forKey: Keys.showDebugBorderCocoaCoords) as? Bool ?? true
 
         // Set terminal apps to .indefinite pause by default if not already configured
         // This prevents grammar checking in terminals where command output can cause false positives
@@ -852,5 +885,10 @@ class UserPreferences: ObservableObject {
         static let suggestionTheme = "suggestionTheme"
         static let underlineThickness = "underlineThickness"
         static let indicatorPosition = "indicatorPosition"
+
+        // Diagnostics
+        static let showDebugBorderTextFieldBounds = "showDebugBorderTextFieldBounds"
+        static let showDebugBorderCGWindowCoords = "showDebugBorderCGWindowCoords"
+        static let showDebugBorderCocoaCoords = "showDebugBorderCocoaCoords"
     }
 }
