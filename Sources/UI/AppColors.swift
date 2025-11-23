@@ -11,7 +11,7 @@
 
 import SwiftUI
 
-/// Modern color schema for Gnau's UI
+/// Modern color schema for TextWarden's UI
 /// Based on HSL color format for harmonious, programmatic shade generation
 struct AppColors {
 

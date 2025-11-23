@@ -78,8 +78,8 @@ fi
 
 # Test 6: Check if TextWarden is running
 echo -e "${YELLOW}Test 6: Runtime Check${NC}"
-if pgrep -x "Gnau" > /dev/null; then
-    info "Gnau is currently running (PID: $(pgrep -x Gnau))"
+if pgrep -x "TextWarden" > /dev/null; then
+    info "TextWarden is currently running (PID: $(pgrep -x TextWarden))"
     echo "  Manual checks:"
     echo "  - [ ] Menu bar icon visible?"
     echo "  - [ ] Open TextEdit and type: 'This are a test'"

@@ -8,7 +8,7 @@
 import Foundation
 import os.log
 
-/// Centralized logging system for Gnau
+/// Centralized logging system for TextWarden
 struct Logger {
     private static let subsystem = "com.textwarden.app"
 

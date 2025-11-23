@@ -628,7 +628,7 @@ struct ApplicationSettingsView: View {
     private func isSystemBackgroundService(_ bundleID: String) -> Bool {
         // List of system services that users typically don't interact with
         let systemServices = [
-            "com.philipschmid.TextWarden",  // Don't check grammar in Gnau's own UI
+            "com.philipschmid.TextWarden",  // Don't check grammar in TextWarden's own UI
             "com.apple.loginwindow",
             "com.apple.UserNotificationCenter",
             "com.apple.notificationcenterui",
@@ -1770,7 +1770,7 @@ struct SystemStatusView: View {
                 showingPermissionDialog = false
             }
         } message: {
-            Text("Please check System Settings to grant Accessibility permission to Gnau. The app will automatically detect when permission is granted.")
+            Text("Please check System Settings to grant Accessibility permission to TextWarden. The app will automatically detect when permission is granted.")
         }
     }
 }
@@ -1806,7 +1806,7 @@ struct AboutView: View {
         ScrollView {
             VStack(spacing: 20) {
                 // App Icon and Title
-                Image("GnauLogo")
+                Image("TextWardenLogo")
                     .resizable()
                     .scaledToFit()
                     .frame(width: 80, height: 80)
@@ -1858,7 +1858,7 @@ struct AboutView: View {
 
                 // Links
                 VStack(spacing: 12) {
-                    Link(destination: URL(string: "https://github.com/philipschmid/gnau")!) {
+                    Link(destination: URL(string: "https://github.com/philipschmid/textwarden")!) {
                         HStack(spacing: 12) {
                             Image(systemName: "arrow.up.forward.square.fill")
                                 .font(.title2)
@@ -1875,7 +1875,7 @@ struct AboutView: View {
                     }
                     .buttonStyle(.plain)
 
-                    Link(destination: URL(string: "https://github.com/philipschmid/gnau/blob/main/LICENSE")!) {
+                    Link(destination: URL(string: "https://github.com/philipschmid/textwarden/blob/main/LICENSE")!) {
                         HStack(spacing: 12) {
                             Image(systemName: "doc.plaintext.fill")
                                 .font(.title2)
@@ -1892,7 +1892,7 @@ struct AboutView: View {
                     }
                     .buttonStyle(.plain)
 
-                    Link(destination: URL(string: "https://github.com/philipschmid/gnau/issues")!) {
+                    Link(destination: URL(string: "https://github.com/philipschmid/textwarden/issues")!) {
                         HStack(spacing: 12) {
                             Image(systemName: "ladybug.fill")
                                 .font(.title2)

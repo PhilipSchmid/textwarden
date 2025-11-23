@@ -2,7 +2,7 @@
 //  MenuBarController.swift
 //  TextWarden
 //
-//  Manages the NSStatusItem and menu bar icon for Gnau
+//  Manages the NSStatusItem and menu bar icon for TextWarden
 //
 
 import Cocoa

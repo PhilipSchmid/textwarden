@@ -21,15 +21,15 @@ class DismissalTracker {
             in: .userDomainMask
         ).first!
 
-        let gnauDir = appSupport.appendingPathComponent("TextWarden")
+        let textWardenDir = appSupport.appendingPathComponent("TextWarden")
 
         // Create directory if needed
         try? FileManager.default.createDirectory(
-            at: gnauDir,
+            at: textWardenDir,
             withIntermediateDirectories: true
         )
 
-        fileURL = gnauDir.appendingPathComponent("dismissal-patterns.json")
+        fileURL = textWardenDir.appendingPathComponent("dismissal-patterns.json")
 
         // Load existing patterns
         load()

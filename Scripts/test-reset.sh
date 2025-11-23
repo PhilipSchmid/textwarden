@@ -17,7 +17,7 @@ NC='\033[0m' # No Color
 
 # 1. Kill running instances
 echo -e "${YELLOW}1. Killing any running TextWarden instances...${NC}"
-killall Gnau 2>/dev/null || echo "  ℹ️  No running instances found"
+killall TextWarden 2>/dev/null || echo "  ℹ️  No running instances found"
 sleep 1
 
 # 2. Clear preferences
@@ -35,7 +35,7 @@ fi
 
 # 4. Check accessibility permission status
 echo -e "${YELLOW}4. Checking Accessibility permission status...${NC}"
-if grep -q "Gnau" "/Library/Application Support/com.apple.TCC/TCC.db" 2>/dev/null; then
+if grep -q "TextWarden" "/Library/Application Support/com.apple.TCC/TCC.db" 2>/dev/null; then
     echo -e "  ${RED}⚠️  TextWarden still has Accessibility permission${NC}"
     echo "  📝 To fully reset, manually remove from:"
     echo "     System Settings → Privacy & Security → Accessibility"
