@@ -11,7 +11,7 @@ import AppKit
 import Combine
 
 /// Floating error indicator window
-class FloatingErrorIndicator: NSWindow {
+class FloatingErrorIndicator: NSPanel {
     /// Shared singleton instance
     static let shared = FloatingErrorIndicator()
 
@@ -27,6 +27,9 @@ class FloatingErrorIndicator: NSWindow {
     /// Custom view for drawing the indicator
     private var indicatorView: IndicatorView?
 
+    /// Border guide window for drag feedback
+    private let borderGuide = BorderGuideWindow()
+
     /// Cancellables for Combine subscriptions
     private var cancellables = Set<AnyCancellable>()
 
@@ -36,7 +39,7 @@ class FloatingErrorIndicator: NSWindow {
 
         super.init(
             contentRect: initialFrame,
-            styleMask: [.borderless],
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
@@ -62,6 +65,79 @@ class FloatingErrorIndicator: NSWindow {
                 // Hide popover when mouse leaves indicator
                 SuggestionPopover.shared.scheduleHide()
             }
+        }
+        indicatorView.onDragStart = { [weak self] in
+            guard let self = self else { return }
+
+            let msg = "🟢 onDragStart triggered!"
+            NSLog(msg)
+            logToDebugFile(msg)
+
+            // Hide popover during drag
+            SuggestionPopover.shared.hide()
+
+            // Enlarge indicator to show it's being dragged
+            let currentFrame = self.frame
+            let normalSize: CGFloat = 40
+            let enlargedSize: CGFloat = 45
+            let sizeDelta = enlargedSize - normalSize
+
+            // Adjust origin to keep indicator centered while enlarging
+            let newFrame = NSRect(
+                x: currentFrame.origin.x - sizeDelta / 2,
+                y: currentFrame.origin.y - sizeDelta / 2,
+                width: enlargedSize,
+                height: enlargedSize
+            )
+            self.setFrame(newFrame, display: true)
+
+            // Ensure indicator stays visible and in front during drag
+            self.alphaValue = 0.85  // Slightly transparent to see what's underneath
+            self.orderFrontRegardless()
+            self.level = .popUpMenu + 2  // Increase level during drag
+
+            // Show border guide around the target window
+            if let element = self.monitoredElement,
+               let windowFrame = self.getVisibleWindowFrame(for: element) {
+                let msg2 = "🟢 Showing border guide with frame: \(windowFrame)"
+                NSLog(msg2)
+                logToDebugFile(msg2)
+
+                // Use brown color (TextWarden logo color) for border guide
+                let brownColor = NSColor(red: 139/255.0, green: 69/255.0, blue: 19/255.0, alpha: 1.0)
+                self.borderGuide.showBorder(around: windowFrame, color: brownColor)
+            } else {
+                let msg3 = "🔴 Cannot show border guide - element=\(String(describing: self.monitoredElement))"
+                NSLog(msg3)
+                logToDebugFile(msg3)
+            }
+        }
+        indicatorView.onDragEnd = { [weak self] finalPosition in
+            guard let self = self else { return }
+
+            // Restore normal size
+            let normalSize: CGFloat = 40
+            let enlargedSize: CGFloat = 45
+            let sizeDelta = enlargedSize - normalSize
+
+            // Adjust origin to keep indicator centered while shrinking back
+            let newFrame = NSRect(
+                x: finalPosition.x + sizeDelta / 2,
+                y: finalPosition.y + sizeDelta / 2,
+                width: normalSize,
+                height: normalSize
+            )
+            self.setFrame(newFrame, display: true)
+
+            // Restore normal appearance
+            self.alphaValue = 1.0
+            self.level = .popUpMenu + 1  // Restore original level
+
+            // Hide border guide
+            self.borderGuide.hide()
+
+            // Handle snap positioning with corrected position
+            self.handleDragEnd(at: newFrame.origin)
         }
         self.indicatorView = indicatorView
         self.contentView = indicatorView
@@ -133,39 +209,69 @@ class FloatingErrorIndicator: NSWindow {
     /// Hide indicator
     func hide() {
         orderOut(nil)
+        borderGuide.hide()
         errors = []
         monitoredElement = nil
     }
 
-    /// Position indicator based on user preference
+    /// Handle drag end with free positioning
+    private func handleDragEnd(at finalPosition: CGPoint) {
+        guard let element = monitoredElement,
+              let windowFrame = getVisibleWindowFrame(for: element),
+              let bundleId = context?.bundleIdentifier else {
+            NSLog("🔴 FloatingErrorIndicator: handleDragEnd - no window frame or bundle ID available")
+            return
+        }
+
+        let indicatorSize: CGFloat = 40
+
+        // Convert absolute position to percentage
+        let percentagePos = IndicatorPositionStore.PercentagePosition.from(
+            absolutePosition: finalPosition,
+            in: windowFrame,
+            indicatorSize: indicatorSize
+        )
+
+        // Save position for this application
+        IndicatorPositionStore.shared.savePosition(percentagePos, for: bundleId)
+
+        NSLog("🔴 FloatingErrorIndicator: Saved position for \(bundleId) at x=\(percentagePos.xPercent), y=\(percentagePos.yPercent)")
+    }
+
+    /// Position indicator based on per-app stored position or user preference
     private func positionIndicator(for element: AXUIElement) {
-        // For terminals, the AX window frame often includes scrollback buffer
-        // which can be huge (thousands of pixels). Use screen bounds instead
-        // to ensure reliable positioning.
-
-        // Try to get the actual visible window frame using NSWindow if possible
-        if let visibleFrame = getVisibleWindowFrame(for: element) {
-            NSLog("🔴 FloatingErrorIndicator: Using visible window frame: \(visibleFrame)")
-
-            let padding: CGFloat = 10
-            let indicatorSize: CGFloat = 40
-            let position = UserPreferences.shared.indicatorPosition
-
-            let (x, y) = calculatePosition(
-                for: position,
-                in: visibleFrame,
-                indicatorSize: indicatorSize,
-                padding: padding
-            )
-
-            let finalFrame = NSRect(x: x, y: y, width: indicatorSize, height: indicatorSize)
-            NSLog("🔴 FloatingErrorIndicator: Positioning at \(finalFrame)")
-
-            setFrame(finalFrame, display: true)
-        } else {
+        // Try to get the actual visible window frame
+        guard let visibleFrame = getVisibleWindowFrame(for: element) else {
             NSLog("🔴 FloatingErrorIndicator: Failed to get visible window frame, using screen corner")
             positionInScreenCorner()
+            return
         }
+
+        NSLog("🔴 FloatingErrorIndicator: Using visible window frame: \(visibleFrame)")
+
+        let indicatorSize: CGFloat = 40
+
+        // Check for per-app stored position first
+        var percentagePos: IndicatorPositionStore.PercentagePosition?
+        if let bundleId = context?.bundleIdentifier {
+            percentagePos = IndicatorPositionStore.shared.getPosition(for: bundleId)
+            if percentagePos != nil {
+                NSLog("📍 FloatingErrorIndicator: Using stored position for \(bundleId)")
+            }
+        }
+
+        // If no stored position, use default from preferences
+        if percentagePos == nil {
+            percentagePos = IndicatorPositionStore.shared.getDefaultPosition()
+            NSLog("📍 FloatingErrorIndicator: Using default position from preferences")
+        }
+
+        // Convert percentage to absolute position
+        let position = percentagePos!.toAbsolute(in: visibleFrame, indicatorSize: indicatorSize)
+        let finalFrame = NSRect(x: position.x, y: position.y, width: indicatorSize, height: indicatorSize)
+
+        NSLog("🔴 FloatingErrorIndicator: Positioning at \(finalFrame)")
+        setFrame(finalFrame, display: true)
     }
 
     /// Calculate indicator position based on user preference
@@ -245,16 +351,71 @@ class FloatingErrorIndicator: NSWindow {
                 let width = boundsDict["Width"] ?? 0
                 let height = boundsDict["Height"] ?? 0
 
-                // CGWindowListCopyWindowInfo returns screen coordinates with y=0 at TOP
-                // Convert to Cocoa coordinates where y=0 is at BOTTOM
-                if let screen = NSScreen.main {
-                    let screenHeight = screen.frame.height
-                    let cocoaY = screenHeight - y - height
+                // CGWindowListCopyWindowInfo returns coordinates with y=0 at TOP
+                // NSScreen uses Cocoa coordinates with y=0 at BOTTOM
+                // CRITICAL: Must find which screen the window is on for proper conversion
 
-                    let frame = NSRect(x: x, y: cocoaY, width: width, height: height)
-                    NSLog("🔴 FloatingErrorIndicator: Found visible window - CGWindow bounds: (\(x), \(y), \(width), \(height)), Cocoa coords: \(frame)")
-                    return frame
+                // First, find which screen contains this window
+                // We'll check which screen's bounds (in CGWindow coordinates) intersect with the window
+                let windowCGRect = CGRect(x: x, y: y, width: width, height: height)
+                let totalScreenHeight = NSScreen.screens.reduce(0) { max($0, $1.frame.maxY) }
+
+                var targetScreen: NSScreen?
+                var maxIntersection: CGFloat = 0
+
+                for screen in NSScreen.screens {
+                    // Convert this screen's Cocoa frame to CGWindow coordinates for comparison
+                    let cocoaFrame = screen.frame
+                    let cgY = totalScreenHeight - cocoaFrame.maxY
+                    let cgScreenRect = CGRect(
+                        x: cocoaFrame.origin.x,
+                        y: cgY,
+                        width: cocoaFrame.width,
+                        height: cocoaFrame.height
+                    )
+
+                    // Check intersection
+                    let intersection = windowCGRect.intersection(cgScreenRect)
+                    let area = intersection.width * intersection.height
+
+                    if area > maxIntersection {
+                        maxIntersection = area
+                        targetScreen = screen
+                    }
                 }
+
+                // Use the screen we found (or fall back to main)
+                guard let screen = targetScreen ?? NSScreen.main else {
+                    NSLog("🔴 FloatingErrorIndicator: No screen found")
+                    return nil
+                }
+
+                // Convert from CGWindow coordinates (top-left origin) to Cocoa coordinates (bottom-left origin)
+                // Use simple formula: cocoaY = totalScreenHeight - cgY - height
+                let cocoaY = totalScreenHeight - y - height
+
+                let frame = NSRect(x: x, y: cocoaY, width: width, height: height)
+                let msg = "🔴 FloatingErrorIndicator: Window on screen '\(screen.localizedName)' at \(screen.frame) - CGWindow: (\(x), \(y)), Cocoa: \(frame)"
+                NSLog(msg)
+                logToDebugFile(msg)
+
+                // DEBUG: Show debug boxes based on user preferences
+                DispatchQueue.main.async {
+                    DebugBorderWindow.clearAll()
+
+                    // Show CGWindow coordinates (blue box) if enabled
+                    if UserPreferences.shared.showDebugBorderCGWindowCoords {
+                        let cgDisplayRect = NSRect(x: x, y: totalScreenHeight - y - height, width: width, height: height)
+                        _ = DebugBorderWindow(frame: cgDisplayRect, color: .systemBlue, label: "CGWindow coords")
+                    }
+
+                    // Show Cocoa coordinates (green box) if enabled
+                    if UserPreferences.shared.showDebugBorderCocoaCoords {
+                        _ = DebugBorderWindow(frame: frame, color: .systemGreen, label: "Cocoa coords")
+                    }
+                }
+
+                return frame
             }
         }
 
@@ -412,15 +573,16 @@ private class IndicatorView: NSView {
     var errorColor: NSColor = .systemRed
     var onClicked: (() -> Void)?
     var onHover: ((Bool) -> Void)?
+    var onDragStart: (() -> Void)?
+    var onDragEnd: ((CGPoint) -> Void)?
 
     private var hoverTimer: Timer?
+    private var isDragging = false
+    private var dragStartPoint: CGPoint = .zero
+    private var isHovered = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-
-        // Add click gesture
-        let clickGesture = NSClickGestureRecognizer(target: self, action: #selector(handleClick))
-        addGestureRecognizer(clickGesture)
 
         // Add hover tracking
         let trackingArea = NSTrackingArea(
@@ -439,56 +601,127 @@ private class IndicatorView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
 
-        // Draw circular background
-        let circlePath = NSBezierPath(ovalIn: bounds.insetBy(dx: 2, dy: 2))
-        errorColor.setFill()
-        circlePath.fill()
+        // Add subtle shadow for depth (adapts to dark mode)
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.25)
+        shadow.shadowOffset = NSSize(width: 0, height: -2)
+        shadow.shadowBlurRadius = 4
+        shadow.set()
 
-        // Draw white border
-        NSColor.white.setStroke()
-        circlePath.lineWidth = 2
-        circlePath.stroke()
+        // Draw background circle with system-adaptive color
+        let backgroundPath = NSBezierPath(ovalIn: bounds.insetBy(dx: 3, dy: 3))
+        NSColor.controlBackgroundColor.setFill()
+        backgroundPath.fill()
 
-        // Draw error count
+        // Clear shadow for border
+        NSShadow().set()
+
+        // Draw colored ring (thicker, more prominent)
+        let ringPath = NSBezierPath(ovalIn: bounds.insetBy(dx: 3, dy: 3))
+        errorColor.setStroke()
+        ringPath.lineWidth = 3.5
+        ringPath.stroke()
+
+        // Draw error count with adaptive text color
         let countString = "\(errorCount)"
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 14, weight: .semibold),
-            .foregroundColor: NSColor.white
+            .font: NSFont.systemFont(ofSize: 15, weight: .semibold),
+            .foregroundColor: NSColor.labelColor
         ]
         let textSize = (countString as NSString).size(withAttributes: attributes)
+
+        // Position text centered
         let textRect = NSRect(
             x: (bounds.width - textSize.width) / 2,
-            y: (bounds.height - textSize.height) / 2 + 1,  // Slight offset for visual balance
+            y: (bounds.height - textSize.height) / 2 + 2,
             width: textSize.width,
             height: textSize.height
         )
         (countString as NSString).draw(in: textRect, withAttributes: attributes)
     }
 
-    @objc private func handleClick() {
-        NSLog("🔴 IndicatorView: handleClick called")
-        onClicked?()
+    override func mouseDown(with event: NSEvent) {
+        let msg = "🔴 IndicatorView: mouseDown called at \(event.locationInWindow)"
+        NSLog(msg)
+        logToDebugFile(msg)
+
+        isDragging = true
+        dragStartPoint = event.locationInWindow
+
+        // Change cursor to closed hand
+        NSCursor.closedHand.push()
+
+        // Notify drag start
+        onDragStart?()
+
+        // Redraw to show dots instead of count
+        needsDisplay = true
     }
 
-    override func mouseDown(with event: NSEvent) {
-        NSLog("🔴 IndicatorView: mouseDown called")
-        onClicked?()
+    override func mouseDragged(with event: NSEvent) {
+        guard isDragging, let window = window else { return }
+
+        // Calculate delta from start point
+        let currentPoint = event.locationInWindow
+        let deltaX = currentPoint.x - dragStartPoint.x
+        let deltaY = currentPoint.y - dragStartPoint.y
+
+        // Move window
+        var newOrigin = window.frame.origin
+        newOrigin.x += deltaX
+        newOrigin.y += deltaY
+
+        window.setFrameOrigin(newOrigin)
+
+        // Ensure window stays visible and in front during drag
+        window.orderFrontRegardless()
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard isDragging else {
+            // If not dragging, treat as a click
+            onClicked?()
+            return
+        }
+
+        isDragging = false
+        NSCursor.pop()
+
+        // Get final position and snap it
+        if let window = window {
+            onDragEnd?(window.frame.origin)
+        }
+
+        // Redraw to show count instead of dots
+        needsDisplay = true
     }
 
     override func mouseEntered(with event: NSEvent) {
         NSLog("🔴 IndicatorView: mouseEntered")
-        NSCursor.pointingHand.push()
+        isHovered = true
+
+        // Use open hand cursor to indicate draggability
+        if !isDragging {
+            NSCursor.openHand.push()
+        }
 
         // Show popover after a short delay
         hoverTimer?.invalidate()
         hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { [weak self] _ in
             self?.onHover?(true)
         }
+
+        // Redraw to update dot opacity
+        needsDisplay = true
     }
 
     override func mouseExited(with event: NSEvent) {
         NSLog("🔴 IndicatorView: mouseExited")
-        NSCursor.pop()
+        isHovered = false
+
+        if !isDragging {
+            NSCursor.pop()
+        }
 
         // Cancel hover timer if mouse exits before delay
         hoverTimer?.invalidate()
@@ -496,6 +729,9 @@ private class IndicatorView: NSView {
 
         // Hide popover
         onHover?(false)
+
+        // Redraw to update dot opacity
+        needsDisplay = true
     }
 
     override func updateTrackingAreas() {
