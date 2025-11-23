@@ -61,11 +61,17 @@ struct PreferencesView: View {
                 }
                 .tag(7)
 
+            DiagnosticsView(preferences: preferences)
+                .tabItem {
+                    Label("Diagnostics", systemImage: "wrench.and.screwdriver")
+                }
+                .tag(8)
+
             AboutView()
                 .tabItem {
                     Label("About", systemImage: "info.circle")
                 }
-                .tag(8)
+                .tag(9)
         }
         .frame(minWidth: 750, minHeight: 600)
     }
@@ -1489,6 +1495,76 @@ struct CustomVocabularyView: View {
     }
 }
 
+// MARK: - Diagnostics View
+
+struct DiagnosticsView: View {
+    @ObservedObject var preferences: UserPreferences
+
+    var body: some View {
+        Form {
+            Section {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Enable visual debug overlays to help diagnose positioning issues with grammar indicators.")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .padding(.bottom, 8)
+
+                    Toggle("Show Text Field Bounds", isOn: $preferences.showDebugBorderTextFieldBounds)
+                        .help("Display a red box showing the exact boundaries of the text field being monitored for grammar checking")
+
+                    Text("Red box showing the text field being monitored for grammar")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 20)
+                        .padding(.bottom, 8)
+
+                    Toggle("Show CGWindow Coordinates", isOn: $preferences.showDebugBorderCGWindowCoords)
+                        .help("Display a blue box showing the raw CGWindow coordinates from the system")
+
+                    Text("Blue box showing CGWindow coordinates (raw from system)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 20)
+                        .padding(.bottom, 8)
+
+                    Toggle("Show Cocoa Coordinates", isOn: $preferences.showDebugBorderCocoaCoords)
+                        .help("Display a green box showing the Cocoa coordinate system (converted from CGWindow)")
+
+                    Text("Green box showing Cocoa coordinates (converted)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 20)
+                }
+            } header: {
+                Text("Debug Overlays")
+                    .font(.headline)
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "info.circle.fill")
+                            .foregroundColor(.blue)
+                        Text("These overlays help diagnose position calculation issues")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Text("When enabled, colored boxes will appear around text fields to show how Gnau calculates positions for grammar indicators. This is useful for troubleshooting position-related issues in specific applications.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.top, 4)
+                }
+            } header: {
+                Text("About Diagnostics")
+                    .font(.headline)
+            }
+        }
+        .formStyle(.grouped)
+        .padding()
+    }
+}
+
 // MARK: - System Status View
 
 struct SystemStatusView: View {
@@ -1719,9 +1795,6 @@ private struct SystemInfoRow: View {
 // MARK: - About View
 
 struct AboutView: View {
-    @State private var appVersion: String = "1.0"
-    @State private var buildNumber: String = "1"
-
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
@@ -1744,7 +1817,9 @@ struct AboutView: View {
 
                 // Version Information
                 VStack(spacing: 14) {
-                    InfoRow(label: "Version", value: "\(appVersion) (\(buildNumber))")
+                    InfoRow(label: "Version", value: BuildInfo.fullVersion)
+                    InfoRow(label: "Build Timestamp", value: BuildInfo.buildTimestamp)
+                    InfoRow(label: "Build Age", value: BuildInfo.buildAge)
                     InfoRow(label: "Grammar Engine", value: "Harper 0.61")
                     InfoRow(label: "Supported Dialects", value: "American, British, Canadian, Australian")
                     InfoRow(label: "Minimum macOS", value: "14.0 (Sonoma)")
@@ -1842,18 +1917,6 @@ struct AboutView: View {
                 }
             }
             .padding()
-        }
-        .onAppear {
-            loadVersionInfo()
-        }
-    }
-
-    private func loadVersionInfo() {
-        if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
-            appVersion = version
-        }
-        if let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String {
-            buildNumber = build
         }
     }
 }
@@ -1997,14 +2060,14 @@ struct AppearancePreferencesView: View {
             }
 
             Section {
-                Picker("Position:", selection: $preferences.indicatorPosition) {
+                Picker("Default position:", selection: $preferences.indicatorPosition) {
                     ForEach(UserPreferences.indicatorPositions, id: \.self) { position in
                         Text(position).tag(position)
                     }
                 }
-                .help("Choose where the error counter appears in Terminal and other apps")
+                .help("Choose the default position for new applications. Drag the indicator to customize per-app positions.")
 
-                Text("Position of the floating error indicator badge")
+                Text("Default position for the floating error indicator badge. Positions are remembered per application after you drag the indicator.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             } header: {
