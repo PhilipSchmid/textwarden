@@ -2067,9 +2067,8 @@ struct AboutView: View {
                     InfoRow(label: "Version", value: BuildInfo.fullVersion)
                     InfoRow(label: "Build Timestamp", value: BuildInfo.buildTimestamp)
                     InfoRow(label: "Build Age", value: BuildInfo.buildAge)
-                    InfoRow(label: "Grammar Engine", value: "Harper 0.61")
+                    InfoRow(label: "Grammar Engine", value: "Harper \(BuildInfo.harperVersion)")
                     InfoRow(label: "Supported Dialects", value: "American, British, Canadian, Australian")
-                    InfoRow(label: "Minimum macOS", value: "14.0 (Sonoma)")
                     InfoRow(label: "License", value: "Apache 2.0")
                 }
                 .padding(.horizontal, 40)

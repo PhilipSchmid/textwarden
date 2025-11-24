@@ -95,6 +95,11 @@ struct BuildInfo {
         return "\(appVersion) (\(buildNumber))"
     }
 
+    /// Harper grammar engine version
+    /// NOTE: This should match the version in GrammarEngine/Cargo.toml
+    /// Update this when upgrading Harper
+    static let harperVersion: String = "0.72"
+
     /// Complete build info for logging
     static var fullInfo: String {
         return """
