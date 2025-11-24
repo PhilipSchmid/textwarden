@@ -52,23 +52,17 @@ struct PreferencesView: View {
                 }
                 .tag(5)
 
-            KeyboardShortcutsView(preferences: preferences)
-                .tabItem {
-                    Label("Shortcuts", systemImage: "command")
-                }
-                .tag(6)
-
             DiagnosticsView(preferences: preferences)
                 .tabItem {
                     Label("Diagnostics", systemImage: "wrench.and.screwdriver")
                 }
-                .tag(7)
+                .tag(6)
 
             AboutView()
                 .tabItem {
                     Label("About", systemImage: "info.circle")
                 }
-                .tag(8)
+                .tag(7)
         }
         .frame(minWidth: 750, minHeight: 600)
     }
@@ -998,33 +992,56 @@ struct GeneralPreferencesView: View {
             }
 
             Section {
-                VStack(alignment: .leading, spacing: 12) {
-                    Button("Reset All Settings") {
-                        preferences.resetToDefaults()
-                    }
-                    .buttonStyle(.bordered)
-                    .help("Reset all preferences to their default values")
+                Toggle("Enable keyboard shortcuts", isOn: $preferences.keyboardShortcutsEnabled)
+                    .help("Enable or disable all keyboard shortcuts")
 
-                    Button("Clear Custom Dictionary") {
-                        preferences.customDictionary.removeAll()
-                    }
-                    .buttonStyle(.bordered)
-                    .help("Remove all words from your custom dictionary")
-
-                    Button("Clear Ignored Rules") {
-                        preferences.ignoredRules.removeAll()
-                    }
-                    .buttonStyle(.bordered)
-                    .help("Re-enable all previously ignored grammar rules")
-
-                    Button("Clear Ignored Error Texts") {
-                        preferences.ignoredErrorTexts.removeAll()
-                    }
-                    .buttonStyle(.bordered)
-                    .help("Clear all error texts ignored with 'Ignore Everywhere'")
-                }
+                Text("When disabled, keyboard shortcuts will not trigger any actions")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 4)
             } header: {
-                Text("Reset Options")
+                Text("Keyboard Shortcuts")
+                    .font(.headline)
+            }
+
+            Section {
+                KeyboardShortcuts.Recorder("Toggle Grammar Checking:", name: .toggleGrammarChecking)
+
+                Text("Works system-wide, even when TextWarden isn't the active app")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 4)
+            } header: {
+                Text("Global Shortcuts")
+                    .font(.headline)
+            }
+
+            Section {
+                KeyboardShortcuts.Recorder("Accept Suggestion:", name: .acceptSuggestion)
+                KeyboardShortcuts.Recorder("Dismiss Popover:", name: .dismissSuggestion)
+                KeyboardShortcuts.Recorder("Previous Suggestion:", name: .previousSuggestion)
+                KeyboardShortcuts.Recorder("Next Suggestion:", name: .nextSuggestion)
+
+                Text("These shortcuts work when the suggestion popover is visible")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 4)
+            } header: {
+                Text("Suggestion Popover")
+                    .font(.headline)
+            }
+
+            Section {
+                KeyboardShortcuts.Recorder("Apply 1st Suggestion:", name: .applySuggestion1)
+                KeyboardShortcuts.Recorder("Apply 2nd Suggestion:", name: .applySuggestion2)
+                KeyboardShortcuts.Recorder("Apply 3rd Suggestion:", name: .applySuggestion3)
+
+                Text("Quickly apply suggestions by number from the popover")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 4)
+            } header: {
+                Text("Quick Apply")
                     .font(.headline)
             }
         }
@@ -1938,6 +1955,89 @@ struct DiagnosticsView: View {
                 Text("About Debug Overlays")
                     .font(.headline)
             }
+
+            Section {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Reset various aspects of TextWarden to their default state. Use these options with caution as they cannot be undone.")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .padding(.bottom, 8)
+
+                    // Arrange buttons in a 2x2 grid for better alignment
+                    VStack(spacing: 12) {
+                        HStack(spacing: 12) {
+                            Button {
+                                preferences.resetToDefaults()
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Image(systemName: "arrow.counterclockwise.circle.fill")
+                                        Text("Reset All Settings")
+                                    }
+                                    .font(.body)
+                                    .fontWeight(.medium)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.bordered)
+                            .help("Reset all preferences to their default values")
+
+                            Button {
+                                preferences.customDictionary.removeAll()
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Image(systemName: "book.closed.fill")
+                                        Text("Clear Custom Dictionary")
+                                    }
+                                    .font(.body)
+                                    .fontWeight(.medium)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.bordered)
+                            .help("Remove all words from your custom dictionary")
+                        }
+
+                        HStack(spacing: 12) {
+                            Button {
+                                preferences.ignoredRules.removeAll()
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Image(systemName: "checklist")
+                                        Text("Clear Ignored Rules")
+                                    }
+                                    .font(.body)
+                                    .fontWeight(.medium)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.bordered)
+                            .help("Re-enable all previously ignored grammar rules")
+
+                            Button {
+                                preferences.ignoredErrorTexts.removeAll()
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Image(systemName: "text.badge.xmark")
+                                        Text("Clear Ignored Error Texts")
+                                    }
+                                    .font(.body)
+                                    .fontWeight(.medium)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.bordered)
+                            .help("Clear all error texts ignored with 'Ignore Everywhere'")
+                        }
+                    }
+                }
+            } header: {
+                Text("Reset Options")
+                    .font(.headline)
+            }
         }
         .formStyle(.grouped)
         .padding()
@@ -2319,68 +2419,6 @@ struct AppearancePreferencesView: View {
             } header: {
                 Text("Error Indicator")
                     .font(.headline)
-            }
-        }
-        .formStyle(.grouped)
-        .padding()
-    }
-}
-
-// MARK: - Keyboard Shortcuts Preferences
-
-struct KeyboardShortcutsView: View {
-    @ObservedObject var preferences: UserPreferences
-
-    var body: some View {
-        Form {
-            Section {
-                Toggle("Enable keyboard shortcuts", isOn: $preferences.keyboardShortcutsEnabled)
-                    .help("Enable or disable all keyboard shortcuts")
-            } header: {
-                Text("General")
-                    .font(.headline)
-            } footer: {
-                Text("When disabled, keyboard shortcuts will not trigger any actions.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-
-            Section {
-                KeyboardShortcuts.Recorder("Toggle Grammar Checking:", name: .toggleGrammarChecking)
-            } header: {
-                Text("Global Shortcuts")
-                    .font(.headline)
-            } footer: {
-                Text("Works system-wide, even when TextWarden isn't the active app.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-
-            Section {
-                KeyboardShortcuts.Recorder("Accept Suggestion:", name: .acceptSuggestion)
-                KeyboardShortcuts.Recorder("Dismiss Popover:", name: .dismissSuggestion)
-                KeyboardShortcuts.Recorder("Previous Suggestion:", name: .previousSuggestion)
-                KeyboardShortcuts.Recorder("Next Suggestion:", name: .nextSuggestion)
-            } header: {
-                Text("Suggestion Popover")
-                    .font(.headline)
-            } footer: {
-                Text("These shortcuts work when the suggestion popover is visible.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-
-            Section {
-                KeyboardShortcuts.Recorder("Apply 1st Suggestion:", name: .applySuggestion1)
-                KeyboardShortcuts.Recorder("Apply 2nd Suggestion:", name: .applySuggestion2)
-                KeyboardShortcuts.Recorder("Apply 3rd Suggestion:", name: .applySuggestion3)
-            } header: {
-                Text("Quick Apply")
-                    .font(.headline)
-            } footer: {
-                Text("Quickly apply suggestions by number from the popover.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
             }
         }
         .formStyle(.grouped)
