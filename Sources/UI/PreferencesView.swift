@@ -936,8 +936,8 @@ struct GeneralPreferencesView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                .padding(.top, 24)
             }
+            .padding(.top, 24)
 
             Section {
                 VStack(alignment: .leading, spacing: 8) {
@@ -1083,11 +1083,11 @@ struct GeneralPreferencesView: View {
                             .foregroundColor(.secondary)
                     }
                 }
-                .padding(.top, 24)
             } header: {
                 Text("Performance")
                     .font(.headline)
             }
+            .padding(.top, 24)
 
             Section {
                 Picker("English dialect:", selection: $preferences.selectedDialect) {
@@ -1122,8 +1122,8 @@ struct GeneralPreferencesView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                .padding(.top, 24)
             }
+            .padding(.top, 24)
 
             Section {
                 Toggle("Enable keyboard shortcuts", isOn: $preferences.keyboardShortcutsEnabled)
@@ -1297,8 +1297,8 @@ struct SpellCheckingView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                .padding(.top, 24)
             }
+            .padding(.top, 24)
 
             CustomVocabularyContent(
                 vocabulary: vocabulary,
