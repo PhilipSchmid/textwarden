@@ -919,6 +919,10 @@ struct GeneralPreferencesView: View {
                     .font(.headline)
             }
 
+            Spacer()
+                .frame(height: 24)
+                .listRowBackground(Color.clear)
+
             // MARK: Appearance Settings Group
             Section {
                 VStack(alignment: .leading, spacing: 8) {
@@ -937,7 +941,6 @@ struct GeneralPreferencesView: View {
                         .foregroundColor(.secondary)
                 }
             }
-            .padding(.top, 24)
 
             Section {
                 VStack(alignment: .leading, spacing: 8) {
@@ -1044,6 +1047,10 @@ struct GeneralPreferencesView: View {
                     .font(.headline)
             }
 
+            Spacer()
+                .frame(height: 24)
+                .listRowBackground(Color.clear)
+
             Section {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(alignment: .center) {
@@ -1087,7 +1094,6 @@ struct GeneralPreferencesView: View {
                 Text("Performance")
                     .font(.headline)
             }
-            .padding(.top, 24)
 
             Section {
                 Picker("English dialect:", selection: $preferences.selectedDialect) {
@@ -1104,6 +1110,10 @@ struct GeneralPreferencesView: View {
                 Text("Language")
                     .font(.headline)
             }
+
+            Spacer()
+                .frame(height: 24)
+                .listRowBackground(Color.clear)
 
             // MARK: Keyboard Shortcuts Group
             Section {
@@ -1123,7 +1133,6 @@ struct GeneralPreferencesView: View {
                         .foregroundColor(.secondary)
                 }
             }
-            .padding(.top, 24)
 
             Section {
                 Toggle("Enable keyboard shortcuts", isOn: $preferences.keyboardShortcutsEnabled)
@@ -1280,6 +1289,10 @@ struct SpellCheckingView: View {
 
             FilteringPreferencesContent(preferences: preferences)
 
+            Spacer()
+                .frame(height: 24)
+                .listRowBackground(Color.clear)
+
             // MARK: Custom Dictionary Group
             Section {
                 VStack(alignment: .leading, spacing: 8) {
@@ -1298,7 +1311,6 @@ struct SpellCheckingView: View {
                         .foregroundColor(.secondary)
                 }
             }
-            .padding(.top, 24)
 
             CustomVocabularyContent(
                 vocabulary: vocabulary,
