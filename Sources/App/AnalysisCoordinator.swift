@@ -350,46 +350,32 @@ class AnalysisCoordinator: ObservableObject {
             logToDebugFile(logMsg4)
             logToDebugFile(logMsg5)
             if currentApp.shouldCheck() {
-                let msg = "✅ AnalysisCoordinator: Starting monitoring for existing app"
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("AnalysisCoordinator: Starting monitoring for existing app", category: Logger.analysis)
                 self.monitoredContext = currentApp  // Set BEFORE startMonitoring
                 startMonitoring(context: currentApp)
             } else {
-                let msg = "⏸️ AnalysisCoordinator: Existing app not in check list"
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("AnalysisCoordinator: Existing app not in check list", category: Logger.analysis)
             }
         } else {
-            let msg = "⚠️ AnalysisCoordinator: No active application detected yet"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("AnalysisCoordinator: No active application detected yet", category: Logger.analysis)
         }
     }
 
     /// Start monitoring a specific application
     private func startMonitoring(context: ApplicationContext) {
-        let msg1 = "🎯 AnalysisCoordinator: startMonitoring called for \(context.applicationName)"
-        NSLog(msg1)
-        logToDebugFile(msg1)
+        Logger.debug("AnalysisCoordinator: startMonitoring called for \(context.applicationName)", category: Logger.analysis)
         guard permissionManager.isPermissionGranted else {
-            let msg = "❌ AnalysisCoordinator: Accessibility permissions not granted"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("AnalysisCoordinator: Accessibility permissions not granted", category: Logger.analysis)
             return
         }
 
-        let msg2 = "✅ AnalysisCoordinator: Permission granted, calling textMonitor.startMonitoring"
-        NSLog(msg2)
-        logToDebugFile(msg2)
+        Logger.debug("AnalysisCoordinator: Permission granted, calling textMonitor.startMonitoring", category: Logger.analysis)
         textMonitor.startMonitoring(
             processID: context.processID,
             bundleIdentifier: context.bundleIdentifier,
             appName: context.applicationName
         )
-        let msg3 = "✅ AnalysisCoordinator: textMonitor.startMonitoring completed"
-        NSLog(msg3)
-        logToDebugFile(msg3)
+        Logger.debug("AnalysisCoordinator: textMonitor.startMonitoring completed", category: Logger.analysis)
 
         // Start window position monitoring now that we have an element to monitor
         startWindowPositionMonitoring()
@@ -421,14 +407,14 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Start monitoring window position to detect movement
     private func startWindowPositionMonitoring() {
-        NSLog("🪟 Window monitoring: Starting position monitoring")
+        Logger.debug("Window monitoring: Starting position monitoring", category: Logger.analysis)
         // Poll window position every 50ms (20 times per second)
         // This is frequent enough to catch window movement quickly
         windowPositionTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
             self?.checkWindowPosition()
         }
         RunLoop.main.add(windowPositionTimer!, forMode: .common)
-        NSLog("🪟 Window monitoring: Timer scheduled on main RunLoop")
+        Logger.debug("Window monitoring: Timer scheduled on main RunLoop", category: Logger.analysis)
     }
 
     /// Stop monitoring window position
@@ -449,7 +435,7 @@ class AnalysisCoordinator: ObservableObject {
         }
 
         guard let currentPosition = getWindowPosition(for: element) else {
-            NSLog("🪟 Window monitoring: Could not get window position")
+            Logger.debug("Window monitoring: Could not get window position", category: Logger.analysis)
             return
         }
 
@@ -459,7 +445,7 @@ class AnalysisCoordinator: ObservableObject {
             let distance = hypot(currentPosition.x - lastPosition.x, currentPosition.y - lastPosition.y)
 
             if distance > threshold {
-                NSLog("🪟 Window monitoring: Movement detected - distance: \(distance)px, from: \(lastPosition) to: \(currentPosition)")
+                Logger.debug("Window monitoring: Movement detected - distance: \(distance)px, from: \(lastPosition) to: \(currentPosition)", category: Logger.analysis)
                 // Window is moving - hide overlays immediately
                 handleWindowMovementStarted()
             } else {
@@ -467,7 +453,7 @@ class AnalysisCoordinator: ObservableObject {
                 handleWindowMovementStopped()
             }
         } else {
-            NSLog("🪟 Window monitoring: Initial position set: \(currentPosition)")
+            Logger.debug("Window monitoring: Initial position set: \(currentPosition)", category: Logger.analysis)
         }
 
         lastWindowPosition = currentPosition
@@ -523,7 +509,7 @@ class AnalysisCoordinator: ObservableObject {
         // This prevents the timer from being constantly reset while the window is stationary
         guard windowMovementDebounceTimer == nil else { return }
 
-        NSLog("🪟 Window monitoring: Movement stopped - scheduling re-show after 150ms")
+        Logger.debug("Window monitoring: Movement stopped - scheduling re-show after 150ms", category: Logger.analysis)
 
         // Wait 150ms after movement stops before re-showing overlays
         // This provides a snappy UX while avoiding flickering during multi-step drags
@@ -534,7 +520,7 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Re-show overlays after window movement has stopped
     private func reshowOverlaysAfterMovement() {
-        NSLog("🪟 Window monitoring: Re-showing overlays at new position")
+        Logger.debug("Window monitoring: Re-showing overlays at new position", category: Logger.analysis)
         overlaysHiddenDueToMovement = false
         windowMovementDebounceTimer = nil  // Clear timer reference so new timer can be created
 
@@ -549,9 +535,7 @@ class AnalysisCoordinator: ObservableObject {
     func refreshUnderlines() {
         guard !currentErrors.isEmpty else { return }
 
-        let msg = "🔄 AnalysisCoordinator: Refreshing underlines after calibration change"
-        NSLog(msg)
-        logToDebugFile(msg)
+        Logger.debug("AnalysisCoordinator: Refreshing underlines after calibration change", category: Logger.analysis)
 
         // Re-apply filters to trigger underline refresh with new calibration
         let sourceText = currentSegment?.content ?? ""
@@ -560,9 +544,7 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Handle text change and trigger analysis (T038)
     private func handleTextChange(_ text: String, in context: ApplicationContext) {
-        let msg1 = "📝 AnalysisCoordinator: Text changed in \(context.applicationName) (\(text.count) chars)"
-        NSLog(msg1)
-        logToDebugFile(msg1)
+        Logger.debug("AnalysisCoordinator: Text changed in \(context.applicationName) (\(text.count) chars)", category: Logger.analysis)
 
         let segment = TextSegment(
             content: text,
@@ -575,19 +557,13 @@ class AnalysisCoordinator: ObservableObject {
 
         // Perform analysis
         let isEnabled = UserPreferences.shared.isEnabled
-        let msg2 = "📊 AnalysisCoordinator: Grammar checking enabled: \(isEnabled)"
-        NSLog(msg2)
-        logToDebugFile(msg2)
+        Logger.debug("AnalysisCoordinator: Grammar checking enabled: \(isEnabled)", category: Logger.analysis)
 
         if isEnabled {
-            let msg3 = "✅ AnalysisCoordinator: Calling analyzeText()"
-            NSLog(msg3)
-            logToDebugFile(msg3)
+            Logger.debug("AnalysisCoordinator: Calling analyzeText()", category: Logger.analysis)
             analyzeText(segment)
         } else {
-            let msg3 = "⏸️ AnalysisCoordinator: Analysis disabled in preferences"
-            NSLog(msg3)
-            logToDebugFile(msg3)
+            Logger.debug("AnalysisCoordinator: Analysis disabled in preferences", category: Logger.analysis)
         }
     }
 
@@ -616,9 +592,7 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Analyze full text
     private func analyzeFullText(_ segment: TextSegment) {
-        let msg1 = "🔬 AnalysisCoordinator: analyzeFullText called"
-        NSLog(msg1)
-        logToDebugFile(msg1)
+        Logger.debug("AnalysisCoordinator: analyzeFullText called", category: Logger.analysis)
 
         // CRITICAL: Capture the monitored element BEFORE async operation
         let capturedElement = textMonitor.monitoredElement
@@ -627,9 +601,7 @@ class AnalysisCoordinator: ObservableObject {
         analysisQueue.async { [weak self] in
             guard let self = self else { return }
 
-            let msg2 = "🧬 AnalysisCoordinator: Calling Harper grammar engine..."
-            NSLog(msg2)
-            logToDebugFile(msg2)
+            Logger.debug("AnalysisCoordinator: Calling Harper grammar engine...", category: Logger.analysis)
 
             let dialect = UserPreferences.shared.selectedDialect
             let enableInternetAbbrev = UserPreferences.shared.enableInternetAbbreviations
@@ -649,14 +621,10 @@ class AnalysisCoordinator: ObservableObject {
                 enableSentenceStartCapitalization: enableSentenceStartCapitalization
             )
 
-            let msg3 = "📊 AnalysisCoordinator: Harper returned \(result.errors.count) error(s)"
-            NSLog(msg3)
-            logToDebugFile(msg3)
+            Logger.debug("AnalysisCoordinator: Harper returned \(result.errors.count) error(s)", category: Logger.analysis)
 
             DispatchQueue.main.async {
-                let msg4 = "💾 AnalysisCoordinator: Updating error cache and applying filters..."
-                NSLog(msg4)
-                logToDebugFile(msg4)
+                Logger.debug("AnalysisCoordinator: Updating error cache and applying filters...", category: Logger.analysis)
 
                 self.updateErrorCache(for: segment, with: result.errors)
                 self.applyFilters(to: result.errors, sourceText: segmentContent, element: capturedElement)
@@ -768,46 +736,34 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Apply filters based on user preferences (T049, T050, T103)
     private func applyFilters(to errors: [GrammarErrorModel], sourceText: String, element: AXUIElement?) {
-        let msg1 = "🔍 AnalysisCoordinator: applyFilters called with \(errors.count) errors"
-        NSLog(msg1)
-        logToDebugFile(msg1)
+        Logger.debug("AnalysisCoordinator: applyFilters called with \(errors.count) errors", category: Logger.analysis)
 
         var filteredErrors = errors
 
         // Log error categories
         for error in errors {
-            let msg = "  📋 Error category: '\(error.category)', message: '\(error.message)'"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("  Error category: '\(error.category)', message: '\(error.message)'", category: Logger.analysis)
         }
 
         // Filter by category (e.g., Spelling, Grammar, Style)
         let enabledCategories = UserPreferences.shared.enabledCategories
-        let msgCat = "🏷️ AnalysisCoordinator: Enabled categories: \(enabledCategories)"
-        NSLog(msgCat)
-        logToDebugFile(msgCat)
+        Logger.debug("AnalysisCoordinator: Enabled categories: \(enabledCategories)", category: Logger.analysis)
 
         filteredErrors = filteredErrors.filter { error in
             let contains = enabledCategories.contains(error.category)
             if !contains {
-                let msg = "  ❌ Filtering out error with category: '\(error.category)'"
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("  Filtering out error with category: '\(error.category)'", category: Logger.analysis)
             }
             return contains
         }
 
-        let msg2 = "  After category filter: \(filteredErrors.count) errors"
-        NSLog(msg2)
-        logToDebugFile(msg2)
+        Logger.debug("  After category filter: \(filteredErrors.count) errors", category: Logger.analysis)
 
         // Deduplicate consecutive identical errors (Issue #2)
         // This prevents 157 "Horizontal ellipsis" errors from flooding the UI
         filteredErrors = deduplicateErrors(filteredErrors)
 
-        let msg3 = "  After deduplication: \(filteredErrors.count) errors"
-        NSLog(msg3)
-        logToDebugFile(msg3)
+        Logger.debug("  After deduplication: \(filteredErrors.count) errors", category: Logger.analysis)
 
         // Filter by dismissed rules (T050)
         let dismissedRules = UserPreferences.shared.ignoredRules
@@ -854,14 +810,10 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Show visual underlines for errors
     private func showErrorUnderlines(_ errors: [GrammarErrorModel], element: AXUIElement?) {
-        let msg1 = "📍 AnalysisCoordinator: showErrorUnderlines called with \(errors.count) errors"
-        NSLog(msg1)
-        logToDebugFile(msg1)
+        Logger.debug("AnalysisCoordinator: showErrorUnderlines called with \(errors.count) errors", category: Logger.analysis)
 
         guard let providedElement = element else {
-            let msg = "⚠️ AnalysisCoordinator: No monitored element - hiding overlays"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("AnalysisCoordinator: No monitored element - hiding overlays", category: Logger.analysis)
             errorOverlay.hide()
             floatingIndicator.hide()
             MenuBarController.shared?.setIconState(.active)
@@ -875,23 +827,17 @@ class AnalysisCoordinator: ObservableObject {
         if let currentElement = textMonitor.monitoredElement {
             // Compare element pointers to see if they're the same
             if providedElement != currentElement {
-                let msg = "⚠️ AnalysisCoordinator: Ignoring stale analysis results - element mismatch (user switched apps)"
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("AnalysisCoordinator: Ignoring stale analysis results - element mismatch (user switched apps)", category: Logger.analysis)
                 return
             }
         } else {
             // No current element being monitored - these results are stale
-            let msg = "⚠️ AnalysisCoordinator: Ignoring stale analysis results - no element currently monitored"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("AnalysisCoordinator: Ignoring stale analysis results - no element currently monitored", category: Logger.analysis)
             return
         }
 
         if errors.isEmpty {
-            let msg = "📍 AnalysisCoordinator: No errors - hiding overlays"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("AnalysisCoordinator: No errors - hiding overlays", category: Logger.analysis)
             errorOverlay.hide()
             floatingIndicator.hide()
             MenuBarController.shared?.setIconState(.active)
@@ -899,9 +845,7 @@ class AnalysisCoordinator: ObservableObject {
             // Debug: Log context before passing to errorOverlay
             let bundleID = monitoredContext?.bundleIdentifier ?? "nil"
             let appName = monitoredContext?.applicationName ?? "nil"
-            let msg = "🔍 AnalysisCoordinator: About to call errorOverlay.update() with context - bundleID: '\(bundleID)', appName: '\(appName)'"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("AnalysisCoordinator: About to call errorOverlay.update() with context - bundleID: '\(bundleID)', appName: '\(appName)'", category: Logger.analysis)
 
             // Try to show visual underlines
             let underlinesCreated = errorOverlay.update(errors: errors, element: providedElement, context: monitoredContext)
@@ -909,13 +853,9 @@ class AnalysisCoordinator: ObservableObject {
             // Always show floating indicator when there are errors
             // It provides quick access to error count and suggestions
             if underlinesCreated == 0 {
-                let msg = "⚠️ AnalysisCoordinator: \(errors.count) errors detected in '\(appName)' but no underlines created - showing floating indicator only"
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("AnalysisCoordinator: \(errors.count) errors detected in '\(appName)' but no underlines created - showing floating indicator only", category: Logger.analysis)
             } else {
-                let msg = "✅ AnalysisCoordinator: Showing \(underlinesCreated) visual underlines + floating indicator"
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("AnalysisCoordinator: Showing \(underlinesCreated) visual underlines + floating indicator", category: Logger.analysis)
             }
 
             floatingIndicator.update(errors: errors, element: providedElement, context: monitoredContext)
