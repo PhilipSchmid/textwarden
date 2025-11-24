@@ -300,8 +300,10 @@ extension AppDelegate: NSWindowDelegate {
             // Toggle pause duration between active and indefinite
             if preferences.pauseDuration == .active {
                 preferences.pauseDuration = .indefinite
+                MenuBarController.shared?.setIconState(.inactive)
             } else {
                 preferences.pauseDuration = .active
+                MenuBarController.shared?.setIconState(.active)
             }
         }
 

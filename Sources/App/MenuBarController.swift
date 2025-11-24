@@ -43,9 +43,11 @@ class MenuBarController: NSObject, NSMenuDelegate {
             return
         }
 
-        let icon = TextWardenIcon.create()
+        // Set initial icon state based on whether grammar checking is enabled
+        let initialState: IconState = UserPreferences.shared.isEnabled ? .active : .inactive
+        let icon = initialState == .active ? TextWardenIcon.create() : TextWardenIcon.createDisabled()
         button.image = icon
-        button.toolTip = "TextWarden Grammar Checker"
+        button.toolTip = initialState == .active ? "TextWarden Grammar Checker" : "TextWarden (Paused)"
 
         // IMPORTANT: Do NOT set statusItem.menu here, as it prevents button.action from firing
         // Instead, we handle the click manually and show the menu programmatically
@@ -217,21 +219,25 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func setPauseActive() {
         UserPreferences.shared.pauseDuration = .active
+        setIconState(.active)
         updateMenu()
     }
 
     @objc private func setPauseOneHour() {
         UserPreferences.shared.pauseDuration = .oneHour
+        setIconState(.inactive)
         updateMenu()
     }
 
     @objc private func setPauseTwentyFourHours() {
         UserPreferences.shared.pauseDuration = .twentyFourHours
+        setIconState(.inactive)
         updateMenu()
     }
 
     @objc private func setPauseIndefinite() {
         UserPreferences.shared.pauseDuration = .indefinite
+        setIconState(.inactive)
         updateMenu()
     }
 
@@ -392,8 +398,14 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         previousIconState = state
 
-        // Always use the TextWarden marmot logo regardless of state
-        let icon = TextWardenIcon.create()
+        // Use disabled icon with strikethrough when paused, normal icon otherwise
+        let icon: NSImage
+        switch state {
+        case .inactive:
+            icon = TextWardenIcon.createDisabled()
+        case .active, .error, .restarting:
+            icon = TextWardenIcon.create()
+        }
         button.image = icon
 
         switch state {
