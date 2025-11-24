@@ -2414,63 +2414,6 @@ struct DiagnosticsView: View {
                     .font(.headline)
             }
 
-            // MARK: - Export Diagnostics Section
-            Section {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "doc.text.magnifyingglass")
-                            .font(.title2)
-                            .foregroundColor(.blue)
-                        Text("Export a complete diagnostic package including logs, crash reports, and system information for troubleshooting.")
-                            .font(.body)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.bottom, 8)
-
-                    Button(action: exportDiagnosticsToFile) {
-                        Label("Export Diagnostics", systemImage: "square.and.arrow.up")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isExporting)
-
-                    if isExporting {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                                .scaleEffect(0.7)
-                            Text("Generating diagnostic report...")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-
-                    Divider()
-                        .padding(.vertical, 4)
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("What's included in the ZIP package:")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                        Group {
-                            Label("diagnostic_overview.json - System info, permissions, settings", systemImage: "doc.text")
-                            Label("Complete log files (current + rotated logs)", systemImage: "doc.on.doc")
-                            Label("crash_reports/ - Crash logs (if any)", systemImage: "exclamationmark.triangle")
-                            Label("Application state (paused/active apps)", systemImage: "app.dashed")
-                            Label("Complete settings dump", systemImage: "gearshape")
-                        }
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    }
-
-                    Text("⚠️ Privacy: User text content is NEVER included in exports")
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                        .padding(.top, 4)
-                }
-            } header: {
-                Text("Export System Diagnostics")
-                    .font(.headline)
-            }
-
             // MARK: - Logging Configuration Section
             Section {
                 VStack(alignment: .leading, spacing: 16) {
@@ -2563,10 +2506,67 @@ struct DiagnosticsView: View {
                     .font(.headline)
             }
 
+            // MARK: - Export Diagnostics Section
+            Section {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .font(.title2)
+                            .foregroundColor(.blue)
+                        Text("Export a complete diagnostic package including logs, crash reports, and system information for troubleshooting.")
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.bottom, 8)
+
+                    Button(action: exportDiagnosticsToFile) {
+                        Label("Export Diagnostics", systemImage: "square.and.arrow.up")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isExporting)
+
+                    if isExporting {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                            Text("Generating diagnostic report...")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
+                    Divider()
+                        .padding(.vertical, 4)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("What's included in the ZIP package:")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        Group {
+                            Label("diagnostic_overview.json - System info, permissions, settings", systemImage: "doc.text")
+                            Label("Complete log files (current + rotated logs)", systemImage: "doc.on.doc")
+                            Label("crash_reports/ - Crash logs (if any)", systemImage: "exclamationmark.triangle")
+                            Label("Application state (paused/active apps)", systemImage: "app.dashed")
+                            Label("Complete settings dump", systemImage: "gearshape")
+                        }
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    }
+
+                    Text("⚠️ Privacy: User text content is NEVER included in exports")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                        .padding(.top, 4)
+                }
+            } header: {
+                Text("Export System Diagnostics")
+                    .font(.headline)
+            }
+
             // MARK: - Debug Overlays Section
             Section {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Enable visual debug overlays to help diagnose positioning issues with grammar indicators.")
+                    Text("Enable visual debug overlays to help diagnose positioning issues with grammar indicators. When enabled, colored boxes will appear around text fields to show how TextWarden calculates positions for grammar indicators.")
                         .font(.body)
                         .foregroundColor(.secondary)
                         .padding(.bottom, 8)
@@ -2596,29 +2596,21 @@ struct DiagnosticsView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.leading, 20)
-                }
-            } header: {
-                Text("Debug Overlays")
-                    .font(.headline)
-            }
 
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
+                    Divider()
+                        .padding(.vertical, 4)
+
                     HStack(spacing: 8) {
                         Image(systemName: "info.circle.fill")
                             .foregroundColor(.blue)
-                        Text("These overlays help diagnose position calculation issues")
+                            .font(.caption)
+                        Text("These overlays are useful for troubleshooting position-related issues in specific applications")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
-
-                    Text("When enabled, colored boxes will appear around text fields to show how TextWarden calculates positions for grammar indicators. This is useful for troubleshooting position-related issues in specific applications.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.top, 4)
                 }
             } header: {
-                Text("About Debug Overlays")
+                Text("Debug Overlays")
                     .font(.headline)
             }
 
