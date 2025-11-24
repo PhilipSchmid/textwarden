@@ -39,9 +39,7 @@ class TextMonitor: ObservableObject {
     func startMonitoring(processID: pid_t, bundleIdentifier: String, appName: String) {
         stopMonitoring()
 
-        let msg1 = "📍 TextMonitor: startMonitoring for \(appName) (PID: \(processID))"
-        NSLog(msg1)
-        logToDebugFile(msg1)
+        Logger.debug("TextMonitor: startMonitoring for \(appName) (PID: \(processID))", category: Logger.accessibility)
 
         let context = ApplicationContext(
             bundleIdentifier: bundleIdentifier,
@@ -50,9 +48,7 @@ class TextMonitor: ObservableObject {
         )
 
         guard context.shouldCheck() else {
-            let msg = "⏸️ TextMonitor: Grammar checking disabled for \(appName)"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("TextMonitor: Grammar checking disabled for \(appName)", category: Logger.accessibility)
             return
         }
 
@@ -71,29 +67,21 @@ class TextMonitor: ObservableObject {
         )
 
         if manualAccessibilityResult == .success {
-            let msg = "✅ TextMonitor: Enabled AXManualAccessibility for \(appName)"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("TextMonitor: Enabled AXManualAccessibility for \(appName)", category: Logger.accessibility)
         } else {
-            let msg = "⚠️ TextMonitor: Could not enable AXManualAccessibility (error: \(manualAccessibilityResult.rawValue)) - app might still work"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("TextMonitor: Could not enable AXManualAccessibility (error: \(manualAccessibilityResult.rawValue)) - app might still work", category: Logger.accessibility)
         }
 
         var observerRef: AXObserver?
         let error = AXObserverCreate(processID, axObserverCallback, &observerRef)
 
         guard error == .success, let observer = observerRef else {
-            let msg = "❌ TextMonitor: Failed to create AX observer for \(appName): \(error.rawValue)"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("TextMonitor: Failed to create AX observer for \(appName): \(error.rawValue)", category: Logger.accessibility)
             return
         }
 
         self.observer = observer
-        let msg2 = "✅ TextMonitor: Created AX observer for \(appName)"
-        NSLog(msg2)
-        logToDebugFile(msg2)
+        Logger.debug("TextMonitor: Created AX observer for \(appName)", category: Logger.accessibility)
 
         CFRunLoopAddSource(
             CFRunLoopGetCurrent(),
@@ -101,9 +89,7 @@ class TextMonitor: ObservableObject {
             .defaultMode
         )
 
-        let msg3 = "✅ TextMonitor: Added observer to run loop"
-        NSLog(msg3)
-        logToDebugFile(msg3)
+        Logger.debug("TextMonitor: Added observer to run loop", category: Logger.accessibility)
 
         // Try to monitor focused element
         monitorFocusedElement(in: appElement)
@@ -116,9 +102,7 @@ class TextMonitor: ObservableObject {
             contextPtr
         )
 
-        let msg4 = "✅ TextMonitor: Added focus change notification (result: \(focusResult.rawValue))"
-        NSLog(msg4)
-        logToDebugFile(msg4)
+        Logger.debug("TextMonitor: Added focus change notification (result: \(focusResult.rawValue))", category: Logger.accessibility)
     }
 
     /// Stop monitoring
@@ -144,9 +128,7 @@ class TextMonitor: ObservableObject {
     /// Monitor the focused UI element
     private func monitorFocusedElement(in appElement: AXUIElement, retryAttempt: Int = 0) {
         let maxAttempts = RetryConfig.accessibilityAPI.maxAttempts
-        let msg1 = "🔍 TextMonitor: Getting focused element... (attempt \(retryAttempt + 1)/\(maxAttempts + 1))"
-        NSLog(msg1)
-        logToDebugFile(msg1)
+        Logger.debug("TextMonitor: Getting focused element... (attempt \(retryAttempt + 1)/\(maxAttempts + 1))", category: Logger.accessibility)
 
         var focusedElement: CFTypeRef?
         let error = AXUIElementCopyAttributeValue(
@@ -161,55 +143,39 @@ class TextMonitor: ObservableObject {
                 scheduleRetry(attempt: retryAttempt) { [weak self] in
                     self?.monitorFocusedElement(in: appElement, retryAttempt: retryAttempt + 1)
                 }
-                let msg = "⏱️ TextMonitor: Failed to get focused element (\(error.rawValue)), will retry..."
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("TextMonitor: Failed to get focused element (\(error.rawValue)), will retry...", category: Logger.accessibility)
             } else {
-                let msg = "❌ TextMonitor: Failed to get focused element after \(maxAttempts + 1) attempts: \(error.rawValue)"
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("TextMonitor: Failed to get focused element after \(maxAttempts + 1) attempts: \(error.rawValue)", category: Logger.accessibility)
             }
             return
         }
 
-        let msg2 = "✅ TextMonitor: Got focused element, checking if editable..."
-        NSLog(msg2)
-        logToDebugFile(msg2)
+        Logger.debug("TextMonitor: Got focused element, checking if editable...", category: Logger.accessibility)
 
         let axElement = element as! AXUIElement
 
         // CRITICAL FIX: AXFocusedUIElement might return the wrong element (e.g., sidebar in Slack)
         // If the focused element is not editable, search for editable text fields
         if !isEditableElement(axElement) {
-            let searchMsg = "🔎 TextMonitor: Focused element is not editable, searching for editable field..."
-            NSLog(searchMsg)
-            logToDebugFile(searchMsg)
+            Logger.debug("TextMonitor: Focused element is not editable, searching for editable field...", category: Logger.accessibility)
 
             // Strategy 1: Search children of focused element
             if let editableChild = findEditableChild(in: axElement) {
-                let foundMsg = "✅ TextMonitor: Found editable child in focused element!"
-                NSLog(foundMsg)
-                logToDebugFile(foundMsg)
+                Logger.debug("TextMonitor: Found editable child in focused element!", category: Logger.accessibility)
                 monitorElement(editableChild, retryAttempt: retryAttempt)
                 return
             }
 
             // Strategy 2: Search from main window down
-            let windowMsg = "🔎 TextMonitor: No children found, searching from main window..."
-            NSLog(windowMsg)
-            logToDebugFile(windowMsg)
+            Logger.debug("TextMonitor: No children found, searching from main window...", category: Logger.accessibility)
 
             if let editableInWindow = findEditableInMainWindow(appElement) {
-                let foundWindowMsg = "✅ TextMonitor: Found editable field in main window!"
-                NSLog(foundWindowMsg)
-                logToDebugFile(foundWindowMsg)
+                Logger.debug("TextMonitor: Found editable field in main window!", category: Logger.accessibility)
                 monitorElement(editableInWindow, retryAttempt: retryAttempt)
                 return
             }
 
-            let noChildMsg = "⚠️ TextMonitor: No editable field found, will monitor focused element anyway"
-            NSLog(noChildMsg)
-            logToDebugFile(noChildMsg)
+            Logger.debug("TextMonitor: No editable field found, will monitor focused element anyway", category: Logger.accessibility)
         }
 
         monitorElement(axElement, retryAttempt: retryAttempt)
@@ -224,9 +190,7 @@ class TextMonitor: ObservableObject {
         let config = RetryConfig.accessibilityAPI
         let delay = config.delay(for: attempt)
 
-        let msg = "🔄 TextMonitor: Scheduling retry \(attempt + 1) in \(String(format: "%.3f", delay))s"
-        NSLog(msg)
-        logToDebugFile(msg)
+        Logger.debug("TextMonitor: Scheduling retry \(attempt + 1) in \(String(format: "%.3f", delay))s", category: Logger.accessibility)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: action)
     }
@@ -234,14 +198,10 @@ class TextMonitor: ObservableObject {
     /// Monitor a specific UI element for text changes
     fileprivate func monitorElement(_ element: AXUIElement, retryAttempt: Int = 0) {
         let maxAttempts = RetryConfig.accessibilityAPI.maxAttempts
-        let msg1 = "🎯 TextMonitor: monitorElement called (attempt \(retryAttempt + 1)/\(maxAttempts + 1))"
-        NSLog(msg1)
-        logToDebugFile(msg1)
+        Logger.debug("TextMonitor: monitorElement called (attempt \(retryAttempt + 1)/\(maxAttempts + 1))", category: Logger.accessibility)
 
         guard let observer = observer else {
-            let msg = "❌ TextMonitor: No observer available"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("TextMonitor: No observer available", category: Logger.accessibility)
             return
         }
 
@@ -264,13 +224,9 @@ class TextMonitor: ObservableObject {
                 scheduleRetry(attempt: retryAttempt) { [weak self] in
                     self?.monitorElement(element, retryAttempt: retryAttempt + 1)
                 }
-                let msg = "⏱️ TextMonitor: Element not editable yet (role: \(roleString)), will retry..."
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("TextMonitor: Element not editable yet (role: \(roleString)), will retry...", category: Logger.accessibility)
             } else {
-                let msg = "⏭️ TextMonitor: Skipping non-editable element (role: \(roleString))"
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("TextMonitor: Skipping non-editable element (role: \(roleString))", category: Logger.accessibility)
             }
             return
         }
@@ -284,15 +240,11 @@ class TextMonitor: ObservableObject {
                 previousElement,
                 kAXValueChangedNotification as CFString
             )
-            let msg = "🗑️ TextMonitor: Removed previous element monitoring"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("TextMonitor: Removed previous element monitoring", category: Logger.accessibility)
         }
 
         monitoredElement = element
-        let msg2 = "✅ TextMonitor: Now monitoring editable text field"
-        NSLog(msg2)
-        logToDebugFile(msg2)
+        Logger.debug("TextMonitor: Now monitoring editable text field", category: Logger.accessibility)
 
         let contextPtr = Unmanaged.passUnretained(self).toOpaque()
         let result = AXObserverAddNotification(
@@ -302,20 +254,14 @@ class TextMonitor: ObservableObject {
             contextPtr
         )
 
-        let msg3 = "📡 TextMonitor: Added value changed notification (result: \(result.rawValue))"
-        NSLog(msg3)
-        logToDebugFile(msg3)
+        Logger.debug("TextMonitor: Added value changed notification (result: \(result.rawValue))", category: Logger.accessibility)
 
         if result == .success {
-            let msg4 = "📄 TextMonitor: Extracting initial text..."
-            NSLog(msg4)
-            logToDebugFile(msg4)
+            Logger.debug("TextMonitor: Extracting initial text...", category: Logger.accessibility)
             // Extract initial text
             extractText(from: element)
         } else {
-            let msg = "❌ TextMonitor: Failed to add value changed notification: \(result.rawValue)"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("TextMonitor: Failed to add value changed notification: \(result.rawValue)", category: Logger.accessibility)
         }
     }
 
@@ -324,9 +270,7 @@ class TextMonitor: ObservableObject {
 
     /// Extract text from UI element (T035)
     func extractText(from element: AXUIElement) {
-        let msg1 = "📤 TextMonitor: extractText called"
-        NSLog(msg1)
-        logToDebugFile(msg1)
+        Logger.debug("TextMonitor: extractText called", category: Logger.accessibility)
 
         var value: CFTypeRef?
 
@@ -340,19 +284,13 @@ class TextMonitor: ObservableObject {
         var extractedText: String?
 
         if valueError == .success, let textValue = value as? String {
-            let msg = "✅ TextMonitor: Got AXValue text (\(textValue.count) chars)"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("TextMonitor: Got AXValue text (\(textValue.count) chars)", category: Logger.accessibility)
             // Log first 200 chars to see what we're actually getting
             let preview = String(textValue.prefix(200))
-            let previewMsg = "📄 TextMonitor: Text preview: \"\(preview)\""
-            NSLog(previewMsg)
-            logToDebugFile(previewMsg)
+            Logger.debug("TextMonitor: Text preview: \"\(preview)\"", category: Logger.accessibility)
             extractedText = textValue
         } else {
-            let msg = "⚠️ TextMonitor: Failed to get AXValue (error: \(valueError.rawValue)), trying AXSelectedText"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("TextMonitor: Failed to get AXValue (error: \(valueError.rawValue)), trying AXSelectedText", category: Logger.accessibility)
             // Fallback: try AXSelectedText
             var selectedText: CFTypeRef?
             let selectedError = AXUIElementCopyAttributeValue(
@@ -362,57 +300,41 @@ class TextMonitor: ObservableObject {
             )
 
             if selectedError == .success, let selected = selectedText as? String {
-                let msg2 = "✅ TextMonitor: Got AXSelectedText (\(selected.count) chars)"
-                NSLog(msg2)
-                logToDebugFile(msg2)
+                Logger.debug("TextMonitor: Got AXSelectedText (\(selected.count) chars)", category: Logger.accessibility)
                 extractedText = selected
             } else {
-                let msg2 = "❌ TextMonitor: Failed to get AXSelectedText (error: \(selectedError.rawValue))"
-                NSLog(msg2)
-                logToDebugFile(msg2)
+                Logger.debug("TextMonitor: Failed to get AXSelectedText (error: \(selectedError.rawValue))", category: Logger.accessibility)
             }
         }
 
         if let text = extractedText, !text.isEmpty {
             // Skip analyzing huge text buffers (terminals, logs, etc.)
             if text.count > maxTextLength {
-                let msg = "⏭️ TextMonitor: Text too long (\(text.count) chars) - skipping analysis"
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("TextMonitor: Text too long (\(text.count) chars) - skipping analysis", category: Logger.accessibility)
                 return
             }
 
             // Apply app-specific text preprocessing
             guard let context = currentContext else {
-                let msg = "⚠️ TextMonitor: No current context available"
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("TextMonitor: No current context available", category: Logger.accessibility)
                 return
             }
 
             let parser = ContentParserFactory.shared.parser(for: context.bundleIdentifier)
             guard let processedText = parser.preprocessText(text) else {
-                let msg = "⏭️ TextMonitor: Preprocessing filtered out text - skipping analysis"
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("TextMonitor: Preprocessing filtered out text - skipping analysis", category: Logger.accessibility)
                 return
             }
 
-            let msg = "✅ TextMonitor: Handling text change (\(processedText.count) chars after preprocessing)"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("TextMonitor: Handling text change (\(processedText.count) chars after preprocessing)", category: Logger.accessibility)
 
             // Log the preprocessed text that will be grammar-checked
             let preprocessedPreview = String(processedText.prefix(200))
-            let preprocessedMsg = "📝 TextMonitor: Preprocessed text for grammar checking: \"\(preprocessedPreview)\""
-            NSLog(preprocessedMsg)
-            logToDebugFile(preprocessedMsg)
+            Logger.debug("TextMonitor: Preprocessed text for grammar checking: \"\(preprocessedPreview)\"", category: Logger.accessibility)
 
             handleTextChange(processedText)
         } else {
-            let msg = "⚠️ TextMonitor: No text extracted or text is empty"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("TextMonitor: No text extracted or text is empty", category: Logger.accessibility)
         }
     }
 
@@ -441,14 +363,10 @@ private func axObserverCallback(
     notification: CFString,
     userData: UnsafeMutableRawPointer?
 ) {
-    let msg1 = "🔔 axObserverCallback: Received notification: \(notification as String)"
-    NSLog(msg1)
-    logToDebugFile(msg1)
+    Logger.debug("axObserverCallback: Received notification: \(notification as String)", category: Logger.accessibility)
 
     guard let userData = userData else {
-        let msg = "❌ axObserverCallback: No userData"
-        NSLog(msg)
-        logToDebugFile(msg)
+        Logger.debug("axObserverCallback: No userData", category: Logger.accessibility)
         return
     }
 
@@ -458,21 +376,15 @@ private func axObserverCallback(
 
     switch notificationName {
     case kAXValueChangedNotification as String:
-        let msg = "📝 axObserverCallback: Value changed - extracting text"
-        NSLog(msg)
-        logToDebugFile(msg)
+        Logger.debug("axObserverCallback: Value changed - extracting text", category: Logger.accessibility)
         monitor.extractText(from: element)
 
     case kAXFocusedUIElementChangedNotification as String:
-        let msg = "🎯 axObserverCallback: Focus changed - monitoring new element"
-        NSLog(msg)
-        logToDebugFile(msg)
+        Logger.debug("axObserverCallback: Focus changed - monitoring new element", category: Logger.accessibility)
         monitor.monitorElement(element)
 
     default:
-        let msg = "❓ axObserverCallback: Unknown notification: \(notificationName)"
-        NSLog(msg)
-        logToDebugFile(msg)
+        Logger.debug("axObserverCallback: Unknown notification: \(notificationName)", category: Logger.accessibility)
         break
     }
 }
@@ -500,17 +412,13 @@ extension TextMonitor {
         }
 
         guard result == .success, let window = windowRef else {
-            let msg = "⚠️ TextMonitor: Could not get main/focused window"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("TextMonitor: Could not get main/focused window", category: Logger.accessibility)
             return nil
         }
 
         let windowElement = window as! AXUIElement
 
-        let searchMsg = "🔍 TextMonitor: Searching main window for editable field..."
-        NSLog(searchMsg)
-        logToDebugFile(searchMsg)
+        Logger.debug("TextMonitor: Searching main window for editable field...", category: Logger.accessibility)
 
         // Search window hierarchy for editable text field
         return findEditableChild(in: windowElement, maxDepth: 10)
@@ -535,9 +443,7 @@ extension TextMonitor {
             return nil
         }
 
-        let searchMsg = "🔍 TextMonitor: Searching \(children.count) children at depth \(currentDepth)..."
-        NSLog(searchMsg)
-        logToDebugFile(searchMsg)
+        Logger.debug("TextMonitor: Searching \(children.count) children at depth \(currentDepth)...", category: Logger.accessibility)
 
         // First pass: look for direct editable children
         for child in children {
@@ -563,15 +469,11 @@ extension TextMonitor {
         AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
 
         guard let roleString = role as? String else {
-            let msg = "⚠️ TextMonitor: Could not get role for element"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("TextMonitor: Could not get role for element", category: Logger.accessibility)
             return false
         }
 
-        let roleMsg = "🔍 TextMonitor: Checking element with role: \(roleString)"
-        NSLog(roleMsg)
-        logToDebugFile(roleMsg)
+        Logger.debug("TextMonitor: Checking element with role: \(roleString)", category: Logger.accessibility)
 
         // Check if it's a static text element (read-only)
         // These are what we want to EXCLUDE (terminal output, chat history)
@@ -583,9 +485,7 @@ extension TextMonitor {
         ]
 
         if readOnlyRoles.contains(roleString) {
-            let msg = "⏭️ TextMonitor: Role '\(roleString)' is read-only - skipping"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("TextMonitor: Role '\(roleString)' is read-only - skipping", category: Logger.accessibility)
             return false
         }
 
@@ -601,17 +501,13 @@ extension TextMonitor {
         ]
 
         if !editableRoles.contains(roleString) {
-            let msg = "⏭️ TextMonitor: Role '\(roleString)' is not in editable whitelist - skipping"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("TextMonitor: Role '\(roleString)' is not in editable whitelist - skipping", category: Logger.accessibility)
             return false
         }
 
         // For all other roles, check if the element has AXValue and is enabled
         // This allows TextEdit, TextFields, TextAreas, etc.
-        let msg = "✅ TextMonitor: Role '\(roleString)' is editable, checking attributes..."
-        NSLog(msg)
-        logToDebugFile(msg)
+        Logger.debug("TextMonitor: Role '\(roleString)' is editable, checking attributes...", category: Logger.accessibility)
 
         // Additional check: verify element is not read-only
         // Some text areas might be marked as read-only

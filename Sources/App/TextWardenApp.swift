@@ -36,33 +36,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var analysisCoordinator: AnalysisCoordinator?
     var settingsWindow: NSWindow?  // Keep strong reference to settings window
 
-    func logToFile(_ message: String) {
-        let logPath = "/tmp/textwarden-debug.log"
-        let timestamp = Date()
-        let logMessage = "[\(timestamp)] \(message)\n"
-        if let data = logMessage.data(using: .utf8) {
-            if FileManager.default.fileExists(atPath: logPath) {
-                if let fileHandle = FileHandle(forWritingAtPath: logPath) {
-                    fileHandle.seekToEndOfFile()
-                    fileHandle.write(data)
-                    fileHandle.closeFile()
-                }
-            } else {
-                try? data.write(to: URL(fileURLWithPath: logPath))
-            }
-        }
-    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        logToFile("🚀 TextWarden: Application launched")
-        NSLog("🚀 TextWarden: Application launched")
+        Logger.info("Application launched", category: Logger.lifecycle)
 
         // Log build information for debugging
-        logToFile("📦 TextWarden Build Info:")
-        logToFile("   Version: \(BuildInfo.fullVersion)")
-        logToFile("   Build Timestamp: \(BuildInfo.buildTimestamp)")
-        logToFile("   Build Age: \(BuildInfo.buildAge)")
-        NSLog("📦 TextWarden Build Info: \(BuildInfo.fullVersion) | Built: \(BuildInfo.buildTimestamp) (\(BuildInfo.buildAge))")
+        Logger.info("Build Info - Version: \(BuildInfo.fullVersion), Built: \(BuildInfo.buildTimestamp) (\(BuildInfo.buildAge))", category: Logger.lifecycle)
 
         // Initialize Rust logging
         let logLevel = Logger.minimumLogLevel
@@ -74,8 +53,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.setActivationPolicy(.accessory)
 
-        logToFile("📍 TextWarden: Set as menu bar app (no dock icon)")
-        NSLog("📍 TextWarden: Set as menu bar app (no dock icon)")
+        Logger.info("Set as menu bar app (no dock icon)", category: Logger.lifecycle)
 
         // CRITICAL: LSUIElement apps don't receive activation events, so the main run loop
         // doesn't fully "spin" until something creates a Cocoa event. This causes timers,
@@ -84,75 +62,57 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // until after the app infrastructure is fully initialized (research shows calling it
         // too early can cause it to fail silently).
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            let msg = "⚡ TextWarden: Calling NSApp.activate() to kick-start event loop"
-            self.logToFile(msg)
-            NSLog(msg)
+            Logger.debug("Calling NSApp.activate() to kick-start event loop", category: Logger.lifecycle)
             NSApp.activate(ignoringOtherApps: false)
-            let msg2 = "✅ TextWarden: NSApp.activate() completed"
-            self.logToFile(msg2)
-            NSLog(msg2)
+            Logger.debug("NSApp.activate() completed", category: Logger.lifecycle)
         }
 
         // Initialize menu bar controller
         menuBarController = MenuBarController()
-        logToFile("📍 TextWarden: Menu bar controller initialized")
-        NSLog("📍 TextWarden: Menu bar controller initialized")
+        Logger.info("Menu bar controller initialized", category: Logger.lifecycle)
 
         // Setup keyboard shortcuts
         setupKeyboardShortcuts()
-        logToFile("⌨️ TextWarden: Keyboard shortcuts initialized")
-        NSLog("⌨️ TextWarden: Keyboard shortcuts initialized")
+        Logger.info("Keyboard shortcuts initialized", category: Logger.lifecycle)
 
         // Check permissions on launch (T055)
         let permissionManager = PermissionManager.shared
         let hasPermission = permissionManager.isPermissionGranted
-        logToFile("🔐 TextWarden: Accessibility permission check: \(hasPermission ? "✅ Granted" : "❌ Not granted")")
-        NSLog("🔐 TextWarden: Accessibility permission check: \(hasPermission ? "✅ Granted" : "❌ Not granted")")
+        Logger.info("Accessibility permission check: \(hasPermission ? "Granted" : "Not granted")", category: Logger.permissions)
 
         if hasPermission {
             // Permission already granted - start grammar checking immediately
-            logToFile("✅ TextWarden: Starting grammar checking...")
-            logToFile("📊 TextWarden: Grammar checking enabled: \(UserPreferences.shared.isEnabled)")
+            Logger.info("Starting grammar checking - enabled: \(UserPreferences.shared.isEnabled)", category: Logger.lifecycle)
 
             // Log paused applications (excluding .active state)
             let pausedApps = UserPreferences.shared.appPauseDurations.filter { $0.value != .active }
             let pausedAppBundleIDs = pausedApps.keys.sorted()
-            logToFile("📊 TextWarden: Paused applications (\(pausedApps.count)): \(pausedAppBundleIDs)")
-
-            NSLog("✅ TextWarden: Starting grammar checking...")
-            NSLog("📊 TextWarden: Grammar checking enabled: \(UserPreferences.shared.isEnabled)")
-            NSLog("📊 TextWarden: Paused applications (\(pausedApps.count)): \(pausedAppBundleIDs)")
+            Logger.info("Paused applications (\(pausedApps.count)): \(pausedAppBundleIDs)", category: Logger.lifecycle)
 
             analysisCoordinator = AnalysisCoordinator.shared
-            logToFile("📍 TextWarden: Analysis coordinator initialized")
-            NSLog("📍 TextWarden: Analysis coordinator initialized")
+            Logger.info("Analysis coordinator initialized", category: Logger.lifecycle)
 
             // Check if user wants to open settings window in foreground
             if UserPreferences.shared.openInForeground {
-                logToFile("📍 TextWarden: Opening settings window in foreground (user preference)")
-                NSLog("📍 TextWarden: Opening settings window in foreground (user preference)")
+                Logger.info("Opening settings window in foreground (user preference)", category: Logger.ui)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     self.openSettingsWindow()
                 }
             }
         } else {
             // No permission - show onboarding to request it (T056)
-            logToFile("⚠️ TextWarden: Accessibility permission not granted - showing onboarding")
-            NSLog("⚠️ TextWarden: Accessibility permission not granted - showing onboarding")
+            Logger.warning("Accessibility permission not granted - showing onboarding", category: Logger.permissions)
 
             permissionManager.onPermissionGranted = { [weak self] in
                 guard let self = self else { return }
-                self.logToFile("✅ TextWarden: Permission granted via onboarding - starting grammar checking...")
-                NSLog("✅ TextWarden: Permission granted via onboarding - starting grammar checking...")
+                Logger.info("Permission granted via onboarding - starting grammar checking", category: Logger.permissions)
                 self.analysisCoordinator = AnalysisCoordinator.shared
-                self.logToFile("📍 TextWarden: Analysis coordinator initialized")
-                NSLog("📍 TextWarden: Analysis coordinator initialized")
+                Logger.info("Analysis coordinator initialized", category: Logger.lifecycle)
 
                 // Return to accessory mode after onboarding completes
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     NSApp.setActivationPolicy(.accessory)
-                    self.logToFile("📍 TextWarden: Returned to menu bar only mode")
-                    NSLog("📍 TextWarden: Returned to menu bar only mode")
+                    Logger.info("Returned to menu bar only mode", category: Logger.lifecycle)
                 }
             }
 
@@ -164,8 +124,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func openOnboardingWindow() {
-        logToFile("📱 TextWarden: Creating onboarding window")
-        NSLog("📱 TextWarden: Creating onboarding window")
+        Logger.info("Creating onboarding window", category: Logger.ui)
 
         let onboardingView = OnboardingView()
         let hostingController = NSHostingController(rootView: onboardingView)
@@ -183,8 +142,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
 
-        logToFile("✅ TextWarden: Onboarding window displayed")
-        NSLog("✅ TextWarden: Onboarding window displayed")
+        Logger.info("Onboarding window displayed", category: Logger.ui)
     }
 
     // Prevent app from quitting when all windows close (menu bar app)
@@ -196,22 +154,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Creates window manually for reliable reopening behavior
     /// Tab selection is controlled by PreferencesWindowController.shared
     @objc func openSettingsWindow(selectedTab: Int = 0) {
-        logToFile("🪟 TextWarden: openSettingsWindow called - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
-        NSLog("🪟 TextWarden: openSettingsWindow called - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+        Logger.debug("openSettingsWindow called - ActivationPolicy: \(NSApp.activationPolicy().rawValue)", category: Logger.ui)
 
         // If window exists, just show it (tab is already set by PreferencesWindowController)
         if let window = settingsWindow {
-            logToFile("🪟 TextWarden: Reusing existing settings window")
-            NSLog("🪟 TextWarden: Reusing existing settings window")
+            Logger.debug("Reusing existing settings window", category: Logger.ui)
 
-            logToFile("🪟 TextWarden: Switching to .regular mode to show settings")
-            NSLog("🪟 TextWarden: Switching to .regular mode to show settings")
+            Logger.debug("Switching to .regular mode to show settings", category: Logger.ui)
 
             // Temporarily switch to regular mode to show window
             NSApp.setActivationPolicy(.regular)
 
-            logToFile("🪟 TextWarden: AFTER setActivationPolicy(.regular) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
-            NSLog("🪟 TextWarden: AFTER setActivationPolicy(.regular) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+            Logger.debug("setActivationPolicy(.regular) completed - ActivationPolicy: \(NSApp.activationPolicy().rawValue)", category: Logger.ui)
 
             // Force window to front
             window.orderFrontRegardless()
@@ -220,13 +174,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Activate app
             NSApp.activate(ignoringOtherApps: true)
 
-            logToFile("✅ TextWarden: Settings window shown")
-            NSLog("✅ TextWarden: Settings window shown")
+            Logger.info("Settings window shown", category: Logger.ui)
             return
         }
 
-        logToFile("🪟 TextWarden: Creating new settings window")
-        NSLog("🪟 TextWarden: Creating new settings window")
+        Logger.debug("Creating new settings window", category: Logger.ui)
 
         let preferencesView = PreferencesView()
         let hostingController = NSHostingController(rootView: preferencesView)
@@ -248,14 +200,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Store window
         settingsWindow = window
 
-        logToFile("🪟 TextWarden: Window created, switching to regular mode")
-        NSLog("🪟 TextWarden: Window created, switching to regular mode")
+        Logger.debug("Window created, switching to regular mode", category: Logger.ui)
 
         // Temporarily switch to regular mode to show window
         NSApp.setActivationPolicy(.regular)
 
-        logToFile("🪟 TextWarden: AFTER setActivationPolicy(.regular) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
-        NSLog("🪟 TextWarden: AFTER setActivationPolicy(.regular) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+        Logger.debug("setActivationPolicy(.regular) completed - ActivationPolicy: \(NSApp.activationPolicy().rawValue)", category: Logger.ui)
 
         window.orderFrontRegardless()
         window.makeKeyAndOrderFront(nil)
@@ -263,8 +213,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Activate app
         NSApp.activate(ignoringOtherApps: true)
 
-        logToFile("✅ TextWarden: Settings window displayed")
-        NSLog("✅ TextWarden: Settings window displayed")
+        Logger.info("Settings window displayed", category: Logger.ui)
     }
 }
 
@@ -273,13 +222,11 @@ extension AppDelegate: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         // When settings window closes, return to menu bar only mode
         if let window = notification.object as? NSWindow, window == settingsWindow {
-            logToFile("🪟 TextWarden: windowWillClose - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
-            NSLog("🪟 TextWarden: windowWillClose - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+            Logger.debug("windowWillClose - ActivationPolicy: \(NSApp.activationPolicy().rawValue)", category: Logger.ui)
 
             NSApp.setActivationPolicy(.accessory)
 
-            logToFile("🪟 TextWarden: windowWillClose - AFTER setActivationPolicy(.accessory) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
-            NSLog("🪟 TextWarden: windowWillClose - AFTER setActivationPolicy(.accessory) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+            Logger.debug("setActivationPolicy(.accessory) completed - ActivationPolicy: \(NSApp.activationPolicy().rawValue)", category: Logger.ui)
         }
     }
 
@@ -293,9 +240,7 @@ extension AppDelegate: NSWindowDelegate {
         KeyboardShortcuts.onKeyUp(for: .toggleGrammarChecking) { [weak self] in
             guard preferences.keyboardShortcutsEnabled else { return }
 
-            let msg = "⌨️ Keyboard shortcut: Toggle grammar checking"
-            self?.logToFile(msg)
-            NSLog(msg)
+            Logger.debug("Keyboard shortcut: Toggle grammar checking", category: Logger.ui)
 
             // Toggle pause duration between active and indefinite
             if preferences.pauseDuration == .active {
@@ -314,9 +259,7 @@ extension AppDelegate: NSWindowDelegate {
             guard let error = SuggestionPopover.shared.currentError else { return }
             guard let firstSuggestion = error.suggestions.first else { return }
 
-            let msg = "⌨️ Keyboard shortcut: Accept suggestion - \(firstSuggestion)"
-            self?.logToFile(msg)
-            NSLog(msg)
+            Logger.debug("Keyboard shortcut: Accept suggestion - \(firstSuggestion)", category: Logger.ui)
 
             SuggestionPopover.shared.applySuggestion(firstSuggestion)
         }
@@ -326,9 +269,7 @@ extension AppDelegate: NSWindowDelegate {
             guard preferences.keyboardShortcutsEnabled else { return }
             guard SuggestionPopover.shared.isVisible else { return }
 
-            let msg = "⌨️ Keyboard shortcut: Dismiss suggestion"
-            self?.logToFile(msg)
-            NSLog(msg)
+            Logger.debug("Keyboard shortcut: Dismiss suggestion", category: Logger.ui)
 
             SuggestionPopover.shared.hide()
         }
@@ -338,9 +279,7 @@ extension AppDelegate: NSWindowDelegate {
             guard preferences.keyboardShortcutsEnabled else { return }
             guard SuggestionPopover.shared.isVisible else { return }
 
-            let msg = "⌨️ Keyboard shortcut: Previous suggestion"
-            self?.logToFile(msg)
-            NSLog(msg)
+            Logger.debug("Keyboard shortcut: Previous suggestion", category: Logger.ui)
 
             SuggestionPopover.shared.previousError()
         }
@@ -350,9 +289,7 @@ extension AppDelegate: NSWindowDelegate {
             guard preferences.keyboardShortcutsEnabled else { return }
             guard SuggestionPopover.shared.isVisible else { return }
 
-            let msg = "⌨️ Keyboard shortcut: Next suggestion"
-            self?.logToFile(msg)
-            NSLog(msg)
+            Logger.debug("Keyboard shortcut: Next suggestion", category: Logger.ui)
 
             SuggestionPopover.shared.nextError()
         }
@@ -365,9 +302,7 @@ extension AppDelegate: NSWindowDelegate {
             guard error.suggestions.count >= 1 else { return }
 
             let suggestion = error.suggestions[0]
-            let msg = "⌨️ Keyboard shortcut: Apply suggestion 1 - \(suggestion)"
-            self?.logToFile(msg)
-            NSLog(msg)
+            Logger.debug("Keyboard shortcut: Apply suggestion 1 - \(suggestion)", category: Logger.ui)
 
             SuggestionPopover.shared.applySuggestion(suggestion)
         }
@@ -379,9 +314,7 @@ extension AppDelegate: NSWindowDelegate {
             guard error.suggestions.count >= 2 else { return }
 
             let suggestion = error.suggestions[1]
-            let msg = "⌨️ Keyboard shortcut: Apply suggestion 2 - \(suggestion)"
-            self?.logToFile(msg)
-            NSLog(msg)
+            Logger.debug("Keyboard shortcut: Apply suggestion 2 - \(suggestion)", category: Logger.ui)
 
             SuggestionPopover.shared.applySuggestion(suggestion)
         }
@@ -393,9 +326,7 @@ extension AppDelegate: NSWindowDelegate {
             guard error.suggestions.count >= 3 else { return }
 
             let suggestion = error.suggestions[2]
-            let msg = "⌨️ Keyboard shortcut: Apply suggestion 3 - \(suggestion)"
-            self?.logToFile(msg)
-            NSLog(msg)
+            Logger.debug("Keyboard shortcut: Apply suggestion 3 - \(suggestion)", category: Logger.ui)
 
             SuggestionPopover.shared.applySuggestion(suggestion)
         }
