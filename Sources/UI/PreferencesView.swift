@@ -22,21 +22,21 @@ struct PreferencesView: View {
                 }
                 .tag(0)
 
+            SpellCheckingView()
+                .tabItem {
+                    Label("Spell Checking", systemImage: "text.badge.checkmark")
+                }
+                .tag(1)
+
             StatisticsView()
                 .tabItem {
                     Label("Statistics", systemImage: "chart.bar.fill")
                 }
-                .tag(1)
+                .tag(2)
 
             ApplicationSettingsView(preferences: preferences)
                 .tabItem {
                     Label("Applications", systemImage: "app.badge")
-                }
-                .tag(2)
-
-            SpellCheckingView()
-                .tabItem {
-                    Label("Spell Checking", systemImage: "text.badge.checkmark")
                 }
                 .tag(3)
 
@@ -919,6 +919,15 @@ struct GeneralPreferencesView: View {
                     .font(.headline)
             }
 
+            // Visual Separator
+            Section {
+                VStack {
+                    Divider()
+                        .background(Color.secondary.opacity(0.3))
+                        .padding(.vertical, 12)
+                }
+            }
+
             // MARK: Appearance Settings Group
             Section {
                 VStack(alignment: .leading, spacing: 8) {
@@ -1043,6 +1052,15 @@ struct GeneralPreferencesView: View {
                     .font(.headline)
             }
 
+            // Visual Separator
+            Section {
+                VStack {
+                    Divider()
+                        .background(Color.secondary.opacity(0.3))
+                        .padding(.vertical, 12)
+                }
+            }
+
             Section {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(alignment: .center) {
@@ -1101,6 +1119,15 @@ struct GeneralPreferencesView: View {
             } header: {
                 Text("Language")
                     .font(.headline)
+            }
+
+            // Visual Separator
+            Section {
+                VStack {
+                    Divider()
+                        .background(Color.secondary.opacity(0.3))
+                        .padding(.vertical, 12)
+                }
             }
 
             // MARK: Keyboard Shortcuts Group
@@ -1276,6 +1303,15 @@ struct SpellCheckingView: View {
             }
 
             FilteringPreferencesContent(preferences: preferences)
+
+            // Visual Separator
+            Section {
+                VStack {
+                    Divider()
+                        .background(Color.secondary.opacity(0.3))
+                        .padding(.vertical, 12)
+                }
+            }
 
             // MARK: Custom Dictionary Group
             Section {
@@ -1650,6 +1686,7 @@ private struct CustomVocabularyContent: View {
                 HStack(spacing: 12) {
                     TextField("Add word...", text: $newWord)
                         .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.leading)
                         .onSubmit {
                             addWord()
                         }
