@@ -82,9 +82,7 @@ enum AccessibilityBridge {
         to endMarker: CFTypeRef,
         in element: AXUIElement
     ) -> CGRect? {
-        let msg1 = "🔬 AccessibilityBridge.calculateBounds() called"
-        NSLog(msg1)
-        logToDebugFile(msg1)
+        Logger.debug("AccessibilityBridge.calculateBounds() called", category: Logger.accessibility)
 
         // Log what parameterized attributes this element supports (ONCE per session)
         struct DebugState {
@@ -97,52 +95,34 @@ enum AccessibilityBridge {
 
         // Validate markers by converting them back to indices
         if let startIndex = indexForMarker(startMarker, in: element) {
-            let msg = "🔬   Start marker validates to index: \(startIndex)"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("  Start marker validates to index: \(startIndex)", category: Logger.accessibility)
         } else {
-            let msg = "🔬   ⚠️ Could not get index for start marker"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("  Could not get index for start marker", category: Logger.accessibility)
         }
 
         if let endIndex = indexForMarker(endMarker, in: element) {
-            let msg = "🔬   End marker validates to index: \(endIndex)"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("  End marker validates to index: \(endIndex)", category: Logger.accessibility)
         } else {
-            let msg = "🔬   ⚠️ Could not get index for end marker"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("  Could not get index for end marker", category: Logger.accessibility)
         }
 
         // Try to get text between markers to validate range
         if let text = getTextUsingMarkers(from: startMarker, to: endMarker, in: element) {
-            let msg = "🔬   Marker range text: \"\(text)\""
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("  Marker range text: \"\(text)\"", category: Logger.accessibility)
         } else {
-            let msg = "🔬   ⚠️ Could not get text for marker range"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("  Could not get text for marker range", category: Logger.accessibility)
         }
 
         // CRITICAL: Pass markers as a simple array
         // Some Electron apps (like Slack) expect a CFArray, not a special AXTextMarkerRange object
-        let msg2 = "🔬   Creating marker range as CFArray [startMarker, endMarker]..."
-        NSLog(msg2)
-        logToDebugFile(msg2)
+        Logger.debug("  Creating marker range as CFArray [startMarker, endMarker]...", category: Logger.accessibility)
 
         let markerRange = [startMarker, endMarker] as CFArray
 
-        let msg2c = "🔬   ✅ Created marker range array"
-        NSLog(msg2c)
-        logToDebugFile(msg2c)
+        Logger.debug("  Created marker range array", category: Logger.accessibility)
 
         var boundsValue: CFTypeRef?
-        let msg3 = "🔬   Calling AXUIElementCopyParameterizedAttributeValue with AXBoundsForTextMarkerRange..."
-        NSLog(msg3)
-        logToDebugFile(msg3)
+        Logger.debug("  Calling AXUIElementCopyParameterizedAttributeValue with AXBoundsForTextMarkerRange...", category: Logger.accessibility)
 
         let result = AXUIElementCopyParameterizedAttributeValue(
             element,
@@ -151,15 +131,10 @@ enum AccessibilityBridge {
             &boundsValue
         )
 
-        let msg4 = "🔬   AXBoundsForTextMarkerRange result: \(result.rawValue) (success=\(result == .success))"
-        NSLog(msg4)
-        logToDebugFile(msg4)
+        Logger.debug("  AXBoundsForTextMarkerRange result: \(result.rawValue) (success=\(result == .success))", category: Logger.accessibility)
 
         guard result == .success else {
-            let msg = "🔬   ❌ FAILED at AXUIElementCopyParameterizedAttributeValue - AXError code: \(result.rawValue)"
-            Logger.debug(msg)
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("  FAILED at AXUIElementCopyParameterizedAttributeValue - AXError code: \(result.rawValue)", category: Logger.accessibility)
 
             // Log what the error code means
             let errorDesc: String
@@ -172,78 +147,51 @@ enum AccessibilityBridge {
             case .failure: errorDesc = "Generic failure"
             default: errorDesc = "Unknown error"
             }
-            let msg2 = "🔬   Error description: \(errorDesc)"
-            NSLog(msg2)
-            logToDebugFile(msg2)
+            Logger.debug("  Error description: \(errorDesc)", category: Logger.accessibility)
 
             return nil
         }
 
-        let msg5 = "🔬   AXBoundsForTextMarkerRange succeeded, checking boundsValue..."
-        NSLog(msg5)
-        logToDebugFile(msg5)
+        Logger.debug("  AXBoundsForTextMarkerRange succeeded, checking boundsValue...", category: Logger.accessibility)
 
         if let bv = boundsValue {
             let typeID = CFGetTypeID(bv)
             let axValueTypeID = AXValueGetTypeID()
-            let msg = "🔬   boundsValue typeID: \(typeID), AXValue typeID: \(axValueTypeID), match: \(typeID == axValueTypeID)"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("  boundsValue typeID: \(typeID), AXValue typeID: \(axValueTypeID), match: \(typeID == axValueTypeID)", category: Logger.accessibility)
         } else {
-            let msg = "🔬   ⚠️ boundsValue is nil even though result was success!"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("  boundsValue is nil even though result was success!", category: Logger.accessibility)
         }
 
         guard let axValue = boundsValue,
               CFGetTypeID(axValue) == AXValueGetTypeID() else {
-            let msg = "🔬   ❌ FAILED at type validation - boundsValue is not an AXValue"
-            Logger.debug(msg)
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("  FAILED at type validation - boundsValue is not an AXValue", category: Logger.accessibility)
             return nil
         }
 
-        let msg6 = "🔬   Type validation passed, extracting CGRect from AXValue..."
-        NSLog(msg6)
-        logToDebugFile(msg6)
+        Logger.debug("  Type validation passed, extracting CGRect from AXValue...", category: Logger.accessibility)
 
         var rect = CGRect.zero
         let success = AXValueGetValue(axValue as! AXValue, .cgRect, &rect)
 
-        let msg7 = "🔬   AXValueGetValue result: \(success), rect: \(rect)"
-        NSLog(msg7)
-        logToDebugFile(msg7)
+        Logger.debug("  AXValueGetValue result: \(success), rect: \(rect)", category: Logger.accessibility)
 
         guard success else {
-            let msg = "🔬   ❌ FAILED at CGRect extraction from AXValue"
-            Logger.debug(msg)
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("  FAILED at CGRect extraction from AXValue", category: Logger.accessibility)
             return nil
         }
 
         // Validate bounds before returning
-        let msg8 = "🔬   Validating bounds via CoordinateMapper..."
-        NSLog(msg8)
-        logToDebugFile(msg8)
+        Logger.debug("  Validating bounds via CoordinateMapper...", category: Logger.accessibility)
 
         let isValid = CoordinateMapper.validateBounds(rect)
-        let msg9 = "🔬   Bounds validation result: \(isValid)"
-        NSLog(msg9)
-        logToDebugFile(msg9)
+        Logger.debug("  Bounds validation result: \(isValid)", category: Logger.accessibility)
 
         guard isValid else {
-            let msg = "🔬   ❌ FAILED at bounds validation: \(rect)"
-            Logger.debug(msg)
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("  FAILED at bounds validation: \(rect)", category: Logger.accessibility)
             return nil
         }
 
-        let msg10 = "🔬   ✅ SUCCESS - Returning valid bounds: \(rect)"
-        NSLog(msg10)
-        logToDebugFile(msg10)
+        Logger.debug("  SUCCESS - Returning valid bounds: \(rect)", category: Logger.accessibility)
 
         return rect
     }
@@ -423,20 +371,14 @@ enum AccessibilityBridge {
     /// Log all supported parameterized attributes for debugging
     static func logSupportedAttributes(_ element: AXUIElement, bundleID: String) {
         let attributes = getSupportedParameterizedAttributes(element)
-        let msg1 = "🔎 Supported parameterized attributes for \(bundleID):"
-        NSLog(msg1)
-        logToDebugFile(msg1)
+        Logger.debug("Supported parameterized attributes for \(bundleID):", category: Logger.accessibility)
 
         for attr in attributes {
-            let msg = "  📋 \(attr)"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("  \(attr)", category: Logger.accessibility)
         }
 
         if attributes.isEmpty {
-            let msg = "  ⚠️ No parameterized attributes found"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("  No parameterized attributes found", category: Logger.accessibility)
         }
     }
 }
