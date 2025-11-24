@@ -161,7 +161,6 @@ class TerminalContentParser: ContentParser {
             var userInput = ""
             if let range = promptRange {
                 userInput = String(promptLine[range.upperBound...])
-                // Add prompt length to offset
                 offset += promptLine.distance(from: promptLine.startIndex, to: range.upperBound)
             } else {
                 // Fallback: take everything after the first space

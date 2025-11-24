@@ -80,12 +80,10 @@ class CrashRecoveryManager {
     /// Show restart indicator (T112)
     private func showRestartIndicator() {
         DispatchQueue.main.async {
-            // Update menu bar icon temporarily
             if let menuBarController = MenuBarController.shared {
                 menuBarController.showRestartIndicator()
             }
 
-            // Remove indicator after 3 seconds
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                 if let menuBarController = MenuBarController.shared {
                     menuBarController.hideRestartIndicator()

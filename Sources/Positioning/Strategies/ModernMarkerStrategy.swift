@@ -33,7 +33,6 @@ class ModernMarkerStrategy: GeometryProvider {
         let startIndex = errorRange.location
         let endIndex = errorRange.location + errorRange.length
 
-        // Create opaque markers for start and end positions
         guard let startMarker = AccessibilityBridge.requestOpaqueMarker(
             at: startIndex,
             from: element

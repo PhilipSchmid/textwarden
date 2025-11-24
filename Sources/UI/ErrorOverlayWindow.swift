@@ -36,7 +36,6 @@ class ErrorOverlayWindow: NSPanel {
     var onHoverEnd: (() -> Void)?
 
     init() {
-        // Create transparent, non-activating panel
         // CRITICAL: Use .nonactivatingPanel to prevent TextWarden from stealing focus
         super.init(
             contentRect: .zero,
@@ -63,7 +62,6 @@ class ErrorOverlayWindow: NSPanel {
         self.ignoresMouseEvents = false
         self.isMovableByWindowBackground = true
 
-        // Create underline view with click pass-through
         let view = UnderlineView()
         view.wantsLayer = true
         view.layer?.backgroundColor = .clear
@@ -75,19 +73,14 @@ class ErrorOverlayWindow: NSPanel {
         setupGlobalMouseMonitor()
     }
 
-    /// Prevent window from becoming key (stealing focus)
     override var canBecomeKey: Bool {
         return false
     }
 
-    /// Prevent window from becoming main (stealing focus)
     override var canBecomeMain: Bool {
         return false
     }
 
-    /// Setup global mouse monitor for hover detection
-    /// Uses NSEvent.addGlobalMonitorForEvents instead of NSTrackingArea
-    /// because ignoresMouseEvents = true prevents tracking areas from working
     private func setupGlobalMouseMonitor() {
         // Monitor mouse moved events globally
         mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] event in
@@ -96,7 +89,6 @@ class ErrorOverlayWindow: NSPanel {
             // Only process if window is visible
             guard self.isCurrentlyVisible else { return }
 
-            // Get mouse location in screen coordinates
             let mouseLocation = NSEvent.mouseLocation
 
             // Check if mouse is within our window bounds
@@ -130,7 +122,6 @@ class ErrorOverlayWindow: NSPanel {
                 NSLog(msg2)
                 self.logToDebugFile(msg2)
 
-                // Update hovered underline if changed
                 if self.hoveredUnderline?.error.start != newHoveredUnderline.error.start ||
                    self.hoveredUnderline?.error.end != newHoveredUnderline.error.end {
                     self.hoveredUnderline = newHoveredUnderline
@@ -153,7 +144,6 @@ class ErrorOverlayWindow: NSPanel {
                 NSLog(msg3)
                 self.logToDebugFile(msg3)
 
-                // Get the application window frame for smart positioning
                 let appWindowFrame = self.getApplicationWindowFrame()
 
                 self.onErrorHover?(newHoveredUnderline.error, screenLocation, appWindowFrame)
@@ -200,7 +190,6 @@ class ErrorOverlayWindow: NSPanel {
             return 0
         }
 
-        // Get element bounds
         // Use text field element's AX bounds (not window bounds!)
         // The element passed is the actual text field, so we want ITS bounds
         let elementFrame: CGRect
@@ -260,7 +249,6 @@ class ErrorOverlayWindow: NSPanel {
 
         // Calculate underline positions for each error using new positioning system
         let underlines = errors.compactMap { error -> ErrorUnderline? in
-            // Create error range
             let errorRange = NSRange(location: error.start, length: error.end - error.start)
 
             // Use new multi-strategy positioning system
@@ -371,7 +359,6 @@ class ErrorOverlayWindow: NSPanel {
 
     /// Clean up resources
     deinit {
-        // Remove global mouse monitor
         if let monitor = mouseMonitor {
             NSEvent.removeMonitor(monitor)
             mouseMonitor = nil
@@ -410,7 +397,6 @@ class ErrorOverlayWindow: NSPanel {
             return nil
         }
 
-        // Get PID from the AXUIElement
         var pid: pid_t = 0
         let pidResult = AXUIElementGetPid(element, &pid)
         guard pidResult == .success, pid > 0 else {
@@ -520,7 +506,6 @@ class ErrorOverlayWindow: NSPanel {
                 break
             }
 
-            // Get parent element
             var parentValue: CFTypeRef?
             let parentResult = AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentValue)
             guard parentResult == .success, let parent = parentValue else {
@@ -623,7 +608,6 @@ class ErrorOverlayWindow: NSPanel {
         NSLog(msg)
         logToDebugFile(msg)
 
-        // Get element role for debugging
         var roleValue: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue)
         let role = roleValue as? String ?? "unknown"
@@ -687,7 +671,6 @@ class ErrorOverlayWindow: NSPanel {
     /// Uses ContentParser architecture for app-specific bounds calculation
     /// Returns nil if the parser explicitly disables visual underlines
     private func estimateErrorBounds(for error: GrammarErrorModel, in element: AXUIElement, elementFrame: CGRect, context: ApplicationContext?) -> CGRect? {
-        // Get the full text content
         var textValue: CFTypeRef?
         let textError = AXUIElementCopyAttributeValue(
             element,
@@ -726,11 +709,9 @@ class ErrorOverlayWindow: NSPanel {
         logToDebugFile(lineMsg)
 
         // USE CONTENT PARSER ARCHITECTURE
-        // Get app-specific parser from factory
         let bundleID = context?.bundleIdentifier ?? "unknown"
         let parser = ContentParserFactory.shared.parser(for: bundleID)
 
-        // Create error range
         let errorRange = NSRange(location: safeStart, length: safeEnd - safeStart)
 
         // Ask parser to adjust bounds with app-specific logic
@@ -928,7 +909,6 @@ class UnderlineView: NSView {
     private func drawWavyUnderline(in context: CGContext, bounds: CGRect, color: NSColor) {
         context.setStrokeColor(color.cgColor)
 
-        // Get user's preferred thickness from preferences
         let thickness = CGFloat(UserPreferences.shared.underlineThickness)
         context.setLineWidth(thickness)
 

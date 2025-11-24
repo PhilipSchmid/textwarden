@@ -29,16 +29,6 @@ class ContentParserFactory {
         for bundleID in BrowserContentParser.supportedBrowsers {
             registerParser(BrowserContentParser(bundleIdentifier: bundleID))
         }
-
-        // Future parsers to add:
-        // registerParser(DiscordContentParser())
-        // registerParser(VSCodeContentParser())
-        // registerParser(WordContentParser())
-        // registerParser(MailContentParser())
-        // registerParser(OutlookContentParser())
-        // registerParser(NotionContentParser())
-        // registerParser(ObsidianContentParser())
-        // registerParser(PagesContentParser())
     }
 
     /// Register a content parser

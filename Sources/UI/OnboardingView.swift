@@ -72,7 +72,6 @@ struct OnboardingView: View {
 
                     Spacer()
 
-                    // Show both buttons on launch at login step
                     if currentStep == .launchAtLogin {
                         Button("Not Now") {
                             handleSkipLaunchAtLogin()
@@ -339,7 +338,6 @@ struct OnboardingView: View {
                 stopPolling()
             } else if elapsedTime >= maxWaitTime {
                 print("⏰ Onboarding: Timeout reached after \(elapsedTime) seconds")
-                // Show timeout warning after 5 minutes
                 showTimeoutWarning = true
                 stopPolling()
             } else if Int(elapsedTime) % 10 == 0 {

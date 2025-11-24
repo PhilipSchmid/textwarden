@@ -305,7 +305,6 @@ enum AccessibilityBridge {
         at index: Int,
         in element: AXUIElement
     ) -> CGRect? {
-        // Get element frame as starting point
         guard let elementFrame = getElementFrame(element) else {
             return nil
         }

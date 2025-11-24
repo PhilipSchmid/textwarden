@@ -16,7 +16,6 @@ struct TextWardenIcon {
             return createFallbackMenuBarIcon(size: size)
         }
 
-        // Create a template version of the logo for the menubar
         let templateImage = NSImage(size: size)
         templateImage.lockFocus()
 
@@ -47,7 +46,6 @@ struct TextWardenIcon {
 
         image.lockFocus()
 
-        // Set up graphics context
         guard let context = NSGraphicsContext.current?.cgContext else {
             image.unlockFocus()
             return image

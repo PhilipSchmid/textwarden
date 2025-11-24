@@ -67,7 +67,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Record app session for statistics
         UserStatistics.shared.recordSession()
 
-        // Hide dock icon for menu bar-only app (like VoiceInk)
         NSApp.setActivationPolicy(.accessory)
 
         logToFile("📍 TextWarden: Set as menu bar app (no dock icon)")
@@ -136,7 +135,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             logToFile("⚠️ TextWarden: Accessibility permission not granted - showing onboarding")
             NSLog("⚠️ TextWarden: Accessibility permission not granted - showing onboarding")
 
-            // Set up callback to start grammar checking when permission is granted
             permissionManager.onPermissionGranted = { [weak self] in
                 guard let self = self else { return }
                 self.logToFile("✅ TextWarden: Permission granted via onboarding - starting grammar checking...")
@@ -222,7 +220,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        // Create window first time
         logToFile("🪟 TextWarden: Creating new settings window")
         NSLog("🪟 TextWarden: Creating new settings window")
 
@@ -255,7 +252,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         logToFile("🪟 TextWarden: AFTER setActivationPolicy(.regular) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
         NSLog("🪟 TextWarden: AFTER setActivationPolicy(.regular) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
 
-        // Show window aggressively
         window.orderFrontRegardless()
         window.makeKeyAndOrderFront(nil)
 

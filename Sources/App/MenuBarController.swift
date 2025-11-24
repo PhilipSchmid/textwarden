@@ -36,7 +36,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     private func setupMenuBar() {
-        // Create status item with variable length
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         guard let button = statusItem?.button else {
@@ -44,7 +43,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
             return
         }
 
-        // Set menu bar icon - using custom TextWarden icon
         let icon = TextWardenIcon.create()
         button.image = icon
         button.toolTip = "TextWarden Grammar Checker"
@@ -52,12 +50,10 @@ class MenuBarController: NSObject, NSMenuDelegate {
         // IMPORTANT: Do NOT set statusItem.menu here, as it prevents button.action from firing
         // Instead, we handle the click manually and show the menu programmatically
 
-        // Set button action and configure to send action on left mouse up
         button.action = #selector(statusBarButtonClicked(_:))
         button.target = self
         button.sendAction(on: [.leftMouseUp])
 
-        // Create menu (but don't attach it to statusItem)
         createMenu()
     }
 
@@ -70,7 +66,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
         // Rebuild menu with the captured app
         createMenu()
 
-        // Show the menu at the button's location
         guard let menu = menu else { return }
         let buttonBounds = sender.bounds
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: buttonBounds.height), in: sender)
@@ -87,7 +82,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
         menu?.addItem(headerItem)
         menu?.addItem(NSMenuItem.separator())
 
-        // Add menu sections
         addGlobalPauseMenuItems()
         menu?.addItem(NSMenuItem.separator())
 
@@ -145,7 +139,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
         indefiniteItem.state = UserPreferences.shared.pauseDuration == .indefinite ? .on : .off
         menu?.addItem(indefiniteItem)
 
-        // Show resume time if paused temporarily
         if (UserPreferences.shared.pauseDuration == .oneHour || UserPreferences.shared.pauseDuration == .twentyFourHours),
            let until = UserPreferences.shared.pausedUntil {
             let formatter = DateFormatter()
@@ -180,7 +173,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
     /// Add utility menu items (Preferences, About, Quit)
     private func addUtilityMenuItems() {
-        // Show errors if any exist (useful for terminals and apps without visual underlines)
         let errorCount = AnalysisCoordinator.shared.getCurrentErrors().count
         if errorCount > 0 {
             let errorItem = NSMenuItem(
@@ -255,7 +247,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
         appLabel.isEnabled = false
         menu?.addItem(appLabel)
 
-        // Get current pause state for this app
         let currentPause = UserPreferences.shared.getPauseDuration(for: bundleID)
 
         // Active option
@@ -302,7 +293,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
         indefiniteItem.state = currentPause == .indefinite ? .on : .off
         menu?.addItem(indefiniteItem)
 
-        // Show resume time if paused temporarily
         if (currentPause == .oneHour || currentPause == .twentyFourHours),
            let until = UserPreferences.shared.getPausedUntil(for: bundleID) {
             let formatter = DateFormatter()
@@ -342,7 +332,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func openPreferences() {
         NSLog("🔵 MenuBarController: openPreferences() called - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
 
-        // Set tab to General (0)
         PreferencesWindowController.shared.selectTab(0)
 
         NSLog("🔵 MenuBarController: Switching to .regular mode")
@@ -361,7 +350,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func showAbout() {
         NSLog("🔵 MenuBarController: showAbout() called - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
 
-        // Set tab to About (9)
         PreferencesWindowController.shared.selectTab(9)
 
         NSLog("🔵 MenuBarController: Switching to .regular mode")
@@ -378,11 +366,9 @@ class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func showCurrentErrors() {
-        // Get current errors from AnalysisCoordinator
         let errors = AnalysisCoordinator.shared.getCurrentErrors()
         guard let firstError = errors.first else { return }
 
-        // Show popover with the first error (user can navigate to others)
         // Position near menu bar icon since we don't have text field position
         if let button = statusItem?.button {
             let buttonFrame = button.window?.convertToScreen(button.convert(button.bounds, to: nil)) ?? .zero
@@ -410,7 +396,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
         let icon = TextWardenIcon.create()
         button.image = icon
 
-        // Update tooltip to reflect state
         switch state {
         case .active:
             button.toolTip = "TextWarden Grammar Checker"

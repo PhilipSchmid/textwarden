@@ -179,7 +179,6 @@ class UserStatistics: ObservableObject {
     func recordSuggestionApplied(category: String) {
         self.suggestionsApplied += 1
 
-        // Update category breakdown
         let currentCount = categoryBreakdown[category] ?? 0
         categoryBreakdown[category] = currentCount + 1
     }

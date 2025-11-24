@@ -32,7 +32,6 @@ class BrowserContentParser: ContentParser {
     init(bundleIdentifier: String) {
         self.bundleIdentifier = bundleIdentifier
 
-        // Set parser name based on browser
         if bundleIdentifier.contains("Chrome") {
             self.parserName = "Chrome"
         } else if bundleIdentifier.contains("Safari") {

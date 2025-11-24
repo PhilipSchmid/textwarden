@@ -30,7 +30,6 @@ class ClassicRangeStrategy: GeometryProvider {
         parser: ContentParser
     ) -> GeometryResult? {
 
-        // Create CFRange for error position
         let cfRange = CFRange(
             location: errorRange.location,
             length: max(1, errorRange.length)  // Ensure at least 1 character length

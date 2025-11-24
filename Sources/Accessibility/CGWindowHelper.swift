@@ -15,7 +15,6 @@ enum CGWindowHelper {
 
     /// Get window bounds for process using CGWindow API
     ///     static func getWindowBounds(for processID: pid_t) -> CGRect? {
-        // Get window list for this process
         let options = CGWindowListOption([.optionOnScreenOnly, .excludeDesktopElements])
         guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
             let msg = "❌ CGWindowHelper: Failed to get window list"
@@ -31,7 +30,6 @@ enum CGWindowHelper {
                 continue
             }
 
-            // Get window bounds
             guard let boundsDict = windowInfo[kCGWindowBounds as String] as? [String: CGFloat],
                   let x = boundsDict["X"],
                   let y = boundsDict["Y"],

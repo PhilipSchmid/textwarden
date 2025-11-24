@@ -156,7 +156,6 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Setup overlay callbacks for hover-based popup
     private func setupOverlayCallbacks() {
-        // Show popup when hovering over error underline
         errorOverlay.onErrorHover = { [weak self] error, position, windowFrame in
             guard let self = self else { return }
 
@@ -261,7 +260,6 @@ class AnalysisCoordinator: ObservableObject {
     private func setupMonitoring() {
         // Monitor application changes
         applicationTracker.onApplicationChange = { [weak self] context in
-            // Update menu bar (replaces MenuBarController's callback)
             MenuBarController.shared?.updateMenu()
 
             guard let self = self else { return }
@@ -282,7 +280,6 @@ class AnalysisCoordinator: ObservableObject {
                 self.textMonitor.stopMonitoring()
             }
 
-            // Hide overlay and popover from previous application
             self.errorOverlay.hide()
             self.suggestionPopover.hide()
             self.floatingIndicator.hide()
@@ -483,7 +480,6 @@ class AnalysisCoordinator: ObservableObject {
             return
         }
 
-        // Get current window position using CGWindowListCopyWindowInfo
         guard let currentPosition = getWindowPosition(for: element) else {
             NSLog("🪟 Window monitoring: Could not get window position")
             return
@@ -885,7 +881,6 @@ class AnalysisCoordinator: ObservableObject {
 
         currentErrors = filteredErrors
 
-        // Show underlines for errors (hover-based popup)
         showErrorUnderlines(filteredErrors, element: element)
     }
 
@@ -955,7 +950,6 @@ class AnalysisCoordinator: ObservableObject {
                 logToDebugFile(msg)
             }
 
-            // Show floating indicator for all errors (complements visual underlines)
             floatingIndicator.update(errors: errors, element: providedElement, context: monitoredContext)
             MenuBarController.shared?.setIconState(.active)
         }
@@ -1016,7 +1010,6 @@ class AnalysisCoordinator: ObservableObject {
         let endIndex = sourceText.index(sourceText.startIndex, offsetBy: error.end)
         let errorText = String(sourceText[startIndex..<endIndex])
 
-        // Add to custom vocabulary (use CustomVocabulary, not UserPreferences)
         do {
             try CustomVocabulary.shared.addWord(errorText)
             print("✅ Added '\(errorText)' to custom dictionary")
@@ -1371,7 +1364,6 @@ class AnalysisCoordinator: ObservableObject {
                 logToDebugFile(msg)
             }
 
-            // Get the current text and apply the correction
             var currentTextValue: CFTypeRef?
             let getTextResult = AXUIElementCopyAttributeValue(
                 element,
@@ -1572,9 +1564,7 @@ class AnalysisCoordinator: ObservableObject {
             logToDebugFile(msg)
         }
 
-        // Get app-specific timing for keyboard operations
         let delay = context.keyboardOperationDelay
-        // Add extra delay for app activation to complete
         let activationDelay: TimeInterval = 0.2
         let msg2 = "⏱️ Using \(delay)s keyboard delay + \(activationDelay)s activation delay for \(context.applicationName)"
         NSLog(msg2)
@@ -1736,7 +1726,6 @@ class AnalysisCoordinator: ObservableObject {
     /// - Note: This method should only be called after ensuring the target application
     ///   is frontmost, as CGEventPost sends events to the active application.
     private func pressKey(key: CGKeyCode, flags: CGEventFlags, withDelay: Bool = true) {
-        // Create proper event source (required for reliable keyboard simulation)
         guard let eventSource = CGEventSource(stateID: .hidSystemState) else {
             let msg = "❌ Failed to create CGEventSource for key press"
             NSLog(msg)
@@ -1753,13 +1742,11 @@ class AnalysisCoordinator: ObservableObject {
             adjustedFlags.insert(.maskSecondaryFn)
         }
 
-        // Create and post key down event
         if let keyDown = CGEvent(keyboardEventSource: eventSource, virtualKey: key, keyDown: true) {
             keyDown.flags = adjustedFlags
             keyDown.post(tap: .cghidEventTap)
         }
 
-        // Create and post key up event
         if let keyUp = CGEvent(keyboardEventSource: eventSource, virtualKey: key, keyDown: false) {
             keyUp.flags = adjustedFlags
             keyUp.post(tap: .cghidEventTap)
@@ -1903,7 +1890,6 @@ extension AnalysisCoordinator {
             }
         }
 
-        // Add new errors
         merged.append(contentsOf: new)
 
         // Sort by position
@@ -1946,7 +1932,6 @@ extension AnalysisCoordinator {
         // Sort by last accessed time
         let sortedEntries = cacheMetadata.sorted { $0.value.lastAccessed < $1.value.lastAccessed }
 
-        // Remove oldest entries
         let toRemove = sortedEntries.count - maxCachedDocuments
         for i in 0..<toRemove {
             let key = sortedEntries[i].key
@@ -1962,7 +1947,6 @@ extension AnalysisCoordinator {
         let cacheKey = segment.id.uuidString
         errorCache[cacheKey] = errors
 
-        // Update metadata
         cacheMetadata[cacheKey] = CacheMetadata(
             lastAccessed: Date(),
             documentSize: segment.content.count

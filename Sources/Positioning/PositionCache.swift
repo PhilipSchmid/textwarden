@@ -54,7 +54,6 @@ class PositionCache {
                 return nil
             }
 
-            // Update hit count
             cache[key] = CacheEntry(
                 result: entry.result,
                 timestamp: entry.timestamp,
@@ -152,7 +151,6 @@ struct CacheKey: Hashable {
     let textHash: Int
 
     init(element: AXUIElement, range: NSRange, textHash: Int) {
-        // Create stable hash for AXUIElement
         // Note: This assumes element pointer stays valid during cache lifetime
         self.elementHash = unsafeBitCast(element, to: Int.self)
         self.range = range

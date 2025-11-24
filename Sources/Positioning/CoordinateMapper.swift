@@ -164,7 +164,6 @@ enum CoordinateMapper {
     /// Convert rect to coordinates of specific screen
     /// Useful when element is on external monitor
     static func toScreenCoordinates(_ rect: CGRect, screen: NSScreen) -> CGRect {
-        // Get screen's frame
         let screenFrame = screen.frame
 
         var screenRect = rect

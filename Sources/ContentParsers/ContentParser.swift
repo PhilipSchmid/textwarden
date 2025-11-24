@@ -3,7 +3,6 @@
 //  TextWarden
 //
 //  Protocol for app-specific content parsing and bounds adjustment
-//  Inspired by (redacted)'s architecture with dedicated parsers per application
 //
 
 import Foundation
@@ -169,7 +168,6 @@ extension ContentParser {
         // Apply spacing correction
         let adjustedTextBeforeWidth = textBeforeWidth * multiplier
 
-        // Get element frame for positioning
         guard let elementFrame = getElementFrame(element: element) else {
             return nil
         }
@@ -192,7 +190,6 @@ extension ContentParser {
         let location = range.location
         let length = range.length
 
-        // Create AXValue for the range
         var axRange = CFRange(location: location, length: length)
         let rangeValue = AXValueCreate(.cfRange, &axRange)
 
@@ -257,22 +254,12 @@ extension ContentParser {
         in element: AXUIElement,
         text: String
     ) -> GeometryResult {
-        NSLog("🚨 ContentParser.resolvePosition() called for bundleID: \(bundleIdentifier)")
-        logToDebugFile("🚨 ContentParser.resolvePosition() called for bundleID: \(bundleIdentifier)")
-        NSLog("🚨 About to call PositionResolver.shared")
-        logToDebugFile("🚨 About to call PositionResolver.shared")
-
-        let result = PositionResolver.shared.resolvePosition(
+        return PositionResolver.shared.resolvePosition(
             for: errorRange,
             in: element,
             text: text,
             parser: self,
             bundleID: bundleIdentifier
         )
-
-        let msg = "🚨 PositionResolver returned: strategy=\(result.strategy), confidence=\(result.confidence)"
-        NSLog(msg)
-        logToDebugFile(msg)
-        return result
     }
 }

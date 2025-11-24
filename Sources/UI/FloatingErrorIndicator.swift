@@ -34,7 +34,6 @@ class FloatingErrorIndicator: NSPanel {
     private var cancellables = Set<AnyCancellable>()
 
     private init() {
-        // Create a small circular window
         let initialFrame = NSRect(x: 0, y: 0, width: 40, height: 40)
 
         super.init(
@@ -53,7 +52,6 @@ class FloatingErrorIndicator: NSPanel {
         self.acceptsMouseMovedEvents = true
         self.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
 
-        // Create and add indicator view
         let indicatorView = IndicatorView(frame: initialFrame)
         indicatorView.onClicked = { [weak self] in
             self?.showErrors()
@@ -62,7 +60,6 @@ class FloatingErrorIndicator: NSPanel {
             if isHovering {
                 self?.showErrors()
             } else {
-                // Hide popover when mouse leaves indicator
                 SuggestionPopover.shared.scheduleHide()
             }
         }
@@ -73,7 +70,6 @@ class FloatingErrorIndicator: NSPanel {
             NSLog(msg)
             logToDebugFile(msg)
 
-            // Hide popover during drag
             SuggestionPopover.shared.hide()
 
             // Enlarge indicator to show it's being dragged
@@ -96,7 +92,6 @@ class FloatingErrorIndicator: NSPanel {
             self.orderFrontRegardless()
             self.level = .popUpMenu + 2  // Increase level during drag
 
-            // Show border guide around the target window
             if let element = self.monitoredElement,
                let windowFrame = self.getVisibleWindowFrame(for: element) {
                 let msg2 = "🟢 Showing border guide with frame: \(windowFrame)"
@@ -133,7 +128,6 @@ class FloatingErrorIndicator: NSPanel {
             self.alphaValue = 1.0
             self.level = .popUpMenu + 1  // Restore original level
 
-            // Hide border guide
             self.borderGuide.hide()
 
             // Handle snap positioning with corrected position
@@ -187,7 +181,6 @@ class FloatingErrorIndicator: NSPanel {
             return
         }
 
-        // Update indicator view
         indicatorView?.errorCount = errors.count
         indicatorView?.errorColor = colorForErrors(errors)
         indicatorView?.needsDisplay = true
@@ -195,7 +188,6 @@ class FloatingErrorIndicator: NSPanel {
         // Position in bottom-right of text field
         positionIndicator(for: element)
 
-        // Show window without stealing focus
         NSLog("🔴 FloatingErrorIndicator: Window level: \(self.level.rawValue), isVisible: \(isVisible)")
         if !isVisible {
             NSLog("🔴 FloatingErrorIndicator: Calling order(.above)")
@@ -325,14 +317,12 @@ class FloatingErrorIndicator: NSPanel {
     /// Get the actual visible window frame using CGWindowListCopyWindowInfo
     /// This avoids the scrollback buffer issue with Terminal apps
     private func getVisibleWindowFrame(for element: AXUIElement) -> CGRect? {
-        // Get the window's PID
         var pid: pid_t = 0
         if AXUIElementGetPid(element, &pid) != .success {
             NSLog("🔴 FloatingErrorIndicator: Failed to get PID from element")
             return nil
         }
 
-        // Get all windows for this process
         let options = CGWindowListOption(arrayLiteral: .optionOnScreenOnly)
         guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
             NSLog("🔴 FloatingErrorIndicator: Failed to get window list")
@@ -403,13 +393,11 @@ class FloatingErrorIndicator: NSPanel {
                 DispatchQueue.main.async {
                     DebugBorderWindow.clearAll()
 
-                    // Show CGWindow coordinates (blue box) if enabled
                     if UserPreferences.shared.showDebugBorderCGWindowCoords {
                         let cgDisplayRect = NSRect(x: x, y: totalScreenHeight - y - height, width: width, height: height)
                         _ = DebugBorderWindow(frame: cgDisplayRect, color: .systemBlue, label: "CGWindow coords")
                     }
 
-                    // Show Cocoa coordinates (green box) if enabled
                     if UserPreferences.shared.showDebugBorderCocoaCoords {
                         _ = DebugBorderWindow(frame: frame, color: .systemGreen, label: "Cocoa coords")
                     }
@@ -456,7 +444,6 @@ class FloatingErrorIndicator: NSPanel {
 
         let window = windowValue as! AXUIElement
 
-        // Get the window's position and size
         var positionValue: CFTypeRef?
         var sizeValue: CFTypeRef?
 
@@ -584,7 +571,6 @@ private class IndicatorView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
 
-        // Add hover tracking
         let trackingArea = NSTrackingArea(
             rect: bounds,
             options: [.mouseEnteredAndExited, .activeAlways],
@@ -601,7 +587,6 @@ private class IndicatorView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
 
-        // Add subtle shadow for depth (adapts to dark mode)
         let shadow = NSShadow()
         shadow.shadowColor = NSColor.black.withAlphaComponent(0.25)
         shadow.shadowOffset = NSSize(width: 0, height: -2)
@@ -687,7 +672,6 @@ private class IndicatorView: NSView {
         isDragging = false
         NSCursor.pop()
 
-        // Get final position and snap it
         if let window = window {
             onDragEnd?(window.frame.origin)
         }
@@ -705,7 +689,6 @@ private class IndicatorView: NSView {
             NSCursor.openHand.push()
         }
 
-        // Show popover after a short delay
         hoverTimer?.invalidate()
         hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { [weak self] _ in
             self?.onHover?(true)
@@ -727,7 +710,6 @@ private class IndicatorView: NSView {
         hoverTimer?.invalidate()
         hoverTimer = nil
 
-        // Hide popover
         onHover?(false)
 
         // Redraw to update dot opacity
@@ -737,12 +719,10 @@ private class IndicatorView: NSView {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
 
-        // Remove old tracking areas
         for trackingArea in trackingAreas {
             removeTrackingArea(trackingArea)
         }
 
-        // Add new tracking area with current bounds
         let trackingArea = NSTrackingArea(
             rect: bounds,
             options: [.mouseEnteredAndExited, .activeAlways],

@@ -25,16 +25,11 @@ class PositionResolver {
     // MARK: - Initialization
 
     private init() {
-        // Register strategies in priority order (highest first)
         registerStrategies()
     }
 
     private func registerStrategies() {
-        // Will be populated by strategy files
-        // For now, initialize empty - strategies will register themselves
         strategies = []
-
-        // Register built-in strategies
         registerStrategy(ModernMarkerStrategy())
         registerStrategy(ClassicRangeStrategy())
         registerStrategy(TextMeasurementStrategy())
@@ -76,7 +71,6 @@ class PositionResolver {
         bundleID: String
     ) -> GeometryResult {
 
-        // Create cache key
         let cacheKey = CacheKey(
             element: element,
             range: errorRange,
