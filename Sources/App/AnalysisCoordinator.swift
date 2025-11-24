@@ -619,11 +619,21 @@ class AnalysisCoordinator: ObservableObject {
                 self.updateErrorCache(for: segment, with: result.errors)
                 self.applyFilters(to: result.errors, sourceText: segmentContent, element: capturedElement)
 
-                // Record statistics
+                // Record statistics with full details
                 let wordCount = segmentContent.split(separator: " ").count
-                UserStatistics.shared.recordAnalysisSession(
+
+                // Compute category breakdown
+                var categoryBreakdown: [String: Int] = [:]
+                for error in result.errors {
+                    categoryBreakdown[error.category, default: 0] += 1
+                }
+
+                UserStatistics.shared.recordDetailedAnalysisSession(
                     wordsProcessed: wordCount,
-                    errorsFound: result.errors.count
+                    errorsFound: result.errors.count,
+                    bundleIdentifier: self.monitoredContext?.bundleIdentifier,
+                    categoryBreakdown: categoryBreakdown,
+                    latencyMs: Double(result.analysisTimeMs)
                 )
 
                 Logger.debug("AnalysisCoordinator: Analysis complete", category: Logger.analysis)
@@ -664,11 +674,21 @@ class AnalysisCoordinator: ObservableObject {
                 self.updateErrorCache(for: segment, with: result.errors)
                 self.applyFilters(to: result.errors, sourceText: segmentContent, element: capturedElement)
 
-                // Record statistics
+                // Record statistics with full details
                 let wordCount = segmentContent.split(separator: " ").count
-                UserStatistics.shared.recordAnalysisSession(
+
+                // Compute category breakdown
+                var categoryBreakdown: [String: Int] = [:]
+                for error in result.errors {
+                    categoryBreakdown[error.category, default: 0] += 1
+                }
+
+                UserStatistics.shared.recordDetailedAnalysisSession(
                     wordsProcessed: wordCount,
-                    errorsFound: result.errors.count
+                    errorsFound: result.errors.count,
+                    bundleIdentifier: self.monitoredContext?.bundleIdentifier,
+                    categoryBreakdown: categoryBreakdown,
+                    latencyMs: Double(result.analysisTimeMs)
                 )
             }
         }
@@ -909,6 +929,9 @@ class AnalysisCoordinator: ObservableObject {
         do {
             try CustomVocabulary.shared.addWord(errorText)
             print("✅ Added '\(errorText)' to custom dictionary")
+
+            // Record statistics
+            UserStatistics.shared.recordWordAddedToDictionary()
         } catch {
             print("❌ Failed to add '\(errorText)' to dictionary: \(error)")
         }
