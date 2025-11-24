@@ -1672,6 +1672,8 @@ private struct CustomVocabularyContent: View {
                     TextField("Add word...", text: $newWord)
                         .textFieldStyle(.roundedBorder)
                         .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .environment(\.layoutDirection, .leftToRight)
                         .onSubmit {
                             addWord()
                         }
@@ -2192,6 +2194,8 @@ struct CustomVocabularyView: View {
                     TextField("Add word...", text: $newWord)
                         .textFieldStyle(.roundedBorder)
                         .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .environment(\.layoutDirection, .leftToRight)
                         .onSubmit {
                             addWord()
                         }
