@@ -2834,75 +2834,101 @@ struct AboutView: View {
                 Divider()
                     .padding(.horizontal, 40)
 
-                // Features
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("Features")
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    FeatureRow(icon: "text.badge.checkmark", title: "Real-time Grammar Checking", description: "Instant feedback as you type")
-                    FeatureRow(icon: "globe", title: "Multiple English Dialects", description: "Support for 4 English variants")
-                    FeatureRow(icon: "slider.horizontal.3", title: "20+ Grammar Categories", description: "Fine-grained control over check types")
-                    FeatureRow(icon: "app.badge", title: "Per-Application Control", description: "Enable/disable for specific apps")
-                    FeatureRow(icon: "book.closed", title: "Custom Dictionary", description: "Add your own words and terms")
-                    FeatureRow(icon: "pause.circle", title: "Smart Pause", description: "Pause for 1 hour or indefinitely")
-                }
-                .padding(.horizontal, 40)
-
-                Divider()
-                    .padding(.horizontal, 40)
-
                 // Links
-                VStack(spacing: 12) {
+                VStack(spacing: 16) {
                     Link(destination: URL(string: "https://github.com/philipschmid/textwarden")!) {
-                        HStack(spacing: 12) {
-                            Image(systemName: "arrow.up.forward.square.fill")
-                                .font(.title2)
-                                .foregroundColor(.accentColor)
-                                .frame(width: 32)
-                            Text("View on GitHub")
-                                .font(.body)
+                        HStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.accentColor.opacity(0.15))
+                                    .frame(width: 48, height: 48)
+                                Image(systemName: "chevron.left.forwardslash.chevron.right")
+                                    .font(.title3)
+                                    .foregroundColor(.accentColor)
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("View on GitHub")
+                                    .font(.body)
+                                    .fontWeight(.medium)
+                                Text("Source code and development")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "arrow.up.forward")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 16)
-                        .background(Color.accentColor.opacity(0.1))
-                        .cornerRadius(8)
+                        .padding(16)
+                        .background(Color.accentColor.opacity(0.08))
+                        .cornerRadius(12)
                     }
                     .buttonStyle(.plain)
 
                     Link(destination: URL(string: "https://github.com/philipschmid/textwarden/blob/main/LICENSE")!) {
-                        HStack(spacing: 12) {
-                            Image(systemName: "doc.plaintext.fill")
-                                .font(.title2)
-                                .foregroundColor(.accentColor)
-                                .frame(width: 32)
-                            Text("View License")
-                                .font(.body)
+                        HStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.accentColor.opacity(0.15))
+                                    .frame(width: 48, height: 48)
+                                Image(systemName: "doc.text")
+                                    .font(.title3)
+                                    .foregroundColor(.accentColor)
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("View License")
+                                    .font(.body)
+                                    .fontWeight(.medium)
+                                Text("Apache 2.0 open source license")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "arrow.up.forward")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 16)
-                        .background(Color.accentColor.opacity(0.1))
-                        .cornerRadius(8)
+                        .padding(16)
+                        .background(Color.accentColor.opacity(0.08))
+                        .cornerRadius(12)
                     }
                     .buttonStyle(.plain)
 
                     Link(destination: URL(string: "https://github.com/philipschmid/textwarden/issues")!) {
-                        HStack(spacing: 12) {
-                            Image(systemName: "ladybug.fill")
-                                .font(.title2)
-                                .foregroundColor(.accentColor)
-                                .frame(width: 32)
-                            Text("Report an Issue")
-                                .font(.body)
+                        HStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.accentColor.opacity(0.15))
+                                    .frame(width: 48, height: 48)
+                                Image(systemName: "exclamationmark.bubble")
+                                    .font(.title3)
+                                    .foregroundColor(.accentColor)
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Report an Issue")
+                                    .font(.body)
+                                    .fontWeight(.medium)
+                                Text("Bug reports and feature requests")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "arrow.up.forward")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 16)
-                        .background(Color.accentColor.opacity(0.1))
-                        .cornerRadius(8)
+                        .padding(16)
+                        .background(Color.accentColor.opacity(0.08))
+                        .cornerRadius(12)
                     }
                     .buttonStyle(.plain)
                 }
@@ -2910,15 +2936,9 @@ struct AboutView: View {
 
                 Spacer()
 
-                VStack(spacing: 6) {
-                    Text("Built with Swift, Rust, and Harper")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-
-                    Text("© 2025 Philip Schmid. All rights reserved.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
+                Text("© 2025 Philip Schmid. All rights reserved.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
             .padding()
         }
