@@ -51,6 +51,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Record app session for statistics
         UserStatistics.shared.recordSession()
 
+        // Set app launch timestamp for "This Session" filtering
+        UserStatistics.shared.appLaunchTimestamp = Date()
+
         NSApp.setActivationPolicy(.accessory)
 
         Logger.info("Set as menu bar app (no dock icon)", category: Logger.lifecycle)
