@@ -336,39 +336,39 @@ class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func openPreferences() {
-        NSLog("🔵 MenuBarController: openPreferences() called - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+        Logger.debug("openPreferences() called - ActivationPolicy: \(NSApp.activationPolicy().rawValue)", category: Logger.ui)
 
         PreferencesWindowController.shared.selectTab(0)
 
-        NSLog("🔵 MenuBarController: Switching to .regular mode")
+        Logger.debug("Switching to .regular mode", category: Logger.ui)
 
         // Switch to regular mode temporarily
         NSApp.setActivationPolicy(.regular)
 
-        NSLog("🔵 MenuBarController: AFTER setActivationPolicy(.regular) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+        Logger.debug("setActivationPolicy(.regular) completed - ActivationPolicy: \(NSApp.activationPolicy().rawValue)", category: Logger.ui)
 
         // Use NSApp.sendAction to open settings - let AppKit find the target
         NSApp.sendAction(#selector(AppDelegate.openSettingsWindow(selectedTab:)), to: nil, from: self)
 
-        NSLog("🔵 MenuBarController: Sent openSettingsWindow action for General tab")
+        Logger.debug("Sent openSettingsWindow action for General tab", category: Logger.ui)
     }
 
     @objc private func showAbout() {
-        NSLog("🔵 MenuBarController: showAbout() called - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+        Logger.debug("showAbout() called - ActivationPolicy: \(NSApp.activationPolicy().rawValue)", category: Logger.ui)
 
         PreferencesWindowController.shared.selectTab(8)
 
-        NSLog("🔵 MenuBarController: Switching to .regular mode")
+        Logger.debug("Switching to .regular mode", category: Logger.ui)
 
         // Switch to regular mode temporarily
         NSApp.setActivationPolicy(.regular)
 
-        NSLog("🔵 MenuBarController: AFTER setActivationPolicy(.regular) - ActivationPolicy: \(NSApp.activationPolicy().rawValue)")
+        Logger.debug("setActivationPolicy(.regular) completed - ActivationPolicy: \(NSApp.activationPolicy().rawValue)", category: Logger.ui)
 
         // Use NSApp.sendAction to open settings with About tab (index 8)
         NSApp.sendAction(#selector(AppDelegate.openSettingsWindow(selectedTab:)), to: nil, from: self)
 
-        NSLog("🔵 MenuBarController: Sent openSettingsWindow action for About tab (8)")
+        Logger.debug("Sent openSettingsWindow action for About tab (8)", category: Logger.ui)
     }
 
     @objc private func showCurrentErrors() {
