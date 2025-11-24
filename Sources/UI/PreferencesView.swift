@@ -58,23 +58,17 @@ struct PreferencesView: View {
                 }
                 .tag(6)
 
-            SystemStatusView()
-                .tabItem {
-                    Label("System", systemImage: "checkmark.shield")
-                }
-                .tag(7)
-
             DiagnosticsView(preferences: preferences)
                 .tabItem {
                     Label("Diagnostics", systemImage: "wrench.and.screwdriver")
                 }
-                .tag(8)
+                .tag(7)
 
             AboutView()
                 .tabItem {
                     Label("About", systemImage: "info.circle")
                 }
-                .tag(9)
+                .tag(8)
         }
         .frame(minWidth: 750, minHeight: 600)
     }
@@ -853,9 +847,66 @@ fileprivate struct ApplicationInfo {
 
 struct GeneralPreferencesView: View {
     @ObservedObject var preferences: UserPreferences
+    @ObservedObject private var permissionManager = PermissionManager.shared
+    @State private var showingPermissionDialog = false
 
     var body: some View {
         Form {
+            // Accessibility Permission Section
+            Section {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: permissionManager.isPermissionGranted ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(permissionManager.isPermissionGranted ? .green : .red)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Accessibility Permission")
+                                .font(.headline)
+                            Text(permissionManager.isPermissionGranted ? "Granted" : "Not Granted")
+                                .font(.subheadline)
+                                .foregroundColor(permissionManager.isPermissionGranted ? .green : .red)
+                        }
+
+                        Spacer()
+                    }
+
+                    Text(permissionManager.isPermissionGranted ?
+                         "TextWarden has the necessary permissions to monitor your text and provide grammar checking." :
+                         "TextWarden needs Accessibility permissions to monitor your text.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    if !permissionManager.isPermissionGranted {
+                        HStack(spacing: 12) {
+                            Button {
+                                permissionManager.requestPermission()
+                                showingPermissionDialog = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "lock.open")
+                                    Text("Request Permission")
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+
+                            Button {
+                                permissionManager.openSystemSettings()
+                            } label: {
+                                HStack {
+                                    Image(systemName: "gearshape")
+                                    Text("Open System Settings")
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                }
+            } header: {
+                Text("Permissions")
+                    .font(.headline)
+            }
+
             Section {
                 VStack(alignment: .leading, spacing: 8) {
                     Picker("Grammar checking:", selection: $preferences.pauseDuration) {
@@ -979,6 +1030,13 @@ struct GeneralPreferencesView: View {
         }
         .formStyle(.grouped)
         .padding()
+        .alert("Permission Requested", isPresented: $showingPermissionDialog) {
+            Button("OK") {
+                showingPermissionDialog = false
+            }
+        } message: {
+            Text("Please check System Settings to grant Accessibility permission to TextWarden.")
+        }
     }
 }
 
@@ -1597,6 +1655,82 @@ struct DiagnosticsView: View {
 
     var body: some View {
         Form {
+            // MARK: - Currently Monitoring Section
+            Section {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "eye.fill")
+                            .font(.title2)
+                            .foregroundColor(.blue)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Currently Monitoring")
+                                .font(.headline)
+                            if let app = applicationTracker.activeApplication {
+                                Text(app.applicationName)
+                                    .font(.subheadline)
+                                    .foregroundColor(.blue)
+                            } else {
+                                Text("No application")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+
+                        Spacer()
+
+                        // Live indicator
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(Color.green)
+                                .frame(width: 8, height: 8)
+                                .opacity(applicationTracker.activeApplication != nil ? 1.0 : 0.3)
+                            Text("Live")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
+                    if let app = applicationTracker.activeApplication {
+                        Divider()
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Application:")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text(app.applicationName)
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                            }
+
+                            HStack {
+                                Text("Bundle ID:")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text(app.bundleIdentifier)
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .textSelection(.enabled)
+                            }
+
+                            HStack {
+                                Text("Checking:")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text(app.shouldCheck() ? "Enabled" : "Disabled")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(app.shouldCheck() ? .green : .orange)
+                            }
+                        }
+                    }
+                }
+            } header: {
+                Text("Active Application")
+                    .font(.headline)
+            }
+
             // MARK: - Export Diagnostics Section
             Section {
                 VStack(alignment: .leading, spacing: 16) {
@@ -1902,233 +2036,6 @@ struct DiagnosticsView: View {
         logFilePath = Logger.logFilePath
 
         Logger.info("Log file path reset to default", category: Logger.general)
-    }
-}
-
-// MARK: - System Status View
-
-struct SystemStatusView: View {
-    @ObservedObject private var permissionManager = PermissionManager.shared
-    @ObservedObject private var applicationTracker = ApplicationTracker.shared
-    @State private var showingPermissionDialog = false
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                // Header
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Image(systemName: "checkmark.shield.fill")
-                            .font(.system(size: 48))
-                            .foregroundColor(permissionManager.isPermissionGranted ? .green : .orange)
-                        Spacer()
-                    }
-                    Text("System Status")
-                        .font(.system(size: 32, weight: .bold))
-                    Text("Monitor accessibility permissions and app status")
-                        .font(.title3)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.bottom, 8)
-
-                // Permission Status Card
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Image(systemName: permissionManager.isPermissionGranted ? "checkmark.circle.fill" : "xmark.circle.fill")
-                            .font(.title)
-                            .foregroundColor(permissionManager.isPermissionGranted ? .green : .red)
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Accessibility Permission")
-                                .font(.headline)
-                            Text(permissionManager.isPermissionGranted ? "Granted" : "Not Granted")
-                                .font(.subheadline)
-                                .foregroundColor(permissionManager.isPermissionGranted ? .green : .red)
-                        }
-
-                        Spacer()
-                    }
-
-                    Text(permissionManager.isPermissionGranted ?
-                         "TextWarden has the necessary permissions to monitor your text and provide grammar checking." :
-                         "TextWarden needs Accessibility permissions to monitor your text. Click the button below to grant permission.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.top, 4)
-
-                    HStack(spacing: 12) {
-                        if !permissionManager.isPermissionGranted {
-                            Button {
-                                permissionManager.requestPermission()
-                                showingPermissionDialog = true
-                            } label: {
-                                HStack {
-                                    Image(systemName: "lock.open")
-                                    Text("Request Permission")
-                                }
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-
-                        Button {
-                            permissionManager.openSystemSettings()
-                        } label: {
-                            HStack {
-                                Image(systemName: "gearshape")
-                                Text("Open System Settings")
-                            }
-                        }
-                        .buttonStyle(.bordered)
-
-                        Spacer()
-                    }
-                    .padding(.top, 8)
-                }
-                .padding(20)
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(12)
-
-                // Monitoring Status Card
-                if permissionManager.isPermissionGranted {
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack {
-                            Image(systemName: "eye.fill")
-                                .font(.title2)
-                                .foregroundColor(.blue)
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Currently Monitoring")
-                                    .font(.headline)
-                                if let app = applicationTracker.activeApplication {
-                                    Text(app.applicationName)
-                                        .font(.subheadline)
-                                        .foregroundColor(.blue)
-                                } else {
-                                    Text("No application")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-
-                            Spacer()
-
-                            // Live indicator
-                            HStack(spacing: 6) {
-                                Circle()
-                                    .fill(Color.green)
-                                    .frame(width: 8, height: 8)
-                                    .opacity(applicationTracker.activeApplication != nil ? 1.0 : 0.3)
-                                Text("Live")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-
-                        if let app = applicationTracker.activeApplication {
-                            Divider()
-
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Text("Application:")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    Text(app.applicationName)
-                                        .font(.caption)
-                                        .fontWeight(.medium)
-                                }
-
-                                HStack {
-                                    Text("Bundle ID:")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    Text(app.bundleIdentifier)
-                                        .font(.caption)
-                                        .fontWeight(.medium)
-                                        .textSelection(.enabled)
-                                }
-
-                                HStack {
-                                    Text("Checking:")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    Text(app.shouldCheck() ? "Enabled" : "Disabled")
-                                        .font(.caption)
-                                        .fontWeight(.medium)
-                                        .foregroundColor(app.shouldCheck() ? .green : .orange)
-                                }
-                            }
-                        }
-                    }
-                    .padding(20)
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(12)
-                }
-
-                // Permission Info
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("About Accessibility Permissions")
-                        .font(.headline)
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        SystemInfoRow(
-                            icon: "doc.text.magnifyingglass",
-                            title: "Text Monitoring",
-                            description: "TextWarden needs to read text you type to check for grammar errors."
-                        )
-
-                        SystemInfoRow(
-                            icon: "pencil.and.outline",
-                            title: "Text Replacement",
-                            description: "TextWarden can replace text with suggested corrections when you click them."
-                        )
-
-                        SystemInfoRow(
-                            icon: "lock.shield",
-                            title: "Privacy",
-                            description: "All text analysis happens locally on your Mac. Nothing is sent to external servers."
-                        )
-                    }
-                }
-                .padding(20)
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(12)
-
-                Spacer()
-            }
-            .padding(24)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .alert("Permission Requested", isPresented: $showingPermissionDialog) {
-            Button("OK") {
-                showingPermissionDialog = false
-            }
-        } message: {
-            Text("Please check System Settings to grant Accessibility permission to TextWarden. The app will automatically detect when permission is granted.")
-        }
-    }
-}
-
-private struct SystemInfoRow: View {
-    let icon: String
-    let title: String
-    let description: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundColor(.accentColor)
-                .frame(width: 24)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                Text(description)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
     }
 }
 
