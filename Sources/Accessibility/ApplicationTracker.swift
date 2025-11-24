@@ -56,7 +56,6 @@ class ApplicationTracker: ObservableObject {
     /// Start polling for frontmost application changes
     /// Poll every 250ms for instant detection using GCD-based DispatchSourceTimer
     private func startPolling() {
-        // Create GCD timer (doesn't rely on run loops, more reliable for menu bar apps)
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.main)
         timer.schedule(deadline: .now(), repeating: 0.25)
         timer.setEventHandler { [weak self] in
@@ -127,7 +126,6 @@ class ApplicationTracker: ObservableObject {
             self.previousApplication = current
         }
 
-        // Update synchronously - no async dispatch
         self.activeApplication = context
 
         // Trigger callback for app change

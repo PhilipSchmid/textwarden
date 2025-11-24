@@ -58,13 +58,12 @@ class TextMonitor: ObservableObject {
 
         self.currentContext = context
 
-        // Create AXUIElement for the application
         let appElement = AXUIElementCreateApplication(processID)
 
         // Enable manual accessibility for Electron apps (and all apps)
         // This is required for Electron apps like Slack, Discord, VS Code, etc.
         // Without this, Electron apps don't expose their accessibility hierarchy
-        // unless VoiceOver is running. 
+        // unless VoiceOver is running.
         let manualAccessibilityResult = AXUIElementSetAttributeValue(
             appElement,
             "AXManualAccessibility" as CFString,
@@ -81,7 +80,6 @@ class TextMonitor: ObservableObject {
             logToDebugFile(msg)
         }
 
-        // Create observer
         var observerRef: AXObserver?
         let error = AXObserverCreate(processID, axObserverCallback, &observerRef)
 
@@ -97,7 +95,6 @@ class TextMonitor: ObservableObject {
         NSLog(msg2)
         logToDebugFile(msg2)
 
-        // Add observer to run loop
         CFRunLoopAddSource(
             CFRunLoopGetCurrent(),
             AXObserverGetRunLoopSource(observer),
@@ -111,7 +108,6 @@ class TextMonitor: ObservableObject {
         // Try to monitor focused element
         monitorFocusedElement(in: appElement)
 
-        // Add notification for focus changes
         let contextPtr = Unmanaged.passUnretained(self).toOpaque()
         let focusResult = AXObserverAddNotification(
             observer,
@@ -184,7 +180,7 @@ class TextMonitor: ObservableObject {
 
         // CRITICAL FIX: AXFocusedUIElement might return the wrong element (e.g., sidebar in Slack)
         // If the focused element is not editable, search for editable text fields
-        //         if !isEditableElement(axElement) {
+        if !isEditableElement(axElement) {
             let searchMsg = "🔎 TextMonitor: Focused element is not editable, searching for editable field..."
             NSLog(searchMsg)
             logToDebugFile(searchMsg)
@@ -198,7 +194,7 @@ class TextMonitor: ObservableObject {
                 return
             }
 
-            // Strategy 2: Search from main window down ()
+            // Strategy 2: Search from main window down
             let windowMsg = "🔎 TextMonitor: No children found, searching from main window..."
             NSLog(windowMsg)
             logToDebugFile(windowMsg)
@@ -282,7 +278,6 @@ class TextMonitor: ObservableObject {
         // Cancel any pending retries since we found an editable element
         retryScheduler.cancel()
 
-        // Remove previous notifications if any
         if let previousElement = monitoredElement {
             AXObserverRemoveNotification(
                 observer,
@@ -299,7 +294,6 @@ class TextMonitor: ObservableObject {
         NSLog(msg2)
         logToDebugFile(msg2)
 
-        // Add value changed notification
         let contextPtr = Unmanaged.passUnretained(self).toOpaque()
         let result = AXObserverAddNotification(
             observer,
@@ -427,7 +421,6 @@ class TextMonitor: ObservableObject {
         // Invalidate existing timer
         debounceTimer?.invalidate()
 
-        // Create new timer
         debounceTimer = Timer.scheduledTimer(withTimeInterval: debounceInterval, repeats: false) { [weak self] _ in
             guard let self = self, let context = self.currentContext else { return }
 
@@ -487,10 +480,9 @@ private func axObserverCallback(
 // MARK: - Helper Extensions
 
 extension TextMonitor {
-    /// Search for editable field from main window ()
+    /// Search for editable field from main window
     /// This is more reliable than AXFocusedUIElement for Electron apps
     private func findEditableInMainWindow(_ appElement: AXUIElement) -> AXUIElement? {
-        // Get main window or focused window
         var windowRef: CFTypeRef?
         var result = AXUIElementCopyAttributeValue(
             appElement,
@@ -532,7 +524,6 @@ extension TextMonitor {
             return nil
         }
 
-        // Get children
         var childrenRef: CFTypeRef?
         let result = AXUIElementCopyAttributeValue(
             element,
@@ -640,8 +631,4 @@ extension TextMonitor {
         return true
     }
 
-    /// Legacy compatibility - use isEditableElement instead
-    func supportsTextMonitoring(_ element: AXUIElement) -> Bool {
-        return isEditableElement(element)
-    }
 }

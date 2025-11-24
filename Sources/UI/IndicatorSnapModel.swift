@@ -2,7 +2,6 @@ import Foundation
 import AppKit
 
 /// Snap position for error indicator
-/// Defines where the indicator can be positioned relative to the target window
 struct IndicatorSnapPosition: Equatable, Hashable {
     enum Edge: String {
         case top
@@ -20,7 +19,6 @@ struct IndicatorSnapPosition: Equatable, Hashable {
     let edge: Edge
     let alignment: Alignment
 
-    /// Maps to UserPreferences position string
     var preferenceKey: String {
         switch (edge, alignment) {
         case (.top, .start): return "Top Left"
@@ -33,7 +31,6 @@ struct IndicatorSnapPosition: Equatable, Hashable {
         }
     }
 
-    /// Create from preference key
     static func from(preferenceKey: String) -> IndicatorSnapPosition? {
         switch preferenceKey {
         case "Top Left": return IndicatorSnapPosition(edge: .top, alignment: .start)
@@ -48,19 +45,13 @@ struct IndicatorSnapPosition: Equatable, Hashable {
 }
 
 /// Model for snapping indicator to window positions
-/// Calculates snap points and finds nearest position
 class IndicatorSnapModel {
-
-    /// Calculate snap position from current point
-    /// Returns the nearest valid snap position and its coordinates
     static func snapToNearest(
         currentPoint: CGPoint,
         within bounds: CGRect,
         indicatorSize: CGFloat = 40,
         padding: CGFloat = 10
     ) -> (position: CGPoint, snapPosition: IndicatorSnapPosition) {
-
-        // Define all 6 snap positions
         let positions: [(CGPoint, IndicatorSnapPosition)] = [
             // Top Left
             (CGPoint(x: bounds.minX + padding, y: bounds.maxY - indicatorSize - padding),
@@ -87,7 +78,6 @@ class IndicatorSnapModel {
              IndicatorSnapPosition(edge: .bottom, alignment: .end))
         ]
 
-        // Find closest position
         let closest = positions.min { pos1, pos2 in
             distance(currentPoint, pos1.0) < distance(currentPoint, pos2.0)
         }!
@@ -95,7 +85,6 @@ class IndicatorSnapModel {
         return closest
     }
 
-    /// Get specific snap position coordinates
     static func position(
         for snapPosition: IndicatorSnapPosition,
         within bounds: CGRect,
@@ -123,13 +112,10 @@ class IndicatorSnapModel {
             return CGPoint(x: bounds.maxX - indicatorSize - padding, y: bounds.minY + padding)
 
         default:
-            // Default to bottom right
             return CGPoint(x: bounds.maxX - indicatorSize - padding, y: bounds.minY + padding)
         }
     }
 
-    /// Get all valid snap positions for a window frame
-    /// Useful for debugging or showing snap guides
     static func allSnapPositions(
         for bounds: CGRect,
         indicatorSize: CGFloat = 40,
@@ -159,13 +145,10 @@ class IndicatorSnapModel {
         return positions
     }
 
-    /// Calculate distance between two points
     private static func distance(_ p1: CGPoint, _ p2: CGPoint) -> CGFloat {
         sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2))
     }
 
-    /// Check if a point is within snapping threshold of any snap position
-    /// Returns the snap position if within threshold, nil otherwise
     static func snapPositionNear(
         point: CGPoint,
         within bounds: CGRect,

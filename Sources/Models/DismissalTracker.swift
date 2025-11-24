@@ -23,7 +23,6 @@ class DismissalTracker {
 
         let textWardenDir = appSupport.appendingPathComponent("TextWarden")
 
-        // Create directory if needed
         try? FileManager.default.createDirectory(
             at: textWardenDir,
             withIntermediateDirectories: true

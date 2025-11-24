@@ -16,7 +16,6 @@ class ApplicationConfiguration {
     // MARK: - Keyboard Operation Timing
 
     /// Get recommended timing delay for keyboard operations (in seconds)
-    /// Based on (redacted)'s "fast_batching_selection_wait" approach
     static func keyboardOperationDelay(for bundleIdentifier: String) -> TimeInterval {
         switch bundleIdentifier {
         case "com.tinyspeck.slackmacgap":

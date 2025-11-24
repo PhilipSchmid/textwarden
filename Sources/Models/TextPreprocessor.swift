@@ -16,11 +16,9 @@ struct TextPreprocessor {
     static func excludeCodeBlocks(from text: String) -> String {
         var result = text
 
-        // Remove fenced code blocks (```...```)
         let fencedPattern = "```[\\s\\S]*?```"
         result = replacePattern(fencedPattern, in: result, with: "")
 
-        // Remove indented code blocks (4+ spaces at line start)
         let indentedPattern = "^    .*$"
         result = replacePattern(indentedPattern, in: result, with: "", options: [.anchorsMatchLines])
 
@@ -101,10 +99,8 @@ struct TextPreprocessor {
     static func preprocessForCodeEditor(_ text: String) -> PreprocessedText {
         var cleanedText = text
 
-        // Remove code blocks
         cleanedText = excludeCodeBlocks(from: cleanedText)
 
-        // Remove inline code
         cleanedText = excludeInlineCode(from: cleanedText)
 
         // Track URL ranges (don't remove, just mark for exclusion)

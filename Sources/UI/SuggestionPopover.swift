@@ -13,14 +13,10 @@ import ApplicationServices
 /// Custom NSPanel subclass that prevents becoming key window
 /// This is CRITICAL to prevent TextWarden from stealing focus from other apps
 class NonActivatingPanel: NSPanel {
-    // CRITICAL: Override canBecomeKey to return false
-    // This prevents the panel from stealing keyboard focus
     override var canBecomeKey: Bool {
         return false
     }
 
-    // CRITICAL: Override canBecomeMain to return false
-    // This prevents the panel from becoming the main window
     override var canBecomeMain: Bool {
         return false
     }
@@ -104,11 +100,9 @@ class SuggestionPopover: NSObject, ObservableObject {
         self.allErrors = allErrors
         self.currentIndex = allErrors.firstIndex(where: { $0.start == error.start && $0.end == error.end }) ?? 0
 
-        // Create or update panel
         if panel == nil {
             createPanel()
         } else {
-            // Update panel size for new content
             if let trackingView = panel?.contentView as? PopoverTrackingView,
                let hostingView = trackingView.subviews.first as? NSHostingView<PopoverContentView> {
                 // Force layout update
@@ -131,7 +125,6 @@ class SuggestionPopover: NSObject, ObservableObject {
         // Position near cursor (with optional window constraint)
         positionPanel(at: position, constrainToWindow: constrainToWindow)
 
-        // Show panel without stealing focus (panel is already .nonactivatingPanel)
         // Use order(.above) instead of orderFrontRegardless() to prevent focus stealing
         panel?.order(.above, relativeTo: 0)
 
@@ -140,10 +133,8 @@ class SuggestionPopover: NSObject, ObservableObject {
         NSLog(afterMsg)
         logToFile(afterMsg)
 
-        // Set up Escape key monitor
         setupEscapeKeyMonitor()
 
-        // Set up click outside monitor
         setupClickOutsideMonitor()
     }
 
@@ -170,13 +161,11 @@ class SuggestionPopover: NSObject, ObservableObject {
         NSLog(hideBeforeMsg)
         logToFile(hideBeforeMsg)
 
-        // Remove escape key monitor
         if let monitor = escapeKeyMonitor {
             NSEvent.removeMonitor(monitor)
             escapeKeyMonitor = nil
         }
 
-        // Remove click outside monitor
         if let monitor = clickOutsideMonitor {
             NSEvent.removeMonitor(monitor)
             clickOutsideMonitor = nil
@@ -209,12 +198,10 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     /// Setup Escape key monitor to close popover
     private func setupEscapeKeyMonitor() {
-        // Remove existing monitor if any
         if let monitor = escapeKeyMonitor {
             NSEvent.removeMonitor(monitor)
         }
 
-        // Add GLOBAL event monitor for Escape key
         // Global monitors can intercept events even when our app isn't active
         // This is necessary because the panel is .nonactivatingPanel
         escapeKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -229,7 +216,6 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     /// Setup click outside monitor to close popover when user clicks elsewhere
     private func setupClickOutsideMonitor() {
-        // Remove existing monitor if any
         if let monitor = clickOutsideMonitor {
             NSEvent.removeMonitor(monitor)
         }
@@ -248,7 +234,6 @@ class SuggestionPopover: NSObject, ObservableObject {
             self.hideTimer?.invalidate()
             self.hideTimer = nil
 
-            // Hide the popover - no need to restore focus as our panels are .nonactivatingPanel
             self.hide()
         }
     }
@@ -271,7 +256,6 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         hostingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
 
-        // Create custom tracking view that forwards mouse events
         let trackingView = PopoverTrackingView(popover: self)
         trackingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
         trackingView.addSubview(hostingView)
@@ -461,7 +445,6 @@ class SuggestionPopover: NSObject, ObservableObject {
     private func resizePanel() {
         guard let panel = panel else { return }
 
-        // Get the hosting view (wrapped in tracking view)
         if let trackingView = panel.contentView as? PopoverTrackingView,
            let hostingView = trackingView.subviews.first as? NSHostingView<PopoverContentView> {
 
@@ -474,11 +457,9 @@ class SuggestionPopover: NSObject, ObservableObject {
             let width = min(max(fittingSize.width, 300), 450)  // Match frame constraints - reduced from 600 to prevent cutoffs
             let height = fittingSize.height
 
-            // Update all frames
             hostingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
             trackingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
 
-            // Get current origin to maintain position
             let currentOrigin = panel.frame.origin
 
             // Resize panel while keeping same origin
@@ -519,7 +500,6 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         // Move to next error or hide
         if allErrors.count > 1 {
-            // Remove applied error
             allErrors.removeAll { $0.start == error.start && $0.end == error.end }
             if currentIndex >= allErrors.count {
                 currentIndex = 0
@@ -800,7 +780,6 @@ struct PopoverContentView: View {
                     .buttonStyle(.plain)
                     .help("Never show this rule again")
 
-                    // Add to Dictionary button - Vibrant blue
                     if error.category == "Spelling" {
                         Button(action: { popover.addToDictionary() }) {
                             ZStack {
@@ -1015,14 +994,12 @@ struct PopoverContentView: View {
 extension SuggestionPopover {
     /// Get position for error range in AX element
     static func getErrorPosition(in element: AXUIElement, for error: GrammarErrorModel) -> CGPoint? {
-        // Create CFRange for the error location
         let location = error.start
         let length = error.end - error.start
 
         var range = CFRange(location: location, length: max(1, length))
         let rangeValue = AXValueCreate(.cfRange, &range)!
 
-        // Get bounds for error range
         var boundsValue: CFTypeRef?
         let boundsError = AXUIElementCopyParameterizedAttributeValue(
             element,
@@ -1072,7 +1049,6 @@ extension SuggestionPopover {
             return nil
         }
 
-        // Get bounds for selection
         var boundsValue: CFTypeRef?
         let boundsError = AXUIElementCopyParameterizedAttributeValue(
             element,
@@ -1269,7 +1245,6 @@ struct ReliableHoverRepresentable: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: TransparentHoverView, context: Context) {
-        // Update callback in case it changed
         nsView.onHoverChange = mouseIsInside
     }
 
@@ -1300,7 +1275,6 @@ class TooltipPanel {
     }
 
     private func setupPanel() {
-        // Create floating tooltip panel
         panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 200, height: 40),
             styleMask: [.borderless],
@@ -1329,7 +1303,6 @@ class TooltipPanel {
         hideTimer?.invalidate()
         hideTimer = nil
 
-        // Create tooltip content view
         let tooltipView = TooltipContentView(text: text)
         let hostingView = NSHostingView(rootView: tooltipView)
         hostingView.frame = NSRect(x: 0, y: 0, width: 200, height: 40)
@@ -1352,7 +1325,6 @@ class TooltipPanel {
 
         panel.setFrame(tooltipFrame, display: true)
 
-        // Show tooltip without stealing focus
         print("📍 [Tooltip Debug] TooltipPanel.show - calling order(.above)")
         panel.order(.above, relativeTo: 0)
         print("📍 [Tooltip Debug] TooltipPanel.show - panel level: \(panel.level.rawValue), isVisible: \(panel.isVisible)")

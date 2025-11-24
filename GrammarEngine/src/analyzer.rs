@@ -333,7 +333,6 @@ mod tests {
         use harper_core::spell::MutableDictionary;
         use std::sync::Arc;
 
-        // Create a dictionary
         let dictionary = Arc::new(MutableDictionary::curated());
 
         // Initialize linter
@@ -343,7 +342,6 @@ mod tests {
         let test_text = "Teh quick brown fox jumps over teh lazy dog. I can has cheezburger?";
         let document = Document::new_plain_english_curated(test_text);
 
-        // Get lints
         let lints = linter.lint(&document);
 
         println!("\n=== HARPER SUGGESTIONS DEBUG ===");
@@ -960,10 +958,8 @@ mod tests {
         let text = "This testabbrev should be recognized";
         let document = Document::new_plain_english(text, dictionary.as_ref());
 
-        // Create linter
         let mut linter = harper_core::linting::LintGroup::new_curated(dictionary.clone(), harper_core::Dialect::American);
 
-        // Get lints
         let lints = linter.lint(&document);
 
         println!("Text: '{}'", text);

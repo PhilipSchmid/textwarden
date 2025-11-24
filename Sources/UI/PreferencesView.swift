@@ -559,7 +559,6 @@ struct ApplicationSettingsView: View {
                                 .help("Set pause duration for \(app.name)")
                             }
 
-                            // Show resume time for timed pause
                             if let until = preferences.getPausedUntil(for: app.bundleIdentifier) {
                                 let pauseState = preferences.getPauseDuration(for: app.bundleIdentifier)
                                 if pauseState == .oneHour || pauseState == .twentyFourHours {
@@ -736,10 +735,8 @@ struct ApplicationSettingsView: View {
             return nil
         }
 
-        // Get app name
         let appName = FileManager.default.displayName(atPath: appURL.path)
 
-        // Get app icon
         let icon = workspace.icon(forFile: appURL.path)
 
         return ApplicationInfo(
@@ -1155,7 +1152,6 @@ struct FilteringPreferencesView: View {
         // Handle new format with category prefix (e.g., "Formatting::rule_name")
         let components = ruleId.split(separator: ":", maxSplits: 1)
         var nameToFormat = components.count > 1 ? String(components[1]) : ruleId
-        // Remove any leading colons (from the "::" separator)
         nameToFormat = nameToFormat.trimmingCharacters(in: CharacterSet(charactersIn: ":"))
 
         // Replace underscores with spaces and capitalize each word
@@ -1342,7 +1338,6 @@ struct CustomVocabularyView: View {
             .padding(.bottom, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Add word section - modern macOS style
             GroupBox {
                 HStack(spacing: 12) {
                     TextField("Add word...", text: $newWord)
@@ -2166,7 +2161,6 @@ fileprivate struct PositionCalibrationSection: View {
                            app.bundleIdentifier.contains("msteams") ||
                            app.bundleIdentifier.contains("vscode")
 
-        // Show for all apps (collapsed by default unless customized or Electron app)
         VStack(alignment: .leading, spacing: 0) {
             // Clickable header
             Button(action: {
@@ -2221,7 +2215,6 @@ fileprivate struct PositionCalibrationSection: View {
                                     .font(.caption)
                                     .fontWeight(.medium)
                                 Button {
-                                    // Show help tooltip
                                 } label: {
                                     Image(systemName: "questionmark.circle")
                                         .font(.caption)
@@ -2271,7 +2264,6 @@ fileprivate struct PositionCalibrationSection: View {
                                     .font(.caption)
                                     .fontWeight(.medium)
                                 Button {
-                                    // Show help tooltip
                                 } label: {
                                     Image(systemName: "questionmark.circle")
                                         .font(.caption)

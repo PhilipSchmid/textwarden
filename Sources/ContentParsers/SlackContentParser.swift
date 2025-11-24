@@ -4,9 +4,7 @@
 //
 //  Slack-specific content parser with UI context detection
 //  Handles different text rendering in message input vs search bar vs thread replies
-//
-//  Based on reverse-engineering (redacted)'s AXContentParserSlack implementation
-//  and empirical calibration data from Scripts/analyze-slack-spacing.swift
+//  Based on empirical calibration data from Scripts/analyze-slack-spacing.swift
 //
 
 import Foundation
@@ -30,7 +28,6 @@ class DebugBorderWindow: NSPanel {
         self.ignoresMouseEvents = true
         self.hasShadow = false
 
-        // Create border view
         let borderView = DebugBorderView(color: color, label: label)
         self.contentView = borderView
 
@@ -239,7 +236,6 @@ class SlackContentParser: ContentParser {
         let multiplier = spacingMultiplier(context: context)
         let padding = horizontalPadding(context: context)
 
-        // Get calibration for this app
         let calibration = UserPreferences.shared.getCalibration(for: bundleIdentifier)
 
         // STRATEGY: Use AX API to get bounds for FULL TEXT, then calculate average char width
@@ -287,13 +283,11 @@ class SlackContentParser: ContentParser {
             )
         }
 
-        // LANGUAGETOOL'S ACTUAL APPROACH: Character-by-character AXBoundsForRange
-        // According to binary analysis, (redacted):
+        // Try character-by-character AX bounds first
+        // This approach:
         // 1. Calls AXBoundsForRange for EACH character
         // 2. Uses the X coordinates DIRECTLY (no multiplication!)
         // 3. Falls back to measurement only if AX fails
-
-        // Try character-by-character AX bounds first
         var characterBounds: [CGRect] = []
         var allAXSucceeded = true
 
@@ -320,7 +314,6 @@ class SlackContentParser: ContentParser {
             let startX = firstCharBounds.origin.x
             let totalWidth = baseXPosition - startX
 
-            // Get error width from AX or measurement
             let errorBounds = tryGetAXBounds(element: element, range: errorRange)
             let baseErrorWidth = errorBounds?.width ?? measureErrorWidth(errorText, fontSize: fontSize)
 
@@ -329,7 +322,7 @@ class SlackContentParser: ContentParser {
             let errorWidth = baseErrorWidth * calibration.widthMultiplier
 
             let debugInfo = """
-                Slack AX bounds ((redacted) method): \
+                Slack AX bounds (char-by-char): \
                 charCount=\(textBeforeError.count), \
                 xPosition=\(String(format: "%.2f", xPosition))px, \
                 totalWidth=\(String(format: "%.2f", totalWidth))px, \
@@ -368,29 +361,12 @@ class SlackContentParser: ContentParser {
             return nil
         }
 
-        let msg1 = "🔧 SlackContentParser.adjustBounds: elementFrame (Quartz) = \(elementFrame)"
-        NSLog(msg1)
-        logToDebugFile(msg1)
-
-        // Element frame already includes text field position
-        // Only add padding if element frame is at window origin (indicating AX gave us raw window bounds)
-        // Otherwise element frame already accounts for padding
         let baseXPosition = elementFrame.origin.x + adjustedTextBeforeWidth
-
-        // Apply calibration
         let xPosition = baseXPosition + calibration.horizontalOffset
         let errorWidth = adjustedErrorWidth * calibration.widthMultiplier
 
-        // Position at text baseline in Quartz coordinates
-        // CRITICAL: The 'baseline' is where the BOTTOM of text sits, not the top!
-        // With errorHeight of 18px, bounds span from (baseline-18) to baseline
-        // For a 38px element, we need bounds at roughly 13-31px to leave room for drawing offset
-        // So baseline should be at ~31px: 31/38 = 0.82
+        // Position at text baseline (0.82 from bottom accounts for text rendering offset)
         let yPosition = elementFrame.origin.y + (elementFrame.height * 0.82)
-
-        let msg2 = "🔧 SlackContentParser: Calculated baseline Y (Quartz): \(yPosition) = elementFrame.y(\(elementFrame.origin.y)) + height*0.82(\(elementFrame.height * 0.82))"
-        NSLog(msg2)
-        logToDebugFile(msg2)
 
         let debugInfo = """
             Slack text measurement fallback: context=\(context ?? "unknown"), \
@@ -448,24 +424,11 @@ class SlackContentParser: ContentParser {
     }
 
     private func getElementFrame(element: AXUIElement) -> NSRect? {
-        // Get text field element's AX bounds (not window bounds!)
         // The element parameter is the actual text field, so we want ITS bounds
         return getElementFrameFromAX(element: element)
     }
 
-    /// Get element frame using AX API (fallback only)
     private func getElementFrameFromAX(element: AXUIElement) -> NSRect? {
-        // Debug: Get element role and description
-        var roleValue: CFTypeRef?
-        var descValue: CFTypeRef?
-        AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue)
-        AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute as CFString, &descValue)
-        let role = roleValue as? String ?? "unknown"
-        let desc = descValue as? String ?? "none"
-        let msg0 = "🔍🔍🔍 SLACK ELEMENT INFO - Role: \(role), Description: \(desc)"
-        NSLog(msg0)
-        logToDebugFile(msg0)
-
         var positionValue: CFTypeRef?
         var sizeValue: CFTypeRef?
 
@@ -482,62 +445,27 @@ class SlackContentParser: ContentParser {
             return nil
         }
 
-        let msg1 = "🔍🔍🔍 SLACK RAW AX DATA - Position: \(position), Size: \(size)"
-        NSLog(msg1)
-        logToDebugFile(msg1)
-
         var frame = NSRect(origin: position, size: size)
 
-        // CRITICAL FIX: Slack's Electron-based AX implementation returns negative X values as sentinel values
-        // This is a known Slack bug - we need to calculate the actual X position
+        // Slack's Electron-based AX implementation returns negative X values as sentinel values
         if position.x < 0 {
-            let msg = "⚠️ SLACK BUG DETECTED: AX API returned X=\(position.x) (negative/sentinel value)"
-            NSLog(msg)
-            logToDebugFile(msg)
-
-            // Get the actual window position using CGWindowListCopyWindowInfo
             if let windowFrame = getSlackWindowFrame(element: element, elementPosition: position) {
-                let msg2 = "✅ SLACK FIX: Got window frame: \(windowFrame)"
-                NSLog(msg2)
-                logToDebugFile(msg2)
-
-                // STRATEGY: Only X is broken, Y from AX API is actually correct!
-                // Use Y directly from AX API, calculate X from window
                 let leftPadding: CGFloat = 20.0
                 frame.origin.x = windowFrame.origin.x + leftPadding
-                frame.origin.y = position.y  // Use AX API Y - it's reliable!
+                frame.origin.y = position.y
                 frame.size = size
-
-                let msg3 = "✅ SLACK FIX: Using Quartz coordinates - X from window + padding, Y from AX API: \(frame)"
-                NSLog(msg3)
-                logToDebugFile(msg3)
-
-                // Return Quartz coordinates - no conversion needed!
-            } else {
-                let msg4 = "❌ SLACK FIX: Could not get window frame, using broken AX position"
-                NSLog(msg4)
-                logToDebugFile(msg4)
             }
         }
 
-        let msg2 = "🔍🔍🔍 SLACK FRAME - X: \(frame.origin.x), Y: \(frame.origin.y), Width: \(frame.width), Height: \(frame.height)"
-        NSLog(msg2)
-        logToDebugFile(msg2)
-
-        // Return raw Quartz coordinates - parser works in Quartz throughout
-        // Conversion to Cocoa happens later in TextMeasurementStrategy
-        Logger.debug("SlackContentParser: getElementFrameFromAX returned Quartz frame: \(frame)")
         return frame
     }
 
     private func getSlackWindowFrame(element: AXUIElement, elementPosition: NSPoint) -> NSRect? {
-        // Get PID from element
         var pid: pid_t = 0
         guard AXUIElementGetPid(element, &pid) == .success else {
             return nil
         }
 
-        // Get window list from CGWindowListCopyWindowInfo
         guard let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
             return nil
         }

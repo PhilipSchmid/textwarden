@@ -1,7 +1,6 @@
 import AppKit
 
 /// Border guide window that shows the target window bounds during indicator dragging
-/// Provides visual feedback for snap positioning
 class BorderGuideWindow: NSPanel {
     private var borderView: BorderView?
 
@@ -15,7 +14,7 @@ class BorderGuideWindow: NSPanel {
 
         self.isOpaque = false
         self.backgroundColor = .clear
-        self.level = .screenSaver  // Very high to be visible during drag
+        self.level = .screenSaver
         self.ignoresMouseEvents = true
         self.hasShadow = false
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
@@ -36,7 +35,6 @@ class BorderGuideWindow: NSPanel {
         NSLog(msg1)
         logToDebugFile(msg1)
 
-        // Expand the window frame by the stroke width so the border is fully visible
         let strokeWidth: CGFloat = 4.0
         let expandedFrame = frame.insetBy(dx: -strokeWidth, dy: -strokeWidth)
 
@@ -47,11 +45,8 @@ class BorderGuideWindow: NSPanel {
         NSLog(msg2)
         logToDebugFile(msg2)
 
-        // Force the view to display immediately
         borderView?.setNeedsDisplay(borderView!.bounds)
         borderView?.display()
-
-        // Show window and bring to front
         orderFront(nil)
 
         let msg4 = "🔵 BorderGuideWindow: After orderFront, forcing another display"
@@ -64,13 +59,11 @@ class BorderGuideWindow: NSPanel {
         logToDebugFile(msg3)
     }
 
-    /// Update border color (e.g., to match error severity)
     func updateColor(_ color: NSColor) {
         borderView?.borderColor = color
         borderView?.needsDisplay = true
     }
 
-    /// Hide the border guide
     func hide() {
         orderOut(nil)
     }
@@ -79,7 +72,6 @@ class BorderGuideWindow: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
-/// Simple view that draws a colored border
 private class BorderView: NSView {
     var borderColor: NSColor = .systemRed {
         didSet {
@@ -95,7 +87,6 @@ private class BorderView: NSView {
             return
         }
 
-        // Draw THICK border only (no fill)
         context.setStrokeColor(borderColor.cgColor)
         context.setLineWidth(5.0)
         context.stroke(bounds.insetBy(dx: 2.5, dy: 2.5))

@@ -314,14 +314,6 @@ class UserPreferences: ObservableObject {
         }
     }
 
-    // Future wordlists follow the same pattern:
-    // /// Enable recognition of IT and technical terminology (API, JSON, localhost, etc.)
-    // @Published var enableITTerminology: Bool {
-    //     didSet {
-    //         defaults.set(enableITTerminology, forKey: Keys.enableITTerminology)
-    //     }
-    // }
-
     // MARK: - Keyboard Shortcuts
 
     /// Enable keyboard shortcuts
@@ -580,7 +572,6 @@ class UserPreferences: ObservableObject {
             self.positioningCalibrations = calibrations
         }
 
-        // Set terminal apps to .indefinite pause by default if not already configured
         // This prevents grammar checking in terminals where command output can cause false positives
         // Users can still enable terminals individually via Applications preferences
         for terminalID in Self.terminalApplications {
@@ -589,12 +580,10 @@ class UserPreferences: ObservableObject {
             }
         }
 
-        // Set up timer if paused for 1 hour
         if pauseDuration == .oneHour, let until = pausedUntil, Date() < until {
             setupResumeTimer(until: until)
         }
 
-        // Set up cleanup timer to check for expired app-specific pauses every minute
         cleanupTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             self?.cleanupExpiredAppPauses()
         }
@@ -612,13 +601,11 @@ class UserPreferences: ObservableObject {
             pausedUntil = nil
 
         case .oneHour:
-            // Set pausedUntil to 1 hour from now
             let until = Date().addingTimeInterval(3600) // 1 hour
             pausedUntil = until
             setupResumeTimer(until: until)
 
         case .twentyFourHours:
-            // Set pausedUntil to 24 hours from now
             let until = Date().addingTimeInterval(86400) // 24 hours
             pausedUntil = until
             setupResumeTimer(until: until)
@@ -628,7 +615,6 @@ class UserPreferences: ObservableObject {
             pausedUntil = nil
         }
 
-        // Update menu bar to reflect new state
         DispatchQueue.main.async {
             MenuBarController.shared?.updateMenu()
         }
@@ -775,29 +761,24 @@ class UserPreferences: ObservableObject {
     func setPauseDuration(for bundleIdentifier: String, duration: PauseDuration) {
         switch duration {
         case .active:
-            // Remove app-specific pause
             appPauseDurations.removeValue(forKey: bundleIdentifier)
             appPausedUntil.removeValue(forKey: bundleIdentifier)
 
         case .oneHour:
-            // Set 1 hour pause for app
             let until = Date().addingTimeInterval(3600)
             appPauseDurations[bundleIdentifier] = duration
             appPausedUntil[bundleIdentifier] = until
 
         case .twentyFourHours:
-            // Set 24 hour pause for app
             let until = Date().addingTimeInterval(86400)
             appPauseDurations[bundleIdentifier] = duration
             appPausedUntil[bundleIdentifier] = until
 
         case .indefinite:
-            // Set indefinite pause for app
             appPauseDurations[bundleIdentifier] = duration
             appPausedUntil.removeValue(forKey: bundleIdentifier)
         }
 
-        // Update menu bar
         DispatchQueue.main.async {
             MenuBarController.shared?.updateMenu()
         }
