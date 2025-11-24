@@ -918,7 +918,6 @@ struct GeneralPreferencesView: View {
                 Text("Permissions")
                     .font(.headline)
             }
-            .padding(.bottom, 24)
 
             // MARK: Appearance Settings Group
             Section {
@@ -932,12 +931,14 @@ struct GeneralPreferencesView: View {
                             .fontWeight(.semibold)
                     }
                     .padding(.bottom, 4)
+                    .padding(.top, 16)
 
                     Text("Customize the visual appearance of grammar suggestions and indicators")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
+            .listRowBackground(Color.clear)
 
             Section {
                 VStack(alignment: .leading, spacing: 8) {
@@ -1043,7 +1044,6 @@ struct GeneralPreferencesView: View {
                 Text("Error Indicator")
                     .font(.headline)
             }
-            .padding(.bottom, 24)
 
             // MARK: Keyboard Shortcuts Group
             Section {
@@ -1057,12 +1057,14 @@ struct GeneralPreferencesView: View {
                             .fontWeight(.semibold)
                     }
                     .padding(.bottom, 4)
+                    .padding(.top, 16)
 
                     Text("Configure global and context-specific keyboard shortcuts")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
+            .listRowBackground(Color.clear)
 
             Section {
                 Toggle("Enable keyboard shortcuts", isOn: $preferences.keyboardShortcutsEnabled)
@@ -1278,7 +1280,6 @@ struct SpellCheckingView: View {
                 Text("Language")
                     .font(.headline)
             }
-            .padding(.bottom, 24)
 
             // MARK: Custom Dictionary Group
             Section {
@@ -1292,12 +1293,14 @@ struct SpellCheckingView: View {
                             .fontWeight(.semibold)
                     }
                     .padding(.bottom, 4)
+                    .padding(.top, 16)
 
                     Text("Manage your personal dictionary and enable predefined wordlists")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
+            .listRowBackground(Color.clear)
 
             CustomVocabularyContent(
                 vocabulary: vocabulary,
