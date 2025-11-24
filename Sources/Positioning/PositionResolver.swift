@@ -38,13 +38,9 @@ class PositionResolver {
         strategies.sort { $0.priority > $1.priority }
 
         Logger.debug("PositionResolver initialized with \(strategies.count) strategies")
-        let initMsg = "🎯 PositionResolver: Initialized with \(strategies.count) strategies"
-        NSLog(initMsg)
-        logToDebugFile(initMsg)
+        Logger.debug("PositionResolver: Initialized with \(strategies.count) strategies", category: Logger.ui)
         for strategy in strategies {
-            let stratMsg = "  📍 Strategy: \(strategy.strategyName) (priority: \(strategy.priority))"
-            NSLog(stratMsg)
-            logToDebugFile(stratMsg)
+            Logger.debug("  Strategy: \(strategy.strategyName) (priority: \(strategy.priority))", category: Logger.ui)
         }
     }
 
@@ -84,26 +80,18 @@ class PositionResolver {
         }
 
         // Try each strategy in priority order
-        let tryMsg = "🔍 PositionResolver: Trying \(strategies.count) strategies for bundleID: \(bundleID)"
-        NSLog(tryMsg)
-        logToDebugFile(tryMsg)
+        Logger.debug("PositionResolver: Trying \(strategies.count) strategies for bundleID: \(bundleID)", category: Logger.ui)
         for strategy in strategies {
-            let stratMsg = "  🎯 Trying strategy: \(strategy.strategyName) (priority: \(strategy.priority))"
-            NSLog(stratMsg)
-            logToDebugFile(stratMsg)
+            Logger.debug("  Trying strategy: \(strategy.strategyName) (priority: \(strategy.priority))", category: Logger.ui)
 
             // Check if strategy can handle this element
             guard strategy.canHandle(element: element, bundleID: bundleID) else {
                 Logger.debug("PositionResolver: Strategy \(strategy.strategyName) cannot handle bundleID: \(bundleID)")
-                let failMsg = "  ❌ Strategy \(strategy.strategyName) cannot handle bundleID: \(bundleID)"
-                NSLog(failMsg)
-                logToDebugFile(failMsg)
+                Logger.debug("  Strategy \(strategy.strategyName) cannot handle bundleID: \(bundleID)", category: Logger.ui)
                 continue
             }
 
-            let canHandleMsg = "  ✅ Strategy \(strategy.strategyName) can handle - trying calculateGeometry..."
-            NSLog(canHandleMsg)
-            logToDebugFile(canHandleMsg)
+            Logger.debug("  Strategy \(strategy.strategyName) can handle - trying calculateGeometry...", category: Logger.ui)
 
             // Try to calculate geometry
             if let result = strategy.calculateGeometry(
@@ -113,9 +101,7 @@ class PositionResolver {
                 parser: parser
             ) {
                 Logger.debug("PositionResolver: Strategy \(strategy.strategyName) succeeded with confidence \(result.confidence)")
-                let successMsg = "  ✅ Strategy \(strategy.strategyName) SUCCEEDED with confidence \(result.confidence)"
-                NSLog(successMsg)
-                logToDebugFile(successMsg)
+                Logger.debug("  Strategy \(strategy.strategyName) SUCCEEDED with confidence \(result.confidence)", category: Logger.ui)
 
                 // Cache successful result
                 cache.store(result, for: cacheKey)
@@ -123,9 +109,7 @@ class PositionResolver {
                 return result
             } else {
                 Logger.debug("PositionResolver: Strategy \(strategy.strategyName) failed")
-                let failMsg = "  ❌ Strategy \(strategy.strategyName) FAILED"
-                NSLog(failMsg)
-                logToDebugFile(failMsg)
+                Logger.debug("  Strategy \(strategy.strategyName) FAILED", category: Logger.ui)
             }
         }
 
