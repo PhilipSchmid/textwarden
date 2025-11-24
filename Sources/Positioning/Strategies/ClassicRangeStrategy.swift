@@ -40,10 +40,7 @@ class ClassicRangeStrategy: GeometryProvider {
             cfRange,
             in: element
         ) else {
-            let msg = "❌ ClassicRangeStrategy: Failed to resolve bounds for range \(cfRange.location)-\(cfRange.location + cfRange.length)"
-            Logger.debug(msg)
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("ClassicRangeStrategy: Failed to resolve bounds for range \(cfRange.location)-\(cfRange.location + cfRange.length)", category: Logger.ui)
             return nil
         }
 

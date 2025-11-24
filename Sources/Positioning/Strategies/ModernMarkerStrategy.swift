@@ -37,10 +37,7 @@ class ModernMarkerStrategy: GeometryProvider {
             at: startIndex,
             from: element
         ) else {
-            let msg = "❌ ModernMarkerStrategy: Failed to create start marker at index \(startIndex)"
-            Logger.debug(msg)
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("ModernMarkerStrategy: Failed to create start marker at index \(startIndex)", category: Logger.ui)
             return nil
         }
 
@@ -48,10 +45,7 @@ class ModernMarkerStrategy: GeometryProvider {
             at: endIndex,
             from: element
         ) else {
-            let msg = "❌ ModernMarkerStrategy: Failed to create end marker at index \(endIndex)"
-            Logger.debug(msg)
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("ModernMarkerStrategy: Failed to create end marker at index \(endIndex)", category: Logger.ui)
             return nil
         }
 
@@ -61,10 +55,7 @@ class ModernMarkerStrategy: GeometryProvider {
             to: endMarker,
             in: element
         ) else {
-            let msg = "❌ ModernMarkerStrategy: Failed to calculate bounds between markers"
-            Logger.debug(msg)
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("ModernMarkerStrategy: Failed to calculate bounds between markers", category: Logger.ui)
             return nil
         }
 

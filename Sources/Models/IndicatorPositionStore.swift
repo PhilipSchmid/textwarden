@@ -47,16 +47,16 @@ class IndicatorPositionStore {
     func getPosition(for bundleIdentifier: String) -> PercentagePosition? {
         guard let data = defaults.dictionary(forKey: positionsKey),
               let positionData = data[bundleIdentifier] as? Data else {
-            NSLog("📍 IndicatorPositionStore: No stored position for \(bundleIdentifier)")
+            Logger.debug("IndicatorPositionStore: No stored position for \(bundleIdentifier)", category: Logger.ui)
             return nil
         }
 
         do {
             let position = try JSONDecoder().decode(PercentagePosition.self, from: positionData)
-            NSLog("📍 IndicatorPositionStore: Loaded position for \(bundleIdentifier): x=\(position.xPercent), y=\(position.yPercent)")
+            Logger.debug("IndicatorPositionStore: Loaded position for \(bundleIdentifier): x=\(position.xPercent), y=\(position.yPercent)", category: Logger.ui)
             return position
         } catch {
-            NSLog("📍 IndicatorPositionStore: Failed to decode position for \(bundleIdentifier): \(error)")
+            Logger.debug("IndicatorPositionStore: Failed to decode position for \(bundleIdentifier): \(error)", category: Logger.ui)
             return nil
         }
     }
@@ -71,9 +71,9 @@ class IndicatorPositionStore {
             defaults.set(positions, forKey: positionsKey)
             defaults.synchronize()
 
-            NSLog("📍 IndicatorPositionStore: Saved position for \(bundleIdentifier): x=\(position.xPercent), y=\(position.yPercent)")
+            Logger.debug("IndicatorPositionStore: Saved position for \(bundleIdentifier): x=\(position.xPercent), y=\(position.yPercent)", category: Logger.ui)
         } catch {
-            NSLog("📍 IndicatorPositionStore: Failed to encode position for \(bundleIdentifier): \(error)")
+            Logger.debug("IndicatorPositionStore: Failed to encode position for \(bundleIdentifier): \(error)", category: Logger.ui)
         }
     }
 
@@ -84,7 +84,7 @@ class IndicatorPositionStore {
         defaults.set(positions, forKey: positionsKey)
         defaults.synchronize()
 
-        NSLog("📍 IndicatorPositionStore: Cleared position for \(bundleIdentifier)")
+        Logger.debug("IndicatorPositionStore: Cleared position for \(bundleIdentifier)", category: Logger.ui)
     }
 
     /// Clear all stored positions
@@ -92,7 +92,7 @@ class IndicatorPositionStore {
         defaults.removeObject(forKey: positionsKey)
         defaults.synchronize()
 
-        NSLog("📍 IndicatorPositionStore: Cleared all positions")
+        Logger.debug("IndicatorPositionStore: Cleared all positions", category: Logger.ui)
     }
 
     /// Get the default position from UserPreferences as percentage

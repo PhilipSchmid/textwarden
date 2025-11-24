@@ -63,9 +63,7 @@ class TextMeasurementStrategy: GeometryProvider {
         let fontSize = parser.estimatedFontSize(context: adjustedBounds.uiContext)
         let errorHeight: CGFloat = fontSize * 1.2  // Add 20% for line height
 
-        let msg1 = "🔧 TextMeasurement: adjustedBounds.position (Quartz baseline) = \(adjustedBounds.position), fontSize=\(fontSize), errorHeight=\(errorHeight)"
-        NSLog(msg1)
-        logToDebugFile(msg1)
+        Logger.debug("TextMeasurement: adjustedBounds.position (Quartz baseline) = \(adjustedBounds.position), fontSize=\(fontSize), errorHeight=\(errorHeight)", category: Logger.ui)
 
         let quartzBounds = CGRect(
             x: adjustedBounds.position.x,
@@ -74,17 +72,13 @@ class TextMeasurementStrategy: GeometryProvider {
             height: errorHeight
         )
 
-        let msg2 = "🔧 TextMeasurement: quartzBounds (top edge) = \(quartzBounds)"
-        NSLog(msg2)
-        logToDebugFile(msg2)
+        Logger.debug("TextMeasurement: quartzBounds (top edge) = \(quartzBounds)", category: Logger.ui)
 
         // Convert from Quartz (top-left) to Cocoa (bottom-left) coordinates
         // This matches what ModernMarkerStrategy and ClassicRangeStrategy do
         let bounds = CoordinateMapper.toCocoaCoordinates(quartzBounds)
 
-        let msg3 = "🔧 TextMeasurement: bounds after Quartz→Cocoa conversion = \(bounds)"
-        NSLog(msg3)
-        logToDebugFile(msg3)
+        Logger.debug("TextMeasurement: bounds after Quartz→Cocoa conversion = \(bounds)", category: Logger.ui)
 
         // Validate converted bounds
         guard CoordinateMapper.validateBounds(bounds) else {
