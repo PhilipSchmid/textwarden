@@ -65,9 +65,7 @@ class ApplicationTracker: ObservableObject {
 
         pollingTimer = timer
 
-        let msg = "🔄 ApplicationTracker: Polling started (250ms interval)"
-        NSLog(msg)
-        logToDebugFile(msg)
+        Logger.debug("ApplicationTracker: Polling started (250ms interval)", category: Logger.accessibility)
     }
 
     /// Check if frontmost application has changed
@@ -79,9 +77,7 @@ class ApplicationTracker: ObservableObject {
 
         // Only trigger callback if app actually changed
         if activeApplication?.bundleIdentifier != bundleIdentifier {
-            let msg = "🔄 ApplicationTracker: App switch detected: \(activeApplication?.bundleIdentifier ?? "nil") → \(bundleIdentifier)"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("ApplicationTracker: App switch detected: \(activeApplication?.bundleIdentifier ?? "nil") → \(bundleIdentifier)", category: Logger.accessibility)
             updateActiveApplicationSync()
         }
     }

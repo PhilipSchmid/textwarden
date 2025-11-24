@@ -17,9 +17,7 @@ enum CGWindowHelper {
     ///     static func getWindowBounds(for processID: pid_t) -> CGRect? {
         let options = CGWindowListOption([.optionOnScreenOnly, .excludeDesktopElements])
         guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
-            let msg = "❌ CGWindowHelper: Failed to get window list"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("CGWindowHelper: Failed to get window list", category: Logger.accessibility)
             return nil
         }
 
@@ -42,16 +40,12 @@ enum CGWindowHelper {
 
             // CGWindow returns Quartz coordinates (top-left origin)
             // Return raw Quartz coordinates - parsers expect this format (like AX API)
-            let msg = "✅ CGWindowHelper: Got window bounds via CGWindow API (Quartz): \(bounds)"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("CGWindowHelper: Got window bounds via CGWindow API (Quartz): \(bounds)", category: Logger.accessibility)
 
             return bounds
         }
 
-        let msg = "⚠️ CGWindowHelper: No window found for PID \(processID)"
-        NSLog(msg)
-        logToDebugFile(msg)
+        Logger.debug("CGWindowHelper: No window found for PID \(processID)", category: Logger.accessibility)
         return nil
     }
 
@@ -90,9 +84,7 @@ enum CGWindowHelper {
         }
 
         if let window = mainWindow {
-            let msg = "✅ CGWindowHelper: Got main window bounds: \(window)"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("CGWindowHelper: Got main window bounds: \(window)", category: Logger.accessibility)
         }
 
         return mainWindow
