@@ -7,15 +7,33 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D421EA852ED4DE3400B327EB /* UserStatisticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D421EA842ED4DE3400B327EB /* UserStatisticsTests.swift */; };
 		D48EA19C2ED3B90E00CC5B73 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = D48EA1252ED3B88E00CC5B73 /* LaunchAtLogin */; };
 		D48EA28C2ED3BACB00CC5B73 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = D48EA2152ED3B9D900CC5B73 /* KeyboardShortcuts */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		D421EA7F2ED4DD0100B327EB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E8AC08122EC11FBB008E37E6 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E8AC08192EC11FBB008E37E6;
+			remoteInfo = TextWarden;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		D421EA7B2ED4DD0100B327EB /* TextWardenTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TextWardenTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D421EA842ED4DE3400B327EB /* UserStatisticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserStatisticsTests.swift; sourceTree = "<group>"; };
 		E8AC081A2EC11FBB008E37E6 /* TextWarden.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TextWarden.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		D421EA7C2ED4DD0100B327EB /* TextWardenTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = TextWardenTests;
+			sourceTree = "<group>";
+		};
 		E8AC081C2EC11FBB008E37E6 /* Sources */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Sources;
@@ -24,6 +42,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		D421EA782ED4DD0100B327EB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E8AC08172EC11FBB008E37E6 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -40,7 +65,9 @@
 			isa = PBXGroup;
 			children = (
 				E8AC081C2EC11FBB008E37E6 /* Sources */,
+				D421EA7C2ED4DD0100B327EB /* TextWardenTests */,
 				E8AC081B2EC11FBB008E37E6 /* Products */,
+				D421EA842ED4DE3400B327EB /* UserStatisticsTests.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -48,6 +75,7 @@
 			isa = PBXGroup;
 			children = (
 				E8AC081A2EC11FBB008E37E6 /* TextWarden.app */,
+				D421EA7B2ED4DD0100B327EB /* TextWardenTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -55,6 +83,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		D421EA7A2ED4DD0100B327EB /* TextWardenTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D421EA832ED4DD0100B327EB /* Build configuration list for PBXNativeTarget "TextWardenTests" */;
+			buildPhases = (
+				D421EA772ED4DD0100B327EB /* Sources */,
+				D421EA782ED4DD0100B327EB /* Frameworks */,
+				D421EA792ED4DD0100B327EB /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D421EA802ED4DD0100B327EB /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				D421EA7C2ED4DD0100B327EB /* TextWardenTests */,
+			);
+			name = TextWardenTests;
+			packageProductDependencies = (
+			);
+			productName = TextWardenTests;
+			productReference = D421EA7B2ED4DD0100B327EB /* TextWardenTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		E8AC08192EC11FBB008E37E6 /* TextWarden */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = E8AC08252EC11FBD008E37E6 /* Build configuration list for PBXNativeTarget "TextWarden" */;
@@ -90,6 +141,10 @@
 				LastSwiftUpdateCheck = 2610;
 				LastUpgradeCheck = 2610;
 				TargetAttributes = {
+					D421EA7A2ED4DD0100B327EB = {
+						CreatedOnToolsVersion = 26.1.1;
+						TestTargetID = E8AC08192EC11FBB008E37E6;
+					};
 					E8AC08192EC11FBB008E37E6 = {
 						CreatedOnToolsVersion = 26.1;
 					};
@@ -114,11 +169,19 @@
 			projectRoot = "";
 			targets = (
 				E8AC08192EC11FBB008E37E6 /* TextWarden */,
+				D421EA7A2ED4DD0100B327EB /* TextWardenTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		D421EA792ED4DD0100B327EB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E8AC08182EC11FBB008E37E6 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -151,6 +214,14 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		D421EA772ED4DD0100B327EB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D421EA852ED4DE3400B327EB /* UserStatisticsTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E8AC08162EC11FBB008E37E6 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -160,7 +231,61 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		D421EA802ED4DD0100B327EB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E8AC08192EC11FBB008E37E6 /* TextWarden */;
+			targetProxy = D421EA7F2ED4DD0100B327EB /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		D421EA812ED4DD0100B327EB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KSW8RTNTKJ;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.philipschmid.TextWardenTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TextWarden.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TextWarden";
+			};
+			name = Debug;
+		};
+		D421EA822ED4DD0100B327EB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KSW8RTNTKJ;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.philipschmid.TextWardenTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TextWarden.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TextWarden";
+			};
+			name = Release;
+		};
 		E8AC08232EC11FBD008E37E6 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -380,6 +505,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		D421EA832ED4DD0100B327EB /* Build configuration list for PBXNativeTarget "TextWardenTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D421EA812ED4DD0100B327EB /* Debug */,
+				D421EA822ED4DD0100B327EB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		E8AC08152EC11FBB008E37E6 /* Build configuration list for PBXProject "TextWarden" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
