@@ -181,6 +181,55 @@ class CrashRecoveryManager {
             lastCrash: defaults.object(forKey: lastCrashKey) as? Date
         )
     }
+
+    // MARK: - Crash Logs
+
+    /// Get crash logs for diagnostic export
+    func getCrashLogs() -> [String] {
+        var logs: [String] = []
+
+        // Add crash count information
+        let crashCount = defaults.integer(forKey: crashCountKey)
+        if crashCount > 0 {
+            logs.append("Total crash count: \(crashCount)")
+        }
+
+        // Add last crash time
+        if let lastCrash = defaults.object(forKey: lastCrashKey) as? Date {
+            let formatter = ISO8601DateFormatter()
+            logs.append("Last crash: \(formatter.string(from: lastCrash))")
+            logs.append("Time since last crash: \(formatTimeInterval(Date().timeIntervalSince(lastCrash)))")
+        }
+
+        // Add restart attempts
+        if restartAttempts > 0 {
+            logs.append("Current restart attempts: \(restartAttempts)")
+        }
+
+        // Add health status
+        let health = getHealthStatus()
+        logs.append("Health status: \(health.isHealthy ? "Healthy" : "Unhealthy")")
+
+        if logs.isEmpty {
+            return ["No crash reports available"]
+        }
+
+        return logs
+    }
+
+    private func formatTimeInterval(_ interval: TimeInterval) -> String {
+        let hours = Int(interval) / 3600
+        let minutes = (Int(interval) % 3600) / 60
+        let seconds = Int(interval) % 60
+
+        if hours > 0 {
+            return "\(hours)h \(minutes)m \(seconds)s"
+        } else if minutes > 0 {
+            return "\(minutes)m \(seconds)s"
+        } else {
+            return "\(seconds)s"
+        }
+    }
 }
 
 // MARK: - Health Status

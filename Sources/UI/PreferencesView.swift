@@ -8,6 +8,7 @@
 import SwiftUI
 import LaunchAtLogin
 import KeyboardShortcuts
+import UniformTypeIdentifiers
 
 struct PreferencesView: View {
     @ObservedObject private var preferences = UserPreferences.shared
@@ -1502,9 +1503,165 @@ struct CustomVocabularyView: View {
 struct DiagnosticsView: View {
     @ObservedObject var preferences: UserPreferences
     @ObservedObject private var applicationTracker = ApplicationTracker.shared
+    @State private var selectedLogLevel: LogLevel = Logger.minimumLogLevel
+    @State private var fileLoggingEnabled: Bool = Logger.fileLoggingEnabled
+    @State private var logFilePath: String = Logger.logFilePath
+    @State private var isExporting: Bool = false
+    @State private var showingExportAlert: Bool = false
+    @State private var exportAlertMessage: String = ""
 
     var body: some View {
         Form {
+            // MARK: - Export Diagnostics Section
+            Section {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .font(.title2)
+                            .foregroundColor(.blue)
+                        Text("Export a complete diagnostic package including logs, crash reports, and system information for troubleshooting.")
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.bottom, 8)
+
+                    Button(action: exportDiagnosticsToFile) {
+                        Label("Export Diagnostics", systemImage: "square.and.arrow.up")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isExporting)
+
+                    if isExporting {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                            Text("Generating diagnostic report...")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
+                    Divider()
+                        .padding(.vertical, 4)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("What's included in the ZIP package:")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        Group {
+                            Label("diagnostic_overview.json - System info, permissions, settings", systemImage: "doc.text")
+                            Label("Complete log files (current + rotated logs)", systemImage: "doc.on.doc")
+                            Label("crash_reports/ - Crash logs (if any)", systemImage: "exclamationmark.triangle")
+                            Label("Application state (paused/active apps)", systemImage: "app.dashed")
+                            Label("Complete settings dump", systemImage: "gearshape")
+                        }
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    }
+
+                    Text("⚠️ Privacy: User text content is NEVER included in exports")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                        .padding(.top, 4)
+                }
+            } header: {
+                Text("Export System Diagnostics")
+                    .font(.headline)
+            }
+
+            // MARK: - Logging Configuration Section
+            Section {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Configure logging verbosity and file output for debugging.")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .padding(.bottom, 8)
+
+                    // Log Level Picker
+                    HStack {
+                        Text("Log Level:")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+
+                        Picker("Log Level", selection: $selectedLogLevel) {
+                            ForEach(LogLevel.allCases, id: \.self) { level in
+                                Text(level.rawValue).tag(level)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .onChange(of: selectedLogLevel) { newValue in
+                            Logger.minimumLogLevel = newValue
+                        }
+
+                        Spacer()
+                    }
+
+                    Text("Controls the verbosity of logs. Debug shows all messages, Critical shows only severe issues.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Divider()
+                        .padding(.vertical, 4)
+
+                    // File Logging Toggle
+                    Toggle("Enable File Logging", isOn: $fileLoggingEnabled)
+                        .onChange(of: fileLoggingEnabled) { newValue in
+                            Logger.fileLoggingEnabled = newValue
+                        }
+                        .help("Write logs to a file for debugging purposes")
+
+                    if fileLoggingEnabled {
+                        VStack(alignment: .leading, spacing: 12) {
+                            // Log File Path Configuration
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Log File Path:")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+
+                                HStack {
+                                    Text(logFilePath)
+                                        .font(.caption.monospaced())
+                                        .foregroundColor(.secondary)
+                                        .textSelection(.enabled)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+
+                                    Spacer()
+                                }
+
+                                HStack(spacing: 8) {
+                                    Button("Choose...") {
+                                        chooseLogFilePath()
+                                    }
+                                    .buttonStyle(.bordered)
+
+                                    if Logger.customLogFilePath != nil {
+                                        Button("Reset to Default") {
+                                            resetLogFilePathToDefault()
+                                        }
+                                        .buttonStyle(.bordered)
+                                    }
+
+                                    Button("Open") {
+                                        NSWorkspace.shared.open(URL(fileURLWithPath: logFilePath))
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+                            }
+
+                            Text("Default: ~/Library/Logs/TextWarden/textwarden.log")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.leading, 20)
+                    }
+                }
+            } header: {
+                Text("Logging Configuration")
+                    .font(.headline)
+            }
+
+            // MARK: - Debug Overlays Section
             Section {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Enable visual debug overlays to help diagnose positioning issues with grammar indicators.")
@@ -1565,6 +1722,101 @@ struct DiagnosticsView: View {
         }
         .formStyle(.grouped)
         .padding()
+        .alert("Diagnostic Export", isPresented: $showingExportAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(exportAlertMessage)
+        }
+    }
+
+    // MARK: - Export Methods
+
+    private func exportDiagnosticsToFile() {
+        isExporting = true
+
+        // Show save panel first
+        let savePanel = NSSavePanel()
+        savePanel.title = "Export Diagnostics"
+        savePanel.message = "Choose a location to save the diagnostic package"
+        savePanel.nameFieldStringValue = "TextWarden-Diagnostics-\(formatDateForFilename()).zip"
+        savePanel.allowedContentTypes = [.zip]
+        savePanel.canCreateDirectories = true
+
+        savePanel.begin { response in
+            guard response == .OK, let url = savePanel.url else {
+                self.isExporting = false
+                return
+            }
+
+            // CRITICAL: Collect shortcuts on main thread BEFORE dispatching to background
+            // KeyboardShortcuts.Shortcut.description requires main thread access
+            let shortcuts = SettingsDump.collectShortcuts()
+
+            // Generate and export ZIP package asynchronously
+            DispatchQueue.global(qos: .userInitiated).async {
+                let success = DiagnosticReport.exportAsZIP(
+                    to: url,
+                    preferences: self.preferences,
+                    shortcuts: shortcuts
+                )
+
+                DispatchQueue.main.async {
+                    self.isExporting = false
+
+                    if success {
+                        self.exportAlertMessage = "Diagnostic package exported successfully to:\n\(url.path)"
+                        self.showingExportAlert = true
+
+                        Logger.info("Diagnostic package exported to: \(url.path)", category: Logger.general)
+                    } else {
+                        self.exportAlertMessage = "Failed to export diagnostic package. Please check the logs for details."
+                        self.showingExportAlert = true
+
+                        Logger.error("Failed to export diagnostic package", category: Logger.general)
+                    }
+                }
+            }
+        }
+    }
+
+
+    private func formatDateForFilename() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd-HHmmss"
+        return formatter.string(from: Date())
+    }
+
+    // MARK: - Log File Path Configuration
+
+    private func chooseLogFilePath() {
+        let savePanel = NSSavePanel()
+        savePanel.title = "Choose Log File Location"
+        savePanel.message = "Select where to save log files"
+        savePanel.nameFieldStringValue = "textwarden.log"
+        savePanel.canCreateDirectories = true
+        savePanel.showsTagField = false
+
+        // Set default directory to ~/Library/Logs/TextWarden
+        let defaultLogDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Logs/TextWarden")
+        savePanel.directoryURL = defaultLogDir
+
+        savePanel.begin { response in
+            guard response == .OK, let url = savePanel.url else { return }
+
+            // Save the custom path
+            Logger.customLogFilePath = url.path
+            logFilePath = url.path
+
+            Logger.info("Log file path changed to: \(url.path)", category: Logger.general)
+        }
+    }
+
+    private func resetLogFilePathToDefault() {
+        Logger.resetLogFilePathToDefault()
+        logFilePath = Logger.logFilePath
+
+        Logger.info("Log file path reset to default", category: Logger.general)
     }
 }
 

@@ -113,10 +113,16 @@ dev: ## Full dev cycle: clean, build, install, and run from /Applications
 	@make -s install
 	@make -s run-only
 
-logs: ## Watch live logs from running TextWarden instance
+logs: ## Watch live logs from running TextWarden instance (TextWarden subsystem only)
 	@echo "$(BLUE)📊 Watching TextWarden logs (Ctrl+C to stop)...$(NC)"
-	@log stream --predicate 'processImagePath CONTAINS "TextWarden" AND NOT (subsystem CONTAINS "Preview")' --style compact 2>/dev/null | grep -v "PreviewsMessagingOS" || \
-	 log stream --predicate 'process == "TextWarden"' --style compact 2>&1 | grep -v Preview
+	@log stream --predicate 'subsystem == "com.textwarden.app"' --style compact --color always 2>/dev/null || \
+	 log stream --predicate 'subsystem == "com.textwarden.app"' --style compact 2>&1
+
+oslogs: ## Watch ALL system logs from TextWarden process (includes Foundation, etc.)
+	@echo "$(BLUE)📊 Watching ALL TextWarden system logs - includes low-level frameworks (Ctrl+C to stop)...$(NC)"
+	@echo "$(YELLOW)⚠️  This includes Foundation and other system framework logs$(NC)"
+	@log stream --predicate 'processImagePath CONTAINS "TextWarden"' --style compact --color always 2>/dev/null || \
+	 log stream --predicate 'process == "TextWarden"' --style compact 2>&1
 
 kill: ## Kill running TextWarden instance
 	@if pgrep -x "TextWarden" > /dev/null; then \
