@@ -61,216 +61,332 @@ struct PreferencesView: View {
 struct StatisticsView: View {
     @ObservedObject private var statistics = UserStatistics.shared
     @State private var showResetConfirmation = false
+    @State private var selectedTimeRange: TimeRange = .week
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                // Header
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Image(systemName: "chart.bar.fill")
-                            .font(.system(size: 48))
-                            .foregroundColor(.accentColor)
-                        Spacer()
+            VStack(alignment: .leading, spacing: 20) {
+                // Header with Time Range Picker
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Your Grammar Journey")
+                            .font(.system(size: 28, weight: .bold))
+                        Text("Track your improvements and writing progress")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
                     }
-                    Text("Your Grammar Journey")
-                        .font(.system(size: 32, weight: .bold))
-                    Text("Track your improvements and writing progress")
-                        .font(.title3)
-                        .foregroundColor(.secondary)
+
+                    Spacer()
+
+                    // Time Range Picker
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("Time Period")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        Picker("", selection: $selectedTimeRange) {
+                            ForEach(TimeRange.allCases, id: \.self) { range in
+                                Text(range.rawValue).tag(range)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .frame(width: 120)
+                        .help(selectedTimeRange == .session ?
+                            "Shows statistics since the app was last restarted" :
+                            "Shows statistics for the selected time period"
+                        )
+                    }
                 }
-                .padding(.bottom, 8)
+                .padding(.bottom, 4)
 
                 // Core Metrics Grid
                 LazyVGrid(columns: [
                     GridItem(.flexible()),
                     GridItem(.flexible()),
                     GridItem(.flexible())
-                ], spacing: 16) {
+                ], spacing: 10) {
                     MetricCard(
-                        title: "Grammar Issues",
-                        value: "\(statistics.errorsFound)",
-                        subtitle: "Detected",
+                        title: "Issues Detected",
+                        value: formatNumber(statistics.errorsFound(in: selectedTimeRange)),
+                        subtitle: "",
                         icon: "exclamationmark.triangle.fill",
                         color: .orange
                     )
+                    .help("Total grammar, spelling, and style issues detected in the selected time period. This includes re-analyzed text, so the count may be higher than unique errors.")
 
                     MetricCard(
-                        title: "Improvements",
-                        value: "\(statistics.suggestionsApplied)",
-                        subtitle: "Made",
+                        title: "Improvements Made",
+                        value: "\(statistics.suggestionsApplied(in: selectedTimeRange))",
+                        subtitle: "",
                         icon: "checkmark.circle.fill",
                         color: .green
                     )
+                    .help("Number of suggestions you've accepted and applied in the selected time period.")
 
                     MetricCard(
-                        title: "Words Checked",
-                        value: formatNumber(statistics.wordsAnalyzed),
-                        subtitle: "Analyzed",
+                        title: "Words Analyzed",
+                        value: formatNumber(statistics.wordsAnalyzed(in: selectedTimeRange)),
+                        subtitle: "",
                         icon: "doc.text.fill",
                         color: .blue
                     )
+                    .help("Total word count analyzed in the selected time period. The same text analyzed multiple times is counted each time.")
 
                     MetricCard(
-                        title: "Documents",
-                        value: "\(statistics.analysisSessions)",
-                        subtitle: "Analyzed",
-                        icon: "folder.fill",
-                        color: .purple
+                        title: "Avg Errors per 100 Words",
+                        value: String(format: "%.1f", statistics.averageErrorsPer100Words(in: selectedTimeRange)),
+                        subtitle: "",
+                        icon: "chart.bar.fill",
+                        color: .orange
                     )
+                    .help("Average number of errors found per 100 words analyzed in the selected time period.\nCalculated as: (Total Errors ÷ Total Words) × 100")
 
                     MetricCard(
                         title: "Active Days",
-                        value: "\(statistics.activeDays.count)",
-                        subtitle: "Writing",
+                        value: "\(statistics.currentStreak(in: selectedTimeRange))",
+                        subtitle: "",
                         icon: "calendar.badge.clock",
                         color: .pink
                     )
+                    .help("Number of consecutive days you've used TextWarden. Keep your streak going!")
 
                     MetricCard(
-                        title: "Time Saved",
-                        value: statistics.timeSavedFormatted,
-                        subtitle: "Estimated",
-                        icon: "clock.fill",
-                        color: .cyan
+                        title: "Most Used In",
+                        value: statistics.topWritingApp(in: selectedTimeRange)?.name ?? "—",
+                        subtitle: "",
+                        icon: "app.fill",
+                        color: .purple
                     )
+                    .help("The application where TextWarden has caught the most errors in the selected time period.")
                 }
 
                 Divider()
                     .padding(.vertical, 8)
 
-                // Improvement Rate
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Image(systemName: "percent")
-                            .font(.title2)
-                            .foregroundColor(.accentColor)
-                            .frame(width: 28)
-                        Text("Improvement Rate")
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                    }
-
-                    HStack(spacing: 16) {
-                        // Progress bar
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("\(Int(statistics.improvementRate))%")
-                                    .font(.system(size: 36, weight: .bold))
-                                    .foregroundColor(.accentColor)
-                                Spacer()
-                                Text("\(statistics.suggestionsApplied) of \(statistics.suggestionsApplied + statistics.suggestionsDismissed) suggestions applied")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-
-                            GeometryReader { geometry in
-                                ZStack(alignment: .leading) {
-                                    // Background
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color.accentColor.opacity(0.15))
-                                        .frame(height: 16)
-
-                                    // Progress
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color.accentColor)
-                                        .frame(
-                                            width: geometry.size.width * CGFloat(statistics.improvementRate / 100.0),
-                                            height: 16
-                                        )
-                                }
-                            }
-                            .frame(height: 16)
-                        }
-                    }
-                    .padding()
-                    .background(Color.accentColor.opacity(0.05))
-                    .cornerRadius(12)
-                }
-
-                Divider()
-                    .padding(.vertical, 8)
-
-                // Category Breakdown
-                if !statistics.categoryBreakdown.isEmpty {
+                // Engine Performance
+                GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
-                            Image(systemName: "chart.pie.fill")
+                            Image(systemName: "speedometer")
                                 .font(.title2)
-                                .foregroundColor(.accentColor)
+                                .foregroundColor(.cyan)
                                 .frame(width: 28)
-                            Text("Error Categories")
+                            Text("Grammar Engine Performance")
                                 .font(.title3)
                                 .fontWeight(.semibold)
                         }
 
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(sortedCategories, id: \.0) { category, count in
-                                CategoryRow(
-                                    category: category,
-                                    count: count,
-                                    total: statistics.suggestionsApplied,
-                                    isTopCategory: category == statistics.mostCommonCategory
-                                )
+                        if statistics.latencySamples(in: selectedTimeRange).isEmpty {
+                            Text("No performance data yet")
+                                .foregroundColor(.secondary)
+                                .font(.subheadline)
+                                .padding(.vertical, 8)
+                        } else {
+                            let meanLatency = statistics.meanLatencyMs(in: selectedTimeRange)
+                            let medianLatency = statistics.medianLatencyMs(in: selectedTimeRange)
+                            let p90Latency = statistics.p90LatencyMs(in: selectedTimeRange)
+                            let p95Latency = statistics.p95LatencyMs(in: selectedTimeRange)
+                            let p99Latency = statistics.p99LatencyMs(in: selectedTimeRange)
+                            let maxLatency = max(meanLatency, medianLatency, p90Latency, p95Latency, p99Latency)
+
+                            VStack(alignment: .leading, spacing: 10) {
+                                LatencyRow(label: "Average", value: meanLatency, maxValue: maxLatency, color: .cyan)
+                                    .help("Mean analysis time: sum of all latencies divided by sample count. Shows typical performance.")
+
+                                LatencyRow(label: "Median", value: medianLatency, maxValue: maxLatency, color: .blue.opacity(0.8))
+                                    .help("Middle value of analysis times. Less affected by outliers than average, representing the most common experience.")
+
+                                LatencyRow(label: "P90", value: p90Latency, maxValue: maxLatency, color: .blue)
+                                    .help("90% of analyses complete faster than this time. Indicates good performance for most analyses.")
+
+                                LatencyRow(label: "P95", value: p95Latency, maxValue: maxLatency, color: .blue.opacity(1.2))
+                                    .help("95% of analyses complete faster than this time. Shows performance consistency.")
+
+                                LatencyRow(label: "P99", value: p99Latency, maxValue: maxLatency, color: Color(red: 0, green: 0.3, blue: 0.7))
+                                    .help("99% of analyses complete faster than this time. Represents worst-case performance for edge cases.")
+                            }
+                            .padding(.vertical, 4)
+
+                            Text("Total analyses: \(statistics.analysisSessions(in: selectedTimeRange))")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .padding(.top, 4)
+                        }
+                    }
+                    .padding()
+                }
+
+                Divider()
+                    .padding(.vertical, 8)
+
+                // Top Applications
+                let appUsage = statistics.appUsageBreakdown(in: selectedTimeRange)
+                let sortedApps = appUsage.sorted { $0.value > $1.value }.prefix(5)
+                let totalAppErrors = sortedApps.reduce(0) { $0 + $1.1 }
+                let maxAppCount = sortedApps.first?.1 ?? 1
+
+                if !appUsage.isEmpty {
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Image(systemName: "app.badge.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.accentColor)
+                                    .frame(width: 28)
+                                Text("Top Applications")
+                                    .font(.title3)
+                                    .fontWeight(.semibold)
+                            }
+                            .help("Applications where TextWarden analyzed text, ranked by number of errors found.")
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(Array(sortedApps.enumerated()), id: \.element.key) { index, app in
+                                    let purpleShades: [Color] = [
+                                        Color(red: 0.7, green: 0.5, blue: 0.9),  // Light purple
+                                        Color(red: 0.6, green: 0.4, blue: 0.8),  // Medium-light purple
+                                        Color(red: 0.5, green: 0.3, blue: 0.7),  // Medium purple
+                                        Color(red: 0.4, green: 0.2, blue: 0.6),  // Medium-dark purple
+                                        Color(red: 0.3, green: 0.1, blue: 0.5)   // Dark purple
+                                    ]
+                                    AppRow(
+                                        appName: statistics.friendlyAppName(from: app.key),
+                                        count: app.value,
+                                        maxCount: maxAppCount,
+                                        total: totalAppErrors,
+                                        color: purpleShades[min(index, purpleShades.count - 1)]
+                                    )
+                                }
+
+                                Text("Total errors: \(totalAppErrors)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .padding(.top, 4)
                             }
                         }
                         .padding()
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(12)
                     }
 
                     Divider()
                         .padding(.vertical, 8)
                 }
 
-                // Additional Stats
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Image(systemName: "chart.line.uptrend.xyaxis")
-                            .font(.title2)
-                            .foregroundColor(.accentColor)
-                            .frame(width: 28)
-                        Text("Insights")
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                    }
+                // User Actions
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image(systemName: "hand.tap.fill")
+                                .font(.title2)
+                                .foregroundColor(.accentColor)
+                                .frame(width: 28)
+                            Text("User Actions")
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                        }
+                        .help("Breakdown of how you interact with TextWarden's suggestions.")
 
-                    VStack(spacing: 12) {
-                        InsightRow(
-                            icon: "lightbulb.fill",
-                            title: "Average Errors per Document",
-                            value: String(format: "%.1f", statistics.averageErrorsPerSession),
-                            color: .yellow
-                        )
+                        let appliedCount = statistics.suggestionsApplied(in: selectedTimeRange)
+                        let dismissedCount = statistics.suggestionsDismissed(in: selectedTimeRange)
+                        let dictionaryCount = statistics.wordsAddedToDictionary(in: selectedTimeRange)
+                        let totalActions = appliedCount + dismissedCount + dictionaryCount
 
-                        InsightRow(
-                            icon: "star.fill",
-                            title: "Most Common Issue",
-                            value: formatCategoryName(statistics.mostCommonCategory),
-                            color: .orange
-                        )
+                        if totalActions > 0 {
+                            VStack(alignment: .leading, spacing: 10) {
+                                ActionRow(
+                                    label: "Applied",
+                                    value: appliedCount,
+                                    total: totalActions,
+                                    color: Color(red: 0.4, green: 0.8, blue: 0.4)
+                                )
+                                .help("Number of suggestions you've accepted and applied. Shows you find these helpful.")
 
-                        InsightRow(
-                            icon: "book.fill",
-                            title: "Personal Dictionary",
-                            value: "\(statistics.customDictionarySize) words",
-                            color: .indigo
-                        )
+                                ActionRow(
+                                    label: "Dismissed",
+                                    value: dismissedCount,
+                                    total: totalActions,
+                                    color: Color(red: 0.2, green: 0.7, blue: 0.3)
+                                )
+                                .help("Number of suggestions you've ignored or dismissed. These may not have been relevant.")
 
-                        InsightRow(
-                            icon: "app.badge",
-                            title: "Total Sessions",
-                            value: "\(statistics.sessionCount) launches",
-                            color: .teal
-                        )
+                                ActionRow(
+                                    label: "To Dictionary",
+                                    value: dictionaryCount,
+                                    total: totalActions,
+                                    color: Color(red: 0.1, green: 0.6, blue: 0.2)
+                                )
+                                .help("Words you've added to your personal dictionary to prevent future false positives.")
+                            }
+                            .padding(.vertical, 4)
+
+                            Text("Total actions: \(totalActions)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .padding(.top, 4)
+                        } else {
+                            Text("No actions yet")
+                                .foregroundColor(.secondary)
+                                .font(.subheadline)
+                                .padding(.vertical, 8)
+                        }
                     }
                     .padding()
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(12)
                 }
 
                 Divider()
                     .padding(.vertical, 8)
+
+                // Category Breakdown
+                let categoryBreakdown = statistics.categoryBreakdown(in: selectedTimeRange)
+                let sortedCategories = categoryBreakdown.sorted { $0.value > $1.value }
+                let mostCommonCategory = statistics.mostCommonCategory(in: selectedTimeRange)
+                let totalCategoryErrors = sortedCategories.reduce(0) { $0 + $1.1 }
+                let maxCategoryCount = sortedCategories.first?.1 ?? 1
+
+                if !categoryBreakdown.isEmpty {
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Image(systemName: "chart.pie.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.accentColor)
+                                    .frame(width: 28)
+                                Text("Error Categories")
+                                    .font(.title3)
+                                    .fontWeight(.semibold)
+                            }
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(Array(sortedCategories.enumerated()), id: \.element.0) { index, categoryPair in
+                                    let orangeShades: [Color] = [
+                                        Color(red: 1.0, green: 0.7, blue: 0.4),  // Light orange
+                                        Color(red: 1.0, green: 0.6, blue: 0.3),  // Medium-light orange
+                                        Color(red: 0.9, green: 0.5, blue: 0.2),  // Medium orange
+                                        Color(red: 0.8, green: 0.45, blue: 0.15), // Medium-dark orange
+                                        Color(red: 0.7, green: 0.4, blue: 0.1),  // Dark orange
+                                        Color(red: 0.6, green: 0.35, blue: 0.05), // Darker orange
+                                        Color(red: 0.5, green: 0.3, blue: 0.0)   // Darkest orange
+                                    ]
+                                    CategoryRow(
+                                        category: categoryPair.0,
+                                        count: categoryPair.1,
+                                        maxCount: maxCategoryCount,
+                                        total: totalCategoryErrors,
+                                        isTopCategory: categoryPair.0 == mostCommonCategory,
+                                        color: orangeShades[min(index, orangeShades.count - 1)]
+                                    )
+                                }
+
+                                Text("Total errors: \(totalCategoryErrors)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .padding(.top, 4)
+                            }
+                        }
+                        .padding()
+                    }
+
+                    Divider()
+                        .padding(.vertical, 8)
+                }
 
                 // Reset Button
                 HStack {
@@ -295,10 +411,6 @@ struct StatisticsView: View {
             }
             .padding(24)
         }
-    }
-
-    private var sortedCategories: [(String, Int)] {
-        statistics.categoryBreakdown.sorted { $0.value > $1.value }
     }
 
     private func formatNumber(_ number: Int) -> String {
@@ -335,88 +447,85 @@ private struct MetricCard: View {
     let color: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: icon)
-                    .font(.title2)
-                    .foregroundColor(color)
-                Spacer()
-            }
+        HStack(spacing: 10) {
+            // Icon
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(color)
+                .frame(width: 28, height: 28)
+                .background(color.opacity(0.12))
+                .cornerRadius(6)
 
-            Text(value)
-                .font(.system(size: 28, weight: .bold))
-                .foregroundColor(.primary)
+            // Content
+            VStack(alignment: .leading, spacing: 1) {
+                Text(value)
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundColor(.primary)
 
-            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                Text(subtitle)
-                    .font(.caption)
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.secondary)
+                    .lineLimit(1)
             }
+
+            Spacer(minLength: 0)
         }
-        .padding(16)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(12)
+        .cornerRadius(8)
     }
 }
 
 private struct CategoryRow: View {
     let category: String
     let count: Int
+    let maxCount: Int
     let total: Int
     let isTopCategory: Bool
+    let color: Color
+
+    var percentage: Double {
+        guard total > 0 else { return 0.0 }
+        return (Double(count) / Double(total)) * 100.0
+    }
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack {
             // Category name
-            HStack(spacing: 6) {
-                if isTopCategory {
-                    Image(systemName: "crown.fill")
-                        .font(.caption)
-                        .foregroundColor(.yellow)
-                }
-                Text(formatCategoryName(category))
-                    .font(.body)
-                    .fontWeight(isTopCategory ? .semibold : .regular)
-            }
+            Text(formatCategoryName(category))
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .frame(width: 90, alignment: .leading)
 
-            Spacer()
+            // Visual bar indicator
+            GeometryReader { geometry in
+                HStack(spacing: 4) {
+                    // Bar (scaled relative to max count, like LatencyRow)
+                    let barPercentage = maxCount > 0 ? (Double(count) / Double(maxCount)) : 0
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(color.opacity(0.5))
+                        .frame(width: geometry.size.width * 0.75 * barPercentage)
+                        .frame(height: 6)
 
-            // Count and percentage
-            HStack(spacing: 12) {
-                Text("\(count)")
-                    .font(.body)
-                    .fontWeight(.medium)
-                    .foregroundColor(.secondary)
-                    .frame(minWidth: 30, alignment: .trailing)
+                    Spacer()
 
-                // Progress bar
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.accentColor.opacity(0.15))
-                            .frame(height: 8)
+                    // Count and percentage
+                    HStack(spacing: 4) {
+                        Text("\(count)")
+                            .font(.system(.subheadline, design: .monospaced))
+                            .fontWeight(.medium)
+                            .foregroundColor(color)
 
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(isTopCategory ? Color.accentColor : Color.accentColor.opacity(0.6))
-                            .frame(
-                                width: geometry.size.width * CGFloat(Double(count) / Double(total)),
-                                height: 8
-                            )
+                        Text("(\(Int(percentage))%)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
                 }
-                .frame(width: 100, height: 8)
-
-                Text("\(Int(Double(count) / Double(total) * 100))%")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .frame(minWidth: 35, alignment: .trailing)
             }
+            .frame(height: 20)
         }
-        .padding(.vertical, 6)
     }
 
     private func formatCategoryName(_ category: String) -> String {
@@ -455,6 +564,141 @@ private struct InsightRow: View {
                 .fontWeight(.semibold)
         }
         .padding(.vertical, 4)
+    }
+}
+
+private struct LatencyRow: View {
+    let label: String
+    let value: Double
+    let maxValue: Double
+    let color: Color
+
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .frame(width: 70, alignment: .leading)
+
+            // Visual bar indicator
+            GeometryReader { geometry in
+                HStack(spacing: 4) {
+                    // Bar (scaled relative to max value)
+                    let percentage = maxValue > 0 ? (value / maxValue) : 0
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(color.opacity(0.5))
+                        .frame(width: geometry.size.width * 0.75 * percentage)
+                        .frame(height: 6)
+
+                    Spacer()
+
+                    // Value
+                    Text(String(format: "%.0fms", value))
+                        .font(.system(.subheadline, design: .monospaced))
+                        .fontWeight(.medium)
+                        .foregroundColor(color)
+                }
+            }
+            .frame(height: 20)
+        }
+    }
+}
+
+private struct AppRow: View {
+    let appName: String
+    let count: Int
+    let maxCount: Int
+    let total: Int
+    let color: Color
+
+    var percentage: Double {
+        guard total > 0 else { return 0.0 }
+        return (Double(count) / Double(total)) * 100.0
+    }
+
+    var body: some View {
+        HStack {
+            Text(appName)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .frame(width: 120, alignment: .leading)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            // Visual bar indicator
+            GeometryReader { geometry in
+                HStack(spacing: 4) {
+                    // Bar (scaled relative to max count)
+                    let barPercentage = maxCount > 0 ? (Double(count) / Double(maxCount)) : 0
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(color.opacity(0.5))
+                        .frame(width: geometry.size.width * 0.75 * barPercentage)
+                        .frame(height: 6)
+
+                    Spacer()
+
+                    // Count and percentage
+                    HStack(spacing: 4) {
+                        Text("\(count)")
+                            .font(.system(.subheadline, design: .monospaced))
+                            .fontWeight(.medium)
+                            .foregroundColor(color)
+
+                        Text("(\(Int(percentage))%)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .frame(height: 20)
+        }
+    }
+}
+
+private struct ActionRow: View {
+    let label: String
+    let value: Int
+    let total: Int
+    let color: Color
+
+    var percentage: Double {
+        guard total > 0 else { return 0.0 }
+        return (Double(value) / Double(total)) * 100.0
+    }
+
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .frame(width: 90, alignment: .leading)
+
+            // Visual bar indicator
+            GeometryReader { geometry in
+                HStack(spacing: 4) {
+                    // Bar (scaled to percentage)
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(color.opacity(0.5))
+                        .frame(width: min(geometry.size.width * 0.75 * (percentage / 100.0), geometry.size.width * 0.75))
+                        .frame(height: 6)
+
+                    Spacer()
+
+                    // Count and percentage
+                    HStack(spacing: 4) {
+                        Text("\(value)")
+                            .font(.system(.subheadline, design: .monospaced))
+                            .fontWeight(.medium)
+                            .foregroundColor(color)
+
+                        Text("(\(Int(percentage))%)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .frame(height: 20)
+        }
     }
 }
 
@@ -2534,14 +2778,20 @@ struct DiagnosticsView: View {
                         Image(systemName: "doc.text.magnifyingglass")
                             .font(.title2)
                             .foregroundColor(.blue)
-                        Text("Export a complete diagnostic package including logs, crash reports, and system information for troubleshooting.")
+                        Text("Export a complete diagnostic package including logs, crash reports, system information, and comprehensive performance metrics for troubleshooting.")
                             .font(.body)
                             .foregroundColor(.secondary)
                     }
                     .padding(.bottom, 8)
 
                     Button(action: exportDiagnosticsToFile) {
-                        Label("Export Diagnostics", systemImage: "square.and.arrow.up")
+                        HStack {
+                            Image(systemName: "square.and.arrow.up")
+                            Text("Export Diagnostics")
+                        }
+                        .font(.body)
+                        .fontWeight(.medium)
+                        .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(isExporting)
@@ -2565,10 +2815,11 @@ struct DiagnosticsView: View {
                             .fontWeight(.medium)
                         Group {
                             Label("diagnostic_overview.json - System info, permissions, settings", systemImage: "doc.text")
+                            Label("Performance metrics - Latency (mean, median, P90, P95, P99) by timeframe", systemImage: "chart.xyaxis.line")
+                            Label("Usage statistics - Errors, suggestions, categories by timeframe", systemImage: "chart.bar")
                             Label("Complete log files (current + rotated logs)", systemImage: "doc.on.doc")
                             Label("crash_reports/ - Crash logs (if any)", systemImage: "exclamationmark.triangle")
                             Label("Application state (paused/active apps)", systemImage: "app.dashed")
-                            Label("Complete settings dump", systemImage: "gearshape")
                         }
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -2655,6 +2906,7 @@ struct DiagnosticsView: View {
                                     }
                                     .font(.body)
                                     .fontWeight(.medium)
+                                    .foregroundColor(.red)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             }
@@ -2671,6 +2923,7 @@ struct DiagnosticsView: View {
                                     }
                                     .font(.body)
                                     .fontWeight(.medium)
+                                    .foregroundColor(.red)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             }
@@ -2689,6 +2942,7 @@ struct DiagnosticsView: View {
                                     }
                                     .font(.body)
                                     .fontWeight(.medium)
+                                    .foregroundColor(.red)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             }
@@ -2705,6 +2959,7 @@ struct DiagnosticsView: View {
                                     }
                                     .font(.body)
                                     .fontWeight(.medium)
+                                    .foregroundColor(.red)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             }
