@@ -919,18 +919,12 @@ struct GeneralPreferencesView: View {
                     .font(.headline)
             }
 
-            // Visual Separator
-            Section {
-                VStack {
-                    Divider()
-                        .background(Color.secondary.opacity(0.3))
-                        .padding(.vertical, 12)
-                }
-            }
-
             // MARK: Appearance Settings Group
             Section {
                 VStack(alignment: .leading, spacing: 8) {
+                    Divider()
+                        .padding(.bottom, 16)
+
                     HStack(spacing: 8) {
                         Image(systemName: "paintbrush.fill")
                             .font(.title2)
@@ -1052,17 +1046,11 @@ struct GeneralPreferencesView: View {
                     .font(.headline)
             }
 
-            // Visual Separator
-            Section {
-                VStack {
-                    Divider()
-                        .background(Color.secondary.opacity(0.3))
-                        .padding(.vertical, 12)
-                }
-            }
-
             Section {
                 VStack(alignment: .leading, spacing: 8) {
+                    Divider()
+                        .padding(.bottom, 16)
+
                     HStack(alignment: .center) {
                         Text("Analysis delay:")
 
@@ -1121,18 +1109,12 @@ struct GeneralPreferencesView: View {
                     .font(.headline)
             }
 
-            // Visual Separator
-            Section {
-                VStack {
-                    Divider()
-                        .background(Color.secondary.opacity(0.3))
-                        .padding(.vertical, 12)
-                }
-            }
-
             // MARK: Keyboard Shortcuts Group
             Section {
                 VStack(alignment: .leading, spacing: 8) {
+                    Divider()
+                        .padding(.bottom, 16)
+
                     HStack(spacing: 8) {
                         Image(systemName: "keyboard.fill")
                             .font(.title2)
@@ -1304,18 +1286,12 @@ struct SpellCheckingView: View {
 
             FilteringPreferencesContent(preferences: preferences)
 
-            // Visual Separator
-            Section {
-                VStack {
-                    Divider()
-                        .background(Color.secondary.opacity(0.3))
-                        .padding(.vertical, 12)
-                }
-            }
-
             // MARK: Custom Dictionary Group
             Section {
                 VStack(alignment: .leading, spacing: 8) {
+                    Divider()
+                        .padding(.bottom, 16)
+
                     HStack(spacing: 8) {
                         Image(systemName: "text.book.closed.fill")
                             .font(.title2)
