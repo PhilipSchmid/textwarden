@@ -918,6 +918,7 @@ struct GeneralPreferencesView: View {
                 Text("Permissions")
                     .font(.headline)
             }
+            .padding(.bottom, 24)
 
             // MARK: Appearance Settings Group
             Section {
@@ -931,7 +932,6 @@ struct GeneralPreferencesView: View {
                             .fontWeight(.semibold)
                     }
                     .padding(.bottom, 4)
-                    .padding(.top, 24)
 
                     Text("Customize the visual appearance of grammar suggestions and indicators")
                         .font(.caption)
@@ -1043,6 +1043,7 @@ struct GeneralPreferencesView: View {
                 Text("Error Indicator")
                     .font(.headline)
             }
+            .padding(.bottom, 24)
 
             // MARK: Keyboard Shortcuts Group
             Section {
@@ -1056,7 +1057,6 @@ struct GeneralPreferencesView: View {
                             .fontWeight(.semibold)
                     }
                     .padding(.bottom, 4)
-                    .padding(.top, 24)
 
                     Text("Configure global and context-specific keyboard shortcuts")
                         .font(.caption)
@@ -1231,7 +1231,6 @@ struct SpellCheckingView: View {
                         Text("ms")
                             .foregroundColor(.secondary)
                     }
-                    .padding(.top, 24)
 
                     Text("Delay before analyzing text after you stop typing")
                         .font(.caption)
@@ -1279,6 +1278,7 @@ struct SpellCheckingView: View {
                 Text("Language")
                     .font(.headline)
             }
+            .padding(.bottom, 24)
 
             // MARK: Custom Dictionary Group
             Section {
@@ -1292,7 +1292,6 @@ struct SpellCheckingView: View {
                             .fontWeight(.semibold)
                     }
                     .padding(.bottom, 4)
-                    .padding(.top, 24)
 
                     Text("Manage your personal dictionary and enable predefined wordlists")
                         .font(.caption)
