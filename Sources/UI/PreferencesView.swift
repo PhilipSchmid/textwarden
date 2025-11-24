@@ -919,6 +919,25 @@ struct GeneralPreferencesView: View {
                     .font(.headline)
             }
 
+            // MARK: Appearance Settings Group
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "paintbrush.fill")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                        Text("Appearance Settings")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+                    .padding(.bottom, 4)
+
+                    Text("Customize the visual appearance of grammar suggestions and indicators")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
             Section {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
@@ -1084,6 +1103,25 @@ struct GeneralPreferencesView: View {
                     .font(.headline)
             }
 
+            // MARK: Keyboard Shortcuts Group
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "keyboard.fill")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                        Text("Keyboard Shortcuts")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+                    .padding(.bottom, 4)
+
+                    Text("Configure global and context-specific keyboard shortcuts")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
             Section {
                 Toggle("Enable keyboard shortcuts", isOn: $preferences.keyboardShortcutsEnabled)
                     .help("Enable or disable all keyboard shortcuts")
@@ -1093,7 +1131,7 @@ struct GeneralPreferencesView: View {
                     .foregroundColor(.secondary)
                     .padding(.top, 4)
             } header: {
-                Text("Keyboard Shortcuts")
+                Text("General")
                     .font(.headline)
             }
 
