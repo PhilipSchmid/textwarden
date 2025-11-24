@@ -2191,6 +2191,7 @@ struct CustomVocabularyView: View {
                 HStack(spacing: 12) {
                     TextField("Add word...", text: $newWord)
                         .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.leading)
                         .onSubmit {
                             addWord()
                         }
