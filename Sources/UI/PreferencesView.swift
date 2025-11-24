@@ -488,6 +488,8 @@ struct ApplicationSettingsView: View {
     @ObservedObject var preferences: UserPreferences
     @State private var searchText = ""
     @State private var discoveredApps: [ApplicationInfo] = []
+    @State private var hiddenApps: [ApplicationInfo] = []
+    @State private var isHiddenSectionExpanded = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -558,6 +560,16 @@ struct ApplicationSettingsView: View {
                                 .pickerStyle(.menu)
                                 .frame(width: 200)
                                 .help("Set pause duration for \(app.name)")
+
+                                // Hide button
+                                Button {
+                                    hideApplication(app.bundleIdentifier)
+                                } label: {
+                                    Image(systemName: "eye.slash")
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                .help("Hide this app from the list")
                             }
 
                             if let until = preferences.getPausedUntil(for: app.bundleIdentifier) {
@@ -592,6 +604,66 @@ struct ApplicationSettingsView: View {
                     }
                 }
                 .headerProminence(.increased)
+
+                // Hidden Applications Section
+                Section {
+                    DisclosureGroup(
+                        isExpanded: $isHiddenSectionExpanded,
+                        content: {
+                            ForEach(hiddenApps, id: \.bundleIdentifier) { app in
+                                HStack {
+                                    // App icon
+                                    if let icon = app.icon {
+                                        Image(nsImage: icon)
+                                            .resizable()
+                                            .frame(width: 24, height: 24)
+                                    } else {
+                                        Image(systemName: "app")
+                                            .foregroundColor(.secondary)
+                                            .frame(width: 24, height: 24)
+                                    }
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(app.name)
+                                            .font(.body)
+                                        Text(app.bundleIdentifier)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                            .onTapGesture(count: 2) {
+                                                copyToClipboard(app.bundleIdentifier)
+                                            }
+                                            .help("Double-click to copy bundle identifier")
+                                    }
+
+                                    Spacer()
+
+                                    // Show button
+                                    Button {
+                                        showApplication(app.bundleIdentifier)
+                                    } label: {
+                                        Label("Show", systemImage: "eye")
+                                            .font(.caption)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                    .help("Show this app in Discovered Applications")
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        },
+                        label: {
+                            HStack {
+                                Text("Hidden Applications")
+                                    .font(.headline)
+                                Spacer()
+                                Text("\(hiddenApps.count) apps")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    )
+                }
+                .headerProminence(.increased)
             }
             .listStyle(.inset)
 
@@ -604,6 +676,7 @@ struct ApplicationSettingsView: View {
         }
         .onAppear {
             loadDiscoveredApplications()
+            loadHiddenApplications()
         }
         .onChange(of: preferences.disabledApplications) {
             // Reload to reflect changes (T072, T073)
@@ -612,6 +685,10 @@ struct ApplicationSettingsView: View {
         .onChange(of: preferences.appPauseDurations) {
             // Reload to reflect pause duration changes
             loadDiscoveredApplications()
+        }
+        .onChange(of: preferences.hiddenApplications) {
+            // Reload when hidden apps change
+            loadHiddenApplications()
         }
     }
 
@@ -626,39 +703,10 @@ struct ApplicationSettingsView: View {
         }
     }
 
-    /// Check if a bundle ID is a system background service that should be filtered out
-    private func isSystemBackgroundService(_ bundleID: String) -> Bool {
-        // List of system services that users typically don't interact with
-        let systemServices = [
-            "com.philipschmid.TextWarden",  // Don't check grammar in TextWarden's own UI
-            "com.apple.loginwindow",
-            "com.apple.UserNotificationCenter",
-            "com.apple.notificationcenterui",
-            "com.apple.accessibility.universalAccessAuthWarn",
-            "com.apple.controlcenter",
-            "com.apple.systemuiserver",
-            "com.apple.QuickLookUIService",
-            "com.apple.appkit.xpc.openAndSavePanelService",
-            "com.apple.CloudKit.ShareBear",
-            "com.apple.bird",
-            "com.apple.CommCenter",
-            "com.apple.cloudphotosd",
-            "com.apple.iCloudHelper",
-            "com.apple.InputMethodKit.TextReplacementService",
-            "com.apple.Console",
-            "com.apple.dock",
-            "com.apple.systempreferences"
-        ]
-
-        // Check for exact matches (case-insensitive)
-        let lowercaseBundleID = bundleID.lowercased()
-        for service in systemServices {
-            if lowercaseBundleID == service.lowercased() {
-                return true
-            }
-        }
-
-        return false
+    /// Check if a bundle ID should be excluded from the discovered applications list
+    /// Checks against the user's hidden applications list
+    private func shouldExcludeFromApplicationList(_ bundleID: String) -> Bool {
+        return preferences.hiddenApplications.contains(bundleID)
     }
 
     /// Load discovered applications (T071)
@@ -687,20 +735,20 @@ struct ApplicationSettingsView: View {
         ]
         bundleIDs.formUnion(commonBundleIDs)
 
-        // 2. Add all discovered applications (apps that have been used), excluding system services
+        // 2. Add all discovered applications (apps that have been used), excluding system apps
         for bundleID in preferences.discoveredApplications {
-            if !isSystemBackgroundService(bundleID) {
+            if !shouldExcludeFromApplicationList(bundleID) {
                 bundleIDs.insert(bundleID)
             }
         }
 
-        // 3. Add currently running applications with GUI, excluding system services
+        // 3. Add currently running applications with GUI, excluding system apps
         let workspace = NSWorkspace.shared
         for app in workspace.runningApplications {
-            // Only include apps with a bundle ID and that are not background-only or system services
+            // Only include apps with a bundle ID and that are not background-only or excluded apps
             if let bundleID = app.bundleIdentifier,
                app.activationPolicy == .regular,
-               !isSystemBackgroundService(bundleID) {
+               !shouldExcludeFromApplicationList(bundleID) {
                 bundleIDs.insert(bundleID)
             }
         }
@@ -745,6 +793,38 @@ struct ApplicationSettingsView: View {
             bundleIdentifier: bundleID,
             icon: icon
         )
+    }
+
+    /// Load hidden applications
+    private func loadHiddenApplications() {
+        var apps: [ApplicationInfo] = []
+
+        for bundleID in preferences.hiddenApplications {
+            if let appInfo = getApplicationInfo(for: bundleID) {
+                apps.append(appInfo)
+            }
+        }
+
+        // Sort alphabetically
+        apps.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+
+        hiddenApps = apps
+    }
+
+    /// Move app from discovered to hidden
+    private func hideApplication(_ bundleID: String) {
+        preferences.hiddenApplications.insert(bundleID)
+        preferences.discoveredApplications.remove(bundleID)
+        loadDiscoveredApplications()
+        loadHiddenApplications()
+    }
+
+    /// Move app from hidden to discovered
+    private func showApplication(_ bundleID: String) {
+        preferences.hiddenApplications.remove(bundleID)
+        preferences.discoveredApplications.insert(bundleID)
+        loadDiscoveredApplications()
+        loadHiddenApplications()
     }
 
     /// Format time for display
@@ -2594,20 +2674,6 @@ fileprivate struct PositionCalibrationSection: View {
                     .padding(.vertical, 8)
             }
         }
-        .onAppear {
-                    // Auto-expand for Electron apps or apps with custom calibration
-                    let calibration = preferences.getCalibration(for: app.bundleIdentifier)
-                    let hasCustomCalibration = calibration != .default
-                    let isElectronApp = app.bundleIdentifier.contains("electron") ||
-                                       app.bundleIdentifier.contains("slack") ||
-                                       app.bundleIdentifier.contains("discord") ||
-                                       app.bundleIdentifier.contains("msteams") ||
-                                       app.bundleIdentifier.contains("vscode")
-
-                    if hasCustomCalibration || isElectronApp {
-                        isExpanded = true
-                    }
-                }
     }
 }
 
