@@ -110,17 +110,13 @@ class ErrorOverlayWindow: NSPanel {
                 y: mouseLocation.y - windowOrigin.y
             )
 
-            let msg1 = "🖱️ ErrorOverlay: Global mouse at screen: \(mouseLocation), window-local: \(localPoint)"
-            NSLog(msg1)
-            self.logToDebugFile(msg1)
+            Logger.debug("ErrorOverlay: Global mouse at screen: \(mouseLocation), window-local: \(localPoint)", category: Logger.ui)
 
             // Check if hovering over any underline
             guard let underlineView = self.underlineView else { return }
 
             if let newHoveredUnderline = underlineView.underlines.first(where: { $0.bounds.contains(localPoint) }) {
-                let msg2 = "📍 ErrorOverlay: Hovering over error at bounds: \(newHoveredUnderline.bounds)"
-                NSLog(msg2)
-                self.logToDebugFile(msg2)
+                Logger.debug("ErrorOverlay: Hovering over error at bounds: \(newHoveredUnderline.bounds)", category: Logger.ui)
 
                 if self.hoveredUnderline?.error.start != newHoveredUnderline.error.start ||
                    self.hoveredUnderline?.error.end != newHoveredUnderline.error.end {
@@ -140,9 +136,7 @@ class ErrorOverlayWindow: NSPanel {
                     y: windowOrigin.y + errorCenter.y
                 )
 
-                let msg3 = "📍 ErrorOverlay: Popup position (screen): \(screenLocation)"
-                NSLog(msg3)
-                self.logToDebugFile(msg3)
+                Logger.debug("ErrorOverlay: Popup position (screen): \(screenLocation)", category: Logger.ui)
 
                 let appWindowFrame = self.getApplicationWindowFrame()
 
@@ -158,33 +152,27 @@ class ErrorOverlayWindow: NSPanel {
             }
         }
 
-        let msg = "✅ ErrorOverlay: Global mouse monitor set up"
-        NSLog(msg)
-        logToDebugFile(msg)
+        Logger.debug("ErrorOverlay: Global mouse monitor set up", category: Logger.ui)
     }
 
     /// Update overlay with new errors and monitored element
     /// Returns the number of underlines that were successfully created
     @discardableResult
     func update(errors: [GrammarErrorModel], element: AXUIElement, context: ApplicationContext?) -> Int {
-        let msg1 = "🎨 ErrorOverlay: update() called with \(errors.count) errors"
-        NSLog(msg1)
-        logToDebugFile(msg1)
+        Logger.debug("ErrorOverlay: update() called with \(errors.count) errors", category: Logger.ui)
         self.errors = errors
         self.monitoredElement = element
 
         // Check if the parser wants to disable visual underlines
         let bundleID = context?.bundleIdentifier ?? "unknown"
         let parser = ContentParserFactory.shared.parser(for: bundleID)
-        let msg = "🔍 ErrorOverlay: Using parser '\(parser.parserName)' for bundleID '\(bundleID)', disablesVisualUnderlines=\(parser.disablesVisualUnderlines)"
-        NSLog(msg)
-        logToDebugFile(msg)
+        let msg = "ErrorOverlay: Using parser '\(parser.parserName)' for bundleID '\(bundleID)', disablesVisualUnderlines=\(parser.disablesVisualUnderlines)"
+        Logger.debug(msg, category: Logger.ui)
         print(msg)  // Force print to console
 
         if parser.disablesVisualUnderlines {
-            let msg2 = "⏭️ ErrorOverlay: Parser '\(parser.parserName)' disables visual underlines - skipping and showing floating indicator"
-            NSLog(msg2)
-            logToDebugFile(msg2)
+            let msg2 = "ErrorOverlay: Parser '\(parser.parserName)' disables visual underlines - skipping and showing floating indicator"
+            Logger.debug(msg2, category: Logger.ui)
             print(msg2)  // Force print to console
             hide()
             return 0
@@ -197,39 +185,25 @@ class ErrorOverlayWindow: NSPanel {
         // Strategy 1: Try AX API to get text field bounds
         if let frame = getElementFrame(element) {
             elementFrame = frame
-            let msg = "✅ ErrorOverlay: Got text field bounds from AX API: \(elementFrame)"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("ErrorOverlay: Got text field bounds from AX API: \(elementFrame)", category: Logger.ui)
         }
         // Strategy 2: Last resort - mouse cursor position
         else {
             let mouseLocation = NSEvent.mouseLocation
             elementFrame = CGRect(x: mouseLocation.x - 200, y: mouseLocation.y - 100, width: 800, height: 200)
-            let msg2 = "⚠️ ErrorOverlay: AX API failed for text field bounds"
-            NSLog(msg2)
-            logToDebugFile(msg2)
-            let msg3 = "📍 ErrorOverlay: Using mouse cursor fallback: \(elementFrame)"
-            NSLog(msg3)
-            logToDebugFile(msg3)
+            Logger.debug("ErrorOverlay: AX API failed for text field bounds", category: Logger.ui)
+            Logger.debug("ErrorOverlay: Using mouse cursor fallback: \(elementFrame)", category: Logger.ui)
         }
 
-        let msg2 = "📐 ErrorOverlay: Final element frame: \(elementFrame)"
-        NSLog(msg2)
-        logToDebugFile(msg2)
+        Logger.debug("ErrorOverlay: Final element frame: \(elementFrame)", category: Logger.ui)
 
-        let msg2b = "🔍 DEBUG: Element frame details - X: \(elementFrame.origin.x), Y: \(elementFrame.origin.y), Width: \(elementFrame.width), Height: \(elementFrame.height)"
-        NSLog(msg2b)
-        logToDebugFile(msg2b)
+        Logger.debug("DEBUG: Element frame details - X: \(elementFrame.origin.x), Y: \(elementFrame.origin.y), Width: \(elementFrame.width), Height: \(elementFrame.height)", category: Logger.ui)
 
         // Position overlay window to match element
         setFrame(elementFrame, display: true)
-        let msg3 = "✅ ErrorOverlay: Window positioned at \(elementFrame)"
-        NSLog(msg3)
-        logToDebugFile(msg3)
+        Logger.debug("ErrorOverlay: Window positioned at \(elementFrame)", category: Logger.ui)
 
-        let msg3b = "🔍 DEBUG: Actual window frame after setFrame - \(self.frame)"
-        NSLog(msg3b)
-        logToDebugFile(msg3b)
+        Logger.debug("DEBUG: Actual window frame after setFrame - \(self.frame)", category: Logger.ui)
 
         // Extract full text once for all positioning calculations
         var textValue: CFTypeRef?
@@ -240,9 +214,7 @@ class ErrorOverlayWindow: NSPanel {
         )
 
         guard textError == .success, let fullText = textValue as? String else {
-            let msg = "⚠️ ErrorOverlay: Could not extract text from element for positioning"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("ErrorOverlay: Could not extract text from element for positioning", category: Logger.ui)
             hide()
             return 0
         }
@@ -252,44 +224,32 @@ class ErrorOverlayWindow: NSPanel {
             let errorRange = NSRange(location: error.start, length: error.end - error.start)
 
             // Use new multi-strategy positioning system
-            let debugMsg = "🔥 BEFORE calling parser.resolvePosition() - parser type: \(type(of: parser)), parserName: \(parser.parserName)"
-            NSLog(debugMsg)
-            logToDebugFile(debugMsg)
+            Logger.debug("BEFORE calling parser.resolvePosition() - parser type: \(type(of: parser)), parserName: \(parser.parserName)", category: Logger.ui)
             let geometryResult = parser.resolvePosition(
                 for: errorRange,
                 in: element,
                 text: fullText
             )
 
-            let msg = "🎯 ErrorOverlay: PositionResolver returned bounds: \(geometryResult.bounds), strategy: \(geometryResult.strategy), confidence: \(geometryResult.confidence)"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("ErrorOverlay: PositionResolver returned bounds: \(geometryResult.bounds), strategy: \(geometryResult.strategy), confidence: \(geometryResult.confidence)", category: Logger.ui)
 
             // Check if result is usable
             guard geometryResult.isUsable else {
-                let msg2 = "⚠️ ErrorOverlay: Position result not usable (confidence: \(geometryResult.confidence))"
-                NSLog(msg2)
-                logToDebugFile(msg2)
+                Logger.debug("ErrorOverlay: Position result not usable (confidence: \(geometryResult.confidence))", category: Logger.ui)
                 return nil
             }
 
             let bounds = geometryResult.bounds
 
-            let msg4 = "📍 ErrorOverlay: Final error bounds (screen): \(bounds)"
-            NSLog(msg4)
-            logToDebugFile(msg4)
+            Logger.debug("ErrorOverlay: Final error bounds (screen): \(bounds)", category: Logger.ui)
 
             // getElementFrame() returns Quartz coordinates (top-left origin)
             // NSPanel.setFrame() works directly with Quartz in multi-monitor setups
-            let msg4b = "📐 ErrorOverlay: Element frame (Quartz): \(elementFrame)"
-            NSLog(msg4b)
-            logToDebugFile(msg4b)
+            Logger.debug("ErrorOverlay: Element frame (Quartz): \(elementFrame)", category: Logger.ui)
 
             // Convert to overlay-local coordinates
             let localBounds = convertToLocal(bounds, from: elementFrame)
-            let msg5 = "📍 ErrorOverlay: Error bounds (local): \(localBounds)"
-            NSLog(msg5)
-            logToDebugFile(msg5)
+            Logger.debug("ErrorOverlay: Error bounds (local): \(localBounds)", category: Logger.ui)
 
             // Expand bounds downward to include the underline area
             // The underline is drawn below the text, so we need to extend the hit area
@@ -301,9 +261,7 @@ class ErrorOverlayWindow: NSPanel {
                 width: localBounds.width,
                 height: localBounds.height + offset + thickness + 2.0 // Increase height to cover underline area
             )
-            let msg6 = "📍 ErrorOverlay: Expanded bounds for hit detection: \(expandedBounds)"
-            NSLog(msg6)
-            logToDebugFile(msg6)
+            Logger.debug("ErrorOverlay: Expanded bounds for hit detection: \(expandedBounds)", category: Logger.ui)
 
             return ErrorUnderline(
                 bounds: expandedBounds,
@@ -313,9 +271,7 @@ class ErrorOverlayWindow: NSPanel {
             )
         }
 
-        let msg7 = "🎨 ErrorOverlay: Created \(underlines.count) underlines"
-        NSLog(msg7)
-        logToDebugFile(msg7)
+        Logger.debug("ErrorOverlay: Created \(underlines.count) underlines", category: Logger.ui)
 
         underlineView?.underlines = underlines
         underlineView?.needsDisplay = true
@@ -323,21 +279,15 @@ class ErrorOverlayWindow: NSPanel {
         if !underlines.isEmpty {
             // Only order window if not already visible to avoid window ordering spam
             if !isCurrentlyVisible {
-                let msg = "✅ ErrorOverlay: Showing overlay window (first time)"
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("ErrorOverlay: Showing overlay window (first time)", category: Logger.ui)
                 // Use order(.above) instead of orderFrontRegardless() to avoid activating the app
                 order(.above, relativeTo: 0)
                 isCurrentlyVisible = true
             } else {
-                let msg = "✅ ErrorOverlay: Updating overlay (already visible, not reordering)"
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("ErrorOverlay: Updating overlay (already visible, not reordering)", category: Logger.ui)
             }
         } else {
-            let msg = "⚠️ ErrorOverlay: No underlines - hiding"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("ErrorOverlay: No underlines - hiding", category: Logger.ui)
             hide()
         }
 
@@ -386,37 +336,27 @@ class ErrorOverlayWindow: NSPanel {
     /// Get the application window frame for smart popover positioning
     /// Returns the visible window frame if available
     private func getApplicationWindowFrame() -> CGRect? {
-        let msg0 = "🪟 ErrorOverlay: getApplicationWindowFrame() called"
-        NSLog(msg0)
-        logToDebugFile(msg0)
+        Logger.debug("ErrorOverlay: getApplicationWindowFrame() called", category: Logger.ui)
 
         guard let element = monitoredElement else {
-            let msg = "🪟 ErrorOverlay: getApplicationWindowFrame() - no monitoredElement"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("ErrorOverlay: getApplicationWindowFrame() - no monitoredElement", category: Logger.ui)
             return nil
         }
 
         var pid: pid_t = 0
         let pidResult = AXUIElementGetPid(element, &pid)
         guard pidResult == .success, pid > 0 else {
-            let msg = "🪟 ErrorOverlay: Could not get PID from element (result: \(pidResult.rawValue))"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("ErrorOverlay: Could not get PID from element (result: \(pidResult.rawValue))", category: Logger.ui)
             return nil
         }
 
-        let msgPID = "🪟 ErrorOverlay: Got PID \(pid) from element"
-        NSLog(msgPID)
-        logToDebugFile(msgPID)
+        Logger.debug("ErrorOverlay: Got PID \(pid) from element", category: Logger.ui)
 
         // Try Method 1: CGWindow API (most reliable for regular apps)
         let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
 
         if let windowList = windowList {
-            let msg1 = "🪟 ErrorOverlay: Got \(windowList.count) windows from CGWindowListCopyWindowInfo"
-            NSLog(msg1)
-            logToDebugFile(msg1)
+            Logger.debug("ErrorOverlay: Got \(windowList.count) windows from CGWindowListCopyWindowInfo", category: Logger.ui)
 
             // Find windows belonging to the monitored app's PID
             let appWindows = windowList.filter { dict in
@@ -424,9 +364,7 @@ class ErrorOverlayWindow: NSPanel {
                 return ownerPID == pid
             }
 
-            let msg2 = "🪟 ErrorOverlay: Found \(appWindows.count) windows for PID \(pid)"
-            NSLog(msg2)
-            logToDebugFile(msg2)
+            Logger.debug("ErrorOverlay: Found \(appWindows.count) windows for PID \(pid)", category: Logger.ui)
 
             // Find the frontmost window (layer 0)
             if let frontWindow = appWindows.first(where: { dict in
@@ -458,9 +396,7 @@ class ErrorOverlayWindow: NSPanel {
                         frame.size.width -= (chromeLeft + chromeRight)
                         frame.size.height -= (chromeTop + chromeBottom)
 
-                        let msg3 = "🪟 ErrorOverlay: Got window frame from CGWindow API (with chrome margins): \(frame)"
-                        NSLog(msg3)
-                        logToDebugFile(msg3)
+                        Logger.debug("ErrorOverlay: Got window frame from CGWindow API (with chrome margins): \(frame)", category: Logger.ui)
                         return frame
                     }
                 }
@@ -468,9 +404,7 @@ class ErrorOverlayWindow: NSPanel {
         }
 
         // Try Method 2: Walk up AX hierarchy
-        let msg4 = "🪟 ErrorOverlay: CGWindow API failed, trying AX hierarchy"
-        NSLog(msg4)
-        logToDebugFile(msg4)
+        Logger.debug("ErrorOverlay: CGWindow API failed, trying AX hierarchy", category: Logger.ui)
 
         var windowElement: AXUIElement?
         var currentElement: AXUIElement? = element
@@ -478,9 +412,7 @@ class ErrorOverlayWindow: NSPanel {
         // Walk up the accessibility hierarchy to find the window
         for level in 0..<10 { // Max 10 levels up
             guard let current = currentElement else {
-                let msgBreak = "🪟 ErrorOverlay: AX walk stopped at level \(level) - no current element"
-                NSLog(msgBreak)
-                logToDebugFile(msgBreak)
+                Logger.debug("ErrorOverlay: AX walk stopped at level \(level) - no current element", category: Logger.ui)
                 break
             }
 
@@ -488,30 +420,22 @@ class ErrorOverlayWindow: NSPanel {
             let roleResult = AXUIElementCopyAttributeValue(current, kAXRoleAttribute as CFString, &roleValue)
 
             guard roleResult == .success, let role = roleValue as? String else {
-                let msgBreak2 = "🪟 ErrorOverlay: AX walk stopped at level \(level) - could not get role (result: \(roleResult.rawValue))"
-                NSLog(msgBreak2)
-                logToDebugFile(msgBreak2)
+                Logger.debug("ErrorOverlay: AX walk stopped at level \(level) - could not get role (result: \(roleResult.rawValue))", category: Logger.ui)
                 break
             }
 
-            let msgLevel = "🪟 ErrorOverlay: AX walk level \(level) - role: \(role)"
-            NSLog(msgLevel)
-            logToDebugFile(msgLevel)
+            Logger.debug("ErrorOverlay: AX walk level \(level) - role: \(role)", category: Logger.ui)
 
             if role == "AXWindow" || role == kAXWindowRole as String {
                 windowElement = current
-                let msgFound = "🪟 ErrorOverlay: Found AXWindow at level \(level)"
-                NSLog(msgFound)
-                logToDebugFile(msgFound)
+                Logger.debug("ErrorOverlay: Found AXWindow at level \(level)", category: Logger.ui)
                 break
             }
 
             var parentValue: CFTypeRef?
             let parentResult = AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentValue)
             guard parentResult == .success, let parent = parentValue else {
-                let msgBreak3 = "🪟 ErrorOverlay: AX walk stopped at level \(level) - could not get parent (result: \(parentResult.rawValue))"
-                NSLog(msgBreak3)
-                logToDebugFile(msgBreak3)
+                Logger.debug("ErrorOverlay: AX walk stopped at level \(level) - could not get parent (result: \(parentResult.rawValue))", category: Logger.ui)
                 break
             }
             currentElement = (parent as! AXUIElement)
@@ -519,9 +443,7 @@ class ErrorOverlayWindow: NSPanel {
 
         // If we found a window element, get its frame
         if let window = windowElement {
-            let msg5 = "🪟 ErrorOverlay: Extracting frame from AXWindow element"
-            NSLog(msg5)
-            logToDebugFile(msg5)
+            Logger.debug("ErrorOverlay: Extracting frame from AXWindow element", category: Logger.ui)
 
             var positionValue: CFTypeRef?
             var sizeValue: CFTypeRef?
@@ -556,21 +478,15 @@ class ErrorOverlayWindow: NSPanel {
                     frame.size.width -= (chromeLeft + chromeRight)
                     frame.size.height -= (chromeTop + chromeBottom)
 
-                    let msg6 = "🪟 ErrorOverlay: Got window frame from AX hierarchy (with chrome margins): \(frame)"
-                    NSLog(msg6)
-                    logToDebugFile(msg6)
+                    Logger.debug("ErrorOverlay: Got window frame from AX hierarchy (with chrome margins): \(frame)", category: Logger.ui)
                     return frame
                 }
             } else {
-                let msg7 = "🪟 ErrorOverlay: Could not extract position/size from AXWindow (pos result: \(positionResult.rawValue), size result: \(sizeResult.rawValue))"
-                NSLog(msg7)
-                logToDebugFile(msg7)
+                Logger.debug("ErrorOverlay: Could not extract position/size from AXWindow (pos result: \(positionResult.rawValue), size result: \(sizeResult.rawValue))", category: Logger.ui)
             }
         }
 
-        let msg8 = "🪟 ErrorOverlay: All methods failed, returning nil"
-        NSLog(msg8)
-        logToDebugFile(msg8)
+        Logger.debug("ErrorOverlay: All methods failed, returning nil", category: Logger.ui)
         return nil
     }
 
@@ -604,16 +520,12 @@ class ErrorOverlayWindow: NSPanel {
         AXValueGetValue(positionValue as! AXValue, .cgPoint, &position)
         AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
 
-        let msg = "🔍 DEBUG getElementFrame: RAW AX data - Position: \(position), Size: \(size)"
-        NSLog(msg)
-        logToDebugFile(msg)
+        Logger.debug("DEBUG getElementFrame: RAW AX data - Position: \(position), Size: \(size)", category: Logger.ui)
 
         var roleValue: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue)
         let role = roleValue as? String ?? "unknown"
-        let msg2 = "🔍 DEBUG getElementFrame: Element role: \(role)"
-        NSLog(msg2)
-        logToDebugFile(msg2)
+        Logger.debug("DEBUG getElementFrame: Element role: \(role)", category: Logger.ui)
 
         var frame = CGRect(origin: position, size: size)
 
@@ -622,9 +534,7 @@ class ErrorOverlayWindow: NSPanel {
         // Must flip Y coordinate using screen height
         if let screenHeight = NSScreen.main?.frame.height {
             frame.origin.y = screenHeight - frame.origin.y - frame.height
-            let msg3 = "🔍 DEBUG getElementFrame: Converted to Cocoa coords - Y from \(position.y) to \(frame.origin.y) (screen height: \(screenHeight))"
-            NSLog(msg3)
-            logToDebugFile(msg3)
+            Logger.debug("DEBUG getElementFrame: Converted to Cocoa coords - Y from \(position.y) to \(frame.origin.y) (screen height: \(screenHeight))", category: Logger.ui)
         }
 
         return frame
@@ -679,9 +589,7 @@ class ErrorOverlayWindow: NSPanel {
         )
 
         guard textError == .success, let fullText = textValue as? String else {
-            let msg = "⚠️ ErrorOverlay: Could not get text for measurement, using simple fallback"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("ErrorOverlay: Could not get text for measurement, using simple fallback", category: Logger.ui)
             return simpleFallbackBounds(for: error, elementFrame: elementFrame, context: context)
         }
 
@@ -704,9 +612,7 @@ class ErrorOverlayWindow: NSPanel {
         let textBeforeError = String(fullText[fullText.index(fullText.startIndex, offsetBy: lineStart)..<fullText.index(fullText.startIndex, offsetBy: safeStart)])
         let errorText = String(fullText[fullText.index(fullText.startIndex, offsetBy: safeStart)..<fullText.index(fullText.startIndex, offsetBy: safeEnd)])
 
-        let lineMsg = "📏 ErrorOverlay: Multiline handling - lineStart: \(lineStart), textOnLine: '\(textBeforeError)', error: '\(errorText)'"
-        NSLog(lineMsg)
-        logToDebugFile(lineMsg)
+        Logger.debug("ErrorOverlay: Multiline handling - lineStart: \(lineStart), textOnLine: '\(textBeforeError)', error: '\(errorText)'", category: Logger.ui)
 
         // USE CONTENT PARSER ARCHITECTURE
         let bundleID = context?.bundleIdentifier ?? "unknown"
@@ -746,15 +652,9 @@ class ErrorOverlayWindow: NSPanel {
                 height: estimatedHeight
             )
 
-            let msg = "📐 ErrorOverlay: ContentParser (\(parser.parserName)) bounds - confidence: \(adjustedBounds.confidence), context: \(adjustedBounds.uiContext ?? "none")"
-            NSLog(msg)
-            logToDebugFile(msg)
-            let msg2 = "📐 ErrorOverlay: \(adjustedBounds.debugInfo)"
-            NSLog(msg2)
-            logToDebugFile(msg2)
-            let msg3 = "📐 ErrorOverlay: Final bounds at \(error.start)-\(error.end): \(estimatedBounds)"
-            NSLog(msg3)
-            logToDebugFile(msg3)
+            Logger.debug("ErrorOverlay: ContentParser (\(parser.parserName)) bounds - confidence: \(adjustedBounds.confidence), context: \(adjustedBounds.uiContext ?? "none")", category: Logger.ui)
+            Logger.debug("ErrorOverlay: \(adjustedBounds.debugInfo)", category: Logger.ui)
+            Logger.debug("ErrorOverlay: Final bounds at \(error.start)-\(error.end): \(estimatedBounds)", category: Logger.ui)
 
             return estimatedBounds
         }
@@ -797,12 +697,8 @@ class ErrorOverlayWindow: NSPanel {
         let cocoaLocalY = screenBounds.origin.y - elementFrame.origin.y
         let flippedLocalY = elementFrame.height - cocoaLocalY - screenBounds.height
 
-        let msg1 = "📐 ConvertToLocal: Screen bounds: \(screenBounds), Element frame: \(elementFrame)"
-        NSLog(msg1)
-        logToDebugFile(msg1)
-        let msg2 = "📐   Cocoa local Y: \(cocoaLocalY), Flipped local Y: \(flippedLocalY)"
-        NSLog(msg2)
-        logToDebugFile(msg2)
+        Logger.debug("ConvertToLocal: Screen bounds: \(screenBounds), Element frame: \(elementFrame)", category: Logger.ui)
+        Logger.debug("  Cocoa local Y: \(cocoaLocalY), Flipped local Y: \(flippedLocalY)", category: Logger.ui)
 
         return CGRect(
             x: localX,
