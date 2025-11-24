@@ -22,20 +22,20 @@ extension KeyboardShortcuts.Name {
     /// Dismiss/close the suggestion popover
     static let dismissSuggestion = Self("dismissSuggestion", default: .init(.escape))
 
-    /// Navigate to previous error/suggestion
-    static let previousSuggestion = Self("previousSuggestion", default: .init(.leftArrow))
+    /// Navigate to previous error/suggestion (Option + Left Arrow)
+    static let previousSuggestion = Self("previousSuggestion", default: .init(.leftArrow, modifiers: .option))
 
-    /// Navigate to next error/suggestion
-    static let nextSuggestion = Self("nextSuggestion", default: .init(.rightArrow))
+    /// Navigate to next error/suggestion (Option + Right Arrow)
+    static let nextSuggestion = Self("nextSuggestion", default: .init(.rightArrow, modifiers: .option))
 
     // MARK: - Quick Actions
 
-    /// Apply first suggestion (⌘1)
-    static let applySuggestion1 = Self("applySuggestion1", default: .init(.one, modifiers: .command))
+    /// Apply first suggestion (⌥1)
+    static let applySuggestion1 = Self("applySuggestion1", default: .init(.one, modifiers: .option))
 
-    /// Apply second suggestion (⌘2)
-    static let applySuggestion2 = Self("applySuggestion2", default: .init(.two, modifiers: .command))
+    /// Apply second suggestion (⌥2)
+    static let applySuggestion2 = Self("applySuggestion2", default: .init(.two, modifiers: .option))
 
-    /// Apply third suggestion (⌘3)
-    static let applySuggestion3 = Self("applySuggestion3", default: .init(.three, modifiers: .command))
+    /// Apply third suggestion (⌥3)
+    static let applySuggestion3 = Self("applySuggestion3", default: .init(.three, modifiers: .option))
 }
