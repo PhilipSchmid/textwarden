@@ -119,6 +119,63 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Hidden applications (apps that user has hidden from the discovered list)
+    @Published var hiddenApplications: Set<String> {
+        didSet {
+            if let encoded = try? encoder.encode(hiddenApplications) {
+                defaults.set(encoded, forKey: Keys.hiddenApplications)
+            }
+        }
+    }
+
+    /// Default hidden applications (system utilities and apps where grammar checking doesn't make sense)
+    ///
+    /// **Easy Configuration Guide:**
+    /// To add your own apps to this list, simply add the bundle identifier as a new string in the set below.
+    /// To find an app's bundle ID:
+    /// 1. Right-click the app in Finder > Show Package Contents
+    /// 2. Open Info.plist and look for CFBundleIdentifier
+    /// OR run: `mdls -name kMDItemCFBundleIdentifier /path/to/App.app`
+    ///
+    /// Example: "com.yourcompany.YourApp"
+    static let defaultHiddenApplications: Set<String> = [
+        // TextWarden itself
+        "com.philipschmid.TextWarden",
+        // System services and background apps
+        "com.apple.loginwindow",
+        "com.apple.UserNotificationCenter",
+        "com.apple.notificationcenterui",
+        "com.apple.accessibility.universalAccessAuthWarn",
+        "com.apple.controlcenter",
+        "com.apple.systemuiserver",
+        "com.apple.QuickLookUIService",
+        "com.apple.appkit.xpc.openAndSavePanelService",
+        "com.apple.CloudKit.ShareBear",
+        "com.apple.bird",
+        "com.apple.CommCenter",
+        "com.apple.cloudphotosd",
+        "com.apple.iCloudHelper",
+        "com.apple.InputMethodKit.TextReplacementService",
+        "com.apple.Console",
+        "com.apple.dock",
+        "com.apple.systempreferences",
+        // System utilities
+        "com.apple.finder",
+        "com.apple.archiveutility",
+        "com.apple.universalcontrol",
+        // Utility apps
+        "com.TechSmith.Snagit",
+        "com.TechSmith.SnagitHelper",
+        "com.techsmith.snagit.capturehelper",
+        "com.surteesstudios.Bartender",
+        "com.1password.1password",
+        "com.linebreak.CloudApp",
+        // Security software (Intego)
+        "com.intego.NetUpdate",
+        "com.intego.netbarrier.alert",
+        "com.intego.virusbarrier.application"
+    ]
+
     /// Custom words to ignore
     @Published var customDictionary: Set<String> {
         didSet {
@@ -448,6 +505,7 @@ class UserPreferences: ObservableObject {
         self.pausedUntil = nil
         self.disabledApplications = []
         self.discoveredApplications = []
+        self.hiddenApplications = UserPreferences.defaultHiddenApplications
         self.appPauseDurations = [:]
         self.appPausedUntil = [:]
         self.customDictionary = []
@@ -500,6 +558,11 @@ class UserPreferences: ObservableObject {
         if let data = defaults.data(forKey: Keys.discoveredApplications),
            let set = try? decoder.decode(Set<String>.self, from: data) {
             self.discoveredApplications = set
+        }
+
+        if let data = defaults.data(forKey: Keys.hiddenApplications),
+           let set = try? decoder.decode(Set<String>.self, from: data) {
+            self.hiddenApplications = set
         }
 
         if let data = defaults.data(forKey: Keys.appPauseDurations),
@@ -578,6 +641,14 @@ class UserPreferences: ObservableObject {
             if appPauseDurations[terminalID] == nil {
                 appPauseDurations[terminalID] = .indefinite
             }
+        }
+
+        // Migrate apps from discovered to hidden if they're in defaultHiddenApplications
+        // This ensures apps added to defaultHiddenApplications are automatically hidden
+        let appsToHide = discoveredApplications.intersection(Self.defaultHiddenApplications)
+        if !appsToHide.isEmpty {
+            discoveredApplications.subtract(appsToHide)
+            hiddenApplications.formUnion(appsToHide)
         }
 
         if pauseDuration == .oneHour, let until = pausedUntil, Date() < until {
@@ -843,6 +914,7 @@ class UserPreferences: ObservableObject {
         static let pausedUntil = "pausedUntil"
         static let disabledApplications = "disabledApplications"
         static let discoveredApplications = "discoveredApplications"
+        static let hiddenApplications = "hiddenApplications"
         static let appPauseDurations = "appPauseDurations"
         static let appPausedUntil = "appPausedUntil"
         static let customDictionary = "customDictionary"
