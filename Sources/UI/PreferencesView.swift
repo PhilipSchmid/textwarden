@@ -922,26 +922,6 @@ struct GeneralPreferencesView: View {
             // MARK: Appearance Settings Group
             Section {
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "paintbrush.fill")
-                            .font(.title2)
-                            .foregroundColor(.accentColor)
-                        Text("Appearance Settings")
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                    }
-                    .padding(.bottom, 4)
-                    .padding(.top, 16)
-
-                    Text("Customize the visual appearance of grammar suggestions and indicators")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .listRowBackground(Color.clear)
-
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text("Transparency:")
                         Spacer()
@@ -955,8 +935,24 @@ struct GeneralPreferencesView: View {
                         .foregroundColor(.secondary)
                 }
             } header: {
-                Text("Popover")
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "paintbrush.fill")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                        Text("Appearance Settings")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+
+                    Text("Customize the visual appearance of grammar suggestions and indicators")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Text("Popover")
+                        .font(.headline)
+                        .padding(.top, 8)
+                }
             }
 
             Section {
@@ -1047,26 +1043,6 @@ struct GeneralPreferencesView: View {
 
             // MARK: Keyboard Shortcuts Group
             Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "keyboard.fill")
-                            .font(.title2)
-                            .foregroundColor(.accentColor)
-                        Text("Keyboard Shortcuts")
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                    }
-                    .padding(.bottom, 4)
-                    .padding(.top, 16)
-
-                    Text("Configure global and context-specific keyboard shortcuts")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .listRowBackground(Color.clear)
-
-            Section {
                 Toggle("Enable keyboard shortcuts", isOn: $preferences.keyboardShortcutsEnabled)
                     .help("Enable or disable all keyboard shortcuts")
 
@@ -1075,8 +1051,24 @@ struct GeneralPreferencesView: View {
                     .foregroundColor(.secondary)
                     .padding(.top, 4)
             } header: {
-                Text("General")
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "keyboard.fill")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                        Text("Keyboard Shortcuts")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+
+                    Text("Configure global and context-specific keyboard shortcuts")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Text("General")
+                        .font(.headline)
+                        .padding(.top, 8)
+                }
             }
 
             Section {
@@ -1282,26 +1274,6 @@ struct SpellCheckingView: View {
             }
 
             // MARK: Custom Dictionary Group
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "text.book.closed.fill")
-                            .font(.title2)
-                            .foregroundColor(.accentColor)
-                        Text("Custom Dictionary & Wordlists")
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                    }
-                    .padding(.bottom, 4)
-                    .padding(.top, 16)
-
-                    Text("Manage your personal dictionary and enable predefined wordlists")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .listRowBackground(Color.clear)
-
             CustomVocabularyContent(
                 vocabulary: vocabulary,
                 preferences: preferences,
@@ -1590,8 +1562,24 @@ private struct CustomVocabularyContent: View {
                     }
                 }
             } header: {
-                Text("Predefined Wordlists")
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "text.book.closed.fill")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                        Text("Custom Dictionary & Wordlists")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+
+                    Text("Manage your personal dictionary and enable predefined wordlists")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Text("Predefined Wordlists")
+                        .font(.headline)
+                        .padding(.top, 8)
+                }
             }
 
             // Language Detection
