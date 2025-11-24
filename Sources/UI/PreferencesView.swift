@@ -922,9 +922,6 @@ struct GeneralPreferencesView: View {
             // MARK: Appearance Settings Group
             Section {
                 VStack(alignment: .leading, spacing: 8) {
-                    Divider()
-                        .padding(.bottom, 16)
-
                     HStack(spacing: 8) {
                         Image(systemName: "paintbrush.fill")
                             .font(.title2)
@@ -939,6 +936,7 @@ struct GeneralPreferencesView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                .padding(.top, 24)
             }
 
             Section {
@@ -1048,9 +1046,6 @@ struct GeneralPreferencesView: View {
 
             Section {
                 VStack(alignment: .leading, spacing: 8) {
-                    Divider()
-                        .padding(.bottom, 16)
-
                     HStack(alignment: .center) {
                         Text("Analysis delay:")
 
@@ -1088,6 +1083,7 @@ struct GeneralPreferencesView: View {
                             .foregroundColor(.secondary)
                     }
                 }
+                .padding(.top, 24)
             } header: {
                 Text("Performance")
                     .font(.headline)
@@ -1112,9 +1108,6 @@ struct GeneralPreferencesView: View {
             // MARK: Keyboard Shortcuts Group
             Section {
                 VStack(alignment: .leading, spacing: 8) {
-                    Divider()
-                        .padding(.bottom, 16)
-
                     HStack(spacing: 8) {
                         Image(systemName: "keyboard.fill")
                             .font(.title2)
@@ -1129,6 +1122,7 @@ struct GeneralPreferencesView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                .padding(.top, 24)
             }
 
             Section {
@@ -1289,9 +1283,6 @@ struct SpellCheckingView: View {
             // MARK: Custom Dictionary Group
             Section {
                 VStack(alignment: .leading, spacing: 8) {
-                    Divider()
-                        .padding(.bottom, 16)
-
                     HStack(spacing: 8) {
                         Image(systemName: "text.book.closed.fill")
                             .font(.title2)
@@ -1306,6 +1297,7 @@ struct SpellCheckingView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                .padding(.top, 24)
             }
 
             CustomVocabularyContent(
