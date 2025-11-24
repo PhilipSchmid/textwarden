@@ -864,6 +864,11 @@ struct GeneralPreferencesView: View {
                         }
                     }
                     .help("Pause grammar checking temporarily or indefinitely")
+                    .onChange(of: preferences.pauseDuration) { _, newValue in
+                        // Update menu bar icon when pause duration changes
+                        let iconState: MenuBarController.IconState = newValue == .active ? .active : .inactive
+                        MenuBarController.shared?.setIconState(iconState)
+                    }
 
                     if preferences.pauseDuration == .oneHour, let until = preferences.pausedUntil {
                         Text("Will resume at \(until.formatted(date: .omitted, time: .shortened))")
