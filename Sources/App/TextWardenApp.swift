@@ -308,6 +308,7 @@ extension AppDelegate: NSWindowDelegate {
         // Accept current suggestion (Tab by default)
         KeyboardShortcuts.onKeyUp(for: .acceptSuggestion) { [weak self] in
             guard preferences.keyboardShortcutsEnabled else { return }
+            guard SuggestionPopover.shared.isVisible else { return }
             guard let error = SuggestionPopover.shared.currentError else { return }
             guard let firstSuggestion = error.suggestions.first else { return }
 
@@ -321,7 +322,7 @@ extension AppDelegate: NSWindowDelegate {
         // Dismiss suggestion popover (Escape by default)
         KeyboardShortcuts.onKeyUp(for: .dismissSuggestion) { [weak self] in
             guard preferences.keyboardShortcutsEnabled else { return }
-            guard SuggestionPopover.shared.currentError != nil else { return }
+            guard SuggestionPopover.shared.isVisible else { return }
 
             let msg = "⌨️ Keyboard shortcut: Dismiss suggestion"
             self?.logToFile(msg)
@@ -330,10 +331,10 @@ extension AppDelegate: NSWindowDelegate {
             SuggestionPopover.shared.hide()
         }
 
-        // Navigate to previous suggestion (Up arrow by default)
+        // Navigate to previous suggestion (Option + Left arrow by default)
         KeyboardShortcuts.onKeyUp(for: .previousSuggestion) { [weak self] in
             guard preferences.keyboardShortcutsEnabled else { return }
-            guard SuggestionPopover.shared.currentError != nil else { return }
+            guard SuggestionPopover.shared.isVisible else { return }
 
             let msg = "⌨️ Keyboard shortcut: Previous suggestion"
             self?.logToFile(msg)
@@ -342,10 +343,10 @@ extension AppDelegate: NSWindowDelegate {
             SuggestionPopover.shared.previousError()
         }
 
-        // Navigate to next suggestion (Down arrow by default)
+        // Navigate to next suggestion (Option + Right arrow by default)
         KeyboardShortcuts.onKeyUp(for: .nextSuggestion) { [weak self] in
             guard preferences.keyboardShortcutsEnabled else { return }
-            guard SuggestionPopover.shared.currentError != nil else { return }
+            guard SuggestionPopover.shared.isVisible else { return }
 
             let msg = "⌨️ Keyboard shortcut: Next suggestion"
             self?.logToFile(msg)
@@ -354,9 +355,10 @@ extension AppDelegate: NSWindowDelegate {
             SuggestionPopover.shared.nextError()
         }
 
-        // Quick apply shortcuts (Cmd+1, Cmd+2, Cmd+3)
+        // Quick apply shortcuts (Option+1, Option+2, Option+3)
         KeyboardShortcuts.onKeyUp(for: .applySuggestion1) { [weak self] in
             guard preferences.keyboardShortcutsEnabled else { return }
+            guard SuggestionPopover.shared.isVisible else { return }
             guard let error = SuggestionPopover.shared.currentError else { return }
             guard error.suggestions.count >= 1 else { return }
 
@@ -370,6 +372,7 @@ extension AppDelegate: NSWindowDelegate {
 
         KeyboardShortcuts.onKeyUp(for: .applySuggestion2) { [weak self] in
             guard preferences.keyboardShortcutsEnabled else { return }
+            guard SuggestionPopover.shared.isVisible else { return }
             guard let error = SuggestionPopover.shared.currentError else { return }
             guard error.suggestions.count >= 2 else { return }
 
@@ -383,6 +386,7 @@ extension AppDelegate: NSWindowDelegate {
 
         KeyboardShortcuts.onKeyUp(for: .applySuggestion3) { [weak self] in
             guard preferences.keyboardShortcutsEnabled else { return }
+            guard SuggestionPopover.shared.isVisible else { return }
             guard let error = SuggestionPopover.shared.currentError else { return }
             guard error.suggestions.count >= 3 else { return }
 

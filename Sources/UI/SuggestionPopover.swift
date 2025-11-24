@@ -62,6 +62,11 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Callback when mouse enters popover (for cancelling delayed switches)
     var onMouseEntered: (() -> Void)?
 
+    /// Check if popover is currently visible
+    var isVisible: Bool {
+        return panel?.isVisible == true && currentError != nil
+    }
+
     private override init() {
         super.init()
     }
