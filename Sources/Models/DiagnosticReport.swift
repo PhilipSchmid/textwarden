@@ -16,27 +16,154 @@ import AppKit
 import LaunchAtLogin
 import KeyboardShortcuts
 
-/// Statistics snapshot for diagnostic reports
+/// Performance metrics for a specific time range
+struct PerformanceMetrics: Codable {
+    let meanLatencyMs: Double
+    let medianLatencyMs: Double
+    let p90LatencyMs: Double
+    let p95LatencyMs: Double
+    let p99LatencyMs: Double
+    let sampleCount: Int
+}
+
+/// Statistics for a specific time range
+struct TimeRangeStatistics: Codable {
+    let timeRange: String
+    let errorsFound: Int
+    let wordsAnalyzed: Int
+    let analysisSessions: Int
+    let suggestionsApplied: Int
+    let suggestionsDismissed: Int
+    let wordsAddedToDictionary: Int
+    let improvementRate: Double
+    let averageErrorsPer100Words: Double
+    let categoryBreakdown: [String: Int]
+    let appUsageBreakdown: [String: Int]
+    let topWritingApp: String?
+    let topWritingAppErrorCount: Int
+    let performance: PerformanceMetrics?
+
+    static func from(_ stats: UserStatistics, timeRange: TimeRange) -> TimeRangeStatistics {
+        let timeRangeName: String
+        switch timeRange {
+        case .session:
+            timeRangeName = "Since App Start"
+        case .day:
+            timeRangeName = "Last 24 Hours"
+        case .week:
+            timeRangeName = "Last 7 Days"
+        case .month:
+            timeRangeName = "Last 30 Days"
+        case .ninetyDays:
+            timeRangeName = "Last 90 Days"
+        }
+
+        // Get latency samples for this time range
+        let latencySamples = stats.latencySamples(in: timeRange)
+        let performance: PerformanceMetrics?
+        if !latencySamples.isEmpty {
+            let sorted = latencySamples.sorted()
+            let mean = sorted.reduce(0.0, +) / Double(sorted.count)
+            let median = sorted[sorted.count / 2]
+            let p90Index = Int(Double(sorted.count) * 0.9)
+            let p95Index = Int(Double(sorted.count) * 0.95)
+            let p99Index = Int(Double(sorted.count) * 0.99)
+
+            performance = PerformanceMetrics(
+                meanLatencyMs: mean,
+                medianLatencyMs: median,
+                p90LatencyMs: sorted[min(p90Index, sorted.count - 1)],
+                p95LatencyMs: sorted[min(p95Index, sorted.count - 1)],
+                p99LatencyMs: sorted[min(p99Index, sorted.count - 1)],
+                sampleCount: sorted.count
+            )
+        } else {
+            performance = nil
+        }
+
+        let topApp = stats.topWritingApp(in: timeRange)
+
+        return TimeRangeStatistics(
+            timeRange: timeRangeName,
+            errorsFound: stats.errorsFound(in: timeRange),
+            wordsAnalyzed: stats.wordsAnalyzed(in: timeRange),
+            analysisSessions: stats.analysisSessions(in: timeRange),
+            suggestionsApplied: stats.suggestionsApplied(in: timeRange),
+            suggestionsDismissed: stats.suggestionsDismissed(in: timeRange),
+            wordsAddedToDictionary: stats.wordsAddedToDictionary(in: timeRange),
+            improvementRate: stats.improvementRate(in: timeRange),
+            averageErrorsPer100Words: stats.averageErrorsPer100Words(in: timeRange),
+            categoryBreakdown: stats.categoryBreakdown(in: timeRange),
+            appUsageBreakdown: stats.appUsageBreakdown(in: timeRange),
+            topWritingApp: topApp?.name,
+            topWritingAppErrorCount: topApp?.errorCount ?? 0,
+            performance: performance
+        )
+    }
+}
+
+/// Comprehensive statistics snapshot for diagnostic reports
 struct StatisticsSnapshot: Codable {
+    // Cumulative totals (all-time)
     let errorsFound: Int
     let suggestionsApplied: Int
     let suggestionsDismissed: Int
+    let wordsAddedToDictionary: Int
     let wordsAnalyzed: Int
     let analysisSessions: Int
     let sessionCount: Int
     let activeDaysCount: Int
+    let currentStreak: Int
+
+    // Cumulative metrics
+    let improvementRate: Double
+    let averageErrorsPer100Words: Double
     let categoryBreakdown: [String: Int]
+    let appUsageBreakdown: [String: Int]
+    let topWritingApp: String?
+    let topWritingAppErrorCount: Int
+
+    // All-time performance metrics
+    let meanLatencyMs: Double
+    let medianLatencyMs: Double
+    let p90LatencyMs: Double
+    let p95LatencyMs: Double
+    let p99LatencyMs: Double
+    let totalLatencySamples: Int
+
+    // Time-filtered statistics (grouped by timeframe for performance insights)
+    let timeRangeStatistics: [TimeRangeStatistics]
 
     static func from(_ stats: UserStatistics) -> StatisticsSnapshot {
-        StatisticsSnapshot(
+        let topApp = stats.topWritingApp
+
+        // Generate statistics for all time ranges
+        let timeRanges: [TimeRange] = [.session, .day, .week, .month, .ninetyDays]
+        let timeRangeStats = timeRanges.map { TimeRangeStatistics.from(stats, timeRange: $0) }
+
+        return StatisticsSnapshot(
             errorsFound: stats.errorsFound,
             suggestionsApplied: stats.suggestionsApplied,
             suggestionsDismissed: stats.suggestionsDismissed,
+            wordsAddedToDictionary: stats.wordsAddedToDictionary,
             wordsAnalyzed: stats.wordsAnalyzed,
             analysisSessions: stats.analysisSessions,
             sessionCount: stats.sessionCount,
             activeDaysCount: stats.activeDays.count,
-            categoryBreakdown: stats.categoryBreakdown
+            currentStreak: stats.currentStreak,
+            improvementRate: stats.improvementRate,
+            averageErrorsPer100Words: stats.averageErrorsPer100Words,
+            categoryBreakdown: stats.categoryBreakdown,
+            appUsageBreakdown: stats.appUsageBreakdown,
+            topWritingApp: topApp?.name,
+            topWritingAppErrorCount: topApp?.errorCount ?? 0,
+            meanLatencyMs: stats.meanLatencyMs,
+            medianLatencyMs: stats.medianLatencyMs,
+            p90LatencyMs: stats.p90LatencyMs,
+            p95LatencyMs: stats.p95LatencyMs,
+            p99LatencyMs: stats.p99LatencyMs,
+            totalLatencySamples: stats.latencySamples.count,
+            timeRangeStatistics: timeRangeStats
         )
     }
 }
@@ -272,6 +399,9 @@ struct DiagnosticReport: Codable {
     // Settings (complete dump)
     let settings: SettingsDump
 
+    // Statistics (comprehensive with time-range breakdown and performance metrics)
+    let statistics: StatisticsSnapshot
+
     // Crash Info (count of actual .crash/.ips files in crash_reports/ folder)
     let crashReportCount: Int
 
@@ -285,7 +415,7 @@ struct DiagnosticReport: Codable {
     ) -> DiagnosticReport {
         return DiagnosticReport(
             reportTimestamp: Date(),
-            reportVersion: "2.0",
+            reportVersion: "3.0",  // Bumped to 3.0 for enhanced statistics
             appVersion: BuildInfo.appVersion,
             buildNumber: BuildInfo.buildNumber,
             buildTimestamp: BuildInfo.buildTimestamp,
@@ -293,6 +423,7 @@ struct DiagnosticReport: Codable {
             permissionsStatus: PermissionsStatus.current(),
             applicationState: ApplicationState.current(preferences: preferences),
             settings: SettingsDump.from(preferences, shortcuts: shortcuts),
+            statistics: StatisticsSnapshot.from(UserStatistics.shared),
             crashReportCount: crashReportCount
         )
     }
