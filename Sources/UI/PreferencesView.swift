@@ -1248,18 +1248,535 @@ private struct AnalysisDelayTextField: View {
 // MARK: - Spell Checking (combines Categories and Dictionary)
 
 struct SpellCheckingView: View {
+    @ObservedObject private var preferences = UserPreferences.shared
+    @ObservedObject private var vocabulary = CustomVocabulary.shared
+    @State private var newWord = ""
+    @State private var searchText = ""
+    @State private var errorMessage: String?
+
     var body: some View {
-        TabView {
-            FilteringPreferencesView(preferences: UserPreferences.shared)
-                .tabItem {
-                    Label("Categories", systemImage: "line.3.horizontal.decrease.circle")
+        Form {
+            // MARK: Grammar Categories Group
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                        Text("Grammar Categories")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+                    .padding(.bottom, 4)
+
+                    Text("Enable or disable specific types of grammar and style checks")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            FilteringPreferencesContent(preferences: preferences)
+
+            // MARK: Custom Dictionary Group
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "text.book.closed.fill")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                        Text("Custom Dictionary & Wordlists")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+                    .padding(.bottom, 4)
+
+                    Text("Manage your personal dictionary and enable predefined wordlists")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            CustomVocabularyContent(
+                vocabulary: vocabulary,
+                preferences: preferences,
+                newWord: $newWord,
+                searchText: $searchText,
+                errorMessage: $errorMessage
+            )
+        }
+        .formStyle(.grouped)
+        .padding()
+    }
+}
+
+// MARK: - Filtering Preferences Content (extracted from FilteringPreferencesView)
+
+private struct FilteringPreferencesContent: View {
+    @ObservedObject var preferences: UserPreferences
+
+    /// Helper to create toggle binding for a category
+    private func categoryBinding(_ category: String) -> Binding<Bool> {
+        Binding(
+            get: { preferences.enabledCategories.contains(category) },
+            set: { enabled in
+                var categories = preferences.enabledCategories
+                if enabled {
+                    categories.insert(category)
+                } else {
+                    categories.remove(category)
+                }
+                preferences.enabledCategories = categories
+            }
+        )
+    }
+
+    var body: some View {
+        Group {
+            // Quick Actions
+            Section {
+                HStack {
+                    Button("Enable All") {
+                        preferences.enabledCategories = UserPreferences.allCategories
+                    }
+                    .buttonStyle(.bordered)
+
+                    Spacer()
+
+                    Button("Disable All") {
+                        preferences.enabledCategories = []
+                    }
+                    .buttonStyle(.bordered)
+                }
+            } header: {
+                Text("Quick Actions")
+                    .font(.headline)
+            }
+
+            // Core Grammar Checks
+            Section {
+                Toggle("Spelling", isOn: categoryBinding("Spelling"))
+                    .help("When your brain doesn't know the right spelling")
+
+                Toggle("Typos", isOn: categoryBinding("Typo"))
+                    .help("When your brain knows the right spelling but your fingers made a mistake")
+
+                Toggle("Grammar", isOn: categoryBinding("Grammar"))
+                    .help("Detect grammatical errors and incorrect sentence structure")
+
+                Toggle("Agreement", isOn: categoryBinding("Agreement"))
+                    .help("Check subject-verb and pronoun agreement (e.g., 'he go' → 'he goes')")
+
+                Toggle("Punctuation", isOn: categoryBinding("Punctuation"))
+                    .help("Check punctuation usage, including hyphenation in compound adjectives")
+
+                Toggle("Capitalization", isOn: categoryBinding("Capitalization"))
+                    .help("Check proper capitalization of words and sentences")
+            } header: {
+                Text("Core Checks")
+                    .font(.headline)
+            }
+
+            // Writing Style
+            Section {
+                Toggle("Style", isOn: categoryBinding("Style"))
+                    .help("Check cases where multiple options are correct but one is preferred")
+
+                Toggle("Readability", isOn: categoryBinding("Readability"))
+                    .help("Improve text flow and make writing easier to understand")
+
+                Toggle("Enhancement", isOn: categoryBinding("Enhancement"))
+                    .help("Suggest improvements that enhance clarity or impact without fixing errors")
+
+                Toggle("Redundancy", isOn: categoryBinding("Redundancy"))
+                    .help("Detect cases where words duplicate meaning that's already expressed")
+
+                Toggle("Repetition", isOn: categoryBinding("Repetition"))
+                    .help("Detect repeated words or phrases in nearby sentences")
+            } header: {
+                Text("Style & Clarity")
+                    .font(.headline)
+            }
+
+            // Word Usage
+            Section {
+                Toggle("Word Choice", isOn: categoryBinding("WordChoice"))
+                    .help("Suggest choosing between different words or phrases in a given context")
+
+                Toggle("Usage", isOn: categoryBinding("Usage"))
+                    .help("Check conventional word usage and standard collocations")
+
+                Toggle("Eggcorns", isOn: categoryBinding("Eggcorn"))
+                    .help("Detect cases where a word or phrase is misused for a similar-sounding word or phrase (e.g., 'for all intensive purposes' → 'for all intents and purposes')")
+
+                Toggle("Malapropisms", isOn: categoryBinding("Malapropism"))
+                    .help("Detect cases where a word is mistakenly used for a similar-sounding word with a different meaning (e.g., 'escape goat' → 'scapegoat')")
+            } header: {
+                Text("Word Usage")
+                    .font(.headline)
+            }
+
+            // Advanced
+            Section {
+                Toggle("Formatting", isOn: categoryBinding("Formatting"))
+                    .help("Check text formatting issues such as spacing and special characters")
+
+                Toggle("Boundary Errors", isOn: categoryBinding("BoundaryError"))
+                    .help("Detect errors where words are joined or split at the wrong boundaries (e.g., 'each and everyone' → 'each and every one')")
+
+                Toggle("Regionalism", isOn: categoryBinding("Regionalism"))
+                    .help("Detect variations that are standard in some regions or dialects but not others")
+
+                Toggle("Nonstandard", isOn: categoryBinding("Nonstandard"))
+                    .help("Detect non-standard language usage that may be informal or colloquial")
+
+                Toggle("Miscellaneous", isOn: categoryBinding("Miscellaneous"))
+                    .help("Check for any other grammar issues that don't fit neatly into other categories")
+            } header: {
+                Text("Advanced")
+                    .font(.headline)
+            }
+
+            // TextWarden Enhancements
+            Section {
+                Toggle("Sentence-Start Capitalization", isOn: $preferences.enableSentenceStartCapitalization)
+                    .help("Automatically capitalize suggestions at the beginning of sentences")
+            } header: {
+                Text("TextWarden Enhancements")
+                    .font(.headline)
+            }
+
+            Section {
+                if preferences.ignoredRules.isEmpty {
+                    HStack {
+                        Image(systemName: "checkmark.circle")
+                            .foregroundColor(.green)
+                        Text("No ignored rules")
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    ForEach(Array(preferences.ignoredRules).sorted(), id: \.self) { ruleId in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(formatRuleName(ruleId))
+                                    .font(.subheadline)
+                                Text(ruleId)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Button("Re-enable") {
+                                preferences.enableRule(ruleId)
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Allow this rule to show grammar suggestions again")
+                        }
+                        .padding(.vertical, 4)
+                    }
+
+                    Divider()
+
+                    HStack {
+                        Spacer()
+                        Button("Clear All") {
+                            preferences.ignoredRules = []
+                        }
+                        .buttonStyle(.bordered)
+                        .help("Re-enable all ignored grammar rules")
+                    }
+                }
+            } header: {
+                HStack {
+                    Text("Ignored Rules")
+                        .font(.headline)
+                    Spacer()
+                    if !preferences.ignoredRules.isEmpty {
+                        Text("\(preferences.ignoredRules.count)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    private func formatRuleName(_ ruleId: String) -> String {
+        let components = ruleId.split(separator: ":", maxSplits: 1)
+        var nameToFormat = components.count > 1 ? String(components[1]) : ruleId
+        nameToFormat = nameToFormat.trimmingCharacters(in: CharacterSet(charactersIn: ":"))
+
+        let words = nameToFormat.split(separator: "_")
+        if !words.isEmpty {
+            return words.map { word in
+                word.prefix(1).uppercased() + word.dropFirst().lowercased()
+            }.joined(separator: " ")
+        }
+
+        var result = ""
+        for (index, char) in nameToFormat.enumerated() {
+            if index > 0 && char.isUppercase {
+                result += " "
+            }
+            result.append(char)
+        }
+        return result.isEmpty ? ruleId : result
+    }
+}
+
+// MARK: - Custom Vocabulary Content (extracted from CustomVocabularyView)
+
+private struct CustomVocabularyContent: View {
+    @ObservedObject var vocabulary: CustomVocabulary
+    @ObservedObject var preferences: UserPreferences
+    @Binding var newWord: String
+    @Binding var searchText: String
+    @Binding var errorMessage: String?
+
+    private var filteredWords: [String] {
+        let allWords = Array(vocabulary.words).sorted()
+        if searchText.isEmpty {
+            return allWords
+        }
+        return allWords.filter { $0.localizedCaseInsensitiveContains(searchText) }
+    }
+
+    var body: some View {
+        Group {
+            // Predefined Wordlists
+            Section {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Enable recognition of specialized vocabulary and informal language")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.bottom, 4)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle("Internet Abbreviations", isOn: $preferences.enableInternetAbbreviations)
+                            .help("Accept common abbreviations like BTW, FYI, LOL, ASAP, etc.")
+
+                        Text("3,200+ abbreviations (BTW, FYI, LOL, ASAP, AFAICT, etc.) • Case-insensitive")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .padding(.leading, 20)
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle("Gen Z Slang", isOn: $preferences.enableGenZSlang)
+                            .help("Accept modern slang words like ghosting, sus, slay, etc.")
+
+                        Text("270+ modern terms (ghosting, sus, slay, vibe, etc.) • Case-insensitive")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .padding(.leading, 20)
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle("IT & Tech Terminology", isOn: $preferences.enableITTerminology)
+                            .help("Accept technical terms like kubernetes, docker, API, JSON, localhost, etc.")
+
+                        Text("10,000+ technical terms (kubernetes, docker, nginx, API, JSON, etc.) • Case-insensitive")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .padding(.leading, 20)
+                    }
+                }
+            } header: {
+                Text("Predefined Wordlists")
+                    .font(.headline)
+            }
+
+            // Language Detection
+            Section {
+                Toggle("Detect non-English words", isOn: $preferences.enableLanguageDetection)
+                    .help("Automatically detect and ignore errors in non-English words")
+
+                Text("Skip grammar checking for words detected in selected languages")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                if preferences.enableLanguageDetection {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Languages to ignore:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.top, 8)
+
+                        LazyVGrid(columns: [
+                            GridItem(.fixed(150), alignment: .leading),
+                            GridItem(.fixed(150), alignment: .leading),
+                            GridItem(.fixed(150), alignment: .leading),
+                            GridItem(.fixed(150), alignment: .leading)
+                        ], alignment: .leading, spacing: 6) {
+                            ForEach(UserPreferences.availableLanguages.filter { $0 != "English" }.sorted(), id: \.self) { language in
+                                Toggle(language, isOn: Binding(
+                                    get: { preferences.excludedLanguages.contains(language) },
+                                    set: { isSelected in
+                                        if isSelected {
+                                            preferences.excludedLanguages.insert(language)
+                                        } else {
+                                            preferences.excludedLanguages.remove(language)
+                                        }
+                                    }
+                                ))
+                                .toggleStyle(.checkbox)
+                                .font(.system(size: 11))
+                            }
+                        }
+                        .padding(.leading, 20)
+
+                        if !preferences.excludedLanguages.isEmpty {
+                            HStack(spacing: 4) {
+                                Image(systemName: "info.circle")
+                                    .foregroundColor(.blue)
+                                    .font(.caption2)
+                                Text("Words detected as \(preferences.excludedLanguages.sorted().joined(separator: ", ")) will not be marked as errors")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.top, 8)
+                        }
+                    }
+                }
+            } header: {
+                Text("Language Detection")
+                    .font(.headline)
+            }
+
+            // Custom Dictionary
+            Section {
+                HStack(spacing: 12) {
+                    TextField("Add word...", text: $newWord)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit {
+                            addWord()
+                        }
+
+                    Button("Add") {
+                        addWord()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(newWord.isEmpty)
                 }
 
-            CustomVocabularyView()
-                .tabItem {
-                    Label("Dictionary", systemImage: "text.book.closed")
+                HStack {
+                    Label("\(vocabulary.words.count) of 1,000 words", systemImage: "list.number")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Spacer()
+
+                    if vocabulary.words.count >= 1000 {
+                        Label("Limit reached", systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    }
                 }
+
+                if let errorMessage = errorMessage {
+                    HStack {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .foregroundColor(.red)
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                }
+            } header: {
+                Text("Custom Dictionary")
+                    .font(.headline)
+            }
+
+            // Word List
+            if !vocabulary.words.isEmpty {
+                Section {
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.secondary)
+
+                        TextField("Search words", text: $searchText)
+                            .textFieldStyle(.plain)
+
+                        if !searchText.isEmpty {
+                            Button {
+                                searchText = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                Section {
+                    if filteredWords.isEmpty {
+                        Text("No words found")
+                            .foregroundColor(.secondary)
+                            .font(.subheadline)
+                    } else {
+                        ForEach(filteredWords, id: \.self) { word in
+                            HStack(spacing: 12) {
+                                Text(word)
+                                    .font(.body)
+
+                                Spacer()
+
+                                Button {
+                                    removeWord(word)
+                                } label: {
+                                    Image(systemName: "minus.circle.fill")
+                                        .foregroundColor(.red)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Remove \"\(word)\" from dictionary")
+                            }
+                        }
+                    }
+                } header: {
+                    HStack {
+                        Text("Your Words")
+                            .font(.headline)
+                        Spacer()
+                        if !vocabulary.words.isEmpty {
+                            Button(role: .destructive) {
+                                clearAll()
+                            } label: {
+                                Label("Clear All", systemImage: "trash")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    private func addWord() {
+        guard !newWord.isEmpty else { return }
+
+        do {
+            try vocabulary.addWord(newWord)
+            newWord = ""
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func removeWord(_ word: String) {
+        try? vocabulary.removeWord(word)
+        errorMessage = nil
+    }
+
+    private func clearAll() {
+        try? vocabulary.clearAll()
+        errorMessage = nil
     }
 }
 
