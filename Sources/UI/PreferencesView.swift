@@ -931,13 +931,13 @@ struct GeneralPreferencesView: View {
                             .fontWeight(.semibold)
                     }
                     .padding(.bottom, 4)
+                    .padding(.top, 24)
 
                     Text("Customize the visual appearance of grammar suggestions and indicators")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
-            .padding(.top, 24)
 
             Section {
                 VStack(alignment: .leading, spacing: 8) {
@@ -1056,13 +1056,13 @@ struct GeneralPreferencesView: View {
                             .fontWeight(.semibold)
                     }
                     .padding(.bottom, 4)
+                    .padding(.top, 24)
 
                     Text("Configure global and context-specific keyboard shortcuts")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
-            .padding(.top, 24)
 
             Section {
                 Toggle("Enable keyboard shortcuts", isOn: $preferences.keyboardShortcutsEnabled)
@@ -1231,6 +1231,7 @@ struct SpellCheckingView: View {
                         Text("ms")
                             .foregroundColor(.secondary)
                     }
+                    .padding(.top, 24)
 
                     Text("Delay before analyzing text after you stop typing")
                         .font(.caption)
@@ -1262,7 +1263,6 @@ struct SpellCheckingView: View {
                 Text("Performance")
                     .font(.headline)
             }
-            .padding(.top, 24)
 
             Section {
                 Picker("English dialect:", selection: $preferences.selectedDialect) {
@@ -1292,13 +1292,13 @@ struct SpellCheckingView: View {
                             .fontWeight(.semibold)
                     }
                     .padding(.bottom, 4)
+                    .padding(.top, 24)
 
                     Text("Manage your personal dictionary and enable predefined wordlists")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
-            .padding(.top, 24)
 
             CustomVocabularyContent(
                 vocabulary: vocabulary,
