@@ -834,6 +834,7 @@ struct GeneralPreferencesView: View {
 
     var body: some View {
         Form {
+            // MARK: Application Settings Group
             Section {
                 VStack(alignment: .leading, spacing: 8) {
                     Picker("Grammar checking:", selection: $preferences.pauseDuration) {
@@ -860,8 +861,24 @@ struct GeneralPreferencesView: View {
                 Toggle("Always open in foreground", isOn: $preferences.openInForeground)
                     .help("Show settings window when TextWarden starts (default: background only)")
             } header: {
-                Text("General")
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                        Text("Application Settings")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+
+                    Text("Configure core application behavior and system permissions")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Text("General")
+                        .font(.headline)
+                        .padding(.top, 8)
+                }
             }
 
             // Accessibility Permission Section
@@ -1193,26 +1210,9 @@ struct SpellCheckingView: View {
     var body: some View {
         Form {
             // MARK: Grammar Categories Group
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "line.3.horizontal.decrease.circle.fill")
-                            .font(.title2)
-                            .foregroundColor(.accentColor)
-                        Text("Grammar Categories")
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                    }
-                    .padding(.bottom, 4)
-
-                    Text("Enable or disable specific types of grammar and style checks")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-
             FilteringPreferencesContent(preferences: preferences)
 
+            // MARK: Harper Settings Group
             Section {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(alignment: .center) {
@@ -1253,8 +1253,24 @@ struct SpellCheckingView: View {
                     }
                 }
             } header: {
-                Text("Performance")
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "gearshape.2.fill")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                        Text("Harper Settings")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+
+                    Text("Configure the Harper grammar engine performance and language options")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Text("Performance")
+                        .font(.headline)
+                        .padding(.top, 8)
+                }
             }
 
             Section {
@@ -1326,8 +1342,24 @@ private struct FilteringPreferencesContent: View {
                     .buttonStyle(.bordered)
                 }
             } header: {
-                Text("Quick Actions")
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                        Text("Grammar Categories")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+
+                    Text("Enable or disable specific types of grammar and style checks")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Text("Quick Actions")
+                        .font(.headline)
+                        .padding(.top, 8)
+                }
             }
 
             // Core Grammar Checks
@@ -1522,11 +1554,6 @@ private struct CustomVocabularyContent: View {
             // Predefined Wordlists
             Section {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Enable recognition of specialized vocabulary and informal language")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.bottom, 4)
-
                     VStack(alignment: .leading, spacing: 4) {
                         Toggle("Internet Abbreviations", isOn: $preferences.enableInternetAbbreviations)
                             .help("Accept common abbreviations like BTW, FYI, LOL, ASAP, etc.")
