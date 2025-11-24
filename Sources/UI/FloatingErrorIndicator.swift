@@ -66,9 +66,7 @@ class FloatingErrorIndicator: NSPanel {
         indicatorView.onDragStart = { [weak self] in
             guard let self = self else { return }
 
-            let msg = "🟢 onDragStart triggered!"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("onDragStart triggered!", category: Logger.ui)
 
             SuggestionPopover.shared.hide()
 
@@ -94,17 +92,13 @@ class FloatingErrorIndicator: NSPanel {
 
             if let element = self.monitoredElement,
                let windowFrame = self.getVisibleWindowFrame(for: element) {
-                let msg2 = "🟢 Showing border guide with frame: \(windowFrame)"
-                NSLog(msg2)
-                logToDebugFile(msg2)
+                Logger.debug("Showing border guide with frame: \(windowFrame)", category: Logger.ui)
 
                 // Use brown color (TextWarden logo color) for border guide
                 let brownColor = NSColor(red: 139/255.0, green: 69/255.0, blue: 19/255.0, alpha: 1.0)
                 self.borderGuide.showBorder(around: windowFrame, color: brownColor)
             } else {
-                let msg3 = "🔴 Cannot show border guide - element=\(String(describing: self.monitoredElement))"
-                NSLog(msg3)
-                logToDebugFile(msg3)
+                Logger.debug("Cannot show border guide - element=\(String(describing: self.monitoredElement))", category: Logger.ui)
             }
         }
         indicatorView.onDragEnd = { [weak self] finalPosition in
@@ -159,9 +153,7 @@ class FloatingErrorIndicator: NSPanel {
 
                 // If indicator is currently visible with errors, reposition immediately
                 if self.isVisible, let element = self.monitoredElement, !self.errors.isEmpty {
-                    let msg = "🔴 FloatingErrorIndicator: Position changed to '\(newPosition)' - repositioning"
-                    NSLog(msg)
-                    logToDebugFile(msg)
+                    Logger.debug("FloatingErrorIndicator: Position changed to '\(newPosition)' - repositioning", category: Logger.ui)
                     self.positionIndicator(for: element)
                 }
             }
@@ -170,13 +162,13 @@ class FloatingErrorIndicator: NSPanel {
 
     /// Update indicator with errors
     func update(errors: [GrammarErrorModel], element: AXUIElement, context: ApplicationContext?) {
-        NSLog("🔴 FloatingErrorIndicator: update() called with \(errors.count) errors")
+        Logger.debug("FloatingErrorIndicator: update() called with \(errors.count) errors", category: Logger.ui)
         self.errors = errors
         self.monitoredElement = element
         self.context = context
 
         guard !errors.isEmpty else {
-            NSLog("🔴 FloatingErrorIndicator: No errors, hiding")
+            Logger.debug("FloatingErrorIndicator: No errors, hiding", category: Logger.ui)
             hide()
             return
         }
@@ -188,13 +180,13 @@ class FloatingErrorIndicator: NSPanel {
         // Position in bottom-right of text field
         positionIndicator(for: element)
 
-        NSLog("🔴 FloatingErrorIndicator: Window level: \(self.level.rawValue), isVisible: \(isVisible)")
+        Logger.debug("FloatingErrorIndicator: Window level: \(self.level.rawValue), isVisible: \(isVisible)", category: Logger.ui)
         if !isVisible {
-            NSLog("🔴 FloatingErrorIndicator: Calling order(.above)")
+            Logger.debug("FloatingErrorIndicator: Calling order(.above)", category: Logger.ui)
             order(.above, relativeTo: 0)  // Show window without stealing focus
-            NSLog("🔴 FloatingErrorIndicator: After order(.above), isVisible: \(isVisible)")
+            Logger.debug("FloatingErrorIndicator: After order(.above), isVisible: \(isVisible)", category: Logger.ui)
         } else {
-            NSLog("🔴 FloatingErrorIndicator: Window already visible")
+            Logger.debug("FloatingErrorIndicator: Window already visible", category: Logger.ui)
         }
     }
 
@@ -211,7 +203,7 @@ class FloatingErrorIndicator: NSPanel {
         guard let element = monitoredElement,
               let windowFrame = getVisibleWindowFrame(for: element),
               let bundleId = context?.bundleIdentifier else {
-            NSLog("🔴 FloatingErrorIndicator: handleDragEnd - no window frame or bundle ID available")
+            Logger.debug("FloatingErrorIndicator: handleDragEnd - no window frame or bundle ID available", category: Logger.ui)
             return
         }
 
@@ -227,19 +219,19 @@ class FloatingErrorIndicator: NSPanel {
         // Save position for this application
         IndicatorPositionStore.shared.savePosition(percentagePos, for: bundleId)
 
-        NSLog("🔴 FloatingErrorIndicator: Saved position for \(bundleId) at x=\(percentagePos.xPercent), y=\(percentagePos.yPercent)")
+        Logger.debug("FloatingErrorIndicator: Saved position for \(bundleId) at x=\(percentagePos.xPercent), y=\(percentagePos.yPercent)", category: Logger.ui)
     }
 
     /// Position indicator based on per-app stored position or user preference
     private func positionIndicator(for element: AXUIElement) {
         // Try to get the actual visible window frame
         guard let visibleFrame = getVisibleWindowFrame(for: element) else {
-            NSLog("🔴 FloatingErrorIndicator: Failed to get visible window frame, using screen corner")
+            Logger.debug("FloatingErrorIndicator: Failed to get visible window frame, using screen corner", category: Logger.ui)
             positionInScreenCorner()
             return
         }
 
-        NSLog("🔴 FloatingErrorIndicator: Using visible window frame: \(visibleFrame)")
+        Logger.debug("FloatingErrorIndicator: Using visible window frame: \(visibleFrame)", category: Logger.ui)
 
         let indicatorSize: CGFloat = 40
 
@@ -248,21 +240,21 @@ class FloatingErrorIndicator: NSPanel {
         if let bundleId = context?.bundleIdentifier {
             percentagePos = IndicatorPositionStore.shared.getPosition(for: bundleId)
             if percentagePos != nil {
-                NSLog("📍 FloatingErrorIndicator: Using stored position for \(bundleId)")
+                Logger.debug("FloatingErrorIndicator: Using stored position for \(bundleId)", category: Logger.ui)
             }
         }
 
         // If no stored position, use default from preferences
         if percentagePos == nil {
             percentagePos = IndicatorPositionStore.shared.getDefaultPosition()
-            NSLog("📍 FloatingErrorIndicator: Using default position from preferences")
+            Logger.debug("FloatingErrorIndicator: Using default position from preferences", category: Logger.ui)
         }
 
         // Convert percentage to absolute position
         let position = percentagePos!.toAbsolute(in: visibleFrame, indicatorSize: indicatorSize)
         let finalFrame = NSRect(x: position.x, y: position.y, width: indicatorSize, height: indicatorSize)
 
-        NSLog("🔴 FloatingErrorIndicator: Positioning at \(finalFrame)")
+        Logger.debug("FloatingErrorIndicator: Positioning at \(finalFrame)", category: Logger.ui)
         setFrame(finalFrame, display: true)
     }
 
@@ -309,7 +301,7 @@ class FloatingErrorIndicator: NSPanel {
         )
 
         let finalFrame = NSRect(x: x, y: y, width: indicatorSize, height: indicatorSize)
-        NSLog("🔴 FloatingErrorIndicator: Fallback positioning at screen corner: \(finalFrame)")
+        Logger.debug("FloatingErrorIndicator: Fallback positioning at screen corner: \(finalFrame)", category: Logger.ui)
 
         setFrame(finalFrame, display: true)
     }
@@ -319,13 +311,13 @@ class FloatingErrorIndicator: NSPanel {
     private func getVisibleWindowFrame(for element: AXUIElement) -> CGRect? {
         var pid: pid_t = 0
         if AXUIElementGetPid(element, &pid) != .success {
-            NSLog("🔴 FloatingErrorIndicator: Failed to get PID from element")
+            Logger.debug("FloatingErrorIndicator: Failed to get PID from element", category: Logger.ui)
             return nil
         }
 
         let options = CGWindowListOption(arrayLiteral: .optionOnScreenOnly)
         guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
-            NSLog("🔴 FloatingErrorIndicator: Failed to get window list")
+            Logger.debug("FloatingErrorIndicator: Failed to get window list", category: Logger.ui)
             return nil
         }
 
@@ -376,7 +368,7 @@ class FloatingErrorIndicator: NSPanel {
 
                 // Use the screen we found (or fall back to main)
                 guard let screen = targetScreen ?? NSScreen.main else {
-                    NSLog("🔴 FloatingErrorIndicator: No screen found")
+                    Logger.debug("FloatingErrorIndicator: No screen found", category: Logger.ui)
                     return nil
                 }
 
@@ -385,9 +377,7 @@ class FloatingErrorIndicator: NSPanel {
                 let cocoaY = totalScreenHeight - y - height
 
                 let frame = NSRect(x: x, y: cocoaY, width: width, height: height)
-                let msg = "🔴 FloatingErrorIndicator: Window on screen '\(screen.localizedName)' at \(screen.frame) - CGWindow: (\(x), \(y)), Cocoa: \(frame)"
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("FloatingErrorIndicator: Window on screen '\(screen.localizedName)' at \(screen.frame) - CGWindow: (\(x), \(y)), Cocoa: \(frame)", category: Logger.ui)
 
                 // DEBUG: Show debug boxes based on user preferences
                 DispatchQueue.main.async {
@@ -407,7 +397,7 @@ class FloatingErrorIndicator: NSPanel {
             }
         }
 
-        NSLog("🔴 FloatingErrorIndicator: No matching window found in window list")
+        Logger.debug("FloatingErrorIndicator: No matching window found in window list", category: Logger.ui)
         return nil
     }
 
@@ -479,9 +469,9 @@ class FloatingErrorIndicator: NSPanel {
 
     /// Show errors popover
     private func showErrors() {
-        NSLog("🔴 FloatingErrorIndicator: showErrors called with \(errors.count) errors")
+        Logger.debug("FloatingErrorIndicator: showErrors called with \(errors.count) errors", category: Logger.ui)
         guard let firstError = errors.first else {
-            NSLog("🔴 FloatingErrorIndicator: No errors to show")
+            Logger.debug("FloatingErrorIndicator: No errors to show", category: Logger.ui)
             return
         }
 
@@ -489,7 +479,7 @@ class FloatingErrorIndicator: NSPanel {
         let indicatorFrame = frame
         let position = calculatePopoverPosition(for: indicatorFrame)
 
-        NSLog("🔴 FloatingErrorIndicator: Showing popover at \(position)")
+        Logger.debug("FloatingErrorIndicator: Showing popover at \(position)", category: Logger.ui)
         SuggestionPopover.shared.show(
             error: firstError,
             allErrors: errors,
@@ -626,9 +616,7 @@ private class IndicatorView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        let msg = "🔴 IndicatorView: mouseDown called at \(event.locationInWindow)"
-        NSLog(msg)
-        logToDebugFile(msg)
+        Logger.debug("IndicatorView: mouseDown called at \(event.locationInWindow)", category: Logger.ui)
 
         isDragging = true
         dragStartPoint = event.locationInWindow
@@ -681,7 +669,7 @@ private class IndicatorView: NSView {
     }
 
     override func mouseEntered(with event: NSEvent) {
-        NSLog("🔴 IndicatorView: mouseEntered")
+        Logger.debug("IndicatorView: mouseEntered", category: Logger.ui)
         isHovered = true
 
         // Use open hand cursor to indicate draggability
@@ -699,7 +687,7 @@ private class IndicatorView: NSView {
     }
 
     override func mouseExited(with event: NSEvent) {
-        NSLog("🔴 IndicatorView: mouseExited")
+        Logger.debug("IndicatorView: mouseExited", category: Logger.ui)
         isHovered = false
 
         if !isDragging {

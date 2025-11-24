@@ -31,9 +31,7 @@ class BorderGuideWindow: NSPanel {
 
     /// Show border around the specified frame with optional color
     func showBorder(around frame: CGRect, color: NSColor = .systemBlue) {
-        let msg1 = "🔵 BorderGuideWindow.showBorder: Received frame = \(frame)"
-        NSLog(msg1)
-        logToDebugFile(msg1)
+        Logger.debug("BorderGuideWindow.showBorder: Received frame = \(frame)", category: Logger.ui)
 
         let strokeWidth: CGFloat = 4.0
         let expandedFrame = frame.insetBy(dx: -strokeWidth, dy: -strokeWidth)
@@ -41,22 +39,16 @@ class BorderGuideWindow: NSPanel {
         setFrame(expandedFrame, display: true)
         borderView?.borderColor = color
 
-        let msg2 = "🔵 BorderGuideWindow.showBorder: After setFrame, self.frame = \(self.frame)"
-        NSLog(msg2)
-        logToDebugFile(msg2)
+        Logger.debug("BorderGuideWindow.showBorder: After setFrame, self.frame = \(self.frame)", category: Logger.ui)
 
         borderView?.setNeedsDisplay(borderView!.bounds)
         borderView?.display()
         orderFront(nil)
 
-        let msg4 = "🔵 BorderGuideWindow: After orderFront, forcing another display"
-        NSLog(msg4)
-        logToDebugFile(msg4)
+        Logger.debug("BorderGuideWindow: After orderFront, forcing another display", category: Logger.ui)
         borderView?.display()
 
-        let msg3 = "🔵 BorderGuideWindow: Window ordered front, isVisible=\(isVisible), level=\(level.rawValue)"
-        NSLog(msg3)
-        logToDebugFile(msg3)
+        Logger.debug("BorderGuideWindow: Window ordered front, isVisible=\(isVisible), level=\(level.rawValue)", category: Logger.ui)
     }
 
     func updateColor(_ color: NSColor) {
@@ -83,7 +75,7 @@ private class BorderView: NSView {
         super.draw(dirtyRect)
 
         guard let context = NSGraphicsContext.current?.cgContext else {
-            NSLog("🎨 BorderView.draw() - NO CONTEXT!")
+            Logger.debug("BorderView.draw() - NO CONTEXT!", category: Logger.ui)
             return
         }
 
@@ -91,7 +83,6 @@ private class BorderView: NSView {
         context.setLineWidth(5.0)
         context.stroke(bounds.insetBy(dx: 2.5, dy: 2.5))
 
-        NSLog("🎨 BorderView.draw() called - bounds: \(bounds), color: \(borderColor)")
-        logToDebugFile("🎨 BorderView.draw() called - bounds: \(bounds), color: \(borderColor)")
+        Logger.debug("BorderView.draw() called - bounds: \(bounds), color: \(borderColor)", category: Logger.ui)
     }
 }

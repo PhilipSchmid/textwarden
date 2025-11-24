@@ -97,9 +97,7 @@ class SuggestionPopover: NSObject, ObservableObject {
     ///   - constrainToWindow: Optional window frame to constrain popover positioning (keeps popover inside app window)
     func show(error: GrammarErrorModel, allErrors: [GrammarErrorModel], at position: CGPoint, constrainToWindow: CGRect? = nil) {
         // DEBUG: Log activation policy BEFORE showing
-        let beforeMsg = "🔍 SuggestionPopover.show() - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)"
-        NSLog(beforeMsg)
-        logToFile(beforeMsg)
+        Logger.debug("SuggestionPopover.show() - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
 
         self.currentError = error
         self.allErrors = allErrors
@@ -134,9 +132,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         panel?.order(.above, relativeTo: 0)
 
         // DEBUG: Log activation policy AFTER showing
-        let afterMsg = "🔍 SuggestionPopover.show() - AFTER order(.above) - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)"
-        NSLog(afterMsg)
-        logToFile(afterMsg)
+        Logger.debug("SuggestionPopover.show() - AFTER order(.above) - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
 
         setupEscapeKeyMonitor()
 
@@ -162,9 +158,7 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     /// Perform immediate hide
     private func performHide() {
-        let hideBeforeMsg = "🔍 SuggestionPopover.performHide() - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)"
-        NSLog(hideBeforeMsg)
-        logToFile(hideBeforeMsg)
+        Logger.debug("SuggestionPopover.performHide() - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
 
         if let monitor = escapeKeyMonitor {
             NSEvent.removeMonitor(monitor)
@@ -189,9 +183,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         // causing delays and making apps temporarily unclickable (especially on macOS 14+
         // where activateIgnoringOtherApps is deprecated and ignored).
 
-        let hideAfterMsg = "🔍 SuggestionPopover.performHide() - AFTER - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)"
-        NSLog(hideAfterMsg)
-        logToFile(hideAfterMsg)
+        Logger.debug("SuggestionPopover.performHide() - AFTER - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
     }
 
     /// Hide popover immediately
@@ -211,9 +203,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         // This is necessary because the panel is .nonactivatingPanel
         escapeKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == 53 { // Escape key
-                let escMsg = "⌨️ Popover: Escape key pressed - hiding popover"
-                NSLog(escMsg)
-                self?.logToFile(escMsg)
+                Logger.debug("Popover: Escape key pressed - hiding popover", category: Logger.ui)
                 self?.hide()
             }
         }
@@ -231,9 +221,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
             guard let self = self else { return }
 
-            let clickMsg = "🖱️ Popover: Global click detected - hiding popover"
-            NSLog(clickMsg)
-            self.logToFile(clickMsg)
+            Logger.debug("Popover: Global click detected - hiding popover", category: Logger.ui)
 
             // CRITICAL: Cancel any pending auto-hide timer
             self.hideTimer?.invalidate()
@@ -303,9 +291,7 @@ class SuggestionPopover: NSObject, ObservableObject {
     private func positionPanel(at cursorPosition: CGPoint, constrainToWindow: CGRect? = nil) {
         guard let panel = panel, let screen = NSScreen.main else { return }
 
-        let msg1 = "📍 Popover: Input cursor position (screen): \(cursorPosition)"
-        NSLog(msg1)
-        logToFile(msg1)
+        Logger.debug("Popover: Input cursor position (screen): \(cursorPosition)", category: Logger.ui)
 
         let panelSize = panel.frame.size
         let preferences = UserPreferences.shared
@@ -314,22 +300,14 @@ class SuggestionPopover: NSObject, ObservableObject {
         let constraintFrame = constrainToWindow ?? screen.visibleFrame
 
         if let windowFrame = constrainToWindow {
-            let msg2 = "📍 Popover: Using window constraint: \(windowFrame)"
-            NSLog(msg2)
-            logToFile(msg2)
+            Logger.debug("Popover: Using window constraint: \(windowFrame)", category: Logger.ui)
         } else {
-            let msg2 = "📍 Popover: Using screen frame: \(screen.visibleFrame)"
-            NSLog(msg2)
-            logToFile(msg2)
+            Logger.debug("Popover: Using screen frame: \(screen.visibleFrame)", category: Logger.ui)
         }
 
-        let msg3 = "📍 Popover: Panel size: \(panelSize), Constraint frame: \(constraintFrame)"
-        NSLog(msg3)
-        logToFile(msg3)
+        Logger.debug("Popover: Panel size: \(panelSize), Constraint frame: \(constraintFrame)", category: Logger.ui)
 
-        let msg3a = "📍 Popover: Cursor position: \(cursorPosition)"
-        NSLog(msg3a)
-        logToFile(msg3a)
+        Logger.debug("Popover: Cursor position: \(cursorPosition)", category: Logger.ui)
 
         // Calculate available space in all directions
         let padding: CGFloat = 20  // Increased from 10 to give more breathing room
@@ -338,9 +316,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         let roomLeft = cursorPosition.x - constraintFrame.minX
         let roomRight = constraintFrame.maxX - cursorPosition.x
 
-        let msg4 = "📍 Popover: Room - Above: \(roomAbove), Below: \(roomBelow), Left: \(roomLeft), Right: \(roomRight)"
-        NSLog(msg4)
-        logToFile(msg4)
+        Logger.debug("Popover: Room - Above: \(roomAbove), Below: \(roomBelow), Left: \(roomLeft), Right: \(roomRight)", category: Logger.ui)
 
         // Dynamically adjust panel width if it would exceed available space
         var adjustedPanelSize = panelSize
@@ -348,9 +324,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         if panelSize.width > maxAvailableWidth {
             adjustedPanelSize.width = max(300, maxAvailableWidth)  // Minimum 300px, or available space
 
-            let msg4a = "📐 Popover: Reducing width from \(panelSize.width) to \(adjustedPanelSize.width) (available: \(maxAvailableWidth))"
-            NSLog(msg4a)
-            logToFile(msg4a)
+            Logger.debug("Popover: Reducing width from \(panelSize.width) to \(adjustedPanelSize.width) (available: \(maxAvailableWidth))", category: Logger.ui)
 
             // Resize panel and content views
             if let trackingView = panel.contentView as? PopoverTrackingView,
@@ -377,9 +351,7 @@ class SuggestionPopover: NSObject, ObservableObject {
             }
         }
 
-        let msg5 = "📍 Popover: shouldPositionAbove: \(shouldPositionAbove)"
-        NSLog(msg5)
-        logToFile(msg5)
+        Logger.debug("Popover: shouldPositionAbove: \(shouldPositionAbove)", category: Logger.ui)
 
         // Calculate vertical position
         var origin = CGPoint.zero
@@ -400,44 +372,32 @@ class SuggestionPopover: NSObject, ObservableObject {
             origin.x = max(constraintFrame.minX + padding, min(cursorPosition.x - adjustedPanelSize.width / 2, constraintFrame.maxX - adjustedPanelSize.width - padding))
         }
 
-        let msg6 = "📍 Popover: Initial position: \(origin)"
-        NSLog(msg6)
-        logToFile(msg6)
+        Logger.debug("Popover: Initial position: \(origin)", category: Logger.ui)
 
         // Final bounds check to ensure panel stays fully within constraint frame
         // Horizontal clamping - ensure popover stays within bounds
         if origin.x < constraintFrame.minX + padding {
             origin.x = constraintFrame.minX + padding
-            let msg7 = "📍 Popover: Clamped to minX: \(origin.x)"
-            NSLog(msg7)
-            logToFile(msg7)
+            Logger.debug("Popover: Clamped to minX: \(origin.x)", category: Logger.ui)
         }
         if origin.x + adjustedPanelSize.width > constraintFrame.maxX - padding {
             // Clamp to right edge, but don't push past left edge
             let rightClamped = constraintFrame.maxX - adjustedPanelSize.width - padding
             origin.x = max(constraintFrame.minX + padding, rightClamped)
-            let msg8 = "📍 Popover: Clamped to maxX: rightClamped=\(rightClamped), final=\(origin.x)"
-            NSLog(msg8)
-            logToFile(msg8)
+            Logger.debug("Popover: Clamped to maxX: rightClamped=\(rightClamped), final=\(origin.x)", category: Logger.ui)
         }
 
         // Vertical clamping (ensure entire panel is visible)
         if origin.y < constraintFrame.minY + padding {
             origin.y = constraintFrame.minY + padding
-            let msg9 = "📍 Popover: Clamped to minY: \(origin.y)"
-            NSLog(msg9)
-            logToFile(msg9)
+            Logger.debug("Popover: Clamped to minY: \(origin.y)", category: Logger.ui)
         }
         if origin.y + adjustedPanelSize.height > constraintFrame.maxY - padding {
             origin.y = constraintFrame.maxY - adjustedPanelSize.height - padding
-            let msg10 = "📍 Popover: Clamped to maxY: \(origin.y)"
-            NSLog(msg10)
-            logToFile(msg10)
+            Logger.debug("Popover: Clamped to maxY: \(origin.y)", category: Logger.ui)
         }
 
-        let msg11 = "✅ Popover: Final position: \(origin), will show at: (\(origin.x), \(origin.y)) to (\(origin.x + adjustedPanelSize.width), \(origin.y + adjustedPanelSize.height))"
-        NSLog(msg11)
-        logToFile(msg11)
+        Logger.debug("Popover: Final position: \(origin), will show at: (\(origin.x), \(origin.y)) to (\(origin.x + adjustedPanelSize.width), \(origin.y + adjustedPanelSize.height))", category: Logger.ui)
         panel.setFrameOrigin(origin)
     }
 
