@@ -34,29 +34,23 @@ struct PreferencesView: View {
                 }
                 .tag(2)
 
-            FilteringPreferencesView(preferences: preferences)
+            SpellCheckingView()
                 .tabItem {
-                    Label("Categories", systemImage: "line.3.horizontal.decrease.circle")
+                    Label("Spell Checking", systemImage: "text.badge.checkmark")
                 }
                 .tag(3)
-
-            CustomVocabularyView()
-                .tabItem {
-                    Label("Dictionary", systemImage: "text.book.closed")
-                }
-                .tag(4)
 
             DiagnosticsView(preferences: preferences)
                 .tabItem {
                     Label("Diagnostics", systemImage: "wrench.and.screwdriver")
                 }
-                .tag(5)
+                .tag(4)
 
             AboutView()
                 .tabItem {
                     Label("About", systemImage: "info.circle")
                 }
-                .tag(6)
+                .tag(5)
         }
         .frame(minWidth: 750, minHeight: 600)
     }
@@ -1209,6 +1203,24 @@ private struct AnalysisDelayTextField: View {
         } else {
             // Revert to current value if invalid
             text = String(preferences.analysisDelayMs)
+        }
+    }
+}
+
+// MARK: - Spell Checking (combines Categories and Dictionary)
+
+struct SpellCheckingView: View {
+    var body: some View {
+        TabView {
+            FilteringPreferencesView(preferences: UserPreferences.shared)
+                .tabItem {
+                    Label("Categories", systemImage: "line.3.horizontal.decrease.circle")
+                }
+
+            CustomVocabularyView()
+                .tabItem {
+                    Label("Dictionary", systemImage: "text.book.closed")
+                }
         }
     }
 }
