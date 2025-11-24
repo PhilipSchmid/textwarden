@@ -133,9 +133,7 @@ class AnalysisCoordinator: ObservableObject {
         suggestionPopover.onMouseEntered = { [weak self] in
             guard let self = self else { return }
             if self.hoverSwitchTimer != nil {
-                let msg = "🚫 AnalysisCoordinator: Mouse entered popover - cancelling delayed switch"
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("AnalysisCoordinator: Mouse entered popover - cancelling delayed switch", category: Logger.analysis)
                 self.hoverSwitchTimer?.invalidate()
                 self.hoverSwitchTimer = nil
                 self.pendingHoverError = nil
@@ -159,9 +157,7 @@ class AnalysisCoordinator: ObservableObject {
         errorOverlay.onErrorHover = { [weak self] error, position, windowFrame in
             guard let self = self else { return }
 
-            let msg = "🖱️ AnalysisCoordinator: onErrorHover - error at \(error.start)-\(error.end)"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("AnalysisCoordinator: onErrorHover - error at \(error.start)-\(error.end)", category: Logger.analysis)
 
             // Cancel any pending hide when mouse enters ANY error
             self.suggestionPopover.cancelHide()
@@ -171,9 +167,7 @@ class AnalysisCoordinator: ObservableObject {
 
             if !isPopoverShowing {
                 // No popover showing - show immediately (first hover)
-                let msg2 = "✅ AnalysisCoordinator: First hover - showing popover immediately"
-                NSLog(msg2)
-                logToDebugFile(msg2)
+                Logger.debug("AnalysisCoordinator: First hover - showing popover immediately", category: Logger.analysis)
                 self.hoverSwitchTimer?.invalidate()
                 self.hoverSwitchTimer = nil
                 self.pendingHoverError = nil
@@ -185,17 +179,13 @@ class AnalysisCoordinator: ObservableObject {
                 )
             } else if self.isSameError(error, as: self.suggestionPopover.currentError) {
                 // Same error - just keep showing (cancel any pending switches)
-                let msg2 = "🔄 AnalysisCoordinator: Same error - keeping popover visible"
-                NSLog(msg2)
-                logToDebugFile(msg2)
+                Logger.debug("AnalysisCoordinator: Same error - keeping popover visible", category: Logger.analysis)
                 self.hoverSwitchTimer?.invalidate()
                 self.hoverSwitchTimer = nil
                 self.pendingHoverError = nil
             } else {
                 // Different error - delay the switch to give user time to reach the popover
-                let msg2 = "⏱️ AnalysisCoordinator: Different error - scheduling delayed switch (300ms)"
-                NSLog(msg2)
-                logToDebugFile(msg2)
+                Logger.debug("AnalysisCoordinator: Different error - scheduling delayed switch (300ms)", category: Logger.analysis)
 
                 // Cancel any existing timer
                 self.hoverSwitchTimer?.invalidate()
@@ -208,9 +198,7 @@ class AnalysisCoordinator: ObservableObject {
                     guard let self = self,
                           let pending = self.pendingHoverError else { return }
 
-                    let msg3 = "✅ AnalysisCoordinator: Delayed switch timer fired - showing new popover"
-                    NSLog(msg3)
-                    logToDebugFile(msg3)
+                    Logger.debug("AnalysisCoordinator: Delayed switch timer fired - showing new popover", category: Logger.analysis)
 
                     self.suggestionPopover.show(
                         error: pending.error,
@@ -231,15 +219,11 @@ class AnalysisCoordinator: ObservableObject {
         errorOverlay.onHoverEnd = { [weak self] in
             guard let self = self else { return }
 
-            let msg = "📍 AnalysisCoordinator: Hover ended on underline"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("AnalysisCoordinator: Hover ended on underline", category: Logger.analysis)
 
             // Cancel any pending delayed switch
             if self.hoverSwitchTimer != nil {
-                let msg2 = "🚫 AnalysisCoordinator: Cancelling delayed switch (mouse left underline)"
-                NSLog(msg2)
-                logToDebugFile(msg2)
+                Logger.debug("AnalysisCoordinator: Cancelling delayed switch (mouse left underline)", category: Logger.analysis)
                 self.hoverSwitchTimer?.invalidate()
                 self.hoverSwitchTimer = nil
                 self.pendingHoverError = nil
@@ -264,9 +248,7 @@ class AnalysisCoordinator: ObservableObject {
 
             guard let self = self else { return }
 
-            let msg = "📱 AnalysisCoordinator: App switched to \(context.applicationName) (\(context.bundleIdentifier))"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("AnalysisCoordinator: App switched to \(context.applicationName) (\(context.bundleIdentifier))", category: Logger.analysis)
 
             // Check if this is the same app we're already monitoring
             let isSameApp = self.monitoredContext?.bundleIdentifier == context.bundleIdentifier
@@ -274,9 +256,7 @@ class AnalysisCoordinator: ObservableObject {
             // CRITICAL: Stop monitoring the previous app to prevent delayed AX notifications
             // from showing overlays for the old app after switching
             if !isSameApp {
-                let msg = "🛑 AnalysisCoordinator: Stopping monitoring for previous app"
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("AnalysisCoordinator: Stopping monitoring for previous app", category: Logger.analysis)
                 self.textMonitor.stopMonitoring()
             }
 
@@ -292,9 +272,7 @@ class AnalysisCoordinator: ObservableObject {
             // Start monitoring new application if enabled
             if context.shouldCheck() {
                 if isSameApp {
-                    let msg = "🔄 AnalysisCoordinator: Returning to same app - forcing immediate re-analysis"
-                    NSLog(msg)
-                    logToDebugFile(msg)
+                    Logger.debug("AnalysisCoordinator: Returning to same app - forcing immediate re-analysis", category: Logger.analysis)
                     // CRITICAL: Set context even for same app (might have been cleared when switching away)
                     self.monitoredContext = context
                     // Same app - force immediate re-analysis by clearing previousText
@@ -304,43 +282,33 @@ class AnalysisCoordinator: ObservableObject {
                         self.textMonitor.extractText(from: element)
                     }
                 } else {
-                    let msg1 = "✅ AnalysisCoordinator: New application - starting monitoring"
-                    NSLog(msg1)
-                    logToDebugFile(msg1)
+                    Logger.debug("AnalysisCoordinator: New application - starting monitoring", category: Logger.analysis)
                     self.monitoredContext = context  // Set BEFORE startMonitoring
                     self.startMonitoring(context: context)
 
                     // Trigger immediate extraction, then retry a few times to catch delayed element readiness
                     if let element = self.textMonitor.monitoredElement {
-                        let msg2 = "🔄 AnalysisCoordinator: Immediate text extraction"
-                        NSLog(msg2)
-                        logToDebugFile(msg2)
+                        Logger.debug("AnalysisCoordinator: Immediate text extraction", category: Logger.analysis)
                         self.textMonitor.extractText(from: element)
                     }
 
                     // Retry after short delays to catch cases where element wasn't ready immediately
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         if let element = self.textMonitor.monitoredElement {
-                            let msg3 = "🔄 AnalysisCoordinator: Retry 1 - extracting text"
-                            NSLog(msg3)
-                            logToDebugFile(msg3)
+                            Logger.debug("AnalysisCoordinator: Retry 1 - extracting text", category: Logger.analysis)
                             self.textMonitor.extractText(from: element)
                         }
                     }
 
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         if let element = self.textMonitor.monitoredElement {
-                            let msg4 = "🔄 AnalysisCoordinator: Retry 2 - extracting text"
-                            NSLog(msg4)
-                            logToDebugFile(msg4)
+                            Logger.debug("AnalysisCoordinator: Retry 2 - extracting text", category: Logger.analysis)
                             self.textMonitor.extractText(from: element)
                         }
                     }
                 }
             } else {
-                let msg = "⏸️ AnalysisCoordinator: Application not in check list - stopping monitoring"
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("AnalysisCoordinator: Application not in check list - stopping monitoring", category: Logger.analysis)
                 self.stopMonitoring()
                 self.monitoredContext = nil
             }
