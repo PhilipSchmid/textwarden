@@ -65,7 +65,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions.
 **Tech Stack:**
 - Swift 5.9+ (application layer)
 - Rust 1.75+ (grammar engine)
-- Harper v0.5+ (grammar rules)
+- Harper v0.72 (grammar rules)
 - swift-bridge 1.0+ (FFI)
 - SwiftUI + AppKit (UI)
 
