@@ -28,15 +28,15 @@ struct PreferencesView: View {
                 }
                 .tag(1)
 
-            StatisticsView()
-                .tabItem {
-                    Label("Statistics", systemImage: "chart.bar.fill")
-                }
-                .tag(2)
-
             ApplicationSettingsView(preferences: preferences)
                 .tabItem {
                     Label("Applications", systemImage: "app.badge")
+                }
+                .tag(2)
+
+            StatisticsView()
+                .tabItem {
+                    Label("Statistics", systemImage: "chart.bar.fill")
                 }
                 .tag(3)
 
@@ -919,10 +919,6 @@ struct GeneralPreferencesView: View {
                     .font(.headline)
             }
 
-            Spacer()
-                .frame(height: 24)
-                .listRowBackground(Color.clear)
-
             // MARK: Appearance Settings Group
             Section {
                 VStack(alignment: .leading, spacing: 8) {
@@ -941,6 +937,7 @@ struct GeneralPreferencesView: View {
                         .foregroundColor(.secondary)
                 }
             }
+            .padding(.top, 24)
 
             Section {
                 VStack(alignment: .leading, spacing: 8) {
@@ -1047,74 +1044,6 @@ struct GeneralPreferencesView: View {
                     .font(.headline)
             }
 
-            Spacer()
-                .frame(height: 24)
-                .listRowBackground(Color.clear)
-
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .center) {
-                        Text("Analysis delay:")
-
-                        Spacer()
-
-                        AnalysisDelayTextField(preferences: preferences)
-
-                        Text("ms")
-                            .foregroundColor(.secondary)
-                    }
-
-                    Text("Delay before analyzing text after you stop typing")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    if preferences.analysisDelayMs < 10 {
-                        HStack(spacing: 4) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.orange)
-                            Text("Value too low - recommended minimum is 10ms")
-                                .font(.caption2)
-                                .foregroundColor(.orange)
-                        }
-                    } else if preferences.analysisDelayMs > 500 {
-                        HStack(spacing: 4) {
-                            Image(systemName: "info.circle.fill")
-                                .foregroundColor(.blue)
-                            Text("High values may feel less responsive")
-                                .font(.caption2)
-                                .foregroundColor(.blue)
-                        }
-                    } else {
-                        Text("Recommended: 10-100ms for responsiveness, 200-500ms to reduce CPU usage")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            } header: {
-                Text("Performance")
-                    .font(.headline)
-            }
-
-            Section {
-                Picker("English dialect:", selection: $preferences.selectedDialect) {
-                    ForEach(UserPreferences.availableDialects, id: \.self) { dialect in
-                        Text(dialect).tag(dialect)
-                    }
-                }
-                .help("Select the English dialect for grammar checking")
-
-                Text("Choose your preferred English variant for spelling and grammar rules")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            } header: {
-                Text("Language")
-                    .font(.headline)
-            }
-
-            Spacer()
-                .frame(height: 24)
-                .listRowBackground(Color.clear)
-
             // MARK: Keyboard Shortcuts Group
             Section {
                 VStack(alignment: .leading, spacing: 8) {
@@ -1133,6 +1062,7 @@ struct GeneralPreferencesView: View {
                         .foregroundColor(.secondary)
                 }
             }
+            .padding(.top, 24)
 
             Section {
                 Toggle("Enable keyboard shortcuts", isOn: $preferences.keyboardShortcutsEnabled)
@@ -1289,9 +1219,66 @@ struct SpellCheckingView: View {
 
             FilteringPreferencesContent(preferences: preferences)
 
-            Spacer()
-                .frame(height: 24)
-                .listRowBackground(Color.clear)
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .center) {
+                        Text("Analysis delay:")
+
+                        Spacer()
+
+                        AnalysisDelayTextField(preferences: preferences)
+
+                        Text("ms")
+                            .foregroundColor(.secondary)
+                    }
+
+                    Text("Delay before analyzing text after you stop typing")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    if preferences.analysisDelayMs < 10 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                            Text("Value too low - recommended minimum is 10ms")
+                                .font(.caption2)
+                                .foregroundColor(.orange)
+                        }
+                    } else if preferences.analysisDelayMs > 500 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "info.circle.fill")
+                                .foregroundColor(.blue)
+                            Text("High values may feel less responsive")
+                                .font(.caption2)
+                                .foregroundColor(.blue)
+                        }
+                    } else {
+                        Text("Recommended: 10-100ms for responsiveness, 200-500ms to reduce CPU usage")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            } header: {
+                Text("Performance")
+                    .font(.headline)
+            }
+            .padding(.top, 24)
+
+            Section {
+                Picker("English dialect:", selection: $preferences.selectedDialect) {
+                    ForEach(UserPreferences.availableDialects, id: \.self) { dialect in
+                        Text(dialect).tag(dialect)
+                    }
+                }
+                .help("Select the English dialect for grammar checking")
+
+                Text("Choose your preferred English variant for spelling and grammar rules")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } header: {
+                Text("Language")
+                    .font(.headline)
+            }
 
             // MARK: Custom Dictionary Group
             Section {
@@ -1311,6 +1298,7 @@ struct SpellCheckingView: View {
                         .foregroundColor(.secondary)
                 }
             }
+            .padding(.top, 24)
 
             CustomVocabularyContent(
                 vocabulary: vocabulary,
