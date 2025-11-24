@@ -106,7 +106,7 @@ class RetryScheduler {
         // Calculate delay
         let delay = config.delay(for: attempt)
 
-        NSLog("🔄 RetryScheduler: Scheduling retry \(attempt + 1)/\(config.maxAttempts) in \(String(format: "%.3f", delay))s")
+        Logger.debug("RetryScheduler: Scheduling retry \(attempt + 1)/\(config.maxAttempts) in \(String(format: "%.3f", delay))s", category: Logger.general)
 
         // Schedule retry
         let item = DispatchWorkItem(block: action)

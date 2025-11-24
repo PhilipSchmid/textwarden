@@ -334,21 +334,11 @@ class AnalysisCoordinator: ObservableObject {
 
         // CRITICAL FIX: Check if there's already an active application
         if let currentApp = applicationTracker.activeApplication {
-            let logMsg1 = "📱 AnalysisCoordinator: Found existing active application: \(currentApp.applicationName) (\(currentApp.bundleIdentifier))"
-            let logMsg2 = "📊 AnalysisCoordinator: Should check? \(currentApp.shouldCheck())"
-            let logMsg3 = "📊 AnalysisCoordinator: Context isEnabled: \(currentApp.isEnabled)"
-            let logMsg4 = "📊 AnalysisCoordinator: Global isEnabled: \(UserPreferences.shared.isEnabled)"
-            let logMsg5 = "📊 AnalysisCoordinator: Is in disabled apps? \(UserPreferences.shared.disabledApplications.contains(currentApp.bundleIdentifier))"
-            NSLog(logMsg1)
-            NSLog(logMsg2)
-            NSLog(logMsg3)
-            NSLog(logMsg4)
-            NSLog(logMsg5)
-            logToDebugFile(logMsg1)
-            logToDebugFile(logMsg2)
-            logToDebugFile(logMsg3)
-            logToDebugFile(logMsg4)
-            logToDebugFile(logMsg5)
+            Logger.debug("AnalysisCoordinator: Found existing active application: \(currentApp.applicationName) (\(currentApp.bundleIdentifier))", category: Logger.analysis)
+            Logger.debug("AnalysisCoordinator: Should check? \(currentApp.shouldCheck())", category: Logger.analysis)
+            Logger.debug("AnalysisCoordinator: Context isEnabled: \(currentApp.isEnabled)", category: Logger.analysis)
+            Logger.debug("AnalysisCoordinator: Global isEnabled: \(UserPreferences.shared.isEnabled)", category: Logger.analysis)
+            Logger.debug("AnalysisCoordinator: Is in disabled apps? \(UserPreferences.shared.disabledApplications.contains(currentApp.bundleIdentifier))", category: Logger.analysis)
             if currentApp.shouldCheck() {
                 Logger.debug("AnalysisCoordinator: Starting monitoring for existing app", category: Logger.analysis)
                 self.monitoredContext = currentApp  // Set BEFORE startMonitoring
@@ -488,7 +478,7 @@ class AnalysisCoordinator: ObservableObject {
     private func handleWindowMovementStarted() {
         guard !overlaysHiddenDueToMovement else { return }
 
-        NSLog("🪟 Window monitoring: Movement started - hiding all overlays")
+        Logger.debug("Window monitoring: Movement started - hiding all overlays", category: Logger.analysis)
         overlaysHiddenDueToMovement = true
 
         // Immediately hide all overlays
@@ -636,9 +626,7 @@ class AnalysisCoordinator: ObservableObject {
                     errorsFound: result.errors.count
                 )
 
-                let msg5 = "✅ AnalysisCoordinator: Analysis complete"
-                NSLog(msg5)
-                logToDebugFile(msg5)
+                Logger.debug("AnalysisCoordinator: Analysis complete", category: Logger.analysis)
             }
         }
     }
@@ -938,28 +926,19 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Apply text replacement for error (T044)
     private func applyTextReplacement(for error: GrammarErrorModel, with suggestion: String) {
-        let msg0 = "🔧 applyTextReplacement called - error: '\(error.message)', suggestion: '\(suggestion)'"
-        NSLog(msg0)
-        logToDebugFile(msg0)
+        Logger.debug("applyTextReplacement called - error: '\(error.message)', suggestion: '\(suggestion)'", category: Logger.analysis)
 
         guard let element = textMonitor.monitoredElement else {
-            let msg = "❌ No monitored element for text replacement"
-            NSLog(msg)
-            logToDebugFile(msg)
-            print(msg)
+            Logger.debug("No monitored element for text replacement", category: Logger.analysis)
             return
         }
 
-        let msg1 = "✅ Have monitored element, context: \(monitoredContext?.applicationName ?? "nil")"
-        NSLog(msg1)
-        logToDebugFile(msg1)
+        Logger.debug("Have monitored element, context: \(monitoredContext?.applicationName ?? "nil")", category: Logger.analysis)
 
         // Use keyboard automation directly for known Electron apps
         // This avoids trying the AX API which is known to fail on Electron
         if let context = monitoredContext, context.requiresKeyboardReplacement {
-            let msg = "🎯 Detected Electron app (\(context.applicationName)) - using keyboard automation directly"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("Detected Electron app (\(context.applicationName)) - using keyboard automation directly", category: Logger.analysis)
 
             applyTextReplacementViaKeyboard(for: error, with: suggestion, element: element)
             return
@@ -988,9 +967,7 @@ class AnalysisCoordinator: ObservableObject {
         if selectError != .success {
             // AX API failed
             // Fallback: Use clipboard + keyboard simulation
-            let msg = "⚠️ AX API selection failed (\(selectError.rawValue)), using keyboard fallback"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("AX API selection failed (\(selectError.rawValue)), using keyboard fallback", category: Logger.analysis)
 
             applyTextReplacementViaKeyboard(for: error, with: suggestion, element: element)
             return
@@ -1022,9 +999,7 @@ class AnalysisCoordinator: ObservableObject {
             )
         } else {
             // AX API replacement failed
-            let msg = "⚠️ AX API replacement failed (\(replaceError.rawValue)), trying keyboard fallback"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("AX API replacement failed (\(replaceError.rawValue)), trying keyboard fallback", category: Logger.analysis)
 
             // Try keyboard fallback
             applyTextReplacementViaKeyboard(for: error, with: suggestion, element: element)
@@ -1038,9 +1013,7 @@ class AnalysisCoordinator: ObservableObject {
     /// 3. Try paste via menu action (more reliable)
     /// 4. Fallback to Cmd+V if menu fails
     private func applyBrowserTextReplacement(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement, context: ApplicationContext) {
-        let msg = "🌐 Browser text replacement for \(context.applicationName)"
-        NSLog(msg)
-        logToDebugFile(msg)
+        Logger.debug("Browser text replacement for \(context.applicationName)", category: Logger.analysis)
 
         // Step 1: Try to select the error range using AX API
         // This may silently fail in browsers, but it's fast and works sometimes
@@ -1054,13 +1027,9 @@ class AnalysisCoordinator: ObservableObject {
         )
 
         if selectResult == .success {
-            let msg2 = "✅ AX API accepted selection for browser (range: \(error.start)-\(error.end))"
-            NSLog(msg2)
-            logToDebugFile(msg2)
+            Logger.debug("AX API accepted selection for browser (range: \(error.start)-\(error.end))", category: Logger.analysis)
         } else {
-            let msg2 = "⚠️ AX API selection failed for browser (error: \(selectResult.rawValue)) - will try paste anyway"
-            NSLog(msg2)
-            logToDebugFile(msg2)
+            Logger.debug("AX API selection failed for browser (error: \(selectResult.rawValue)) - will try paste anyway", category: Logger.analysis)
         }
 
         // Step 2: Save original pasteboard content
@@ -1074,17 +1043,13 @@ class AnalysisCoordinator: ObservableObject {
         pasteboard.clearContents()
         pasteboard.setString(suggestion, forType: .string)
 
-        let msg3 = "📋 Copied suggestion to clipboard: '\(suggestion)'"
-        NSLog(msg3)
-        logToDebugFile(msg3)
+        Logger.debug("Copied suggestion to clipboard: '\(suggestion)'", category: Logger.analysis)
 
         // Step 4: Activate the browser
         let apps = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier)
         if let targetApp = apps.first {
             targetApp.activate(options: .activateIgnoringOtherApps)
-            let activateMsg = "🎯 Activated \(context.applicationName)"
-            NSLog(activateMsg)
-            logToDebugFile(activateMsg)
+            Logger.debug("Activated \(context.applicationName)", category: Logger.analysis)
         }
 
         // Step 5: Wait for activation, then try paste via menu action
@@ -1102,18 +1067,12 @@ class AnalysisCoordinator: ObservableObject {
                     let pressResult = AXUIElementPerformAction(pasteMenuItem, kAXPressAction as CFString)
                     if pressResult == .success {
                         pasteSucceeded = true
-                        let menuMsg = "✅ Pasted via menu action"
-                        NSLog(menuMsg)
-                        logToDebugFile(menuMsg)
+                        Logger.debug("Pasted via menu action", category: Logger.analysis)
                     } else {
-                        let menuMsg = "⚠️ Menu action press failed: \(pressResult.rawValue)"
-                        NSLog(menuMsg)
-                        logToDebugFile(menuMsg)
+                        Logger.debug("Menu action press failed: \(pressResult.rawValue)", category: Logger.analysis)
                     }
                 } else {
-                    let menuMsg = "⚠️ Could not find Paste menu item"
-                    NSLog(menuMsg)
-                    logToDebugFile(menuMsg)
+                    Logger.debug("Could not find Paste menu item", category: Logger.analysis)
                 }
             }
 
@@ -1121,9 +1080,7 @@ class AnalysisCoordinator: ObservableObject {
             if !pasteSucceeded {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     self.pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
-                    let fallbackMsg = "✅ Pasted via keyboard shortcut (Cmd+V fallback)"
-                    NSLog(fallbackMsg)
-                    logToDebugFile(fallbackMsg)
+                    Logger.debug("Pasted via keyboard shortcut (Cmd+V fallback)", category: Logger.analysis)
                 }
             }
 
@@ -1136,21 +1093,15 @@ class AnalysisCoordinator: ObservableObject {
                     if let originalContent = originalString {
                         pasteboard.clearContents()
                         pasteboard.setString(originalContent, forType: .string)
-                        let restoreMsg = "📋 Restored original pasteboard content: '\(originalContent.prefix(50))...'"
-                        NSLog(restoreMsg)
-                        logToDebugFile(restoreMsg)
+                        Logger.debug("Restored original pasteboard content: '\(originalContent.prefix(50))...'", category: Logger.analysis)
                     } else {
                         // Original clipboard was empty - just clear it
                         pasteboard.clearContents()
-                        let restoreMsg = "📋 Cleared pasteboard (original was empty)"
-                        NSLog(restoreMsg)
-                        logToDebugFile(restoreMsg)
+                        Logger.debug("Cleared pasteboard (original was empty)", category: Logger.analysis)
                     }
                 } else {
                     // Clipboard was changed by user or another app - don't restore
-                    let skipMsg = "⏭️ Skipped pasteboard restore (user modified clipboard)"
-                    NSLog(skipMsg)
-                    logToDebugFile(skipMsg)
+                    Logger.debug("Skipped pasteboard restore (user modified clipboard)", category: Logger.analysis)
                 }
 
                 // Record statistics
@@ -1159,9 +1110,7 @@ class AnalysisCoordinator: ObservableObject {
                 // Invalidate cache
                 self.invalidateCacheAfterReplacement(at: error.start..<error.end)
 
-                let completeMsg = "✅ Browser text replacement complete"
-                NSLog(completeMsg)
-                logToDebugFile(completeMsg)
+                Logger.debug("Browser text replacement complete", category: Logger.analysis)
             }
         }
     }
@@ -1222,13 +1171,11 @@ class AnalysisCoordinator: ObservableObject {
     /// Uses hybrid replacement approach: try AX API first, fall back to keyboard
     private func applyTextReplacementViaKeyboard(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement) {
         guard let context = self.monitoredContext else {
-            NSLog("❌ No context available for keyboard replacement")
+            Logger.debug("No context available for keyboard replacement", category: Logger.analysis)
             return
         }
 
-        let msg1 = "⌨️ Using keyboard simulation for text replacement (app: \(context.applicationName), isTerminal: \(context.isTerminalApp), isBrowser: \(context.isBrowser))"
-        NSLog(msg1)
-        logToDebugFile(msg1)
+        Logger.debug("Using keyboard simulation for text replacement (app: \(context.applicationName), isTerminal: \(context.isTerminalApp), isBrowser: \(context.isBrowser))", category: Logger.analysis)
 
         // SPECIAL HANDLING FOR BROWSERS
         // Browsers have contenteditable areas where AX API often silently fails
@@ -1258,18 +1205,12 @@ class AnalysisCoordinator: ObservableObject {
                 let success = AXValueGetValue(range, .cfRange, &cfRange)
                 if success {
                     originalCursorPosition = cfRange.location
-                    let msg = "📍 Terminal: Original cursor position: \(cfRange.location) (selection length: \(cfRange.length))"
-                    NSLog(msg)
-                    logToDebugFile(msg)
+                    Logger.debug("Terminal: Original cursor position: \(cfRange.location) (selection length: \(cfRange.length))", category: Logger.analysis)
                 } else {
-                    let msg = "⚠️ Terminal: Could not extract CFRange from AXSelectedTextRange"
-                    NSLog(msg)
-                    logToDebugFile(msg)
+                    Logger.debug("Terminal: Could not extract CFRange from AXSelectedTextRange", category: Logger.analysis)
                 }
             } else {
-                let msg = "⚠️ Terminal: Could not query AXSelectedTextRange (error: \(rangeResult.rawValue))"
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("Terminal: Could not query AXSelectedTextRange (error: \(rangeResult.rawValue))", category: Logger.analysis)
             }
 
             var currentTextValue: CFTypeRef?
@@ -1280,18 +1221,14 @@ class AnalysisCoordinator: ObservableObject {
             )
 
             guard getTextResult == .success, let fullText = currentTextValue as? String else {
-                let msg = "❌ Failed to get current text for Terminal replacement"
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("Failed to get current text for Terminal replacement", category: Logger.analysis)
                 return
             }
 
             // Apply preprocessing to get just the command line text
             let parser = ContentParserFactory.shared.parser(for: context.bundleIdentifier)
             guard let commandLineText = parser.preprocessText(fullText) else {
-                let msg = "❌ Failed to preprocess text for Terminal"
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("Failed to preprocess text for Terminal", category: Logger.analysis)
                 return
             }
 
@@ -1301,13 +1238,9 @@ class AnalysisCoordinator: ObservableObject {
             var correctedText = commandLineText
             correctedText.replaceSubrange(startIndex..<endIndex, with: suggestion)
 
-            let msg2 = "📝 Terminal: Original command: '\(commandLineText)'"
-            NSLog(msg2)
-            logToDebugFile(msg2)
+            Logger.debug("Terminal: Original command: '\(commandLineText)'", category: Logger.analysis)
 
-            let msg3 = "📝 Terminal: Corrected command: '\(correctedText)'"
-            NSLog(msg3)
-            logToDebugFile(msg3)
+            Logger.debug("Terminal: Corrected command: '\(correctedText)'", category: Logger.analysis)
 
             // Calculate target cursor position for restoration
             var targetCursorPosition: Int?
@@ -1319,9 +1252,7 @@ class AnalysisCoordinator: ObservableObject {
                     let promptOffset = commandRange.location
                     let cursorInCommandLine = axCursorPos - promptOffset
 
-                    let msg = "📍 Terminal: Cursor in command line: \(cursorInCommandLine) (AX position: \(axCursorPos), prompt offset: \(promptOffset))"
-                    NSLog(msg)
-                    logToDebugFile(msg)
+                    Logger.debug("Terminal: Cursor in command line: \(cursorInCommandLine) (AX position: \(axCursorPos), prompt offset: \(promptOffset))", category: Logger.analysis)
 
                     // Calculate new cursor position after replacement
                     let errorLength = error.end - error.start
@@ -1331,26 +1262,18 @@ class AnalysisCoordinator: ObservableObject {
                     if cursorInCommandLine < error.start {
                         // Cursor before error - position unchanged
                         targetCursorPosition = cursorInCommandLine
-                        let msg2 = "📍 Cursor before error - keeping at position \(cursorInCommandLine)"
-                        NSLog(msg2)
-                        logToDebugFile(msg2)
+                        Logger.debug("Cursor before error - keeping at position \(cursorInCommandLine)", category: Logger.analysis)
                     } else if cursorInCommandLine >= error.end {
                         // Cursor after error - shift by length delta
                         targetCursorPosition = cursorInCommandLine + lengthDelta
-                        let msg2 = "📍 Cursor after error - moving to position \(cursorInCommandLine + lengthDelta)"
-                        NSLog(msg2)
-                        logToDebugFile(msg2)
+                        Logger.debug("Cursor after error - moving to position \(cursorInCommandLine + lengthDelta)", category: Logger.analysis)
                     } else {
                         // Cursor inside error - move to end of replacement
                         targetCursorPosition = error.start + replacementLength
-                        let msg2 = "📍 Cursor inside error - moving to end of replacement at position \(error.start + replacementLength)"
-                        NSLog(msg2)
-                        logToDebugFile(msg2)
+                        Logger.debug("Cursor inside error - moving to end of replacement at position \(error.start + replacementLength)", category: Logger.analysis)
                     }
                 } else {
-                    let msg = "⚠️ Terminal: Could not find command line in full text - cannot map cursor position"
-                    NSLog(msg)
-                    logToDebugFile(msg)
+                    Logger.debug("Terminal: Could not find command line in full text - cannot map cursor position", category: Logger.analysis)
                 }
             }
 
@@ -1359,17 +1282,13 @@ class AnalysisCoordinator: ObservableObject {
             pasteboard.clearContents()
             pasteboard.setString(correctedText, forType: .string)
 
-            let msg4 = "📋 Copied corrected command to clipboard"
-            NSLog(msg4)
-            logToDebugFile(msg4)
+            Logger.debug("Copied corrected command to clipboard", category: Logger.analysis)
 
             // Activate Terminal
             let apps = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier)
             if let targetApp = apps.first {
                 targetApp.activate(options: .activateIgnoringOtherApps)
-                let msg = "🎯 Activated Terminal for keyboard commands"
-                NSLog(msg)
-                logToDebugFile(msg)
+                Logger.debug("Activated Terminal for keyboard commands", category: Logger.analysis)
             }
 
             // Wait for activation, then clear line and paste
@@ -1384,27 +1303,21 @@ class AnalysisCoordinator: ObservableObject {
                 // Step 1: Ctrl+A to go to beginning of line
                 self.pressKey(key: VirtualKeyCode.a, flags: .maskControl)
 
-                let msg1 = "⌨️ Sent Ctrl+A"
-                NSLog(msg1)
-                logToDebugFile(msg1)
+                Logger.debug("Sent Ctrl+A", category: Logger.analysis)
 
                 // Small delay before Ctrl+K
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                     // Step 2: Ctrl+K to kill (delete) to end of line
                     self.pressKey(key: VirtualKeyCode.k, flags: .maskControl)
 
-                    let msg2 = "⌨️ Sent Ctrl+K"
-                    NSLog(msg2)
-                    logToDebugFile(msg2)
+                    Logger.debug("Sent Ctrl+K", category: Logger.analysis)
 
                     // Small delay before paste
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                         // Step 3: Paste the corrected text
                         self.pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
 
-                        let msg3 = "⌨️ Sent Cmd+V"
-                        NSLog(msg3)
-                        logToDebugFile(msg3)
+                        Logger.debug("Sent Cmd+V", category: Logger.analysis)
 
                         // Step 4: Position cursor at target location
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
@@ -1413,9 +1326,7 @@ class AnalysisCoordinator: ObservableObject {
                                 // First move to beginning
                                 self.pressKey(key: VirtualKeyCode.a, flags: .maskControl)
 
-                                let msg = "⌨️ Sent Ctrl+A to move to beginning before cursor positioning"
-                                NSLog(msg)
-                                logToDebugFile(msg)
+                                Logger.debug("Sent Ctrl+A to move to beginning before cursor positioning", category: Logger.analysis)
 
                                 // Small delay, then send right arrows to reach target position
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
@@ -1424,9 +1335,7 @@ class AnalysisCoordinator: ObservableObject {
                                         self.pressKey(key: VirtualKeyCode.rightArrow, flags: [], withDelay: false)
                                     }
 
-                                    let msg2 = "✅ Terminal replacement complete (cursor at position \(targetPos))"
-                                    NSLog(msg2)
-                                    logToDebugFile(msg2)
+                                    Logger.debug("Terminal replacement complete (cursor at position \(targetPos))", category: Logger.analysis)
 
                                     // Record statistics
                                     UserStatistics.shared.recordSuggestionApplied(category: error.category)
@@ -1438,9 +1347,7 @@ class AnalysisCoordinator: ObservableObject {
                                 // Fallback: move to end if we couldn't determine target position
                                 self.pressKey(key: VirtualKeyCode.e, flags: .maskControl)
 
-                                let msg = "✅ Terminal replacement complete (cursor at end - position unknown)"
-                                NSLog(msg)
-                                logToDebugFile(msg)
+                                Logger.debug("Terminal replacement complete (cursor at end - position unknown)", category: Logger.analysis)
 
                                 // Record statistics
                                 UserStatistics.shared.recordSuggestionApplied(category: error.category)
@@ -1462,30 +1369,22 @@ class AnalysisCoordinator: ObservableObject {
         // When user clicks the popover, Terminal loses focus, so we must restore it
         let apps = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier)
         if let targetApp = apps.first {
-            let msg = "🎯 Activating \(context.applicationName) to make it frontmost"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("Activating \(context.applicationName) to make it frontmost", category: Logger.analysis)
             targetApp.activate(options: .activateIgnoringOtherApps)
         } else {
-            let msg = "⚠️ Could not find running app with bundle ID \(context.bundleIdentifier)"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("Could not find running app with bundle ID \(context.bundleIdentifier)", category: Logger.analysis)
         }
 
         let delay = context.keyboardOperationDelay
         let activationDelay: TimeInterval = 0.2
-        let msg2 = "⏱️ Using \(delay)s keyboard delay + \(activationDelay)s activation delay for \(context.applicationName)"
-        NSLog(msg2)
-        logToDebugFile(msg2)
+        Logger.debug("Using \(delay)s keyboard delay + \(activationDelay)s activation delay for \(context.applicationName)", category: Logger.analysis)
 
         // Save suggestion to clipboard
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(suggestion, forType: .string)
 
-        let msg3 = "📋 Copied suggestion to clipboard: \(suggestion)"
-        NSLog(msg3)
-        logToDebugFile(msg3)
+        Logger.debug("Copied suggestion to clipboard: \(suggestion)", category: Logger.analysis)
 
         // Use keyboard navigation to select and replace text
         // Wait for app activation to complete before sending keyboard events
@@ -1506,9 +1405,7 @@ class AnalysisCoordinator: ObservableObject {
                         // Step 4: Paste suggestion (Cmd+V)
                         self.pressKey(key: 9, flags: .maskCommand) // Cmd+V
 
-                        let msg = "✅ Keyboard-based text replacement complete"
-                        NSLog(msg)
-                        logToDebugFile(msg)
+                        Logger.debug("Keyboard-based text replacement complete", category: Logger.analysis)
 
                         // Record statistics
                         UserStatistics.shared.recordSuggestionApplied(category: error.category)
@@ -1524,9 +1421,7 @@ class AnalysisCoordinator: ObservableObject {
     /// Try to replace text using AX API selection (for Terminal)
     /// Returns true if successful, false if needs to fall back to keyboard simulation
     private func tryAXSelectionReplacement(element: AXUIElement, start: Int, end: Int, suggestion: String, error: GrammarErrorModel) -> Bool {
-        let msg1 = "🔧 Attempting AX API selection-based replacement for range \(start)-\(end)"
-        NSLog(msg1)
-        logToDebugFile(msg1)
+        Logger.debug("Attempting AX API selection-based replacement for range \(start)-\(end)", category: Logger.analysis)
 
         // Read the original text before modification
         var textValue: CFTypeRef?
@@ -1540,9 +1435,7 @@ class AnalysisCoordinator: ObservableObject {
         if getTextResult == .success, let text = textValue as? String {
             originalText = text
         } else {
-            let msg = "❌ Failed to read original text for verification"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("Failed to read original text for verification", category: Logger.analysis)
             return false
         }
 
@@ -1557,15 +1450,11 @@ class AnalysisCoordinator: ObservableObject {
         )
 
         if setRangeResult != .success {
-            let msg = "❌ Failed to set AXSelectedTextRange: error \(setRangeResult.rawValue)"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("Failed to set AXSelectedTextRange: error \(setRangeResult.rawValue)", category: Logger.analysis)
             return false
         }
 
-        let msg2 = "✅ AX API accepted selection range \(start)-\(end)"
-        NSLog(msg2)
-        logToDebugFile(msg2)
+        Logger.debug("AX API accepted selection range \(start)-\(end)", category: Logger.analysis)
 
         // Step 2: Replace the selected text with the suggestion
         let setTextResult = AXUIElementSetAttributeValue(
@@ -1575,17 +1464,13 @@ class AnalysisCoordinator: ObservableObject {
         )
 
         if setTextResult != .success {
-            let msg = "❌ Failed to set AXSelectedText: error \(setTextResult.rawValue)"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("Failed to set AXSelectedText: error \(setTextResult.rawValue)", category: Logger.analysis)
             return false
         }
 
         // DON'T try to set the text via AX API - Terminal.app's implementation is broken
         // Selection worked - caller will handle paste after activating Terminal
-        let msg3 = "✅ AX API selection successful at \(start)-\(end), returning for paste"
-        NSLog(msg3)
-        logToDebugFile(msg3)
+        Logger.debug("AX API selection successful at \(start)-\(end), returning for paste", category: Logger.analysis)
 
         return true  // Success - selection is set, caller will paste
     }
@@ -1635,9 +1520,7 @@ class AnalysisCoordinator: ObservableObject {
     ///   is frontmost, as CGEventPost sends events to the active application.
     private func pressKey(key: CGKeyCode, flags: CGEventFlags, withDelay: Bool = true) {
         guard let eventSource = CGEventSource(stateID: .hidSystemState) else {
-            let msg = "❌ Failed to create CGEventSource for key press"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("Failed to create CGEventSource for key press", category: Logger.analysis)
             return
         }
 

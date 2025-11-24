@@ -493,18 +493,14 @@ class SlackContentParser: ContentParser {
 
             candidateWindows.append((windowFrame, windowName))
 
-            let msg = "🔍 SLACK: Found window: \(windowName), Frame: \(windowFrame), Layer: \(windowLayer)"
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("SLACK: Found window: \(windowName), Frame: \(windowFrame), Layer: \(windowLayer)", category: Logger.ui)
 
             // Check if element Y position is within this window's Y range
             let windowTop = y
             let windowBottom = y + height
 
             if elementY >= windowTop && elementY <= windowBottom {
-                let msg2 = "✅ SLACK: Window '\(windowName)' contains element (Y=\(elementY) in range \(windowTop)-\(windowBottom))"
-                NSLog(msg2)
-                logToDebugFile(msg2)
+                Logger.debug("SLACK: Window '\(windowName)' contains element (Y=\(elementY) in range \(windowTop)-\(windowBottom))", category: Logger.ui)
 
                 return windowFrame
             }
@@ -512,9 +508,7 @@ class SlackContentParser: ContentParser {
 
         // If no window contains the element, log all candidates and return the largest
         if !candidateWindows.isEmpty {
-            let msg = "⚠️ SLACK: No window contains element Y=\(elementY). Found \(candidateWindows.count) windows. Using largest."
-            NSLog(msg)
-            logToDebugFile(msg)
+            Logger.debug("SLACK: No window contains element Y=\(elementY). Found \(candidateWindows.count) windows. Using largest.", category: Logger.ui)
 
             let largest = candidateWindows.max(by: { $0.0.width * $0.0.height < $1.0.width * $1.0.height })
             return largest?.0
