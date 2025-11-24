@@ -61,12 +61,13 @@ struct TextWardenIcon {
                      operation: .sourceOver,
                      fraction: 1.0)
 
-            // Draw strikethrough line from bottom-left to top-right
+            // Draw strikethrough line from bottom-left to top-right (slightly inset)
+            let inset: CGFloat = 2.5
             context.setStrokeColor(NSColor.black.cgColor)
             context.setLineWidth(2.0)
             context.setLineCap(.round)
-            context.move(to: CGPoint(x: 0, y: 0))
-            context.addLine(to: CGPoint(x: size.width, y: size.height))
+            context.move(to: CGPoint(x: inset, y: inset))
+            context.addLine(to: CGPoint(x: size.width - inset, y: size.height - inset))
             context.strokePath()
 
             context.restoreGState()
@@ -224,12 +225,13 @@ struct TextWardenIcon {
         checkmark.lineWidth = 1.2
         checkmark.stroke()
 
-        // Draw strikethrough line from bottom-left to top-right
+        // Draw strikethrough line from bottom-left to top-right (slightly inset)
+        let inset: CGFloat = 2.5
         context.setStrokeColor(NSColor.black.cgColor)
         context.setLineWidth(2.0)
         context.setLineCap(.round)
-        context.move(to: CGPoint(x: 0, y: 0))
-        context.addLine(to: CGPoint(x: size.width, y: size.height))
+        context.move(to: CGPoint(x: inset, y: inset))
+        context.addLine(to: CGPoint(x: size.width - inset, y: size.height - inset))
         context.strokePath()
 
         image.unlockFocus()
