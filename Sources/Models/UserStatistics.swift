@@ -8,6 +8,60 @@
 import Foundation
 import Combine
 
+// MARK: - Time Range
+
+/// Time range for filtering statistics
+enum TimeRange: String, CaseIterable, Codable {
+    case session = "Since App Start"
+    case day = "1 Day"
+    case week = "7 Days"
+    case month = "30 Days"
+    case ninetyDays = "90 Days"
+
+    var dateThreshold: Date? {
+        let now = Date()
+        switch self {
+        case .session:
+            // Special case: handled by app launch timestamp
+            return nil
+        case .day:
+            return Calendar.current.date(byAdding: .day, value: -1, to: now)
+        case .week:
+            return Calendar.current.date(byAdding: .day, value: -7, to: now)
+        case .month:
+            return Calendar.current.date(byAdding: .day, value: -30, to: now)
+        case .ninetyDays:
+            return Calendar.current.date(byAdding: .day, value: -90, to: now)
+        }
+    }
+}
+
+// MARK: - Timestamped Data Structures
+
+/// Detailed analysis session with timestamp
+struct DetailedAnalysisSession: Codable {
+    let timestamp: Date
+    let wordsProcessed: Int
+    let errorsFound: Int
+    let bundleIdentifier: String?
+    let categoryBreakdown: [String: Int]
+    let latencyMs: Double
+}
+
+/// User action on a suggestion
+enum ActionType: String, Codable {
+    case applied
+    case dismissed
+    case addedToDictionary
+}
+
+/// Timestamped suggestion action
+struct SuggestionAction: Codable {
+    let timestamp: Date
+    let action: ActionType
+    let category: String?
+}
+
 /// Observable user statistics for tracking usage and improvements
 class UserStatistics: ObservableObject {
     static let shared = UserStatistics()
@@ -36,6 +90,13 @@ class UserStatistics: ObservableObject {
     @Published var suggestionsDismissed: Int {
         didSet {
             defaults.set(suggestionsDismissed, forKey: Keys.suggestionsDismissed)
+        }
+    }
+
+    /// Number of words added to custom dictionary
+    @Published var wordsAddedToDictionary: Int {
+        didSet {
+            defaults.set(wordsAddedToDictionary, forKey: Keys.wordsAddedToDictionary)
         }
     }
 
@@ -78,6 +139,51 @@ class UserStatistics: ObservableObject {
         }
     }
 
+    /// Application usage tracking: bundleID -> error count
+    @Published var appUsageBreakdown: [String: Int] {
+        didSet {
+            if let encoded = try? encoder.encode(appUsageBreakdown) {
+                defaults.set(encoded, forKey: Keys.appUsageBreakdown)
+            }
+        }
+    }
+
+    /// Grammar engine latency samples (last 100 analyses)
+    @Published var latencySamples: [Double] {
+        didSet {
+            if let encoded = try? encoder.encode(latencySamples) {
+                defaults.set(encoded, forKey: Keys.latencySamples)
+            }
+        }
+    }
+
+    // MARK: - Timestamped Data (for time-based filtering)
+
+    /// Detailed analysis sessions with timestamps (last 90 days)
+    @Published var detailedSessions: [DetailedAnalysisSession] {
+        didSet {
+            if let encoded = try? encoder.encode(detailedSessions) {
+                defaults.set(encoded, forKey: Keys.detailedSessions)
+            }
+        }
+    }
+
+    /// Timestamped suggestion actions (last 90 days)
+    @Published var suggestionActions: [SuggestionAction] {
+        didSet {
+            if let encoded = try? encoder.encode(suggestionActions) {
+                defaults.set(encoded, forKey: Keys.suggestionActions)
+            }
+        }
+    }
+
+    /// Timestamp when app was last launched (for "This Session" filter)
+    @Published var appLaunchTimestamp: Date {
+        didSet {
+            defaults.set(appLaunchTimestamp.timeIntervalSince1970, forKey: Keys.appLaunchTimestamp)
+        }
+    }
+
     // MARK: - Computed Properties
 
     /// Percentage of suggestions that were applied (0-100)
@@ -91,6 +197,12 @@ class UserStatistics: ObservableObject {
     var averageErrorsPerSession: Double {
         guard analysisSessions > 0 else { return 0.0 }
         return Double(errorsFound) / Double(analysisSessions)
+    }
+
+    /// Average errors per 100 words
+    var averageErrorsPer100Words: Double {
+        guard wordsAnalyzed > 0 else { return 0.0 }
+        return (Double(errorsFound) / Double(wordsAnalyzed)) * 100.0
     }
 
     /// Most frequently occurring error category
@@ -125,6 +237,239 @@ class UserStatistics: ObservableObject {
         return UserPreferences.shared.customDictionary.count
     }
 
+    /// Current consecutive active days streak
+    var currentStreak: Int {
+        let sortedDays = activeDays.sorted(by: >)
+        guard let mostRecent = sortedDays.first else { return 0 }
+
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        // Check if most recent is today or yesterday (allow 1-day gap)
+        let daysBetween = calendar.dateComponents([.day], from: mostRecent, to: today).day ?? 0
+        guard daysBetween <= 1 else { return 0 }
+
+        var streak = 0
+        var checkDate = today
+
+        for day in sortedDays {
+            if calendar.isDate(day, inSameDayAs: checkDate) {
+                streak += 1
+                checkDate = calendar.date(byAdding: .day, value: -1, to: checkDate)!
+            } else if day < checkDate {
+                break
+            }
+        }
+        return streak
+    }
+
+    /// Error density (errors per 100 words) - calculated per session to avoid cumulative inflation
+    var errorDensity: Double {
+        guard analysisSessions > 0, wordsAnalyzed > 0 else { return 0.0 }
+        let avgErrorsPerSession = Double(errorsFound) / Double(analysisSessions)
+        let avgWordsPerSession = Double(wordsAnalyzed) / Double(analysisSessions)
+        guard avgWordsPerSession > 0 else { return 0.0 }
+        return (avgErrorsPerSession / avgWordsPerSession) * 100.0
+    }
+
+    /// Mean (average) grammar engine latency in milliseconds
+    var meanLatencyMs: Double {
+        guard !latencySamples.isEmpty else { return 0.0 }
+        return latencySamples.reduce(0.0, +) / Double(latencySamples.count)
+    }
+
+    /// Median (P50) latency in milliseconds - middle value, less affected by outliers
+    var medianLatencyMs: Double {
+        return percentile(of: latencySamples, percentile: 0.50)
+    }
+
+    /// P90 (90th percentile) latency in milliseconds
+    /// 90% of analyses complete faster than this time
+    var p90LatencyMs: Double {
+        return percentile(of: latencySamples, percentile: 0.90)
+    }
+
+    /// P95 (95th percentile) latency in milliseconds
+    /// 95% of analyses complete faster than this time
+    var p95LatencyMs: Double {
+        return percentile(of: latencySamples, percentile: 0.95)
+    }
+
+    /// P99 (99th percentile) latency in milliseconds
+    /// 99% of analyses complete faster than this time
+    var p99LatencyMs: Double {
+        return percentile(of: latencySamples, percentile: 0.99)
+    }
+
+    /// Top application where TextWarden is most active
+    var topWritingApp: (name: String, errorCount: Int)? {
+        guard !appUsageBreakdown.isEmpty else { return nil }
+
+        let topEntry = appUsageBreakdown.max(by: { $0.value < $1.value })
+        guard let entry = topEntry else { return nil }
+
+        // Convert bundle ID to friendly name
+        let appName = friendlyAppName(from: entry.key)
+        return (appName, entry.value)
+    }
+
+    // MARK: - Time-Filtered Statistics
+
+    /// Get filtered sessions based on time range
+    func filteredSessions(for timeRange: TimeRange) -> [DetailedAnalysisSession] {
+        if timeRange == .session {
+            return detailedSessions.filter { $0.timestamp >= appLaunchTimestamp }
+        }
+        guard let threshold = timeRange.dateThreshold else {
+            return detailedSessions
+        }
+        return detailedSessions.filter { $0.timestamp >= threshold }
+    }
+
+    /// Get filtered suggestion actions based on time range
+    func filteredActions(for timeRange: TimeRange) -> [SuggestionAction] {
+        if timeRange == .session {
+            return suggestionActions.filter { $0.timestamp >= appLaunchTimestamp }
+        }
+        guard let threshold = timeRange.dateThreshold else {
+            return suggestionActions
+        }
+        return suggestionActions.filter { $0.timestamp >= threshold }
+    }
+
+    /// Get errors found in time range
+    func errorsFound(in timeRange: TimeRange) -> Int {
+        return filteredSessions(for: timeRange).reduce(0) { $0 + $1.errorsFound }
+    }
+
+    /// Get words analyzed in time range
+    func wordsAnalyzed(in timeRange: TimeRange) -> Int {
+        return filteredSessions(for: timeRange).reduce(0) { $0 + $1.wordsProcessed }
+    }
+
+    /// Get analysis sessions count in time range
+    func analysisSessions(in timeRange: TimeRange) -> Int {
+        return filteredSessions(for: timeRange).count
+    }
+
+    /// Get suggestions applied in time range
+    func suggestionsApplied(in timeRange: TimeRange) -> Int {
+        return filteredActions(for: timeRange).filter { $0.action == .applied }.count
+    }
+
+    /// Get suggestions dismissed in time range
+    func suggestionsDismissed(in timeRange: TimeRange) -> Int {
+        return filteredActions(for: timeRange).filter { $0.action == .dismissed }.count
+    }
+
+    /// Get words added to dictionary in time range
+    func wordsAddedToDictionary(in timeRange: TimeRange) -> Int {
+        return filteredActions(for: timeRange).filter { $0.action == .addedToDictionary }.count
+    }
+
+    /// Get improvement rate in time range
+    func improvementRate(in timeRange: TimeRange) -> Double {
+        let applied = suggestionsApplied(in: timeRange)
+        let dismissed = suggestionsDismissed(in: timeRange)
+        let total = applied + dismissed
+        guard total > 0 else { return 0.0 }
+        return (Double(applied) / Double(total)) * 100.0
+    }
+
+    /// Get average errors per session in time range
+    func averageErrorsPerSession(in timeRange: TimeRange) -> Double {
+        let sessions = analysisSessions(in: timeRange)
+        guard sessions > 0 else { return 0.0 }
+        return Double(errorsFound(in: timeRange)) / Double(sessions)
+    }
+
+    /// Get average errors per 100 words in time range
+    func averageErrorsPer100Words(in timeRange: TimeRange) -> Double {
+        let words = wordsAnalyzed(in: timeRange)
+        guard words > 0 else { return 0.0 }
+        return (Double(errorsFound(in: timeRange)) / Double(words)) * 100.0
+    }
+
+    /// Get category breakdown for time range
+    func categoryBreakdown(in timeRange: TimeRange) -> [String: Int] {
+        var breakdown: [String: Int] = [:]
+        for session in filteredSessions(for: timeRange) {
+            for (category, count) in session.categoryBreakdown {
+                breakdown[category, default: 0] += count
+            }
+        }
+        return breakdown
+    }
+
+    /// Get app usage breakdown for time range
+    func appUsageBreakdown(in timeRange: TimeRange) -> [String: Int] {
+        var breakdown: [String: Int] = [:]
+        for session in filteredSessions(for: timeRange) {
+            if let bundleId = session.bundleIdentifier, session.errorsFound > 0 {
+                breakdown[bundleId, default: 0] += session.errorsFound
+            }
+        }
+        return breakdown
+    }
+
+    /// Get latency samples for time range
+    func latencySamples(in timeRange: TimeRange) -> [Double] {
+        return filteredSessions(for: timeRange).map { $0.latencyMs }
+    }
+
+    /// Get mean latency for time range
+    func meanLatencyMs(in timeRange: TimeRange) -> Double {
+        let samples = latencySamples(in: timeRange)
+        guard !samples.isEmpty else { return 0.0 }
+        return samples.reduce(0.0, +) / Double(samples.count)
+    }
+
+    /// Get median latency for time range
+    func medianLatencyMs(in timeRange: TimeRange) -> Double {
+        return percentile(of: latencySamples(in: timeRange), percentile: 0.50)
+    }
+
+    /// Get P90 latency for time range
+    func p90LatencyMs(in timeRange: TimeRange) -> Double {
+        return percentile(of: latencySamples(in: timeRange), percentile: 0.90)
+    }
+
+    /// Get P95 latency for time range
+    func p95LatencyMs(in timeRange: TimeRange) -> Double {
+        return percentile(of: latencySamples(in: timeRange), percentile: 0.95)
+    }
+
+    /// Get P99 latency for time range
+    func p99LatencyMs(in timeRange: TimeRange) -> Double {
+        return percentile(of: latencySamples(in: timeRange), percentile: 0.99)
+    }
+
+    /// Get most common category for time range
+    func mostCommonCategory(in timeRange: TimeRange) -> String {
+        let breakdown = categoryBreakdown(in: timeRange)
+        guard !breakdown.isEmpty else { return "None" }
+        return breakdown.max(by: { $0.value < $1.value })?.key ?? "None"
+    }
+
+    /// Get top writing app for time range
+    func topWritingApp(in timeRange: TimeRange) -> (name: String, errorCount: Int)? {
+        let breakdown = appUsageBreakdown(in: timeRange)
+        guard !breakdown.isEmpty else { return nil }
+
+        let topEntry = breakdown.max(by: { $0.value < $1.value })
+        guard let entry = topEntry else { return nil }
+
+        let appName = friendlyAppName(from: entry.key)
+        return (appName, entry.value)
+    }
+
+    /// Get current streak (still uses activeDays, not time-filtered)
+    func currentStreak(in timeRange: TimeRange) -> Int {
+        // Streak calculation doesn't really make sense with time filtering
+        // Always return the full streak
+        return currentStreak
+    }
+
     // MARK: - Initialization
 
     init(defaults: UserDefaults = .standard) {
@@ -134,16 +479,23 @@ class UserStatistics: ObservableObject {
         self.errorsFound = 0
         self.suggestionsApplied = 0
         self.suggestionsDismissed = 0
+        self.wordsAddedToDictionary = 0
         self.wordsAnalyzed = 0
         self.analysisSessions = 0
         self.sessionCount = 0
         self.activeDays = []
         self.categoryBreakdown = [:]
+        self.appUsageBreakdown = [:]
+        self.latencySamples = []
+        self.detailedSessions = []
+        self.suggestionActions = []
+        self.appLaunchTimestamp = Date()
 
         // Then load saved values
         self.errorsFound = defaults.integer(forKey: Keys.errorsFound)
         self.suggestionsApplied = defaults.integer(forKey: Keys.suggestionsApplied)
         self.suggestionsDismissed = defaults.integer(forKey: Keys.suggestionsDismissed)
+        self.wordsAddedToDictionary = defaults.integer(forKey: Keys.wordsAddedToDictionary)
         self.wordsAnalyzed = defaults.integer(forKey: Keys.wordsAnalyzed)
         self.analysisSessions = defaults.integer(forKey: Keys.analysisSessions)
         self.sessionCount = defaults.integer(forKey: Keys.sessionCount)
@@ -157,11 +509,74 @@ class UserStatistics: ObservableObject {
            let dict = try? decoder.decode([String: Int].self, from: data) {
             self.categoryBreakdown = dict
         }
+
+        if let data = defaults.data(forKey: Keys.appUsageBreakdown),
+           let dict = try? decoder.decode([String: Int].self, from: data) {
+            self.appUsageBreakdown = dict
+        }
+
+        if let data = defaults.data(forKey: Keys.latencySamples),
+           let array = try? decoder.decode([Double].self, from: data) {
+            self.latencySamples = array
+        }
+
+        // Load timestamped data
+        if let data = defaults.data(forKey: Keys.detailedSessions),
+           let sessions = try? decoder.decode([DetailedAnalysisSession].self, from: data) {
+            self.detailedSessions = sessions
+        }
+
+        if let data = defaults.data(forKey: Keys.suggestionActions),
+           let actions = try? decoder.decode([SuggestionAction].self, from: data) {
+            self.suggestionActions = actions
+        }
+
+        let launchTime = defaults.double(forKey: Keys.appLaunchTimestamp)
+        if launchTime > 0 {
+            self.appLaunchTimestamp = Date(timeIntervalSince1970: launchTime)
+        }
     }
 
     // MARK: - Recording Methods
 
-    /// Record a new analysis session
+    /// Record a new analysis session with full details for time-based filtering
+    func recordDetailedAnalysisSession(
+        wordsProcessed: Int,
+        errorsFound: Int,
+        bundleIdentifier: String?,
+        categoryBreakdown: [String: Int],
+        latencyMs: Double
+    ) {
+        // Prevent negative values
+        guard wordsProcessed >= 0, errorsFound >= 0, latencyMs >= 0 else { return }
+
+        // Create detailed session
+        let session = DetailedAnalysisSession(
+            timestamp: Date(),
+            wordsProcessed: wordsProcessed,
+            errorsFound: errorsFound,
+            bundleIdentifier: bundleIdentifier,
+            categoryBreakdown: categoryBreakdown,
+            latencyMs: latencyMs
+        )
+
+        // Add to detailed sessions array
+        detailedSessions.append(session)
+
+        // Update cumulative totals (for backward compatibility)
+        self.analysisSessions += 1
+        self.wordsAnalyzed += wordsProcessed
+        self.errorsFound += errorsFound
+
+        // Record active day (start of day to avoid duplicates)
+        let today = Calendar.current.startOfDay(for: Date())
+        self.activeDays.insert(today)
+
+        // Cleanup old data (older than 90 days)
+        cleanupOldData()
+    }
+
+    /// Record a new analysis session (legacy method for backward compatibility)
     func recordAnalysisSession(wordsProcessed: Int, errorsFound: Int) {
         // Prevent negative values
         guard wordsProcessed >= 0, errorsFound >= 0 else { return }
@@ -177,20 +592,130 @@ class UserStatistics: ObservableObject {
 
     /// Record a suggestion being applied
     func recordSuggestionApplied(category: String) {
+        // Store timestamped action
+        let action = SuggestionAction(
+            timestamp: Date(),
+            action: .applied,
+            category: category
+        )
+        suggestionActions.append(action)
+
+        // Update cumulative totals (for backward compatibility)
         self.suggestionsApplied += 1
 
         let currentCount = categoryBreakdown[category] ?? 0
         categoryBreakdown[category] = currentCount + 1
+
+        // Cleanup old data
+        cleanupOldData()
     }
 
     /// Record a suggestion being dismissed
     func recordSuggestionDismissed() {
+        // Store timestamped action
+        let action = SuggestionAction(
+            timestamp: Date(),
+            action: .dismissed,
+            category: nil
+        )
+        suggestionActions.append(action)
+
+        // Update cumulative totals (for backward compatibility)
         self.suggestionsDismissed += 1
+
+        // Cleanup old data
+        cleanupOldData()
+    }
+
+    /// Record a word being added to dictionary
+    func recordWordAddedToDictionary() {
+        // Store timestamped action
+        let action = SuggestionAction(
+            timestamp: Date(),
+            action: .addedToDictionary,
+            category: nil
+        )
+        suggestionActions.append(action)
+
+        // Update cumulative totals (for backward compatibility)
+        self.wordsAddedToDictionary += 1
+
+        // Cleanup old data
+        cleanupOldData()
     }
 
     /// Record a new app session (launch)
     func recordSession() {
         self.sessionCount += 1
+    }
+
+    /// Record application usage for current analysis
+    func recordAppUsage(bundleIdentifier: String, errorCount: Int) {
+        guard errorCount > 0 else { return }
+        let currentCount = appUsageBreakdown[bundleIdentifier] ?? 0
+        appUsageBreakdown[bundleIdentifier] = currentCount + errorCount
+    }
+
+    /// Record grammar engine latency sample
+    func recordLatency(milliseconds: Double) {
+        guard milliseconds >= 0 else { return }
+
+        latencySamples.append(milliseconds)
+
+        // Keep only last 100 samples for rolling statistics
+        if latencySamples.count > 100 {
+            latencySamples.removeFirst()
+        }
+    }
+
+    // MARK: - Helper Methods
+
+    /// Clean up data older than 90 days
+    private func cleanupOldData() {
+        guard let threshold = Calendar.current.date(byAdding: .day, value: -90, to: Date()) else {
+            return
+        }
+
+        // Remove old analysis sessions
+        detailedSessions.removeAll { $0.timestamp < threshold }
+
+        // Remove old suggestion actions
+        suggestionActions.removeAll { $0.timestamp < threshold }
+
+        // Note: latencySamples is already capped at 100, no need to clean up by date
+    }
+
+    /// Calculate percentile from sorted samples
+    private func percentile(of samples: [Double], percentile: Double) -> Double {
+        guard !samples.isEmpty else { return 0.0 }
+        guard percentile >= 0.0 && percentile <= 1.0 else { return 0.0 }
+
+        let sorted = samples.sorted()
+        let index = Int(Double(sorted.count - 1) * percentile)
+        return sorted[index]
+    }
+
+    /// Convert bundle ID to friendly app name
+    func friendlyAppName(from bundleId: String) -> String {
+        // Map common bundle IDs to friendly names
+        let knownApps: [String: String] = [
+            "com.tinyspeck.slackmacgap": "Slack",
+            "com.google.Chrome": "Chrome",
+            "com.apple.Safari": "Safari",
+            "com.microsoft.edgemac": "Edge",
+            "com.microsoft.Outlook": "Outlook",
+            "com.apple.mail": "Mail",
+            "com.notion.id": "Notion",
+            "com.apple.Notes": "Notes",
+            "com.microsoft.VSCode": "VS Code",
+            "com.apple.dt.Xcode": "Xcode",
+            "com.linear": "Linear",
+            "com.figma.Desktop": "Figma",
+            "com.apple.iWork.Pages": "Pages",
+            "com.microsoft.Word": "Word",
+        ]
+
+        return knownApps[bundleId] ?? bundleId.components(separatedBy: ".").last?.capitalized ?? bundleId
     }
 
     // MARK: - Reset
@@ -200,11 +725,17 @@ class UserStatistics: ObservableObject {
         errorsFound = 0
         suggestionsApplied = 0
         suggestionsDismissed = 0
+        wordsAddedToDictionary = 0
         wordsAnalyzed = 0
         analysisSessions = 0
         sessionCount = 0
         activeDays = []
         categoryBreakdown = [:]
+        appUsageBreakdown = [:]
+        latencySamples = []
+        detailedSessions = []
+        suggestionActions = []
+        appLaunchTimestamp = Date()
     }
 
     // MARK: - UserDefaults Keys
@@ -213,10 +744,16 @@ class UserStatistics: ObservableObject {
         static let errorsFound = "statistics.errorsFound"
         static let suggestionsApplied = "statistics.suggestionsApplied"
         static let suggestionsDismissed = "statistics.suggestionsDismissed"
+        static let wordsAddedToDictionary = "statistics.wordsAddedToDictionary"
         static let wordsAnalyzed = "statistics.wordsAnalyzed"
         static let analysisSessions = "statistics.analysisSessions"
         static let sessionCount = "statistics.sessionCount"
         static let activeDays = "statistics.activeDays"
         static let categoryBreakdown = "statistics.categoryBreakdown"
+        static let appUsageBreakdown = "statistics.appUsageBreakdown"
+        static let latencySamples = "statistics.latencySamples"
+        static let detailedSessions = "statistics.detailedSessions"
+        static let suggestionActions = "statistics.suggestionActions"
+        static let appLaunchTimestamp = "statistics.appLaunchTimestamp"
     }
 }
