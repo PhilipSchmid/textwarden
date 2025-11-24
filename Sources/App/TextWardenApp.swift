@@ -64,6 +64,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         logToFile("   Build Age: \(BuildInfo.buildAge)")
         NSLog("📦 TextWarden Build Info: \(BuildInfo.fullVersion) | Built: \(BuildInfo.buildTimestamp) (\(BuildInfo.buildAge))")
 
+        // Initialize Rust logging
+        let logLevel = Logger.minimumLogLevel
+        initialize_logging(logLevel.rawValue)
+        Logger.info("Rust logging initialized with level: \(logLevel.rawValue)", category: Logger.ffi)
+
         // Record app session for statistics
         UserStatistics.shared.recordSession()
 

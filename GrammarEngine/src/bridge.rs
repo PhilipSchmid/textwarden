@@ -6,6 +6,11 @@
 #![allow(non_camel_case_types)]
 
 use crate::analyzer;
+use std::sync::Once;
+use tracing::Level;
+use tracing_subscriber::{fmt, EnvFilter};
+
+static INIT_LOGGING: Once = Once::new();
 
 #[swift_bridge::bridge]
 mod ffi {
@@ -38,6 +43,8 @@ mod ffi {
     }
 
     extern "Rust" {
+        fn initialize_logging(log_level: String);
+
         fn analyze_text(
             text: String,
             dialect: String,
@@ -117,7 +124,34 @@ impl AnalysisResult {
     }
 }
 
+// Initialize the logging system
+// This should be called once from Swift at application startup
+fn initialize_logging(log_level: String) {
+    INIT_LOGGING.call_once(|| {
+        let level = match log_level.to_lowercase().as_str() {
+            "debug" => Level::DEBUG,
+            "info" => Level::INFO,
+            "warn" | "warning" => Level::WARN,
+            "error" => Level::ERROR,
+            _ => Level::INFO, // default to info
+        };
+
+        let filter = EnvFilter::from_default_env()
+            .add_directive(level.into());
+
+        fmt()
+            .with_env_filter(filter)
+            .with_target(true)
+            .with_thread_ids(false)
+            .with_line_number(true)
+            .init();
+
+        tracing::info!("Grammar Engine logging initialized at level: {}", log_level);
+    });
+}
+
 // FFI wrapper that calls the analyzer and converts types
+#[tracing::instrument(skip(text), fields(text_len = text.len()))]
 fn analyze_text(
     text: String,
     dialect: String,
@@ -128,6 +162,12 @@ fn analyze_text(
     excluded_languages: Vec<String>,
     enable_sentence_start_capitalization: bool
 ) -> AnalysisResult {
+    // SECURITY: Never log the actual text content - only metadata
+    tracing::debug!(
+        "FFI analyze_text called: dialect={}, text_len={}, lang_detection={}",
+        dialect, text.len(), enable_language_detection
+    );
+
     let result = analyzer::analyze_text(
         &text,
         &dialect,
@@ -137,6 +177,13 @@ fn analyze_text(
         enable_language_detection,
         excluded_languages,
         enable_sentence_start_capitalization
+    );
+
+    tracing::info!(
+        "Analysis completed: {} errors found, {} words, {}ms",
+        result.errors.len(),
+        result.word_count,
+        result.analysis_time_ms
     );
 
     // Convert analyzer types to FFI types

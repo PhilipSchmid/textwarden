@@ -8,6 +8,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use crate::slang_dict;
 use crate::language_filter::LanguageFilter;
+use tracing;
 
 #[derive(Debug, Clone)]
 pub enum ErrorSeverity {
@@ -65,6 +66,7 @@ fn parse_dialect(dialect_str: &str) -> Dialect {
 ///
 /// # Returns
 /// An AnalysisResult containing detected errors and analysis metadata
+#[tracing::instrument(skip(text), fields(text_len = text.len(), dialect = dialect_str))]
 pub fn analyze_text(
     text: &str,
     dialect_str: &str,
@@ -76,6 +78,13 @@ pub fn analyze_text(
     enable_sentence_start_capitalization: bool,
 ) -> AnalysisResult {
     let start_time = Instant::now();
+
+    // SECURITY: Never log the actual text content - only metadata like length
+    // User text may contain passwords, credentials, personal information, etc.
+    tracing::debug!(
+        "Starting grammar analysis: len={}, dialect={}, lang_detect={}",
+        text.len(), dialect_str, enable_language_detection
+    );
 
     // Parse the dialect string
     let dialect = parse_dialect(dialect_str);
@@ -108,6 +117,11 @@ pub fn analyze_text(
 
     let dictionary = Arc::new(merged);
 
+    tracing::debug!(
+        "Dictionary configured: abbrev={}, slang={}, it={}",
+        enable_internet_abbrev, enable_genz_slang, enable_it_terminology
+    );
+
     // Initialize Harper linter with curated rules for selected dialect
     // Clone the Arc so we can use the dictionary for both linting and document parsing
     let mut linter = LintGroup::new_curated(dictionary.clone(), dialect);
@@ -121,7 +135,9 @@ pub fn analyze_text(
     let document = Document::new_plain_english(text, dictionary.as_ref());
 
     // Perform linting
+    tracing::debug!("Running Harper linter");
     let lints = linter.lint(&document);
+    tracing::debug!("Harper linter found {} lints", lints.len());
 
     // Count words (approximate - split on whitespace)
     let word_count = text.split_whitespace().count();
@@ -225,9 +241,22 @@ pub fn analyze_text(
     // Apply language detection filter to remove errors for non-English words
     // This is the optimized approach: we only detect language for words that Harper flagged
     let filter = LanguageFilter::new(enable_language_detection, excluded_languages);
+    let errors_before_filter = errors.len();
     errors = filter.filter_errors(errors, text);
 
+    if enable_language_detection {
+        tracing::debug!(
+            "Language filter: {} errors before, {} after (filtered {})",
+            errors_before_filter, errors.len(), errors_before_filter - errors.len()
+        );
+    }
+
     let analysis_time_ms = start_time.elapsed().as_millis() as u64;
+
+    tracing::info!(
+        "Analysis complete: {} errors, {} words, {}ms",
+        errors.len(), word_count, analysis_time_ms
+    );
 
     AnalysisResult {
         errors,
