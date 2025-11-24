@@ -46,23 +46,17 @@ struct PreferencesView: View {
                 }
                 .tag(4)
 
-            AppearancePreferencesView(preferences: preferences)
-                .tabItem {
-                    Label("Appearance", systemImage: "paintbrush")
-                }
-                .tag(5)
-
             DiagnosticsView(preferences: preferences)
                 .tabItem {
                     Label("Diagnostics", systemImage: "wrench.and.screwdriver")
                 }
-                .tag(6)
+                .tag(5)
 
             AboutView()
                 .tabItem {
                     Label("About", systemImage: "info.circle")
                 }
-                .tag(7)
+                .tag(6)
         }
         .frame(minWidth: 750, minHeight: 600)
     }
@@ -846,6 +840,36 @@ struct GeneralPreferencesView: View {
 
     var body: some View {
         Form {
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Picker("Grammar checking:", selection: $preferences.pauseDuration) {
+                        ForEach(PauseDuration.allCases, id: \.self) { duration in
+                            Text(duration.rawValue).tag(duration)
+                        }
+                    }
+                    .help("Pause grammar checking temporarily or indefinitely")
+                    .onChange(of: preferences.pauseDuration) { _, newValue in
+                        // Update menu bar icon when pause duration changes
+                        let iconState: MenuBarController.IconState = newValue == .active ? .active : .inactive
+                        MenuBarController.shared?.setIconState(iconState)
+                    }
+
+                    if preferences.pauseDuration == .oneHour, let until = preferences.pausedUntil {
+                        Text("Will resume at \(until.formatted(date: .omitted, time: .shortened))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                LaunchAtLogin.Toggle()
+
+                Toggle("Always open in foreground", isOn: $preferences.openInForeground)
+                    .help("Show settings window when TextWarden starts (default: background only)")
+            } header: {
+                Text("General")
+                    .font(.headline)
+            }
+
             // Accessibility Permission Section
             Section {
                 VStack(alignment: .leading, spacing: 12) {
@@ -903,31 +927,106 @@ struct GeneralPreferencesView: View {
 
             Section {
                 VStack(alignment: .leading, spacing: 8) {
-                    Picker("Grammar checking:", selection: $preferences.pauseDuration) {
-                        ForEach(PauseDuration.allCases, id: \.self) { duration in
-                            Text(duration.rawValue).tag(duration)
-                        }
-                    }
-                    .help("Pause grammar checking temporarily or indefinitely")
-                    .onChange(of: preferences.pauseDuration) { _, newValue in
-                        // Update menu bar icon when pause duration changes
-                        let iconState: MenuBarController.IconState = newValue == .active ? .active : .inactive
-                        MenuBarController.shared?.setIconState(iconState)
-                    }
-
-                    if preferences.pauseDuration == .oneHour, let until = preferences.pausedUntil {
-                        Text("Will resume at \(until.formatted(date: .omitted, time: .shortened))")
-                            .font(.caption)
+                    HStack {
+                        Text("Transparency:")
+                        Spacer()
+                        Text(String(format: "%.0f%%", preferences.suggestionOpacity * 100))
                             .foregroundColor(.secondary)
                     }
+                    Slider(value: $preferences.suggestionOpacity, in: 0.2...1.0, step: 0.05)
+
+                    Text("Adjust the background transparency of suggestion popovers")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
-
-                LaunchAtLogin.Toggle()
-
-                Toggle("Always open in foreground", isOn: $preferences.openInForeground)
-                    .help("Show settings window when TextWarden starts (default: background only)")
             } header: {
-                Text("General")
+                Text("Popover")
+                    .font(.headline)
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Text size:")
+                        Spacer()
+                        Text(String(format: "%.0fpt", preferences.suggestionTextSize))
+                            .foregroundColor(.secondary)
+                    }
+                    Slider(value: $preferences.suggestionTextSize, in: 10.0...20.0, step: 1.0)
+
+                    Text("Font size for suggestion text")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            } header: {
+                Text("Typography")
+                    .font(.headline)
+            }
+
+            Section {
+                Picker("Position:", selection: $preferences.suggestionPosition) {
+                    ForEach(UserPreferences.suggestionPositions, id: \.self) { position in
+                        Text(position).tag(position)
+                    }
+                }
+                .help("Choose where suggestions appear relative to text")
+
+                Text("Auto: Choose position based on available space")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } header: {
+                Text("Layout")
+                    .font(.headline)
+            }
+
+            Section {
+                Picker("Theme:", selection: $preferences.suggestionTheme) {
+                    ForEach(UserPreferences.suggestionThemes, id: \.self) { theme in
+                        Text(theme).tag(theme)
+                    }
+                }
+                .help("Color scheme for suggestion popovers")
+
+                Text("System: Automatically match macOS appearance")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } header: {
+                Text("Color Scheme")
+                    .font(.headline)
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Thickness:")
+                        Spacer()
+                        Text(String(format: "%.1fpt", preferences.underlineThickness))
+                            .foregroundColor(.secondary)
+                    }
+                    Slider(value: $preferences.underlineThickness, in: 1.0...5.0, step: 0.5)
+
+                    Text("Adjust the thickness of error underlines")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            } header: {
+                Text("Underlines")
+                    .font(.headline)
+            }
+
+            Section {
+                Picker("Default position:", selection: $preferences.indicatorPosition) {
+                    ForEach(UserPreferences.indicatorPositions, id: \.self) { position in
+                        Text(position).tag(position)
+                    }
+                }
+                .help("Choose the default position for new applications. Drag the indicator to customize per-app positions.")
+
+                Text("Default position for the floating error indicator badge. Positions are remembered per application after you drag the indicator.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } header: {
+                Text("Error Indicator")
                     .font(.headline)
             }
 
@@ -2306,123 +2405,6 @@ private struct FeatureRow: View {
                     .foregroundColor(.secondary)
             }
         }
-    }
-}
-
-// MARK: - Appearance Preferences
-
-struct AppearancePreferencesView: View {
-    @ObservedObject var preferences: UserPreferences
-
-    var body: some View {
-        Form {
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Transparency:")
-                        Spacer()
-                        Text(String(format: "%.0f%%", preferences.suggestionOpacity * 100))
-                            .foregroundColor(.secondary)
-                    }
-                    Slider(value: $preferences.suggestionOpacity, in: 0.2...1.0, step: 0.05)
-
-                    Text("Adjust the background transparency of suggestion popovers")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            } header: {
-                Text("Popover")
-                    .font(.headline)
-            }
-
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Text size:")
-                        Spacer()
-                        Text(String(format: "%.0fpt", preferences.suggestionTextSize))
-                            .foregroundColor(.secondary)
-                    }
-                    Slider(value: $preferences.suggestionTextSize, in: 10.0...20.0, step: 1.0)
-
-                    Text("Font size for suggestion text")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            } header: {
-                Text("Typography")
-                    .font(.headline)
-            }
-
-            Section {
-                Picker("Position:", selection: $preferences.suggestionPosition) {
-                    ForEach(UserPreferences.suggestionPositions, id: \.self) { position in
-                        Text(position).tag(position)
-                    }
-                }
-                .help("Choose where suggestions appear relative to text")
-
-                Text("Auto: Choose position based on available space")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            } header: {
-                Text("Layout")
-                    .font(.headline)
-            }
-
-            Section {
-                Picker("Theme:", selection: $preferences.suggestionTheme) {
-                    ForEach(UserPreferences.suggestionThemes, id: \.self) { theme in
-                        Text(theme).tag(theme)
-                    }
-                }
-                .help("Color scheme for suggestion popovers")
-
-                Text("System: Automatically match macOS appearance")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            } header: {
-                Text("Color Scheme")
-                    .font(.headline)
-            }
-
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Thickness:")
-                        Spacer()
-                        Text(String(format: "%.1fpt", preferences.underlineThickness))
-                            .foregroundColor(.secondary)
-                    }
-                    Slider(value: $preferences.underlineThickness, in: 1.0...5.0, step: 0.5)
-
-                    Text("Adjust the thickness of error underlines")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            } header: {
-                Text("Underlines")
-                    .font(.headline)
-            }
-
-            Section {
-                Picker("Default position:", selection: $preferences.indicatorPosition) {
-                    ForEach(UserPreferences.indicatorPositions, id: \.self) { position in
-                        Text(position).tag(position)
-                    }
-                }
-                .help("Choose the default position for new applications. Drag the indicator to customize per-app positions.")
-
-                Text("Default position for the floating error indicator badge. Positions are remembered per application after you drag the indicator.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            } header: {
-                Text("Error Indicator")
-                    .font(.headline)
-            }
-        }
-        .formStyle(.grouped)
-        .padding()
     }
 }
 
