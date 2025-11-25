@@ -140,40 +140,45 @@ class UserPreferences: ObservableObject {
     /// Example: "com.yourcompany.YourApp"
     static let defaultHiddenApplications: Set<String> = [
         // TextWarden itself
-        "com.philipschmid.TextWarden",
+        "com.philipschmid.TextWarden",  // TextWarden
         // System services and background apps
-        "com.apple.loginwindow",
-        "com.apple.UserNotificationCenter",
-        "com.apple.notificationcenterui",
-        "com.apple.accessibility.universalAccessAuthWarn",
-        "com.apple.controlcenter",
-        "com.apple.systemuiserver",
-        "com.apple.QuickLookUIService",
-        "com.apple.appkit.xpc.openAndSavePanelService",
-        "com.apple.CloudKit.ShareBear",
-        "com.apple.bird",
-        "com.apple.CommCenter",
-        "com.apple.cloudphotosd",
-        "com.apple.iCloudHelper",
-        "com.apple.InputMethodKit.TextReplacementService",
-        "com.apple.Console",
-        "com.apple.dock",
-        "com.apple.systempreferences",
+        "com.apple.loginwindow",  // Login Window
+        "com.apple.UserNotificationCenter",  // Notification Center
+        "com.apple.notificationcenterui",  // Notification Center UI
+        "com.apple.accessibility.universalAccessAuthWarn",  // Accessibility Warning
+        "com.apple.controlcenter",  // Control Center
+        "com.apple.systemuiserver",  // System UI Server
+        "com.apple.QuickLookUIService",  // Quick Look UI Service
+        "com.apple.appkit.xpc.openAndSavePanelService",  // Open/Save Panel Service
+        "com.apple.CloudKit.ShareBear",  // CloudKit Share Service
+        "com.apple.bird",  // iCloud Sync Daemon
+        "com.apple.CommCenter",  // Communication Center
+        "com.apple.cloudphotosd",  // iCloud Photos Daemon
+        "com.apple.iCloudHelper",  // iCloud Helper
+        "com.apple.InputMethodKit.TextReplacementService",  // Text Replacement Service
+        "com.apple.Console",  // Console
+        "com.apple.dock",  // Dock
+        "com.apple.systempreferences",  // System Preferences
         // System utilities
-        "com.apple.finder",
-        "com.apple.archiveutility",
-        "com.apple.universalcontrol",
+        "com.apple.finder",  // Finder
+        "com.apple.archiveutility",  // Archive Utility
+        "com.apple.universalcontrol",  // Universal Control
         // Utility apps
-        "com.TechSmith.Snagit",
-        "com.TechSmith.SnagitHelper",
-        "com.techsmith.snagit.capturehelper",
-        "com.surteesstudios.Bartender",
-        "com.1password.1password",
-        "com.linebreak.CloudApp",
+        "com.TechSmith.Snagit",  // Snagit
+        "com.TechSmith.SnagitHelper",  // Snagit Helper
+        "com.techsmith.snagit.capturehelper",  // Snagit Capture Helper
+        "com.surteesstudios.Bartender",  // Bartender
+        "com.1password.1password",  // 1Password
+        "com.linebreak.CloudApp",  // CloudApp
+        "com.particlebacker.FastFace",  // Meeter (legacy bundle ID)
+        "com.patricebecker.FastFace",  // Meeter
+        "com.raycast.macos",  // Raycast
+        "com.spotify.client",  // Spotify
         // Security software (Intego)
-        "com.intego.NetUpdate",
-        "com.intego.netbarrier.alert",
-        "com.intego.virusbarrier.application"
+        "com.intego.NetUpdate",  // Intego NetUpdate
+        "com.intego.app.netbarrier",  // Intego NetBarrier
+        "com.intego.netbarrier.alert",  // Intego NetBarrier Alert
+        "com.intego.virusbarrier.application"  // Intego VirusBarrier
     ]
 
     /// Custom words to ignore
