@@ -9,6 +9,7 @@ use crate::analyzer;
 use std::sync::Once;
 use tracing::Level;
 use tracing_subscriber::{fmt, EnvFilter};
+use sysinfo::System;
 
 static INIT_LOGGING: Once = Once::new();
 
@@ -40,6 +41,9 @@ mod ffi {
         fn errors(&self) -> Vec<GrammarError>;
         fn word_count(&self) -> usize;
         fn analysis_time_ms(&self) -> u64;
+        fn memory_before_bytes(&self) -> u64;
+        fn memory_after_bytes(&self) -> u64;
+        fn memory_delta_bytes(&self) -> i64;
     }
 
     extern "Rust" {
@@ -108,6 +112,9 @@ pub struct AnalysisResult {
     errors: Vec<GrammarError>,
     word_count: usize,
     analysis_time_ms: u64,
+    memory_before_bytes: u64,
+    memory_after_bytes: u64,
+    memory_delta_bytes: i64,
 }
 
 impl AnalysisResult {
@@ -121,6 +128,18 @@ impl AnalysisResult {
 
     fn analysis_time_ms(&self) -> u64 {
         self.analysis_time_ms
+    }
+
+    fn memory_before_bytes(&self) -> u64 {
+        self.memory_before_bytes
+    }
+
+    fn memory_after_bytes(&self) -> u64 {
+        self.memory_after_bytes
+    }
+
+    fn memory_delta_bytes(&self) -> i64 {
+        self.memory_delta_bytes
     }
 }
 
@@ -168,6 +187,16 @@ fn analyze_text(
         dialect, text.len(), enable_language_detection
     );
 
+    // Capture memory before analysis
+    let mut sys_before = System::new_all();
+    sys_before.refresh_all();
+
+    let pid = sysinfo::get_current_pid().unwrap();
+    let memory_before = sys_before
+        .process(pid)
+        .map(|p| p.memory())
+        .unwrap_or(0);
+
     let result = analyzer::analyze_text(
         &text,
         &dialect,
@@ -179,11 +208,23 @@ fn analyze_text(
         enable_sentence_start_capitalization
     );
 
+    // Capture memory after analysis
+    let mut sys_after = System::new_all();
+    sys_after.refresh_all();
+
+    let memory_after = sys_after
+        .process(pid)
+        .map(|p| p.memory())
+        .unwrap_or(0);
+
+    let memory_delta = (memory_after as i64) - (memory_before as i64);
+
     tracing::info!(
-        "Analysis completed: {} errors found, {} words, {}ms",
+        "Analysis completed: {} errors found, {} words, {}ms, mem_delta={}KB",
         result.errors.len(),
         result.word_count,
-        result.analysis_time_ms
+        result.analysis_time_ms,
+        memory_delta / 1024
     );
 
     // Convert analyzer types to FFI types
@@ -204,5 +245,8 @@ fn analyze_text(
         errors,
         word_count: result.word_count,
         analysis_time_ms: result.analysis_time_ms,
+        memory_before_bytes: memory_before,
+        memory_after_bytes: memory_after,
+        memory_delta_bytes: memory_delta,
     }
 }
