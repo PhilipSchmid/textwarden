@@ -184,6 +184,29 @@ class UserStatistics: ObservableObject {
         }
     }
 
+    /// Historical app launch timestamps (last 90 days)
+    @Published var appLaunchHistory: [Date] {
+        didSet {
+            if let encoded = try? encoder.encode(appLaunchHistory) {
+                defaults.set(encoded, forKey: Keys.appLaunchHistory)
+            }
+        }
+    }
+
+    // MARK: - Resource Monitoring Data
+
+    /// Resource monitoring samples (persisted to UserDefaults, 30-day retention)
+    @Published private(set) var resourceSamples: [ResourceMetricSample] = [] {
+        didSet {
+            persistResourceSamples()
+        }
+    }
+
+    // Retention configuration
+    private let maxResourceAge: TimeInterval = 30 * 24 * 60 * 60  // 30 days
+    private let maxInMemorySamples = 720  // 1 hour at 5s interval
+    private var persistBatchCounter = 0
+
     // MARK: - Computed Properties
 
     /// Percentage of suggestions that were applied (0-100)
@@ -470,6 +493,124 @@ class UserStatistics: ObservableObject {
         return currentStreak
     }
 
+    /// Get resource usage metrics for a time range
+    func resourceUsageMetrics(in timeRange: TimeRange) -> ResourceUsageMetrics? {
+        let filtered = filteredResourceSamples(for: timeRange)
+        guard !filtered.isEmpty else { return nil }
+
+        let loadValues = filtered.map { $0.processLoad }
+        let memoryValues = filtered.map { $0.memoryBytes }
+
+        let loadMin = loadValues.min() ?? 0
+        let loadMax = loadValues.max() ?? 0
+        let loadAverage = loadValues.reduce(0.0, +) / Double(loadValues.count)
+        let loadMedian = median(of: loadValues)
+
+        let memoryMin = memoryValues.min() ?? 0
+        let memoryMax = memoryValues.max() ?? 0
+        let memoryAverage = UInt64(memoryValues.map { Double($0) }.reduce(0.0, +) / Double(memoryValues.count))
+        let memoryMedian = median(of: memoryValues)
+
+        // Calculate system load averages if available
+        let systemLoad1m = filtered.compactMap { $0.systemLoad1m }
+        let systemLoad5m = filtered.compactMap { $0.systemLoad5m }
+        let systemLoad15m = filtered.compactMap { $0.systemLoad15m }
+
+        return ResourceUsageMetrics(
+            cpuLoadMin: loadMin,
+            cpuLoadMax: loadMax,
+            cpuLoadAverage: loadAverage,
+            cpuLoadMedian: loadMedian,
+            systemLoad1mAverage: systemLoad1m.isEmpty ? nil : systemLoad1m.reduce(0, +) / Double(systemLoad1m.count),
+            systemLoad5mAverage: systemLoad5m.isEmpty ? nil : systemLoad5m.reduce(0, +) / Double(systemLoad5m.count),
+            systemLoad15mAverage: systemLoad15m.isEmpty ? nil : systemLoad15m.reduce(0, +) / Double(systemLoad15m.count),
+            memoryMin: memoryMin,
+            memoryMax: memoryMax,
+            memoryAverage: memoryAverage,
+            memoryMedian: memoryMedian,
+            sampleCount: filtered.count
+        )
+    }
+
+    /// Calculate median of UInt64 values
+    private func median(of values: [UInt64]) -> UInt64 {
+        guard !values.isEmpty else { return 0 }
+        let sorted = values.sorted()
+        if sorted.count % 2 == 0 {
+            return (sorted[sorted.count / 2 - 1] + sorted[sorted.count / 2]) / 2
+        } else {
+            return sorted[sorted.count / 2]
+        }
+    }
+
+    /// Calculate median of Double values
+    private func median(of values: [Double]) -> Double {
+        guard !values.isEmpty else { return 0.0 }
+        let sorted = values.sorted()
+        if sorted.count % 2 == 0 {
+            return (sorted[sorted.count / 2 - 1] + sorted[sorted.count / 2]) / 2.0
+        } else {
+            return sorted[sorted.count / 2]
+        }
+    }
+
+    /// Get overall resource usage metrics (all samples, not time-filtered)
+    func overallResourceUsageMetrics() -> ResourceUsageMetrics? {
+        // Filter to only swiftApp component (process-level metrics)
+        let filtered = resourceSamples.filter { $0.component == .swiftApp }
+        guard !filtered.isEmpty else { return nil }
+
+        let loadValues = filtered.map { $0.processLoad }
+        let memoryValues = filtered.map { $0.memoryBytes }
+
+        let loadMin = loadValues.min() ?? 0
+        let loadMax = loadValues.max() ?? 0
+        let loadAverage = loadValues.reduce(0.0, +) / Double(loadValues.count)
+        let loadMedian = median(of: loadValues)
+
+        let memoryMin = memoryValues.min() ?? 0
+        let memoryMax = memoryValues.max() ?? 0
+        let memoryAverage = UInt64(memoryValues.map { Double($0) }.reduce(0.0, +) / Double(memoryValues.count))
+        let memoryMedian = median(of: memoryValues)
+
+        // Calculate system load averages if available
+        let systemLoad1m = filtered.compactMap { $0.systemLoad1m }
+        let systemLoad5m = filtered.compactMap { $0.systemLoad5m }
+        let systemLoad15m = filtered.compactMap { $0.systemLoad15m }
+
+        return ResourceUsageMetrics(
+            cpuLoadMin: loadMin,
+            cpuLoadMax: loadMax,
+            cpuLoadAverage: loadAverage,
+            cpuLoadMedian: loadMedian,
+            systemLoad1mAverage: systemLoad1m.isEmpty ? nil : systemLoad1m.reduce(0, +) / Double(systemLoad1m.count),
+            systemLoad5mAverage: systemLoad5m.isEmpty ? nil : systemLoad5m.reduce(0, +) / Double(systemLoad5m.count),
+            systemLoad15mAverage: systemLoad15m.isEmpty ? nil : systemLoad15m.reduce(0, +) / Double(systemLoad15m.count),
+            memoryMin: memoryMin,
+            memoryMax: memoryMax,
+            memoryAverage: memoryAverage,
+            memoryMedian: memoryMedian,
+            sampleCount: filtered.count
+        )
+    }
+
+    /// Filter resource samples by time range (process-level metrics only)
+    private func filteredResourceSamples(for timeRange: TimeRange) -> [ResourceMetricSample] {
+        let threshold: Date
+        if timeRange == .session {
+            threshold = appLaunchTimestamp
+        } else if let date = timeRange.dateThreshold {
+            threshold = date
+        } else {
+            threshold = Date.distantPast
+        }
+
+        // Only return swiftApp component (process-level metrics)
+        return resourceSamples.filter {
+            $0.component == .swiftApp && $0.timestamp >= threshold
+        }
+    }
+
     // MARK: - Initialization
 
     init(defaults: UserDefaults = .standard) {
@@ -490,6 +631,7 @@ class UserStatistics: ObservableObject {
         self.detailedSessions = []
         self.suggestionActions = []
         self.appLaunchTimestamp = Date()
+        self.appLaunchHistory = []
 
         // Then load saved values
         self.errorsFound = defaults.integer(forKey: Keys.errorsFound)
@@ -535,6 +677,15 @@ class UserStatistics: ObservableObject {
         if launchTime > 0 {
             self.appLaunchTimestamp = Date(timeIntervalSince1970: launchTime)
         }
+
+        if let data = defaults.data(forKey: Keys.appLaunchHistory),
+           let history = try? decoder.decode([Date].self, from: data) {
+            self.appLaunchHistory = history
+        }
+
+        // Load resource monitoring data
+        loadResourceSamples()
+        cleanupOldResourceSamples()
     }
 
     // MARK: - Recording Methods
@@ -647,6 +798,14 @@ class UserStatistics: ObservableObject {
     /// Record a new app session (launch)
     func recordSession() {
         self.sessionCount += 1
+
+        // Add current timestamp to launch history
+        let now = Date()
+        appLaunchHistory.append(now)
+
+        // Keep only last 90 days of launch history
+        let ninetyDaysAgo = Calendar.current.date(byAdding: .day, value: -90, to: now) ?? now
+        appLaunchHistory = appLaunchHistory.filter { $0 >= ninetyDaysAgo }
     }
 
     /// Record application usage for current analysis
@@ -666,6 +825,137 @@ class UserStatistics: ObservableObject {
         if latencySamples.count > 100 {
             latencySamples.removeFirst()
         }
+    }
+
+    // MARK: - Resource Monitoring Methods
+
+    /// Record a resource usage sample
+    func recordResourceSample(_ sample: ResourceMetricSample) {
+        resourceSamples.append(sample)
+
+        // Maintain in-memory limit (keep memory bounded)
+        // Note: Full dataset is in UserDefaults, this is just in-memory cache
+        if resourceSamples.count > maxInMemorySamples {
+            let overflow = resourceSamples.count - maxInMemorySamples
+            resourceSamples.removeFirst(overflow)
+        }
+    }
+
+    /// Get resource statistics for a component in a time range
+    func resourceStats(
+        for component: ResourceComponent,
+        in timeRange: TimeRange
+    ) -> ComponentResourceStats? {
+        let filtered = filteredResourceSamples(for: component, in: timeRange)
+        guard !filtered.isEmpty else { return nil }
+
+        let cpuValues = filtered.map { $0.cpuPercent }.sorted()
+        let memValues = filtered.map { $0.memoryBytes }.sorted()
+
+        let loadAvgs = cpuLoadAverages(for: component)
+
+        return ComponentResourceStats(
+            component: component,
+            cpuMean: cpuValues.mean(),
+            cpuMedian: cpuValues.median(),
+            cpuP90: cpuValues.percentile(90),
+            cpuP95: cpuValues.percentile(95),
+            cpuP99: cpuValues.percentile(99),
+            cpuMax: cpuValues.max() ?? 0,
+            memoryMean: UInt64(memValues.map { Double($0) }.mean()),
+            memoryMedian: memValues.median(),
+            memoryP90: memValues.percentile(90),
+            memoryP95: memValues.percentile(95),
+            memoryP99: memValues.percentile(99),
+            memoryMax: memValues.max() ?? 0,
+            memoryPeak: filtered.compactMap { $0.memoryPeakBytes }.max() ?? 0,
+            cpuLoad1m: loadAvgs.load1m,
+            cpuLoad5m: loadAvgs.load5m,
+            cpuLoad15m: loadAvgs.load15m,
+            sampleCount: filtered.count
+        )
+    }
+
+    /// Calculate CPU load averages (1m, 5m, 15m) for a component
+    func cpuLoadAverages(
+        for component: ResourceComponent
+    ) -> (load1m: Double, load5m: Double, load15m: Double) {
+        let now = Date()
+
+        let samples1m = resourceSamples
+            .filter { $0.component == component && now.timeIntervalSince($0.timestamp) <= 60 }
+        let samples5m = resourceSamples
+            .filter { $0.component == component && now.timeIntervalSince($0.timestamp) <= 300 }
+        let samples15m = resourceSamples
+            .filter { $0.component == component && now.timeIntervalSince($0.timestamp) <= 900 }
+
+        return (
+            load1m: samples1m.map { $0.cpuPercent }.mean(),
+            load5m: samples5m.map { $0.cpuPercent }.mean(),
+            load15m: samples15m.map { $0.cpuPercent }.mean()
+        )
+    }
+
+    /// Filter resource samples by component and time range
+    private func filteredResourceSamples(
+        for component: ResourceComponent,
+        in timeRange: TimeRange
+    ) -> [ResourceMetricSample] {
+        let threshold: Date
+        if timeRange == .session {
+            threshold = appLaunchTimestamp
+        } else if let date = timeRange.dateThreshold {
+            threshold = date
+        } else {
+            threshold = Date.distantPast
+        }
+
+        return resourceSamples.filter {
+            $0.component == component && $0.timestamp >= threshold
+        }
+    }
+
+    /// Persist resource samples to UserDefaults (batched to reduce overhead)
+    private func persistResourceSamples() {
+        persistBatchCounter += 1
+
+        // Only save every 10 samples to reduce disk I/O
+        guard persistBatchCounter >= 10 else { return }
+        persistBatchCounter = 0
+
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self = self else { return }
+            if let encoded = try? self.encoder.encode(self.resourceSamples) {
+                self.defaults.set(encoded, forKey: Keys.resourceSamples)
+            }
+        }
+    }
+
+    /// Load resource samples from UserDefaults
+    private func loadResourceSamples() {
+        guard let data = defaults.data(forKey: Keys.resourceSamples),
+              let decoded = try? decoder.decode([ResourceMetricSample].self, from: data) else {
+            return
+        }
+        resourceSamples = decoded
+    }
+
+    /// Clean up resource samples older than 30 days
+    private func cleanupOldResourceSamples() {
+        let cutoffDate = Date(timeIntervalSinceNow: -maxResourceAge)
+        let before = resourceSamples.count
+        resourceSamples.removeAll { $0.timestamp < cutoffDate }
+
+        if before != resourceSamples.count {
+            let removed = before - resourceSamples.count
+            print("ResourceMonitor: Cleaned up \(removed) samples older than 30 days")
+        }
+    }
+
+    /// Perform periodic cleanup (call on app launch)
+    func performPeriodicCleanup() {
+        cleanupOldData()  // Existing 90-day cleanup
+        cleanupOldResourceSamples()  // New 30-day cleanup for resource samples
     }
 
     // MARK: - Helper Methods
@@ -755,5 +1045,7 @@ class UserStatistics: ObservableObject {
         static let detailedSessions = "statistics.detailedSessions"
         static let suggestionActions = "statistics.suggestionActions"
         static let appLaunchTimestamp = "statistics.appLaunchTimestamp"
+        static let appLaunchHistory = "statistics.appLaunchHistory"
+        static let resourceSamples = "statistics.resourceSamples"
     }
 }
