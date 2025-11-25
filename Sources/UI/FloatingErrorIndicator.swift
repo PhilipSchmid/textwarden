@@ -796,21 +796,28 @@ private class IndicatorView: NSView {
     override func mouseDown(with event: NSEvent) {
         Logger.debug("IndicatorView: mouseDown called at \(event.locationInWindow)", category: Logger.ui)
 
-        isDragging = true
+        // Just record start point - don't start drag yet
+        // Drag will start on first mouseDragged event
         dragStartPoint = event.locationInWindow
-
-        // Change cursor to closed hand
-        NSCursor.closedHand.push()
-
-        // Notify drag start
-        onDragStart?()
-
-        // Redraw to show dots instead of count
-        needsDisplay = true
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard isDragging, let window = window else { return }
+        guard let window = window else { return }
+
+        // Start drag on first mouseDragged event (not on mouseDown)
+        // This prevents showing border guide on simple clicks
+        if !isDragging {
+            isDragging = true
+
+            // Change cursor to closed hand
+            NSCursor.closedHand.push()
+
+            // Notify drag start (shows border guide)
+            onDragStart?()
+
+            // Redraw to show dots instead of count
+            needsDisplay = true
+        }
 
         // Calculate delta from start point
         let currentPoint = event.locationInWindow
@@ -829,8 +836,8 @@ private class IndicatorView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
-        guard isDragging else {
-            // If not dragging, treat as a click
+        if !isDragging {
+            // No drag happened - treat as a click
             onClicked?()
             return
         }
