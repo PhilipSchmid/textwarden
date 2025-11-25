@@ -1373,6 +1373,9 @@ struct GeneralPreferencesView: View {
                 Text("Quick Apply")
                     .font(.headline)
             }
+
+            // MARK: Logging Configuration - moved from Diagnostics
+            LoggingConfigurationView(preferences: preferences)
         }
         .formStyle(.grouped)
         .padding()
@@ -1383,6 +1386,166 @@ struct GeneralPreferencesView: View {
         } message: {
             Text("Please check System Settings to grant Accessibility permission to TextWarden.")
         }
+    }
+}
+
+// MARK: - Logging Configuration View
+
+struct LoggingConfigurationView: View {
+    @ObservedObject var preferences: UserPreferences
+    @State private var selectedLogLevel: LogLevel = Logger.minimumLogLevel
+    @State private var fileLoggingEnabled: Bool = Logger.fileLoggingEnabled
+    @State private var logFilePath: String = Logger.logFilePath
+
+    var body: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Configure log verbosity and output location for debugging")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .padding(.bottom, 8)
+
+                // Log Level Picker
+                HStack {
+                    Text("Log Level:")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+
+                    Picker("Log Level", selection: $selectedLogLevel) {
+                        ForEach(LogLevel.allCases, id: \.self) { level in
+                            Text(level.rawValue).tag(level)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: selectedLogLevel) { newValue in
+                        Logger.minimumLogLevel = newValue
+                    }
+
+                    Spacer()
+                }
+
+                Text("Controls verbosity: Debug shows all messages, Critical shows only severe issues")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Divider()
+                    .padding(.vertical, 4)
+
+                // File Logging Toggle
+                Toggle("Enable File Logging", isOn: $fileLoggingEnabled)
+                    .onChange(of: fileLoggingEnabled) { newValue in
+                        Logger.fileLoggingEnabled = newValue
+                    }
+                    .help("Write logs to a file for debugging purposes")
+
+                if fileLoggingEnabled {
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Log File Path Configuration
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Log File Location:")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+
+                            // Path displayed in a styled text field
+                            HStack {
+                                Text(logFilePath)
+                                    .font(.caption.monospaced())
+                                    .foregroundColor(.primary)
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .help("Current log file path. Click 'Choose' to change location.")
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color(nsColor: .controlBackgroundColor))
+                            .cornerRadius(6)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                            )
+
+                            Text("You can choose a custom location using the button below, or use the default location")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+
+                            HStack(spacing: 8) {
+                                Button("Choose Location...") {
+                                    chooseLogFilePath()
+                                }
+                                .buttonStyle(.bordered)
+                                .help("Select a custom location for log files")
+
+                                if Logger.customLogFilePath != nil {
+                                    Button("Reset to Default") {
+                                        resetLogFilePathToDefault()
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .help("Use default location: ~/Library/Logs/TextWarden/")
+                                }
+
+                                Button("Open in Finder") {
+                                    NSWorkspace.shared.selectFile(logFilePath, inFileViewerRootedAtPath: "")
+                                }
+                                .buttonStyle(.bordered)
+                                .help("Show log file in Finder")
+                            }
+
+                            Text("Default: ~/Library/Logs/TextWarden/textwarden.log")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.leading, 20)
+                    }
+                }
+            }
+        } header: {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.text.fill")
+                        .font(.title2)
+                        .foregroundColor(.accentColor)
+                    Text("Logging Configuration")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                }
+
+                Text("Configure debug logging and file output settings")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private func chooseLogFilePath() {
+        let savePanel = NSSavePanel()
+        savePanel.title = "Choose Log File Location"
+        savePanel.message = "Select where to save log files"
+        savePanel.nameFieldStringValue = "textwarden.log"
+        savePanel.canCreateDirectories = true
+        savePanel.showsTagField = false
+
+        // Set default directory to ~/Library/Logs/TextWarden
+        let defaultLogDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Logs/TextWarden")
+        savePanel.directoryURL = defaultLogDir
+
+        savePanel.begin { response in
+            guard response == .OK, let url = savePanel.url else { return }
+
+            // Save the custom path
+            Logger.customLogFilePath = url.path
+            logFilePath = url.path
+
+            Logger.info("Log file path changed to: \(url.path)", category: Logger.general)
+        }
+    }
+
+    private func resetLogFilePathToDefault() {
+        Logger.resetLogFilePathToDefault()
+        logFilePath = Logger.logFilePath
+
+        Logger.info("Log file path reset to default", category: Logger.general)
     }
 }
 
@@ -2595,16 +2758,13 @@ struct CustomVocabularyView: View {
 struct DiagnosticsView: View {
     @ObservedObject var preferences: UserPreferences
     @ObservedObject private var applicationTracker = ApplicationTracker.shared
-    @State private var selectedLogLevel: LogLevel = Logger.minimumLogLevel
-    @State private var fileLoggingEnabled: Bool = Logger.fileLoggingEnabled
-    @State private var logFilePath: String = Logger.logFilePath
     @State private var isExporting: Bool = false
     @State private var showingExportAlert: Bool = false
     @State private var exportAlertMessage: String = ""
 
     var body: some View {
         Form {
-            // MARK: - Currently Monitoring Section
+            // MARK: - Active Application Monitoring
             Section {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
@@ -2676,117 +2836,32 @@ struct DiagnosticsView: View {
                     }
                 }
             } header: {
-                Text("Active Application")
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "app.badge")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                        Text("Active Application Monitoring")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+
+                    Text("Real-time information about the currently active application")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
 
             // MARK: - Resource Monitoring Section
             ResourceMonitoringView()
 
-            // MARK: - Logging Configuration Section
+            // MARK: - Export System Diagnostics
             Section {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Configure logging verbosity and file output for debugging.")
+                    Text("Export a complete diagnostic package including logs, crash reports, system information, and comprehensive performance metrics for troubleshooting")
                         .font(.body)
                         .foregroundColor(.secondary)
                         .padding(.bottom, 8)
-
-                    // Log Level Picker
-                    HStack {
-                        Text("Log Level:")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-
-                        Picker("Log Level", selection: $selectedLogLevel) {
-                            ForEach(LogLevel.allCases, id: \.self) { level in
-                                Text(level.rawValue).tag(level)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .onChange(of: selectedLogLevel) { newValue in
-                            Logger.minimumLogLevel = newValue
-                        }
-
-                        Spacer()
-                    }
-
-                    Text("Controls the verbosity of logs. Debug shows all messages, Critical shows only severe issues.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Divider()
-                        .padding(.vertical, 4)
-
-                    // File Logging Toggle
-                    Toggle("Enable File Logging", isOn: $fileLoggingEnabled)
-                        .onChange(of: fileLoggingEnabled) { newValue in
-                            Logger.fileLoggingEnabled = newValue
-                        }
-                        .help("Write logs to a file for debugging purposes")
-
-                    if fileLoggingEnabled {
-                        VStack(alignment: .leading, spacing: 12) {
-                            // Log File Path Configuration
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Log File Path:")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-
-                                HStack {
-                                    Text(logFilePath)
-                                        .font(.caption.monospaced())
-                                        .foregroundColor(.secondary)
-                                        .textSelection(.enabled)
-                                        .lineLimit(1)
-                                        .truncationMode(.middle)
-
-                                    Spacer()
-                                }
-
-                                HStack(spacing: 8) {
-                                    Button("Choose...") {
-                                        chooseLogFilePath()
-                                    }
-                                    .buttonStyle(.bordered)
-
-                                    if Logger.customLogFilePath != nil {
-                                        Button("Reset to Default") {
-                                            resetLogFilePathToDefault()
-                                        }
-                                        .buttonStyle(.bordered)
-                                    }
-
-                                    Button("Open") {
-                                        NSWorkspace.shared.open(URL(fileURLWithPath: logFilePath))
-                                    }
-                                    .buttonStyle(.bordered)
-                                }
-                            }
-
-                            Text("Default: ~/Library/Logs/TextWarden/textwarden.log")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.leading, 20)
-                    }
-                }
-            } header: {
-                Text("Logging Configuration")
-                    .font(.headline)
-            }
-
-            // MARK: - Export Diagnostics Section
-            Section {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "doc.text.magnifyingglass")
-                            .font(.title2)
-                            .foregroundColor(.blue)
-                        Text("Export a complete diagnostic package including logs, crash reports, system information, and comprehensive performance metrics for troubleshooting.")
-                            .font(.body)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.bottom, 8)
 
                     Button(action: exportDiagnosticsToFile) {
                         HStack {
@@ -2835,14 +2910,26 @@ struct DiagnosticsView: View {
                         .padding(.top, 4)
                 }
             } header: {
-                Text("Export System Diagnostics")
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                        Text("Export System Diagnostics")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+
+                    Text("Generate comprehensive diagnostic reports for troubleshooting")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
 
-            // MARK: - Debug Overlays Section
+            // MARK: - Debug Overlays
             Section {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Enable visual debug overlays to help diagnose positioning issues with grammar indicators. When enabled, colored boxes will appear around text fields to show how TextWarden calculates positions for grammar indicators.")
+                    Text("Enable visual debug overlays to help diagnose positioning issues. When enabled, colored boxes will appear around text fields to show how TextWarden calculates positions for grammar indicators")
                         .font(.body)
                         .foregroundColor(.secondary)
                         .padding(.bottom, 8)
@@ -2886,13 +2973,26 @@ struct DiagnosticsView: View {
                     }
                 }
             } header: {
-                Text("Debug Overlays")
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "viewfinder")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                        Text("Debug Overlays")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+
+                    Text("Visual debugging tools for positioning and coordinate issues")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
 
+            // MARK: - Reset Options
             Section {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Reset various aspects of TextWarden to their default state. Use these options with caution as they cannot be undone.")
+                    Text("Reset various aspects of TextWarden to their default state. Use these options with caution as they cannot be undone")
                         .font(.body)
                         .foregroundColor(.secondary)
                         .padding(.bottom, 8)
@@ -2973,8 +3073,20 @@ struct DiagnosticsView: View {
                     }
                 }
             } header: {
-                Text("Reset Options")
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.counterclockwise.circle")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                        Text("Reset Options")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+
+                    Text("Restore settings and data to their default values")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
         }
         .formStyle(.grouped)
@@ -3041,39 +3153,6 @@ struct DiagnosticsView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd-HHmmss"
         return formatter.string(from: Date())
-    }
-
-    // MARK: - Log File Path Configuration
-
-    private func chooseLogFilePath() {
-        let savePanel = NSSavePanel()
-        savePanel.title = "Choose Log File Location"
-        savePanel.message = "Select where to save log files"
-        savePanel.nameFieldStringValue = "textwarden.log"
-        savePanel.canCreateDirectories = true
-        savePanel.showsTagField = false
-
-        // Set default directory to ~/Library/Logs/TextWarden
-        let defaultLogDir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Logs/TextWarden")
-        savePanel.directoryURL = defaultLogDir
-
-        savePanel.begin { response in
-            guard response == .OK, let url = savePanel.url else { return }
-
-            // Save the custom path
-            Logger.customLogFilePath = url.path
-            logFilePath = url.path
-
-            Logger.info("Log file path changed to: \(url.path)", category: Logger.general)
-        }
-    }
-
-    private func resetLogFilePathToDefault() {
-        Logger.resetLogFilePathToDefault()
-        logFilePath = Logger.logFilePath
-
-        Logger.info("Log file path reset to default", category: Logger.general)
     }
 }
 
