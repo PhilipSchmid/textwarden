@@ -767,6 +767,12 @@ class UserPreferences: ObservableObject {
             return false
         }
 
+        // Check if app is hidden (hidden apps should not be checked)
+        // Hiding an app from the list implies the user doesn't want TextWarden interaction
+        if hiddenApplications.contains(bundleIdentifier) {
+            return false
+        }
+
         // Check app-specific pause
         guard let appPause = appPauseDurations[bundleIdentifier] else {
             return true // No app-specific pause set

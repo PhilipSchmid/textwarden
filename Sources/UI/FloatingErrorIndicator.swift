@@ -190,6 +190,115 @@ class FloatingErrorIndicator: NSPanel {
         }
     }
 
+    /// Update indicator with errors using only context (no element required)
+    /// Used when restoring from window minimize where element may not be available
+    func updateWithContext(errors: [GrammarErrorModel], context: ApplicationContext) {
+        Logger.debug("FloatingErrorIndicator: updateWithContext() called with \(errors.count) errors", category: Logger.ui)
+        self.errors = errors
+        self.context = context
+        // Don't set monitoredElement - we don't have one
+
+        guard !errors.isEmpty else {
+            Logger.debug("FloatingErrorIndicator: No errors, hiding", category: Logger.ui)
+            hide()
+            return
+        }
+
+        indicatorView?.errorCount = errors.count
+        indicatorView?.errorColor = colorForErrors(errors)
+        indicatorView?.needsDisplay = true
+
+        // Position using PID from context (no element needed)
+        positionIndicatorByPID(context.processID)
+
+        Logger.debug("FloatingErrorIndicator: Window level: \(self.level.rawValue), isVisible: \(isVisible)", category: Logger.ui)
+        if !isVisible {
+            Logger.debug("FloatingErrorIndicator: Calling order(.above)", category: Logger.ui)
+            order(.above, relativeTo: 0)  // Show window without stealing focus
+            Logger.debug("FloatingErrorIndicator: After order(.above), isVisible: \(isVisible)", category: Logger.ui)
+        } else {
+            Logger.debug("FloatingErrorIndicator: Window already visible", category: Logger.ui)
+        }
+    }
+
+    /// Position indicator using PID (when no element is available)
+    private func positionIndicatorByPID(_ pid: pid_t) {
+        guard let visibleFrame = getVisibleWindowFrameByPID(pid) else {
+            Logger.debug("FloatingErrorIndicator: Failed to get visible window frame by PID, using screen corner", category: Logger.ui)
+            positionInScreenCorner()
+            return
+        }
+
+        Logger.debug("FloatingErrorIndicator: Using visible window frame (by PID): \(visibleFrame)", category: Logger.ui)
+
+        let indicatorSize: CGFloat = 40
+
+        // Check for per-app stored position first
+        var percentagePos: IndicatorPositionStore.PercentagePosition?
+        if let bundleId = context?.bundleIdentifier {
+            percentagePos = IndicatorPositionStore.shared.getPosition(for: bundleId)
+            if percentagePos != nil {
+                Logger.debug("FloatingErrorIndicator: Using stored position for \(bundleId)", category: Logger.ui)
+            }
+        }
+
+        // If no stored position, use default from preferences
+        if percentagePos == nil {
+            percentagePos = IndicatorPositionStore.shared.getDefaultPosition()
+            Logger.debug("FloatingErrorIndicator: Using default position from preferences", category: Logger.ui)
+        }
+
+        // Convert percentage to absolute position
+        let position = percentagePos!.toAbsolute(in: visibleFrame, indicatorSize: indicatorSize)
+        let finalFrame = NSRect(x: position.x, y: position.y, width: indicatorSize, height: indicatorSize)
+
+        Logger.debug("FloatingErrorIndicator: Positioning at \(finalFrame)", category: Logger.ui)
+        setFrame(finalFrame, display: true)
+    }
+
+    /// Get visible window frame using PID directly (no element required)
+    private func getVisibleWindowFrameByPID(_ pid: pid_t) -> CGRect? {
+        let options = CGWindowListOption(arrayLiteral: .optionOnScreenOnly)
+        guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            Logger.debug("FloatingErrorIndicator: Failed to get window list", category: Logger.ui)
+            return nil
+        }
+
+        // Find the LARGEST window for this PID
+        var bestWindow: (x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat, area: CGFloat)?
+
+        for windowInfo in windowList {
+            if let windowPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
+               windowPID == pid,
+               let boundsDict = windowInfo[kCGWindowBounds as String] as? [String: CGFloat] {
+
+                let x = boundsDict["X"] ?? 0
+                let y = boundsDict["Y"] ?? 0
+                let width = boundsDict["Width"] ?? 0
+                let height = boundsDict["Height"] ?? 0
+                let area = width * height
+
+                // Skip tiny windows (< 100x100, likely tooltips or popups)
+                guard width >= 100 && height >= 100 else { continue }
+
+                if bestWindow == nil || area > bestWindow!.area {
+                    bestWindow = (x: x, y: y, width: width, height: height, area: area)
+                }
+            }
+        }
+
+        guard let best = bestWindow else {
+            Logger.debug("FloatingErrorIndicator: No matching window found for PID \(pid)", category: Logger.ui)
+            return nil
+        }
+
+        // Convert from CGWindow coordinates (y=0 at top) to Cocoa coordinates (y=0 at bottom)
+        let totalScreenHeight = NSScreen.screens.reduce(0) { max($0, $1.frame.maxY) }
+        let cocoaY = totalScreenHeight - best.y - best.height
+
+        return CGRect(x: best.x, y: cocoaY, width: best.width, height: best.height)
+    }
+
     /// Hide indicator
     func hide() {
         orderOut(nil)
@@ -382,7 +491,10 @@ class FloatingErrorIndicator: NSPanel {
             return nil
         }
 
-        // Find the frontmost window for this PID
+        // Find the LARGEST window for this PID
+        // This ensures we get the main application window, not floating panels/popups like Cmd+F search
+        var bestWindow: (x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat, area: CGFloat)?
+
         for windowInfo in windowList {
             if let windowPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
                windowPID == pid,
@@ -393,62 +505,78 @@ class FloatingErrorIndicator: NSPanel {
                 let y = boundsDict["Y"] ?? 0
                 let width = boundsDict["Width"] ?? 0
                 let height = boundsDict["Height"] ?? 0
+                let area = width * height
 
-                // CGWindowListCopyWindowInfo returns coordinates with y=0 at TOP
-                // NSScreen uses Cocoa coordinates with y=0 at BOTTOM
-                // CRITICAL: Must find which screen the window is on for proper conversion
+                // Skip tiny windows (< 100x100, likely tooltips or popups)
+                guard width >= 100 && height >= 100 else { continue }
 
-                // First, find which screen contains this window
-                // We'll check which screen's bounds (in CGWindow coordinates) intersect with the window
-                let windowCGRect = CGRect(x: x, y: y, width: width, height: height)
-                let totalScreenHeight = NSScreen.screens.reduce(0) { max($0, $1.frame.maxY) }
-
-                var targetScreen: NSScreen?
-                var maxIntersection: CGFloat = 0
-
-                for screen in NSScreen.screens {
-                    // Convert this screen's Cocoa frame to CGWindow coordinates for comparison
-                    let cocoaFrame = screen.frame
-                    let cgY = totalScreenHeight - cocoaFrame.maxY
-                    let cgScreenRect = CGRect(
-                        x: cocoaFrame.origin.x,
-                        y: cgY,
-                        width: cocoaFrame.width,
-                        height: cocoaFrame.height
-                    )
-
-                    // Check intersection
-                    let intersection = windowCGRect.intersection(cgScreenRect)
-                    let area = intersection.width * intersection.height
-
-                    if area > maxIntersection {
-                        maxIntersection = area
-                        targetScreen = screen
-                    }
+                // Keep track of the largest window
+                if bestWindow == nil || area > bestWindow!.area {
+                    bestWindow = (x: x, y: y, width: width, height: height, area: area)
                 }
-
-                // Use the screen we found (or fall back to main)
-                guard let screen = targetScreen ?? NSScreen.main else {
-                    Logger.debug("FloatingErrorIndicator: No screen found", category: Logger.ui)
-                    return nil
-                }
-
-                // Convert from CGWindow coordinates (top-left origin) to Cocoa coordinates (bottom-left origin)
-                // Use simple formula: cocoaY = totalScreenHeight - cgY - height
-                let cocoaY = totalScreenHeight - y - height
-
-                let frame = NSRect(x: x, y: cocoaY, width: width, height: height)
-                Logger.debug("FloatingErrorIndicator: Window on screen '\(screen.localizedName)' at \(screen.frame) - CGWindow: (\(x), \(y)), Cocoa: \(frame)", category: Logger.ui)
-
-                // Note: Debug borders are now managed by AnalysisCoordinator.updateDebugBorders()
-                // to show them always when enabled (not just when errors exist)
-
-                return frame
             }
         }
 
-        Logger.debug("FloatingErrorIndicator: No matching window found in window list", category: Logger.ui)
-        return nil
+        guard let best = bestWindow else {
+            Logger.debug("FloatingErrorIndicator: No matching window found in window list", category: Logger.ui)
+            return nil
+        }
+
+        let x = best.x
+        let y = best.y
+        let width = best.width
+        let height = best.height
+
+        // CGWindowListCopyWindowInfo returns coordinates with y=0 at TOP
+        // NSScreen uses Cocoa coordinates with y=0 at BOTTOM
+        // CRITICAL: Must find which screen the window is on for proper conversion
+
+        // First, find which screen contains this window
+        // We'll check which screen's bounds (in CGWindow coordinates) intersect with the window
+        let windowCGRect = CGRect(x: x, y: y, width: width, height: height)
+        let totalScreenHeight = NSScreen.screens.reduce(0) { max($0, $1.frame.maxY) }
+
+        var targetScreen: NSScreen?
+        var maxIntersection: CGFloat = 0
+
+        for screen in NSScreen.screens {
+            // Convert this screen's Cocoa frame to CGWindow coordinates for comparison
+            let cocoaFrame = screen.frame
+            let cgY = totalScreenHeight - cocoaFrame.maxY
+            let cgScreenRect = CGRect(
+                x: cocoaFrame.origin.x,
+                y: cgY,
+                width: cocoaFrame.width,
+                height: cocoaFrame.height
+            )
+
+            // Check intersection
+            let intersection = windowCGRect.intersection(cgScreenRect)
+            let area = intersection.width * intersection.height
+
+            if area > maxIntersection {
+                maxIntersection = area
+                targetScreen = screen
+            }
+        }
+
+        // Use the screen we found (or fall back to main)
+        guard let screen = targetScreen ?? NSScreen.main else {
+            Logger.debug("FloatingErrorIndicator: No screen found", category: Logger.ui)
+            return nil
+        }
+
+        // Convert from CGWindow coordinates (top-left origin) to Cocoa coordinates (bottom-left origin)
+        // Use simple formula: cocoaY = totalScreenHeight - cgY - height
+        let cocoaY = totalScreenHeight - y - height
+
+        let frame = NSRect(x: x, y: cocoaY, width: width, height: height)
+        Logger.debug("FloatingErrorIndicator: Window on screen '\(screen.localizedName)' at \(screen.frame) - CGWindow: (\(x), \(y)), Cocoa: \(frame)", category: Logger.ui)
+
+        // Note: Debug borders are now managed by AnalysisCoordinator.updateDebugBorders()
+        // to show them always when enabled (not just when errors exist)
+
+        return frame
     }
 
     /// Get the window frame for the given element (may include scrollback for terminals)

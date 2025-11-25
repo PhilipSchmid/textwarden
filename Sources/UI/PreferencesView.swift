@@ -1417,7 +1417,7 @@ struct LoggingConfigurationView: View {
                         }
                     }
                     .pickerStyle(.menu)
-                    .onChange(of: selectedLogLevel) { newValue in
+                    .onChange(of: selectedLogLevel) { _, newValue in
                         Logger.minimumLogLevel = newValue
                     }
 
@@ -1433,7 +1433,7 @@ struct LoggingConfigurationView: View {
 
                 // File Logging Toggle
                 Toggle("Enable File Logging", isOn: $fileLoggingEnabled)
-                    .onChange(of: fileLoggingEnabled) { newValue in
+                    .onChange(of: fileLoggingEnabled) { _, newValue in
                         Logger.fileLoggingEnabled = newValue
                     }
                     .help("Write logs to a file for debugging purposes")

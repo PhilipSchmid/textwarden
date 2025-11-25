@@ -39,7 +39,7 @@ import Foundation
         // Convert Swift strings to RustString and create RustVec for language list
         let rustText = RustString(text)
         let rustDialect = RustString(dialect)
-        var rustVec = RustVec<RustString>()
+        let rustVec = RustVec<RustString>()
         for lang in excludedLanguages {
             rustVec.push(value: RustString(lang))
         }
@@ -87,7 +87,7 @@ import Foundation
             // Convert Swift strings to RustString and create RustVec for language list
             let rustText = RustString(text)
             let rustDialect = RustString(dialect)
-            var rustVec = RustVec<RustString>()
+            let rustVec = RustVec<RustString>()
             for lang in excludedLanguages {
                 rustVec.push(value: RustString(lang))
             }

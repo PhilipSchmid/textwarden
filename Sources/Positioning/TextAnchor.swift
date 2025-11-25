@@ -56,7 +56,7 @@ enum TextAnchor {
     /// Returns bounds in Cocoa coordinate system (bottom-left origin)
     func resolvePosition(in element: AXUIElement, length: Int = 1) -> CGRect? {
         switch self {
-        case .opaqueMarker(let marker):
+        case .opaqueMarker:
             // Need both start and end markers for bounds
             // This is handled by AccessibilityBridge.calculateBounds
             return nil  // Use anchorRange instead

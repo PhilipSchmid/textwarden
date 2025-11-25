@@ -113,7 +113,7 @@ class SlackContentParser: ContentParser {
         AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute as CFString, &descValue)
         AXUIElementCopyAttributeValue(element, kAXIdentifierAttribute as CFString, &identifierValue)
 
-        let role = roleValue as? String
+        _ = roleValue as? String  // Role reserved for future use
         let description = descValue as? String
         let identifier = identifierValue as? String
 
