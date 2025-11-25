@@ -90,6 +90,9 @@ class AnalysisCoordinator: ObservableObject {
     private var windowMovementDebounceTimer: Timer?
     private var overlaysHiddenDueToMovement = false
     private var overlaysHiddenDueToWindowOffScreen = false
+    private var positionSyncRetryCount = 0
+    private let maxPositionSyncRetries = 20  // Max 20 retries * 50ms = 1000ms max wait
+    private var lastElementPosition: CGPoint?  // Track element position for stability check
 
     /// Hover switching timer - delays popover switching when hovering from one error to another
     private var hoverSwitchTimer: Timer?
@@ -500,6 +503,8 @@ class AnalysisCoordinator: ObservableObject {
 
         Logger.debug("Window monitoring: Movement started - hiding all overlays", category: Logger.analysis)
         overlaysHiddenDueToMovement = true
+        positionSyncRetryCount = 0  // Reset retry counter for new movement cycle
+        lastElementPosition = nil   // Reset element position tracking
 
         // Immediately hide all overlays
         errorOverlay.hide()
@@ -599,8 +604,96 @@ class AnalysisCoordinator: ObservableObject {
     /// Re-show overlays after window movement has stopped
     private func reshowOverlaysAfterMovement() {
         Logger.debug("Window monitoring: Re-showing overlays at new position", category: Logger.analysis)
-        overlaysHiddenDueToMovement = false
         windowMovementDebounceTimer = nil  // Clear timer reference so new timer can be created
+
+        // CRITICAL: Verify that AX API position is in sync with CGWindow position
+        // CGWindowList updates immediately, but AX API may lag behind
+        // If positions don't match, wait and retry to avoid showing overlays at stale position
+        guard let element = textMonitor.monitoredElement else {
+            overlaysHiddenDueToMovement = false
+            positionSyncRetryCount = 0
+            lastElementPosition = nil
+            return
+        }
+
+        // Get CGWindow position (source of truth - updates immediately)
+        guard let cgWindowPosition = getWindowPosition(for: element) else {
+            Logger.debug("Window monitoring: Cannot get CGWindow position - showing overlays anyway", category: Logger.analysis)
+            overlaysHiddenDueToMovement = false
+            positionSyncRetryCount = 0
+            lastElementPosition = nil
+            PositionResolver.shared.clearCache()
+            let sourceText = currentSegment?.content ?? ""
+            applyFilters(to: currentErrors, sourceText: sourceText, element: textMonitor.monitoredElement)
+            updateDebugBorders()
+            return
+        }
+
+        // Check 1: Verify window position sync between AX and CGWindow
+        var needsRetry = false
+        if let axWindowPosition = getAXWindowPosition(for: element) {
+            let windowDelta = hypot(cgWindowPosition.x - axWindowPosition.x, cgWindowPosition.y - axWindowPosition.y)
+            let toleranceThreshold: CGFloat = 5.0  // Tighter tolerance for window position
+
+            if windowDelta > toleranceThreshold {
+                Logger.debug("Window monitoring: Window position mismatch - AX: \(axWindowPosition), CG: \(cgWindowPosition), delta: \(windowDelta)px", category: Logger.analysis)
+                needsRetry = true
+            }
+        }
+
+        // Check 2: Verify element position is stable (not still updating)
+        if let currentElementPos = getAXElementPosition(for: element) {
+            if let lastPos = lastElementPosition {
+                let elementDelta = hypot(currentElementPos.x - lastPos.x, currentElementPos.y - lastPos.y)
+                let elementTolerance: CGFloat = 3.0  // Very tight tolerance for element stability
+
+                if elementDelta > elementTolerance {
+                    Logger.debug("Window monitoring: Element position still changing - last: \(lastPos), current: \(currentElementPos), delta: \(elementDelta)px", category: Logger.analysis)
+                    needsRetry = true
+                }
+            }
+            lastElementPosition = currentElementPos
+        }
+
+        // If either check failed and we have retries left, wait and retry
+        if needsRetry && positionSyncRetryCount < maxPositionSyncRetries {
+            positionSyncRetryCount += 1
+            Logger.debug("Window monitoring: Position not stable - retry \(positionSyncRetryCount)/\(maxPositionSyncRetries) in 50ms", category: Logger.analysis)
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                guard let self = self else { return }
+                if self.overlaysHiddenDueToMovement {
+                    self.reshowOverlaysAfterMovement()
+                }
+            }
+            return
+        }
+
+        if needsRetry {
+            Logger.debug("Window monitoring: Position sync timed out after \(positionSyncRetryCount) retries - showing overlays anyway", category: Logger.analysis)
+        } else if positionSyncRetryCount > 0 {
+            // Positions just became stable - add a settling delay for Electron apps
+            // which can have extra latency in propagating position changes
+            Logger.debug("Window monitoring: Position stable - adding 100ms settling delay", category: Logger.analysis)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                guard let self = self else { return }
+                if self.overlaysHiddenDueToMovement {
+                    self.finalizeOverlayReshow()
+                }
+            }
+            return
+        } else {
+            Logger.debug("Window monitoring: Position stable immediately (no retries needed)", category: Logger.analysis)
+        }
+
+        finalizeOverlayReshow()
+    }
+
+    /// Final step of reshowing overlays after all position checks pass
+    private func finalizeOverlayReshow() {
+        overlaysHiddenDueToMovement = false
+        positionSyncRetryCount = 0
+        lastElementPosition = nil
 
         // CRITICAL: Clear position cache AGAIN before re-showing overlays
         // The cache was cleared when movement started, but async analysis operations
@@ -615,6 +708,67 @@ class AnalysisCoordinator: ObservableObject {
 
         // Also update debug borders
         updateDebugBorders()
+    }
+
+    /// Get AX window position for the given element (walks up to find window)
+    /// Returns position in Quartz coordinates (top-left origin) for comparison with CGWindow
+    private func getAXWindowPosition(for element: AXUIElement) -> CGPoint? {
+        // Walk up to find the window element
+        var windowElement: AXUIElement?
+        var currentElement: AXUIElement? = element
+
+        for _ in 0..<10 {
+            guard let current = currentElement else { break }
+
+            var roleValue: CFTypeRef?
+            let roleResult = AXUIElementCopyAttributeValue(current, kAXRoleAttribute as CFString, &roleValue)
+
+            guard roleResult == .success, let role = roleValue as? String else { break }
+
+            if role == "AXWindow" || role == kAXWindowRole as String {
+                windowElement = current
+                break
+            }
+
+            var parentValue: CFTypeRef?
+            let parentResult = AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentValue)
+            guard parentResult == .success, let parent = parentValue else { break }
+            currentElement = (parent as! AXUIElement)
+        }
+
+        guard let window = windowElement else { return nil }
+
+        // Get position from AX window
+        var positionValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &positionValue) == .success,
+              let positionValue = positionValue else {
+            return nil
+        }
+
+        var position = CGPoint.zero
+        guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &position) else {
+            return nil
+        }
+
+        // Return in Quartz coordinates (AX API already returns Quartz coords)
+        return position
+    }
+
+    /// Get AX element position directly (for stability checking)
+    /// Returns position in Quartz coordinates (top-left origin)
+    private func getAXElementPosition(for element: AXUIElement) -> CGPoint? {
+        var positionValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
+              let positionValue = positionValue else {
+            return nil
+        }
+
+        var position = CGPoint.zero
+        guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &position) else {
+            return nil
+        }
+
+        return position
     }
 
     // MARK: - Debug Border Management
