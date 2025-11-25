@@ -89,6 +89,7 @@ class AnalysisCoordinator: ObservableObject {
     private var windowPositionTimer: Timer?
     private var windowMovementDebounceTimer: Timer?
     private var overlaysHiddenDueToMovement = false
+    private var overlaysHiddenDueToWindowOffScreen = false
 
     /// Hover switching timer - delays popover switching when hovering from one error to another
     private var hoverSwitchTimer: Timer?
@@ -380,6 +381,7 @@ class AnalysisCoordinator: ObservableObject {
         errorOverlay.hide()
         floatingIndicator.hide()
         suggestionPopover.hide()
+        DebugBorderWindow.clearAll()  // Clear debug borders when stopping
         MenuBarController.shared?.setIconState(.active)
         stopWindowPositionMonitoring()
     }
@@ -415,18 +417,28 @@ class AnalysisCoordinator: ObservableObject {
         windowMovementDebounceTimer = nil
         lastWindowPosition = nil
         overlaysHiddenDueToMovement = false
+        overlaysHiddenDueToWindowOffScreen = false
     }
 
     /// Check if window has moved
     private func checkWindowPosition() {
         guard let element = textMonitor.monitoredElement else {
             lastWindowPosition = nil
+            DebugBorderWindow.clearAll()
             return
         }
 
         guard let currentPosition = getWindowPosition(for: element) else {
-            Logger.debug("Window monitoring: Could not get window position", category: Logger.analysis)
+            // Window is not on screen (minimized, hidden, or closed)
+            Logger.debug("Window monitoring: Window not on screen - hiding all overlays", category: Logger.analysis)
+            handleWindowOffScreen()
             return
+        }
+
+        // Window is back on screen - restore overlays if they were hidden
+        if overlaysHiddenDueToWindowOffScreen {
+            Logger.debug("Window monitoring: Window back on screen - restoring overlays", category: Logger.analysis)
+            handleWindowBackOnScreen()
         }
 
         // Check if position has changed
@@ -441,9 +453,17 @@ class AnalysisCoordinator: ObservableObject {
             } else {
                 // Window stopped moving - show overlays after debounce
                 handleWindowMovementStopped()
+
+                // Update debug borders continuously when window is not moving
+                // This handles frontmost status changes (e.g., another window comes to front)
+                if !overlaysHiddenDueToMovement {
+                    updateDebugBorders()
+                }
             }
         } else {
             Logger.debug("Window monitoring: Initial position set: \(currentPosition)", category: Logger.analysis)
+            // Initial position - update debug borders
+            updateDebugBorders()
         }
 
         lastWindowPosition = currentPosition
@@ -486,6 +506,13 @@ class AnalysisCoordinator: ObservableObject {
         floatingIndicator.hide()
         suggestionPopover.hide()
 
+        // Clear debug border windows as well
+        DebugBorderWindow.clearAll()
+
+        // CRITICAL: Clear the position cache so underlines are recalculated at new window position
+        // The cache stores screen coordinates which become stale when the window moves
+        PositionResolver.shared.clearCache()
+
         // Cancel any pending re-show
         windowMovementDebounceTimer?.invalidate()
         windowMovementDebounceTimer = nil
@@ -508,6 +535,43 @@ class AnalysisCoordinator: ObservableObject {
         }
     }
 
+    /// Handle window going off-screen (minimized, hidden, or closed)
+    private func handleWindowOffScreen() {
+        guard !overlaysHiddenDueToWindowOffScreen else { return }
+
+        Logger.debug("Window monitoring: Window off-screen - hiding all overlays", category: Logger.analysis)
+        overlaysHiddenDueToWindowOffScreen = true
+        lastWindowPosition = nil
+
+        // Hide all overlays
+        errorOverlay.hide()
+        floatingIndicator.hide()
+        suggestionPopover.hide()
+        DebugBorderWindow.clearAll()
+
+        // Cancel any pending movement timers
+        windowMovementDebounceTimer?.invalidate()
+        windowMovementDebounceTimer = nil
+    }
+
+    /// Handle window coming back on-screen (restored from minimize)
+    private func handleWindowBackOnScreen() {
+        guard overlaysHiddenDueToWindowOffScreen else { return }
+
+        Logger.debug("Window monitoring: Window back on-screen - restoring overlays", category: Logger.analysis)
+        overlaysHiddenDueToWindowOffScreen = false
+
+        // Clear position cache since window position may have changed
+        PositionResolver.shared.clearCache()
+
+        // Re-show overlays by triggering a re-filter of current errors
+        let sourceText = currentSegment?.content ?? ""
+        applyFilters(to: currentErrors, sourceText: sourceText, element: textMonitor.monitoredElement)
+
+        // Update debug borders
+        updateDebugBorders()
+    }
+
     /// Re-show overlays after window movement has stopped
     private func reshowOverlaysAfterMovement() {
         Logger.debug("Window monitoring: Re-showing overlays at new position", category: Logger.analysis)
@@ -518,6 +582,114 @@ class AnalysisCoordinator: ObservableObject {
         // This will recalculate positions and show overlays at the new location
         let sourceText = currentSegment?.content ?? ""
         applyFilters(to: currentErrors, sourceText: sourceText, element: textMonitor.monitoredElement)
+
+        // Also update debug borders
+        updateDebugBorders()
+    }
+
+    // MARK: - Debug Border Management
+
+    /// Update debug borders based on current window position and visibility
+    /// Called periodically to keep debug borders in sync with monitored window
+    private func updateDebugBorders() {
+        guard let element = textMonitor.monitoredElement else {
+            DebugBorderWindow.clearAll()
+            return
+        }
+
+        // Check if any debug borders are enabled
+        let showCGWindow = UserPreferences.shared.showDebugBorderCGWindowCoords
+        let showCocoa = UserPreferences.shared.showDebugBorderCocoaCoords
+        let showTextBounds = UserPreferences.shared.showDebugBorderTextFieldBounds
+
+        guard showCGWindow || showCocoa || showTextBounds else {
+            DebugBorderWindow.clearAll()
+            return
+        }
+
+        // Get window info and check if it's frontmost
+        guard let windowInfo = getWindowInfoForElement(element) else {
+            DebugBorderWindow.clearAll()
+            return
+        }
+
+        // Check if the window is in front (not occluded by other app windows)
+        guard windowInfo.isFrontmost else {
+            DebugBorderWindow.clearAll()
+            return
+        }
+
+        // Clear existing and redraw at new position
+        DebugBorderWindow.clearAll()
+
+        if showCGWindow {
+            _ = DebugBorderWindow(frame: windowInfo.cocoaFrame, color: .systemBlue, label: "CGWindow coords")
+        }
+
+        if showCocoa {
+            _ = DebugBorderWindow(frame: windowInfo.cocoaFrame, color: .systemGreen, label: "Cocoa coords")
+        }
+
+        // Note: Text Field Bounds (red) is drawn by ErrorOverlayWindow's UnderlineView
+        // It will be shown/hidden based on the showDebugBorderTextFieldBounds preference
+    }
+
+    /// Window info structure for debug border display
+    private struct WindowInfo {
+        let cgFrame: CGRect      // CGWindow coordinates (top-left origin)
+        let cocoaFrame: CGRect   // Cocoa coordinates (bottom-left origin)
+        let isFrontmost: Bool    // Whether this window is the frontmost for its app
+    }
+
+    /// Get window info for the monitored element, including frontmost status
+    private func getWindowInfoForElement(_ element: AXUIElement) -> WindowInfo? {
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(element, &pid) == .success else { return nil }
+
+        let options = CGWindowListOption(arrayLiteral: .optionOnScreenOnly)
+        guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return nil
+        }
+
+        // Find the frontmost normal window overall (to check if our app is in front)
+        var frontmostNormalWindowPID: Int32?
+        for windowInfo in windowList {
+            if let layer = windowInfo[kCGWindowLayer as String] as? Int,
+               layer == 0,  // Normal window layer
+               let windowPID = windowInfo[kCGWindowOwnerPID as String] as? Int32 {
+                frontmostNormalWindowPID = windowPID
+                break  // First match is frontmost
+            }
+        }
+
+        // Find the window for our monitored app
+        for windowInfo in windowList {
+            if let windowPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
+               windowPID == pid,
+               let layer = windowInfo[kCGWindowLayer as String] as? Int,
+               layer == 0,  // Normal window layer
+               let boundsDict = windowInfo[kCGWindowBounds as String] as? [String: CGFloat] {
+
+                let x = boundsDict["X"] ?? 0
+                let y = boundsDict["Y"] ?? 0
+                let width = boundsDict["Width"] ?? 0
+                let height = boundsDict["Height"] ?? 0
+
+                let cgFrame = CGRect(x: x, y: y, width: width, height: height)
+
+                // Convert to Cocoa coordinates
+                let totalScreenHeight = NSScreen.screens.reduce(0) { max($0, $1.frame.maxY) }
+                let cocoaY = totalScreenHeight - y - height
+                let cocoaFrame = CGRect(x: x, y: cocoaY, width: width, height: height)
+
+                // Check if this app's window is the frontmost
+                let isFrontmost = (frontmostNormalWindowPID == pid)
+
+                return WindowInfo(cgFrame: cgFrame, cocoaFrame: cocoaFrame, isFrontmost: isFrontmost)
+            }
+        }
+
+        return nil
     }
 
     /// Refresh underlines when calibration settings change

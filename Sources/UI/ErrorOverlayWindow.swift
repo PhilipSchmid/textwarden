@@ -57,10 +57,10 @@ class ErrorOverlayWindow: NSPanel {
         self.worksWhenModal = false
         // CRITICAL: This makes the panel resist becoming the key window
         self.becomesKeyOnlyIfNeeded = true
-        // DEBUG: Temporarily enable mouse events to allow window dragging for debugging
-        // TODO: Re-enable ignoresMouseEvents after debugging window sizing issues
-        self.ignoresMouseEvents = false
-        self.isMovableByWindowBackground = true
+        // CRITICAL: Ignore mouse events so clicks pass through to the app below
+        // The overlay should be purely visual - only the FloatingErrorIndicator handles interaction
+        self.ignoresMouseEvents = true
+        self.isMovableByWindowBackground = false
 
         let view = UnderlineView()
         view.wantsLayer = true

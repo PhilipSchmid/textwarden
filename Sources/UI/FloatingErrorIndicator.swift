@@ -198,7 +198,7 @@ class FloatingErrorIndicator: NSPanel {
         monitoredElement = nil
     }
 
-    /// Handle drag end with free positioning
+    /// Handle drag end with snap-back to valid border area
     private func handleDragEnd(at finalPosition: CGPoint) {
         guard let element = monitoredElement,
               let windowFrame = getVisibleWindowFrame(for: element),
@@ -209,9 +209,23 @@ class FloatingErrorIndicator: NSPanel {
 
         let indicatorSize: CGFloat = 40
 
+        // Snap position to valid border area
+        let snappedPosition = snapToBorderArea(
+            position: finalPosition,
+            windowFrame: windowFrame,
+            indicatorSize: indicatorSize
+        )
+
+        // Update the indicator position if it was snapped
+        if snappedPosition != finalPosition {
+            Logger.debug("FloatingErrorIndicator: Snapping from \(finalPosition) to \(snappedPosition)", category: Logger.ui)
+            let snappedFrame = NSRect(x: snappedPosition.x, y: snappedPosition.y, width: indicatorSize, height: indicatorSize)
+            setFrame(snappedFrame, display: true, animate: true)
+        }
+
         // Convert absolute position to percentage
         let percentagePos = IndicatorPositionStore.PercentagePosition.from(
-            absolutePosition: finalPosition,
+            absolutePosition: snappedPosition,
             in: windowFrame,
             indicatorSize: indicatorSize
         )
@@ -220,6 +234,53 @@ class FloatingErrorIndicator: NSPanel {
         IndicatorPositionStore.shared.savePosition(percentagePos, for: bundleId)
 
         Logger.debug("FloatingErrorIndicator: Saved position for \(bundleId) at x=\(percentagePos.xPercent), y=\(percentagePos.yPercent)", category: Logger.ui)
+    }
+
+    /// Snap a position to the valid border area (1.5cm band around window edge)
+    /// If the position is outside the window or in the center, snaps to closest valid position
+    private func snapToBorderArea(position: CGPoint, windowFrame: CGRect, indicatorSize: CGFloat) -> CGPoint {
+        let borderWidth = BorderGuideWindow.borderWidth
+
+        // First, clamp position to be within the window bounds
+        var snappedX = max(windowFrame.minX, min(position.x, windowFrame.maxX - indicatorSize))
+        var snappedY = max(windowFrame.minY, min(position.y, windowFrame.maxY - indicatorSize))
+
+        // Define the valid border area (within borderWidth of any edge)
+        let innerRect = windowFrame.insetBy(dx: borderWidth, dy: borderWidth)
+
+        // Check if the indicator center is in the "forbidden" center zone
+        let indicatorCenterX = snappedX + indicatorSize / 2
+        let indicatorCenterY = snappedY + indicatorSize / 2
+
+        // If the indicator is fully within the inner (forbidden) zone, snap to closest edge
+        if innerRect.contains(CGPoint(x: indicatorCenterX, y: indicatorCenterY)) {
+            // Calculate distances to each edge of the valid border area
+            let distToLeft = indicatorCenterX - windowFrame.minX
+            let distToRight = windowFrame.maxX - indicatorCenterX
+            let distToBottom = indicatorCenterY - windowFrame.minY
+            let distToTop = windowFrame.maxY - indicatorCenterY
+
+            let minDist = min(distToLeft, distToRight, distToBottom, distToTop)
+
+            // Snap to the closest edge
+            if minDist == distToLeft {
+                snappedX = windowFrame.minX
+            } else if minDist == distToRight {
+                snappedX = windowFrame.maxX - indicatorSize
+            } else if minDist == distToBottom {
+                snappedY = windowFrame.minY
+            } else {
+                snappedY = windowFrame.maxY - indicatorSize
+            }
+
+            Logger.debug("FloatingErrorIndicator: Snapped to closest edge (minDist=\(minDist))", category: Logger.ui)
+        }
+
+        // Ensure the final position keeps the indicator within the border area
+        // The indicator can be anywhere in the border band, not just on the edge
+        // But it must have at least part of it within borderWidth of an edge
+
+        return CGPoint(x: snappedX, y: snappedY)
     }
 
     /// Position indicator based on per-app stored position or user preference
@@ -379,19 +440,8 @@ class FloatingErrorIndicator: NSPanel {
                 let frame = NSRect(x: x, y: cocoaY, width: width, height: height)
                 Logger.debug("FloatingErrorIndicator: Window on screen '\(screen.localizedName)' at \(screen.frame) - CGWindow: (\(x), \(y)), Cocoa: \(frame)", category: Logger.ui)
 
-                // DEBUG: Show debug boxes based on user preferences
-                DispatchQueue.main.async {
-                    DebugBorderWindow.clearAll()
-
-                    if UserPreferences.shared.showDebugBorderCGWindowCoords {
-                        let cgDisplayRect = NSRect(x: x, y: totalScreenHeight - y - height, width: width, height: height)
-                        _ = DebugBorderWindow(frame: cgDisplayRect, color: .systemBlue, label: "CGWindow coords")
-                    }
-
-                    if UserPreferences.shared.showDebugBorderCocoaCoords {
-                        _ = DebugBorderWindow(frame: frame, color: .systemGreen, label: "Cocoa coords")
-                    }
-                }
+                // Note: Debug borders are now managed by AnalysisCoordinator.updateDebugBorders()
+                // to show them always when enabled (not just when errors exist)
 
                 return frame
             }

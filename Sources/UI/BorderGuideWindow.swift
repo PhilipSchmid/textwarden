@@ -1,8 +1,12 @@
 import AppKit
 
-/// Border guide window that shows the target window bounds during indicator dragging
+/// Border guide window that shows the valid placement area during indicator dragging
+/// The placement area is a 1.5cm (~43pt) wide band around the window edge
 class BorderGuideWindow: NSPanel {
-    private var borderView: BorderView?
+    private var borderView: GradientBorderView?
+
+    /// Border width in points (1.5cm ≈ 43 points)
+    static let borderWidth: CGFloat = 43.0
 
     init() {
         super.init(
@@ -23,8 +27,9 @@ class BorderGuideWindow: NSPanel {
     }
 
     private func setupBorderView() {
-        let view = BorderView()
-        view.borderColor = .systemRed
+        let view = GradientBorderView()
+        view.borderColor = NSColor(red: 139/255.0, green: 69/255.0, blue: 19/255.0, alpha: 1.0) // Brown
+        view.borderWidth = Self.borderWidth
         self.contentView = view
         self.borderView = view
     }
@@ -33,20 +38,16 @@ class BorderGuideWindow: NSPanel {
     func showBorder(around frame: CGRect, color: NSColor = .systemBlue) {
         Logger.debug("BorderGuideWindow.showBorder: Received frame = \(frame)", category: Logger.ui)
 
-        let strokeWidth: CGFloat = 4.0
-        let expandedFrame = frame.insetBy(dx: -strokeWidth, dy: -strokeWidth)
-
-        setFrame(expandedFrame, display: true)
+        // No need to expand frame - the gradient is drawn inward
+        setFrame(frame, display: true)
         borderView?.borderColor = color
+        borderView?.borderWidth = Self.borderWidth
 
         Logger.debug("BorderGuideWindow.showBorder: After setFrame, self.frame = \(self.frame)", category: Logger.ui)
 
         borderView?.setNeedsDisplay(borderView!.bounds)
         borderView?.display()
         orderFront(nil)
-
-        Logger.debug("BorderGuideWindow: After orderFront, forcing another display", category: Logger.ui)
-        borderView?.display()
 
         Logger.debug("BorderGuideWindow: Window ordered front, isVisible=\(isVisible), level=\(level.rawValue)", category: Logger.ui)
     }
@@ -64,10 +65,32 @@ class BorderGuideWindow: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
-private class BorderView: NSView {
-    var borderColor: NSColor = .systemRed {
+/// Custom view that draws a gradient border band around the window edge
+/// Solid color at the outer edge, fading to transparent toward the center
+/// Uses rounded rectangles matching macOS window corner radius
+private class GradientBorderView: NSView {
+    var borderColor: NSColor = NSColor(red: 139/255.0, green: 69/255.0, blue: 19/255.0, alpha: 1.0) {
         didSet {
             needsDisplay = true
+        }
+    }
+
+    var borderWidth: CGFloat = 43.0 {
+        didSet {
+            needsDisplay = true
+        }
+    }
+
+    /// Get macOS window corner radius based on OS version
+    private var windowCornerRadius: CGFloat {
+        // macOS 11 (Big Sur) introduced 10pt corners
+        // macOS 14+ (Sonoma/Sequoia) uses slightly larger corners (~12pt)
+        if #available(macOS 14.0, *) {
+            return 12.0
+        } else if #available(macOS 11.0, *) {
+            return 10.0
+        } else {
+            return 5.0  // Pre-Big Sur had smaller corners
         }
     }
 
@@ -75,14 +98,60 @@ private class BorderView: NSView {
         super.draw(dirtyRect)
 
         guard let context = NSGraphicsContext.current?.cgContext else {
-            Logger.debug("BorderView.draw() - NO CONTEXT!", category: Logger.ui)
+            Logger.debug("GradientBorderView.draw() - NO CONTEXT!", category: Logger.ui)
             return
         }
 
-        context.setStrokeColor(borderColor.cgColor)
-        context.setLineWidth(5.0)
-        context.stroke(bounds.insetBy(dx: 2.5, dy: 2.5))
+        let outerAlpha: CGFloat = 0.7
+        let cornerRadius = windowCornerRadius
 
-        Logger.debug("BorderView.draw() called - bounds: \(bounds), color: \(borderColor)", category: Logger.ui)
+        // Get color components
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        borderColor.usingColorSpace(.deviceRGB)?.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+
+        // Draw the gradient border using concentric rounded rectangles
+        // This creates a smooth fade from edge to center while respecting corner radius
+        let steps = 20  // Number of gradient steps for smooth appearance
+        let stepSize = borderWidth / CGFloat(steps)
+
+        for i in 0..<steps {
+            let inset = CGFloat(i) * stepSize
+            let progress = CGFloat(i) / CGFloat(steps - 1)
+            let currentAlpha = outerAlpha * (1.0 - progress)  // Fade from outerAlpha to 0
+
+            // Calculate corner radius for this step (shrinks as we go inward)
+            let currentCornerRadius = max(0, cornerRadius - inset)
+
+            // Create rounded rectangle path for this step
+            let stepRect = bounds.insetBy(dx: inset, dy: inset)
+            let path = CGPath(roundedRect: stepRect, cornerWidth: currentCornerRadius, cornerHeight: currentCornerRadius, transform: nil)
+
+            // Create inner path for the next step (to create a ring)
+            let innerInset = inset + stepSize
+            let innerCornerRadius = max(0, cornerRadius - innerInset)
+            let innerRect = bounds.insetBy(dx: innerInset, dy: innerInset)
+            let innerPath = CGPath(roundedRect: innerRect, cornerWidth: innerCornerRadius, cornerHeight: innerCornerRadius, transform: nil)
+
+            // Draw the ring between outer and inner paths
+            context.saveGState()
+
+            // Add outer path
+            context.addPath(path)
+            // Add inner path (will be subtracted due to even-odd rule)
+            context.addPath(innerPath)
+
+            // Use even-odd fill rule to create a ring
+            context.clip(using: .evenOdd)
+
+            // Fill with current alpha
+            let fillColor = CGColor(colorSpace: CGColorSpaceCreateDeviceRGB(),
+                                    components: [red, green, blue, currentAlpha])!
+            context.setFillColor(fillColor)
+            context.fill(bounds)
+
+            context.restoreGState()
+        }
+
+        Logger.debug("GradientBorderView.draw() called - bounds: \(bounds), borderWidth: \(borderWidth), cornerRadius: \(cornerRadius)", category: Logger.ui)
     }
 }

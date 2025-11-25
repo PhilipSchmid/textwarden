@@ -19,8 +19,8 @@ extension KeyboardShortcuts.Name {
     /// Accept the currently selected suggestion
     static let acceptSuggestion = Self("acceptSuggestion", default: .init(.tab))
 
-    /// Dismiss/close the suggestion popover
-    static let dismissSuggestion = Self("dismissSuggestion", default: .init(.escape))
+    /// Dismiss/close the suggestion popover (Option+Escape to avoid conflicts with other apps)
+    static let dismissSuggestion = Self("dismissSuggestion", default: .init(.escape, modifiers: .option))
 
     /// Navigate to previous error/suggestion (Option + Left Arrow)
     static let previousSuggestion = Self("previousSuggestion", default: .init(.leftArrow, modifiers: .option))
