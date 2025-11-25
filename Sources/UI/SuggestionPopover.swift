@@ -32,9 +32,6 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Timer for delayed hiding
     private var hideTimer: Timer?
 
-    /// Event monitor for Escape key
-    private var escapeKeyMonitor: Any?
-
     /// Event monitor for mouse clicks outside popover
     private var clickOutsideMonitor: Any?
 
@@ -134,8 +131,6 @@ class SuggestionPopover: NSObject, ObservableObject {
         // DEBUG: Log activation policy AFTER showing
         Logger.debug("SuggestionPopover.show() - AFTER order(.above) - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
 
-        setupEscapeKeyMonitor()
-
         setupClickOutsideMonitor()
     }
 
@@ -159,11 +154,6 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Perform immediate hide
     private func performHide() {
         Logger.debug("SuggestionPopover.performHide() - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
-
-        if let monitor = escapeKeyMonitor {
-            NSEvent.removeMonitor(monitor)
-            escapeKeyMonitor = nil
-        }
 
         if let monitor = clickOutsideMonitor {
             NSEvent.removeMonitor(monitor)
@@ -191,22 +181,6 @@ class SuggestionPopover: NSObject, ObservableObject {
         hideTimer?.invalidate()
         hideTimer = nil
         performHide()
-    }
-
-    /// Setup Escape key monitor to close popover
-    private func setupEscapeKeyMonitor() {
-        if let monitor = escapeKeyMonitor {
-            NSEvent.removeMonitor(monitor)
-        }
-
-        // Global monitors can intercept events even when our app isn't active
-        // This is necessary because the panel is .nonactivatingPanel
-        escapeKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == 53 { // Escape key
-                Logger.debug("Popover: Escape key pressed - hiding popover", category: Logger.ui)
-                self?.hide()
-            }
-        }
     }
 
     /// Setup click outside monitor to close popover when user clicks elsewhere
@@ -672,8 +646,8 @@ struct PopoverContentView: View {
                                 .cornerRadius(4)
                         }
                         .buttonStyle(.plain)
-                        .keyboardShortcut(.escape, modifiers: [])
-                        .help("Close (Esc)")
+                        .keyboardShortcut(.escape, modifiers: .option)
+                        .help("Close (⌥Esc)")
                         .accessibilityLabel("Close suggestion popover")
 
                         Spacer()
