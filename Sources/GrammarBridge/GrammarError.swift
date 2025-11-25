@@ -97,24 +97,39 @@ import Foundation
     /// Analysis time in milliseconds
     @objc public let analysisTimeMs: UInt64
 
+    /// Memory usage before analysis (bytes)
+    @objc public let memoryBeforeBytes: UInt64
+
+    /// Memory usage after analysis (bytes)
+    @objc public let memoryAfterBytes: UInt64
+
+    /// Memory delta (after - before) in bytes
+    @objc public let memoryDeltaBytes: Int64
+
     /// Initialize from FFI AnalysisResult (opaque type)
     init(ffiResult: AnalysisResultRef) {
         let ffiErrors = ffiResult.errors()
         self.errors = ffiErrors.map { GrammarErrorModel(ffiError: $0) }
         self.wordCount = Int(ffiResult.word_count())
         self.analysisTimeMs = ffiResult.analysis_time_ms()
+        self.memoryBeforeBytes = ffiResult.memory_before_bytes()
+        self.memoryAfterBytes = ffiResult.memory_after_bytes()
+        self.memoryDeltaBytes = ffiResult.memory_delta_bytes()
         super.init()
     }
 
     /// Convenience initializer for testing
-    @objc public init(errors: [GrammarErrorModel], wordCount: Int, analysisTimeMs: UInt64) {
+    @objc public init(errors: [GrammarErrorModel], wordCount: Int, analysisTimeMs: UInt64, memoryBeforeBytes: UInt64 = 0, memoryAfterBytes: UInt64 = 0, memoryDeltaBytes: Int64 = 0) {
         self.errors = errors
         self.wordCount = wordCount
         self.analysisTimeMs = analysisTimeMs
+        self.memoryBeforeBytes = memoryBeforeBytes
+        self.memoryAfterBytes = memoryAfterBytes
+        self.memoryDeltaBytes = memoryDeltaBytes
         super.init()
     }
 
     public override var description: String {
-        "Analysis: \(errors.count) errors found in \(wordCount) words (\(analysisTimeMs)ms)"
+        "Analysis: \(errors.count) errors found in \(wordCount) words (\(analysisTimeMs)ms, mem: \(memoryAfterBytes / 1024)KB)"
     }
 }

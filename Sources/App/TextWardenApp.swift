@@ -54,6 +54,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Set app launch timestamp for "This Session" filtering
         UserStatistics.shared.appLaunchTimestamp = Date()
 
+        // Perform periodic cleanup of old statistics data
+        UserStatistics.shared.performPeriodicCleanup()
+
+        // Start resource monitoring
+        ResourceMonitor.shared.startMonitoring()
+        Logger.info("Resource monitoring started", category: Logger.lifecycle)
+
         NSApp.setActivationPolicy(.accessory)
 
         Logger.info("Set as menu bar app (no dock icon)", category: Logger.lifecycle)
