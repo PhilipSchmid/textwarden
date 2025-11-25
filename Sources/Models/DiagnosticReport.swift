@@ -42,6 +42,7 @@ struct TimeRangeStatistics: Codable {
     let topWritingApp: String?
     let topWritingAppErrorCount: Int
     let performance: PerformanceMetrics?
+    let resourceUsage: ResourceUsageMetrics?
 
     static func from(_ stats: UserStatistics, timeRange: TimeRange) -> TimeRangeStatistics {
         let timeRangeName: String
@@ -83,6 +84,9 @@ struct TimeRangeStatistics: Codable {
 
         let topApp = stats.topWritingApp(in: timeRange)
 
+        // Calculate resource usage metrics for this time range
+        let resourceUsage = stats.resourceUsageMetrics(in: timeRange)
+
         return TimeRangeStatistics(
             timeRange: timeRangeName,
             errorsFound: stats.errorsFound(in: timeRange),
@@ -97,7 +101,8 @@ struct TimeRangeStatistics: Codable {
             appUsageBreakdown: stats.appUsageBreakdown(in: timeRange),
             topWritingApp: topApp?.name,
             topWritingAppErrorCount: topApp?.errorCount ?? 0,
-            performance: performance
+            performance: performance,
+            resourceUsage: resourceUsage
         )
     }
 }
@@ -131,6 +136,13 @@ struct StatisticsSnapshot: Codable {
     let p99LatencyMs: Double
     let totalLatencySamples: Int
 
+    // All-time resource usage metrics
+    let resourceUsage: ResourceUsageMetrics?
+
+    // App launch tracking (for correlating resource usage with restarts)
+    let currentAppLaunchTime: Date
+    let appLaunchHistory: [Date]
+
     // Time-filtered statistics (grouped by timeframe for performance insights)
     let timeRangeStatistics: [TimeRangeStatistics]
 
@@ -140,6 +152,9 @@ struct StatisticsSnapshot: Codable {
         // Generate statistics for all time ranges
         let timeRanges: [TimeRange] = [.session, .day, .week, .month, .ninetyDays]
         let timeRangeStats = timeRanges.map { TimeRangeStatistics.from(stats, timeRange: $0) }
+
+        // Calculate overall resource usage metrics (all samples)
+        let overallResourceUsage = stats.overallResourceUsageMetrics()
 
         return StatisticsSnapshot(
             errorsFound: stats.errorsFound,
@@ -163,6 +178,9 @@ struct StatisticsSnapshot: Codable {
             p95LatencyMs: stats.p95LatencyMs,
             p99LatencyMs: stats.p99LatencyMs,
             totalLatencySamples: stats.latencySamples.count,
+            resourceUsage: overallResourceUsage,
+            currentAppLaunchTime: stats.appLaunchTimestamp,
+            appLaunchHistory: stats.appLaunchHistory,
             timeRangeStatistics: timeRangeStats
         )
     }
