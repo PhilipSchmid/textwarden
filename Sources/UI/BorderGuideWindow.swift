@@ -82,16 +82,10 @@ private class GradientBorderView: NSView {
     }
 
     /// Get macOS window corner radius based on OS version
+    /// Note: Deployment target is macOS 14+, so we use the larger corner radius
     private var windowCornerRadius: CGFloat {
-        // macOS 11 (Big Sur) introduced 10pt corners
-        // macOS 14+ (Sonoma/Sequoia) uses slightly larger corners (~12pt)
-        if #available(macOS 14.0, *) {
-            return 12.0
-        } else if #available(macOS 11.0, *) {
-            return 10.0
-        } else {
-            return 5.0  // Pre-Big Sur had smaller corners
-        }
+        // macOS 14+ (Sonoma/Sequoia) uses ~12pt corners
+        return 12.0
     }
 
     override func draw(_ dirtyRect: NSRect) {

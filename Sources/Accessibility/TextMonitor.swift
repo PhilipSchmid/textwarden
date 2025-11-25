@@ -205,6 +205,26 @@ class TextMonitor: ObservableObject {
             return
         }
 
+        // For browsers, skip UI elements like search fields, URL bars, find-in-page
+        // These are not meaningful for grammar checking - we want actual web content
+        if let bundleId = currentContext?.bundleIdentifier,
+           BrowserContentParser.supportedBrowsers.contains(bundleId) {
+            if BrowserContentParser.isBrowserUIElement(element) {
+                Logger.debug("TextMonitor: Skipping browser UI element (not web content)", category: Logger.accessibility)
+                // Clear any existing monitoring and notify to hide overlays
+                if let previousElement = monitoredElement {
+                    AXObserverRemoveNotification(observer, previousElement, kAXValueChangedNotification as CFString)
+                }
+                monitoredElement = nil
+                currentText = ""
+                // Notify that we've stopped monitoring (this will trigger overlay hiding)
+                if let context = currentContext {
+                    onTextChange?("", context)
+                }
+                return
+            }
+        }
+
         // CRITICAL: Only monitor editable text fields, not read-only content
         // This prevents checking terminal output, chat history, etc.
         guard isEditableElement(element) else {
@@ -374,18 +394,14 @@ private func axObserverCallback(
 
     let notificationName = notification as String
 
-    switch notificationName {
-    case kAXValueChangedNotification as String:
+    if notificationName == kAXValueChangedNotification as String {
         Logger.debug("axObserverCallback: Value changed - extracting text", category: Logger.accessibility)
         monitor.extractText(from: element)
-
-    case kAXFocusedUIElementChangedNotification as String:
+    } else if notificationName == kAXFocusedUIElementChangedNotification as String {
         Logger.debug("axObserverCallback: Focus changed - monitoring new element", category: Logger.accessibility)
         monitor.monitorElement(element)
-
-    default:
+    } else {
         Logger.debug("axObserverCallback: Unknown notification: \(notificationName)", category: Logger.accessibility)
-        break
     }
 }
 

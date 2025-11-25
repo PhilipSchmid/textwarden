@@ -564,12 +564,36 @@ class AnalysisCoordinator: ObservableObject {
         // Clear position cache since window position may have changed
         PositionResolver.shared.clearCache()
 
-        // Re-show overlays by triggering a re-filter of current errors
-        let sourceText = currentSegment?.content ?? ""
-        applyFilters(to: currentErrors, sourceText: sourceText, element: textMonitor.monitoredElement)
-
-        // Update debug borders
+        // Update debug borders immediately
         updateDebugBorders()
+
+        // Force a text re-extraction to ensure element is fresh and overlays are restored
+        // This is especially important for browsers where the element may become stale
+        // after minimize/restore
+        if let element = textMonitor.monitoredElement {
+            Logger.debug("Window monitoring: Forcing text re-extraction after restore", category: Logger.analysis)
+            // Clear previousText to force re-analysis even if text hasn't changed
+            previousText = ""
+            textMonitor.extractText(from: element)
+        } else if !currentErrors.isEmpty, let context = monitoredContext {
+            // No element but we have cached errors - show floating indicator immediately
+            // We can't show underlines without an element (need it for positioning),
+            // but we CAN show the floating indicator using just the PID from context
+            // The user will see the error count badge; underlines will appear when they click
+            Logger.debug("Window monitoring: No element but have \(currentErrors.count) cached errors - showing floating indicator", category: Logger.analysis)
+            floatingIndicator.updateWithContext(errors: currentErrors, context: context)
+            // DON'T call startMonitoring - it will likely fail to find an editable element
+            // in browsers (focus may be on nothing or a UI element after restore), which
+            // triggers handleTextChange with nil element, hiding our floating indicator
+            // The normal focus change notification will re-acquire the element when user clicks
+        } else if let context = monitoredContext {
+            // No monitored element and no cached errors - try to restart monitoring
+            // This is important for browsers where the element may have become nil
+            // (e.g., if user was in a browser UI element before minimize)
+            Logger.debug("Window monitoring: No element and no cached errors - restarting monitoring for \(context.applicationName)", category: Logger.analysis)
+            previousText = ""
+            startMonitoring(context: context)
+        }
     }
 
     /// Re-show overlays after window movement has stopped
@@ -577,6 +601,12 @@ class AnalysisCoordinator: ObservableObject {
         Logger.debug("Window monitoring: Re-showing overlays at new position", category: Logger.analysis)
         overlaysHiddenDueToMovement = false
         windowMovementDebounceTimer = nil  // Clear timer reference so new timer can be created
+
+        // CRITICAL: Clear position cache AGAIN before re-showing overlays
+        // The cache was cleared when movement started, but async analysis operations
+        // running during the debounce period might have repopulated it with stale positions
+        // (calculated from the old window location). Clear it now to ensure fresh positions.
+        PositionResolver.shared.clearCache()
 
         // Re-show overlays by triggering a re-filter of current errors
         // This will recalculate positions and show overlays at the new location
@@ -662,7 +692,10 @@ class AnalysisCoordinator: ObservableObject {
             }
         }
 
-        // Find the window for our monitored app
+        // Find the LARGEST window for our monitored app
+        // This ensures we get the main application window, not floating panels/popups like Cmd+F search
+        var bestWindow: (cgFrame: CGRect, cocoaFrame: CGRect, area: CGFloat)?
+
         for windowInfo in windowList {
             if let windowPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
                windowPID == pid,
@@ -674,6 +707,10 @@ class AnalysisCoordinator: ObservableObject {
                 let y = boundsDict["Y"] ?? 0
                 let width = boundsDict["Width"] ?? 0
                 let height = boundsDict["Height"] ?? 0
+                let area = width * height
+
+                // Skip tiny windows (< 100x100, likely tooltips or popups)
+                guard width >= 100 && height >= 100 else { continue }
 
                 let cgFrame = CGRect(x: x, y: y, width: width, height: height)
 
@@ -682,11 +719,16 @@ class AnalysisCoordinator: ObservableObject {
                 let cocoaY = totalScreenHeight - y - height
                 let cocoaFrame = CGRect(x: x, y: cocoaY, width: width, height: height)
 
-                // Check if this app's window is the frontmost
-                let isFrontmost = (frontmostNormalWindowPID == pid)
-
-                return WindowInfo(cgFrame: cgFrame, cocoaFrame: cocoaFrame, isFrontmost: isFrontmost)
+                // Keep track of the largest window
+                if bestWindow == nil || area > bestWindow!.area {
+                    bestWindow = (cgFrame: cgFrame, cocoaFrame: cocoaFrame, area: area)
+                }
             }
+        }
+
+        if let best = bestWindow {
+            let isFrontmost = (frontmostNormalWindowPID == pid)
+            return WindowInfo(cgFrame: best.cgFrame, cocoaFrame: best.cocoaFrame, isFrontmost: isFrontmost)
         }
 
         return nil
@@ -707,6 +749,40 @@ class AnalysisCoordinator: ObservableObject {
     /// Handle text change and trigger analysis (T038)
     private func handleTextChange(_ text: String, in context: ApplicationContext) {
         Logger.debug("AnalysisCoordinator: Text changed in \(context.applicationName) (\(text.count) chars)", category: Logger.analysis)
+
+        // If no element is being monitored (e.g., browser UI element was detected),
+        // immediately hide overlays without waiting for async analysis
+        // This ensures overlays disappear immediately when user clicks on browser
+        // search fields, URL bars, find-in-page, etc.
+        if textMonitor.monitoredElement == nil {
+            Logger.debug("AnalysisCoordinator: No monitored element - hiding overlays immediately", category: Logger.analysis)
+            errorOverlay.hide()
+            floatingIndicator.hide()
+            suggestionPopover.hide()
+            DebugBorderWindow.clearAll()
+            // DON'T clear currentErrors and currentSegment - keep them cached so we can
+            // immediately restore overlays when user focuses back on the original text field
+            // Clear previousText so that when user focuses back on a real text field,
+            // analysis will run even if the text content is the same
+            previousText = ""
+            return
+        }
+
+        // We have a valid monitored element - immediately show debug borders
+        // This ensures borders appear right away when focus returns from browser UI elements
+        // (like Cmd+F search) to real content, without waiting for async analysis
+        updateDebugBorders()
+
+        // If we have cached errors for this exact text, show them immediately
+        // This provides instant feedback when returning from browser UI elements (like Cmd+F)
+        // A fresh analysis will still run to catch any changes
+        if let cachedSegment = currentSegment,
+           cachedSegment.content == text,
+           !currentErrors.isEmpty,
+           let element = textMonitor.monitoredElement {
+            Logger.debug("AnalysisCoordinator: Restoring cached errors immediately (\(currentErrors.count) errors)", category: Logger.analysis)
+            showErrorUnderlines(currentErrors, element: element)
+        }
 
         let segment = TextSegment(
             content: text,
@@ -992,6 +1068,17 @@ class AnalysisCoordinator: ObservableObject {
     private func showErrorUnderlines(_ errors: [GrammarErrorModel], element: AXUIElement?) {
         Logger.debug("AnalysisCoordinator: showErrorUnderlines called with \(errors.count) errors", category: Logger.analysis)
 
+        // Don't show overlays during window movement or when window is off-screen
+        // This prevents stale positions from being cached during the debounce period
+        if overlaysHiddenDueToMovement {
+            Logger.debug("AnalysisCoordinator: Skipping overlay update - window is moving", category: Logger.analysis)
+            return
+        }
+        if overlaysHiddenDueToWindowOffScreen {
+            Logger.debug("AnalysisCoordinator: Skipping overlay update - window is off-screen", category: Logger.analysis)
+            return
+        }
+
         guard let providedElement = element else {
             Logger.debug("AnalysisCoordinator: No monitored element - hiding overlays", category: Logger.analysis)
             errorOverlay.hide()
@@ -1243,7 +1330,7 @@ class AnalysisCoordinator: ObservableObject {
         // Step 4: Activate the browser
         let apps = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier)
         if let targetApp = apps.first {
-            targetApp.activate(options: .activateIgnoringOtherApps)
+            targetApp.activate()
             Logger.debug("Activated \(context.applicationName)", category: Logger.analysis)
         }
 
@@ -1482,7 +1569,7 @@ class AnalysisCoordinator: ObservableObject {
             // Activate Terminal
             let apps = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier)
             if let targetApp = apps.first {
-                targetApp.activate(options: .activateIgnoringOtherApps)
+                targetApp.activate()
                 Logger.debug("Activated Terminal for keyboard commands", category: Logger.analysis)
             }
 
@@ -1565,7 +1652,7 @@ class AnalysisCoordinator: ObservableObject {
         let apps = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier)
         if let targetApp = apps.first {
             Logger.debug("Activating \(context.applicationName) to make it frontmost", category: Logger.analysis)
-            targetApp.activate(options: .activateIgnoringOtherApps)
+            targetApp.activate()
         } else {
             Logger.debug("Could not find running app with bundle ID \(context.bundleIdentifier)", category: Logger.analysis)
         }
@@ -1618,7 +1705,7 @@ class AnalysisCoordinator: ObservableObject {
     private func tryAXSelectionReplacement(element: AXUIElement, start: Int, end: Int, suggestion: String, error: GrammarErrorModel) -> Bool {
         Logger.debug("Attempting AX API selection-based replacement for range \(start)-\(end)", category: Logger.analysis)
 
-        // Read the original text before modification
+        // Read the original text before modification (verify we can access the element)
         var textValue: CFTypeRef?
         let getTextResult = AXUIElementCopyAttributeValue(
             element,
@@ -1626,10 +1713,7 @@ class AnalysisCoordinator: ObservableObject {
             &textValue
         )
 
-        let originalText: String
-        if getTextResult == .success, let text = textValue as? String {
-            originalText = text
-        } else {
+        if getTextResult != .success || textValue as? String == nil {
             Logger.debug("Failed to read original text for verification", category: Logger.analysis)
             return false
         }

@@ -247,7 +247,7 @@ extension AppDelegate: NSWindowDelegate {
         let preferences = UserPreferences.shared
 
         // Toggle grammar checking (Cmd+Shift+G by default)
-        KeyboardShortcuts.onKeyUp(for: .toggleGrammarChecking) { [weak self] in
+        KeyboardShortcuts.onKeyUp(for: .toggleGrammarChecking) {
             guard preferences.keyboardShortcutsEnabled else { return }
 
             Logger.debug("Keyboard shortcut: Toggle grammar checking", category: Logger.ui)
@@ -263,7 +263,7 @@ extension AppDelegate: NSWindowDelegate {
         }
 
         // Accept current suggestion (Tab by default)
-        KeyboardShortcuts.onKeyUp(for: .acceptSuggestion) { [weak self] in
+        KeyboardShortcuts.onKeyUp(for: .acceptSuggestion) {
             guard preferences.keyboardShortcutsEnabled else { return }
             guard SuggestionPopover.shared.isVisible else { return }
             guard let error = SuggestionPopover.shared.currentError else { return }
@@ -275,7 +275,7 @@ extension AppDelegate: NSWindowDelegate {
         }
 
         // Dismiss suggestion popover (Escape by default)
-        KeyboardShortcuts.onKeyUp(for: .dismissSuggestion) { [weak self] in
+        KeyboardShortcuts.onKeyUp(for: .dismissSuggestion) {
             guard preferences.keyboardShortcutsEnabled else { return }
             guard SuggestionPopover.shared.isVisible else { return }
 
@@ -285,7 +285,7 @@ extension AppDelegate: NSWindowDelegate {
         }
 
         // Navigate to previous suggestion (Option + Left arrow by default)
-        KeyboardShortcuts.onKeyUp(for: .previousSuggestion) { [weak self] in
+        KeyboardShortcuts.onKeyUp(for: .previousSuggestion) {
             guard preferences.keyboardShortcutsEnabled else { return }
             guard SuggestionPopover.shared.isVisible else { return }
 
@@ -295,7 +295,7 @@ extension AppDelegate: NSWindowDelegate {
         }
 
         // Navigate to next suggestion (Option + Right arrow by default)
-        KeyboardShortcuts.onKeyUp(for: .nextSuggestion) { [weak self] in
+        KeyboardShortcuts.onKeyUp(for: .nextSuggestion) {
             guard preferences.keyboardShortcutsEnabled else { return }
             guard SuggestionPopover.shared.isVisible else { return }
 
@@ -305,7 +305,7 @@ extension AppDelegate: NSWindowDelegate {
         }
 
         // Quick apply shortcuts (Option+1, Option+2, Option+3)
-        KeyboardShortcuts.onKeyUp(for: .applySuggestion1) { [weak self] in
+        KeyboardShortcuts.onKeyUp(for: .applySuggestion1) {
             guard preferences.keyboardShortcutsEnabled else { return }
             guard SuggestionPopover.shared.isVisible else { return }
             guard let error = SuggestionPopover.shared.currentError else { return }
@@ -317,7 +317,7 @@ extension AppDelegate: NSWindowDelegate {
             SuggestionPopover.shared.applySuggestion(suggestion)
         }
 
-        KeyboardShortcuts.onKeyUp(for: .applySuggestion2) { [weak self] in
+        KeyboardShortcuts.onKeyUp(for: .applySuggestion2) {
             guard preferences.keyboardShortcutsEnabled else { return }
             guard SuggestionPopover.shared.isVisible else { return }
             guard let error = SuggestionPopover.shared.currentError else { return }
@@ -329,7 +329,7 @@ extension AppDelegate: NSWindowDelegate {
             SuggestionPopover.shared.applySuggestion(suggestion)
         }
 
-        KeyboardShortcuts.onKeyUp(for: .applySuggestion3) { [weak self] in
+        KeyboardShortcuts.onKeyUp(for: .applySuggestion3) {
             guard preferences.keyboardShortcutsEnabled else { return }
             guard SuggestionPopover.shared.isVisible else { return }
             guard let error = SuggestionPopover.shared.currentError else { return }
