@@ -253,6 +253,13 @@ class SuggestionPopover: NSObject, ObservableObject {
         // According to Stack Overflow, this is essential for truly non-activating behavior
         panel?.becomesKeyOnlyIfNeeded = true
 
+        // CRITICAL: Set up window-level corner rounding
+        // For borderless windows, we need to clip the content view's layer to rounded corners
+        // This prevents the 90-degree corners from showing at the window edges
+        trackingView.wantsLayer = true
+        trackingView.layer?.cornerRadius = 10
+        trackingView.layer?.masksToBounds = true
+
         // Handle close button
         panel?.standardWindowButton(.closeButton)?.target = self
         panel?.standardWindowButton(.closeButton)?.action = #selector(handleClose)
@@ -845,6 +852,9 @@ struct PopoverContentView: View {
                 )
             }
         )
+        // CRITICAL: Use clipShape BEFORE overlay to ensure all content is clipped to rounded corners
+        // This prevents the 90-degree corners from showing at the edges
+        .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(
             // Border with blue gradient
             RoundedRectangle(cornerRadius: 10)
@@ -860,7 +870,6 @@ struct PopoverContentView: View {
                     lineWidth: 1.0
                 )
         )
-        .cornerRadius(10)
         .shadow(color: colors.shadowColor, radius: 12, x: 0, y: 4)
         .shadow(color: Color(hue: 215/360, saturation: 0.60, brightness: 0.50).opacity(0.10), radius: 6, x: 0, y: 2)
         .colorScheme(effectiveColorScheme)
@@ -1043,9 +1052,11 @@ class PopoverTrackingView: NSView {
         self.popover = popover
         super.init(frame: .zero)
 
-        // Make the tracking view transparent
+        // Make the tracking view transparent with rounded corners
         self.wantsLayer = true
         self.layer?.backgroundColor = .clear
+        self.layer?.cornerRadius = 10
+        self.layer?.masksToBounds = true
 
         setupTracking()
     }
