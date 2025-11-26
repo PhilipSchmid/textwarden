@@ -260,7 +260,7 @@ class AnalysisCoordinator: ObservableObject {
             // CRITICAL: Stop monitoring the previous app to prevent delayed AX notifications
             // from showing overlays for the old app after switching
             if !isSameApp {
-                Logger.debug("AnalysisCoordinator: Stopping monitoring for previous app", category: Logger.analysis)
+                Logger.trace("AnalysisCoordinator: Stopping monitoring for previous app", category: Logger.analysis)
                 self.textMonitor.stopMonitoring()
             }
 
@@ -312,7 +312,7 @@ class AnalysisCoordinator: ObservableObject {
                     }
                 }
             } else {
-                Logger.debug("AnalysisCoordinator: Application not in check list - stopping monitoring", category: Logger.analysis)
+                Logger.trace("AnalysisCoordinator: Application not in check list - stopping monitoring", category: Logger.analysis)
                 self.stopMonitoring()
                 self.monitoredContext = nil
             }
@@ -926,6 +926,14 @@ class AnalysisCoordinator: ObservableObject {
         // This ensures borders appear right away when focus returns from browser UI elements
         // (like Cmd+F search) to real content, without waiting for async analysis
         updateDebugBorders()
+
+        // CRITICAL: If text has changed, hide old underlines IMMEDIATELY
+        // This prevents stale underlines from lingering at wrong positions during re-analysis
+        // We hide the overlay but keep currentErrors cached so they can be restored if text hasn't actually changed
+        if text != previousText {
+            Logger.debug("AnalysisCoordinator: Text changed - hiding overlay immediately for re-analysis", category: Logger.analysis)
+            errorOverlay.hide()
+        }
 
         // If we have cached errors for this exact text, show them immediately
         // This provides instant feedback when returning from browser UI elements (like Cmd+F)

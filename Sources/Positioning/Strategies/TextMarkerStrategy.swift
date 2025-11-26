@@ -1,25 +1,25 @@
 //
-//  ModernMarkerStrategy.swift
+//  TextMarkerStrategy.swift
 //  TextWarden
 //
-//  Modern positioning using opaque markers
+//  Positioning using opaque text markers
 //  Works in Electron, Chrome, Safari, and modern apps
-//  THIS IS THE KEY STRATEGY FOR SLACK AND ELECTRON APPS
 //
 
 import Foundation
 import ApplicationServices
 
-/// Modern positioning using opaque marker API
-/// This strategy works where traditional CFRange fails (Electron, Chrome)
-class ModernMarkerStrategy: GeometryProvider {
+/// Positioning using opaque text marker API
+/// Works where traditional CFRange fails (Electron, Chrome)
+class TextMarkerStrategy: GeometryProvider {
 
-    var strategyName: String { "ModernMarker" }
-    var priority: Int { 100 }  // Highest priority
+    var strategyName: String { "TextMarker" }
+    var tier: StrategyTier { .precise }
+    var tierPriority: Int { 10 }
 
     func canHandle(element: AXUIElement, bundleID: String) -> Bool {
-        // This strategy works best for Electron/Chromium apps
-        // But we should try it for any app that supports it
+        // Works best for Electron/Chromium apps
+        // Try for any app that supports opaque markers
         return AccessibilityBridge.supportsOpaqueMarkers(element)
     }
 
@@ -30,14 +30,16 @@ class ModernMarkerStrategy: GeometryProvider {
         parser: ContentParser
     ) -> GeometryResult? {
 
-        let startIndex = errorRange.location
-        let endIndex = errorRange.location + errorRange.length
+        // Convert filtered coordinates to original coordinates
+        let offset = parser.textReplacementOffset
+        let startIndex = errorRange.location + offset
+        let endIndex = startIndex + errorRange.length
 
         guard let startMarker = AccessibilityBridge.requestOpaqueMarker(
             at: startIndex,
             from: element
         ) else {
-            Logger.debug("ModernMarkerStrategy: Failed to create start marker at index \(startIndex)", category: Logger.ui)
+            Logger.debug("TextMarkerStrategy: Failed to create start marker at index \(startIndex)", category: Logger.ui)
             return nil
         }
 
@@ -45,7 +47,7 @@ class ModernMarkerStrategy: GeometryProvider {
             at: endIndex,
             from: element
         ) else {
-            Logger.debug("ModernMarkerStrategy: Failed to create end marker at index \(endIndex)", category: Logger.ui)
+            Logger.debug("TextMarkerStrategy: Failed to create end marker at index \(endIndex)", category: Logger.ui)
             return nil
         }
 
@@ -55,7 +57,7 @@ class ModernMarkerStrategy: GeometryProvider {
             to: endMarker,
             in: element
         ) else {
-            Logger.debug("ModernMarkerStrategy: Failed to calculate bounds between markers", category: Logger.ui)
+            Logger.debug("TextMarkerStrategy: Failed to calculate bounds between markers", category: Logger.ui)
             return nil
         }
 
@@ -64,17 +66,17 @@ class ModernMarkerStrategy: GeometryProvider {
 
         // Validate converted bounds
         guard CoordinateMapper.validateBounds(cocoaBounds) else {
-            Logger.debug("ModernMarkerStrategy: Converted bounds failed validation: \(cocoaBounds)")
+            Logger.debug("TextMarkerStrategy: Converted bounds failed validation: \(cocoaBounds)")
             return nil
         }
 
-        // Optional: Verify bounds are on-screen
+        // Verify bounds are on-screen
         if !CoordinateMapper.isVisibleOnScreen(cocoaBounds) {
-            Logger.warning("ModernMarkerStrategy: Bounds are off-screen: \(cocoaBounds)")
+            Logger.warning("TextMarkerStrategy: Bounds are off-screen: \(cocoaBounds)")
             // Continue anyway - might be on external monitor
         }
 
-        Logger.debug("ModernMarkerStrategy: Successfully calculated bounds: \(cocoaBounds)")
+        Logger.debug("TextMarkerStrategy: Successfully calculated bounds: \(cocoaBounds)")
 
         return GeometryResult.highConfidence(
             bounds: cocoaBounds,

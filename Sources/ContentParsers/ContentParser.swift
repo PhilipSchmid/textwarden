@@ -211,7 +211,9 @@ extension ContentParser {
         }
 
         // Validate bounds (check for Electron/Chromium bugs)
-        guard bounds.origin.x > 0 && bounds.origin.y > 0 &&
+        // Only reject truly invalid values: negative dimensions or extreme negative positions
+        // X=0 and Y=0 are valid (element at screen edge)
+        guard bounds.origin.x >= -1000 && bounds.origin.y >= -1000 &&
               bounds.width > 0 && bounds.height > 0 else {
             return nil
         }

@@ -111,8 +111,10 @@ class SuggestionPopover: NSObject, ObservableObject {
                 hostingView.layoutSubtreeIfNeeded()
 
                 let fittingSize = hostingView.fittingSize
-                let width = min(max(fittingSize.width, 300), 450)  // Match frame constraints - reduced from 600 to prevent cutoffs
-                let height = fittingSize.height
+                // Auto-scale: min 320px, max 550px width to accommodate longer messages and future LLM suggestions
+                let width = min(max(fittingSize.width, 320), 550)
+                // Auto-scale height with reasonable max to prevent massive popovers
+                let height = min(fittingSize.height, 400)
 
                 hostingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
                 trackingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
@@ -132,6 +134,12 @@ class SuggestionPopover: NSObject, ObservableObject {
         Logger.debug("SuggestionPopover.show() - AFTER order(.above) - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
 
         setupClickOutsideMonitor()
+
+        // CRITICAL: Resize panel after SwiftUI has had time to layout the new content
+        // This fixes border/corner issues when message text causes size changes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            self?.resizePanel()
+        }
     }
 
     /// Schedule hiding of popover with a delay
@@ -139,8 +147,9 @@ class SuggestionPopover: NSObject, ObservableObject {
         // Cancel any existing timer
         hideTimer?.invalidate()
 
-        // Schedule hide after 1 second delay (gives user time to move mouse into popover)
-        hideTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { [weak self] _ in
+        // Schedule hide after 2 seconds delay (gives user time to move mouse into popover)
+        // Increased from 1s to 2s for better UX - some apps have less stable mouse tracking
+        hideTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
             self?.performHide()
         }
     }
@@ -153,7 +162,7 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     /// Perform immediate hide
     private func performHide() {
-        Logger.debug("SuggestionPopover.performHide() - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
+        Logger.trace("SuggestionPopover.performHide() - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
 
         if let monitor = clickOutsideMonitor {
             NSEvent.removeMonitor(monitor)
@@ -173,7 +182,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         // causing delays and making apps temporarily unclickable (especially on macOS 14+
         // where activateIgnoringOtherApps is deprecated and ignored).
 
-        Logger.debug("SuggestionPopover.performHide() - AFTER - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
+        Logger.trace("SuggestionPopover.performHide() - AFTER - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
     }
 
     /// Hide popover immediately
@@ -216,8 +225,10 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         // Let SwiftUI determine the size based on content
         let fittingSize = hostingView.fittingSize
-        let width = min(max(fittingSize.width, 300), 450)  // Match frame constraints - reduced from 600 to prevent cutoffs
-        let height = fittingSize.height
+        // Auto-scale: min 320px, max 550px width to accommodate longer messages and future LLM suggestions
+        let width = min(max(fittingSize.width, 320), 550)
+        // Auto-scale height with reasonable max to prevent massive popovers
+        let height = min(fittingSize.height, 400)
 
         print("📐 Popover: Initial creation size: \(width) x \(height) (fitting: \(fittingSize))")
 
@@ -303,7 +314,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         var adjustedPanelSize = panelSize
         let maxAvailableWidth = max(roomLeft, roomRight) - padding * 3  // Extra padding for safety
         if panelSize.width > maxAvailableWidth {
-            adjustedPanelSize.width = max(300, maxAvailableWidth)  // Minimum 300px, or available space
+            adjustedPanelSize.width = max(320, maxAvailableWidth)  // Minimum 320px, or available space
 
             Logger.debug("Popover: Reducing width from \(panelSize.width) to \(adjustedPanelSize.width) (available: \(maxAvailableWidth))", category: Logger.ui)
 
@@ -400,18 +411,40 @@ class SuggestionPopover: NSObject, ObservableObject {
             hostingView.layoutSubtreeIfNeeded()
 
             let fittingSize = hostingView.fittingSize
-            let width = min(max(fittingSize.width, 300), 450)  // Match frame constraints - reduced from 600 to prevent cutoffs
-            let height = fittingSize.height
+            // Auto-scale: min 320px, max 550px width to accommodate longer messages and future LLM suggestions
+            let width = min(max(fittingSize.width, 320), 550)
+            // Auto-scale height with reasonable max to prevent massive popovers
+            let height = min(fittingSize.height, 400)
 
+            let currentOrigin = panel.frame.origin
+            let currentSize = panel.frame.size
+            let isShrinking = width < currentSize.width || height < currentSize.height
+
+            // CRITICAL: When shrinking, we must update panel FIRST, then views
+            // This prevents the old larger layer mask from showing stale content
+            if isShrinking {
+                // Shrinking: resize panel first to clip the old content
+                panel.setFrame(NSRect(x: currentOrigin.x, y: currentOrigin.y, width: width, height: height), display: false, animate: false)
+            }
+
+            // Update view frames
             hostingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
             trackingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
 
-            let currentOrigin = panel.frame.origin
+            if !isShrinking {
+                // Growing: resize panel after views are ready
+                panel.setFrame(NSRect(x: currentOrigin.x, y: currentOrigin.y, width: width, height: height), display: true, animate: false)
+            }
 
-            // Resize panel while keeping same origin
-            panel.setFrame(NSRect(x: currentOrigin.x, y: currentOrigin.y, width: width, height: height), display: true, animate: false)
+            // Force complete redraw of layer and views
+            trackingView.layer?.setNeedsLayout()
+            trackingView.layer?.layoutIfNeeded()
+            trackingView.layer?.setNeedsDisplay()
+            trackingView.needsDisplay = true
+            hostingView.needsDisplay = true
+            panel.display()
 
-            print("📐 Popover: Resized to \(width) x \(height) (fitting: \(fittingSize))")
+            print("📐 Popover: Resized to \(width) x \(height) (fitting: \(fittingSize), shrinking: \(isShrinking))")
         }
     }
 
@@ -421,10 +454,8 @@ class SuggestionPopover: NSObject, ObservableObject {
         currentIndex = (currentIndex + 1) % allErrors.count
         currentError = allErrors[currentIndex]
 
-        // Resize panel after slight delay to let SwiftUI update
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            self?.resizePanel()
-        }
+        // Rebuild content view from scratch for clean rendering
+        rebuildContentView()
     }
 
     /// Navigate to previous error (T047)
@@ -433,10 +464,46 @@ class SuggestionPopover: NSObject, ObservableObject {
         currentIndex = (currentIndex - 1 + allErrors.count) % allErrors.count
         currentError = allErrors[currentIndex]
 
-        // Resize panel after slight delay to let SwiftUI update
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            self?.resizePanel()
-        }
+        // Rebuild content view from scratch for clean rendering
+        rebuildContentView()
+    }
+
+    /// Rebuild the content view from scratch for clean rendering
+    /// This ensures no artifacts when switching between errors of different sizes
+    private func rebuildContentView() {
+        guard let panel = panel,
+              let trackingView = panel.contentView as? PopoverTrackingView else { return }
+
+        // Remove old hosting view
+        trackingView.subviews.forEach { $0.removeFromSuperview() }
+
+        // Create fresh content view
+        let contentView = PopoverContentView(popover: self)
+        let hostingView = NSHostingView(rootView: contentView)
+
+        // Force layout to get correct size
+        hostingView.needsLayout = true
+        hostingView.layoutSubtreeIfNeeded()
+
+        let fittingSize = hostingView.fittingSize
+        let width = min(max(fittingSize.width, 320), 550)
+        let height = min(fittingSize.height, 400)
+
+        // Set frames
+        hostingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
+        hostingView.autoresizingMask = [.width, .height]
+        trackingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
+        trackingView.addSubview(hostingView)
+
+        // Resize panel
+        let currentOrigin = panel.frame.origin
+        panel.setFrame(NSRect(x: currentOrigin.x, y: currentOrigin.y, width: width, height: height), display: true, animate: false)
+
+        // Force redraw
+        trackingView.needsDisplay = true
+        panel.display()
+
+        print("📐 Popover: Rebuilt content - \(width) x \(height)")
     }
 
     /// Apply suggestion (T044)
@@ -603,19 +670,21 @@ struct PopoverContentView: View {
                             .tracking(0.6)
                             .accessibilityLabel("Category: \(error.category)")
 
-                        // Error message (only show if no suggestions available)
-                        if error.suggestions.isEmpty {
-                            Text(error.message)
-                                .font(.system(size: bodyTextSize))
-                                .foregroundColor(colors.textPrimary)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .accessibilityLabel("Error: \(error.message)")
-                        }
+                        // Always show error message - it explains what's wrong
+                        Text(error.message)
+                            .font(.system(size: bodyTextSize))
+                            .foregroundColor(colors.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityLabel("Error: \(error.message)")
 
-                        // Clean blue suggestion buttons
-                        if !error.suggestions.isEmpty {
+                        // Filter out empty and whitespace-only suggestions
+                        // Empty suggestions mean "delete this" - don't show empty buttons
+                        let validSuggestions = error.suggestions.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+                        // Clean blue suggestion buttons (shown below the message)
+                        if !validSuggestions.isEmpty {
                             HStack(spacing: 4) {
-                                ForEach(Array(error.suggestions.prefix(3).enumerated()), id: \.offset) { index, suggestion in
+                                ForEach(Array(validSuggestions.prefix(3).enumerated()), id: \.offset) { index, suggestion in
                                     Button(action: {
                                         popover.applySuggestion(suggestion)
                                     }) {
