@@ -24,7 +24,6 @@ class TerminalContentParser: ContentParser {
         "org.alacritty": "Alacritty",
         "net.kovidgoyal.kitty": "Kitty",
         "com.github.wez.wezterm": "WezTerm",
-        "io.github.rxhanson.Rectangle": "Rectangle", // Sometimes captures terminal text
     ]
 
     /// Offset of user input within the full terminal text

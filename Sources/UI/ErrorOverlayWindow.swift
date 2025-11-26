@@ -104,13 +104,20 @@ class ErrorOverlayWindow: NSPanel {
             }
 
             // Convert to window-local coordinates
+            // CRITICAL: UnderlineView uses flipped coordinates (isFlipped = true)
+            // So Y=0 is at TOP of view, increases downward
+            // But mouseLocation is in Cocoa coordinates (Y=0 at bottom, increases upward)
+            // We must flip the Y coordinate to match the view's coordinate system
             let windowOrigin = self.frame.origin
+            let windowHeight = self.frame.height
+            let cocoaLocalY = mouseLocation.y - windowOrigin.y
+            let flippedLocalY = windowHeight - cocoaLocalY  // Flip Y for flipped view
             let localPoint = CGPoint(
                 x: mouseLocation.x - windowOrigin.x,
-                y: mouseLocation.y - windowOrigin.y
+                y: flippedLocalY
             )
 
-            Logger.debug("ErrorOverlay: Global mouse at screen: \(mouseLocation), window-local: \(localPoint)", category: Logger.ui)
+            Logger.trace("ErrorOverlay: Global mouse at screen: \(mouseLocation), window-local (flipped): \(localPoint)", category: Logger.ui)
 
             // Check if hovering over any underline
             guard let underlineView = self.underlineView else { return }
@@ -125,18 +132,25 @@ class ErrorOverlayWindow: NSPanel {
                     underlineView.needsDisplay = true
                 }
 
-                // Convert to screen coordinates for popup positioning
-                let errorCenter = CGPoint(
-                    x: newHoveredUnderline.bounds.midX,
-                    y: newHoveredUnderline.bounds.midY
-                )
+                // Convert underline bounds to screen coordinates for popup positioning
+                // The underline bounds are in flipped local coordinates (Y from top)
+                // Screen coordinates are in Cocoa (Y from bottom)
+                // Position popover just below the underlined word for consistent placement
+                let underlineBounds = newHoveredUnderline.drawingBounds
 
+                // Use the horizontal center and position below the word with comfortable spacing
+                let localX = underlineBounds.midX
+                let localY = underlineBounds.maxY + 60  // Below the word with 60px spacing (in flipped coords, maxY is bottom)
+
+                // Convert from flipped local to Cocoa screen coordinates
+                // Flipped local Y → Cocoa local Y: cocoaLocalY = windowHeight - flippedLocalY
+                // Then add window origin to get screen coords
                 let screenLocation = CGPoint(
-                    x: windowOrigin.x + errorCenter.x,
-                    y: windowOrigin.y + errorCenter.y
+                    x: windowOrigin.x + localX,
+                    y: windowOrigin.y + (windowHeight - localY)
                 )
 
-                Logger.debug("ErrorOverlay: Popup position (screen): \(screenLocation)", category: Logger.ui)
+                Logger.debug("ErrorOverlay: Popup position - underline bounds: \(underlineBounds), screen: \(screenLocation)", category: Logger.ui)
 
                 let appWindowFrame = self.getApplicationWindowFrame()
 
@@ -166,14 +180,15 @@ class ErrorOverlayWindow: NSPanel {
         // Check if the parser wants to disable visual underlines
         let bundleID = context?.bundleIdentifier ?? "unknown"
         let parser = ContentParserFactory.shared.parser(for: bundleID)
-        let msg = "ErrorOverlay: Using parser '\(parser.parserName)' for bundleID '\(bundleID)', disablesVisualUnderlines=\(parser.disablesVisualUnderlines)"
-        Logger.debug(msg, category: Logger.ui)
-        print(msg)  // Force print to console
+        Logger.info("ErrorOverlay: Using parser '\(parser.parserName)' for bundleID '\(bundleID)', disablesVisualUnderlines=\(parser.disablesVisualUnderlines)")
+
+        // Extra debug for Notion
+        if bundleID.contains("notion") {
+            Logger.info("NOTION DETECTED: parser=\(parser.parserName), type=\(type(of: parser)), disablesUnderlines=\(parser.disablesVisualUnderlines)")
+        }
 
         if parser.disablesVisualUnderlines {
-            let msg2 = "ErrorOverlay: Parser '\(parser.parserName)' disables visual underlines - skipping and showing floating indicator"
-            Logger.debug(msg2, category: Logger.ui)
-            print(msg2)  // Force print to console
+            Logger.info("ErrorOverlay: Parser '\(parser.parserName)' disables visual underlines - skipping")
             hide()
             return 0
         }
@@ -220,6 +235,7 @@ class ErrorOverlayWindow: NSPanel {
         }
 
         // Calculate underline positions for each error using new positioning system
+        var skippedCount = 0
         let underlines = errors.compactMap { error -> ErrorUnderline? in
             let errorRange = NSRange(location: error.start, length: error.end - error.start)
 
@@ -232,6 +248,14 @@ class ErrorOverlayWindow: NSPanel {
             )
 
             Logger.debug("ErrorOverlay: PositionResolver returned bounds: \(geometryResult.bounds), strategy: \(geometryResult.strategy), confidence: \(geometryResult.confidence)", category: Logger.ui)
+
+            // Handle unavailable results (graceful degradation)
+            // Unavailable results mean we should NOT show an underline rather than show it wrong
+            if geometryResult.isUnavailable {
+                Logger.debug("ErrorOverlay: Position unavailable for error at \(error.start)-\(error.end) (graceful degradation: \(geometryResult.metadata["reason"] ?? "unknown"))", category: Logger.ui)
+                skippedCount += 1
+                return nil
+            }
 
             // Check if result is usable
             guard geometryResult.isUsable else {
@@ -250,6 +274,15 @@ class ErrorOverlayWindow: NSPanel {
             // Convert to overlay-local coordinates
             let localBounds = convertToLocal(bounds, from: elementFrame)
             Logger.debug("ErrorOverlay: Error bounds (local): \(localBounds)", category: Logger.ui)
+
+            // CRITICAL: Validate local bounds - reject invalid coordinates
+            // Invalid bounds cause hover detection to fail
+            let maxValidHeight: CGFloat = 100.0  // Text lines shouldn't be > 100px
+            if localBounds.origin.y < -10 || localBounds.height > maxValidHeight {
+                Logger.warning("ErrorOverlay: Rejecting invalid local bounds (y=\(localBounds.origin.y), h=\(localBounds.height)) for error at \(error.start)-\(error.end)")
+                skippedCount += 1
+                return nil
+            }
 
             // Expand bounds downward to include the underline area
             // The underline is drawn below the text, so we need to extend the hit area
@@ -271,7 +304,15 @@ class ErrorOverlayWindow: NSPanel {
             )
         }
 
-        Logger.debug("ErrorOverlay: Created \(underlines.count) underlines", category: Logger.ui)
+        Logger.info("ErrorOverlay: Created \(underlines.count) underlines from \(errors.count) errors (skipped \(skippedCount) due to graceful degradation)")
+
+        // Extra debug for Notion
+        if bundleID.contains("notion") {
+            Logger.info("NOTION UNDERLINES: \(underlines.count) underlines created")
+            for (i, ul) in underlines.enumerated() {
+                Logger.info("  Underline \(i): bounds=\(ul.bounds), drawingBounds=\(ul.drawingBounds)")
+            }
+        }
 
         underlineView?.underlines = underlines
         underlineView?.needsDisplay = true
@@ -279,7 +320,7 @@ class ErrorOverlayWindow: NSPanel {
         if !underlines.isEmpty {
             // Only order window if not already visible to avoid window ordering spam
             if !isCurrentlyVisible {
-                Logger.debug("ErrorOverlay: Showing overlay window (first time)", category: Logger.ui)
+                Logger.info("ErrorOverlay: Showing overlay window (first time) with \(underlines.count) underlines")
                 // Use order(.above) instead of orderFrontRegardless() to avoid activating the app
                 order(.above, relativeTo: 0)
                 isCurrentlyVisible = true
@@ -287,7 +328,7 @@ class ErrorOverlayWindow: NSPanel {
                 Logger.debug("ErrorOverlay: Updating overlay (already visible, not reordering)", category: Logger.ui)
             }
         } else {
-            Logger.debug("ErrorOverlay: No underlines - hiding", category: Logger.ui)
+            Logger.info("ErrorOverlay: No underlines created - hiding overlay")
             hide()
         }
 
@@ -641,9 +682,23 @@ class ErrorOverlayWindow: NSPanel {
                 clampedWidth = estimatedWidth
             }
 
-            // Position vertically in the middle of the text area
-            let estimatedY = elementFrame.origin.y + (elementFrame.height * 0.25)
-            let estimatedHeight = elementFrame.height * 0.5
+            // Use Y position from parser if it looks valid (non-zero and within reasonable bounds)
+            // Parser returns position in Quartz coordinates (Y from screen bottom)
+            let estimatedY: CGFloat
+            let estimatedHeight: CGFloat = 24.0  // Standard underline height
+
+            // Check if parser provided a meaningful Y position
+            // Valid positions should be within or near the element's vertical extent
+            let parserY = adjustedBounds.position.y
+            if parserY > 0 && parserY < (elementFrame.origin.y + elementFrame.height + 500) {
+                // Use parser's calculated Y position
+                estimatedY = parserY
+                Logger.debug("ErrorOverlay: Using parser Y position: \(parserY)", category: Logger.ui)
+            } else {
+                // Fall back to middle of element for unreliable Y positions
+                estimatedY = elementFrame.origin.y + (elementFrame.height * 0.25)
+                Logger.debug("ErrorOverlay: Falling back to element middle Y: \(estimatedY) (parser gave \(parserY))", category: Logger.ui)
+            }
 
             let estimatedBounds = CGRect(
                 x: estimatedX,

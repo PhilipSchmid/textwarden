@@ -11,6 +11,7 @@ import os.log
 
 /// Log level enum for filtering
 enum LogLevel: String, Codable, CaseIterable, Comparable {
+    case trace = "Trace"     // Most verbose - high-frequency events like mouse movement
     case debug = "Debug"
     case info = "Info"
     case warning = "Warning"
@@ -19,6 +20,7 @@ enum LogLevel: String, Codable, CaseIterable, Comparable {
 
     var priority: Int {
         switch self {
+        case .trace: return -1
         case .debug: return 0
         case .info: return 1
         case .warning: return 2
@@ -131,6 +133,7 @@ struct Logger {
         // Log to os_log
         let osLogType: OSLogType = {
             switch level {
+            case .trace: return .debug   // Trace uses debug level in os_log
             case .debug: return .debug
             case .info: return .info
             case .warning: return .default
@@ -210,6 +213,11 @@ struct Logger {
     /// Log debug information
     static func debug(_ message: String, category: OSLog = general) {
         log(.debug, message, category: category)
+    }
+
+    /// Log trace information (highest verbosity, for high-frequency events)
+    static func trace(_ message: String, category: OSLog = general) {
+        log(.trace, message, category: category)
     }
 
     /// Log errors (T118)

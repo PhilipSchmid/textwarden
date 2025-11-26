@@ -10,15 +10,50 @@ import Foundation
 import AppKit
 import ApplicationServices
 
+// MARK: - Strategy Capability Tiers
+
+/// Semantic capability tiers for positioning strategies
+/// Strategies are tried in tier order (precise first, fallback last)
+enum StrategyTier: Int, Comparable {
+    /// Direct AX bounds that are known to be reliable
+    case precise = 1
+
+    /// Calculations based on known-good anchors or line-level data
+    case reliable = 2
+
+    /// Font-based measurement and estimation
+    case estimated = 3
+
+    /// Last resort methods
+    case fallback = 4
+
+    static func < (lhs: StrategyTier, rhs: StrategyTier) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+
+    var description: String {
+        switch self {
+        case .precise: return "precise"
+        case .reliable: return "reliable"
+        case .estimated: return "estimated"
+        case .fallback: return "fallback"
+        }
+    }
+}
+
 /// Protocol for position calculation strategies
 /// Each strategy implements a different method to determine text error bounds
 protocol GeometryProvider {
     /// Strategy name for debugging and logging
     var strategyName: String { get }
 
-    /// Priority level (higher = try first)
-    /// Recommended values: 100 (highest), 80 (medium), 50 (lowest/fallback)
-    var priority: Int { get }
+    /// Capability tier - determines execution order
+    /// Strategies in lower tiers (precise) are tried before higher tiers (fallback)
+    var tier: StrategyTier { get }
+
+    /// Order within the same tier (lower = try first)
+    /// Used to differentiate between strategies in the same tier
+    var tierPriority: Int { get }
 
     /// Check if this strategy can handle the given element
     /// Allows strategies to opt-out based on app type or element capabilities
@@ -32,6 +67,13 @@ protocol GeometryProvider {
         text: String,
         parser: ContentParser
     ) -> GeometryResult?
+}
+
+// MARK: - Default Implementation
+
+extension GeometryProvider {
+    /// Default tier priority within a tier
+    var tierPriority: Int { 50 }
 }
 
 // MARK: - Geometry Result
@@ -63,6 +105,12 @@ struct GeometryResult {
     /// Check if this result is usable
     var isUsable: Bool {
         confidence >= 0.5 && bounds.width > 0 && bounds.height > 0
+    }
+
+    /// Check if this result indicates positioning is unavailable (graceful degradation)
+    /// Unavailable results indicate we should not show an underline rather than show it wrong
+    var isUnavailable: Bool {
+        confidence == 0 && strategy == "unavailable"
     }
 
     // MARK: - Factory Methods
@@ -106,6 +154,18 @@ struct GeometryResult {
             confidence: 0.3,
             strategy: strategy,
             metadata: ["reason": reason]
+        )
+    }
+
+    /// Create an "unavailable" result (graceful degradation)
+    /// Used when positioning cannot be determined reliably
+    /// It's better to hide underlines than show them incorrectly
+    static func unavailable(reason: String) -> GeometryResult {
+        GeometryResult(
+            bounds: .zero,
+            confidence: 0,
+            strategy: "unavailable",
+            metadata: ["reason": reason, "hideSuggested": true]
         )
     }
 }

@@ -9,6 +9,101 @@
 import Foundation
 import AppKit
 
+// MARK: - Unified Coordinate Type
+
+/// Represents a screen position with explicit coordinate system
+/// Eliminates ambiguity when passing coordinates between components
+struct ScreenPosition {
+    let x: CGFloat
+    let y: CGFloat
+    let system: CoordinateSystem
+
+    enum CoordinateSystem {
+        /// Quartz coordinates: origin at top-left, Y increases downward
+        case quartz
+        /// Cocoa coordinates: origin at bottom-left, Y increases upward
+        case cocoa
+    }
+
+    init(x: CGFloat, y: CGFloat, system: CoordinateSystem) {
+        self.x = x
+        self.y = y
+        self.system = system
+    }
+
+    init(point: CGPoint, system: CoordinateSystem) {
+        self.x = point.x
+        self.y = point.y
+        self.system = system
+    }
+
+    var point: CGPoint {
+        CGPoint(x: x, y: y)
+    }
+
+    /// Convert to Cocoa coordinate system
+    func toCocoa(screenHeight: CGFloat? = nil) -> ScreenPosition {
+        guard system == .quartz else { return self }
+        let height = screenHeight ?? NSScreen.main?.frame.height ?? 0
+        return ScreenPosition(x: x, y: height - y, system: .cocoa)
+    }
+
+    /// Convert to Quartz coordinate system
+    func toQuartz(screenHeight: CGFloat? = nil) -> ScreenPosition {
+        guard system == .cocoa else { return self }
+        let height = screenHeight ?? NSScreen.main?.frame.height ?? 0
+        return ScreenPosition(x: x, y: height - y, system: .quartz)
+    }
+}
+
+/// Represents a screen rectangle with explicit coordinate system
+struct ScreenRect {
+    let origin: ScreenPosition
+    let size: CGSize
+
+    init(origin: ScreenPosition, size: CGSize) {
+        self.origin = origin
+        self.size = size
+    }
+
+    init(rect: CGRect, system: ScreenPosition.CoordinateSystem) {
+        self.origin = ScreenPosition(point: rect.origin, system: system)
+        self.size = rect.size
+    }
+
+    var rect: CGRect {
+        CGRect(origin: origin.point, size: size)
+    }
+
+    var system: ScreenPosition.CoordinateSystem {
+        origin.system
+    }
+
+    /// Convert to Cocoa coordinate system
+    func toCocoa(screenHeight: CGFloat? = nil) -> ScreenRect {
+        guard system == .quartz else { return self }
+        let height = screenHeight ?? NSScreen.main?.frame.height ?? 0
+        let newY = height - origin.y - size.height
+        return ScreenRect(
+            origin: ScreenPosition(x: origin.x, y: newY, system: .cocoa),
+            size: size
+        )
+    }
+
+    /// Convert to Quartz coordinate system
+    func toQuartz(screenHeight: CGFloat? = nil) -> ScreenRect {
+        guard system == .cocoa else { return self }
+        let height = screenHeight ?? NSScreen.main?.frame.height ?? 0
+        let newY = height - origin.y - size.height
+        return ScreenRect(
+            origin: ScreenPosition(x: origin.x, y: newY, system: .quartz),
+            size: size
+        )
+    }
+}
+
+// MARK: - Coordinate Mapper
+
 /// Handles coordinate system conversions
 /// Accessibility APIs return Quartz coordinates (top-left origin)
 /// NSWindow uses Cocoa coordinates (bottom-left origin)
@@ -86,6 +181,53 @@ enum CoordinateMapper {
         // Check for extremely small dimensions (< 1px suggests error)
         guard rect.width >= 1.0 && rect.height >= 1.0 else {
             Logger.debug("Invalid bounds: dimensions too small \(rect)")
+            return false
+        }
+
+        // Check for negative coordinates (often indicates stale values)
+        // Note: Negative Y is valid in Quartz coords for multi-monitor, so only check extremely negative
+        guard rect.origin.x >= -10000 && rect.origin.y >= -10000 else {
+            Logger.debug("Invalid bounds: extremely negative coordinates \(rect)")
+            return false
+        }
+
+        return true
+    }
+
+    /// Enhanced validation that also checks against screen bounds
+    /// Validates bounds are within visible screen area
+    static func validateBoundsOnScreen(_ rect: CGRect) -> Bool {
+        // First do basic validation
+        guard validateBounds(rect) else {
+            return false
+        }
+
+        // Check if bounds are on any screen
+        guard isVisibleOnScreen(rect) else {
+            Logger.debug("Invalid bounds: not visible on any screen \(rect)")
+            return false
+        }
+
+        return true
+    }
+
+    /// Validate bounds with edit area constraint
+    /// Bounds should be within the edit area (text field)
+    static func validateBoundsWithinEditArea(
+        _ rect: CGRect,
+        editArea: CGRect,
+        tolerance: CGFloat = 50.0
+    ) -> Bool {
+        // First do basic validation
+        guard validateBounds(rect) else {
+            return false
+        }
+
+        // Check if bounds origin is within expanded edit area
+        let expandedEditArea = editArea.insetBy(dx: -tolerance, dy: -tolerance)
+
+        guard expandedEditArea.contains(rect.origin) else {
+            Logger.debug("Invalid bounds: origin \(rect.origin) outside edit area \(editArea)")
             return false
         }
 

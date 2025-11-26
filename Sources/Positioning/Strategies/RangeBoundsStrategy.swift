@@ -1,26 +1,26 @@
 //
-//  ClassicRangeStrategy.swift
+//  RangeBoundsStrategy.swift
 //  TextWarden
 //
-//  Classic range-based positioning
+//  Range-based positioning using CFRange
 //  Works in TextEdit, Notes, Mail, and most native macOS apps
 //
 
 import Foundation
 import ApplicationServices
 
-/// Classic range-based positioning using CFRange
+/// Range-based positioning using CFRange API
 /// Traditional approach that works well for native macOS apps
-class ClassicRangeStrategy: GeometryProvider {
+class RangeBoundsStrategy: GeometryProvider {
 
-    var strategyName: String { "ClassicRange" }
-    var priority: Int { 80 }  // Medium priority
+    var strategyName: String { "RangeBounds" }
+    var tier: StrategyTier { .precise }
+    var tierPriority: Int { 20 }
 
     func canHandle(element: AXUIElement, bundleID: String) -> Bool {
-        // This strategy works for most native macOS apps
-        // It tends to fail for Electron apps, so we prioritize ModernMarkerStrategy
-        // But we should still try it as a fallback
-        return true  // Always available
+        // Works for most native macOS apps
+        // May fail for Electron apps, but serves as reliable fallback
+        return true
     }
 
     func calculateGeometry(
@@ -30,17 +30,19 @@ class ClassicRangeStrategy: GeometryProvider {
         parser: ContentParser
     ) -> GeometryResult? {
 
+        // Convert filtered coordinates to original coordinates
+        let offset = parser.textReplacementOffset
         let cfRange = CFRange(
-            location: errorRange.location,
-            length: max(1, errorRange.length)  // Ensure at least 1 character length
+            location: errorRange.location + offset,
+            length: max(1, errorRange.length)
         )
 
-        // Try to get bounds using classic API
+        // Get bounds using standard range API
         guard let quartzBounds = AccessibilityBridge.resolveBoundsUsingRange(
             cfRange,
             in: element
         ) else {
-            Logger.debug("ClassicRangeStrategy: Failed to resolve bounds for range \(cfRange.location)-\(cfRange.location + cfRange.length)", category: Logger.ui)
+            Logger.debug("RangeBoundsStrategy: Failed to resolve bounds for range \(cfRange.location)-\(cfRange.location + cfRange.length)", category: Logger.ui)
             return nil
         }
 
@@ -49,24 +51,23 @@ class ClassicRangeStrategy: GeometryProvider {
 
         // Validate converted bounds
         guard CoordinateMapper.validateBounds(cocoaBounds) else {
-            Logger.debug("ClassicRangeStrategy: Converted bounds failed validation: \(cocoaBounds)")
+            Logger.debug("RangeBoundsStrategy: Converted bounds failed validation: \(cocoaBounds)")
             return nil
         }
 
-        // Check if bounds are reasonable (not zero-width)
+        // Check for suspiciously small bounds
         if cocoaBounds.width < 5.0 {
-            Logger.warning("ClassicRangeStrategy: Bounds width suspiciously small: \(cocoaBounds.width)px")
-            // Continue anyway - might be valid for single character
+            Logger.warning("RangeBoundsStrategy: Bounds width suspiciously small: \(cocoaBounds.width)px")
         }
 
-        Logger.debug("ClassicRangeStrategy: Successfully calculated bounds: \(cocoaBounds)")
+        Logger.debug("RangeBoundsStrategy: Successfully calculated bounds: \(cocoaBounds)")
 
         return GeometryResult(
             bounds: cocoaBounds,
-            confidence: 0.90,  // Slightly lower than ModernMarker
+            confidence: 0.90,
             strategy: strategyName,
             metadata: [
-                "api": "classic-range",
+                "api": "range-bounds",
                 "range_location": cfRange.location,
                 "range_length": cfRange.length,
                 "quartz_bounds": NSStringFromRect(quartzBounds),

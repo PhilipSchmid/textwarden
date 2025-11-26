@@ -29,6 +29,11 @@ class ContentParserFactory {
         for bundleID in BrowserContentParser.supportedBrowsers {
             registerParser(BrowserContentParser(bundleIdentifier: bundleID))
         }
+
+        // Register Notion parser for all Notion bundle IDs
+        for bundleID in NotionContentParser.supportedBundleIDs {
+            registerParser(NotionContentParser(bundleIdentifier: bundleID))
+        }
     }
 
     /// Register a content parser
