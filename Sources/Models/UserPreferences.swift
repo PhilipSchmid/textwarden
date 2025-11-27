@@ -272,6 +272,12 @@ class UserPreferences: ObservableObject {
         "com.github.wez.wezterm"
     ]
 
+    /// Applications paused by default (users can enable them in Applications preferences)
+    /// These apps are set to .indefinite pause on first run because grammar checking is typically not useful
+    static let defaultPausedApplications: Set<String> = [
+        "com.apple.iCal"  // Apple Calendar
+    ]
+
     /// Always open settings window in foreground on launch
     @Published var openInForeground: Bool {
         didSet {
@@ -662,6 +668,14 @@ class UserPreferences: ObservableObject {
         for terminalID in Self.terminalApplications {
             if appPauseDurations[terminalID] == nil {
                 appPauseDurations[terminalID] = .indefinite
+            }
+        }
+
+        // Pause default applications where grammar checking is typically not useful
+        // Users can still enable these individually via Applications preferences
+        for appID in Self.defaultPausedApplications {
+            if appPauseDurations[appID] == nil {
+                appPauseDurations[appID] = .indefinite
             }
         }
 
