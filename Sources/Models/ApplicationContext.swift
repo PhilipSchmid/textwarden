@@ -146,7 +146,10 @@ extension ApplicationContext {
         "com.microsoft.edgemac",
         "com.brave.Browser",
         "com.vivaldi.Vivaldi",
-        "org.chromium.Chromium"
+        "org.chromium.Chromium",
+        "ai.perplexity.comet",
+        "company.thebrowser.Browser",      // Arc browser
+        "company.thebrowser.Browser.beta"  // Arc browser beta
     ]
 
     /// Known browser applications (including non-Chromium browsers)
