@@ -14,9 +14,10 @@ enum SettingsTab: Int, CaseIterable {
     case general = 0
     case spellChecking = 1
     case applications = 2
-    case statistics = 3
-    case diagnostics = 4
-    case about = 5
+    case websites = 3
+    case statistics = 4
+    case diagnostics = 5
+    case about = 6
 }
 
 class PreferencesWindowController: ObservableObject {

@@ -72,6 +72,9 @@ class AnalysisCoordinator: ObservableObject {
     /// Currently monitored application context
     private var monitoredContext: ApplicationContext?
 
+    /// Current browser URL (only populated when monitoring a browser)
+    private var currentBrowserURL: URL?
+
     /// Analysis queue for background processing
     private let analysisQueue = DispatchQueue(label: "com.textwarden.analysis", qos: .userInitiated)
 
@@ -960,6 +963,33 @@ class AnalysisCoordinator: ObservableObject {
         Logger.debug("AnalysisCoordinator: Grammar checking enabled: \(isEnabled)", category: Logger.analysis)
 
         if isEnabled {
+            // Check if we're in a browser and the current website is disabled
+            if context.isBrowser {
+                // Extract current URL from browser
+                currentBrowserURL = BrowserURLExtractor.shared.extractURL(
+                    processID: context.processID,
+                    bundleIdentifier: context.bundleIdentifier
+                )
+
+                if let url = currentBrowserURL {
+                    Logger.debug("AnalysisCoordinator: Browser URL detected: \(url)", category: Logger.analysis)
+
+                    // Check if this website is disabled
+                    if !UserPreferences.shared.isEnabled(forURL: url) {
+                        Logger.debug("AnalysisCoordinator: Website \(url.host ?? "unknown") is disabled - skipping analysis", category: Logger.analysis)
+                        // Hide any existing overlays for disabled websites
+                        errorOverlay.hide()
+                        floatingIndicator.hide()
+                        currentErrors = []
+                        return
+                    }
+                } else {
+                    Logger.debug("AnalysisCoordinator: Could not extract URL from browser", category: Logger.analysis)
+                }
+            } else {
+                currentBrowserURL = nil
+            }
+
             Logger.debug("AnalysisCoordinator: Calling analyzeText()", category: Logger.analysis)
             analyzeText(segment)
         } else {
@@ -1295,6 +1325,21 @@ class AnalysisCoordinator: ObservableObject {
     /// Get errors for current text
     func getCurrentErrors() -> [GrammarErrorModel] {
         currentErrors
+    }
+
+    /// Get the current browser URL (nil if not in a browser or URL couldn't be extracted)
+    func getCurrentBrowserURL() -> URL? {
+        currentBrowserURL
+    }
+
+    /// Get the current browser domain (e.g., "github.com")
+    func getCurrentBrowserDomain() -> String? {
+        currentBrowserURL?.host?.lowercased()
+    }
+
+    /// Check if currently monitoring a browser
+    func isMonitoringBrowser() -> Bool {
+        monitoredContext?.isBrowser ?? false
     }
 
     /// Dismiss error for current session (T048)

@@ -128,6 +128,16 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Disabled websites (domains where grammar checking is disabled)
+    /// Supports exact matches (e.g., "github.com") and wildcard patterns (e.g., "*.google.com")
+    @Published var disabledWebsites: Set<String> {
+        didSet {
+            if let encoded = try? encoder.encode(disabledWebsites) {
+                defaults.set(encoded, forKey: Keys.disabledWebsites)
+            }
+        }
+    }
+
     /// Default hidden applications (system utilities and apps where grammar checking doesn't make sense)
     ///
     /// **Easy Configuration Guide:**
@@ -178,7 +188,8 @@ class UserPreferences: ObservableObject {
         "com.intego.NetUpdate",  // Intego NetUpdate
         "com.intego.app.netbarrier",  // Intego NetBarrier
         "com.intego.netbarrier.alert",  // Intego NetBarrier Alert
-        "com.intego.virusbarrier.application"  // Intego VirusBarrier
+        "com.intego.virusbarrier.application",  // Intego VirusBarrier
+        "com.intego.virusbarrier.alert"  // Intego VirusBarrier Alert
     ]
 
     /// Custom words to ignore
@@ -511,6 +522,7 @@ class UserPreferences: ObservableObject {
         self.disabledApplications = []
         self.discoveredApplications = []
         self.hiddenApplications = UserPreferences.defaultHiddenApplications
+        self.disabledWebsites = []
         self.appPauseDurations = [:]
         self.appPausedUntil = [:]
         self.customDictionary = []
@@ -568,6 +580,11 @@ class UserPreferences: ObservableObject {
         if let data = defaults.data(forKey: Keys.hiddenApplications),
            let set = try? decoder.decode(Set<String>.self, from: data) {
             self.hiddenApplications = set
+        }
+
+        if let data = defaults.data(forKey: Keys.disabledWebsites),
+           let set = try? decoder.decode(Set<String>.self, from: data) {
+            self.disabledWebsites = set
         }
 
         if let data = defaults.data(forKey: Keys.appPauseDurations),
@@ -790,6 +807,53 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    // MARK: - Website Management
+
+    /// Check if grammar checking is enabled for a specific URL
+    /// Returns false if the URL's domain is in the disabled websites list
+    func isEnabled(forURL url: URL) -> Bool {
+        guard let host = url.host?.lowercased() else { return true }
+
+        for domain in disabledWebsites {
+            let pattern = domain.lowercased()
+
+            if pattern.hasPrefix("*.") {
+                // Wildcard pattern: *.example.com matches sub.example.com and example.com
+                let baseDomain = String(pattern.dropFirst(2))
+                if host == baseDomain || host.hasSuffix(".\(baseDomain)") {
+                    return false
+                }
+            } else {
+                // Exact match
+                if host == pattern {
+                    return false
+                }
+            }
+        }
+
+        return true
+    }
+
+    /// Add a website to the disabled list
+    /// - Parameter domain: Domain to disable (e.g., "github.com" or "*.google.com")
+    func disableWebsite(_ domain: String) {
+        let normalizedDomain = domain.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedDomain.isEmpty else { return }
+        disabledWebsites.insert(normalizedDomain)
+    }
+
+    /// Remove a website from the disabled list
+    func enableWebsite(_ domain: String) {
+        let normalizedDomain = domain.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        disabledWebsites.remove(normalizedDomain)
+    }
+
+    /// Check if a specific domain is disabled
+    func isWebsiteDisabled(_ domain: String) -> Bool {
+        let normalizedDomain = domain.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        return disabledWebsites.contains(normalizedDomain)
+    }
+
     /// Add a word to the custom dictionary
     func addToCustomDictionary(_ word: String) {
         guard customDictionary.count < 1000 else {
@@ -926,6 +990,7 @@ class UserPreferences: ObservableObject {
         static let disabledApplications = "disabledApplications"
         static let discoveredApplications = "discoveredApplications"
         static let hiddenApplications = "hiddenApplications"
+        static let disabledWebsites = "disabledWebsites"
         static let appPauseDurations = "appPauseDurations"
         static let appPausedUntil = "appPausedUntil"
         static let customDictionary = "customDictionary"
