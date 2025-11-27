@@ -356,7 +356,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func showAbout() {
         Logger.debug("showAbout() called - ActivationPolicy: \(NSApp.activationPolicy().rawValue)", category: Logger.ui)
 
-        PreferencesWindowController.shared.selectTab(8)
+        // Use type-safe enum to ensure correct tab is selected even if tabs are reordered
+        PreferencesWindowController.shared.selectTab(.about)
 
         Logger.debug("Switching to .regular mode", category: Logger.ui)
 
@@ -365,10 +366,10 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         Logger.debug("setActivationPolicy(.regular) completed - ActivationPolicy: \(NSApp.activationPolicy().rawValue)", category: Logger.ui)
 
-        // Use NSApp.sendAction to open settings with About tab (index 8)
+        // Use NSApp.sendAction to open settings with About tab
         NSApp.sendAction(#selector(AppDelegate.openSettingsWindow(selectedTab:)), to: nil, from: self)
 
-        Logger.debug("Sent openSettingsWindow action for About tab (8)", category: Logger.ui)
+        Logger.debug("Sent openSettingsWindow action for About tab", category: Logger.ui)
     }
 
     @objc private func showCurrentErrors() {

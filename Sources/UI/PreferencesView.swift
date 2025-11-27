@@ -21,37 +21,37 @@ struct PreferencesView: View {
                 .tabItem {
                     Label("General", systemImage: "gearshape")
                 }
-                .tag(0)
+                .tag(SettingsTab.general.rawValue)
 
             SpellCheckingView()
                 .tabItem {
                     Label("Spell Checking", systemImage: "text.badge.checkmark")
                 }
-                .tag(1)
+                .tag(SettingsTab.spellChecking.rawValue)
 
             ApplicationSettingsView(preferences: preferences)
                 .tabItem {
                     Label("Applications", systemImage: "app.badge")
                 }
-                .tag(2)
+                .tag(SettingsTab.applications.rawValue)
 
             StatisticsView()
                 .tabItem {
                     Label("Statistics", systemImage: "chart.bar.fill")
                 }
-                .tag(3)
+                .tag(SettingsTab.statistics.rawValue)
 
             DiagnosticsView(preferences: preferences)
                 .tabItem {
                     Label("Diagnostics", systemImage: "wrench.and.screwdriver")
                 }
-                .tag(4)
+                .tag(SettingsTab.diagnostics.rawValue)
 
             AboutView()
                 .tabItem {
                     Label("About", systemImage: "info.circle")
                 }
-                .tag(5)
+                .tag(SettingsTab.about.rawValue)
         }
         .frame(minWidth: 750, minHeight: 600)
     }
