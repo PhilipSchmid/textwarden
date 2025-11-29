@@ -41,6 +41,21 @@ struct Logger {
     private static let maxLogFileSize = 10 * 1024 * 1024 // 10MB
     private static let maxLogFiles = 5
 
+    // MARK: - Cached Resources (Performance Optimization)
+
+    /// Serial queue for async file logging to avoid blocking main thread
+    private static let fileLoggingQueue = DispatchQueue(label: "com.textwarden.logger", qos: .utility)
+
+    /// Cached date formatter (creating a new one per log is expensive)
+    private static let dateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        return formatter
+    }()
+
+    /// Persistent file handle for efficient writes
+    private static var cachedFileHandle: FileHandle?
+    private static var cachedLogPath: String?
+
     // MARK: - Configuration
 
     /// Default log directory following macOS best practices
@@ -119,6 +134,7 @@ struct Logger {
     static let analysis = OSLog(subsystem: subsystem, category: "analysis")
     static let accessibility = OSLog(subsystem: subsystem, category: "accessibility")
     static let ffi = OSLog(subsystem: subsystem, category: "ffi")
+    static let llm = OSLog(subsystem: subsystem, category: "llm")
     static let ui = OSLog(subsystem: subsystem, category: "ui")
     static let performance = OSLog(subsystem: subsystem, category: "performance")
     static let errors = OSLog(subsystem: subsystem, category: "errors")
@@ -150,35 +166,55 @@ struct Logger {
     }
 
     private static func logToFile(level: LogLevel, message: String, category: OSLog) {
-        // Ensure log directory exists
-        ensureLogDirectoryExists()
-
-        let timestamp = ISO8601DateFormatter().string(from: Date())
+        // Capture values for async block
+        let timestamp = dateFormatter.string(from: Date())
         let categoryName = String(describing: category).components(separatedBy: ":").last ?? "unknown"
         let logLine = "[\(timestamp)] [\(level.rawValue)] [\(categoryName)] \(message)\n"
 
-        let logPath = logFilePath
-        let fileURL = URL(fileURLWithPath: logPath)
+        // Dispatch file I/O to background queue to avoid blocking main thread
+        fileLoggingQueue.async {
+            writeToLogFile(logLine)
+        }
+    }
 
-        // Check if we need to rotate logs
+    /// Write a log line to the file (called on fileLoggingQueue)
+    private static func writeToLogFile(_ logLine: String) {
+        let logPath = logFilePath
+
+        // Ensure log directory exists (only check once when path changes)
+        if cachedLogPath != logPath {
+            ensureLogDirectoryExists()
+            cachedFileHandle = nil  // Reset handle when path changes
+            cachedLogPath = logPath
+        }
+
+        // Check if we need to rotate logs (check periodically, not every write)
         if let attrs = try? FileManager.default.attributesOfItem(atPath: logPath),
            let fileSize = attrs[.size] as? Int64,
            fileSize > maxLogFileSize {
+            cachedFileHandle = nil  // Close handle before rotation
             rotateLogs()
         }
 
-        // Append to log file
-        if let data = logLine.data(using: .utf8) {
+        guard let data = logLine.data(using: .utf8) else { return }
+
+        // Get or create the cached file handle
+        if cachedFileHandle == nil {
+            let fileURL = URL(fileURLWithPath: logPath)
             if FileManager.default.fileExists(atPath: logPath) {
-                if let fileHandle = try? FileHandle(forWritingTo: fileURL) {
-                    fileHandle.seekToEndOfFile()
-                    fileHandle.write(data)
-                    try? fileHandle.close()
-                }
+                cachedFileHandle = try? FileHandle(forWritingTo: fileURL)
+                cachedFileHandle?.seekToEndOfFile()
             } else {
+                // Create the file
                 try? data.write(to: fileURL)
+                cachedFileHandle = try? FileHandle(forWritingTo: fileURL)
+                cachedFileHandle?.seekToEndOfFile()
+                return  // Already wrote the data
             }
         }
+
+        // Write using cached handle
+        cachedFileHandle?.write(data)
     }
 
     private static func rotateLogs() {
