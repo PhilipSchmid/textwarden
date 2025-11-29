@@ -579,8 +579,12 @@ class NotionContentParser: ContentParser {
 
         guard end <= text.count else { return 0 }
 
-        let startIndex = text.index(text.startIndex, offsetBy: start)
-        let endIndex = text.index(text.startIndex, offsetBy: end)
+        // Safe string slicing to handle UTF-16/character count mismatches
+        guard let startIndex = text.index(text.startIndex, offsetBy: start, limitedBy: text.endIndex),
+              let endIndex = text.index(text.startIndex, offsetBy: end, limitedBy: text.endIndex),
+              startIndex <= endIndex else {
+            return 0
+        }
         let textBetween = String(text[startIndex..<endIndex])
 
         let newlineCount = textBetween.filter { $0 == "\n" }.count

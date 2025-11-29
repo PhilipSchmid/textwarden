@@ -25,9 +25,15 @@ struct PreferencesView: View {
 
             SpellCheckingView()
                 .tabItem {
-                    Label("Spell Checking", systemImage: "text.badge.checkmark")
+                    Label("Grammar", systemImage: "text.badge.checkmark")
                 }
-                .tag(SettingsTab.spellChecking.rawValue)
+                .tag(SettingsTab.grammar.rawValue)
+
+            StyleCheckingSettingsView()
+                .tabItem {
+                    Label("Style", systemImage: "sparkles")
+                }
+                .tag(SettingsTab.style.rawValue)
 
             ApplicationSettingsView(preferences: preferences)
                 .tabItem {
@@ -3527,7 +3533,7 @@ struct ResourceMonitoringView: View {
                         y: .value("Load", sample.processLoad)
                     )
                     .foregroundStyle(.orange)
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
                 }
 
                 // Peak load line (dotted)
@@ -3703,7 +3709,7 @@ struct ResourceMonitoringView: View {
                         y: .value("Memory", Double(sample.memoryBytes) / 1_048_576) // Convert to MB
                     )
                     .foregroundStyle(.blue)
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
                 }
 
                 // Peak memory line (dotted)
@@ -3842,10 +3848,52 @@ struct ResourceMonitoringView: View {
     private func filteredSamples() -> [ResourceMetricSample] {
         let cutoffDate = Calendar.current.date(byAdding: .minute, value: -selectedTimeRange.minutes, to: Date()) ?? Date.distantPast
 
-        return statistics.resourceSamples
+        let allSamples = statistics.resourceSamples
             .filter { $0.component == .swiftApp }
             .filter { $0.timestamp >= cutoffDate }
             .sorted { $0.timestamp < $1.timestamp }
+
+        // Downsample for longer time ranges to keep charts smooth
+        // Target ~180 points for optimal visual appearance
+        let targetPoints = 180
+        guard allSamples.count > targetPoints else { return allSamples }
+
+        // For 15m, keep all samples (usually ~180 at 5s intervals)
+        // For longer ranges, downsample by averaging windows
+        let step = max(1, allSamples.count / targetPoints)
+        var downsampled: [ResourceMetricSample] = []
+
+        for i in stride(from: 0, to: allSamples.count, by: step) {
+            let windowEnd = min(i + step, allSamples.count)
+            let window = Array(allSamples[i..<windowEnd])
+
+            guard !window.isEmpty else { continue }
+
+            // Use the middle sample's timestamp for accurate positioning
+            let midIndex = window.count / 2
+            let timestamp = window[midIndex].timestamp
+
+            // Average the values in the window
+            let avgLoad = window.map(\.processLoad).reduce(0, +) / Double(window.count)
+            let avgMemory = UInt64(window.map { Double($0.memoryBytes) }.reduce(0, +) / Double(window.count))
+
+            // Take system load from middle sample (or nil if any is nil)
+            let sys1m = window[midIndex].systemLoad1m
+            let sys5m = window[midIndex].systemLoad5m
+            let sys15m = window[midIndex].systemLoad15m
+
+            downsampled.append(ResourceMetricSample(
+                timestamp: timestamp,
+                component: .swiftApp,
+                processLoad: avgLoad,
+                memoryBytes: avgMemory,
+                systemLoad1m: sys1m,
+                systemLoad5m: sys5m,
+                systemLoad15m: sys15m
+            ))
+        }
+
+        return downsampled
     }
 
     /// Calculate median of Double values

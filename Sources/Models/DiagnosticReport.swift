@@ -16,6 +16,125 @@ import AppKit
 import LaunchAtLogin
 import KeyboardShortcuts
 
+// MARK: - LLM Style Checking Diagnostics
+
+/// Information about a downloaded LLM model
+struct DownloadedModelDiagnostic: Codable {
+    let id: String
+    let name: String
+    let vendor: String
+    let filename: String
+    let sizeBytes: UInt64
+    let formattedSize: String
+    let fileModificationDate: Date?
+    let filePath: String
+
+    static func from(_ model: LLMModelInfo, modelsDirectory: URL) -> DownloadedModelDiagnostic {
+        let filePath = modelsDirectory.appendingPathComponent(model.filename).path
+        var modDate: Date?
+
+        // Get file modification date
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: filePath) {
+            modDate = attrs[.modificationDate] as? Date
+        }
+
+        // Format size
+        let gb = Double(model.sizeBytes) / 1_000_000_000.0
+        let formattedSize: String
+        if gb >= 1.0 {
+            formattedSize = String(format: "%.2f GB", gb)
+        } else {
+            let mb = Double(model.sizeBytes) / 1_000_000.0
+            formattedSize = String(format: "%.0f MB", mb)
+        }
+
+        return DownloadedModelDiagnostic(
+            id: model.id,
+            name: model.name,
+            vendor: model.vendor,
+            filename: model.filename,
+            sizeBytes: model.sizeBytes,
+            formattedSize: formattedSize,
+            fileModificationDate: modDate,
+            filePath: filePath
+        )
+    }
+}
+
+/// LLM Style Checking diagnostics for export
+struct LLMStyleCheckingDiagnostics: Codable {
+    // Feature status
+    let styleCheckingEnabled: Bool
+
+    // Settings
+    let selectedModelId: String
+    let selectedModelName: String?
+    let selectedWritingStyle: String
+    let confidenceThreshold: Double
+    let minSentenceWords: Int
+    let autoLoadModelEnabled: Bool
+
+    // Runtime status
+    let loadedModelId: String?
+    let loadedModelName: String?
+    let isLoadingModel: Bool
+    let downloadsInProgress: [String]
+
+    // Storage info
+    let modelsDirectory: String
+    let downloadedModelsCount: Int
+    let totalDownloadedSizeBytes: UInt64
+    let totalDownloadedSizeFormatted: String
+
+    // Downloaded model details
+    let downloadedModels: [DownloadedModelDiagnostic]
+
+    // Available models (for reference)
+    let availableModelsCount: Int
+
+    static func current(preferences: UserPreferences) -> LLMStyleCheckingDiagnostics {
+        let modelManager = ModelManager.shared
+
+        // Get selected model info
+        let selectedModel = modelManager.models.first { $0.id == preferences.selectedModelId }
+
+        // Get loaded model info
+        let loadedModel = modelManager.loadedModelId.flatMap { loadedId in
+            modelManager.models.first { $0.id == loadedId }
+        }
+
+        // Get models directory
+        let modelsDir = modelManager.modelsDirectory?.path ?? "Unknown"
+
+        // Build downloaded models list with file metadata
+        let downloadedModels = modelManager.downloadedModels.map { model in
+            DownloadedModelDiagnostic.from(model, modelsDirectory: modelManager.modelsDirectory ?? URL(fileURLWithPath: modelsDir))
+        }
+
+        return LLMStyleCheckingDiagnostics(
+            styleCheckingEnabled: preferences.enableStyleChecking,
+            selectedModelId: preferences.selectedModelId,
+            selectedModelName: selectedModel?.name,
+            selectedWritingStyle: preferences.selectedWritingStyle,
+            confidenceThreshold: preferences.styleConfidenceThreshold,
+            minSentenceWords: preferences.styleMinSentenceWords,
+            autoLoadModelEnabled: preferences.styleAutoLoadModel,
+            loadedModelId: modelManager.loadedModelId,
+            loadedModelName: loadedModel?.name,
+            isLoadingModel: modelManager.isLoadingModel,
+            downloadsInProgress: Array(modelManager.downloadingModelIds),
+            modelsDirectory: modelsDir,
+            downloadedModelsCount: modelManager.downloadedModels.count,
+            totalDownloadedSizeBytes: modelManager.totalDownloadedSize,
+            totalDownloadedSizeFormatted: modelManager.formattedTotalSize,
+            downloadedModels: downloadedModels,
+            availableModelsCount: modelManager.models.count
+        )
+    }
+}
+
+// MARK: - Performance Metrics
+
 /// Performance metrics for a specific time range
 struct PerformanceMetrics: Codable {
     let meanLatencyMs: Double
@@ -420,6 +539,9 @@ struct DiagnosticReport: Codable {
     // Statistics (comprehensive with time-range breakdown and performance metrics)
     let statistics: StatisticsSnapshot
 
+    // LLM Style Checking (models, settings, storage)
+    let llmStyleChecking: LLMStyleCheckingDiagnostics
+
     // Crash Info (count of actual .crash/.ips files in crash_reports/ folder)
     let crashReportCount: Int
 
@@ -433,7 +555,7 @@ struct DiagnosticReport: Codable {
     ) -> DiagnosticReport {
         return DiagnosticReport(
             reportTimestamp: Date(),
-            reportVersion: "3.0",  // Bumped to 3.0 for enhanced statistics
+            reportVersion: "4.0",  // Bumped to 4.0 for LLM style checking diagnostics
             appVersion: BuildInfo.appVersion,
             buildNumber: BuildInfo.buildNumber,
             buildTimestamp: BuildInfo.buildTimestamp,
@@ -442,6 +564,7 @@ struct DiagnosticReport: Codable {
             applicationState: ApplicationState.current(preferences: preferences),
             settings: SettingsDump.from(preferences, shortcuts: shortcuts),
             statistics: StatisticsSnapshot.from(UserStatistics.shared),
+            llmStyleChecking: LLMStyleCheckingDiagnostics.current(preferences: preferences),
             crashReportCount: crashReportCount
         )
     }

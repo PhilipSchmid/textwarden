@@ -10,6 +10,7 @@
 import SwiftUI
 import os.log
 import KeyboardShortcuts
+import Combine
 
 @main
 struct TextWardenApp: App {
@@ -35,7 +36,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var menuBarController: MenuBarController?
     var analysisCoordinator: AnalysisCoordinator?
     var settingsWindow: NSWindow?  // Keep strong reference to settings window
-
+    private var styleCheckingCancellable: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Logger.info("Application launched", category: Logger.lifecycle)
@@ -102,6 +103,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             analysisCoordinator = AnalysisCoordinator.shared
             Logger.info("Analysis coordinator initialized", category: Logger.lifecycle)
 
+            // Setup style checking model management
+            setupStyleCheckingModelManagement()
+
             // Check if user wants to open settings window in foreground
             if UserPreferences.shared.openInForeground {
                 Logger.info("Opening settings window in foreground (user preference)", category: Logger.ui)
@@ -118,6 +122,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 Logger.info("Permission granted via onboarding - starting grammar checking", category: Logger.permissions)
                 self.analysisCoordinator = AnalysisCoordinator.shared
                 Logger.info("Analysis coordinator initialized", category: Logger.lifecycle)
+
+                // Setup style checking model management
+                self.setupStyleCheckingModelManagement()
 
                 // Return to accessory mode after onboarding completes
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -160,6 +167,120 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return false
     }
 
+    /// Setup style checking model management:
+    /// - Initialize LLM engine (on background thread)
+    /// - Auto-load model on launch if enabled
+    /// - Reactively load/unload model when style checking is toggled
+    private func setupStyleCheckingModelManagement() {
+        let preferences = UserPreferences.shared
+        let modelManager = ModelManager.shared
+
+        // Setup the preference observer first (this is lightweight, can be on main thread)
+        setupStyleCheckingObserver(preferences: preferences, modelManager: modelManager)
+
+        // Run heavy initialization on background thread to avoid blocking UI
+        DispatchQueue.global(qos: .userInitiated).async {
+            self.initializeLLMEngineAndLoadModel(preferences: preferences, modelManager: modelManager)
+        }
+
+        Logger.info("Style checking model management setup initiated (async)", category: Logger.llm)
+    }
+
+    /// Initialize LLM engine and auto-load model (runs on background thread)
+    private func initializeLLMEngineAndLoadModel(preferences: UserPreferences, modelManager: ModelManager) {
+        // Initialize LLM engine with app support directory
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let textWardenDir = appSupport.appendingPathComponent("TextWarden", isDirectory: true)
+
+        // Ensure directory exists
+        try? FileManager.default.createDirectory(at: textWardenDir, withIntermediateDirectories: true)
+
+        Logger.info("Initializing LLM engine on background thread...", category: Logger.llm)
+        let initSuccess = LLMEngine.shared.initialize(appSupportDir: textWardenDir)
+        if !initSuccess {
+            Logger.error("LLM engine initialization failed - style checking will not work", category: Logger.llm)
+            return
+        }
+        Logger.info("LLM engine initialized successfully", category: Logger.llm)
+
+        // Log current state
+        Logger.debug("Style checking preferences - enabled: \(preferences.enableStyleChecking), autoLoad: \(preferences.styleAutoLoadModel), selectedModel: \(preferences.selectedModelId)", category: Logger.llm)
+
+        // Refresh models on background thread
+        DispatchQueue.main.sync {
+            modelManager.refreshModels()
+        }
+
+        Logger.debug("Available models: \(modelManager.models.count), downloaded: \(modelManager.downloadedModels.count)", category: Logger.llm)
+
+        // Auto-load model on launch if conditions are met
+        guard preferences.enableStyleChecking else {
+            Logger.debug("Style checking is disabled - skipping model auto-load", category: Logger.llm)
+            return
+        }
+
+        // Respect the auto-load preference
+        guard preferences.styleAutoLoadModel else {
+            Logger.debug("Auto-load model on launch is disabled - skipping model auto-load", category: Logger.llm)
+            return
+        }
+
+        let selectedModelId = preferences.selectedModelId
+        Logger.debug("Style checking enabled, checking if model '\(selectedModelId)' is available...", category: Logger.llm)
+
+        guard let model = modelManager.models.first(where: { $0.id == selectedModelId }) else {
+            Logger.warning("Selected model '\(selectedModelId)' not found in available models", category: Logger.llm)
+            return
+        }
+
+        Logger.debug("Found model: \(model.name), isDownloaded: \(model.isDownloaded)", category: Logger.llm)
+
+        guard model.isDownloaded else {
+            Logger.warning("Selected model '\(model.name)' is not downloaded - cannot auto-load", category: Logger.llm)
+            return
+        }
+
+        Logger.info("Auto-loading AI model: \(model.name) (style checking enabled)", category: Logger.llm)
+
+        // Load model - this is the heavy operation, keep it on background thread
+        Task.detached(priority: .userInitiated) {
+            await modelManager.loadModel(selectedModelId)
+        }
+    }
+
+    /// Setup observer for style checking toggle (lightweight, runs on main thread)
+    private func setupStyleCheckingObserver(preferences: UserPreferences, modelManager: ModelManager) {
+        styleCheckingCancellable = preferences.$enableStyleChecking
+            .dropFirst() // Skip initial value (we handle that in initializeLLMEngineAndLoadModel)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] enabled in
+                guard self != nil else { return }
+                let selectedModelId = preferences.selectedModelId
+
+                if enabled {
+                    // Style checking enabled - load the selected model if downloaded
+                    if let model = modelManager.models.first(where: { $0.id == selectedModelId }), model.isDownloaded {
+                        Logger.info("Style checking enabled - loading model: \(model.name)", category: Logger.llm)
+                        // Use Task.detached to avoid blocking main thread
+                        Task.detached(priority: .userInitiated) {
+                            await modelManager.loadModel(selectedModelId)
+                        }
+                    } else {
+                        Logger.warning("Style checking enabled but selected model not downloaded", category: Logger.llm)
+                    }
+                } else {
+                    // Style checking disabled - unload the model from memory
+                    if modelManager.loadedModelId != nil {
+                        Logger.info("Style checking disabled - unloading model from memory", category: Logger.llm)
+                        // Unload on background thread
+                        DispatchQueue.global(qos: .userInitiated).async {
+                            modelManager.unloadModel()
+                        }
+                    }
+                }
+            }
+    }
+
     /// Open or bring forward the settings window
     /// Creates window manually for reliable reopening behavior
     /// Tab selection is controlled by PreferencesWindowController.shared
@@ -199,8 +320,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isReleasedWhenClosed = false  // CRITICAL: Keep window alive when closed
-        window.setContentSize(NSSize(width: 850, height: 700))
-        window.minSize = NSSize(width: 750, height: 600)
+        window.setContentSize(NSSize(width: 850, height: 1000))
+        window.minSize = NSSize(width: 750, height: 800)
         window.center()
         window.delegate = self
         window.level = .normal

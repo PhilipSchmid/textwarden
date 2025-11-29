@@ -107,8 +107,13 @@ class ElementTreeStrategy: GeometryProvider {
             return nil
         }
 
-        let startIndex = text.index(text.startIndex, offsetBy: errorStart)
-        let endIndex = text.index(text.startIndex, offsetBy: errorEnd)
+        // Safe string slicing to handle UTF-16/character count mismatches
+        guard let startIndex = text.index(text.startIndex, offsetBy: errorStart, limitedBy: text.endIndex),
+              let endIndex = text.index(text.startIndex, offsetBy: errorEnd, limitedBy: text.endIndex),
+              startIndex <= endIndex else {
+            Logger.debug("ElementTreeStrategy: String index out of bounds for error text")
+            return nil
+        }
         let errorText = String(text[startIndex..<endIndex])
 
         Logger.debug("ElementTreeStrategy: Looking for error text: '\(errorText)'", category: Logger.ui)

@@ -55,11 +55,19 @@ else
     BUILD_DIR="debug"
 fi
 
+# Optional features (e.g., FEATURES="llm" for LLM support)
+if [ -n "$FEATURES" ]; then
+    CARGO_FEATURES_FLAG="--features $FEATURES"
+    echo -e "${GREEN}Building with features: ${FEATURES}${NC}"
+else
+    CARGO_FEATURES_FLAG=""
+fi
+
 echo -e "${GREEN}Building for x86_64-apple-darwin (${BUILD_DIR})...${NC}"
-cargo build $CARGO_BUILD_FLAG --target x86_64-apple-darwin
+cargo build $CARGO_BUILD_FLAG $CARGO_FEATURES_FLAG --target x86_64-apple-darwin
 
 echo -e "${GREEN}Building for aarch64-apple-darwin (${BUILD_DIR})...${NC}"
-cargo build $CARGO_BUILD_FLAG --target aarch64-apple-darwin
+cargo build $CARGO_BUILD_FLAG $CARGO_FEATURES_FLAG --target aarch64-apple-darwin
 
 # Determine paths based on build type
 X86_LIB="$TARGET_DIR/x86_64-apple-darwin/${BUILD_DIR}/libgrammar_engine.a"

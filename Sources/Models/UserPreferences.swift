@@ -521,6 +521,59 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    // MARK: - LLM Style Checking
+
+    /// Enable LLM-powered style suggestions
+    @Published var enableStyleChecking: Bool {
+        didSet {
+            defaults.set(enableStyleChecking, forKey: Keys.enableStyleChecking)
+        }
+    }
+
+    /// Selected writing style template
+    @Published var selectedWritingStyle: String {
+        didSet {
+            defaults.set(selectedWritingStyle, forKey: Keys.selectedWritingStyle)
+        }
+    }
+
+    /// Selected LLM model ID
+    @Published var selectedModelId: String {
+        didSet {
+            defaults.set(selectedModelId, forKey: Keys.selectedModelId)
+        }
+    }
+
+    /// Minimum sentence word count for style analysis (default: 5)
+    @Published var styleMinSentenceWords: Int {
+        didSet {
+            defaults.set(styleMinSentenceWords, forKey: Keys.styleMinSentenceWords)
+        }
+    }
+
+    /// Style suggestion confidence threshold (0.0 - 1.0, default: 0.7)
+    @Published var styleConfidenceThreshold: Double {
+        didSet {
+            defaults.set(styleConfidenceThreshold, forKey: Keys.styleConfidenceThreshold)
+        }
+    }
+
+    /// Auto-load model on app launch when style checking is enabled
+    @Published var styleAutoLoadModel: Bool {
+        didSet {
+            defaults.set(styleAutoLoadModel, forKey: Keys.styleAutoLoadModel)
+        }
+    }
+
+    /// Available writing style options
+    static let writingStyles = [
+        "Default",
+        "Concise",
+        "Formal",
+        "Casual",
+        "Business"
+    ]
+
     private init() {
         // Initialize with default values first
         self.pauseDuration = .active
@@ -564,6 +617,14 @@ class UserPreferences: ObservableObject {
 
         // Positioning Calibration
         self.positioningCalibrations = [:]
+
+        // LLM Style Checking
+        self.enableStyleChecking = false  // Off by default
+        self.selectedWritingStyle = "Default"
+        self.selectedModelId = "qwen2.5-1.5b"  // Balanced model
+        self.styleMinSentenceWords = 5
+        self.styleConfidenceThreshold = 0.7
+        self.styleAutoLoadModel = false
 
         // Then load saved preferences
         if let pauseString = defaults.string(forKey: Keys.pauseDuration),
@@ -662,6 +723,14 @@ class UserPreferences: ObservableObject {
            let calibrations = try? decoder.decode([String: PositioningCalibration].self, from: data) {
             self.positioningCalibrations = calibrations
         }
+
+        // LLM Style Checking
+        self.enableStyleChecking = defaults.object(forKey: Keys.enableStyleChecking) as? Bool ?? false
+        self.selectedWritingStyle = defaults.string(forKey: Keys.selectedWritingStyle) ?? "Default"
+        self.selectedModelId = defaults.string(forKey: Keys.selectedModelId) ?? "qwen2.5-1.5b"
+        self.styleMinSentenceWords = defaults.object(forKey: Keys.styleMinSentenceWords) as? Int ?? 5
+        self.styleConfidenceThreshold = defaults.object(forKey: Keys.styleConfidenceThreshold) as? Double ?? 0.7
+        self.styleAutoLoadModel = defaults.object(forKey: Keys.styleAutoLoadModel) as? Bool ?? false
 
         // This prevents grammar checking in terminals where command output can cause false positives
         // Users can still enable terminals individually via Applications preferences
@@ -1043,5 +1112,13 @@ class UserPreferences: ObservableObject {
 
         // Positioning Calibration
         static let positioningCalibrations = "positioningCalibrations"
+
+        // LLM Style Checking
+        static let enableStyleChecking = "enableStyleChecking"
+        static let selectedWritingStyle = "selectedWritingStyle"
+        static let selectedModelId = "selectedModelId"
+        static let styleMinSentenceWords = "styleMinSentenceWords"
+        static let styleConfidenceThreshold = "styleConfidenceThreshold"
+        static let styleAutoLoadModel = "styleAutoLoadModel"
     }
 }

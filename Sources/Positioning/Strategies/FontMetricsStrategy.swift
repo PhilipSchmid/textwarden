@@ -33,14 +33,20 @@ class FontMetricsStrategy: GeometryProvider {
         let startIndex = errorRange.location
         let endIndex = errorRange.location + errorRange.length
 
-        // Safe string extraction
+        // Safe string extraction with bounds checking
         guard startIndex >= 0 && endIndex <= text.count else {
             Logger.warning("FontMetricsStrategy: Invalid range \(errorRange) for text length \(text.count)")
             return nil
         }
 
         let textBeforeError = String(text.prefix(startIndex))
-        let errorText = String(text[text.index(text.startIndex, offsetBy: startIndex)..<text.index(text.startIndex, offsetBy: endIndex)])
+        guard let errorStartIdx = text.index(text.startIndex, offsetBy: startIndex, limitedBy: text.endIndex),
+              let errorEndIdx = text.index(text.startIndex, offsetBy: endIndex, limitedBy: text.endIndex),
+              errorStartIdx <= errorEndIdx else {
+            Logger.warning("FontMetricsStrategy: String index out of bounds")
+            return nil
+        }
+        let errorText = String(text[errorStartIdx..<errorEndIdx])
 
         // Use ContentParser's app-specific estimation
         guard let adjustedBounds = parser.adjustBounds(

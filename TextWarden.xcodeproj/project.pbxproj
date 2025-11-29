@@ -209,7 +209,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "${PROJECT_DIR}/Scripts/build-rust.sh\n";
+			shellScript = "FEATURES=llm ${PROJECT_DIR}/Scripts/build-rust.sh\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -434,7 +434,11 @@
 				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/GrammarEngine/target";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
-				OTHER_LDFLAGS = "-lgrammar_engine_universal";
+				OTHER_LDFLAGS = (
+					"-lgrammar_engine_universal",
+					"-framework",
+					SystemConfiguration,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.philipschmid.TextWarden;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -484,7 +488,11 @@
 				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/GrammarEngine/target";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
-				OTHER_LDFLAGS = "-lgrammar_engine_universal";
+				OTHER_LDFLAGS = (
+					"-lgrammar_engine_universal",
+					"-framework",
+					SystemConfiguration,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.philipschmid.TextWarden;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

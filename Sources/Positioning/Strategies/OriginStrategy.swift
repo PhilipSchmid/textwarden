@@ -81,7 +81,14 @@ class OriginStrategy: GeometryProvider {
             return nil
         }
 
-        let errorText = String(text[text.index(text.startIndex, offsetBy: errorStartIndex)..<text.index(text.startIndex, offsetBy: errorEndIndex)])
+        // Safe string slicing to handle UTF-16/character count mismatches
+        guard let errorStartIdx = text.index(text.startIndex, offsetBy: errorStartIndex, limitedBy: text.endIndex),
+              let errorEndIdx = text.index(text.startIndex, offsetBy: errorEndIndex, limitedBy: text.endIndex),
+              errorStartIdx <= errorEndIdx else {
+            Logger.debug("OriginStrategy: String index out of bounds for error text")
+            return nil
+        }
+        let errorText = String(text[errorStartIdx..<errorEndIdx])
         let errorWidth = max((errorText as NSString).size(withAttributes: attributes).width, 20.0)
         let errorHeight = fontSize * 1.3
 
