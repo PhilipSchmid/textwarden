@@ -49,11 +49,14 @@ impl LanguageFilter {
         let sentences = split_into_sentences(text);
 
         // Detect language for each sentence (cache to avoid redundant detection)
+        // Use get() for safe slicing to avoid panics on invalid UTF-8 boundaries
         let sentence_languages: Vec<(usize, usize, Lang)> = sentences.iter()
-            .map(|&(start, end)| {
-                let sentence_text = &text[start..end];
-                let lang = detect_language(sentence_text);
-                (start, end, lang)
+            .filter_map(|&(start, end)| {
+                // Safe slice - returns None if indices are not at valid UTF-8 boundaries
+                text.get(start..end).map(|sentence_text| {
+                    let lang = detect_language(sentence_text);
+                    (start, end, lang)
+                })
             })
             .collect();
 

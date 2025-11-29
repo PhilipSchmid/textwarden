@@ -187,19 +187,18 @@ pub fn analyze_text(
             // This is only applied if the user has enabled this feature in preferences
             if enable_sentence_start_capitalization {
                 // Check if this error is at the beginning of a sentence
+                // Use get() for safe slicing to avoid panics on invalid UTF-8 boundaries
                 let is_sentence_start = span.start == 0 || {
                     // Check if preceded by sentence-ending punctuation (., !, ?)
-                    text[..span.start]
-                        .chars()
-                        .rev()
-                        .take_while(|c| c.is_whitespace())
-                        .count();
-
-                    text[..span.start]
-                        .trim_end()
-                        .chars()
-                        .last()
-                        .map(|c| c == '.' || c == '!' || c == '?')
+                    // Use get() which returns None if span.start is not at a valid UTF-8 boundary
+                    text.get(..span.start)
+                        .and_then(|prefix| {
+                            prefix
+                                .trim_end()
+                                .chars()
+                                .last()
+                                .map(|c| c == '.' || c == '!' || c == '?')
+                        })
                         .unwrap_or(false)
                 };
 

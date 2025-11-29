@@ -102,6 +102,31 @@ class AnalysisCoordinator: ObservableObject {
     /// Pending error waiting for delayed hover switch
     private var pendingHoverError: (error: GrammarErrorModel, position: CGPoint, windowFrame: CGRect?)?
 
+    // MARK: - LLM Style Checking
+
+    /// Currently displayed style suggestions from LLM analysis
+    @Published private(set) var currentStyleSuggestions: [StyleSuggestionModel] = []
+
+    /// Style analysis queue for background LLM processing
+    private let styleAnalysisQueue = DispatchQueue(label: "com.textwarden.styleanalysis", qos: .userInitiated)
+
+    /// Style cache - maps text hash to style suggestions (LLM results are expensive, cache aggressively)
+    private var styleCache: [String: [StyleSuggestionModel]] = [:]
+
+    /// Style cache metadata for LRU eviction
+    private var styleCacheMetadata: [String: StyleCacheMetadata] = [:]
+
+    /// Maximum cached style results
+    private let maxStyleCacheEntries = 20
+
+    /// Style cache expiration time (longer than grammar since LLM is slower)
+    private let styleCacheExpirationTime: TimeInterval = 600 // 10 minutes
+
+    /// Whether LLM style checking should run for the current text
+    private var shouldRunStyleChecking: Bool {
+        UserPreferences.shared.enableStyleChecking && LLMEngine.shared.isReady
+    }
+
     private init() {
         setupMonitoring()
         setupPopoverCallbacks()
@@ -265,6 +290,12 @@ class AnalysisCoordinator: ObservableObject {
             if !isSameApp {
                 Logger.trace("AnalysisCoordinator: Stopping monitoring for previous app", category: Logger.analysis)
                 self.textMonitor.stopMonitoring()
+                // CRITICAL: Clear all cached errors when switching apps to prevent
+                // showing stale errors from the previous application
+                self.currentErrors = []
+                self.currentSegment = nil
+                self.previousText = ""
+                self.currentStyleSuggestions = []
             }
 
             self.errorOverlay.hide()
@@ -1020,14 +1051,19 @@ class AnalysisCoordinator: ObservableObject {
         previousText = text
     }
 
-    /// Analyze full text
+    /// Analyze full text with DECOUPLED grammar and style checking
+    /// Grammar results are shown immediately; style results are added asynchronously
     private func analyzeFullText(_ segment: TextSegment) {
         Logger.debug("AnalysisCoordinator: analyzeFullText called", category: Logger.analysis)
 
         // CRITICAL: Capture the monitored element BEFORE async operation
         let capturedElement = textMonitor.monitoredElement
         let segmentContent = segment.content
+        let runStyleChecking = shouldRunStyleChecking
 
+        // ========== GRAMMAR ANALYSIS (immediate) ==========
+        // Grammar analysis runs independently and updates UI as soon as it completes
+        // This ensures fast feedback (~10ms) without waiting for slow LLM analysis
         analysisQueue.async { [weak self] in
             guard let self = self else { return }
 
@@ -1040,7 +1076,8 @@ class AnalysisCoordinator: ObservableObject {
             let enableLanguageDetection = UserPreferences.shared.enableLanguageDetection
             let excludedLanguages = Array(UserPreferences.shared.excludedLanguages.map { UserPreferences.languageCode(for: $0) })
             let enableSentenceStartCapitalization = UserPreferences.shared.enableSentenceStartCapitalization
-            let result = GrammarEngine.shared.analyzeText(
+
+            let grammarResult = GrammarEngine.shared.analyzeText(
                 segmentContent,
                 dialect: dialect,
                 enableInternetAbbrev: enableInternetAbbrev,
@@ -1051,32 +1088,90 @@ class AnalysisCoordinator: ObservableObject {
                 enableSentenceStartCapitalization: enableSentenceStartCapitalization
             )
 
-            Logger.debug("AnalysisCoordinator: Harper returned \(result.errors.count) error(s)", category: Logger.analysis)
+            Logger.debug("AnalysisCoordinator: Harper returned \(grammarResult.errors.count) error(s)", category: Logger.analysis)
 
-            DispatchQueue.main.async {
-                Logger.debug("AnalysisCoordinator: Updating error cache and applying filters...", category: Logger.analysis)
+            // Update UI immediately with grammar results - don't wait for style analysis
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
 
-                self.updateErrorCache(for: segment, with: result.errors)
-                self.applyFilters(to: result.errors, sourceText: segmentContent, element: capturedElement)
+                self.updateErrorCache(for: segment, with: grammarResult.errors)
+                self.applyFilters(to: grammarResult.errors, sourceText: segmentContent, element: capturedElement)
 
-                // Record statistics with full details
+                // Record grammar statistics
                 let wordCount = segmentContent.split(separator: " ").count
-
-                // Compute category breakdown
                 var categoryBreakdown: [String: Int] = [:]
-                for error in result.errors {
+                for error in grammarResult.errors {
                     categoryBreakdown[error.category, default: 0] += 1
                 }
 
                 UserStatistics.shared.recordDetailedAnalysisSession(
                     wordsProcessed: wordCount,
-                    errorsFound: result.errors.count,
+                    errorsFound: grammarResult.errors.count,
                     bundleIdentifier: self.monitoredContext?.bundleIdentifier,
                     categoryBreakdown: categoryBreakdown,
-                    latencyMs: Double(result.analysisTimeMs)
+                    latencyMs: Double(grammarResult.analysisTimeMs)
                 )
 
-                Logger.debug("AnalysisCoordinator: Analysis complete", category: Logger.analysis)
+                Logger.debug("AnalysisCoordinator: Grammar analysis complete, UI updated", category: Logger.analysis)
+            }
+        }
+
+        // ========== STYLE ANALYSIS (async, independent) ==========
+        // Style analysis runs completely independently on a separate queue
+        // Results are added to UI when ready without blocking grammar results
+        if runStyleChecking {
+            // Check cache first
+            let cacheKey = computeStyleCacheKey(text: segmentContent)
+            if let cached = styleCache[cacheKey] {
+                Logger.debug("AnalysisCoordinator: Using cached style results (\(cached.count) suggestions)", category: Logger.analysis)
+                DispatchQueue.main.async { [weak self] in
+                    self?.currentStyleSuggestions = cached
+                }
+                return
+            }
+
+            styleAnalysisQueue.async { [weak self] in
+                guard let self = self else { return }
+
+                Logger.debug("AnalysisCoordinator: Calling LLM style engine...", category: Logger.analysis)
+
+                let styleName = UserPreferences.shared.selectedWritingStyle
+                let style = WritingStyle.allCases.first { $0.displayName == styleName } ?? .default
+
+                let styleResult = LLMEngine.shared.analyzeStyle(segmentContent, style: style)
+
+                Logger.debug("AnalysisCoordinator: LLM returned \(styleResult.suggestions.count) suggestion(s)", category: Logger.analysis)
+
+                // Update UI with style results (independently of grammar)
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+
+                    if !styleResult.isError {
+                        let threshold = Float(UserPreferences.shared.styleConfidenceThreshold)
+                        let filteredSuggestions = styleResult.suggestions.filter { $0.confidence >= threshold }
+                        self.currentStyleSuggestions = filteredSuggestions
+
+                        // Cache the results
+                        self.styleCache[cacheKey] = filteredSuggestions
+                        self.styleCacheMetadata[cacheKey] = StyleCacheMetadata(
+                            lastAccessed: Date(),
+                            style: styleName
+                        )
+                        self.evictStyleCacheIfNeeded()
+
+                        Logger.debug("AnalysisCoordinator: \(filteredSuggestions.count) style suggestion(s) above threshold", category: Logger.analysis)
+
+                        // TODO: Show style underlines via ErrorOverlayWindow
+                    } else {
+                        self.currentStyleSuggestions = []
+                        Logger.warning("AnalysisCoordinator: Style analysis returned error: \(styleResult.error ?? "unknown")", category: Logger.analysis)
+                    }
+                }
+            }
+        } else {
+            // Style checking disabled - clear any existing suggestions
+            DispatchQueue.main.async { [weak self] in
+                self?.currentStyleSuggestions = []
             }
         }
     }
@@ -1411,6 +1506,10 @@ class AnalysisCoordinator: ObservableObject {
         errorCache.removeAll()
         currentErrors.removeAll()
         previousText = ""
+        // Also clear style cache
+        styleCache.removeAll()
+        styleCacheMetadata.removeAll()
+        currentStyleSuggestions.removeAll()
     }
 
     /// Apply text replacement for error (T044)
@@ -2233,6 +2332,59 @@ extension AnalysisCoordinator {
         purgeExpiredCache()
         evictLRUCacheIfNeeded()
     }
+
+    // MARK: - Style Cache Methods
+
+    /// Compute a cache key for style analysis based on text content and style
+    /// Uses a hash to keep keys short while being collision-resistant
+    func computeStyleCacheKey(text: String) -> String {
+        let style = UserPreferences.shared.selectedWritingStyle
+        let combined = "\(text.hashValue)_\(style)"
+        return combined
+    }
+
+    /// Evict old style cache entries
+    func evictStyleCacheIfNeeded() {
+        // First, purge expired entries
+        let now = Date()
+        var expiredKeys: [String] = []
+
+        for (key, metadata) in styleCacheMetadata {
+            if now.timeIntervalSince(metadata.lastAccessed) > styleCacheExpirationTime {
+                expiredKeys.append(key)
+            }
+        }
+
+        for key in expiredKeys {
+            styleCache.removeValue(forKey: key)
+            styleCacheMetadata.removeValue(forKey: key)
+        }
+
+        if !expiredKeys.isEmpty {
+            Logger.debug("Style cache: Purged \(expiredKeys.count) expired entries", category: Logger.llm)
+        }
+
+        // Then, evict LRU if still over limit
+        guard styleCacheMetadata.count > maxStyleCacheEntries else { return }
+
+        let sortedEntries = styleCacheMetadata.sorted { $0.value.lastAccessed < $1.value.lastAccessed }
+        let toRemove = sortedEntries.count - maxStyleCacheEntries
+
+        for i in 0..<toRemove {
+            let key = sortedEntries[i].key
+            styleCache.removeValue(forKey: key)
+            styleCacheMetadata.removeValue(forKey: key)
+        }
+
+        Logger.debug("Style cache: Evicted \(toRemove) LRU entries", category: Logger.llm)
+    }
+
+    /// Clear style cache (e.g., when model changes)
+    func clearStyleCache() {
+        styleCache.removeAll()
+        styleCacheMetadata.removeAll()
+        Logger.debug("Style cache cleared", category: Logger.llm)
+    }
 }
 
 // MARK: - Cache Metadata
@@ -2241,4 +2393,10 @@ extension AnalysisCoordinator {
 private struct CacheMetadata {
     let lastAccessed: Date
     let documentSize: Int
+}
+
+/// Metadata for style cache entries
+private struct StyleCacheMetadata {
+    let lastAccessed: Date
+    let style: String // The writing style used for this analysis
 }

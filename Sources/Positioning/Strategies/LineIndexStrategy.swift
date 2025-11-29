@@ -72,13 +72,21 @@ class LineIndexStrategy: GeometryProvider {
         let offsetInLine = originalLocation - lineStartIndex
 
         // Extract line text for measurement
+        // Use safe string indexing to handle UTF-16/character count mismatches
         let lineEndIndex = min(lineRange.location + lineRange.length, text.count)
-        guard lineStartIndex < lineEndIndex && lineStartIndex >= 0 else {
-            Logger.debug("LineIndexStrategy: Invalid line indices")
+        guard lineStartIndex < lineEndIndex && lineStartIndex >= 0 && lineEndIndex <= text.count else {
+            Logger.debug("LineIndexStrategy: Invalid line indices (start=\(lineStartIndex), end=\(lineEndIndex), textCount=\(text.count))")
             return nil
         }
 
-        let lineText = String(text[text.index(text.startIndex, offsetBy: lineStartIndex)..<text.index(text.startIndex, offsetBy: lineEndIndex)])
+        // Safe string slicing using index(limited:) approach
+        guard let startIdx = text.index(text.startIndex, offsetBy: lineStartIndex, limitedBy: text.endIndex),
+              let endIdx = text.index(text.startIndex, offsetBy: lineEndIndex, limitedBy: text.endIndex),
+              startIdx <= endIdx else {
+            Logger.debug("LineIndexStrategy: String index out of bounds for line text")
+            return nil
+        }
+        let lineText = String(text[startIdx..<endIdx])
 
         // Get text before error within the line
         let textBeforeErrorInLine: String
@@ -89,8 +97,17 @@ class LineIndexStrategy: GeometryProvider {
         }
 
         // Get error text (using original coordinates)
+        // Safe string slicing to handle UTF-16/character count mismatches
         let errorEndIndex = min(originalLocation + errorRange.length, text.count)
-        let errorText = String(text[text.index(text.startIndex, offsetBy: originalLocation)..<text.index(text.startIndex, offsetBy: errorEndIndex)])
+        let errorText: String
+        if let errorStartIdx = text.index(text.startIndex, offsetBy: originalLocation, limitedBy: text.endIndex),
+           let errorEndIdx = text.index(text.startIndex, offsetBy: errorEndIndex, limitedBy: text.endIndex),
+           errorStartIdx <= errorEndIdx {
+            errorText = String(text[errorStartIdx..<errorEndIdx])
+        } else {
+            Logger.debug("LineIndexStrategy: String index out of bounds for error text")
+            return nil
+        }
 
         Logger.debug("LineIndexStrategy: textBeforeErrorInLine='\(textBeforeErrorInLine)', errorText='\(errorText)'", category: Logger.ui)
 

@@ -105,7 +105,14 @@ class NavigationStrategy: GeometryProvider {
 
         let errorEnd = min(errorRange.location + errorRange.length, text.count)
         let errorStart = min(errorRange.location, text.count)
-        let errorText = String(text[text.index(text.startIndex, offsetBy: errorStart)..<text.index(text.startIndex, offsetBy: errorEnd)])
+        // Safe string slicing to handle UTF-16/character count mismatches
+        guard let errorStartIdx = text.index(text.startIndex, offsetBy: errorStart, limitedBy: text.endIndex),
+              let errorEndIdx = text.index(text.startIndex, offsetBy: errorEnd, limitedBy: text.endIndex),
+              errorStartIdx <= errorEndIdx else {
+            Logger.debug("NavigationStrategy: String index out of bounds for error text")
+            return nil
+        }
+        let errorText = String(text[errorStartIdx..<errorEndIdx])
         let errorWidth = max((errorText as NSString).size(withAttributes: attributes).width, 20.0)
 
         let finalBounds = CGRect(

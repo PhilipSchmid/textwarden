@@ -12,12 +12,13 @@ import Combine
 /// to ensure navigation remains correct even if tabs are reordered
 enum SettingsTab: Int, CaseIterable {
     case general = 0
-    case spellChecking = 1
-    case applications = 2
-    case websites = 3
-    case statistics = 4
-    case diagnostics = 5
-    case about = 6
+    case grammar = 1
+    case style = 2
+    case applications = 3
+    case websites = 4
+    case statistics = 5
+    case diagnostics = 6
+    case about = 7
 }
 
 class PreferencesWindowController: ObservableObject {

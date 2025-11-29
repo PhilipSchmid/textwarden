@@ -800,11 +800,25 @@ struct ErrorUnderline {
     let error: GrammarErrorModel
 }
 
+// MARK: - Style Underline Model
+
+struct StyleUnderline {
+    let bounds: CGRect // Bounds for hit detection
+    let drawingBounds: CGRect // Original bounds for drawing position
+    let suggestion: StyleSuggestionModel
+}
+
+extension StyleUnderline {
+    static let color = NSColor.purple
+}
+
 // MARK: - Underline View
 
 class UnderlineView: NSView {
     var underlines: [ErrorUnderline] = []
+    var styleUnderlines: [StyleUnderline] = []
     var hoveredUnderline: ErrorUnderline?
+    var hoveredStyleUnderline: StyleUnderline?
     var allowsClickPassThrough: Bool = false
 
     // CRITICAL: Use flipped coordinates (top-left origin) to match window positioning
@@ -833,9 +847,19 @@ class UnderlineView: NSView {
             drawHighlight(in: context, bounds: hovered.drawingBounds, color: hovered.color)
         }
 
-        // Draw each underline
+        // Draw highlight for hovered style underline
+        if let hovered = hoveredStyleUnderline {
+            drawHighlight(in: context, bounds: hovered.drawingBounds, color: StyleUnderline.color)
+        }
+
+        // Draw each grammar error underline (solid line)
         for underline in underlines {
             drawWavyUnderline(in: context, bounds: underline.drawingBounds, color: underline.color)
+        }
+
+        // Draw each style suggestion underline (dotted purple line)
+        for styleUnderline in styleUnderlines {
+            drawDottedUnderline(in: context, bounds: styleUnderline.drawingBounds, color: StyleUnderline.color)
         }
 
         // Draw debug border and label if enabled (like DebugBorderWindow)
@@ -875,6 +899,31 @@ class UnderlineView: NSView {
 
         context.addPath(path)
         context.strokePath()
+    }
+
+    /// Draw dotted underline for style suggestions (purple)
+    private func drawDottedUnderline(in context: CGContext, bounds: CGRect, color: NSColor) {
+        context.setStrokeColor(color.cgColor)
+
+        let thickness = CGFloat(UserPreferences.shared.underlineThickness)
+        context.setLineWidth(thickness)
+
+        // Set dotted line pattern: 4pt dash, 3pt gap
+        context.setLineDash(phase: 0, lengths: [4.0, 3.0])
+
+        // Draw dotted line below the text
+        let offset = max(2.0, thickness / 2.0)
+        let y = bounds.maxY + offset
+
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: bounds.minX, y: y))
+        path.addLine(to: CGPoint(x: bounds.maxX, y: y))
+
+        context.addPath(path)
+        context.strokePath()
+
+        // Reset line dash to solid for other drawing
+        context.setLineDash(phase: 0, lengths: [])
     }
 
     /// Draw highlight background for hovered error

@@ -1,7 +1,7 @@
 # Makefile for TextWarden Grammar Checker
 # macOS-native grammar checker with Rust + Swift
 
-.PHONY: help build run test clean reset logs quick-test install dev all
+.PHONY: help build build-no-llm build-rust build-rust-llm run test clean reset logs quick-test install dev all
 
 # Default target
 .DEFAULT_GOAL := help
@@ -16,7 +16,7 @@ NC := \033[0m # No Color
 # Project paths
 PROJECT := TextWarden.xcodeproj
 SCHEME := TextWarden
-CONFIGURATION := Debug
+CONFIGURATION := Release
 BUILD_DIR := $(HOME)/Library/Developer/Xcode/DerivedData/TextWarden-*/Build/Products/$(CONFIGURATION)
 APP_NAME := TextWarden.app
 RUST_DIR := GrammarEngine
@@ -30,10 +30,16 @@ help: ## Display this help message
 
 ##@ Building
 
-build-rust: ## Build Rust grammar engine (universal binary)
+build-rust: ## Build Rust grammar engine (universal binary, no LLM)
 	@echo "$(BLUE)🦀 Building Rust grammar engine...$(NC)"
 	@./Scripts/build-rust.sh
 	@echo "$(GREEN)✅ Rust build complete$(NC)"
+
+build-rust-llm: ## Build Rust grammar engine with LLM support (slower)
+	@echo "$(BLUE)🦀 Building Rust grammar engine with LLM support...$(NC)"
+	@echo "$(YELLOW)⚠️  This may take several minutes on first build$(NC)"
+	@FEATURES=llm ./Scripts/build-rust.sh
+	@echo "$(GREEN)✅ Rust build with LLM complete$(NC)"
 
 build-swift: ## Build Swift/Xcode project
 	@echo "$(BLUE)🍎 Building Swift app...$(NC)"
@@ -45,15 +51,17 @@ build-swift: ## Build Swift/Xcode project
 		exit 1; \
 	fi
 
-build: build-rust build-swift ## Build everything (Rust + Swift)
+build: build-rust-llm build-swift ## Build everything with LLM support (default)
 
-rebuild: clean build ## Clean and rebuild everything
+build-no-llm: build-rust build-swift ## Build without LLM support (faster, for grammar-only testing)
+
+rebuild: clean build ## Clean and rebuild everything with LLM support
 
 ##@ Running
 
-run: ## Build, install to /Applications, and run with live logs
-	@echo "$(GREEN)🚀 Building and running TextWarden...$(NC)"
-	@make -s build-swift
+run: ## Build with LLM, install to /Applications, and run
+	@echo "$(GREEN)🚀 Building and running TextWarden with LLM support...$(NC)"
+	@make -s build
 	@make -s install
 	@make -s run-only
 
@@ -107,7 +115,7 @@ test-guide: ## Open comprehensive testing guide
 
 ##@ Development
 
-dev: ## Full dev cycle: clean, build, install, and run from /Applications
+dev: ## Full dev cycle: clean, build with LLM, install, and run
 	@make -s clean
 	@make -s build
 	@make -s install
@@ -174,7 +182,7 @@ clean-all: clean-rust clean-swift clean-derived ## Deep clean everything includi
 
 ##@ Installation & Distribution
 
-install: build ## Build and install to Applications folder
+install: build ## Build with LLM and install to Applications folder
 	@echo "$(BLUE)📦 Installing TextWarden...$(NC)"
 	@APP=$$(ls -d $(BUILD_DIR)/$(APP_NAME) 2>/dev/null | head -1); \
 	if [ -z "$$APP" ]; then \
@@ -238,7 +246,7 @@ console: ## Open Console.app filtered to TextWarden
 
 ##@ Shortcuts
 
-all: build ## Alias for 'make build'
+all: build ## Alias for 'make build' (includes LLM support)
 
 check: status ## Alias for 'make status'
 

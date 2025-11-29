@@ -50,6 +50,30 @@ public struct ResourceMetricSample: Codable, Identifiable {
         self.memoryPeakBytes = memoryPeak
         self.analysisSessionId = sessionId
     }
+
+    /// Internal initializer for downsampling (preserves custom timestamp)
+    init(
+        timestamp: Date,
+        component: ResourceComponent,
+        processLoad: Double,
+        memoryBytes: UInt64,
+        systemLoad1m: Double? = nil,
+        systemLoad5m: Double? = nil,
+        systemLoad15m: Double? = nil
+    ) {
+        self.id = UUID()
+        self.timestamp = timestamp
+        self.component = component
+        self.processLoad = processLoad
+        self.systemLoad1m = systemLoad1m
+        self.systemLoad5m = systemLoad5m
+        self.systemLoad15m = systemLoad15m
+        self.cpuPercent = processLoad
+        self.memoryBytes = memoryBytes
+        self.memoryVirtualBytes = nil
+        self.memoryPeakBytes = nil
+        self.analysisSessionId = nil
+    }
 }
 
 /// Aggregated statistics for a component

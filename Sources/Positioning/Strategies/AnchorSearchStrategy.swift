@@ -61,22 +61,38 @@ class AnchorSearchStrategy: GeometryProvider {
         let attributes: [NSAttributedString.Key: Any] = [.font: font]
 
         // Get text from anchor to error (or error to anchor if error is before)
+        // Use safe string indexing to handle UTF-16/character count mismatches
         let textBetween: String
         if offset >= 0 {
-            let startIdx = text.index(text.startIndex, offsetBy: anchor.index)
-            let endIdx = text.index(text.startIndex, offsetBy: min(originalLocation, text.count))
+            guard let startIdx = text.index(text.startIndex, offsetBy: anchor.index, limitedBy: text.endIndex),
+                  let endIdx = text.index(text.startIndex, offsetBy: min(originalLocation, text.count), limitedBy: text.endIndex),
+                  startIdx <= endIdx else {
+                Logger.debug("AnchorSearchStrategy: String index out of bounds (positive offset)")
+                return nil
+            }
             textBetween = String(text[startIdx..<endIdx])
         } else {
-            let startIdx = text.index(text.startIndex, offsetBy: originalLocation)
-            let endIdx = text.index(text.startIndex, offsetBy: min(anchor.index, text.count))
+            guard let startIdx = text.index(text.startIndex, offsetBy: originalLocation, limitedBy: text.endIndex),
+                  let endIdx = text.index(text.startIndex, offsetBy: min(anchor.index, text.count), limitedBy: text.endIndex),
+                  startIdx <= endIdx else {
+                Logger.debug("AnchorSearchStrategy: String index out of bounds (negative offset)")
+                return nil
+            }
             textBetween = String(text[startIdx..<endIdx])
         }
 
         let textBetweenWidth = (textBetween as NSString).size(withAttributes: attributes).width
 
         // Get error text (using original coordinates)
+        // Safe string slicing to handle UTF-16/character count mismatches
         let errorEndIndex = min(originalLocation + errorRange.length, text.count)
-        let errorText = String(text[text.index(text.startIndex, offsetBy: originalLocation)..<text.index(text.startIndex, offsetBy: errorEndIndex)])
+        guard let errorStartIdx = text.index(text.startIndex, offsetBy: originalLocation, limitedBy: text.endIndex),
+              let errorEndIdx = text.index(text.startIndex, offsetBy: errorEndIndex, limitedBy: text.endIndex),
+              errorStartIdx <= errorEndIdx else {
+            Logger.debug("AnchorSearchStrategy: String index out of bounds for error text")
+            return nil
+        }
+        let errorText = String(text[errorStartIdx..<errorEndIdx])
         let errorWidth = max((errorText as NSString).size(withAttributes: attributes).width, 20.0)
 
         Logger.debug("AnchorSearchStrategy: textBetweenWidth=\(textBetweenWidth), errorWidth=\(errorWidth)", category: Logger.ui)

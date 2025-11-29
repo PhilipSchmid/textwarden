@@ -207,6 +207,47 @@ class UserStatistics: ObservableObject {
     private let maxInMemorySamples = 720  // 1 hour at 5s interval
     private var persistBatchCounter = 0
 
+    // MARK: - LLM Style Checking Statistics
+
+    /// Total style suggestions shown
+    @Published var styleSuggestionsShown: Int {
+        didSet {
+            defaults.set(styleSuggestionsShown, forKey: Keys.styleSuggestionsShown)
+        }
+    }
+
+    /// Number of style suggestions accepted
+    @Published var styleSuggestionsAccepted: Int {
+        didSet {
+            defaults.set(styleSuggestionsAccepted, forKey: Keys.styleSuggestionsAccepted)
+        }
+    }
+
+    /// Number of style suggestions rejected
+    @Published var styleSuggestionsRejected: Int {
+        didSet {
+            defaults.set(styleSuggestionsRejected, forKey: Keys.styleSuggestionsRejected)
+        }
+    }
+
+    /// Breakdown of rejections by category
+    @Published var styleRejectionCategories: [String: Int] {
+        didSet {
+            if let encoded = try? encoder.encode(styleRejectionCategories) {
+                defaults.set(encoded, forKey: Keys.styleRejectionCategories)
+            }
+        }
+    }
+
+    /// LLM analysis latency samples (last 100 analyses)
+    @Published var styleLatencySamples: [Double] {
+        didSet {
+            if let encoded = try? encoder.encode(styleLatencySamples) {
+                defaults.set(encoded, forKey: Keys.styleLatencySamples)
+            }
+        }
+    }
+
     // MARK: - Computed Properties
 
     /// Percentage of suggestions that were applied (0-100)
@@ -633,6 +674,13 @@ class UserStatistics: ObservableObject {
         self.appLaunchTimestamp = Date()
         self.appLaunchHistory = []
 
+        // LLM Style Checking defaults
+        self.styleSuggestionsShown = 0
+        self.styleSuggestionsAccepted = 0
+        self.styleSuggestionsRejected = 0
+        self.styleRejectionCategories = [:]
+        self.styleLatencySamples = []
+
         // Then load saved values
         self.errorsFound = defaults.integer(forKey: Keys.errorsFound)
         self.suggestionsApplied = defaults.integer(forKey: Keys.suggestionsApplied)
@@ -681,6 +729,21 @@ class UserStatistics: ObservableObject {
         if let data = defaults.data(forKey: Keys.appLaunchHistory),
            let history = try? decoder.decode([Date].self, from: data) {
             self.appLaunchHistory = history
+        }
+
+        // Load LLM style checking statistics
+        self.styleSuggestionsShown = defaults.integer(forKey: Keys.styleSuggestionsShown)
+        self.styleSuggestionsAccepted = defaults.integer(forKey: Keys.styleSuggestionsAccepted)
+        self.styleSuggestionsRejected = defaults.integer(forKey: Keys.styleSuggestionsRejected)
+
+        if let data = defaults.data(forKey: Keys.styleRejectionCategories),
+           let dict = try? decoder.decode([String: Int].self, from: data) {
+            self.styleRejectionCategories = dict
+        }
+
+        if let data = defaults.data(forKey: Keys.styleLatencySamples),
+           let array = try? decoder.decode([Double].self, from: data) {
+            self.styleLatencySamples = array
         }
 
         // Load resource monitoring data
@@ -1008,6 +1071,45 @@ class UserStatistics: ObservableObject {
         return knownApps[bundleId] ?? bundleId.components(separatedBy: ".").last?.capitalized ?? bundleId
     }
 
+    // MARK: - LLM Style Checking Recording
+
+    /// Record style suggestions shown in an analysis session
+    func recordStyleSuggestions(count: Int, latencyMs: Double) {
+        guard count >= 0, latencyMs >= 0 else { return }
+
+        styleSuggestionsShown += count
+
+        // Add latency sample (keep last 100)
+        styleLatencySamples.append(latencyMs)
+        if styleLatencySamples.count > 100 {
+            styleLatencySamples.removeFirst()
+        }
+    }
+
+    /// Record a style suggestion acceptance
+    func recordStyleAcceptance() {
+        styleSuggestionsAccepted += 1
+    }
+
+    /// Record a style suggestion rejection with category
+    func recordStyleRejection(category: String) {
+        styleSuggestionsRejected += 1
+        styleRejectionCategories[category, default: 0] += 1
+    }
+
+    /// Style suggestion acceptance rate (0-100)
+    var styleAcceptanceRate: Double {
+        let total = styleSuggestionsAccepted + styleSuggestionsRejected
+        guard total > 0 else { return 0.0 }
+        return (Double(styleSuggestionsAccepted) / Double(total)) * 100.0
+    }
+
+    /// Average LLM analysis latency in milliseconds
+    var averageStyleLatency: Double {
+        guard !styleLatencySamples.isEmpty else { return 0 }
+        return styleLatencySamples.reduce(0, +) / Double(styleLatencySamples.count)
+    }
+
     // MARK: - Reset
 
     /// Reset all statistics to zero
@@ -1026,6 +1128,13 @@ class UserStatistics: ObservableObject {
         detailedSessions = []
         suggestionActions = []
         appLaunchTimestamp = Date()
+
+        // Reset style statistics
+        styleSuggestionsShown = 0
+        styleSuggestionsAccepted = 0
+        styleSuggestionsRejected = 0
+        styleRejectionCategories = [:]
+        styleLatencySamples = []
     }
 
     // MARK: - UserDefaults Keys
@@ -1047,5 +1156,12 @@ class UserStatistics: ObservableObject {
         static let appLaunchTimestamp = "statistics.appLaunchTimestamp"
         static let appLaunchHistory = "statistics.appLaunchHistory"
         static let resourceSamples = "statistics.resourceSamples"
+
+        // LLM Style Checking
+        static let styleSuggestionsShown = "statistics.styleSuggestionsShown"
+        static let styleSuggestionsAccepted = "statistics.styleSuggestionsAccepted"
+        static let styleSuggestionsRejected = "statistics.styleSuggestionsRejected"
+        static let styleRejectionCategories = "statistics.styleRejectionCategories"
+        static let styleLatencySamples = "statistics.styleLatencySamples"
     }
 }
