@@ -66,6 +66,8 @@ struct PreferencesView: View {
                 .tag(SettingsTab.about.rawValue)
         }
         .frame(minWidth: 750, minHeight: 600)
+        // Theme is managed via NSApp.appearance in PreferencesWindowController
+        // This provides seamless theme switching without view recreation or scroll position reset
     }
 }
 
@@ -1831,14 +1833,21 @@ struct GeneralPreferencesView: View {
             }
 
             Section {
-                Picker("Theme:", selection: $preferences.suggestionTheme) {
-                    ForEach(UserPreferences.suggestionThemes, id: \.self) { theme in
+                Picker("Theme:", selection: $preferences.appTheme) {
+                    ForEach(UserPreferences.themeOptions, id: \.self) { theme in
                         Text(theme).tag(theme)
                     }
                 }
-                .help("Color scheme for suggestion popovers")
+                .help("Color scheme for the TextWarden application UI")
 
-                Text("System: Automatically match macOS appearance")
+                Picker("Overlay Theme:", selection: $preferences.overlayTheme) {
+                    ForEach(UserPreferences.themeOptions, id: \.self) { theme in
+                        Text(theme).tag(theme)
+                    }
+                }
+                .help("Color scheme for popovers and error/style indicators")
+
+                Text("Theme: Controls the TextWarden settings window appearance\nOverlay Theme: Controls popovers and indicators shown over other apps")
                     .font(.caption)
                     .foregroundColor(.secondary)
             } header: {
@@ -4379,8 +4388,8 @@ struct AboutView: View {
                 // Version Information
                 VStack(spacing: 14) {
                     InfoRow(label: "Version", value: BuildInfo.fullVersion)
-                    InfoRow(label: "Build Timestamp", value: BuildInfo.buildTimestamp)
-                    InfoRow(label: "Build Age", value: BuildInfo.buildAge)
+                    InfoRow(label: "Session Started", value: BuildInfo.buildTimestamp)
+                    InfoRow(label: "Session Age", value: BuildInfo.buildAge)
                     InfoRow(label: "Grammar Engine", value: "Harper \(BuildInfo.harperVersion)")
                     InfoRow(label: "Supported Dialects", value: "American, British, Canadian, Australian")
                     InfoRow(label: "License", value: "Apache 2.0")

@@ -429,8 +429,9 @@ struct SettingsDump: Codable {
     let genZSlangEnabled: Bool
     let itTerminologyEnabled: Bool
 
-    // Suggestion Appearance
-    let suggestionTheme: String
+    // Appearance
+    let appTheme: String
+    let overlayTheme: String
     let suggestionOpacity: Double
     let suggestionTextSize: Double
     let suggestionPosition: String
@@ -463,7 +464,8 @@ struct SettingsDump: Codable {
             internetAbbreviationsEnabled: preferences.enableInternetAbbreviations,
             genZSlangEnabled: preferences.enableGenZSlang,
             itTerminologyEnabled: preferences.enableITTerminology,
-            suggestionTheme: preferences.suggestionTheme,
+            appTheme: preferences.appTheme,
+            overlayTheme: preferences.overlayTheme,
             suggestionOpacity: preferences.suggestionOpacity,
             suggestionTextSize: preferences.suggestionTextSize,
             suggestionPosition: preferences.suggestionPosition,

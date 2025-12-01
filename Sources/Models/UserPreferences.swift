@@ -436,15 +436,22 @@ class UserPreferences: ObservableObject {
         "Below"
     ]
 
-    /// Suggestion theme
-    @Published var suggestionTheme: String {
+    /// App theme (for the TextWarden application UI itself)
+    @Published var appTheme: String {
         didSet {
-            defaults.set(suggestionTheme, forKey: Keys.suggestionTheme)
+            defaults.set(appTheme, forKey: Keys.appTheme)
+        }
+    }
+
+    /// Overlay theme (for popovers and error/style indicators)
+    @Published var overlayTheme: String {
+        didSet {
+            defaults.set(overlayTheme, forKey: Keys.overlayTheme)
         }
     }
 
     /// Available theme options
-    static let suggestionThemes = [
+    static let themeOptions = [
         "System",
         "Light",
         "Dark"
@@ -617,7 +624,8 @@ class UserPreferences: ObservableObject {
         self.suggestionOpacity = 0.95
         self.suggestionTextSize = 13.0
         self.suggestionPosition = "Auto"
-        self.suggestionTheme = "System"
+        self.appTheme = "System"
+        self.overlayTheme = "System"
         self.underlineThickness = 3.0
         self.indicatorPosition = "Bottom Right"
 
@@ -721,7 +729,17 @@ class UserPreferences: ObservableObject {
         self.suggestionOpacity = defaults.object(forKey: Keys.suggestionOpacity) as? Double ?? 0.95
         self.suggestionTextSize = defaults.object(forKey: Keys.suggestionTextSize) as? Double ?? 13.0
         self.suggestionPosition = defaults.string(forKey: Keys.suggestionPosition) ?? "Auto"
-        self.suggestionTheme = defaults.string(forKey: Keys.suggestionTheme) ?? "System"
+        self.appTheme = defaults.string(forKey: Keys.appTheme) ?? "System"
+        // Migration: if overlayTheme not set, try old suggestionTheme key for backward compatibility
+        if let savedOverlayTheme = defaults.string(forKey: Keys.overlayTheme) {
+            self.overlayTheme = savedOverlayTheme
+        } else if let oldTheme = defaults.string(forKey: "suggestionTheme") {
+            // Migrate from old key name
+            self.overlayTheme = oldTheme
+            defaults.set(oldTheme, forKey: Keys.overlayTheme)
+        } else {
+            self.overlayTheme = "System"
+        }
         self.underlineThickness = defaults.object(forKey: Keys.underlineThickness) as? Double ?? 3.0
         self.indicatorPosition = defaults.string(forKey: Keys.indicatorPosition) ?? "Bottom Right"
 
@@ -1073,7 +1091,8 @@ class UserPreferences: ObservableObject {
         suggestionOpacity = 0.95
         suggestionTextSize = 13.0
         suggestionPosition = "Auto"
-        suggestionTheme = "System"
+        appTheme = "System"
+        overlayTheme = "System"
         underlineThickness = 3.0
         indicatorPosition = "Bottom Right"
     }
@@ -1114,7 +1133,8 @@ class UserPreferences: ObservableObject {
         static let suggestionOpacity = "suggestionOpacity"
         static let suggestionTextSize = "suggestionTextSize"
         static let suggestionPosition = "suggestionPosition"
-        static let suggestionTheme = "suggestionTheme"
+        static let appTheme = "appTheme"
+        static let overlayTheme = "overlayTheme"
         static let underlineThickness = "underlineThickness"
         static let indicatorPosition = "indicatorPosition"
 
