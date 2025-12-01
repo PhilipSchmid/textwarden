@@ -73,8 +73,10 @@ struct PreferencesView: View {
 
 struct StatisticsView: View {
     @ObservedObject private var statistics = UserStatistics.shared
+    @ObservedObject private var preferences = UserPreferences.shared
     @State private var showResetConfirmation = false
     @State private var selectedTimeRange: TimeRange = .week
+    @State private var selectedStyleModel: String = ""  // Empty = use current selected model
 
     var body: some View {
         ScrollView {
@@ -401,6 +403,263 @@ struct StatisticsView: View {
                         .padding(.vertical, 8)
                 }
 
+                // Style Checking Statistics
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Header with model dropdown
+                        HStack {
+                            Image(systemName: "sparkles")
+                                .font(.title2)
+                                .foregroundColor(.purple)
+                                .frame(width: 28)
+                            Text("Style Checking")
+                                .font(.title3)
+                                .fontWeight(.semibold)
+
+                            Spacer()
+
+                            // Model selector dropdown
+                            if !statistics.modelsWithLatencyData.isEmpty {
+                                Picker("Model", selection: Binding(
+                                    get: { selectedStyleModel.isEmpty ? preferences.selectedModelId : selectedStyleModel },
+                                    set: { selectedStyleModel = $0 }
+                                )) {
+                                    ForEach(statistics.modelsWithLatencyData, id: \.self) { modelId in
+                                        Text(modelId)
+                                            .tag(modelId)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .frame(width: 180)
+                            }
+                        }
+
+                        // Metrics row
+                        HStack(spacing: 16) {
+                            VStack(alignment: .leading) {
+                                Text("\(statistics.llmAnalysisRuns)")
+                                    .font(.title2)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.purple)
+                                Text("Analyses")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Divider()
+                                .frame(height: 40)
+
+                            VStack(alignment: .leading) {
+                                Text("\(statistics.styleSuggestionsShown)")
+                                    .font(.title2)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.purple.opacity(0.8))
+                                Text("Suggestions")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Divider()
+                                .frame(height: 40)
+
+                            VStack(alignment: .leading) {
+                                Text("\(statistics.styleSuggestionsAccepted)")
+                                    .font(.title2)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.green)
+                                Text("Accepted")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Divider()
+                                .frame(height: 40)
+
+                            VStack(alignment: .leading) {
+                                Text("\(statistics.styleSuggestionsRejected)")
+                                    .font(.title2)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.orange)
+                                Text("Rejected")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Divider()
+                                .frame(height: 40)
+
+                            VStack(alignment: .leading) {
+                                // Ignored = Shown - Accepted - Rejected
+                                let ignoredCount = max(0, statistics.styleSuggestionsShown - statistics.styleSuggestionsAccepted - statistics.styleSuggestionsRejected)
+                                Text("\(ignoredCount)")
+                                    .font(.title2)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.secondary)
+                                Text("Ignored")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
+
+                        Divider()
+                            .padding(.vertical, 4)
+
+                        // Performance section with grouped bars by preset
+                        Text("LLM Inference Performance")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.secondary)
+
+                        let effectiveModelId = selectedStyleModel.isEmpty ? preferences.selectedModelId : selectedStyleModel
+
+                        if statistics.detailedStyleLatencySamples.isEmpty {
+                            Text("No performance data yet")
+                                .foregroundColor(.secondary)
+                                .font(.subheadline)
+                                .padding(.vertical, 8)
+                        } else {
+                            // Preset legend
+                            HStack(spacing: 16) {
+                                ForEach(InferencePreset.allCases, id: \.self) { preset in
+                                    let count = statistics.sampleCount(forModel: effectiveModelId, preset: preset.rawValue)
+                                    HStack(spacing: 4) {
+                                        Circle()
+                                            .fill(presetColor(preset))
+                                            .frame(width: 10, height: 10)
+                                        Text("\(preset.displayName) (\(count))")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 4)
+
+                            // Grouped bar chart for metrics
+                            VStack(alignment: .leading, spacing: 12) {
+                                GroupedLatencyRow(
+                                    label: "Average",
+                                    modelId: effectiveModelId,
+                                    statistics: statistics,
+                                    metricExtractor: { stats, model, preset in
+                                        stats.averageStyleLatency(forModel: model, preset: preset)
+                                    }
+                                )
+                                .help("Mean LLM inference time for each quality preset.")
+
+                                GroupedLatencyRow(
+                                    label: "Median",
+                                    modelId: effectiveModelId,
+                                    statistics: statistics,
+                                    metricExtractor: { stats, model, preset in
+                                        stats.medianStyleLatency(forModel: model, preset: preset)
+                                    }
+                                )
+                                .help("Middle value of LLM inference times. Less affected by outliers.")
+
+                                GroupedLatencyRow(
+                                    label: "P90",
+                                    modelId: effectiveModelId,
+                                    statistics: statistics,
+                                    metricExtractor: { stats, model, preset in
+                                        stats.p90StyleLatency(forModel: model, preset: preset)
+                                    }
+                                )
+                                .help("90% of LLM inferences complete faster than this time.")
+
+                                GroupedLatencyRow(
+                                    label: "P95",
+                                    modelId: effectiveModelId,
+                                    statistics: statistics,
+                                    metricExtractor: { stats, model, preset in
+                                        stats.p95StyleLatency(forModel: model, preset: preset)
+                                    }
+                                )
+                                .help("95% of LLM inferences complete faster than this time.")
+
+                                GroupedLatencyRow(
+                                    label: "P99",
+                                    modelId: effectiveModelId,
+                                    statistics: statistics,
+                                    metricExtractor: { stats, model, preset in
+                                        stats.p99StyleLatency(forModel: model, preset: preset)
+                                    }
+                                )
+                                .help("99% of LLM inferences complete faster than this time. Shows worst-case.")
+                            }
+                            .padding(.vertical, 4)
+
+                            if statistics.styleSuggestionsAccepted + statistics.styleSuggestionsRejected > 0 {
+                                let acceptanceRate = statistics.styleAcceptanceRate
+                                Text(String(format: "Acceptance rate: %.0f%%", acceptanceRate))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .padding(.top, 4)
+                            }
+                        }
+                    }
+                    .padding()
+                }
+
+                Divider()
+                    .padding(.vertical, 8)
+
+                // Rejection Reasons (standalone card)
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(.orange)
+                                .frame(width: 28)
+                            Text("Rejection Reasons")
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                        }
+
+                        let totalRejections = statistics.styleRejectionCategories.values.reduce(0, +)
+                        let maxRejectionCount = SuggestionRejectionCategory.allCases.map { statistics.styleRejectionCategories[$0.rawValue] ?? 0 }.max() ?? 1
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            // Show all rejection categories, sorted by count (descending)
+                            ForEach(Array(SuggestionRejectionCategory.allCases.sorted { category1, category2 in
+                                let count1 = statistics.styleRejectionCategories[category1.rawValue] ?? 0
+                                let count2 = statistics.styleRejectionCategories[category2.rawValue] ?? 0
+                                return count1 > count2
+                            }.enumerated()), id: \.element) { index, category in
+                                let count = statistics.styleRejectionCategories[category.rawValue] ?? 0
+
+                                let orangeShades: [Color] = [
+                                    Color(red: 1.0, green: 0.7, blue: 0.4),
+                                    Color(red: 1.0, green: 0.6, blue: 0.3),
+                                    Color(red: 0.9, green: 0.5, blue: 0.2),
+                                    Color(red: 0.8, green: 0.45, blue: 0.15),
+                                    Color(red: 0.7, green: 0.4, blue: 0.1),
+                                    Color(red: 0.6, green: 0.35, blue: 0.05)
+                                ]
+
+                                CategoryRow(
+                                    category: category.displayName,
+                                    count: count,
+                                    maxCount: max(maxRejectionCount, 1),
+                                    total: max(totalRejections, 1),
+                                    isTopCategory: index == 0 && count > 0,
+                                    color: orangeShades[min(index, orangeShades.count - 1)]
+                                )
+                            }
+
+                            Text("Total rejections: \(totalRejections)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .padding(.top, 4)
+                        }
+                    }
+                    .padding()
+                }
+
+                Divider()
+                    .padding(.vertical, 8)
+
                 // Reset Button
                 HStack {
                     Spacer()
@@ -613,6 +872,81 @@ private struct LatencyRow: View {
                 }
             }
             .frame(height: 20)
+        }
+    }
+}
+
+/// Helper function to convert InferencePreset to SwiftUI Color
+private func presetColor(_ preset: InferencePreset) -> Color {
+    let rgb = preset.color
+    return Color(red: rgb.r, green: rgb.g, blue: rgb.b)
+}
+
+/// View that shows stacked bars for each preset (Fast/Balanced/Quality) vertically
+private struct GroupedLatencyRow: View {
+    let label: String
+    let modelId: String
+    let statistics: UserStatistics
+    let metricExtractor: (UserStatistics, String, String) -> Double
+
+    var body: some View {
+        let values = InferencePreset.allCases.map { preset in
+            metricExtractor(statistics, modelId, preset.rawValue)
+        }
+        let maxValue = values.max() ?? 1.0
+
+        VStack(alignment: .leading, spacing: 4) {
+            // Metric label
+            Text(label)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.primary)
+                .padding(.bottom, 2)
+
+            // Stacked bars for each preset
+            ForEach(Array(InferencePreset.allCases.enumerated()), id: \.offset) { _, preset in
+                let value = metricExtractor(statistics, modelId, preset.rawValue)
+                let hasData = statistics.hasData(forModel: modelId, preset: preset.rawValue)
+                let percentage = maxValue > 0 ? (value / maxValue) : 0
+
+                HStack(spacing: 8) {
+                    // Preset indicator
+                    Circle()
+                        .fill(presetColor(preset))
+                        .frame(width: 8, height: 8)
+
+                    // Bar
+                    GeometryReader { geometry in
+                        HStack(spacing: 0) {
+                            if hasData {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(presetColor(preset).opacity(0.6))
+                                    .frame(width: max(2, geometry.size.width * 0.7 * percentage), height: 6)
+                            } else {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(Color.gray.opacity(0.2))
+                                    .frame(width: geometry.size.width * 0.3, height: 6)
+                            }
+                            Spacer()
+                        }
+                    }
+                    .frame(height: 6)
+
+                    // Value
+                    if hasData {
+                        Text(String(format: "%.0fms", value))
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundColor(presetColor(preset))
+                            .frame(width: 60, alignment: .trailing)
+                    } else {
+                        Text("-")
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundColor(.secondary)
+                            .frame(width: 60, alignment: .trailing)
+                    }
+                }
+                .frame(height: 14)
+            }
         }
     }
 }
@@ -1579,6 +1913,7 @@ struct GeneralPreferencesView: View {
 
             Section {
                 KeyboardShortcuts.Recorder("Toggle Grammar Checking:", name: .toggleGrammarChecking)
+                KeyboardShortcuts.Recorder("Run Style Check:", name: .runStyleCheck)
 
                 Text("Works system-wide, even when TextWarden isn't the active app")
                     .font(.caption)
@@ -2192,6 +2527,7 @@ private struct CustomVocabularyContent: View {
     @Binding var newWord: String
     @Binding var searchText: String
     @Binding var errorMessage: String?
+    @State private var ignoredSearchText: String = ""
 
     private var filteredWords: [String] {
         let allWords = Array(vocabulary.words).sorted()
@@ -2201,67 +2537,54 @@ private struct CustomVocabularyContent: View {
         return allWords.filter { $0.localizedCaseInsensitiveContains(searchText) }
     }
 
+    private var filteredIgnoredTexts: [String] {
+        let allTexts = Array(preferences.ignoredErrorTexts).sorted()
+        if ignoredSearchText.isEmpty {
+            return allTexts
+        }
+        return allTexts.filter { $0.localizedCaseInsensitiveContains(ignoredSearchText) }
+    }
+
+    @ViewBuilder
     var body: some View {
         Group {
-            // Predefined Wordlists
+            // MARK: - Predefined Wordlists Section
             Section {
-                VStack(alignment: .leading, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Toggle("Internet Abbreviations", isOn: $preferences.enableInternetAbbreviations)
-                            .help("Accept common abbreviations like BTW, FYI, LOL, ASAP, etc.")
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Internet Abbreviations", isOn: $preferences.enableInternetAbbreviations)
+                        .help("Accept common abbreviations like BTW, FYI, LOL, ASAP, etc.")
 
-                        Text("3,200+ abbreviations (BTW, FYI, LOL, ASAP, AFAICT, etc.) • Case-insensitive")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .padding(.leading, 20)
-                    }
+                    Text("3,200+ abbreviations (BTW, FYI, LOL, ASAP, AFAICT, etc.) • Case-insensitive")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 20)
+                }
 
-                    Divider()
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Gen Z Slang", isOn: $preferences.enableGenZSlang)
+                        .help("Accept modern slang words like ghosting, sus, slay, etc.")
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Toggle("Gen Z Slang", isOn: $preferences.enableGenZSlang)
-                            .help("Accept modern slang words like ghosting, sus, slay, etc.")
+                    Text("270+ modern terms (ghosting, sus, slay, vibe, etc.) • Case-insensitive")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 20)
+                }
 
-                        Text("270+ modern terms (ghosting, sus, slay, vibe, etc.) • Case-insensitive")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .padding(.leading, 20)
-                    }
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("IT & Tech Terminology", isOn: $preferences.enableITTerminology)
+                        .help("Accept technical terms like kubernetes, docker, API, JSON, localhost, etc.")
 
-                    Divider()
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Toggle("IT & Tech Terminology", isOn: $preferences.enableITTerminology)
-                            .help("Accept technical terms like kubernetes, docker, API, JSON, localhost, etc.")
-
-                        Text("10,000+ technical terms (kubernetes, docker, nginx, API, JSON, etc.) • Case-insensitive")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .padding(.leading, 20)
-                    }
+                    Text("10,000+ technical terms (kubernetes, docker, nginx, API, JSON, etc.) • Case-insensitive")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 20)
                 }
             } header: {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "text.book.closed.fill")
-                            .font(.title2)
-                            .foregroundColor(.accentColor)
-                        Text("Custom Dictionary & Wordlists")
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                    }
-
-                    Text("Manage your personal dictionary and enable predefined wordlists")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Text("Predefined Wordlists")
-                        .font(.headline)
-                        .padding(.top, 8)
-                }
+                Text("Predefined Wordlists")
+                    .font(.headline)
             }
 
-            // Language Detection
+            // MARK: - Language Detection Section
             Section {
                 Toggle("Detect non-English words", isOn: $preferences.enableLanguageDetection)
                     .help("Automatically detect and ignore errors in non-English words")
@@ -2275,7 +2598,7 @@ private struct CustomVocabularyContent: View {
                         Text("Languages to ignore:")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                            .padding(.top, 8)
+                            .padding(.top, 4)
 
                         LazyVGrid(columns: [
                             GridItem(.fixed(150), alignment: .leading),
@@ -2309,7 +2632,7 @@ private struct CustomVocabularyContent: View {
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                             }
-                            .padding(.top, 8)
+                            .padding(.top, 4)
                         }
                     }
                 }
@@ -2318,8 +2641,9 @@ private struct CustomVocabularyContent: View {
                     .font(.headline)
             }
 
-            // Custom Dictionary
+            // MARK: - Custom Dictionary Section
             Section {
+                // Add word input
                 HStack(spacing: 12) {
                     TextField("Add word...", text: $newWord)
                         .textFieldStyle(.roundedBorder)
@@ -2334,20 +2658,7 @@ private struct CustomVocabularyContent: View {
                     .disabled(newWord.isEmpty)
                 }
 
-                HStack {
-                    Label("\(vocabulary.words.count) of 1,000 words", systemImage: "list.number")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Spacer()
-
-                    if vocabulary.words.count >= 1000 {
-                        Label("Limit reached", systemImage: "exclamationmark.triangle.fill")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                    }
-                }
-
+                // Error message
                 if let errorMessage = errorMessage {
                     HStack {
                         Image(systemName: "exclamationmark.circle.fill")
@@ -2357,47 +2668,47 @@ private struct CustomVocabularyContent: View {
                             .foregroundColor(.red)
                     }
                 }
-            } header: {
-                Text("Custom Dictionary")
-                    .font(.headline)
-            }
 
-            // Word List
-            if !vocabulary.words.isEmpty {
-                Section {
-                    HStack(spacing: 8) {
-                        Image(systemName: "magnifyingglass")
+                // Word list (if not empty)
+                if !vocabulary.words.isEmpty {
+                    // Search bar with rounded border style
+                    TextField("Search words...", text: $searchText)
+                        .textFieldStyle(.roundedBorder)
+
+                    // Header with count and clear all button
+                    HStack {
+                        Text("\(filteredWords.count) word\(filteredWords.count == 1 ? "" : "s")")
+                            .font(.caption)
                             .foregroundColor(.secondary)
 
-                        TextField("Search words", text: $searchText)
-                            .textFieldStyle(.plain)
-
-                        if !searchText.isEmpty {
-                            Button {
-                                searchText = ""
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.secondary)
-                            }
-                            .buttonStyle(.plain)
+                        if vocabulary.words.count >= 1000 {
+                            Label("Limit reached", systemImage: "exclamationmark.triangle.fill")
+                                .font(.caption)
+                                .foregroundColor(.orange)
                         }
-                    }
-                    .padding(.vertical, 4)
-                }
 
-                Section {
-                    if filteredWords.isEmpty {
-                        Text("No words found")
+                        Spacer()
+
+                        Button(role: .destructive) {
+                            clearAll()
+                        } label: {
+                            Label("Clear All", systemImage: "trash")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+
+                    // Word list
+                    if filteredWords.isEmpty && !searchText.isEmpty {
+                        Text("No matching words")
                             .foregroundColor(.secondary)
                             .font(.subheadline)
                     } else {
                         ForEach(filteredWords, id: \.self) { word in
-                            HStack(spacing: 12) {
+                            HStack {
                                 Text(word)
-                                    .font(.body)
-
                                 Spacer()
-
                                 Button {
                                     removeWord(word)
                                 } label: {
@@ -2409,22 +2720,73 @@ private struct CustomVocabularyContent: View {
                             }
                         }
                     }
-                } header: {
+                }
+            } header: {
+                Text("Custom Dictionary")
+                    .font(.headline)
+            }
+
+            // MARK: - Ignored Words Section
+            // Only show if there are ignored words
+            if !preferences.ignoredErrorTexts.isEmpty {
+                Section {
+                    // Search bar with rounded border style
+                    TextField("Search ignored words...", text: $ignoredSearchText)
+                        .textFieldStyle(.roundedBorder)
+
+                    // Header with count and clear all button
                     HStack {
-                        Text("Your Words")
-                            .font(.headline)
+                        Text("\(filteredIgnoredTexts.count) word\(filteredIgnoredTexts.count == 1 ? "" : "s")")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
                         Spacer()
-                        if !vocabulary.words.isEmpty {
-                            Button(role: .destructive) {
-                                clearAll()
-                            } label: {
-                                Label("Clear All", systemImage: "trash")
-                                    .font(.caption)
+
+                        Button(role: .destructive) {
+                            preferences.ignoredErrorTexts.removeAll()
+                        } label: {
+                            Label("Clear All", systemImage: "trash")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+
+                    // Word list
+                    if filteredIgnoredTexts.isEmpty && !ignoredSearchText.isEmpty {
+                        Text("No matching words")
+                            .foregroundColor(.secondary)
+                            .font(.subheadline)
+                    } else {
+                        ForEach(filteredIgnoredTexts, id: \.self) { ignoredText in
+                            HStack {
+                                Text(ignoredText)
+                                Spacer()
+                                // Move to Custom Dictionary button
+                                Button {
+                                    moveToCustomDictionary(ignoredText)
+                                } label: {
+                                    Image(systemName: "text.book.closed.fill")
+                                        .foregroundColor(.blue)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Move to Custom Dictionary")
+
+                                // Re-enable checking button
+                                Button {
+                                    preferences.ignoredErrorTexts.remove(ignoredText)
+                                } label: {
+                                    Image(systemName: "minus.circle.fill")
+                                        .foregroundColor(.red)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Re-enable checking")
                             }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
                         }
                     }
+                } header: {
+                    Text("Ignored Words")
+                        .font(.headline)
                 }
             }
         }
@@ -2450,6 +2812,18 @@ private struct CustomVocabularyContent: View {
     private func clearAll() {
         try? vocabulary.clearAll()
         errorMessage = nil
+    }
+
+    /// Move an ignored word to the Custom Dictionary
+    /// This adds it as a valid word and removes it from ignored list
+    private func moveToCustomDictionary(_ text: String) {
+        do {
+            try vocabulary.addWord(text)
+            preferences.ignoredErrorTexts.remove(text)
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 }
 
