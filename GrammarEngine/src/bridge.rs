@@ -26,7 +26,10 @@ static INIT_LOGGING: Once = Once::new();
 lazy_static::lazy_static! {
     static ref LLM_ENGINE: Arc<RwLock<Option<LlmEngine>>> = Arc::new(RwLock::new(None));
     static ref MODEL_MANAGER: Arc<RwLock<Option<ModelManager>>> = Arc::new(RwLock::new(None));
-    static ref TOKIO_RUNTIME: tokio::runtime::Runtime = tokio::runtime::Runtime::new().unwrap();
+    /// Tokio runtime for async operations. Uses expect() with descriptive message instead of unwrap()
+    /// to provide better diagnostics if runtime creation fails (e.g., due to system resource limits).
+    static ref TOKIO_RUNTIME: tokio::runtime::Runtime = tokio::runtime::Runtime::new()
+        .expect("Failed to create Tokio runtime - check system resource limits (file descriptors, threads)");
 }
 
 #[swift_bridge::bridge]
