@@ -2,7 +2,7 @@
 //  CGWindowHelper.swift
 //  TextWarden
 //
-//  Uses CGWindow API to get accurate window bounds ()
+//  Uses CGWindow API to get accurate window bounds
 //  AXUIElement bounds are unreliable for Electron apps
 //
 
@@ -14,7 +14,7 @@ import ApplicationServices
 enum CGWindowHelper {
 
     /// Get window bounds for process using CGWindow API
-    ///     static func getWindowBounds(for processID: pid_t) -> CGRect? {
+    static func getWindowBounds(for processID: pid_t) -> CGRect? {
         let options = CGWindowListOption([.optionOnScreenOnly, .excludeDesktopElements])
         guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
             Logger.debug("CGWindowHelper: Failed to get window list", category: Logger.accessibility)
