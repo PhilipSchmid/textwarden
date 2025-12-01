@@ -22,6 +22,26 @@ class NonActivatingPanel: NSPanel {
     }
 }
 
+/// Mode for the popover - determines which content is shown
+enum PopoverMode {
+    case grammarError
+    case styleSuggestion
+}
+
+/// Unified item that can hold either a grammar error or style suggestion
+enum PopoverItem {
+    case grammar(GrammarErrorModel)
+    case style(StyleSuggestionModel)
+
+    /// Start position for sorting
+    var startPosition: Int {
+        switch self {
+        case .grammar(let error): return error.start
+        case .style(let suggestion): return suggestion.originalStart
+        }
+    }
+}
+
 /// Manages the suggestion popover window
 class SuggestionPopover: NSObject, ObservableObject {
     static let shared = SuggestionPopover()
@@ -35,17 +55,51 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Event monitor for mouse clicks outside popover
     private var clickOutsideMonitor: Any?
 
-    /// Current error being displayed
+    /// Current mode (grammar or style)
+    @Published private(set) var mode: PopoverMode = .grammarError
+
+    /// Current error being displayed (grammar mode)
     @Published private(set) var currentError: GrammarErrorModel?
 
-    /// All errors for context
+    /// All errors for context (grammar mode)
     @Published var allErrors: [GrammarErrorModel] = []
 
-    /// Current error index
+    /// Current error index (grammar mode)
     @Published var currentIndex: Int = 0
 
-    /// Callback for applying suggestion
+    /// Current style suggestion being displayed (style mode)
+    @Published private(set) var currentStyleSuggestion: StyleSuggestionModel?
+
+    /// All style suggestions for context (style mode)
+    @Published var allStyleSuggestions: [StyleSuggestionModel] = []
+
+    /// Current style suggestion index (style mode)
+    @Published var currentStyleIndex: Int = 0
+
+    /// Unified index for cycling through all items (grammar errors + style suggestions)
+    @Published var unifiedIndex: Int = 0
+
+    /// All unified items (grammar errors + style suggestions) sorted by position
+    var unifiedItems: [PopoverItem] {
+        var items: [PopoverItem] = []
+        items.append(contentsOf: allErrors.map { .grammar($0) })
+        items.append(contentsOf: allStyleSuggestions.map { .style($0) })
+        return items.sorted { $0.startPosition < $1.startPosition }
+    }
+
+    /// Total count of all items (grammar + style)
+    var totalItemCount: Int {
+        return allErrors.count + allStyleSuggestions.count
+    }
+
+    /// Callback for applying suggestion (grammar mode)
     var onApplySuggestion: ((GrammarErrorModel, String) -> Void)?
+
+    /// Callback for accepting style suggestion (style mode)
+    var onAcceptStyleSuggestion: ((StyleSuggestionModel) -> Void)?
+
+    /// Callback for rejecting style suggestion (style mode)
+    var onRejectStyleSuggestion: ((StyleSuggestionModel, SuggestionRejectionCategory) -> Void)?
 
     /// Callback for dismissing error
     var onDismissError: ((GrammarErrorModel) -> Void)?
@@ -96,33 +150,75 @@ class SuggestionPopover: NSObject, ObservableObject {
         // DEBUG: Log activation policy BEFORE showing
         Logger.debug("SuggestionPopover.show() - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
 
+        self.mode = .grammarError
         self.currentError = error
         self.allErrors = allErrors
         self.currentIndex = allErrors.firstIndex(where: { $0.start == error.start && $0.end == error.end }) ?? 0
 
-        if panel == nil {
-            createPanel()
-        } else {
-            if let trackingView = panel?.contentView as? PopoverTrackingView,
-               let hostingView = trackingView.subviews.first as? NSHostingView<PopoverContentView> {
-                // Force layout update
-                hostingView.invalidateIntrinsicContentSize()
-                hostingView.needsLayout = true
-                hostingView.layoutSubtreeIfNeeded()
+        // Clear style data
+        self.currentStyleSuggestion = nil
+        self.allStyleSuggestions = []
+        self.currentStyleIndex = 0
 
-                let fittingSize = hostingView.fittingSize
-                // Auto-scale: min 320px, max 550px width to accommodate longer messages and future LLM suggestions
-                let width = min(max(fittingSize.width, 320), 550)
-                // Auto-scale height with reasonable max to prevent massive popovers
-                let height = min(fittingSize.height, 400)
+        showPanelAtPosition(position, constrainToWindow: constrainToWindow)
+    }
 
-                hostingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
-                trackingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
-                panel?.setContentSize(NSSize(width: width, height: height))
+    /// Show popover with style suggestion at position
+    /// - Parameters:
+    ///   - suggestion: The style suggestion to display
+    ///   - allSuggestions: All style suggestions for context
+    ///   - position: Screen position for the popover
+    ///   - constrainToWindow: Optional window frame to constrain popover positioning
+    func show(styleSuggestion suggestion: StyleSuggestionModel, allSuggestions: [StyleSuggestionModel], at position: CGPoint, constrainToWindow: CGRect? = nil) {
+        Logger.debug("SuggestionPopover.show(styleSuggestion:) - showing style suggestion", category: Logger.ui)
 
-                print("📐 Popover: Updated size to \(width) x \(height) (fitting: \(fittingSize))")
-            }
+        self.mode = .styleSuggestion
+        self.currentStyleSuggestion = suggestion
+        self.allStyleSuggestions = allSuggestions
+        self.currentStyleIndex = allSuggestions.firstIndex(where: { $0.id == suggestion.id }) ?? 0
+
+        // Clear grammar data
+        self.currentError = nil
+        self.allErrors = []
+        self.currentIndex = 0
+
+        showPanelAtPosition(position, constrainToWindow: constrainToWindow)
+    }
+
+    /// Show popover with style suggestion while keeping existing grammar errors for unified cycling
+    /// - Parameters:
+    ///   - suggestion: The style suggestion to display
+    ///   - allSuggestions: All style suggestions for context
+    ///   - existingErrors: Grammar errors to keep for unified cycling
+    ///   - position: Screen position for the popover
+    ///   - constrainToWindow: Optional window frame to constrain popover positioning
+    func showStyleWithExistingErrors(suggestion: StyleSuggestionModel, allSuggestions: [StyleSuggestionModel], existingErrors: [GrammarErrorModel], at position: CGPoint, constrainToWindow: CGRect? = nil) {
+        Logger.debug("SuggestionPopover.showStyleWithExistingErrors - showing style suggestion with \(existingErrors.count) grammar errors", category: Logger.ui)
+
+        self.mode = .styleSuggestion
+        self.currentStyleSuggestion = suggestion
+        self.allStyleSuggestions = allSuggestions
+        self.currentStyleIndex = allSuggestions.firstIndex(where: { $0.id == suggestion.id }) ?? 0
+
+        // Keep existing grammar errors for unified cycling
+        self.currentError = nil
+        self.allErrors = existingErrors
+        // currentIndex stays as it was
+
+        // Update unified index
+        updateUnifiedIndexForCurrentItem()
+
+        showPanelAtPosition(position, constrainToWindow: constrainToWindow)
+    }
+
+    /// Common panel display logic
+    private func showPanelAtPosition(_ position: CGPoint, constrainToWindow: CGRect?) {
+        // Always recreate panel to ensure correct content view for current mode
+        if panel != nil {
+            panel?.orderOut(nil)
+            panel = nil
         }
+        createPanel()
 
         // Position near cursor (with optional window constraint)
         positionPanel(at: position, constrainToWindow: constrainToWindow)
@@ -131,7 +227,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         panel?.order(.above, relativeTo: 0)
 
         // DEBUG: Log activation policy AFTER showing
-        Logger.debug("SuggestionPopover.show() - AFTER order(.above) - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
+        Logger.debug("SuggestionPopover.showPanelAtPosition() - AFTER order(.above) - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
 
         setupClickOutsideMonitor()
 
@@ -170,9 +266,17 @@ class SuggestionPopover: NSObject, ObservableObject {
         }
 
         panel?.orderOut(nil)
+
+        // Clear grammar data
         currentError = nil
         allErrors = []
         currentIndex = 0
+
+        // Clear style data
+        currentStyleSuggestion = nil
+        allStyleSuggestions = []
+        currentStyleIndex = 0
+
         hideTimer = nil
 
         // NOTE: We do NOT restore focus because our panels are .nonactivatingPanel
@@ -216,7 +320,8 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     /// Create the panel
     private func createPanel() {
-        let contentView = PopoverContentView(popover: self)
+        // Create appropriate content view based on mode
+        let contentView = UnifiedPopoverContentView(popover: self)
 
         let hostingView = NSHostingView(rootView: contentView)
         // Force initial layout
@@ -252,7 +357,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         panel?.level = .popUpMenu  // Use popUpMenu level - these never activate the app
         panel?.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel?.isMovableByWindowBackground = true
-        panel?.title = "Grammar Suggestion"
+        panel?.title = mode == .grammarError ? "Grammar Suggestion" : "Style Suggestion"
         panel?.titlebarAppearsTransparent = false
         // Make panel background transparent so SwiftUI content's opacity works
         panel?.backgroundColor = .clear
@@ -302,7 +407,8 @@ class SuggestionPopover: NSObject, ObservableObject {
         Logger.debug("Popover: Cursor position: \(cursorPosition)", category: Logger.ui)
 
         // Calculate available space in all directions
-        let padding: CGFloat = 20  // Increased from 10 to give more breathing room
+        let padding: CGFloat = 20  // General padding
+        let verticalSpacing: CGFloat = 40  // Space between underline and popover
         let roomAbove = constraintFrame.maxY - cursorPosition.y
         let roomBelow = cursorPosition.y - constraintFrame.minY
         let roomLeft = cursorPosition.x - constraintFrame.minX
@@ -312,15 +418,15 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         // Dynamically adjust panel width if it would exceed available space
         var adjustedPanelSize = panelSize
-        let maxAvailableWidth = max(roomLeft, roomRight) - padding * 3  // Extra padding for safety
-        if panelSize.width > maxAvailableWidth {
-            adjustedPanelSize.width = max(320, maxAvailableWidth)  // Minimum 320px, or available space
+        let totalHorizontalRoom = constraintFrame.width - padding * 2
+        if panelSize.width > totalHorizontalRoom {
+            adjustedPanelSize.width = max(320, totalHorizontalRoom)  // Minimum 320px, or available space
 
-            Logger.debug("Popover: Reducing width from \(panelSize.width) to \(adjustedPanelSize.width) (available: \(maxAvailableWidth))", category: Logger.ui)
+            Logger.debug("Popover: Reducing width from \(panelSize.width) to \(adjustedPanelSize.width) (available: \(totalHorizontalRoom))", category: Logger.ui)
 
             // Resize panel and content views
             if let trackingView = panel.contentView as? PopoverTrackingView,
-               let hostingView = trackingView.subviews.first as? NSHostingView<PopoverContentView> {
+               let hostingView = trackingView.subviews.first {
                 hostingView.frame = NSRect(x: 0, y: 0, width: adjustedPanelSize.width, height: adjustedPanelSize.height)
                 trackingView.frame = NSRect(x: 0, y: 0, width: adjustedPanelSize.width, height: adjustedPanelSize.height)
                 panel.setContentSize(NSSize(width: adjustedPanelSize.width, height: adjustedPanelSize.height))
@@ -328,6 +434,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         }
 
         // Determine vertical positioning
+        // For underline hover, prefer BELOW so we don't cover the text being corrected
         var shouldPositionAbove: Bool
         switch preferences.suggestionPosition {
         case "Above":
@@ -335,9 +442,10 @@ class SuggestionPopover: NSObject, ObservableObject {
         case "Below":
             shouldPositionAbove = false
         default: // "Auto"
-            // Prefer above for floating indicators, but only if there's enough room
-            shouldPositionAbove = roomAbove >= adjustedPanelSize.height + padding * 2
-            if !shouldPositionAbove && roomBelow < adjustedPanelSize.height + padding * 2 {
+            // Prefer BELOW the underline to avoid covering the error
+            // Only go above if there's no room below
+            shouldPositionAbove = roomBelow < adjustedPanelSize.height + verticalSpacing + padding
+            if shouldPositionAbove && roomAbove < adjustedPanelSize.height + verticalSpacing + padding {
                 // Neither direction has enough room - choose the one with more space
                 shouldPositionAbove = roomAbove > roomBelow
             }
@@ -345,24 +453,17 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         Logger.debug("Popover: shouldPositionAbove: \(shouldPositionAbove)", category: Logger.ui)
 
-        // Calculate vertical position
+        // Calculate vertical position with proper spacing
         var origin = CGPoint.zero
         if shouldPositionAbove {
-            origin.y = cursorPosition.y + padding
+            origin.y = cursorPosition.y + verticalSpacing
         } else {
-            origin.y = cursorPosition.y - adjustedPanelSize.height - padding
+            origin.y = cursorPosition.y - adjustedPanelSize.height - verticalSpacing
         }
 
-        // Determine horizontal positioning (prefer left for floating indicator at right edge)
-        let shouldPositionLeft = roomLeft >= adjustedPanelSize.width + padding * 2
-        if shouldPositionLeft {
-            origin.x = cursorPosition.x - adjustedPanelSize.width - padding
-        } else if roomRight >= adjustedPanelSize.width + padding * 2 {
-            origin.x = cursorPosition.x + padding
-        } else {
-            // Neither side has enough room - center it as best we can
-            origin.x = max(constraintFrame.minX + padding, min(cursorPosition.x - adjustedPanelSize.width / 2, constraintFrame.maxX - adjustedPanelSize.width - padding))
-        }
+        // Horizontal positioning: prefer CENTERED over the underline
+        // Center the popover horizontally on the cursor position
+        origin.x = cursorPosition.x - adjustedPanelSize.width / 2
 
         Logger.debug("Popover: Initial position: \(origin)", category: Logger.ui)
 
@@ -403,7 +504,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         guard let panel = panel else { return }
 
         if let trackingView = panel.contentView as? PopoverTrackingView,
-           let hostingView = trackingView.subviews.first as? NSHostingView<PopoverContentView> {
+           let hostingView = trackingView.subviews.first {
 
             // Force SwiftUI to recalculate size
             hostingView.invalidateIntrinsicContentSize()
@@ -477,8 +578,8 @@ class SuggestionPopover: NSObject, ObservableObject {
         // Remove old hosting view
         trackingView.subviews.forEach { $0.removeFromSuperview() }
 
-        // Create fresh content view
-        let contentView = PopoverContentView(popover: self)
+        // Create fresh content view using unified view that respects current mode
+        let contentView = UnifiedPopoverContentView(popover: self)
         let hostingView = NSHostingView(rootView: contentView)
 
         // Force layout to get correct size
@@ -607,6 +708,222 @@ class SuggestionPopover: NSObject, ObservableObject {
             }
         } else {
             hide()
+        }
+    }
+
+    // MARK: - Style Suggestion Actions
+
+    /// Accept current style suggestion
+    func acceptStyleSuggestion() {
+        guard let suggestion = currentStyleSuggestion else { return }
+
+        onAcceptStyleSuggestion?(suggestion)
+        PreferenceLearner.shared.recordAcceptance(suggestion)
+        UserStatistics.shared.recordStyleAcceptance()
+
+        // Move to next suggestion or hide
+        moveToNextStyleSuggestion()
+    }
+
+    /// Reject current style suggestion with category
+    func rejectStyleSuggestion(category: SuggestionRejectionCategory) {
+        guard let suggestion = currentStyleSuggestion else { return }
+
+        onRejectStyleSuggestion?(suggestion, category)
+        PreferenceLearner.shared.recordRejection(suggestion, category: category)
+        UserStatistics.shared.recordStyleRejection(category: category.rawValue)
+
+        // Move to next suggestion or hide
+        moveToNextStyleSuggestion()
+    }
+
+    /// Navigate to next style suggestion
+    func nextStyleSuggestion() {
+        guard !allStyleSuggestions.isEmpty,
+              currentStyleIndex < allStyleSuggestions.count - 1 else { return }
+
+        currentStyleIndex += 1
+        currentStyleSuggestion = allStyleSuggestions[currentStyleIndex]
+
+        // Rebuild panel for new content
+        rebuildContentView()
+    }
+
+    /// Navigate to previous style suggestion
+    func previousStyleSuggestion() {
+        guard !allStyleSuggestions.isEmpty,
+              currentStyleIndex > 0 else { return }
+
+        currentStyleIndex -= 1
+        currentStyleSuggestion = allStyleSuggestions[currentStyleIndex]
+
+        // Rebuild panel for new content
+        rebuildContentView()
+    }
+
+    /// Move to next style suggestion after accept/reject
+    private func moveToNextStyleSuggestion() {
+        guard let current = currentStyleSuggestion else {
+            hide()
+            return
+        }
+
+        // Remove current from list
+        allStyleSuggestions.removeAll { $0.id == current.id }
+
+        if allStyleSuggestions.isEmpty {
+            hide()
+        } else {
+            // Adjust index if needed
+            if currentStyleIndex >= allStyleSuggestions.count {
+                currentStyleIndex = allStyleSuggestions.count - 1
+            }
+            currentStyleSuggestion = allStyleSuggestions[currentStyleIndex]
+
+            // Rebuild panel for new content
+            rebuildContentView()
+        }
+    }
+
+    /// Show popover with both grammar errors and style suggestions for unified cycling
+    /// - Parameters:
+    ///   - errors: Grammar errors to display
+    ///   - styleSuggestions: Style suggestions to display
+    ///   - position: Screen position for the popover
+    ///   - constrainToWindow: Optional window frame to constrain popover positioning
+    func showUnified(errors: [GrammarErrorModel], styleSuggestions: [StyleSuggestionModel], at position: CGPoint, constrainToWindow: CGRect? = nil) {
+        Logger.debug("SuggestionPopover.showUnified - errors=\(errors.count), styleSuggestions=\(styleSuggestions.count)", category: Logger.ui)
+
+        // Store both collections for unified cycling
+        self.allErrors = errors
+        self.allStyleSuggestions = styleSuggestions
+
+        // Start at unified index 0 (first item sorted by position)
+        self.unifiedIndex = 0
+
+        // Determine which type of item comes first
+        let items = unifiedItems
+        guard !items.isEmpty else {
+            Logger.debug("SuggestionPopover.showUnified - no items to show", category: Logger.ui)
+            return
+        }
+
+        // Set mode and current item based on first unified item
+        switch items[0] {
+        case .grammar(let error):
+            self.mode = .grammarError
+            self.currentError = error
+            self.currentStyleSuggestion = nil
+            self.currentIndex = 0
+
+        case .style(let suggestion):
+            self.mode = .styleSuggestion
+            self.currentStyleSuggestion = suggestion
+            self.currentError = nil
+            self.currentStyleIndex = 0
+        }
+
+        showPanelAtPosition(position, constrainToWindow: constrainToWindow)
+    }
+
+    // MARK: - Unified Navigation
+
+    /// Navigate to the next item in the unified list (grammar errors + style suggestions)
+    /// Wraps around to the first item when at the end
+    func nextUnifiedItem() {
+        let items = unifiedItems
+        guard !items.isEmpty else { return }
+
+        if unifiedIndex >= items.count - 1 {
+            // Wrap around to beginning
+            unifiedIndex = 0
+        } else {
+            unifiedIndex += 1
+        }
+        showUnifiedItem(at: unifiedIndex)
+    }
+
+    /// Navigate to the previous item in the unified list
+    /// Wraps around to the last item when at the beginning
+    func previousUnifiedItem() {
+        let items = unifiedItems
+        guard !items.isEmpty else { return }
+
+        if unifiedIndex <= 0 {
+            // Wrap around to end
+            unifiedIndex = items.count - 1
+        } else {
+            unifiedIndex -= 1
+        }
+        showUnifiedItem(at: unifiedIndex)
+    }
+
+    /// Show the item at the given unified index
+    private func showUnifiedItem(at index: Int) {
+        let items = unifiedItems
+        guard index >= 0 && index < items.count else { return }
+
+        switch items[index] {
+        case .grammar(let error):
+            mode = .grammarError
+            currentError = error
+            currentStyleSuggestion = nil
+            // Update currentIndex to match this error
+            if let errorIndex = allErrors.firstIndex(where: { $0.start == error.start && $0.end == error.end }) {
+                currentIndex = errorIndex
+            }
+
+        case .style(let suggestion):
+            mode = .styleSuggestion
+            currentStyleSuggestion = suggestion
+            currentError = nil
+            // Update currentStyleIndex to match this suggestion
+            if let styleIndex = allStyleSuggestions.firstIndex(where: { $0.id == suggestion.id }) {
+                currentStyleIndex = styleIndex
+            }
+        }
+
+        rebuildContentView()
+    }
+
+    /// Calculate the unified index for the currently displayed item
+    func updateUnifiedIndexForCurrentItem() {
+        let items = unifiedItems
+
+        switch mode {
+        case .grammarError:
+            guard let error = currentError else { return }
+            if let idx = items.firstIndex(where: {
+                if case .grammar(let e) = $0 { return e.start == error.start && e.end == error.end }
+                return false
+            }) {
+                unifiedIndex = idx
+            }
+
+        case .styleSuggestion:
+            guard let suggestion = currentStyleSuggestion else { return }
+            if let idx = items.firstIndex(where: {
+                if case .style(let s) = $0 { return s.id == suggestion.id }
+                return false
+            }) {
+                unifiedIndex = idx
+            }
+        }
+    }
+}
+
+// MARK: - Unified Content View
+
+/// Unified content view that switches between grammar and style suggestion content
+struct UnifiedPopoverContentView: View {
+    @ObservedObject var popover: SuggestionPopover
+
+    var body: some View {
+        switch popover.mode {
+        case .grammarError:
+            PopoverContentView(popover: popover)
+        case .styleSuggestion:
+            StylePopoverContentView(popover: popover)
         }
     }
 }
@@ -822,16 +1139,16 @@ struct PopoverContentView: View {
 
                     Spacer()
 
-                    // Navigation controls (only show when multiple errors)
-                    if popover.allErrors.count > 1 {
-                        Text("\(popover.currentIndex + 1) of \(popover.allErrors.count)")
+                    // Navigation controls (show when multiple items total - grammar errors + style suggestions)
+                    if popover.totalItemCount > 1 {
+                        Text("\(popover.unifiedIndex + 1) of \(popover.totalItemCount)")
                             .font(.system(size: captionTextSize, weight: .semibold))
                             .foregroundColor(
                                 Color(hue: 215/360, saturation: 0.65, brightness: effectiveColorScheme == .dark ? 0.80 : 0.50)
                             )
 
                         HStack(spacing: 6) {
-                            Button(action: { popover.previousError() }) {
+                            Button(action: { popover.previousUnifiedItem() }) {
                                 Image(systemName: "chevron.left")
                                     .font(.system(size: 13, weight: .bold))
                                     .foregroundColor(.white)
@@ -853,7 +1170,7 @@ struct PopoverContentView: View {
                             .keyboardShortcut(.upArrow, modifiers: [])
                             .help("Previous (↑)")
 
-                            Button(action: { popover.nextError() }) {
+                            Button(action: { popover.nextUnifiedItem() }) {
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 13, weight: .bold))
                                     .foregroundColor(.white)
@@ -1212,16 +1529,13 @@ class TransparentHoverView: NSView {
         )
 
         addTrackingArea(trackingArea)
-        print("🎯 [Tooltip Debug] TransparentHoverView setup complete with bounds: \(bounds)")
     }
 
     override func mouseEntered(with event: NSEvent) {
-        print("🖱️ [Tooltip Debug] TransparentHoverView.mouseEntered")
         onHoverChange?(true)
     }
 
     override func mouseExited(with event: NSEvent) {
-        print("🖱️ [Tooltip Debug] TransparentHoverView.mouseExited")
         onHoverChange?(false)
     }
 
@@ -1259,7 +1573,6 @@ struct ReliableHoverRepresentable: NSViewRepresentable {
     func makeNSView(context: Context) -> TransparentHoverView {
         let view = TransparentHoverView(frame: frame)
         view.onHoverChange = mouseIsInside
-        print("🎯 [Tooltip Debug] Created TransparentHoverView with frame: \(frame)")
         return view
     }
 
@@ -1312,11 +1625,8 @@ class TooltipPanel {
     /// Show tooltip at specified screen position
     func show(_ text: String, at screenPosition: CGPoint, belowButton buttonFrame: CGRect) {
         guard let panel = panel else {
-            print("⚠️ [Tooltip Debug] TooltipPanel.show - panel is nil!")
             return
         }
-
-        print("📍 [Tooltip Debug] TooltipPanel.show - text: '\(text)', position: \(screenPosition), buttonFrame: \(buttonFrame)")
 
         // Cancel any pending hide
         hideTimer?.invalidate()
@@ -1333,34 +1643,25 @@ class TooltipPanel {
         let tooltipWidth = max(fittingSize.width, 100)
         let tooltipHeight = fittingSize.height
 
-        print("📍 [Tooltip Debug] TooltipPanel.show - measured size: \(tooltipWidth) x \(tooltipHeight)")
-
         // Position tooltip below button, centered horizontally
         let tooltipX = buttonFrame.midX - (tooltipWidth / 2)
         let tooltipY = buttonFrame.minY - tooltipHeight - 8 // 8pt spacing below button
 
         let tooltipFrame = NSRect(x: tooltipX, y: tooltipY, width: tooltipWidth, height: tooltipHeight)
-        print("📍 [Tooltip Debug] TooltipPanel.show - final frame: \(tooltipFrame)")
 
         panel.setFrame(tooltipFrame, display: true)
-
-        print("📍 [Tooltip Debug] TooltipPanel.show - calling order(.above)")
         panel.order(.above, relativeTo: 0)
-        print("📍 [Tooltip Debug] TooltipPanel.show - panel level: \(panel.level.rawValue), isVisible: \(panel.isVisible)")
     }
 
     /// Hide tooltip with optional delay
     func hide(after delay: TimeInterval = 0) {
-        print("📍 [Tooltip Debug] TooltipPanel.hide - delay: \(delay)")
         hideTimer?.invalidate()
 
         if delay > 0 {
             hideTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
-                print("📍 [Tooltip Debug] TooltipPanel.hide - hiding panel after delay")
                 self?.panel?.orderOut(nil)
             }
         } else {
-            print("📍 [Tooltip Debug] TooltipPanel.hide - hiding panel immediately")
             panel?.orderOut(nil)
         }
     }
@@ -1403,35 +1704,25 @@ struct FloatingTooltip: ViewModifier {
                 }
             )
             .onPreferenceChange(TooltipPositionKey.self) { frame in
-                print("💡 [Tooltip Debug] onPreferenceChange - frame: \(frame), isHovering: \(isHovering)")
                 if isHovering {
                     showTooltip(at: frame)
                 }
             }
             .whenHovered { hovering in
-                print("💡 [Tooltip Debug] whenHovered callback - hovering: \(hovering), text: '\(text)'")
                 isHovering = hovering
-                if hovering {
-                    // Will show tooltip via preference change
-                    print("💡 [Tooltip Debug] Mouse entered - waiting for preference change to show tooltip")
-                } else {
-                    print("💡 [Tooltip Debug] Mouse exited - hiding tooltip")
+                if !hovering {
                     TooltipPanel.shared.hide()
                 }
             }
     }
 
     private func showTooltip(at frame: CGRect) {
-        guard isHovering else {
-            print("💡 [Tooltip Debug] showTooltip called but not hovering - skipping")
-            return
-        }
+        guard isHovering else { return }
 
         // Convert to screen coordinates (frame is already in global/screen coordinates)
         let screenFrame = frame
         let screenPosition = CGPoint(x: screenFrame.midX, y: screenFrame.minY)
 
-        print("💡 [Tooltip Debug] Showing tooltip '\(text)' at position: \(screenPosition), frame: \(screenFrame)")
         TooltipPanel.shared.show(text, at: screenPosition, belowButton: screenFrame)
     }
 }
@@ -1448,4 +1739,261 @@ extension View {
     func floatingTooltip(_ text: String) -> some View {
         modifier(FloatingTooltip(text: text))
     }
+}
+
+// MARK: - Style Suggestion Content View
+
+/// SwiftUI content view for style suggestions (used by unified popover)
+struct StylePopoverContentView: View {
+    @ObservedObject var popover: SuggestionPopover
+    @ObservedObject var preferences = UserPreferences.shared
+    @Environment(\.colorScheme) var systemColorScheme
+
+    /// Effective color scheme based on user preference
+    private var effectiveColorScheme: ColorScheme {
+        switch preferences.suggestionTheme {
+        case "Light":
+            return .light
+        case "Dark":
+            return .dark
+        default:
+            return systemColorScheme
+        }
+    }
+
+    /// App color scheme
+    private var colors: AppColors {
+        AppColors(for: effectiveColorScheme)
+    }
+
+    /// Base text size from preferences
+    private var baseTextSize: CGFloat {
+        CGFloat(preferences.suggestionTextSize)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let suggestion = popover.currentStyleSuggestion {
+                // Header with sparkle icon
+                HStack(alignment: .top, spacing: 16) {
+                    // Purple sparkle indicator for style
+                    Circle()
+                        .fill(Color.purple)
+                        .frame(width: 6, height: 6)
+                        .padding(.top, 8)
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Header label only (no navigation here)
+                        Text("STYLE SUGGESTION")
+                            .font(.system(size: baseTextSize * 0.85, weight: .semibold, design: .rounded))
+                            .foregroundColor(colors.textSecondary)
+                            .tracking(0.6)
+
+                        // Before/After diff view (no dark background)
+                        VStack(alignment: .leading, spacing: 8) {
+                            // Original text
+                            HStack(alignment: .top, spacing: 8) {
+                                Text("Before:")
+                                    .font(.system(size: baseTextSize * 0.85, weight: .medium))
+                                    .foregroundColor(colors.textSecondary)
+                                    .frame(width: 50, alignment: .leading)
+                                Text(suggestion.originalText)
+                                    .font(.system(size: baseTextSize))
+                                    .foregroundColor(.red.opacity(0.85))
+                                    .strikethrough(true, color: .red)
+                            }
+
+                            // Suggested text
+                            HStack(alignment: .top, spacing: 8) {
+                                Text("After:")
+                                    .font(.system(size: baseTextSize * 0.85, weight: .medium))
+                                    .foregroundColor(colors.textSecondary)
+                                    .frame(width: 50, alignment: .leading)
+                                Text(suggestion.suggestedText)
+                                    .font(.system(size: baseTextSize))
+                                    .foregroundColor(.green)
+                            }
+                        }
+
+                        // Explanation
+                        Text(suggestion.explanation)
+                            .font(.system(size: baseTextSize))
+                            .foregroundColor(colors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    // Close button
+                    VStack {
+                        Button(action: { popover.hide() }) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(colors.textSecondary)
+                                .frame(width: 20, height: 20)
+                                .background(colors.backgroundRaised)
+                                .cornerRadius(4)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Close (⌥Esc)")
+
+                        Spacer()
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 18)
+
+                // Bottom action bar
+                Divider()
+                    .background(colors.border)
+
+                HStack(spacing: 12) {
+                    // Accept button - Purple accent
+                    Button(action: { popover.acceptStyleSuggestion() }) {
+                        Label("Accept", systemImage: "checkmark.circle.fill")
+                            .font(.system(size: baseTextSize, weight: .medium))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 7)
+                                    .fill(Color.purple)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .help("Accept this suggestion")
+
+                    // Reject menu
+                    Menu {
+                        ForEach(SuggestionRejectionCategory.allCases, id: \.self) { category in
+                            Button(category.displayName) {
+                                popover.rejectStyleSuggestion(category: category)
+                            }
+                        }
+                    } label: {
+                        Label("Reject", systemImage: "xmark.circle")
+                            .font(.system(size: baseTextSize, weight: .medium))
+                            .foregroundColor(colors.textSecondary)
+                    }
+                    .menuStyle(.borderlessButton)
+
+                    Spacer()
+
+                    // Navigation (show when multiple items total - grammar errors + style suggestions)
+                    if popover.totalItemCount > 1 {
+                        Text("\(popover.unifiedIndex + 1) of \(popover.totalItemCount)")
+                            .font(.system(size: baseTextSize * 0.85, weight: .semibold))
+                            .foregroundColor(
+                                Color(hue: 280/360, saturation: 0.65, brightness: effectiveColorScheme == .dark ? 0.80 : 0.50)
+                            )
+
+                        HStack(spacing: 6) {
+                            Button(action: { popover.previousUnifiedItem() }) {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 26, height: 26)
+                                    .background(
+                                        LinearGradient(
+                                            colors: [
+                                                Color(hue: 280/360, saturation: 0.70, brightness: effectiveColorScheme == .dark ? 0.60 : 0.55),
+                                                Color(hue: 280/360, saturation: 0.75, brightness: effectiveColorScheme == .dark ? 0.50 : 0.48)
+                                            ],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .cornerRadius(6)
+                                    .shadow(color: Color.purple.opacity(0.2), radius: 2, x: 0, y: 1)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Previous")
+
+                            Button(action: { popover.nextUnifiedItem() }) {
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 26, height: 26)
+                                    .background(
+                                        LinearGradient(
+                                            colors: [
+                                                Color(hue: 280/360, saturation: 0.70, brightness: effectiveColorScheme == .dark ? 0.60 : 0.55),
+                                                Color(hue: 280/360, saturation: 0.75, brightness: effectiveColorScheme == .dark ? 0.50 : 0.48)
+                                            ],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .cornerRadius(6)
+                                    .shadow(color: Color.purple.opacity(0.2), radius: 2, x: 0, y: 1)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Next")
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 16)
+            } else {
+                Text("No style suggestions to display")
+                    .foregroundColor(colors.textSecondary)
+                    .padding()
+            }
+        }
+        .frame(minWidth: 300, idealWidth: 380, maxWidth: 450)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(
+            ZStack {
+                // Gradient background with purple tones (matching grammar popover structure)
+                LinearGradient(
+                    colors: [
+                        Color(
+                            hue: 280/360,  // Purple hue
+                            saturation: effectiveColorScheme == .dark ? 0.12 : 0.08,
+                            brightness: effectiveColorScheme == .dark ? 0.11 : 0.96
+                        ),
+                        Color(
+                            hue: 280/360,
+                            saturation: effectiveColorScheme == .dark ? 0.18 : 0.12,
+                            brightness: effectiveColorScheme == .dark ? 0.09 : 0.94
+                        )
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .opacity(preferences.suggestionOpacity)
+
+                // Subtle purple accent glow in top-right corner (matching grammar popover)
+                RadialGradient(
+                    colors: [
+                        Color(hue: 280/360, saturation: 0.60, brightness: effectiveColorScheme == .dark ? 0.25 : 0.85).opacity(effectiveColorScheme == .dark ? 0.08 : 0.06),
+                        Color.clear
+                    ],
+                    center: .topTrailing,
+                    startRadius: 0,
+                    endRadius: 200
+                )
+            }
+        )
+        // CRITICAL: Use clipShape BEFORE overlay to ensure all content is clipped to rounded corners
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            // Border with purple gradient (matching grammar popover structure)
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            Color(hue: 280/360, saturation: 0.40, brightness: effectiveColorScheme == .dark ? 0.35 : 0.70).opacity(0.4),
+                            Color(hue: 280/360, saturation: 0.30, brightness: effectiveColorScheme == .dark ? 0.25 : 0.80).opacity(0.3)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.0
+                )
+        )
+        .shadow(color: colors.shadowColor, radius: 12, x: 0, y: 4)
+        .shadow(color: Color(hue: 280/360, saturation: 0.60, brightness: 0.50).opacity(0.10), radius: 6, x: 0, y: 2)
+        .colorScheme(effectiveColorScheme)
+    }
+
 }

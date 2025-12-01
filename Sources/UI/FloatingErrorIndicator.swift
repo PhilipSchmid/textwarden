@@ -10,13 +10,50 @@ import Cocoa
 import AppKit
 import Combine
 
+/// Display mode for the floating indicator
+enum IndicatorMode {
+    case errors([GrammarErrorModel])
+    case styleSuggestions([StyleSuggestionModel])
+    case both(errors: [GrammarErrorModel], styleSuggestions: [StyleSuggestionModel])
+
+    var hasErrors: Bool {
+        switch self {
+        case .errors(let errors): return !errors.isEmpty
+        case .styleSuggestions: return false
+        case .both(let errors, _): return !errors.isEmpty
+        }
+    }
+
+    var hasStyleSuggestions: Bool {
+        switch self {
+        case .errors: return false
+        case .styleSuggestions(let suggestions): return !suggestions.isEmpty
+        case .both(_, let suggestions): return !suggestions.isEmpty
+        }
+    }
+
+    var isEmpty: Bool {
+        switch self {
+        case .errors(let errors): return errors.isEmpty
+        case .styleSuggestions(let suggestions): return suggestions.isEmpty
+        case .both(let errors, let suggestions): return errors.isEmpty && suggestions.isEmpty
+        }
+    }
+}
+
 /// Floating error indicator window
 class FloatingErrorIndicator: NSPanel {
     /// Shared singleton instance
     static let shared = FloatingErrorIndicator()
 
+    /// Current display mode
+    private var mode: IndicatorMode = .errors([])
+
     /// Current errors being displayed
     private var errors: [GrammarErrorModel] = []
+
+    /// Current style suggestions being displayed
+    private var styleSuggestions: [StyleSuggestionModel] = []
 
     /// Current monitored element
     private var monitoredElement: AXUIElement?
@@ -160,21 +197,44 @@ class FloatingErrorIndicator: NSPanel {
             .store(in: &cancellables)
     }
 
-    /// Update indicator with errors
-    func update(errors: [GrammarErrorModel], element: AXUIElement, context: ApplicationContext?) {
-        Logger.debug("FloatingErrorIndicator: update() called with \(errors.count) errors", category: Logger.ui)
+    /// Update indicator with errors and optional style suggestions
+    func update(
+        errors: [GrammarErrorModel],
+        styleSuggestions: [StyleSuggestionModel] = [],
+        element: AXUIElement,
+        context: ApplicationContext?
+    ) {
+        Logger.debug("FloatingErrorIndicator: update() called with \(errors.count) errors, \(styleSuggestions.count) style suggestions", category: Logger.ui)
         self.errors = errors
+        self.styleSuggestions = styleSuggestions
         self.monitoredElement = element
         self.context = context
 
-        guard !errors.isEmpty else {
-            Logger.debug("FloatingErrorIndicator: No errors, hiding", category: Logger.ui)
+        // Determine mode based on what we have
+        if !errors.isEmpty && !styleSuggestions.isEmpty {
+            self.mode = .both(errors: errors, styleSuggestions: styleSuggestions)
+        } else if !styleSuggestions.isEmpty {
+            self.mode = .styleSuggestions(styleSuggestions)
+        } else {
+            self.mode = .errors(errors)
+        }
+
+        guard !mode.isEmpty else {
+            Logger.debug("FloatingErrorIndicator: No errors or suggestions, hiding", category: Logger.ui)
             hide()
             return
         }
 
-        indicatorView?.errorCount = errors.count
-        indicatorView?.errorColor = colorForErrors(errors)
+        // Configure indicator view based on mode
+        if mode.hasStyleSuggestions && !mode.hasErrors {
+            // Style suggestions only - show count with purple ring (same as grammar errors)
+            indicatorView?.displayMode = .count(styleSuggestions.count)
+            indicatorView?.ringColor = .purple
+        } else if mode.hasErrors {
+            // Errors present (possibly with style suggestions) - show error count
+            indicatorView?.displayMode = .count(errors.count)
+            indicatorView?.ringColor = colorForErrors(errors)
+        }
         indicatorView?.needsDisplay = true
 
         // Position in bottom-right of text field
@@ -192,20 +252,41 @@ class FloatingErrorIndicator: NSPanel {
 
     /// Update indicator with errors using only context (no element required)
     /// Used when restoring from window minimize where element may not be available
-    func updateWithContext(errors: [GrammarErrorModel], context: ApplicationContext) {
-        Logger.debug("FloatingErrorIndicator: updateWithContext() called with \(errors.count) errors", category: Logger.ui)
+    func updateWithContext(
+        errors: [GrammarErrorModel],
+        styleSuggestions: [StyleSuggestionModel] = [],
+        context: ApplicationContext
+    ) {
+        Logger.debug("FloatingErrorIndicator: updateWithContext() called with \(errors.count) errors, \(styleSuggestions.count) style suggestions", category: Logger.ui)
         self.errors = errors
+        self.styleSuggestions = styleSuggestions
         self.context = context
         // Don't set monitoredElement - we don't have one
 
-        guard !errors.isEmpty else {
-            Logger.debug("FloatingErrorIndicator: No errors, hiding", category: Logger.ui)
+        // Determine mode based on what we have
+        if !errors.isEmpty && !styleSuggestions.isEmpty {
+            self.mode = .both(errors: errors, styleSuggestions: styleSuggestions)
+        } else if !styleSuggestions.isEmpty {
+            self.mode = .styleSuggestions(styleSuggestions)
+        } else {
+            self.mode = .errors(errors)
+        }
+
+        guard !mode.isEmpty else {
+            Logger.debug("FloatingErrorIndicator: No errors or suggestions, hiding", category: Logger.ui)
             hide()
             return
         }
 
-        indicatorView?.errorCount = errors.count
-        indicatorView?.errorColor = colorForErrors(errors)
+        // Configure indicator view based on mode
+        if mode.hasStyleSuggestions && !mode.hasErrors {
+            // Style suggestions only - show count with purple ring (same as grammar errors)
+            indicatorView?.displayMode = .count(styleSuggestions.count)
+            indicatorView?.ringColor = .purple
+        } else if mode.hasErrors {
+            indicatorView?.displayMode = .count(errors.count)
+            indicatorView?.ringColor = colorForErrors(errors)
+        }
         indicatorView?.needsDisplay = true
 
         // Position using PID from context (no element needed)
@@ -293,8 +374,10 @@ class FloatingErrorIndicator: NSPanel {
         }
 
         // Convert from CGWindow coordinates (y=0 at top) to Cocoa coordinates (y=0 at bottom)
-        let totalScreenHeight = NSScreen.screens.reduce(0) { max($0, $1.frame.maxY) }
-        let cocoaY = totalScreenHeight - best.y - best.height
+        // Use PRIMARY screen height (the one with Cocoa frame origin at 0,0)
+        let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero }
+        let screenHeight = primaryScreen?.frame.height ?? NSScreen.main?.frame.height ?? 0
+        let cocoaY = screenHeight - best.y - best.height
 
         return CGRect(x: best.x, y: cocoaY, width: best.width, height: best.height)
     }
@@ -304,8 +387,77 @@ class FloatingErrorIndicator: NSPanel {
         orderOut(nil)
         borderGuide.hide()
         errors = []
+        styleSuggestions = []
+        mode = .errors([])
         monitoredElement = nil
     }
+
+    /// Show spinning indicator for style check in progress
+    func showStyleCheckInProgress(element: AXUIElement, context: ApplicationContext?) {
+        Logger.debug("FloatingErrorIndicator: showStyleCheckInProgress()", category: Logger.ui)
+        self.monitoredElement = element
+        self.context = context
+
+        // Show spinning indicator with purple ring
+        indicatorView?.displayMode = .spinning
+        indicatorView?.ringColor = .purple
+        indicatorView?.needsDisplay = true
+
+        // Position indicator
+        positionIndicator(for: element)
+
+        if !isVisible {
+            order(.above, relativeTo: 0)
+        }
+    }
+
+    /// Update indicator to show style suggestions count (stops spinning)
+    func showStyleSuggestionsReady(count: Int, styleSuggestions: [StyleSuggestionModel]) {
+        Logger.debug("FloatingErrorIndicator: showStyleSuggestionsReady(count: \(count))", category: Logger.ui)
+        self.styleSuggestions = styleSuggestions
+        self.errors = []
+        self.mode = .styleSuggestions(styleSuggestions)
+
+        // Always show checkmark first to confirm completion
+        showStyleCheckComplete(thenShowCount: count)
+    }
+
+    /// Show checkmark for style check completion, then transition or hide
+    private func showStyleCheckComplete(thenShowCount count: Int) {
+        // Cancel any pending hide operations
+        styleCheckHideWorkItem?.cancel()
+
+        // Show checkmark immediately
+        indicatorView?.displayMode = .styleCheckComplete
+        indicatorView?.ringColor = .purple
+        indicatorView?.needsDisplay = true
+
+        Logger.debug("FloatingErrorIndicator: Showing style check complete checkmark", category: Logger.ui)
+
+        // Short delay for checkmark, then show results or hide
+        // Use 1 second if there are findings, 3 seconds if no findings (before hiding)
+        let delay: TimeInterval = count > 0 ? 1.0 : 3.0
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+
+            if count > 0 {
+                // Transition to count display (same as grammar errors, but with purple ring)
+                Logger.debug("FloatingErrorIndicator: Transitioning to count \(count)", category: Logger.ui)
+                self.indicatorView?.displayMode = .count(count)
+                self.indicatorView?.ringColor = .purple
+                self.indicatorView?.needsDisplay = true
+            } else {
+                // No suggestions, hide the indicator
+                Logger.debug("FloatingErrorIndicator: No suggestions, hiding indicator", category: Logger.ui)
+                self.hide()
+            }
+        }
+        styleCheckHideWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+
+    /// Work item for delayed hide/transition (can be cancelled)
+    private var styleCheckHideWorkItem: DispatchWorkItem?
 
     /// Handle drag end with snap-back to valid border area
     private func handleDragEnd(at finalPosition: CGPoint) {
@@ -534,7 +686,9 @@ class FloatingErrorIndicator: NSPanel {
         // First, find which screen contains this window
         // We'll check which screen's bounds (in CGWindow coordinates) intersect with the window
         let windowCGRect = CGRect(x: x, y: y, width: width, height: height)
-        let totalScreenHeight = NSScreen.screens.reduce(0) { max($0, $1.frame.maxY) }
+        // Use PRIMARY screen height (the one with Cocoa frame origin at 0,0)
+        let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero }
+        let screenHeight = primaryScreen?.frame.height ?? NSScreen.main?.frame.height ?? 0
 
         var targetScreen: NSScreen?
         var maxIntersection: CGFloat = 0
@@ -542,7 +696,7 @@ class FloatingErrorIndicator: NSPanel {
         for screen in NSScreen.screens {
             // Convert this screen's Cocoa frame to CGWindow coordinates for comparison
             let cocoaFrame = screen.frame
-            let cgY = totalScreenHeight - cocoaFrame.maxY
+            let cgY = screenHeight - cocoaFrame.maxY
             let cgScreenRect = CGRect(
                 x: cocoaFrame.origin.x,
                 y: cgY,
@@ -567,8 +721,7 @@ class FloatingErrorIndicator: NSPanel {
         }
 
         // Convert from CGWindow coordinates (top-left origin) to Cocoa coordinates (bottom-left origin)
-        // Use simple formula: cocoaY = totalScreenHeight - cgY - height
-        let cocoaY = totalScreenHeight - y - height
+        let cocoaY = screenHeight - y - height
 
         let frame = NSRect(x: x, y: cocoaY, width: width, height: height)
         Logger.debug("FloatingErrorIndicator: Window on screen '\(screen.localizedName)' at \(screen.frame) - CGWindow: (\(x), \(y)), Cocoa: \(frame)", category: Logger.ui)
@@ -645,24 +798,56 @@ class FloatingErrorIndicator: NSPanel {
         }
     }
 
-    /// Show errors popover
+    /// Show errors/suggestions popover
     private func showErrors() {
-        Logger.debug("FloatingErrorIndicator: showErrors called with \(errors.count) errors", category: Logger.ui)
-        guard let firstError = errors.first else {
-            Logger.debug("FloatingErrorIndicator: No errors to show", category: Logger.ui)
-            return
-        }
+        Logger.debug("FloatingErrorIndicator: showErrors called - errors=\(errors.count), styleSuggestions=\(styleSuggestions.count)", category: Logger.ui)
 
         // Position popover inward from indicator based on position
         let indicatorFrame = frame
         let position = calculatePopoverPosition(for: indicatorFrame)
 
-        Logger.debug("FloatingErrorIndicator: Showing popover at \(position)", category: Logger.ui)
-        SuggestionPopover.shared.show(
-            error: firstError,
-            allErrors: errors,
-            at: position
-        )
+        // Get window frame for constraining popover position
+        let windowFrame: CGRect? = monitoredElement.flatMap { getVisibleWindowFrame(for: $0) }
+
+        // Decide which popover to show based on mode
+        if mode.hasErrors && mode.hasStyleSuggestions {
+            // Both errors and style suggestions - use unified cycling
+            Logger.debug("FloatingErrorIndicator: Showing unified popover (errors=\(errors.count), styleSuggestions=\(styleSuggestions.count)) at \(position)", category: Logger.ui)
+            SuggestionPopover.shared.showUnified(
+                errors: errors,
+                styleSuggestions: styleSuggestions,
+                at: position,
+                constrainToWindow: windowFrame
+            )
+        } else if mode.hasStyleSuggestions {
+            // Style suggestions only - show style popover
+            guard let firstSuggestion = styleSuggestions.first else {
+                Logger.debug("FloatingErrorIndicator: No style suggestions to show", category: Logger.ui)
+                return
+            }
+
+            Logger.debug("FloatingErrorIndicator: Showing style suggestion popover at \(position), constrainTo: \(String(describing: windowFrame))", category: Logger.ui)
+            SuggestionPopover.shared.show(
+                styleSuggestion: firstSuggestion,
+                allSuggestions: styleSuggestions,
+                at: position,
+                constrainToWindow: windowFrame
+            )
+        } else if mode.hasErrors {
+            // Errors only - show grammar popover
+            guard let firstError = errors.first else {
+                Logger.debug("FloatingErrorIndicator: No errors to show", category: Logger.ui)
+                return
+            }
+
+            Logger.debug("FloatingErrorIndicator: Showing grammar popover at \(position), constrainTo: \(String(describing: windowFrame))", category: Logger.ui)
+            SuggestionPopover.shared.show(
+                error: firstError,
+                allErrors: errors,
+                at: position,
+                constrainToWindow: windowFrame
+            )
+        }
     }
 
     /// Calculate popover position that points inward from the indicator
@@ -722,10 +907,24 @@ class FloatingErrorIndicator: NSPanel {
     }
 }
 
+/// Display mode for the indicator view
+enum IndicatorDisplayMode {
+    case count(Int)
+    case sparkle
+    case sparkleWithCount(Int)
+    case spinning
+    case styleCheckComplete  // Checkmark to show style check finished successfully
+}
+
 /// Custom view for drawing the circular indicator
 private class IndicatorView: NSView {
-    var errorCount: Int = 0
-    var errorColor: NSColor = .systemRed
+    var displayMode: IndicatorDisplayMode = .count(0) {
+        didSet {
+            updateSpinningAnimation()
+            needsDisplay = true
+        }
+    }
+    var ringColor: NSColor = .systemRed
     var onClicked: (() -> Void)?
     var onHover: ((Bool) -> Void)?
     var onDragStart: (() -> Void)?
@@ -735,6 +934,8 @@ private class IndicatorView: NSView {
     private var isDragging = false
     private var dragStartPoint: CGPoint = .zero
     private var isHovered = false
+    private var spinningTimer: Timer?
+    private var spinningAngle: CGFloat = 0
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -750,6 +951,38 @@ private class IndicatorView: NSView {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    deinit {
+        spinningTimer?.invalidate()
+    }
+
+    /// Start or stop spinning animation based on display mode
+    private func updateSpinningAnimation() {
+        switch displayMode {
+        case .spinning:
+            startSpinning()
+        default:
+            stopSpinning()
+        }
+    }
+
+    private func startSpinning() {
+        guard spinningTimer == nil else { return }
+        spinningTimer = Timer.scheduledTimer(withTimeInterval: 0.03, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            self.spinningAngle -= 0.08  // Clockwise rotation (negative = clockwise in flipped coords)
+            if self.spinningAngle <= -.pi * 2 {
+                self.spinningAngle = 0
+            }
+            self.needsDisplay = true
+        }
+    }
+
+    private func stopSpinning() {
+        spinningTimer?.invalidate()
+        spinningTimer = nil
+        spinningAngle = 0
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -769,14 +1002,114 @@ private class IndicatorView: NSView {
         // Clear shadow for border
         NSShadow().set()
 
-        // Draw colored ring (thicker, more prominent)
-        let ringPath = NSBezierPath(ovalIn: bounds.insetBy(dx: 3, dy: 3))
-        errorColor.setStroke()
-        ringPath.lineWidth = 3.5
-        ringPath.stroke()
+        // Draw colored ring (thicker, more prominent) - with spinning animation if needed
+        switch displayMode {
+        case .spinning:
+            drawSpinningRing()
+        default:
+            let ringPath = NSBezierPath(ovalIn: bounds.insetBy(dx: 3, dy: 3))
+            ringColor.setStroke()
+            ringPath.lineWidth = 3.5
+            ringPath.stroke()
+        }
 
-        // Draw error count with adaptive text color
-        let countString = "\(errorCount)"
+        // Draw content based on display mode
+        switch displayMode {
+        case .count(let count):
+            drawErrorCount(count)
+        case .sparkle:
+            drawSparkleIcon()
+        case .sparkleWithCount(let count):
+            drawSparkleWithCount(count)
+        case .spinning:
+            drawSparkleIcon()  // Show sparkle while spinning
+        case .styleCheckComplete:
+            drawCheckmarkIcon()
+        }
+    }
+
+    /// Draw spinning ring for style check loading state
+    private func drawSpinningRing() {
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        let radius = (bounds.width - 6) / 2
+
+        // Draw background ring (dimmed)
+        let backgroundRing = NSBezierPath()
+        backgroundRing.appendArc(
+            withCenter: center,
+            radius: radius,
+            startAngle: 0,
+            endAngle: 360,
+            clockwise: false
+        )
+        ringColor.withAlphaComponent(0.2).setStroke()
+        backgroundRing.lineWidth = 3.5
+        backgroundRing.stroke()
+
+        // Draw animated arc (spinning)
+        let arcLength: CGFloat = 90  // 90 degree arc
+        let startAngleDegrees = spinningAngle * 180 / .pi
+        let endAngleDegrees = startAngleDegrees + arcLength
+
+        let spinningArc = NSBezierPath()
+        spinningArc.appendArc(
+            withCenter: center,
+            radius: radius,
+            startAngle: startAngleDegrees,
+            endAngle: endAngleDegrees,
+            clockwise: false
+        )
+        ringColor.setStroke()
+        spinningArc.lineWidth = 3.5
+        spinningArc.lineCapStyle = .round
+        spinningArc.stroke()
+    }
+
+    /// Draw sparkle icon with count badge
+    private func drawSparkleWithCount(_ count: Int) {
+        // Draw sparkle icon (smaller to make room for count)
+        let symbolConfig = NSImage.SymbolConfiguration(pointSize: 12, weight: .medium)
+        if let sparkleImage = NSImage(systemSymbolName: "sparkles", accessibilityDescription: "Style Suggestions")?
+            .withSymbolConfiguration(symbolConfig) {
+
+            let tintedImage = NSImage(size: sparkleImage.size, flipped: false) { rect in
+                sparkleImage.draw(in: rect)
+                NSColor.purple.set()
+                rect.fill(using: .sourceAtop)
+                return true
+            }
+
+            let imageSize = tintedImage.size
+            let x = (bounds.width - imageSize.width) / 2 - 4
+            let y = (bounds.height - imageSize.height) / 2 + 3
+
+            tintedImage.draw(
+                in: NSRect(x: x, y: y, width: imageSize.width, height: imageSize.height),
+                from: .zero,
+                operation: .sourceOver,
+                fraction: 1.0
+            )
+        }
+
+        // Draw count in bottom-right corner
+        let countString = "\(count)"
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11, weight: .bold),
+            .foregroundColor: NSColor.purple
+        ]
+        let textSize = (countString as NSString).size(withAttributes: attributes)
+        let textRect = NSRect(
+            x: bounds.width - textSize.width - 6,
+            y: 4,
+            width: textSize.width,
+            height: textSize.height
+        )
+        (countString as NSString).draw(in: textRect, withAttributes: attributes)
+    }
+
+    /// Draw error count text
+    private func drawErrorCount(_ count: Int) {
+        let countString = "\(count)"
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 15, weight: .semibold),
             .foregroundColor: NSColor.labelColor
@@ -791,6 +1124,98 @@ private class IndicatorView: NSView {
             height: textSize.height
         )
         (countString as NSString).draw(in: textRect, withAttributes: attributes)
+    }
+
+    /// Draw sparkle icon for style suggestions
+    private func drawSparkleIcon() {
+        let symbolConfig = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
+        guard let sparkleImage = NSImage(systemSymbolName: "sparkles", accessibilityDescription: "Style Suggestions")?
+            .withSymbolConfiguration(symbolConfig) else {
+            // Fallback to text if symbol not available
+            drawFallbackSparkle()
+            return
+        }
+
+        // Tint the image purple
+        let tintedImage = NSImage(size: sparkleImage.size, flipped: false) { rect in
+            sparkleImage.draw(in: rect)
+            NSColor.purple.set()
+            rect.fill(using: .sourceAtop)
+            return true
+        }
+
+        // Center the image
+        let imageSize = tintedImage.size
+        let x = (bounds.width - imageSize.width) / 2
+        let y = (bounds.height - imageSize.height) / 2 + 1
+
+        tintedImage.draw(
+            in: NSRect(x: x, y: y, width: imageSize.width, height: imageSize.height),
+            from: .zero,
+            operation: .sourceOver,
+            fraction: 1.0
+        )
+    }
+
+    /// Fallback sparkle drawing if SF Symbol not available
+    private func drawFallbackSparkle() {
+        let sparkleString = "✨"
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 16, weight: .medium),
+            .foregroundColor: NSColor.purple
+        ]
+        let textSize = (sparkleString as NSString).size(withAttributes: attributes)
+
+        let textRect = NSRect(
+            x: (bounds.width - textSize.width) / 2,
+            y: (bounds.height - textSize.height) / 2 + 2,
+            width: textSize.width,
+            height: textSize.height
+        )
+        (sparkleString as NSString).draw(in: textRect, withAttributes: attributes)
+    }
+
+    /// Draw checkmark icon to indicate style check completed successfully
+    private func drawCheckmarkIcon() {
+        let symbolConfig = NSImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
+        guard let checkmarkImage = NSImage(systemSymbolName: "checkmark", accessibilityDescription: "Style Check Complete")?
+            .withSymbolConfiguration(symbolConfig) else {
+            // Fallback to text if symbol not available
+            let checkString = "✓"
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 18, weight: .bold),
+                .foregroundColor: NSColor.purple
+            ]
+            let textSize = (checkString as NSString).size(withAttributes: attributes)
+            let textRect = NSRect(
+                x: (bounds.width - textSize.width) / 2,
+                y: (bounds.height - textSize.height) / 2 + 2,
+                width: textSize.width,
+                height: textSize.height
+            )
+            (checkString as NSString).draw(in: textRect, withAttributes: attributes)
+            return
+        }
+
+        // Tint the image purple
+        let tintedImage = NSImage(size: checkmarkImage.size, flipped: false) { rect in
+            checkmarkImage.draw(in: rect)
+            NSColor.purple.set()
+            rect.fill(using: .sourceAtop)
+            return true
+        }
+
+        // Center the image
+        let imageSize = tintedImage.size
+        let x = (bounds.width - imageSize.width) / 2
+        let y = (bounds.height - imageSize.height) / 2 + 1
+
+        tintedImage.draw(
+            in: NSRect(x: x, y: y, width: imageSize.width, height: imageSize.height),
+            from: .zero,
+            operation: .sourceOver,
+            fraction: 1.0
+        )
     }
 
     override func mouseDown(with event: NSEvent) {
