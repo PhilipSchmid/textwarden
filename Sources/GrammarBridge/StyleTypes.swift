@@ -349,6 +349,72 @@ public struct ModelDownloadProgress {
     }
 }
 
+// MARK: - Inference Preset
+
+/// Inference preset for LLM speed vs quality tradeoff
+///
+/// These presets control how the LLM generates suggestions:
+/// - **Fast**: Quick responses, best for getting rapid feedback during editing
+/// - **Balanced**: Good tradeoff between speed and thoroughness (default)
+/// - **Quality**: More thorough analysis, best for final review of important writing
+public enum LLMInferencePreset: String, CaseIterable, Identifiable {
+    case fast = "fast"
+    case balanced = "balanced"
+    case quality = "quality"
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .fast: return "Fast"
+        case .balanced: return "Balanced"
+        case .quality: return "Quality"
+        }
+    }
+
+    /// User-facing description explaining what this preset does
+    public var description: String {
+        switch self {
+        case .fast:
+            return "Quick suggestions, shorter responses. Best when you want rapid feedback while editing."
+        case .balanced:
+            return "Good balance of speed and detail. Recommended for most users."
+        case .quality:
+            return "Thorough analysis with detailed explanations. Best for reviewing important writing."
+        }
+    }
+
+    /// Technical explanation of what settings change (for advanced users)
+    public var technicalDetails: String {
+        switch self {
+        case .fast:
+            return "Lower token limit (256), more deterministic output"
+        case .balanced:
+            return "Moderate token limit (512), balanced sampling"
+        case .quality:
+            return "Higher token limit (768), comprehensive analysis"
+        }
+    }
+
+    /// Convert to FFI InferencePreset
+    var ffiPreset: InferencePreset {
+        switch self {
+        case .fast: return .Fast
+        case .balanced: return .Balanced
+        case .quality: return .Quality
+        }
+    }
+
+    /// Convert from FFI InferencePreset
+    init(ffiPreset: InferencePreset) {
+        switch ffiPreset {
+        case .Fast: self = .fast
+        case .Balanced: self = .balanced
+        case .Quality: self = .quality
+        }
+    }
+}
+
 // MARK: - Rejection Category
 
 /// Category for why a suggestion was rejected

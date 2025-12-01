@@ -7,9 +7,10 @@
 
 use crate::analyzer;
 use crate::llm_types;
+use crate::swift_logger::{SwiftLogCallback, SwiftLoggerLayer, register_swift_callback};
 use std::sync::Once;
 use tracing::Level;
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 use sysinfo::System;
 
 #[cfg(feature = "llm")]
@@ -105,6 +106,13 @@ mod ffi {
         UnnecessaryChange,
         WrongTerm,
         Other,
+    }
+
+    // Inference preset for speed/quality tradeoff
+    pub enum InferencePreset {
+        Fast,
+        Balanced,
+        Quality,
     }
 
     // Diff segment kind for visualization
@@ -216,6 +224,9 @@ mod ffi {
 
         // Import a model from a local file path
         fn llm_import_model(model_id: String, source_path: String) -> bool;
+
+        // Set inference preset (Fast/Balanced/Quality)
+        fn llm_set_inference_preset(preset: InferencePreset);
     }
 }
 
@@ -300,8 +311,8 @@ impl AnalysisResult {
     }
 }
 
-// Initialize the logging system
-// This should be called once from Swift at application startup
+// Initialize the logging system with unified Swift logging support
+// This should be called once from Swift at application startup, AFTER register_log_callback
 fn initialize_logging(log_level: String) {
     INIT_LOGGING.call_once(|| {
         let level = match log_level.to_lowercase().as_str() {
@@ -315,15 +326,37 @@ fn initialize_logging(log_level: String) {
         let filter = EnvFilter::from_default_env()
             .add_directive(level.into());
 
-        fmt()
-            .with_env_filter(filter)
+        // Create the Swift logger layer for unified logging
+        let swift_layer = SwiftLoggerLayer::new(level);
+
+        // Also keep console logging for debugging during development
+        let fmt_layer = fmt::layer()
             .with_target(true)
             .with_thread_ids(false)
-            .with_line_number(true)
+            .with_line_number(true);
+
+        // Initialize with both layers
+        tracing_subscriber::registry()
+            .with(filter)
+            .with(swift_layer)
+            .with(fmt_layer)
             .init();
 
-        tracing::info!("Grammar Engine logging initialized at level: {}", log_level);
+        tracing::info!("Grammar Engine logging initialized at level: {} (unified with Swift)", log_level);
     });
+}
+
+/// Register the Swift log callback for unified logging
+///
+/// # Safety
+/// The callback pointer must be valid and point to a function with signature:
+/// `extern "C" fn(level: i32, message: *const c_char)`
+///
+/// This must be called BEFORE initialize_logging for the callback to be active
+/// during initialization.
+#[no_mangle]
+pub extern "C" fn register_rust_log_callback(callback: SwiftLogCallback) {
+    register_swift_callback(callback);
 }
 
 // FFI wrapper that calls the analyzer and converts types
@@ -348,9 +381,9 @@ fn analyze_text(
     let mut sys_before = System::new_all();
     sys_before.refresh_all();
 
-    let pid = sysinfo::get_current_pid().unwrap();
-    let memory_before = sys_before
-        .process(pid)
+    let pid = sysinfo::get_current_pid().ok();
+    let memory_before = pid
+        .and_then(|p| sys_before.process(p))
         .map(|p| p.memory())
         .unwrap_or(0);
 
@@ -369,8 +402,8 @@ fn analyze_text(
     let mut sys_after = System::new_all();
     sys_after.refresh_all();
 
-    let memory_after = sys_after
-        .process(pid)
+    let memory_after = pid
+        .and_then(|p| sys_after.process(p))
         .map(|p| p.memory())
         .unwrap_or(0);
 
@@ -824,16 +857,40 @@ fn llm_analyze_style(text: String, style: ffi::StyleTemplate) -> FfiStyleAnalysi
     let internal_style = ffi_style_to_internal(style);
     let start = std::time::Instant::now();
 
+    // Capture memory before analysis
+    let mut sys_before = System::new_all();
+    sys_before.refresh_all();
+    let pid = sysinfo::get_current_pid().ok();
+    let memory_before = pid
+        .and_then(|p| sys_before.process(p))
+        .map(|p| p.memory())
+        .unwrap_or(0);
+
+    tracing::info!(
+        "llm_analyze_style: START text_len={}, style={:?}, memory_before={}MB",
+        text.len(),
+        internal_style,
+        memory_before / 1024 / 1024
+    );
+
     // Wrap in catch_unwind to handle any panics during analysis
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let guard = TOKIO_RUNTIME.block_on(LLM_ENGINE.read());
         if let Some(ref engine) = *guard {
+            tracing::debug!("llm_analyze_style: Engine found, calling analyze_style");
             match TOKIO_RUNTIME.block_on(engine.analyze_style(&text, internal_style)) {
                 Ok(suggestions) => {
                     let analysis_time_ms = start.elapsed().as_millis() as u64;
                     let model_id = TOKIO_RUNTIME
                         .block_on(engine.loaded_model_id())
                         .unwrap_or_default();
+
+                    tracing::info!(
+                        "llm_analyze_style: SUCCESS suggestions={}, time={}ms, model={}",
+                        suggestions.len(),
+                        analysis_time_ms,
+                        model_id
+                    );
 
                     FfiStyleAnalysisResult {
                         suggestions: suggestions
@@ -846,15 +903,19 @@ fn llm_analyze_style(text: String, style: ffi::StyleTemplate) -> FfiStyleAnalysi
                         error: None,
                     }
                 }
-                Err(e) => FfiStyleAnalysisResult {
-                    suggestions: Vec::new(),
-                    analysis_time_ms: start.elapsed().as_millis() as u64,
-                    model_id: String::new(),
-                    style: internal_style,
-                    error: Some(e),
-                },
+                Err(e) => {
+                    tracing::error!("llm_analyze_style: Engine returned error: {}", e);
+                    FfiStyleAnalysisResult {
+                        suggestions: Vec::new(),
+                        analysis_time_ms: start.elapsed().as_millis() as u64,
+                        model_id: String::new(),
+                        style: internal_style,
+                        error: Some(e),
+                    }
+                }
             }
         } else {
+            tracing::warn!("llm_analyze_style: LLM engine not initialized");
             FfiStyleAnalysisResult {
                 suggestions: Vec::new(),
                 analysis_time_ms: 0,
@@ -864,6 +925,22 @@ fn llm_analyze_style(text: String, style: ffi::StyleTemplate) -> FfiStyleAnalysi
             }
         }
     }));
+
+    // Capture memory after analysis
+    let mut sys_after = System::new_all();
+    sys_after.refresh_all();
+    let memory_after = pid
+        .and_then(|p| sys_after.process(p))
+        .map(|p| p.memory())
+        .unwrap_or(0);
+    let memory_delta_mb = (memory_after as i64 - memory_before as i64) / 1024 / 1024;
+
+    tracing::info!(
+        "llm_analyze_style: END memory_after={}MB, delta={}MB, elapsed={}ms",
+        memory_after / 1024 / 1024,
+        memory_delta_mb,
+        start.elapsed().as_millis()
+    );
 
     match result {
         Ok(analysis_result) => analysis_result,
@@ -998,3 +1075,33 @@ fn llm_import_model(model_id: String, source_path: String) -> bool {
 fn llm_import_model(_model_id: String, _source_path: String) -> bool {
     false
 }
+
+/// Convert FFI InferencePreset to internal InferencePreset
+#[cfg(feature = "llm")]
+fn ffi_preset_to_internal(preset: ffi::InferencePreset) -> crate::llm::config::InferencePreset {
+    match preset {
+        ffi::InferencePreset::Fast => crate::llm::config::InferencePreset::Fast,
+        ffi::InferencePreset::Balanced => crate::llm::config::InferencePreset::Balanced,
+        ffi::InferencePreset::Quality => crate::llm::config::InferencePreset::Quality,
+    }
+}
+
+/// Set the inference preset (Fast/Balanced/Quality)
+///
+/// This controls the speed vs quality tradeoff:
+/// - **Fast**: Shorter responses, more deterministic (faster inference)
+/// - **Balanced**: Default settings, good tradeoff
+/// - **Quality**: More thorough analysis, detailed suggestions
+#[cfg(feature = "llm")]
+fn llm_set_inference_preset(preset: ffi::InferencePreset) {
+    let internal_preset = ffi_preset_to_internal(preset);
+    tracing::info!("Setting inference preset to {:?}", internal_preset);
+
+    let mut guard = TOKIO_RUNTIME.block_on(LLM_ENGINE.write());
+    if let Some(ref mut engine) = *guard {
+        engine.set_preset(internal_preset);
+    }
+}
+
+#[cfg(not(feature = "llm"))]
+fn llm_set_inference_preset(_preset: ffi::InferencePreset) {}

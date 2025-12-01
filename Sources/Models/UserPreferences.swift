@@ -189,7 +189,11 @@ class UserPreferences: ObservableObject {
         "com.intego.app.netbarrier",  // Intego NetBarrier
         "com.intego.netbarrier.alert",  // Intego NetBarrier Alert
         "com.intego.virusbarrier.application",  // Intego VirusBarrier
-        "com.intego.virusbarrier.alert"  // Intego VirusBarrier Alert
+        "com.intego.virusbarrier.alert",  // Intego VirusBarrier Alert
+        "com.apple.Photos",            // Apple Photos
+        "com.apple.Preview",           // Apple Preview
+        "com.apple.ProblemReporter",   // Apple Problem Reporter
+        "com.prakashjoshipax.VoiceInk" // VoiceInk
     ]
 
     /// Custom words to ignore
@@ -565,6 +569,13 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Inference preset for speed vs quality tradeoff (Fast/Balanced/Quality)
+    @Published var styleInferencePreset: String {
+        didSet {
+            defaults.set(styleInferencePreset, forKey: Keys.styleInferencePreset)
+        }
+    }
+
     /// Available writing style options
     static let writingStyles = [
         "Default",
@@ -625,6 +636,7 @@ class UserPreferences: ObservableObject {
         self.styleMinSentenceWords = 5
         self.styleConfidenceThreshold = 0.7
         self.styleAutoLoadModel = false
+        self.styleInferencePreset = "balanced"  // Default to balanced
 
         // Then load saved preferences
         if let pauseString = defaults.string(forKey: Keys.pauseDuration),
@@ -731,6 +743,7 @@ class UserPreferences: ObservableObject {
         self.styleMinSentenceWords = defaults.object(forKey: Keys.styleMinSentenceWords) as? Int ?? 5
         self.styleConfidenceThreshold = defaults.object(forKey: Keys.styleConfidenceThreshold) as? Double ?? 0.7
         self.styleAutoLoadModel = defaults.object(forKey: Keys.styleAutoLoadModel) as? Bool ?? false
+        self.styleInferencePreset = defaults.string(forKey: Keys.styleInferencePreset) ?? "balanced"
 
         // This prevents grammar checking in terminals where command output can cause false positives
         // Users can still enable terminals individually via Applications preferences
@@ -1120,5 +1133,6 @@ class UserPreferences: ObservableObject {
         static let styleMinSentenceWords = "styleMinSentenceWords"
         static let styleConfidenceThreshold = "styleConfidenceThreshold"
         static let styleAutoLoadModel = "styleAutoLoadModel"
+        static let styleInferencePreset = "styleInferencePreset"
     }
 }

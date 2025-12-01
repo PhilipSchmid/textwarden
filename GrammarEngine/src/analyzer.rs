@@ -52,6 +52,78 @@ fn parse_dialect(dialect_str: &str) -> Dialect {
     }
 }
 
+/// Deduplicate errors that have overlapping text ranges.
+/// When multiple errors overlap (e.g., SPELLING and TYPO for the same misspelled word),
+/// keep only the most specific/useful one.
+fn deduplicate_overlapping_errors(mut errors: Vec<GrammarError>) -> Vec<GrammarError> {
+    use std::collections::HashMap;
+
+    if errors.len() <= 1 {
+        return errors;
+    }
+
+    // Sort by start position, then by end position (descending to prefer larger spans)
+    errors.sort_by(|a, b| {
+        a.start.cmp(&b.start).then_with(|| b.end.cmp(&a.end))
+    });
+
+    // Group errors by exact span (start, end)
+    let mut span_groups: HashMap<(usize, usize), Vec<GrammarError>> = HashMap::new();
+    for error in errors {
+        span_groups
+            .entry((error.start, error.end))
+            .or_default()
+            .push(error);
+    }
+
+    // For each group, pick the best error
+    let mut result: Vec<GrammarError> = span_groups
+        .into_values()
+        .map(|mut group| {
+            if group.len() == 1 {
+                return group.remove(0);
+            }
+
+            // Priority order for categories (higher = better to keep)
+            // SPELLING is more specific than TYPO, GRAMMAR more specific than both
+            let category_priority = |cat: &str| -> u8 {
+                match cat.to_uppercase().as_str() {
+                    "GRAMMAR" => 10,
+                    "SPELLING" => 9,
+                    "PUNCTUATION" => 8,
+                    "STYLE" => 7,
+                    "FORMATTING" => 6,
+                    "TYPO" => 5,  // Lower priority - often duplicates SPELLING
+                    _ => 1,
+                }
+            };
+
+            // Sort by category priority (descending) then by severity
+            group.sort_by(|a, b| {
+                let a_priority = category_priority(&a.category);
+                let b_priority = category_priority(&b.category);
+                b_priority.cmp(&a_priority)
+                    .then_with(|| {
+                        // Higher severity wins as tiebreaker
+                        let severity_ord = |s: &ErrorSeverity| match s {
+                            ErrorSeverity::Error => 3,
+                            ErrorSeverity::Warning => 2,
+                            ErrorSeverity::Info => 1,
+                        };
+                        severity_ord(&b.severity).cmp(&severity_ord(&a.severity))
+                    })
+            });
+
+            // Take the best one (first after sorting)
+            group.remove(0)
+        })
+        .collect();
+
+    // Sort result by start position for consistent ordering
+    result.sort_by_key(|e| e.start);
+    result
+}
+
 /// Analyze text for grammar errors using Harper
 ///
 /// # Arguments
@@ -236,6 +308,17 @@ pub fn analyze_text(
             }
         })
         .collect();
+
+    // Deduplicate overlapping errors (e.g., SPELLING and TYPO for the same word)
+    // This happens when Harper flags the same span with multiple lint types
+    let errors_before_dedupe = errors.len();
+    errors = deduplicate_overlapping_errors(errors);
+    if errors_before_dedupe != errors.len() {
+        tracing::debug!(
+            "Deduplication: {} errors before, {} after (removed {} duplicates)",
+            errors_before_dedupe, errors.len(), errors_before_dedupe - errors.len()
+        );
+    }
 
     // Apply language detection filter to remove errors for non-English words
     // This is the optimized approach: we only detect language for words that Harper flagged
@@ -1034,7 +1117,8 @@ mod tests {
             false,
             false, // IT terminology
             true, // Enable language detection
-            vec!["german".to_string()]
+            vec!["german".to_string()],
+            true
         );
 
         println!("\n=== GERMAN SENTENCE TEST ===");
@@ -1177,7 +1261,8 @@ mod tests {
             false,
             false,
             true,
-            vec!["spanish".to_string()] // Only Spanish excluded
+            vec!["spanish".to_string()], // Only Spanish excluded
+            true
         );
 
         println!("\n=== SELECTIVE EXCLUSION TEST ===");
@@ -1207,7 +1292,8 @@ mod tests {
             true, // Gen Z slang ON
             false, // IT terminology
             true, // Language detection ON
-            vec!["spanish".to_string()]
+            vec!["spanish".to_string()],
+            true
         );
 
         println!("\n=== LANGUAGE + SLANG TEST ===");
@@ -1326,7 +1412,8 @@ mod tests {
             false,
             false,
             true,
-            vec![] // Empty list
+            vec![], // Empty list
+            true
         );
 
         // Behavior should be same as disabled (no filtering)
@@ -1503,7 +1590,8 @@ mod tests {
             false,
             false,
             true,
-            vec!["italian".to_string()] // Only Italian excluded, not German
+            vec!["italian".to_string()], // Only Italian excluded, not German
+            true
         );
 
         println!("\n=== NON-EXCLUDED LANGUAGE TEST ===");
@@ -1737,7 +1825,7 @@ mod tests {
                     ".repeat(10);
 
         let start = Instant::now();
-        let result = analyze_text(&text, "American", false, false, false, true, all_langs);
+        let result = analyze_text(&text, "American", false, false, false, true, all_langs, true);
         let elapsed = start.elapsed();
 
         println!("\n=== PERFORMANCE: All Languages Excluded ===");
@@ -1799,7 +1887,8 @@ mod tests {
             true, // slang
             false, // IT terminology
             true, // language detection
-            vec!["german".to_string(), "spanish".to_string()]
+            vec!["german".to_string(), "spanish".to_string()],
+            true
         );
         let elapsed = start.elapsed();
 
@@ -2183,6 +2272,77 @@ mod tests {
         }
 
         println!("=== END COMPARISON ===\n");
+    }
+
+    #[test]
+    fn test_ciliium_spelling_investigation() {
+        // Investigation: Why is "Ciliium" (double-i misspelling of "cilium") not flagged?
+        // "cilium" is in the IT terminology list (CNCF Cilium network tool)
+        // "cilium" is also a real English word (cell hair-like projections)
+
+        println!("\n=== CILIIUM SPELLING INVESTIGATION ===");
+
+        // Test 1: "Ciliium" with IT terminology enabled
+        let text1 = "I use Ciliium for networking.";
+        let result1 = analyze_text(text1, "American", false, false, true, false, vec![], true);
+        println!("Text: '{}' (IT terminology: ON)", text1);
+        println!("Errors: {}", result1.errors.len());
+        for error in &result1.errors {
+            println!("  - '{}' ({}-{}): {} [{}]", &text1[error.start..error.end], error.start, error.end, error.message, error.category);
+        }
+        let has_ciliium_error_with_it = result1.errors.iter().any(|e| &text1[e.start..e.end] == "Ciliium");
+        println!("Ciliium flagged with IT on: {}", has_ciliium_error_with_it);
+
+        // Test 2: "Ciliium" WITHOUT IT terminology (only Harper's curated dict)
+        let text2 = "The Ciliium is a part of the cell.";
+        let result2 = analyze_text(text2, "American", false, false, false, false, vec![], true);
+        println!("\nText: '{}' (IT terminology: OFF)", text2);
+        println!("Errors: {}", result2.errors.len());
+        for error in &result2.errors {
+            println!("  - '{}' ({}-{}): {} [{}]", &text2[error.start..error.end], error.start, error.end, error.message, error.category);
+        }
+        let has_ciliium_error_without_it = result2.errors.iter().any(|e| &text2[e.start..e.end] == "Ciliium");
+        println!("Ciliium flagged with IT off: {}", has_ciliium_error_without_it);
+
+        // Test 3: Known misspelling to verify spell checker works
+        let text3 = "The teh quick fox.";
+        let result3 = analyze_text(text3, "American", false, false, false, false, vec![], true);
+        println!("\nText: '{}' (control test)", text3);
+        println!("Errors: {}", result3.errors.len());
+        for error in &result3.errors {
+            println!("  - '{}' ({}-{}): {} [{}]", &text3[error.start..error.end], error.start, error.end, error.message, error.category);
+        }
+        let has_teh_error = result3.errors.iter().any(|e| &text3[e.start..e.end] == "teh");
+        println!("'teh' flagged: {}", has_teh_error);
+
+        // Test 4: Correct spelling "cilium"
+        let text4 = "The cilium is important.";
+        let result4 = analyze_text(text4, "American", false, false, false, false, vec![], true);
+        println!("\nText: '{}' (correct spelling)", text4);
+        println!("Errors: {}", result4.errors.len());
+        for error in &result4.errors {
+            println!("  - '{}' ({}-{}): {} [{}]", &text4[error.start..error.end], error.start, error.end, error.message, error.category);
+        }
+        let has_cilium_error = result4.errors.iter().any(|e| &text4[e.start..e.end] == "cilium");
+        println!("'cilium' (correct) flagged: {}", has_cilium_error);
+
+        // Test 5: "ciliium" lowercase
+        let text5 = "The ciliium is important.";
+        let result5 = analyze_text(text5, "American", false, false, false, false, vec![], true);
+        println!("\nText: '{}' (lowercase misspelling)", text5);
+        println!("Errors: {}", result5.errors.len());
+        for error in &result5.errors {
+            println!("  - '{}' ({}-{}): {} [{}]", &text5[error.start..error.end], error.start, error.end, error.message, error.category);
+        }
+        let has_ciliium_lowercase = result5.errors.iter().any(|e| &text5[e.start..e.end] == "ciliium");
+        println!("'ciliium' (lowercase) flagged: {}", has_ciliium_lowercase);
+
+        println!("\n=== END INVESTIGATION ===\n");
+
+        // Assert that "teh" is caught (verifies spell checker works)
+        assert!(has_teh_error, "'teh' should be flagged as spelling error");
+
+        // The test doesn't assert on Ciliium - it's for investigation only
     }
 }
 

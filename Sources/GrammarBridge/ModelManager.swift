@@ -220,6 +220,18 @@ public class ModelManager: ObservableObject {
             return
         }
 
+        // Check if the same model is already loaded - skip redundant load
+        if loadedModelId == modelId {
+            Logger.debug("Model load skipped - \(modelId) already loaded", category: Logger.llm)
+            return
+        }
+
+        // If a different model is loaded, unload it first to free memory
+        if loadedModelId != nil {
+            Logger.info("Unloading current model before loading new one", category: Logger.llm)
+            unloadModel()
+        }
+
         // Check if model exists
         guard let model = models.first(where: { $0.id == modelId }) else {
             Logger.error("Cannot load model - model not found: \(modelId)", category: Logger.llm)
@@ -276,6 +288,13 @@ public class ModelManager: ObservableObject {
             case .success:
                 loadedModelId = modelId
                 Logger.info("Model loaded successfully: \(model.name)", category: Logger.llm)
+
+                // Apply the user's preferred inference preset
+                let presetString = UserPreferences.shared.styleInferencePreset
+                if let preset = LLMInferencePreset(rawValue: presetString) {
+                    LLMEngine.shared.setInferencePreset(preset)
+                    Logger.debug("Applied inference preset: \(preset.displayName)", category: Logger.llm)
+                }
             case .failure(let error):
                 modelErrors[modelId] = error.message
                 Logger.error("Model load failed: \(model.name) - \(error.message)", category: Logger.llm)
