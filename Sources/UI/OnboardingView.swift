@@ -30,16 +30,20 @@ struct OnboardingView: View {
                     Image(systemName: "checkmark.shield.fill")
                         .font(.system(size: 60))
                         .foregroundColor(.accentColor)
+                        .accessibilityHidden(true) // Decorative
 
                     Text("Welcome to TextWarden")
                         .font(.title)
                         .fontWeight(.bold)
+                        .accessibilityAddTraits(.isHeader)
 
                     Text("Your Privacy-First Grammar Checker")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
                 .padding(.top, 24)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Welcome to TextWarden, Your Privacy-First Grammar Checker")
 
                 Divider()
 
@@ -68,6 +72,8 @@ struct OnboardingView: View {
                             dismiss()
                         }
                         .keyboardShortcut(.escape)
+                        .accessibilityLabel("Cancel setup")
+                        .accessibilityHint("Double tap to cancel and close the setup window")
                     }
 
                     Spacer()
@@ -76,12 +82,16 @@ struct OnboardingView: View {
                         Button("Not Now") {
                             handleSkipLaunchAtLogin()
                         }
+                        .accessibilityLabel("Skip launch at login")
+                        .accessibilityHint("Double tap to skip this option and finish setup")
 
                         Button("Enable Launch at Login") {
                             handleEnableLaunchAtLogin()
                         }
                         .buttonStyle(.borderedProminent)
                         .keyboardShortcut(.defaultAction)
+                        .accessibilityLabel("Enable launch at login")
+                        .accessibilityHint("Double tap to enable TextWarden to start automatically when you log in")
                     } else {
                         actionButton
                     }
@@ -251,6 +261,21 @@ struct OnboardingView: View {
         }
         .buttonStyle(.borderedProminent)
         .keyboardShortcut(.defaultAction)
+        .accessibilityLabel(actionButtonTitle)
+        .accessibilityHint(actionButtonHint)
+    }
+
+    private var actionButtonHint: String {
+        switch currentStep {
+        case .welcome:
+            return "Double tap to begin the setup process"
+        case .permissionRequest:
+            return "Double tap to open System Settings and grant accessibility permission"
+        case .verification:
+            return "Double tap to continue to the next step"
+        case .launchAtLogin:
+            return "Double tap to complete setup"
+        }
     }
 
     private var actionButtonTitle: String {
@@ -366,6 +391,7 @@ private struct FeatureRow: View {
                 .font(.title3)
                 .foregroundColor(.accentColor)
                 .frame(width: 24)
+                .accessibilityHidden(true) // Icon is decorative
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -377,6 +403,8 @@ private struct FeatureRow: View {
                     .foregroundColor(.secondary)
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title): \(description)")
     }
 }
 
@@ -393,10 +421,13 @@ private struct StepRow: View {
                 .frame(width: 24, height: 24)
                 .background(Color.accentColor)
                 .clipShape(Circle())
+                .accessibilityHidden(true) // Number badge is visual only
 
             Text(text)
                 .font(.subheadline)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Step \(number): \(text)")
     }
 }
 
