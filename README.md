@@ -1,85 +1,66 @@
+
 # TextWarden
 
-A privacy-first, offline grammar checker for macOS.
+**Grammar checking that respects your privacy.**
 
-## What is TextWarden?
+TextWarden checks your spelling and grammar while you type - in any app on your Mac. Unlike online tools, everything runs locally on your computer. Your writing never leaves your device.
 
-TextWarden is a native macOS application that provides real-time grammar checking across all your applications—from TextEdit and Pages to VS Code and Slack. It runs entirely on your device with zero network access, ensuring your writing stays private.
+<p align="center">
+  <img src="Assets/textwarden_logo.svg" alt="TextWarden Logo" width="320" height="320">
+</p>
 
-## Why TextWarden?
+## Core Principles
 
-**Privacy First**
-- All processing happens locally on your Mac
-- Zero network access—your text never leaves your device
-- No telemetry, no analytics, no cloud services
+**Private by Design**
+Your text stays on your Mac. There are no cloud servers, no accounts, and no data collection. TextWarden works completely offline.
 
-**System-Wide**
-- Works in any application that supports macOS Accessibility API
-- No browser extensions or app-specific plugins needed
-- Seamless experience across your entire workflow
+**Blazingly Fast**
+Grammar checking powered by Harper, a high-performance Rust-based engine. Checks complete in milliseconds, so you never notice any delay while typing.
 
-**Fast & Lightweight**
-- Grammar analysis completes in under 20ms for typical sentences
-- Memory footprint under 100MB
-- No UI blocking—checks run asynchronously in the background
+**Works Across Apps**
+TextWarden integrates with most macOS applications through the Accessibility API. It works well with Apple Mail, Apple Notes, Pages, Safari, and many other apps. Some applications with limited accessibility support (certain Electron apps or custom text rendering) may have reduced functionality.
 
-**Native macOS Experience**
-- Built with Swift and SwiftUI
-- Follows Apple Human Interface Guidelines
-- Supports Dark Mode, VoiceOver, and Dynamic Type
+**Simple and Unobtrusive**
+A small indicator appears when issues are found. Click to see suggestions. Accept with one click or keyboard shortcut. That's it.
 
-## How It Works
+## Getting Started
 
-TextWarden uses the [Harper](https://github.com/elijah-potter/harper) grammar engine (Rust-based, rule-driven) for grammar analysis. The application integrates with macOS using:
-
-- **Accessibility API**: Monitors text changes across applications
-- **Swift/Rust FFI**: High-performance bridge via swift-bridge
-- **Native UI**: SwiftUI for preferences and suggestion popovers
-
-## Installation
-
-```bash
-brew install --cask textwarden
-```
-
-After installation, grant Accessibility permissions in **System Settings → Privacy & Security → Accessibility**.
+1. Download TextWarden
+2. Grant Accessibility permission when prompted (required to read text in other apps)
+3. Start typing - TextWarden works automatically in the background
 
 ## Features
 
-- Real-time grammar error detection
-- Contextual suggestions with explanations
-- Application-specific control (enable/disable per app)
-- Custom vocabulary (up to 1000 words)
-- Severity-based error highlighting (critical/warning/style)
-- Keyboard shortcuts for quick corrections
+- Real-time grammar and spelling checks (English only)
+- Automatic language detection - non-English text is ignored, not flagged
+- One-click corrections
+- Custom dictionary for words you use often
+- Control which apps TextWarden monitors
+
+## AI-Powered Style Suggestions
+
+Beyond basic grammar checking, TextWarden offers intelligent style suggestions powered by a local AI model running entirely on your Mac. Get recommendations for clearer phrasing, better word choices, and improved readability - all without sending your text to any server. The AI runs on your hardware using Apple Silicon's neural engine, keeping your writing private while providing smart suggestions that go beyond simple rule-based checks.
 
 ## Requirements
 
-- macOS 15.7 (Sequoia) or later
-- Intel (x86_64) or Apple Silicon (arm64)
+- Apple Silicon Mac (M1 or later)
+- macOS 14 or later (optimized for macOS 26)
 
-## Development
+## Privacy
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions.
+TextWarden never sends your text anywhere. The only network activity is downloading AI models (optional), which you can also download manually. Block TextWarden in your firewall and it works exactly the same - all grammar checking runs locally on your Mac.
 
-**Tech Stack:**
-- Swift 5.9+ (application layer)
-- Rust 1.75+ (grammar engine)
-- Harper v0.72 (grammar rules)
-- swift-bridge 1.0+ (FFI)
-- SwiftUI + AppKit (UI)
+## Credits
 
-## Contributing
+TextWarden is built on excellent open source projects:
 
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/your-feature`)
-3. Follow the setup guide in [CONTRIBUTING.md](CONTRIBUTING.md)
-4. Write tests for new functionality
-5. Ensure code passes SwiftLint and Clippy
-6. Submit a pull request
+- [Harper](https://github.com/Automattic/harper) - Fast, privacy-focused grammar checker
+- [mistral.rs](https://github.com/EricLBuehler/mistral.rs) - Local LLM inference engine
+- [swift-bridge](https://github.com/chinedufn/swift-bridge) - Rust/Swift interoperability
+- [whichlang](https://github.com/quickwit-oss/whichlang) - Language detection
+- [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) - Global keyboard shortcuts for macOS
+- [LaunchAtLogin-Modern](https://github.com/sindresorhus/LaunchAtLogin-Modern) - Launch at login functionality
 
 ## License
 
-Apache License 2.0 - see [LICENSE](LICENSE) for details.
+Apache License 2.0
