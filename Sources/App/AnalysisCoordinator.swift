@@ -180,6 +180,13 @@ class AnalysisCoordinator: ObservableObject {
             self.applyStyleTextReplacement(for: suggestion)
         }
 
+        // Handle reject style suggestion - remove from tracking (indicator update handled in removeSuggestionFromTracking)
+        suggestionPopover.onRejectStyleSuggestion = { [weak self] suggestion, category in
+            guard let self = self else { return }
+            Logger.debug("AnalysisCoordinator: Style suggestion rejected with reason: \(category.rawValue)", category: Logger.analysis)
+            self.removeSuggestionFromTracking(suggestion)
+        }
+
         // Handle mouse entered popover - cancel any pending delayed switches
         suggestionPopover.onMouseEntered = { [weak self] in
             guard let self = self else { return }
@@ -345,6 +352,10 @@ class AnalysisCoordinator: ObservableObject {
 
                     if let element = self.textMonitor.monitoredElement {
                         self.textMonitor.extractText(from: element)
+                    } else {
+                        // Element was cleared by stopMonitoring - restart monitoring to find text field
+                        Logger.debug("AnalysisCoordinator: Same app but element nil (was stopped) - restarting monitoring", category: Logger.analysis)
+                        self.startMonitoring(context: context)
                     }
                 } else {
                     Logger.debug("AnalysisCoordinator: New application - starting monitoring", category: Logger.analysis)
@@ -1183,10 +1194,9 @@ class AnalysisCoordinator: ObservableObject {
 
             guard hasQualifyingSentence else {
                 Logger.debug("AnalysisCoordinator: No sentence with \(minWords)+ words - skipping style analysis", category: Logger.llm)
-                // Clear any existing suggestions
-                DispatchQueue.main.async { [weak self] in
-                    self?.currentStyleSuggestions = []
-                }
+                // Don't clear existing suggestions - they remain valid until explicitly removed via accept/reject
+                // This prevents the indicator from briefly disappearing when accepting a suggestion
+                // (text change triggers re-analysis, but we shouldn't lose remaining suggestions)
                 return
             }
 
@@ -2040,7 +2050,7 @@ class AnalysisCoordinator: ObservableObject {
         }
     }
 
-    /// Remove an applied style suggestion from tracking
+    /// Remove an applied style suggestion from tracking and update UI
     private func removeSuggestionFromTracking(_ suggestion: StyleSuggestionModel) {
         // Remove from current suggestions
         currentStyleSuggestions.removeAll { $0.id == suggestion.id }
@@ -2049,6 +2059,24 @@ class AnalysisCoordinator: ObservableObject {
         suggestionPopover.allStyleSuggestions.removeAll { $0.id == suggestion.id }
 
         Logger.debug("Removed style suggestion from tracking, remaining: \(currentStyleSuggestions.count)", category: Logger.analysis)
+
+        // Update the floating indicator with remaining suggestions
+        if currentStyleSuggestions.isEmpty {
+            // No more suggestions - hide indicator
+            Logger.debug("AnalysisCoordinator: No remaining style suggestions, hiding indicator", category: Logger.analysis)
+            floatingIndicator.hide()
+        } else {
+            // Update indicator with remaining count
+            Logger.debug("AnalysisCoordinator: \(currentStyleSuggestions.count) style suggestions remaining, updating indicator", category: Logger.analysis)
+            if let element = textMonitor.monitoredElement {
+                floatingIndicator.update(
+                    errors: [],
+                    styleSuggestions: currentStyleSuggestions,
+                    element: element,
+                    context: monitoredContext
+                )
+            }
+        }
     }
 
     /// Apply text replacement for browsers using menu action with keyboard fallback
@@ -2792,11 +2820,14 @@ extension AnalysisCoordinator {
 
     // MARK: - Style Cache Methods
 
-    /// Compute a cache key for style analysis based on text content and style
+    /// Compute a cache key for style analysis based on text content, style, model, and preset
     /// Uses a hash to keep keys short while being collision-resistant
+    /// Includes model ID and preset so changing these triggers re-analysis of the same text
     func computeStyleCacheKey(text: String) -> String {
         let style = UserPreferences.shared.selectedWritingStyle
-        let combined = "\(text.hashValue)_\(style)"
+        let modelId = UserPreferences.shared.selectedModelId
+        let preset = UserPreferences.shared.styleInferencePreset
+        let combined = "\(text.hashValue)_\(style)_\(modelId)_\(preset)"
         return combined
     }
 
