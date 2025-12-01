@@ -12,7 +12,7 @@ struct TextWardenIcon {
     static func create(size: NSSize = NSSize(width: 22, height: 22)) -> NSImage {
         // Load logo from asset catalog
         guard let logo = NSImage(named: "TextWardenLogo") else {
-            print("⚠️ TextWardenLogo asset not found for menubar icon, using fallback")
+            Logger.warning("TextWardenLogo asset not found for menubar icon, using fallback", category: Logger.ui)
             return createFallbackMenuBarIcon(size: size)
         }
 
@@ -44,7 +44,7 @@ struct TextWardenIcon {
     static func createDisabled(size: NSSize = NSSize(width: 22, height: 22)) -> NSImage {
         // Load logo from asset catalog
         guard let logo = NSImage(named: "TextWardenLogo") else {
-            print("⚠️ TextWardenLogo asset not found for menubar icon, using fallback")
+            Logger.warning("TextWardenLogo asset not found for menubar icon, using fallback", category: Logger.ui)
             return createFallbackMenuBarIconDisabled(size: size)
         }
 
@@ -246,7 +246,7 @@ struct TextWardenIcon {
     static func createAppIcon(size: NSSize = NSSize(width: 256, height: 256)) -> NSImage {
         // Load logo from asset catalog
         guard let logo = NSImage(named: "TextWardenLogo") else {
-            print("⚠️ TextWardenLogo asset not found for app icon")
+            Logger.warning("TextWardenLogo asset not found for app icon", category: Logger.ui)
             return createFallbackAppIcon(size: size)
         }
 

@@ -335,7 +335,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         // Auto-scale height with reasonable max to prevent massive popovers
         let height = min(fittingSize.height, 400)
 
-        print("📐 Popover: Initial creation size: \(width) x \(height) (fitting: \(fittingSize))")
+        Logger.debug("Popover: Initial creation size: \(width) x \(height) (fitting: \(fittingSize))", category: Logger.ui)
 
         hostingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
 
@@ -545,7 +545,7 @@ class SuggestionPopover: NSObject, ObservableObject {
             hostingView.needsDisplay = true
             panel.display()
 
-            print("📐 Popover: Resized to \(width) x \(height) (fitting: \(fittingSize), shrinking: \(isShrinking))")
+            Logger.trace("Popover: Resized to \(width) x \(height)", category: Logger.ui)
         }
     }
 
@@ -604,7 +604,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         trackingView.needsDisplay = true
         panel.display()
 
-        print("📐 Popover: Rebuilt content - \(width) x \(height)")
+        Logger.debug("Popover: Rebuilt content - \(width) x \(height)", category: Logger.ui)
     }
 
     /// Apply suggestion (T044)
@@ -1426,17 +1426,17 @@ class PopoverTrackingView: NSView {
             userInfo: nil
         )
         addTrackingArea(trackingArea)
-        print("🎯 Popover: Tracking area set up with bounds: \(bounds)")
+        Logger.trace("Popover: Tracking area set up with bounds: \(bounds)", category: Logger.ui)
     }
 
     override func mouseEntered(with event: NSEvent) {
-        print("🖱️ Popover: Mouse ENTERED tracking view")
+        Logger.trace("Popover: Mouse ENTERED tracking view", category: Logger.ui)
         popover?.cancelHide()
         popover?.onMouseEntered?()
     }
 
     override func mouseExited(with event: NSEvent) {
-        print("🖱️ Popover: Mouse EXITED tracking view")
+        Logger.trace("Popover: Mouse EXITED tracking view", category: Logger.ui)
         // Schedule hide after 1 second when mouse leaves
         popover?.scheduleHide()
     }

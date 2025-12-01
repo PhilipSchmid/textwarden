@@ -55,7 +55,7 @@ class PermissionManager: ObservableObject {
 
         // Call callback if permission was just granted
         if !wasGranted && isGranted {
-            print("🎉 PermissionManager: Permission just granted!")
+            Logger.info("Permission just granted", category: Logger.permissions)
             onPermissionGranted?()
         }
     }
@@ -69,14 +69,14 @@ class PermissionManager: ObservableObject {
     /// Request Accessibility permissions
     /// This will trigger the system permission dialog
     func requestPermission() {
-        print("🔐 PermissionManager: Requesting Accessibility permission (should show system dialog)...")
+        Logger.info("Requesting Accessibility permission", category: Logger.permissions)
 
         let options: NSDictionary = [
             kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
         ]
         let result = AXIsProcessTrustedWithOptions(options)
 
-        print("🔐 PermissionManager: AXIsProcessTrustedWithOptions returned: \(result)")
+        Logger.debug("AXIsProcessTrustedWithOptions returned: \(result)", category: Logger.permissions)
 
         // Start polling to detect when permission is granted
         startPolling()

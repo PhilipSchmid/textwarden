@@ -47,7 +47,7 @@ class AnalysisCoordinator: ObservableObject {
     /// Error overlay window for visual underlines (lazy initialization)
     private lazy var errorOverlay: ErrorOverlayWindow = {
         let window = ErrorOverlayWindow()
-        print("📱 AnalysisCoordinator: Error overlay window created")
+        Logger.debug("AnalysisCoordinator: Error overlay window created", category: Logger.ui)
         return window
     }()
 
@@ -399,7 +399,7 @@ class AnalysisCoordinator: ObservableObject {
         // Monitor permission changes
         permissionManager.$isPermissionGranted
             .sink { [weak self] isGranted in
-                print("🔐 AnalysisCoordinator: Permission status changed to \(isGranted)")
+                Logger.info("AnalysisCoordinator: Permission status changed to \(isGranted)", category: Logger.permissions)
                 if isGranted {
                     self?.resumeMonitoring()
                 } else {
@@ -1664,12 +1664,12 @@ class AnalysisCoordinator: ObservableObject {
 
         do {
             try CustomVocabulary.shared.addWord(errorText)
-            print("✅ Added '\(errorText)' to custom dictionary")
+            Logger.info("Added '\(errorText)' to custom dictionary", category: Logger.analysis)
 
             // Record statistics
             UserStatistics.shared.recordWordAddedToDictionary()
         } catch {
-            print("❌ Failed to add '\(errorText)' to dictionary: \(error)")
+            Logger.error("Failed to add '\(errorText)' to dictionary: \(error)", category: Logger.analysis)
         }
 
         // Re-filter current errors to immediately remove this word
@@ -2782,7 +2782,7 @@ extension AnalysisCoordinator {
         }
 
         if !expiredKeys.isEmpty {
-            print("📦 AnalysisCoordinator: Purged \(expiredKeys.count) expired cache entries")
+            Logger.debug("AnalysisCoordinator: Purged \(expiredKeys.count) expired cache entries", category: Logger.performance)
         }
     }
 
@@ -2800,7 +2800,7 @@ extension AnalysisCoordinator {
             cacheMetadata.removeValue(forKey: key)
         }
 
-        print("📦 AnalysisCoordinator: Evicted \(toRemove) LRU cache entries")
+        Logger.debug("AnalysisCoordinator: Evicted \(toRemove) LRU cache entries", category: Logger.performance)
     }
 
     /// Update cache with access time tracking
