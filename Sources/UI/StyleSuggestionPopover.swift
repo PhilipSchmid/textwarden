@@ -21,8 +21,14 @@ class StyleSuggestionPopover: ObservableObject {
     /// All style suggestions for navigation
     private var allSuggestions: [StyleSuggestionModel] = []
 
-    /// The popover window
-    private var popoverWindow: NSWindow?
+    /// The popover panel (using NonActivatingPanel for proper window behavior)
+    private var popoverPanel: NonActivatingPanel?
+
+    /// Timer for delayed hiding
+    private var hideTimer: Timer?
+
+    /// Event monitor for mouse clicks outside popover
+    private var clickOutsideMonitor: Any?
 
     /// Callback when suggestion is accepted
     var onAccept: ((StyleSuggestionModel) -> Void)?
@@ -32,6 +38,10 @@ class StyleSuggestionPopover: ObservableObject {
 
     /// Callback when popover is dismissed
     var onDismiss: (() -> Void)?
+
+    /// Track whether the current suggestion was acted upon (accepted/rejected)
+    /// Used to detect "ignored" suggestions when popover is dismissed without action
+    private var currentSuggestionActedUpon: Bool = false
 
     private init() {}
 
@@ -46,30 +56,54 @@ class StyleSuggestionPopover: ObservableObject {
     ) {
         self.currentSuggestion = suggestion
         self.allSuggestions = allSuggestions.isEmpty ? [suggestion] : allSuggestions
+        self.currentSuggestionActedUpon = false  // Reset for new suggestion
 
-        // Create or update popover window
-        if popoverWindow == nil {
-            createPopoverWindow()
+        // Create or update popover panel
+        if popoverPanel == nil {
+            createPopoverPanel()
         }
 
         updateContent()
         positionPopover(at: position, constrainTo: windowFrame)
-        popoverWindow?.orderFront(nil)
+
+        // Use order(.above) instead of orderFront() to prevent focus stealing
+        popoverPanel?.order(.above, relativeTo: 0)
+
+        // Setup click outside monitor to close when clicking elsewhere
+        setupClickOutsideMonitor()
     }
 
     /// Hide the popover
     func hide() {
-        popoverWindow?.orderOut(nil)
+        hideTimer?.invalidate()
+        hideTimer = nil
+
+        if let monitor = clickOutsideMonitor {
+            NSEvent.removeMonitor(monitor)
+            clickOutsideMonitor = nil
+        }
+
+        // Record as ignored if there was a suggestion that wasn't acted upon
+        if currentSuggestion != nil && !currentSuggestionActedUpon {
+            UserStatistics.shared.recordStyleIgnored()
+        }
+
+        popoverPanel?.orderOut(nil)
         currentSuggestion = nil
+        currentSuggestionActedUpon = false
     }
 
     /// Schedule delayed hide (for mouse tracking)
-    func scheduleHide(after delay: TimeInterval = 0.3) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+    func scheduleHide(after delay: TimeInterval = 2.0) {
+        // Cancel any existing timer
+        hideTimer?.invalidate()
+
+        // Schedule hide after delay (gives user time to move mouse into popover)
+        hideTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             guard let self = self else { return }
             // Only hide if mouse is not over the popover
-            if let window = self.popoverWindow,
-               !window.frame.contains(NSEvent.mouseLocation) {
+            if let panel = self.popoverPanel,
+               !panel.frame.contains(NSEvent.mouseLocation) {
                 self.hide()
             }
         }
@@ -77,25 +111,56 @@ class StyleSuggestionPopover: ObservableObject {
 
     /// Cancel any pending hide
     func cancelHide() {
-        // In a full implementation, this would cancel the delayed hide timer
+        hideTimer?.invalidate()
+        hideTimer = nil
+    }
+
+    /// Setup click outside monitor to close popover when user clicks elsewhere
+    private func setupClickOutsideMonitor() {
+        if let monitor = clickOutsideMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+
+        // Use GLOBAL monitor to detect ALL clicks (including in other apps)
+        clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in
+            guard let self = self else { return }
+
+            Logger.debug("StyleSuggestionPopover: Global click detected - hiding popover", category: Logger.ui)
+
+            // Cancel any pending auto-hide timer
+            self.hideTimer?.invalidate()
+            self.hideTimer = nil
+
+            self.hide()
+            self.onDismiss?()
+        }
     }
 
     // MARK: - Private Methods
 
-    private func createPopoverWindow() {
-        let window = NSWindow(
+    private func createPopoverPanel() {
+        let panel = NonActivatingPanel(
             contentRect: NSRect(x: 0, y: 0, width: 400, height: 200),
-            styleMask: [.borderless],
+            styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
             defer: false
         )
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.level = .popUpMenu
-        window.hasShadow = true
-        window.isMovableByWindowBackground = false
 
-        popoverWindow = window
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.level = .popUpMenu  // Use popUpMenu level - these never activate the app
+        panel.hasShadow = true
+        panel.isMovableByWindowBackground = false
+        panel.isFloatingPanel = true
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+
+        // CRITICAL: Prevent this panel from affecting app activation
+        panel.hidesOnDeactivate = false
+        panel.worksWhenModal = false
+        // This makes the panel resist becoming the key window
+        panel.becomesKeyOnlyIfNeeded = true
+
+        popoverPanel = panel
     }
 
     private func updateContent() {
@@ -126,12 +191,12 @@ class StyleSuggestionPopover: ObservableObject {
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: 200)
 
-        popoverWindow?.contentView = hostingView
-        popoverWindow?.setContentSize(hostingView.fittingSize)
+        popoverPanel?.contentView = hostingView
+        popoverPanel?.setContentSize(hostingView.fittingSize)
     }
 
     private func positionPopover(at position: CGPoint, constrainTo windowFrame: CGRect?) {
-        guard let window = popoverWindow else { return }
+        guard let window = popoverPanel else { return }
 
         var frame = window.frame
         frame.origin.x = position.x - frame.width / 2
@@ -158,6 +223,7 @@ class StyleSuggestionPopover: ObservableObject {
     private func acceptSuggestion() {
         guard let suggestion = currentSuggestion else { return }
 
+        currentSuggestionActedUpon = true  // Mark as acted upon before any hide
         onAccept?(suggestion)
         PreferenceLearner.shared.recordAcceptance(suggestion)
         UserStatistics.shared.recordStyleAcceptance()
@@ -175,6 +241,7 @@ class StyleSuggestionPopover: ObservableObject {
     private func rejectSuggestion(category: SuggestionRejectionCategory) {
         guard let suggestion = currentSuggestion else { return }
 
+        currentSuggestionActedUpon = true  // Mark as acted upon before any hide
         onReject?(suggestion, category)
         PreferenceLearner.shared.recordRejection(suggestion, category: category)
         UserStatistics.shared.recordStyleRejection(category: category.rawValue)

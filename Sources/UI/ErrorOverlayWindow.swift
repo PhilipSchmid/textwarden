@@ -135,12 +135,14 @@ class ErrorOverlayWindow: NSPanel {
                 // Convert underline bounds to screen coordinates for popup positioning
                 // The underline bounds are in flipped local coordinates (Y from top)
                 // Screen coordinates are in Cocoa (Y from bottom)
-                // Position popover just below the underlined word for consistent placement
                 let underlineBounds = newHoveredUnderline.drawingBounds
 
-                // Use the horizontal center and position below the word with comfortable spacing
+                // Position the anchor at the CENTER-BOTTOM of the underlined word
+                // The popover will position itself relative to this anchor
                 let localX = underlineBounds.midX
-                let localY = underlineBounds.maxY + 60  // Below the word with 60px spacing (in flipped coords, maxY is bottom)
+                // Use maxY (bottom of underline in flipped coords) without extra offset
+                // The SuggestionPopover will handle spacing
+                let localY = underlineBounds.maxY
 
                 // Convert from flipped local to Cocoa screen coordinates
                 // Flipped local Y → Cocoa local Y: cocoaLocalY = windowHeight - flippedLocalY
@@ -150,7 +152,7 @@ class ErrorOverlayWindow: NSPanel {
                     y: windowOrigin.y + (windowHeight - localY)
                 )
 
-                Logger.debug("ErrorOverlay: Popup position - underline bounds: \(underlineBounds), screen: \(screenLocation)", category: Logger.ui)
+                Logger.debug("ErrorOverlay: Popup anchor - underline bounds: \(underlineBounds), screen: \(screenLocation)", category: Logger.ui)
 
                 let appWindowFrame = self.getApplicationWindowFrame()
 
@@ -572,8 +574,9 @@ class ErrorOverlayWindow: NSPanel {
 
         // CRITICAL: AX API returns coordinates in Quartz (top-left origin)
         // NSPanel.setFrame() uses Cocoa coordinates (bottom-left origin)
-        // Must flip Y coordinate using screen height
-        if let screenHeight = NSScreen.main?.frame.height {
+        // Must flip Y coordinate using PRIMARY screen height (the one with Cocoa origin at 0,0)
+        let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero }
+        if let screenHeight = primaryScreen?.frame.height ?? NSScreen.main?.frame.height {
             frame.origin.y = screenHeight - frame.origin.y - frame.height
             Logger.debug("DEBUG getElementFrame: Converted to Cocoa coords - Y from \(position.y) to \(frame.origin.y) (screen height: \(screenHeight))", category: Logger.ui)
         }

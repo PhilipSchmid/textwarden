@@ -134,6 +134,48 @@ struct StyleCheckingSettingsView: View {
 
                 // MARK: - Advanced Settings Section
                 Section {
+                    // Inference Preset (Speed vs Quality)
+                    VStack(alignment: .leading, spacing: 8) {
+                        // Segmented control for presets (matching Writing Style design)
+                        HStack(spacing: 0) {
+                            ForEach(LLMInferencePreset.allCases) { preset in
+                                Button {
+                                    preferences.styleInferencePreset = preset.rawValue
+                                    // Apply the preset to the engine
+                                    LLMEngine.shared.setInferencePreset(preset)
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Text(preset.displayName)
+                                        Image(systemName: presetIcon(for: preset))
+                                            .font(.system(size: 10))
+                                    }
+                                    .font(.system(size: 12, weight: selectedPreset == preset ? .semibold : .regular))
+                                    .foregroundColor(selectedPreset == preset ? .white : .primary)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        selectedPreset == preset
+                                            ? Color.accentColor
+                                            : Color.clear
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                .help(preset.description)
+                            }
+                        }
+                        .background(Color(.separatorColor).opacity(0.2))
+                        .cornerRadius(6)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color(.separatorColor), lineWidth: 0.5)
+                        )
+
+                        Text(selectedPreset.description)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 4)
+
                     // Minimum sentence words
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
@@ -200,6 +242,22 @@ struct StyleCheckingSettingsView: View {
             return "Clear, action-oriented communication. Perfect for professional correspondence and presentations."
         default:
             return "Balanced style improvements that work for most situations."
+        }
+    }
+
+    // MARK: - Inference Preset Helpers
+
+    /// Current selected preset based on preferences
+    private var selectedPreset: LLMInferencePreset {
+        LLMInferencePreset(rawValue: preferences.styleInferencePreset) ?? .balanced
+    }
+
+    /// Icon for each preset
+    private func presetIcon(for preset: LLMInferencePreset) -> String {
+        switch preset {
+        case .fast: return "hare"
+        case .balanced: return "dial.medium"
+        case .quality: return "sparkles"
         }
     }
 
