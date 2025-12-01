@@ -44,10 +44,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Log build information for debugging
         Logger.info("Build Info - Version: \(BuildInfo.fullVersion), Built: \(BuildInfo.buildTimestamp) (\(BuildInfo.buildAge))", category: Logger.lifecycle)
 
-        // Initialize Rust logging
+        // Initialize unified logging (Rust → Swift bridge)
+        Logger.registerRustLogCallback()
+
+        // Initialize Rust logging (with Swift callback now registered)
         let logLevel = Logger.minimumLogLevel
         initialize_logging(logLevel.rawValue)
-        Logger.info("Rust logging initialized with level: \(logLevel.rawValue)", category: Logger.ffi)
+        Logger.info("Rust logging initialized with level: \(logLevel.rawValue) (unified)", category: Logger.ffi)
 
         // Record app session for statistics
         UserStatistics.shared.recordSession()
@@ -381,6 +384,16 @@ extension AppDelegate: NSWindowDelegate {
                 preferences.pauseDuration = .active
                 MenuBarController.shared?.setIconState(.active)
             }
+        }
+
+        // Run style check on current text (Cmd+Shift+S by default)
+        KeyboardShortcuts.onKeyUp(for: .runStyleCheck) {
+            guard preferences.keyboardShortcutsEnabled else { return }
+
+            Logger.debug("Keyboard shortcut: Run style check", category: Logger.ui)
+
+            // Trigger manual style check via AnalysisCoordinator
+            AnalysisCoordinator.shared.runManualStyleCheck()
         }
 
         // Accept current suggestion (Tab by default)

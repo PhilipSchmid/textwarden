@@ -139,6 +139,33 @@ struct Logger {
     static let performance = OSLog(subsystem: subsystem, category: "performance")
     static let errors = OSLog(subsystem: subsystem, category: "errors")
     static let lifecycle = OSLog(subsystem: subsystem, category: "lifecycle")
+    static let rust = OSLog(subsystem: subsystem, category: "rust")
+
+    // MARK: - Rust Log Bridge (Unified Logging)
+
+    /// Register the Swift callback with Rust for unified logging
+    /// Call this BEFORE initializing the Rust grammar engine
+    static func registerRustLogCallback() {
+        register_rust_log_callback(rustLogCallback)
+    }
+
+    /// Handle incoming log messages from Rust
+    /// - Parameters:
+    ///   - level: Log level (0=ERROR, 1=WARN, 2=INFO, 3=DEBUG, 4=TRACE)
+    ///   - message: The log message from Rust
+    fileprivate static func handleRustLog(level: Int32, message: String) {
+        let logLevel: LogLevel = switch level {
+        case 0: .error
+        case 1: .warning
+        case 2: .info
+        case 3: .debug
+        case 4: .trace
+        default: .debug
+        }
+
+        // Use the internal log method with rust category
+        log(logLevel, "[Rust] \(message)", category: rust)
+    }
 
     // MARK: - Internal Logging Helper
 
@@ -312,4 +339,17 @@ struct Logger {
             log(.error, "Accessibility error: \(error)", category: accessibility)
         }
     }
+}
+
+// MARK: - Rust FFI Callback
+
+/// C callback function for receiving logs from Rust
+/// This function is called from Rust via FFI
+/// - Parameters:
+///   - level: Log level (0=ERROR, 1=WARN, 2=INFO, 3=DEBUG, 4=TRACE)
+///   - messagePtr: Pointer to null-terminated C string containing the log message
+private let rustLogCallback: @convention(c) (Int32, UnsafePointer<CChar>?) -> Void = { level, messagePtr in
+    guard let messagePtr = messagePtr else { return }
+    let message = String(cString: messagePtr)
+    Logger.handleRustLog(level: level, message: message)
 }

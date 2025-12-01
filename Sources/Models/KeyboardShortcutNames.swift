@@ -14,6 +14,9 @@ extension KeyboardShortcuts.Name {
     /// Toggle grammar checking on/off globally
     static let toggleGrammarChecking = Self("toggleGrammarChecking", default: .init(.g, modifiers: [.command, .shift]))
 
+    /// Trigger style check on current text
+    static let runStyleCheck = Self("runStyleCheck", default: .init(.s, modifiers: [.command, .shift]))
+
     // MARK: - Suggestion Popover
 
     /// Accept the currently selected suggestion

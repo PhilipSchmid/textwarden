@@ -122,10 +122,23 @@ class AnalysisCoordinator: ObservableObject {
     /// Style cache expiration time (longer than grammar since LLM is slower)
     private let styleCacheExpirationTime: TimeInterval = 600 // 10 minutes
 
+    /// Debounce timer for style analysis - prevents queue buildup during rapid typing
+    private var styleDebounceTimer: Timer?
+
+    /// Debounce delay for style analysis (seconds) - wait for typing to pause
+    private let styleDebounceDelay: TimeInterval = 2.0
+
+    /// Generation ID for style analysis - incremented on each text change
+    /// Used to detect and skip stale analysis (when text changed during LLM inference)
+    private var styleAnalysisGeneration: UInt64 = 0
+
     /// Whether LLM style checking should run for the current text
     private var shouldRunStyleChecking: Bool {
         UserPreferences.shared.enableStyleChecking && LLMEngine.shared.isReady
     }
+
+    /// Flag to prevent regular analysis from hiding indicator during manual style check
+    private var isManualStyleCheckActive: Bool = false
 
     private init() {
         setupMonitoring()
@@ -159,6 +172,12 @@ class AnalysisCoordinator: ObservableObject {
         suggestionPopover.onAddToDictionary = { [weak self] error in
             guard let self = self else { return }
             self.addToDictionary(error)
+        }
+
+        // Handle accept style suggestion - apply text replacement
+        suggestionPopover.onAcceptStyleSuggestion = { [weak self] suggestion in
+            guard let self = self else { return }
+            self.applyStyleTextReplacement(for: suggestion)
         }
 
         // Handle mouse entered popover - cancel any pending delayed switches
@@ -295,12 +314,20 @@ class AnalysisCoordinator: ObservableObject {
                 self.currentErrors = []
                 self.currentSegment = nil
                 self.previousText = ""
-                self.currentStyleSuggestions = []
+                // Don't clear style suggestions if manual style check is in progress
+                // The user triggered it and wants to see results when they return
+                if !self.isManualStyleCheckActive {
+                    self.currentStyleSuggestions = []
+                }
             }
 
             self.errorOverlay.hide()
             self.suggestionPopover.hide()
-            self.floatingIndicator.hide()
+            // Don't hide floating indicator if manual style check is in progress
+            // Keep showing results (or spinner) so user sees them when they return
+            if !self.isManualStyleCheckActive {
+                self.floatingIndicator.hide()
+            }
 
             // Cancel any pending delayed switches
             self.hoverSwitchTimer?.invalidate()
@@ -415,8 +442,18 @@ class AnalysisCoordinator: ObservableObject {
         currentErrors = []
         currentSegment = nil
         previousText = ""  // Clear previous text so analysis runs when we return
+
+        // Only clear style state if not in a manual style check
+        // During manual style check, preserve results so user sees them when returning
+        if !isManualStyleCheckActive {
+            currentStyleSuggestions = []  // Clear style suggestions
+            styleDebounceTimer?.invalidate()  // Cancel pending style analysis
+            styleDebounceTimer = nil
+            styleAnalysisGeneration &+= 1  // Invalidate any in-flight analysis
+            floatingIndicator.hide()
+        }
+
         errorOverlay.hide()
-        floatingIndicator.hide()
         suggestionPopover.hide()
         DebugBorderWindow.clearAll()  // Clear debug borders when stopping
         MenuBarController.shared?.setIconState(.active)
@@ -902,9 +939,13 @@ class AnalysisCoordinator: ObservableObject {
 
                 let cgFrame = CGRect(x: x, y: y, width: width, height: height)
 
-                // Convert to Cocoa coordinates
-                let totalScreenHeight = NSScreen.screens.reduce(0) { max($0, $1.frame.maxY) }
-                let cocoaY = totalScreenHeight - y - height
+                // Convert from CGWindow (Quartz) to Cocoa coordinates
+                // Quartz origin is at TOP-LEFT of PRIMARY display (with menu bar)
+                // Cocoa origin is at BOTTOM-LEFT of PRIMARY display
+                // The primary display is the one with Cocoa frame origin at (0, 0)
+                let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero }
+                let screenHeight = primaryScreen?.frame.height ?? NSScreen.main?.frame.height ?? 0
+                let cocoaY = screenHeight - y - height
                 let cocoaFrame = CGRect(x: x, y: cocoaY, width: width, height: height)
 
                 // Keep track of the largest window
@@ -945,7 +986,10 @@ class AnalysisCoordinator: ObservableObject {
         if textMonitor.monitoredElement == nil {
             Logger.debug("AnalysisCoordinator: No monitored element - hiding overlays immediately", category: Logger.analysis)
             errorOverlay.hide()
-            floatingIndicator.hide()
+            // Don't hide indicator during manual style check (showing checkmark/results)
+            if !isManualStyleCheckActive {
+                floatingIndicator.hide()
+            }
             suggestionPopover.hide()
             DebugBorderWindow.clearAll()
             // DON'T clear currentErrors and currentSegment - keep them cached so we can
@@ -1010,7 +1054,10 @@ class AnalysisCoordinator: ObservableObject {
                         Logger.debug("AnalysisCoordinator: Website \(url.host ?? "unknown") is disabled - skipping analysis", category: Logger.analysis)
                         // Hide any existing overlays for disabled websites
                         errorOverlay.hide()
-                        floatingIndicator.hide()
+                        // Don't hide indicator during manual style check (showing checkmark/results)
+                        if !isManualStyleCheckActive {
+                            floatingIndicator.hide()
+                        }
                         currentErrors = []
                         return
                     }
@@ -1059,7 +1106,15 @@ class AnalysisCoordinator: ObservableObject {
         // CRITICAL: Capture the monitored element BEFORE async operation
         let capturedElement = textMonitor.monitoredElement
         let segmentContent = segment.content
-        let runStyleChecking = shouldRunStyleChecking
+
+        // Detailed logging for style checking eligibility
+        let styleCheckingEnabled = UserPreferences.shared.enableStyleChecking
+        let llmInitialized = LLMEngine.shared.isInitialized
+        let modelLoaded = LLMEngine.shared.isModelLoaded()
+        let loadedModelId = LLMEngine.shared.getLoadedModelId()
+        let runStyleChecking = styleCheckingEnabled && llmInitialized && modelLoaded
+
+        Logger.info("AnalysisCoordinator: Style check eligibility - enabled=\(styleCheckingEnabled), llmInit=\(llmInitialized), modelLoaded=\(modelLoaded), modelId='\(loadedModelId)', willRun=\(runStyleChecking)", category: Logger.llm)
 
         // ========== GRAMMAR ANALYSIS (immediate) ==========
         // Grammar analysis runs independently and updates UI as soon as it completes
@@ -1116,11 +1171,34 @@ class AnalysisCoordinator: ObservableObject {
             }
         }
 
-        // ========== STYLE ANALYSIS (async, independent) ==========
+        // ========== STYLE ANALYSIS (debounced, async, independent) ==========
         // Style analysis runs completely independently on a separate queue
-        // Results are added to UI when ready without blocking grammar results
+        // DEBOUNCED: Wait for typing to pause before starting expensive LLM analysis
+        // This prevents queue buildup during rapid typing (each call takes ~35 seconds)
         if runStyleChecking {
-            // Check cache first
+            // Check if text contains at least one sentence with minimum word count
+            // Split into sentences and check if any has enough words
+            let minWords = UserPreferences.shared.styleMinSentenceWords
+            let hasQualifyingSentence = containsSentenceWithMinWords(segmentContent, minWords: minWords)
+
+            guard hasQualifyingSentence else {
+                Logger.debug("AnalysisCoordinator: No sentence with \(minWords)+ words - skipping style analysis", category: Logger.llm)
+                // Clear any existing suggestions
+                DispatchQueue.main.async { [weak self] in
+                    self?.currentStyleSuggestions = []
+                }
+                return
+            }
+
+            // Increment generation ID on every text change
+            // This allows us to detect and skip stale analysis
+            styleAnalysisGeneration &+= 1
+            let currentGeneration = styleAnalysisGeneration
+
+            // Cancel any pending debounce timer
+            styleDebounceTimer?.invalidate()
+
+            // Check cache first (instant, no debounce needed)
             let cacheKey = computeStyleCacheKey(text: segmentContent)
             if let cached = styleCache[cacheKey] {
                 Logger.debug("AnalysisCoordinator: Using cached style results (\(cached.count) suggestions)", category: Logger.analysis)
@@ -1130,46 +1208,85 @@ class AnalysisCoordinator: ObservableObject {
                 return
             }
 
-            styleAnalysisQueue.async { [weak self] in
+            // Start debounce timer - only trigger LLM after typing pauses
+            Logger.debug("AnalysisCoordinator: Style analysis debounced - waiting \(styleDebounceDelay)s for typing to pause", category: Logger.llm)
+
+            styleDebounceTimer = Timer.scheduledTimer(withTimeInterval: styleDebounceDelay, repeats: false) { [weak self] _ in
                 guard let self = self else { return }
 
-                Logger.debug("AnalysisCoordinator: Calling LLM style engine...", category: Logger.analysis)
+                // Check if text has changed since timer was set (generation mismatch)
+                guard currentGeneration == self.styleAnalysisGeneration else {
+                    Logger.debug("AnalysisCoordinator: Style debounce timer fired but generation mismatch (\(currentGeneration) != \(self.styleAnalysisGeneration)) - skipping", category: Logger.llm)
+                    return
+                }
 
-                let styleName = UserPreferences.shared.selectedWritingStyle
-                let style = WritingStyle.allCases.first { $0.displayName == styleName } ?? .default
+                Logger.info("AnalysisCoordinator: Style debounce complete - queuing LLM analysis (gen=\(currentGeneration))", category: Logger.llm)
 
-                let styleResult = LLMEngine.shared.analyzeStyle(segmentContent, style: style)
-
-                Logger.debug("AnalysisCoordinator: LLM returned \(styleResult.suggestions.count) suggestion(s)", category: Logger.analysis)
-
-                // Update UI with style results (independently of grammar)
-                DispatchQueue.main.async { [weak self] in
+                self.styleAnalysisQueue.async { [weak self] in
                     guard let self = self else { return }
 
-                    if !styleResult.isError {
-                        let threshold = Float(UserPreferences.shared.styleConfidenceThreshold)
-                        let filteredSuggestions = styleResult.suggestions.filter { $0.confidence >= threshold }
-                        self.currentStyleSuggestions = filteredSuggestions
+                    // Check generation AGAIN before starting expensive LLM call
+                    // Another text change might have happened while waiting in queue
+                    guard currentGeneration == self.styleAnalysisGeneration else {
+                        Logger.debug("AnalysisCoordinator: Skipping stale LLM call (gen=\(currentGeneration), current=\(self.styleAnalysisGeneration))", category: Logger.llm)
+                        return
+                    }
 
-                        // Cache the results
-                        self.styleCache[cacheKey] = filteredSuggestions
-                        self.styleCacheMetadata[cacheKey] = StyleCacheMetadata(
-                            lastAccessed: Date(),
-                            style: styleName
-                        )
-                        self.evictStyleCacheIfNeeded()
+                    Logger.info("AnalysisCoordinator: Starting LLM style analysis (gen=\(currentGeneration))...", category: Logger.llm)
 
-                        Logger.debug("AnalysisCoordinator: \(filteredSuggestions.count) style suggestion(s) above threshold", category: Logger.analysis)
+                    let styleName = UserPreferences.shared.selectedWritingStyle
+                    let style = WritingStyle.allCases.first { $0.displayName == styleName } ?? .default
 
-                        // TODO: Show style underlines via ErrorOverlayWindow
-                    } else {
-                        self.currentStyleSuggestions = []
-                        Logger.warning("AnalysisCoordinator: Style analysis returned error: \(styleResult.error ?? "unknown")", category: Logger.analysis)
+                    let styleResult = LLMEngine.shared.analyzeStyle(segmentContent, style: style)
+
+                    Logger.debug("AnalysisCoordinator: LLM returned \(styleResult.suggestions.count) suggestion(s)", category: Logger.analysis)
+
+                    // Update UI with style results (independently of grammar)
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self = self else { return }
+
+                        // Final staleness check before updating UI
+                        // If user typed more while LLM was processing, discard results
+                        guard currentGeneration == self.styleAnalysisGeneration else {
+                            Logger.debug("AnalysisCoordinator: Discarding stale LLM results (gen=\(currentGeneration), current=\(self.styleAnalysisGeneration))", category: Logger.llm)
+                            return
+                        }
+
+                        if !styleResult.isError {
+                            let threshold = Float(UserPreferences.shared.styleConfidenceThreshold)
+                            let filteredSuggestions = styleResult.suggestions.filter { $0.confidence >= threshold }
+                            self.currentStyleSuggestions = filteredSuggestions
+
+                            // Cache the results
+                            self.styleCache[cacheKey] = filteredSuggestions
+                            self.styleCacheMetadata[cacheKey] = StyleCacheMetadata(
+                                lastAccessed: Date(),
+                                style: styleName
+                            )
+                            self.evictStyleCacheIfNeeded()
+
+                            Logger.info("AnalysisCoordinator: \(filteredSuggestions.count) style suggestion(s) above threshold (gen=\(currentGeneration))", category: Logger.llm)
+
+                            // Update floating indicator to show style suggestions
+                            if !filteredSuggestions.isEmpty, let element = self.textMonitor.monitoredElement {
+                                self.floatingIndicator.update(
+                                    errors: self.currentErrors,
+                                    styleSuggestions: filteredSuggestions,
+                                    element: element,
+                                    context: self.monitoredContext
+                                )
+                            }
+                        } else {
+                            self.currentStyleSuggestions = []
+                            Logger.warning("AnalysisCoordinator: Style analysis returned error: \(styleResult.error ?? "unknown")", category: Logger.analysis)
+                        }
                     }
                 }
             }
         } else {
-            // Style checking disabled - clear any existing suggestions
+            // Style checking disabled - clear any existing suggestions and cancel pending timer
+            styleDebounceTimer?.invalidate()
+            styleDebounceTimer = nil
             DispatchQueue.main.async { [weak self] in
                 self?.currentStyleSuggestions = []
             }
@@ -1237,6 +1354,28 @@ class AnalysisCoordinator: ObservableObject {
         // Consider significant if >10% change or >100 chars
         let diff = abs(newCount - oldCount)
         return diff > 100 || diff > oldCount / 10
+    }
+
+    /// Check if text contains at least one sentence with the minimum word count
+    /// Used to gate style analysis - no point running expensive LLM on short snippets
+    private func containsSentenceWithMinWords(_ text: String, minWords: Int) -> Bool {
+        // Split text into sentences using common sentence terminators
+        // This handles: "Hello. World!" → ["Hello", " World"]
+        let sentenceTerminators = CharacterSet(charactersIn: ".!?")
+        let sentences = text.components(separatedBy: sentenceTerminators)
+
+        for sentence in sentences {
+            let trimmed = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+
+            // Count words in this sentence
+            let wordCount = trimmed.split(separator: " ").filter { !$0.isEmpty }.count
+            if wordCount >= minWords {
+                return true
+            }
+        }
+
+        return false
     }
 
     // Note: updateErrorCache is now implemented in the Performance Optimizations extension
@@ -1369,7 +1508,10 @@ class AnalysisCoordinator: ObservableObject {
         guard let providedElement = element else {
             Logger.debug("AnalysisCoordinator: No monitored element - hiding overlays", category: Logger.analysis)
             errorOverlay.hide()
-            floatingIndicator.hide()
+            // Don't hide indicator during manual style check (showing checkmark/results)
+            if !isManualStyleCheckActive {
+                floatingIndicator.hide()
+            }
             MenuBarController.shared?.setIconState(.active)
             return
         }
@@ -1390,29 +1532,52 @@ class AnalysisCoordinator: ObservableObject {
             return
         }
 
-        if errors.isEmpty {
-            Logger.debug("AnalysisCoordinator: No errors - hiding overlays", category: Logger.analysis)
+        // Check if we have anything to show (errors OR style suggestions)
+        let hasErrors = !errors.isEmpty
+        let hasStyleSuggestions = !currentStyleSuggestions.isEmpty
+
+        if !hasErrors && !hasStyleSuggestions {
+            Logger.debug("AnalysisCoordinator: No errors or style suggestions - hiding overlays", category: Logger.analysis)
             errorOverlay.hide()
-            floatingIndicator.hide()
+            // Don't hide indicator during manual style check (showing checkmark/results)
+            if !isManualStyleCheckActive {
+                floatingIndicator.hide()
+            }
             MenuBarController.shared?.setIconState(.active)
         } else {
             // Debug: Log context before passing to errorOverlay
             let bundleID = monitoredContext?.bundleIdentifier ?? "nil"
             let appName = monitoredContext?.applicationName ?? "nil"
-            Logger.debug("AnalysisCoordinator: About to call errorOverlay.update() with context - bundleID: '\(bundleID)', appName: '\(appName)'", category: Logger.analysis)
 
-            // Try to show visual underlines
-            let underlinesCreated = errorOverlay.update(errors: errors, element: providedElement, context: monitoredContext)
+            if hasErrors {
+                Logger.debug("AnalysisCoordinator: About to call errorOverlay.update() with context - bundleID: '\(bundleID)', appName: '\(appName)'", category: Logger.analysis)
 
-            // Always show floating indicator when there are errors
-            // It provides quick access to error count and suggestions
-            if underlinesCreated == 0 {
-                Logger.debug("AnalysisCoordinator: \(errors.count) errors detected in '\(appName)' but no underlines created - showing floating indicator only", category: Logger.analysis)
+                // Try to show visual underlines for grammar errors
+                let underlinesCreated = errorOverlay.update(errors: errors, element: providedElement, context: monitoredContext)
+
+                if underlinesCreated == 0 {
+                    Logger.debug("AnalysisCoordinator: \(errors.count) errors detected in '\(appName)' but no underlines created - showing floating indicator only", category: Logger.analysis)
+                } else {
+                    Logger.debug("AnalysisCoordinator: Showing \(underlinesCreated) visual underlines + floating indicator", category: Logger.analysis)
+                }
             } else {
-                Logger.debug("AnalysisCoordinator: Showing \(underlinesCreated) visual underlines + floating indicator", category: Logger.analysis)
+                // No grammar errors but have style suggestions - hide error overlay
+                errorOverlay.hide()
             }
 
-            floatingIndicator.update(errors: errors, element: providedElement, context: monitoredContext)
+            // Show floating indicator with errors and/or style suggestions
+            // Don't update indicator during manual style check (preserves checkmark display)
+            if !isManualStyleCheckActive {
+                Logger.debug("AnalysisCoordinator: Updating floating indicator - errors=\(errors.count), styleSuggestions=\(currentStyleSuggestions.count)", category: Logger.analysis)
+                floatingIndicator.update(
+                    errors: errors,
+                    styleSuggestions: currentStyleSuggestions,
+                    element: providedElement,
+                    context: monitoredContext
+                )
+            } else {
+                Logger.debug("AnalysisCoordinator: Skipping indicator update - manual style check in progress", category: Logger.analysis)
+            }
             MenuBarController.shared?.setIconState(.active)
         }
     }
@@ -1592,6 +1757,298 @@ class AnalysisCoordinator: ObservableObject {
             // Try keyboard fallback
             applyTextReplacementViaKeyboard(for: error, with: suggestion, element: element)
         }
+    }
+
+    /// Apply text replacement for a style suggestion
+    /// Similar to applyTextReplacement but uses StyleSuggestionModel's positions and suggested text
+    private func applyStyleTextReplacement(for suggestion: StyleSuggestionModel) {
+        Logger.debug("applyStyleTextReplacement called - original: '\(suggestion.originalText)', suggested: '\(suggestion.suggestedText)'", category: Logger.analysis)
+
+        guard let element = textMonitor.monitoredElement else {
+            Logger.debug("No monitored element for style text replacement", category: Logger.analysis)
+            return
+        }
+
+        Logger.debug("Have monitored element for style replacement, context: \(monitoredContext?.applicationName ?? "nil")", category: Logger.analysis)
+
+        // Use keyboard automation directly for known Electron apps
+        if let context = monitoredContext, context.requiresKeyboardReplacement {
+            Logger.debug("Detected Electron app (\(context.applicationName)) - using keyboard automation for style replacement", category: Logger.analysis)
+            applyStyleReplacementViaKeyboard(for: suggestion, element: element)
+            return
+        }
+
+        // For native macOS apps, try AX API first
+        // CRITICAL: Get current text and find the ACTUAL position of the original text
+        // The positions from Rust are byte offsets which don't match macOS character indices
+        // Also, after previous replacements, positions may have shifted
+        var currentTextRef: CFTypeRef?
+        let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
+
+        guard textResult == .success,
+              let currentText = currentTextRef as? String else {
+            Logger.debug("Could not get current text for style replacement, using keyboard fallback", category: Logger.analysis)
+            applyStyleReplacementViaKeyboard(for: suggestion, element: element)
+            return
+        }
+
+        // Find the actual position of the original text in the current content
+        guard let range = currentText.range(of: suggestion.originalText) else {
+            Logger.debug("Could not find original text '\(suggestion.originalText)' in current content, skipping", category: Logger.analysis)
+            // Remove from tracking since we can't apply it
+            removeSuggestionFromTracking(suggestion)
+            return
+        }
+
+        // Convert Swift range to character indices for AX API
+        let startIndex = currentText.distance(from: currentText.startIndex, to: range.lowerBound)
+        let length = suggestion.originalText.count
+
+        Logger.debug("Found original text at character position \(startIndex), length \(length) (Rust reported \(suggestion.originalStart)-\(suggestion.originalEnd))", category: Logger.analysis)
+
+        // Step 1: Save current selection
+        var originalSelection: CFTypeRef?
+        let _ = AXUIElementCopyAttributeValue(
+            element,
+            kAXSelectedTextRangeAttribute as CFString,
+            &originalSelection
+        )
+
+        // Step 2: Set selection to the found text range
+        var suggestionRange = CFRange(location: startIndex, length: length)
+        let rangeValue = AXValueCreate(.cfRange, &suggestionRange)!
+
+        let selectError = AXUIElementSetAttributeValue(
+            element,
+            kAXSelectedTextRangeAttribute as CFString,
+            rangeValue
+        )
+
+        if selectError != .success {
+            Logger.debug("AX API selection failed for style replacement (\(selectError.rawValue)), using keyboard fallback", category: Logger.analysis)
+            applyStyleReplacementViaKeyboard(for: suggestion, element: element)
+            return
+        }
+
+        // Step 3: Replace selected text with suggested text
+        let replaceError = AXUIElementSetAttributeValue(
+            element,
+            kAXSelectedTextAttribute as CFString,
+            suggestion.suggestedText as CFTypeRef
+        )
+
+        if replaceError == .success {
+            Logger.debug("Style replacement successful via AX API", category: Logger.analysis)
+
+            // Note: Don't call invalidateCacheAfterReplacement for style replacements
+            // Style suggestions use text matching, not byte offsets, so remaining suggestions stay valid
+            // Also, invalidateCacheAfterReplacement triggers re-analysis which would clear style suggestions
+
+            // Invalidate style cache since text changed
+            styleCache.removeAll()
+            styleCacheMetadata.removeAll()
+
+            // Move cursor after replacement
+            var newPosition = CFRange(location: startIndex + suggestion.suggestedText.count, length: 0)
+            let newRangeValue = AXValueCreate(.cfRange, &newPosition)!
+            let _ = AXUIElementSetAttributeValue(
+                element,
+                kAXSelectedTextRangeAttribute as CFString,
+                newRangeValue
+            )
+
+            // Remove the applied style suggestion from tracking
+            removeSuggestionFromTracking(suggestion)
+            // Note: Don't clear remaining suggestions - we find them by text match, not byte offset
+        } else {
+            Logger.debug("AX API replacement failed for style (\(replaceError.rawValue)), trying keyboard fallback", category: Logger.analysis)
+            applyStyleReplacementViaKeyboard(for: suggestion, element: element)
+        }
+    }
+
+    /// Apply style replacement via keyboard simulation (for Electron apps and fallback)
+    private func applyStyleReplacementViaKeyboard(for suggestion: StyleSuggestionModel, element: AXUIElement) {
+        guard let context = self.monitoredContext else {
+            Logger.debug("No context available for style keyboard replacement", category: Logger.analysis)
+            return
+        }
+
+        Logger.debug("Using keyboard simulation for style replacement (app: \(context.applicationName))", category: Logger.analysis)
+
+        // For browsers, use the browser-specific approach
+        if context.isBrowser {
+            applyStyleBrowserReplacement(for: suggestion, element: element, context: context)
+            return
+        }
+
+        // Get current text and find the ACTUAL position of the original text
+        // The positions from Rust are byte offsets which don't match macOS character indices
+        var currentTextRef: CFTypeRef?
+        let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
+
+        guard textResult == .success,
+              let currentText = currentTextRef as? String else {
+            Logger.debug("Could not get current text for style keyboard replacement", category: Logger.analysis)
+            return
+        }
+
+        // Find the actual position of the original text in the current content
+        guard let range = currentText.range(of: suggestion.originalText) else {
+            Logger.debug("Could not find original text '\(suggestion.originalText)' in current content for keyboard replacement", category: Logger.analysis)
+            removeSuggestionFromTracking(suggestion)
+            return
+        }
+
+        // Convert Swift range to character indices for AX API
+        let startIndex = currentText.distance(from: currentText.startIndex, to: range.lowerBound)
+        let length = suggestion.originalText.count
+
+        // Standard keyboard approach: select range, paste replacement
+        // Step 1: Try to select the range using AX API
+        var suggestionRange = CFRange(location: startIndex, length: length)
+        let rangeValue = AXValueCreate(.cfRange, &suggestionRange)!
+
+        let selectResult = AXUIElementSetAttributeValue(
+            element,
+            kAXSelectedTextRangeAttribute as CFString,
+            rangeValue
+        )
+
+        if selectResult != .success {
+            Logger.debug("Could not select text range for style replacement (error: \(selectResult.rawValue))", category: Logger.analysis)
+            return
+        }
+
+        // Step 2: Copy suggestion to clipboard
+        let pasteboard = NSPasteboard.general
+        let originalString = pasteboard.string(forType: .string)
+
+        pasteboard.clearContents()
+        pasteboard.setString(suggestion.suggestedText, forType: .string)
+
+        // Step 3: Simulate paste
+        let delay = context.keyboardOperationDelay
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            self?.pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
+
+            // Restore original clipboard after a short delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                if let original = originalString {
+                    pasteboard.clearContents()
+                    pasteboard.setString(original, forType: .string)
+                }
+            }
+
+            // Invalidate style cache (not grammar cache - don't trigger re-analysis)
+            self?.styleCache.removeAll()
+            self?.styleCacheMetadata.removeAll()
+            self?.removeSuggestionFromTracking(suggestion)
+            // Note: Don't clear remaining suggestions - we find them by text match, not byte offset
+        }
+    }
+
+    /// Apply style replacement for browsers
+    private func applyStyleBrowserReplacement(for suggestion: StyleSuggestionModel, element: AXUIElement, context: ApplicationContext) {
+        Logger.debug("Browser style replacement for \(context.applicationName)", category: Logger.analysis)
+
+        // Get current text and find the ACTUAL position of the original text
+        // The positions from Rust are byte offsets which don't match macOS character indices
+        var currentTextRef: CFTypeRef?
+        let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
+
+        guard textResult == .success,
+              let currentText = currentTextRef as? String else {
+            Logger.debug("Could not get current text for browser style replacement", category: Logger.analysis)
+            return
+        }
+
+        // Find the actual position of the original text in the current content
+        guard let range = currentText.range(of: suggestion.originalText) else {
+            Logger.debug("Could not find original text '\(suggestion.originalText)' in current content for browser replacement", category: Logger.analysis)
+            removeSuggestionFromTracking(suggestion)
+            return
+        }
+
+        // Convert Swift range to character indices for AX API
+        let startIndex = currentText.distance(from: currentText.startIndex, to: range.lowerBound)
+        let length = suggestion.originalText.count
+
+        // Step 1: Try to select the range
+        var suggestionRange = CFRange(location: startIndex, length: length)
+        let rangeValue = AXValueCreate(.cfRange, &suggestionRange)!
+
+        let selectResult = AXUIElementSetAttributeValue(
+            element,
+            kAXSelectedTextRangeAttribute as CFString,
+            rangeValue
+        )
+
+        if selectResult == .success {
+            Logger.debug("AX API accepted selection for browser style replacement", category: Logger.analysis)
+        } else {
+            Logger.debug("AX API selection failed for browser style (error: \(selectResult.rawValue)) - will try paste anyway", category: Logger.analysis)
+        }
+
+        // Step 2: Save original pasteboard and copy suggestion
+        let pasteboard = NSPasteboard.general
+        let originalString = pasteboard.string(forType: .string)
+
+        pasteboard.clearContents()
+        pasteboard.setString(suggestion.suggestedText, forType: .string)
+
+        // Step 3: Activate the browser
+        let apps = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier)
+        if let targetApp = apps.first {
+            targetApp.activate()
+        }
+
+        // Step 4: Try paste via menu action or keyboard
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            var pasteSucceeded = false
+
+            // Try menu action first
+            if let frontmostApp = NSWorkspace.shared.frontmostApplication {
+                let appElement = AXUIElementCreateApplication(frontmostApp.processIdentifier)
+                if let pasteMenuItem = self?.findPasteMenuItem(in: appElement) {
+                    let pressResult = AXUIElementPerformAction(pasteMenuItem, kAXPressAction as CFString)
+                    if pressResult == .success {
+                        pasteSucceeded = true
+                        Logger.debug("Style pasted via menu action", category: Logger.analysis)
+                    }
+                }
+            }
+
+            // Fallback to keyboard if menu failed
+            if !pasteSucceeded {
+                self?.pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
+                Logger.debug("Style pasted via keyboard simulation", category: Logger.analysis)
+            }
+
+            // Restore original clipboard
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                if let original = originalString {
+                    pasteboard.clearContents()
+                    pasteboard.setString(original, forType: .string)
+                }
+            }
+
+            // Invalidate style cache (not grammar cache - don't trigger re-analysis)
+            self?.styleCache.removeAll()
+            self?.styleCacheMetadata.removeAll()
+            self?.removeSuggestionFromTracking(suggestion)
+            // Note: Don't clear remaining suggestions - we find them by text match, not byte offset
+        }
+    }
+
+    /// Remove an applied style suggestion from tracking
+    private func removeSuggestionFromTracking(_ suggestion: StyleSuggestionModel) {
+        // Remove from current suggestions
+        currentStyleSuggestions.removeAll { $0.id == suggestion.id }
+
+        // Update popover's allStyleSuggestions
+        suggestionPopover.allStyleSuggestions.removeAll { $0.id == suggestion.id }
+
+        Logger.debug("Removed style suggestion from tracking, remaining: \(currentStyleSuggestions.count)", category: Logger.analysis)
     }
 
     /// Apply text replacement for browsers using menu action with keyboard fallback
@@ -2384,6 +2841,163 @@ extension AnalysisCoordinator {
         styleCache.removeAll()
         styleCacheMetadata.removeAll()
         Logger.debug("Style cache cleared", category: Logger.llm)
+    }
+
+    // MARK: - Manual Style Check
+
+    /// Run a manual style check triggered by keyboard shortcut
+    /// First checks cache for instant results, otherwise shows spinning indicator and runs analysis
+    func runManualStyleCheck() {
+        Logger.info("AnalysisCoordinator: runManualStyleCheck() triggered", category: Logger.llm)
+
+        // Get current monitored element and context
+        guard let element = textMonitor.monitoredElement,
+              let context = monitoredContext else {
+            Logger.warning("AnalysisCoordinator: No monitored element for manual style check", category: Logger.llm)
+            return
+        }
+
+        // Check if LLM is ready
+        guard LLMEngine.shared.isInitialized && LLMEngine.shared.isModelLoaded() else {
+            Logger.warning("AnalysisCoordinator: LLM not ready for manual style check", category: Logger.llm)
+            return
+        }
+
+        // Get text to analyze
+        guard let text = getCurrentText(), !text.isEmpty else {
+            Logger.warning("AnalysisCoordinator: No text available for manual style check", category: Logger.llm)
+            return
+        }
+
+        let styleName = UserPreferences.shared.selectedWritingStyle
+        let style = WritingStyle.allCases.first { $0.displayName == styleName } ?? .default
+
+        // Check cache first - instant results if text hasn't changed
+        let cacheKey = computeStyleCacheKey(text: text)
+        if let cached = styleCache[cacheKey] {
+            Logger.info("AnalysisCoordinator: Manual style check - using cached results (\(cached.count) suggestions)", category: Logger.llm)
+
+            // Update cache access time
+            styleCacheMetadata[cacheKey] = StyleCacheMetadata(
+                lastAccessed: Date(),
+                style: styleName
+            )
+
+            // Set flag and show results immediately
+            isManualStyleCheckActive = true
+            currentStyleSuggestions = cached
+
+            // Show checkmark and results immediately (no spinning needed)
+            floatingIndicator.showStyleSuggestionsReady(
+                count: cached.count,
+                styleSuggestions: cached
+            )
+
+            // Clear the flag after the checkmark display period
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) { [weak self] in
+                self?.isManualStyleCheckActive = false
+            }
+
+            return
+        }
+
+        // Cache miss - run LLM analysis
+        Logger.debug("AnalysisCoordinator: Manual style check - cache miss, running LLM analysis", category: Logger.llm)
+
+        // Set flag to prevent regular analysis from hiding indicator
+        isManualStyleCheckActive = true
+
+        // Show spinning indicator immediately
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.floatingIndicator.showStyleCheckInProgress(element: element, context: context)
+        }
+
+        // Run style analysis in background
+        styleAnalysisQueue.async { [weak self] in
+            guard let self = self else { return }
+
+            let segmentContent = text
+
+            Logger.info("AnalysisCoordinator: Running manual style analysis on \(segmentContent.count) chars", category: Logger.llm)
+
+            let startTime = Date()
+            let styleResult = LLMEngine.shared.analyzeStyle(segmentContent, style: style)
+            let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
+
+            Logger.info("AnalysisCoordinator: Manual style check completed in \(latencyMs)ms, \(styleResult.suggestions.count) suggestions", category: Logger.llm)
+
+            // Update statistics with model and preset context
+            let modelId = UserPreferences.shared.selectedModelId
+            let preset = UserPreferences.shared.styleInferencePreset
+            UserStatistics.shared.recordStyleSuggestions(
+                count: styleResult.suggestions.count,
+                latencyMs: Double(latencyMs),
+                modelId: modelId,
+                preset: preset
+            )
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+
+                if !styleResult.isError {
+                    let threshold = Float(UserPreferences.shared.styleConfidenceThreshold)
+                    let filteredSuggestions = styleResult.suggestions.filter { $0.confidence >= threshold }
+                    self.currentStyleSuggestions = filteredSuggestions
+
+                    // Cache the results for instant access next time
+                    self.styleCache[cacheKey] = filteredSuggestions
+                    self.styleCacheMetadata[cacheKey] = StyleCacheMetadata(
+                        lastAccessed: Date(),
+                        style: styleName
+                    )
+                    self.evictStyleCacheIfNeeded()
+
+                    // Update indicator to show results (checkmark first, then transition)
+                    self.floatingIndicator.showStyleSuggestionsReady(
+                        count: filteredSuggestions.count,
+                        styleSuggestions: filteredSuggestions
+                    )
+
+                    // Clear the flag after the checkmark display period (6 seconds to be safe)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) { [weak self] in
+                        self?.isManualStyleCheckActive = false
+                    }
+
+                    Logger.info("AnalysisCoordinator: Manual style check - showing \(filteredSuggestions.count) suggestions (cached for next time)", category: Logger.llm)
+                } else {
+                    // Error occurred - still show checkmark to indicate completion, then hide
+                    self.currentStyleSuggestions = []
+
+                    // Show checkmark even for errors so user knows check completed
+                    self.floatingIndicator.showStyleSuggestionsReady(
+                        count: 0,
+                        styleSuggestions: []
+                    )
+
+                    // Clear the flag after the checkmark display period (6 seconds to be safe)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) { [weak self] in
+                        self?.isManualStyleCheckActive = false
+                    }
+
+                    Logger.warning("AnalysisCoordinator: Manual style analysis returned error: \(styleResult.error ?? "unknown")", category: Logger.llm)
+                }
+            }
+        }
+    }
+
+    /// Get current text from monitored element
+    private func getCurrentText() -> String? {
+        guard let element = textMonitor.monitoredElement else { return nil }
+
+        var valueRef: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef)
+
+        guard result == .success, let value = valueRef as? String else {
+            return nil
+        }
+
+        return value
     }
 }
 

@@ -157,8 +157,16 @@ public class LLMEngine {
     ///   - style: The writing style to target
     /// - Returns: Style analysis result with suggestions
     public func analyzeStyle(_ text: String, style: WritingStyle = .default) -> StyleAnalysisResultModel {
+        Logger.info("LLMEngine.analyzeStyle: Starting analysis, text_len=\(text.count), style=\(style.displayName)", category: Logger.llm)
+        let startTime = CFAbsoluteTimeGetCurrent()
+
         let ffiResult = llm_analyze_style(RustString(text), style.ffiStyle)
-        return StyleAnalysisResultModel(ffiResult: ffiResult)
+        let result = StyleAnalysisResultModel(ffiResult: ffiResult)
+
+        let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
+        Logger.info("LLMEngine.analyzeStyle: Completed in \(Int(elapsed))ms, suggestions=\(result.suggestions.count), isError=\(result.isError), error=\(result.error ?? "none")", category: Logger.llm)
+
+        return result
     }
 
     /// Analyze text for style suggestions asynchronously
@@ -230,6 +238,21 @@ public class LLMEngine {
             rustVec.push(value: RustString(word))
         }
         llm_sync_vocabulary(rustVec)
+    }
+
+    // MARK: - Inference Settings
+
+    /// Set the inference preset (Fast/Balanced/Quality)
+    ///
+    /// This controls the speed vs quality tradeoff:
+    /// - **Fast**: Quick responses, shorter suggestions. Best for rapid feedback during editing.
+    /// - **Balanced**: Good balance of speed and detail. Recommended for most users.
+    /// - **Quality**: Thorough analysis with detailed explanations. Best for reviewing important writing.
+    ///
+    /// - Parameter preset: The inference preset to use
+    public func setInferencePreset(_ preset: LLMInferencePreset) {
+        Logger.info("Setting inference preset to: \(preset.displayName)", category: Logger.llm)
+        llm_set_inference_preset(preset.ffiPreset)
     }
 
     // MARK: - Model Management

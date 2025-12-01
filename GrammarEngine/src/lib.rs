@@ -6,6 +6,7 @@ pub mod bridge;
 pub mod analyzer;
 pub mod slang_dict;
 pub mod language_filter;
+pub mod swift_logger;
 
 // LLM Style Checking module (feature-gated)
 #[cfg(feature = "llm")]
