@@ -3,7 +3,6 @@
 
 # Claude Code configuration (user-specific)
 .claude/
-CLAUDE.md
 
 # Internal planning and specification documents
 specs/**/
