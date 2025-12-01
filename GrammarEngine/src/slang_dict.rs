@@ -113,7 +113,8 @@ mod tests {
         assert!(abbrevs.len() > 3000, "Should have 3000+ abbreviations");
 
         // Check for some common ones (all lowercase)
-        let words: Vec<String> = abbrevs.iter()
+        let words: Vec<String> = abbrevs
+            .iter()
             .map(|(chars, _)| chars.iter().collect())
             .collect();
 
@@ -122,7 +123,10 @@ mod tests {
         assert!(words.contains(&"lol".to_string()), "Should contain 'lol'");
         assert!(words.contains(&"asap".to_string()), "Should contain 'asap'");
         assert!(words.contains(&"imho".to_string()), "Should contain 'imho'");
-        assert!(words.contains(&"afaict".to_string()), "Should contain 'afaict'");
+        assert!(
+            words.contains(&"afaict".to_string()),
+            "Should contain 'afaict'"
+        );
     }
 
     #[test]
@@ -133,14 +137,24 @@ mod tests {
         assert!(slang.len() > 100, "Should have 100+ slang terms");
 
         // Check for some modern slang
-        let words: Vec<String> = slang.iter()
+        let words: Vec<String> = slang
+            .iter()
             .map(|(chars, _)| chars.iter().collect())
             .collect();
 
         // Note: these are lowercase in the file
-        assert!(words.iter().any(|w| w.to_lowercase() == "ghosting"), "Should contain 'ghosting'");
-        assert!(words.iter().any(|w| w.to_lowercase() == "sus"), "Should contain 'sus'");
-        assert!(words.iter().any(|w| w.to_lowercase() == "slay"), "Should contain 'slay'");
+        assert!(
+            words.iter().any(|w| w.to_lowercase() == "ghosting"),
+            "Should contain 'ghosting'"
+        );
+        assert!(
+            words.iter().any(|w| w.to_lowercase() == "sus"),
+            "Should contain 'sus'"
+        );
+        assert!(
+            words.iter().any(|w| w.to_lowercase() == "slay"),
+            "Should contain 'slay'"
+        );
     }
 
     #[test]
@@ -148,9 +162,14 @@ mod tests {
         let test_text = "# This is a comment\nBTW\n\n  \nFYI\n# Another comment\nLOL";
         let words = load_words_lowercase_only(test_text);
 
-        assert_eq!(words.len(), 3, "Should only load 3 words, ignoring comments and empty lines");
+        assert_eq!(
+            words.len(),
+            3,
+            "Should only load 3 words, ignoring comments and empty lines"
+        );
 
-        let word_strings: Vec<String> = words.iter()
+        let word_strings: Vec<String> = words
+            .iter()
             .map(|(chars, _)| chars.iter().collect())
             .collect();
 
@@ -166,18 +185,34 @@ mod tests {
         // Should generate only 3 words (one per line, all lowercase)
         assert_eq!(words.len(), 3, "Should generate 3 lowercase words");
 
-        let word_strings: Vec<String> = words.iter()
+        let word_strings: Vec<String> = words
+            .iter()
             .map(|(chars, _)| chars.iter().collect())
             .collect();
 
         // Check that we have only lowercase variants
-        assert!(word_strings.contains(&"btw".to_string()), "Should contain lowercase 'btw'");
-        assert!(word_strings.contains(&"fyi".to_string()), "Should contain lowercase 'fyi'");
-        assert!(word_strings.contains(&"lol".to_string()), "Should contain lowercase 'lol'");
+        assert!(
+            word_strings.contains(&"btw".to_string()),
+            "Should contain lowercase 'btw'"
+        );
+        assert!(
+            word_strings.contains(&"fyi".to_string()),
+            "Should contain lowercase 'fyi'"
+        );
+        assert!(
+            word_strings.contains(&"lol".to_string()),
+            "Should contain lowercase 'lol'"
+        );
 
         // Should NOT contain uppercase or title case
-        assert!(!word_strings.contains(&"BTW".to_string()), "Should NOT contain uppercase 'BTW'");
-        assert!(!word_strings.contains(&"Btw".to_string()), "Should NOT contain title case 'Btw'");
+        assert!(
+            !word_strings.contains(&"BTW".to_string()),
+            "Should NOT contain uppercase 'BTW'"
+        );
+        assert!(
+            !word_strings.contains(&"Btw".to_string()),
+            "Should NOT contain title case 'Btw'"
+        );
     }
 
     #[test]
@@ -188,22 +223,47 @@ mod tests {
         // Should have 3000+ abbreviations (no case variants)
         assert!(abbrevs.len() > 3000, "Should have 3000+ abbreviations");
 
-        let abbrev_strings: Vec<String> = abbrevs.iter()
+        let abbrev_strings: Vec<String> = abbrevs
+            .iter()
             .map(|(chars, _)| chars.iter().collect())
             .collect();
 
         // Test specific critical abbreviations (all lowercase)
-        assert!(abbrev_strings.contains(&"btw".to_string()), "Should contain 'btw'");
-        assert!(abbrev_strings.contains(&"fyi".to_string()), "Should contain 'fyi'");
-        assert!(abbrev_strings.contains(&"lol".to_string()), "Should contain 'lol'");
-        assert!(abbrev_strings.contains(&"afaict".to_string()), "Should contain 'afaict'");
-        assert!(abbrev_strings.contains(&"imho".to_string()), "Should contain 'imho'");
+        assert!(
+            abbrev_strings.contains(&"btw".to_string()),
+            "Should contain 'btw'"
+        );
+        assert!(
+            abbrev_strings.contains(&"fyi".to_string()),
+            "Should contain 'fyi'"
+        );
+        assert!(
+            abbrev_strings.contains(&"lol".to_string()),
+            "Should contain 'lol'"
+        );
+        assert!(
+            abbrev_strings.contains(&"afaict".to_string()),
+            "Should contain 'afaict'"
+        );
+        assert!(
+            abbrev_strings.contains(&"imho".to_string()),
+            "Should contain 'imho'"
+        );
 
         // Should NOT contain uppercase variants
-        assert!(!abbrev_strings.contains(&"BTW".to_string()), "Should NOT contain 'BTW'");
-        assert!(!abbrev_strings.contains(&"AFAICT".to_string()), "Should NOT contain 'AFAICT'");
+        assert!(
+            !abbrev_strings.contains(&"BTW".to_string()),
+            "Should NOT contain 'BTW'"
+        );
+        assert!(
+            !abbrev_strings.contains(&"AFAICT".to_string()),
+            "Should NOT contain 'AFAICT'"
+        );
 
-        println!("Loaded {} total abbreviations (lowercase only)", abbrevs.len());
+        println!(
+            "Loaded {} total abbreviations (lowercase only)",
+            abbrevs.len()
+        );
     }
 
     #[test]
@@ -211,35 +271,79 @@ mod tests {
         let it_terms = WordlistCategory::ITTerminology.load_words();
 
         // Should have 10000+ terms
-        assert!(it_terms.len() > 10000, "Should have 10000+ IT terms, got {}", it_terms.len());
+        assert!(
+            it_terms.len() > 10000,
+            "Should have 10000+ IT terms, got {}",
+            it_terms.len()
+        );
 
         // Check for some common IT terms
-        let term_strings: Vec<String> = it_terms.iter()
+        let term_strings: Vec<String> = it_terms
+            .iter()
             .map(|(chars, _)| chars.iter().collect())
             .collect();
 
         // Cloud/DevOps terms
-        assert!(term_strings.contains(&"kubernetes".to_string()), "Should contain 'kubernetes'");
-        assert!(term_strings.contains(&"docker".to_string()), "Should contain 'docker'");
-        assert!(term_strings.contains(&"nginx".to_string()), "Should contain 'nginx'");
+        assert!(
+            term_strings.contains(&"kubernetes".to_string()),
+            "Should contain 'kubernetes'"
+        );
+        assert!(
+            term_strings.contains(&"docker".to_string()),
+            "Should contain 'docker'"
+        );
+        assert!(
+            term_strings.contains(&"nginx".to_string()),
+            "Should contain 'nginx'"
+        );
 
         // Programming terms
-        assert!(term_strings.contains(&"javascript".to_string()), "Should contain 'javascript'");
-        assert!(term_strings.contains(&"python".to_string()), "Should contain 'python'");
-        assert!(term_strings.contains(&"api".to_string()), "Should contain 'api'");
-        assert!(term_strings.contains(&"json".to_string()), "Should contain 'json'");
+        assert!(
+            term_strings.contains(&"javascript".to_string()),
+            "Should contain 'javascript'"
+        );
+        assert!(
+            term_strings.contains(&"python".to_string()),
+            "Should contain 'python'"
+        );
+        assert!(
+            term_strings.contains(&"api".to_string()),
+            "Should contain 'api'"
+        );
+        assert!(
+            term_strings.contains(&"json".to_string()),
+            "Should contain 'json'"
+        );
 
         // Networking terms
-        assert!(term_strings.contains(&"http".to_string()), "Should contain 'http'");
-        assert!(term_strings.contains(&"tcp".to_string()), "Should contain 'tcp'");
-        assert!(term_strings.contains(&"ssh".to_string()), "Should contain 'ssh'");
+        assert!(
+            term_strings.contains(&"http".to_string()),
+            "Should contain 'http'"
+        );
+        assert!(
+            term_strings.contains(&"tcp".to_string()),
+            "Should contain 'tcp'"
+        );
+        assert!(
+            term_strings.contains(&"ssh".to_string()),
+            "Should contain 'ssh'"
+        );
 
         // Security terms
-        assert!(term_strings.contains(&"encryption".to_string()), "Should contain 'encryption'");
-        assert!(term_strings.contains(&"firewall".to_string()), "Should contain 'firewall'");
+        assert!(
+            term_strings.contains(&"encryption".to_string()),
+            "Should contain 'encryption'"
+        );
+        assert!(
+            term_strings.contains(&"firewall".to_string()),
+            "Should contain 'firewall'"
+        );
 
         // Linux terms
-        assert!(term_strings.contains(&"chmod".to_string()), "Should contain 'chmod'");
+        assert!(
+            term_strings.contains(&"chmod".to_string()),
+            "Should contain 'chmod'"
+        );
 
         println!("Loaded {} total IT terms", it_terms.len());
     }
@@ -247,29 +351,52 @@ mod tests {
     #[test]
     fn test_it_terminology_hyphenated_compounds() {
         let it_terms = WordlistCategory::ITTerminology.load_words();
-        let term_strings: Vec<String> = it_terms.iter()
+        let term_strings: Vec<String> = it_terms
+            .iter()
             .map(|(chars, _)| chars.iter().collect())
             .collect();
 
         // Test that important hyphenated compounds are preserved
-        assert!(term_strings.contains(&"real-time".to_string()), "Should contain 'real-time'");
-        assert!(term_strings.contains(&"end-to-end".to_string()), "Should contain 'end-to-end'");
-        assert!(term_strings.contains(&"peer-to-peer".to_string()), "Should contain 'peer-to-peer'");
-        assert!(term_strings.contains(&"serverless".to_string()), "Should contain 'serverless'");
+        assert!(
+            term_strings.contains(&"real-time".to_string()),
+            "Should contain 'real-time'"
+        );
+        assert!(
+            term_strings.contains(&"end-to-end".to_string()),
+            "Should contain 'end-to-end'"
+        );
+        assert!(
+            term_strings.contains(&"peer-to-peer".to_string()),
+            "Should contain 'peer-to-peer'"
+        );
+        assert!(
+            term_strings.contains(&"serverless".to_string()),
+            "Should contain 'serverless'"
+        );
     }
 
     #[test]
     fn test_it_terminology_vendor_and_technology_names() {
         let it_terms = WordlistCategory::ITTerminology.load_words();
-        let term_strings: Vec<String> = it_terms.iter()
+        let term_strings: Vec<String> = it_terms
+            .iter()
             .map(|(chars, _)| chars.iter().collect())
             .collect();
 
         // Technology names should be included (both individual and compound forms)
-        assert!(term_strings.contains(&"apache".to_string()), "Should contain 'apache'");
-        assert!(term_strings.contains(&"kafka".to_string()), "Should contain 'kafka'");
+        assert!(
+            term_strings.contains(&"apache".to_string()),
+            "Should contain 'apache'"
+        );
+        assert!(
+            term_strings.contains(&"kafka".to_string()),
+            "Should contain 'kafka'"
+        );
         // Compound forms may also be included for common technology stacks
-        assert!(term_strings.contains(&"apache-kafka".to_string()), "Should contain 'apache-kafka'");
+        assert!(
+            term_strings.contains(&"apache-kafka".to_string()),
+            "Should contain 'apache-kafka'"
+        );
     }
 
     #[test]
@@ -291,25 +418,41 @@ mod tests {
     #[test]
     fn test_it_terminology_source_variety() {
         let it_terms = WordlistCategory::ITTerminology.load_words();
-        let term_strings: Vec<String> = it_terms.iter()
+        let term_strings: Vec<String> = it_terms
+            .iter()
             .map(|(chars, _)| chars.iter().collect())
             .collect();
 
         // Terms from different sources to verify comprehensive coverage
 
         // NIST cybersecurity terms
-        assert!(term_strings.contains(&"authentication".to_string()), "Should contain NIST term 'authentication'");
+        assert!(
+            term_strings.contains(&"authentication".to_string()),
+            "Should contain NIST term 'authentication'"
+        );
 
         // IANA protocols
-        assert!(term_strings.contains(&"ssh".to_string()), "Should contain IANA protocol 'ssh'");
+        assert!(
+            term_strings.contains(&"ssh".to_string()),
+            "Should contain IANA protocol 'ssh'"
+        );
 
         // Linux syscalls
-        assert!(term_strings.contains(&"open".to_string()), "Should contain Linux syscall 'open'");
+        assert!(
+            term_strings.contains(&"open".to_string()),
+            "Should contain Linux syscall 'open'"
+        );
 
         // Programming languages from GitHub Linguist
-        assert!(term_strings.contains(&"rust".to_string()), "Should contain programming language 'rust'");
+        assert!(
+            term_strings.contains(&"rust".to_string()),
+            "Should contain programming language 'rust'"
+        );
 
         // CNCF technologies
-        assert!(term_strings.contains(&"prometheus".to_string()), "Should contain CNCF tech 'prometheus'");
+        assert!(
+            term_strings.contains(&"prometheus".to_string()),
+            "Should contain CNCF tech 'prometheus'"
+        );
     }
 }

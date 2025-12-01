@@ -3,10 +3,10 @@
 // Handles model discovery and validation of local model files.
 // Note: Downloads are handled by Swift's URLSession for proper progress reporting.
 
-use std::path::PathBuf;
 use std::fs;
+use std::path::PathBuf;
 
-use crate::llm::config::{get_model_config, default_model_id, AVAILABLE_MODELS};
+use crate::llm::config::{default_model_id, get_model_config, AVAILABLE_MODELS};
 use crate::llm_types::ModelInfo;
 
 /// Manager for LLM model files
@@ -59,10 +59,11 @@ impl ModelManager {
 
     /// Validate a downloaded model (basic size check)
     pub fn validate_model(&self, model_id: &str) -> Result<bool, String> {
-        let config = get_model_config(model_id)
-            .ok_or_else(|| format!("Unknown model: {model_id}"))?;
+        let config =
+            get_model_config(model_id).ok_or_else(|| format!("Unknown model: {model_id}"))?;
 
-        let path = self.model_path(model_id)
+        let path = self
+            .model_path(model_id)
             .ok_or_else(|| "Invalid model path".to_string())?;
 
         if !path.exists() {
@@ -82,7 +83,8 @@ impl ModelManager {
 
     /// Scan for all available models and their download status
     pub fn scan_models(&self) -> Vec<ModelInfo> {
-        let default_id = self.current_model_id
+        let default_id = self
+            .current_model_id
             .as_deref()
             .unwrap_or(default_model_id());
 
@@ -115,17 +117,19 @@ impl ModelManager {
 
     /// Get the current model ID
     pub fn current_model_id(&self) -> &str {
-        self.current_model_id.as_deref().unwrap_or(default_model_id())
+        self.current_model_id
+            .as_deref()
+            .unwrap_or(default_model_id())
     }
 
     /// Delete a downloaded model
     pub fn delete_model(&self, model_id: &str) -> Result<(), String> {
-        let path = self.model_path(model_id)
+        let path = self
+            .model_path(model_id)
             .ok_or_else(|| format!("Unknown model: {model_id}"))?;
 
         if path.exists() {
-            fs::remove_file(&path)
-                .map_err(|e| format!("Failed to delete model: {e}"))?;
+            fs::remove_file(&path).map_err(|e| format!("Failed to delete model: {e}"))?;
         }
 
         Ok(())
@@ -141,8 +145,8 @@ impl ModelManager {
 
     /// Import a model from a local file path
     pub fn import_model(&self, model_id: &str, source_path: &PathBuf) -> Result<(), String> {
-        let config = get_model_config(model_id)
-            .ok_or_else(|| format!("Unknown model: {model_id}"))?;
+        let config =
+            get_model_config(model_id).ok_or_else(|| format!("Unknown model: {model_id}"))?;
 
         if !source_path.exists() {
             return Err("Source file does not exist".to_string());
@@ -151,8 +155,7 @@ impl ModelManager {
         let dest_path = self.models_dir.join(config.filename);
 
         // Copy the file
-        fs::copy(source_path, &dest_path)
-            .map_err(|e| format!("Failed to import model: {e}"))?;
+        fs::copy(source_path, &dest_path).map_err(|e| format!("Failed to import model: {e}"))?;
 
         Ok(())
     }

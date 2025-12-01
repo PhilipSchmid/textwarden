@@ -183,9 +183,13 @@ impl InferencePreset {
     /// Get description explaining what this preset does
     pub fn description(&self) -> &'static str {
         match self {
-            Self::Fast => "Faster responses, shorter suggestions. Best when you want quick feedback.",
+            Self::Fast => {
+                "Faster responses, shorter suggestions. Best when you want quick feedback."
+            }
             Self::Balanced => "Good balance of speed and thoroughness. Recommended for most users.",
-            Self::Quality => "More thorough analysis, detailed suggestions. Best for important writing.",
+            Self::Quality => {
+                "More thorough analysis, detailed suggestions. Best for important writing."
+            }
         }
     }
 }
@@ -216,23 +220,23 @@ impl From<InferencePreset> for InferenceSettings {
     fn from(preset: InferencePreset) -> Self {
         match preset {
             InferencePreset::Fast => Self {
-                max_tokens: 256,      // Shorter responses = faster
-                temperature: 0.2,     // More deterministic = faster sampling
+                max_tokens: 256,  // Shorter responses = faster
+                temperature: 0.2, // More deterministic = faster sampling
                 top_p: 0.85,
                 n_threads: 4,
                 n_gpu_layers: -1,
             },
             InferencePreset::Balanced => Self {
-                max_tokens: 512,      // Good balance
-                temperature: 0.3,     // Slightly creative but consistent
+                max_tokens: 512,  // Good balance
+                temperature: 0.3, // Slightly creative but consistent
                 top_p: 0.9,
                 n_threads: 4,
                 n_gpu_layers: -1,
             },
             InferencePreset::Quality => Self {
-                max_tokens: 768,      // Allow more detailed explanations
-                temperature: 0.1,     // More deterministic = more accurate
-                top_p: 0.95,          // Consider more tokens
+                max_tokens: 768,  // Allow more detailed explanations
+                temperature: 0.1, // More deterministic = more accurate
+                top_p: 0.95,      // Consider more tokens
                 n_threads: 4,
                 n_gpu_layers: -1,
             },

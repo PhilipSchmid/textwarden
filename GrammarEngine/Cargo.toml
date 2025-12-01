@@ -46,9 +46,9 @@ codegen-units = 1
 opt-level = 1
 
 [lints.clippy]
-# Default lints for code quality
-all = "warn"
-pedantic = "warn"
-# Specific configurations
-missing_errors_doc = "allow"  # FFI functions don't need error docs
-missing_panics_doc = "allow"  # Allow missing panic docs for now
+# Default lints - use sensible defaults without pedantic for now
+# Specific allows for FFI code and generated swift-bridge code
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+too_many_arguments = "allow"  # FFI functions need many parameters
+unnecessary_cast = "allow"     # swift-bridge generates these

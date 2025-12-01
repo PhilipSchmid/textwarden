@@ -135,7 +135,14 @@ fn build_rejection_context(patterns: &[RejectionPattern], current_style: StyleTe
 
     let examples: Vec<String> = relevant
         .iter()
-        .map(|p| format!("- '{}' → '{}' (rejected: {})", p.original, p.suggested, p.category.as_str()))
+        .map(|p| {
+            format!(
+                "- '{}' → '{}' (rejected: {})",
+                p.original,
+                p.suggested,
+                p.category.as_str()
+            )
+        })
         .collect();
 
     format!(
@@ -149,7 +156,11 @@ fn build_rejection_context(patterns: &[RejectionPattern], current_style: StyleTe
 /// Returns a vector of (original, suggested, explanation) tuples
 pub fn parse_llm_response(response: &str) -> Result<Vec<ParsedSuggestion>, ParseError> {
     // Log at Info level to see what the LLM is actually returning
-    tracing::info!("parse_llm_response: Raw response ({} chars): {}", response.len(), response);
+    tracing::info!(
+        "parse_llm_response: Raw response ({} chars): {}",
+        response.len(),
+        response
+    );
 
     // Try to extract JSON from the response (LLM might include extra text)
     let json_str = extract_json(response)?;
@@ -164,14 +175,20 @@ pub fn parse_llm_response(response: &str) -> Result<Vec<ParsedSuggestion>, Parse
 
     // First try parsing as the expected format {"suggestions": [...]}
     if let Ok(parsed) = serde_json::from_str::<LlmResponse>(&json_str) {
-        tracing::debug!("parse_llm_response: Parsed {} suggestions", parsed.suggestions.len());
+        tracing::debug!(
+            "parse_llm_response: Parsed {} suggestions",
+            parsed.suggestions.len()
+        );
         return Ok(parsed.suggestions);
     }
 
     // If that fails, try parsing as a direct array [{...}, ...]
     // Some models output the array directly instead of wrapping in {"suggestions": ...}
     if let Ok(suggestions) = serde_json::from_str::<Vec<ParsedSuggestion>>(&json_str) {
-        tracing::debug!("parse_llm_response: Parsed {} suggestions from direct array", suggestions.len());
+        tracing::debug!(
+            "parse_llm_response: Parsed {} suggestions from direct array",
+            suggestions.len()
+        );
         return Ok(suggestions);
     }
 
@@ -437,7 +454,8 @@ Let me know if you need more help!"#;
 
     #[test]
     fn test_parse_llm_response_single_suggestion() {
-        let response = r#"{"original": "very", "suggested": "quite", "explanation": "Less casual"}"#;
+        let response =
+            r#"{"original": "very", "suggested": "quite", "explanation": "Less casual"}"#;
         let result = parse_llm_response(response);
 
         assert!(result.is_ok());
@@ -555,7 +573,10 @@ Let me know if you need more help!"#;
       "original": "another"#;
         let result = parse_llm_response(response);
 
-        assert!(result.is_ok(), "Should extract first complete JSON from multi-line response");
+        assert!(
+            result.is_ok(),
+            "Should extract first complete JSON from multi-line response"
+        );
         let suggestions = result.unwrap();
         assert_eq!(suggestions.len(), 1);
         assert_eq!(suggestions[0].original, "This is a test message");
@@ -568,7 +589,11 @@ Let me know if you need more help!"#;
         let response = r#"{<0x0A>  "suggestions": [<0x0A>    {<0x0A>      "original": "very good",<0x0A>      "suggested": "excellent",<0x0A>      "explanation": "More concise"<0x0A>    }<0x0A>  ]<0x0A>}"#;
         let result = parse_llm_response(response);
 
-        assert!(result.is_ok(), "Should handle literal <0x0A> strings: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Should handle literal <0x0A> strings: {:?}",
+            result
+        );
         let suggestions = result.unwrap();
         assert_eq!(suggestions.len(), 1);
         assert_eq!(suggestions[0].original, "very good");

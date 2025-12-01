@@ -75,7 +75,9 @@ pub fn ends_with_complete_sentence(text: &str) -> bool {
 
     // Find the last sentence and check word count
     let sentences = extract_complete_sentences(text);
-    sentences.last().map_or(false, |s| s.word_count >= MIN_WORDS_FOR_ANALYSIS)
+    sentences
+        .last()
+        .map_or(false, |s| s.word_count >= MIN_WORDS_FOR_ANALYSIS)
 }
 
 /// Get the last complete sentence if available
@@ -150,7 +152,8 @@ mod tests {
 
     #[test]
     fn test_unicode_handling() {
-        let text = "Dies ist ein deutscher Satz mit genug Wörtern. C'est une phrase française complète!";
+        let text =
+            "Dies ist ein deutscher Satz mit genug Wörtern. C'est une phrase française complète!";
         let sentences = extract_complete_sentences(text);
 
         assert_eq!(sentences.len(), 2);

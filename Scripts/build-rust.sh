@@ -46,6 +46,12 @@ fi
 
 cd "$GRAMMAR_ENGINE_DIR"
 
+# Skip build in CI if library already exists (pre-built)
+if [ -n "$CI" ] && [ -f "$TARGET_DIR/libgrammar_engine_universal.a" ]; then
+    echo -e "${GREEN}Rust library already exists, skipping build in CI${NC}"
+    exit 0
+fi
+
 # Determine build configuration
 if [ "$CONFIGURATION" = "Release" ]; then
     CARGO_BUILD_FLAG="--release"
