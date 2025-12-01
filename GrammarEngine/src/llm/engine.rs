@@ -90,8 +90,8 @@ impl LlmEngine {
         Self::validate_gguf_file(&model_path)?;
 
         // Get model config
-        let _config = get_model_config(model_id)
-            .ok_or_else(|| format!("Unknown model: {model_id}"))?;
+        let _config =
+            get_model_config(model_id).ok_or_else(|| format!("Unknown model: {model_id}"))?;
 
         // Get the directory and filename
         let model_dir = model_path
@@ -114,8 +114,8 @@ impl LlmEngine {
         //   cause memory to grow from ~5GB to 19GB+ during continuous usage
         let model = GgufModelBuilder::new(model_dir, vec![model_filename])
             .with_logging()
-            .with_prefix_cache_n(None)  // Disable prefix caching to prevent memory accumulation
-            .with_max_num_seqs(1)       // Single request processing only
+            .with_prefix_cache_n(None) // Disable prefix caching to prevent memory accumulation
+            .with_max_num_seqs(1) // Single request processing only
             .build()
             .await
             .map_err(|e| format!("Failed to load model: {e}"))?;
@@ -147,8 +147,8 @@ impl LlmEngine {
         const MIN_GGUF_SIZE: u64 = 1024;
 
         // Check file size
-        let metadata = std::fs::metadata(path)
-            .map_err(|e| format!("Cannot read model file metadata: {e}"))?;
+        let metadata =
+            std::fs::metadata(path).map_err(|e| format!("Cannot read model file metadata: {e}"))?;
 
         let file_size = metadata.len();
         if file_size < MIN_GGUF_SIZE {
@@ -159,8 +159,8 @@ impl LlmEngine {
         }
 
         // Read and validate magic bytes
-        let mut file = File::open(path)
-            .map_err(|e| format!("Cannot open model file for validation: {e}"))?;
+        let mut file =
+            File::open(path).map_err(|e| format!("Cannot open model file for validation: {e}"))?;
 
         let mut magic = [0u8; 4];
         file.read_exact(&mut magic)
@@ -187,7 +187,11 @@ impl LlmEngine {
             ));
         }
 
-        tracing::debug!("GGUF file validated: size={} bytes, version={}", file_size, version);
+        tracing::debug!(
+            "GGUF file validated: size={} bytes, version={}",
+            file_size,
+            version
+        );
         Ok(())
     }
 
@@ -208,7 +212,11 @@ impl LlmEngine {
         text: &str,
         style: StyleTemplate,
     ) -> Result<Vec<StyleSuggestion>, String> {
-        tracing::info!("LlmEngine::analyze_style: START text_len={}, style={:?}", text.len(), style);
+        tracing::info!(
+            "LlmEngine::analyze_style: START text_len={}, style={:?}",
+            text.len(),
+            style
+        );
 
         // Get the loaded model
         let guard = self.model.read().await;
@@ -217,7 +225,10 @@ impl LlmEngine {
             "No model loaded".to_string()
         })?;
 
-        tracing::debug!("LlmEngine::analyze_style: Model loaded, id={}", loaded.model_id);
+        tracing::debug!(
+            "LlmEngine::analyze_style: Model loaded, id={}",
+            loaded.model_id
+        );
 
         // Get context data for prompt building
         let ctx_manager = self.context_manager.read().await;
@@ -246,7 +257,10 @@ impl LlmEngine {
             &rejection_patterns,
         );
 
-        tracing::debug!("LlmEngine::analyze_style: Prompt built, len={}", prompt.len());
+        tracing::debug!(
+            "LlmEngine::analyze_style: Prompt built, len={}",
+            prompt.len()
+        );
 
         // Generate response using mistral.rs
         tracing::info!("LlmEngine::analyze_style: Calling mistral.rs generate...");
@@ -262,15 +276,21 @@ impl LlmEngine {
         tracing::debug!("LlmEngine::analyze_style: Raw response: {}", response);
 
         // Parse the response
-        let parsed = parse_llm_response(&response)
-            .map_err(|e| {
-                // Include truncated raw response in error for debugging
-                let preview: String = response.chars().take(500).collect();
-                tracing::error!("LlmEngine::analyze_style: Failed to parse response: {}. Raw response preview: {}", e, preview);
-                format!("Failed to parse LLM response: {e}. Raw response preview: {preview}")
-            })?;
+        let parsed = parse_llm_response(&response).map_err(|e| {
+            // Include truncated raw response in error for debugging
+            let preview: String = response.chars().take(500).collect();
+            tracing::error!(
+                "LlmEngine::analyze_style: Failed to parse response: {}. Raw response preview: {}",
+                e,
+                preview
+            );
+            format!("Failed to parse LLM response: {e}. Raw response preview: {preview}")
+        })?;
 
-        tracing::debug!("LlmEngine::analyze_style: Parsed {} raw suggestions", parsed.len());
+        tracing::debug!(
+            "LlmEngine::analyze_style: Parsed {} raw suggestions",
+            parsed.len()
+        );
 
         // Convert to StyleSuggestions with diff computation
         let suggestions: Vec<StyleSuggestion> = parsed
@@ -343,20 +363,33 @@ impl LlmEngine {
 
         // 2. Reject if suggested contains original repeated (duplicate hallucination)
         // e.g., original="test", suggested="test test"
-        if suggested.contains(&format!("{} {}", original, original)) ||
-           suggested.contains(&format!("{}{}", original, original)) {
+        if suggested.contains(&format!("{} {}", original, original))
+            || suggested.contains(&format!("{}{}", original, original))
+        {
             tracing::debug!("Validation failed: suggested contains original repeated");
             return false;
         }
 
         // 3. Reject if original contains suggested and explanation mentions removing
         // This catches cases where LLM swapped original/suggested
-        let removal_keywords = ["remov", "delet", "eliminat", "shorter", "concise", "redundan", "duplicate"];
-        let suggests_removal = removal_keywords.iter().any(|kw| explanation_lower.contains(kw));
+        let removal_keywords = [
+            "remov",
+            "delet",
+            "eliminat",
+            "shorter",
+            "concise",
+            "redundan",
+            "duplicate",
+        ];
+        let suggests_removal = removal_keywords
+            .iter()
+            .any(|kw| explanation_lower.contains(kw));
 
         if suggests_removal && suggested.len() > original.len() {
             // Explanation talks about removal but suggested is longer - likely swapped
-            tracing::debug!("Validation failed: explanation suggests removal but suggested is longer");
+            tracing::debug!(
+                "Validation failed: explanation suggests removal but suggested is longer"
+            );
             return false;
         }
 
@@ -370,8 +403,12 @@ impl LlmEngine {
             };
 
             // If the extra part is similar to original, it's likely a repetition hallucination
-            if !extra.is_empty() && (extra == original || original.contains(extra) || extra.contains(original)) {
-                tracing::debug!("Validation failed: suggested appears to be repetition of original");
+            if !extra.is_empty()
+                && (extra == original || original.contains(extra) || extra.contains(original))
+            {
+                tracing::debug!(
+                    "Validation failed: suggested appears to be repetition of original"
+                );
                 return false;
             }
         }
@@ -415,8 +452,7 @@ impl LlmEngine {
         );
 
         // Build a chat request with the prompt as a system message
-        let messages = TextMessages::new()
-            .add_message(TextMessageRole::User, prompt);
+        let messages = TextMessages::new().add_message(TextMessageRole::User, prompt);
 
         // Build request with our settings
         let request = RequestBuilder::from(messages)
@@ -428,15 +464,15 @@ impl LlmEngine {
         tracing::debug!("generate: Sending request to model...");
 
         // Send the request
-        let response = model
-            .send_chat_request(request)
-            .await
-            .map_err(|e| {
-                tracing::error!("generate: Model request failed: {}", e);
-                format!("Generation failed: {e}")
-            })?;
+        let response = model.send_chat_request(request).await.map_err(|e| {
+            tracing::error!("generate: Model request failed: {}", e);
+            format!("Generation failed: {e}")
+        })?;
 
-        tracing::debug!("generate: Response received, choices={}", response.choices.len());
+        tracing::debug!(
+            "generate: Response received, choices={}",
+            response.choices.len()
+        );
 
         // Extract the response text
         let content = response

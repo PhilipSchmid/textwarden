@@ -3,8 +3,8 @@
 // This module provides a custom `tracing` Layer that forwards all log events
 // to Swift via an FFI callback, enabling unified logging across Rust and Swift.
 
-use std::sync::atomic::{AtomicPtr, Ordering};
 use std::fmt::Write as FmtWrite;
+use std::sync::atomic::{AtomicPtr, Ordering};
 use tracing::{Event, Level, Subscriber};
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::Layer;

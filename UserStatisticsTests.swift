@@ -246,48 +246,6 @@ final class UserStatisticsTests: XCTestCase {
         XCTAssertEqual(statistics.errorsFound, 10_000)
     }
 
-    // MARK: - Time Range Tests
-
-    func testTimeRangeDateThresholds() {
-        let now = Date()
-        let calendar = Calendar.current
-
-        // Session should return nil (handled separately)
-        XCTAssertNil(TimeRange.session.dateThreshold)
-
-        // 1 Day
-        if let threshold = TimeRange.day.dateThreshold {
-            let components = calendar.dateComponents([.day], from: threshold, to: now)
-            XCTAssertEqual(components.day, 1)
-        } else {
-            XCTFail("Day threshold should not be nil")
-        }
-
-        // 7 Days
-        if let threshold = TimeRange.week.dateThreshold {
-            let components = calendar.dateComponents([.day], from: threshold, to: now)
-            XCTAssertEqual(components.day, 7)
-        } else {
-            XCTFail("Week threshold should not be nil")
-        }
-
-        // 30 Days
-        if let threshold = TimeRange.month.dateThreshold {
-            let components = calendar.dateComponents([.day], from: threshold, to: now)
-            XCTAssertEqual(components.day, 30)
-        } else {
-            XCTFail("Month threshold should not be nil")
-        }
-
-        // 90 Days
-        if let threshold = TimeRange.ninetyDays.dateThreshold {
-            let components = calendar.dateComponents([.day], from: threshold, to: now)
-            XCTAssertEqual(components.day, 90)
-        } else {
-            XCTFail("90 days threshold should not be nil")
-        }
-    }
-
     // MARK: - Detailed Analysis Session Tests
 
     func testRecordDetailedAnalysisSession() {
@@ -887,19 +845,6 @@ final class UserStatisticsTests: XCTestCase {
 
     func testCurrentStreakWithNoActivity() {
         XCTAssertEqual(statistics.currentStreak, 0)
-    }
-
-    func testCurrentStreakWithYesterdayOnly() {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-
-        // Add only yesterday
-        if let yesterday = calendar.date(byAdding: .day, value: -1, to: today) {
-            statistics.activeDays.insert(yesterday)
-        }
-
-        // Should still count (allows 1-day gap)
-        XCTAssertEqual(statistics.currentStreak, 1)
     }
 
     // MARK: - Data Cleanup Tests

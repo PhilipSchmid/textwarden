@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust-tests:
+    name: Rust Tests & Linting
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: GrammarEngine
+
+      - name: Check formatting
+        working-directory: GrammarEngine
+        run: cargo fmt --check
+
+      - name: Run Clippy
+        working-directory: GrammarEngine
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run tests
+        working-directory: GrammarEngine
+        run: cargo test
+
+  swift-build-test:
+    name: Swift Build & Test
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: GrammarEngine
+
+      - name: Build Rust library (arm64 only, without LLM)
+        working-directory: GrammarEngine
+        run: |
+          cargo build --release --target aarch64-apple-darwin
+          mkdir -p target
+          cp target/aarch64-apple-darwin/release/libgrammar_engine.a target/libgrammar_engine_universal.a
+
+      - name: Build Swift app
+        run: |
+          xcodebuild build \
+            -project TextWarden.xcodeproj \
+            -scheme TextWarden \
+            -configuration Release \
+            -destination 'platform=macOS,arch=arm64' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      # Swift tests skipped: deployment target (macOS 26.1) not yet available on GitHub runners
+      # Tests run locally on developer machines with macOS 26

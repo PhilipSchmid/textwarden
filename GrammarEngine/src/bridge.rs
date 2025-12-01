@@ -7,11 +7,11 @@
 
 use crate::analyzer;
 use crate::llm_types;
-use crate::swift_logger::{SwiftLogCallback, SwiftLoggerLayer, register_swift_callback};
+use crate::swift_logger::{register_swift_callback, SwiftLogCallback, SwiftLoggerLayer};
 use std::sync::Once;
+use sysinfo::System;
 use tracing::Level;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
-use sysinfo::System;
 
 #[cfg(feature = "llm")]
 use {
@@ -76,7 +76,7 @@ mod ffi {
             enable_it_terminology: bool,
             enable_language_detection: bool,
             excluded_languages: Vec<String>,
-            enable_sentence_start_capitalization: bool
+            enable_sentence_start_capitalization: bool,
         ) -> AnalysisResult;
     }
 
@@ -213,7 +213,7 @@ mod ffi {
             original: String,
             suggested: String,
             style: StyleTemplate,
-            category: RejectionCategory
+            category: RejectionCategory,
         );
 
         // Sync custom vocabulary from Harper dictionary
@@ -326,8 +326,7 @@ fn initialize_logging(log_level: String) {
             _ => Level::INFO, // default to info
         };
 
-        let filter = EnvFilter::from_default_env()
-            .add_directive(level.into());
+        let filter = EnvFilter::from_default_env().add_directive(level.into());
 
         // Create the Swift logger layer for unified logging
         let swift_layer = SwiftLoggerLayer::new(level);
@@ -345,7 +344,10 @@ fn initialize_logging(log_level: String) {
             .with(fmt_layer)
             .init();
 
-        tracing::info!("Grammar Engine logging initialized at level: {} (unified with Swift)", log_level);
+        tracing::info!(
+            "Grammar Engine logging initialized at level: {} (unified with Swift)",
+            log_level
+        );
     });
 }
 
@@ -372,12 +374,14 @@ fn analyze_text(
     enable_it_terminology: bool,
     enable_language_detection: bool,
     excluded_languages: Vec<String>,
-    enable_sentence_start_capitalization: bool
+    enable_sentence_start_capitalization: bool,
 ) -> AnalysisResult {
     // SECURITY: Never log the actual text content - only metadata
     tracing::debug!(
         "FFI analyze_text called: dialect={}, text_len={}, lang_detection={}",
-        dialect, text.len(), enable_language_detection
+        dialect,
+        text.len(),
+        enable_language_detection
     );
 
     // Capture memory before analysis
@@ -398,7 +402,7 @@ fn analyze_text(
         enable_it_terminology,
         enable_language_detection,
         excluded_languages,
-        enable_sentence_start_capitalization
+        enable_sentence_start_capitalization,
     );
 
     // Capture memory after analysis
@@ -421,7 +425,8 @@ fn analyze_text(
     );
 
     // Convert analyzer types to FFI types
-    let errors = result.errors
+    let errors = result
+        .errors
         .into_iter()
         .map(|err| GrammarError {
             start: err.start,
@@ -649,7 +654,9 @@ fn ffi_rejection_to_internal(category: ffi::RejectionCategory) -> llm_types::Rej
         ffi::RejectionCategory::WrongMeaning => llm_types::RejectionCategory::WrongMeaning,
         ffi::RejectionCategory::TooFormal => llm_types::RejectionCategory::TooFormal,
         ffi::RejectionCategory::TooInformal => llm_types::RejectionCategory::TooInformal,
-        ffi::RejectionCategory::UnnecessaryChange => llm_types::RejectionCategory::UnnecessaryChange,
+        ffi::RejectionCategory::UnnecessaryChange => {
+            llm_types::RejectionCategory::UnnecessaryChange
+        }
         ffi::RejectionCategory::WrongTerm => llm_types::RejectionCategory::WrongTerm,
         ffi::RejectionCategory::Other => llm_types::RejectionCategory::Other,
     }
@@ -760,7 +767,10 @@ fn llm_load_model(model_id: String) -> String {
         // Check file size is reasonable (at least 1MB for a valid GGUF model)
         if let Ok(metadata) = std::fs::metadata(&path) {
             if metadata.len() < 1_000_000 {
-                return format!("Model file appears corrupted (too small): {}", path.display());
+                return format!(
+                    "Model file appears corrupted (too small): {}",
+                    path.display()
+                );
             }
         }
 
@@ -841,7 +851,9 @@ fn llm_is_model_loaded() -> bool {
 fn llm_get_loaded_model_id() -> String {
     let guard = TOKIO_RUNTIME.block_on(LLM_ENGINE.read());
     if let Some(ref engine) = *guard {
-        TOKIO_RUNTIME.block_on(engine.loaded_model_id()).unwrap_or_default()
+        TOKIO_RUNTIME
+            .block_on(engine.loaded_model_id())
+            .unwrap_or_default()
     } else {
         String::new()
     }

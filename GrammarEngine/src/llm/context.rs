@@ -6,13 +6,13 @@
 // - Acceptance patterns for reinforcement
 // - Integration with Harper's custom dictionary
 
-use std::path::PathBuf;
 use std::fs;
+use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::llm_types::{
-    AcceptancePattern, LearnedTerm, LearnedTermSource, RejectionCategory,
-    RejectionPattern, StyleTemplate, UserWritingContext,
+    AcceptancePattern, LearnedTerm, LearnedTermSource, RejectionCategory, RejectionPattern,
+    StyleTemplate, UserWritingContext,
 };
 
 /// Maximum number of learned terms to keep
@@ -80,12 +80,7 @@ impl ContextManager {
     }
 
     /// Record an accepted suggestion
-    pub fn record_acceptance(
-        &mut self,
-        original: &str,
-        suggested: &str,
-        style: StyleTemplate,
-    ) {
+    pub fn record_acceptance(&mut self, original: &str, suggested: &str, style: StyleTemplate) {
         let pattern = AcceptancePattern {
             id: uuid::Uuid::new_v4().to_string(),
             original: original.to_string(),
@@ -152,7 +147,10 @@ impl ContextManager {
     /// Check if a term has already been learned
     fn has_learned_term(&self, term: &str) -> bool {
         let term_lower = term.to_lowercase();
-        self.context.learned_terms.iter().any(|t| t.term.to_lowercase() == term_lower)
+        self.context
+            .learned_terms
+            .iter()
+            .any(|t| t.term.to_lowercase() == term_lower)
     }
 
     /// Add a learned term
@@ -189,7 +187,9 @@ impl ContextManager {
     /// Remove a learned term
     pub fn remove_learned_term(&mut self, term: &str) {
         let term_lower = term.to_lowercase();
-        self.context.learned_terms.retain(|t| t.term.to_lowercase() != term_lower);
+        self.context
+            .learned_terms
+            .retain(|t| t.term.to_lowercase() != term_lower);
         self.context.last_updated = Self::now();
         self.dirty = true;
     }
@@ -203,7 +203,11 @@ impl ContextManager {
 
     /// Get all learned terms as strings
     pub fn get_learned_terms(&self) -> Vec<String> {
-        self.context.learned_terms.iter().map(|t| t.term.clone()).collect()
+        self.context
+            .learned_terms
+            .iter()
+            .map(|t| t.term.clone())
+            .collect()
     }
 
     /// Get the custom vocabulary
@@ -301,7 +305,11 @@ mod tests {
     fn test_add_learned_term() {
         let mut manager = create_test_manager();
 
-        manager.add_learned_term("GraphQL", Some("API technology"), LearnedTermSource::UserApproved);
+        manager.add_learned_term(
+            "GraphQL",
+            Some("API technology"),
+            LearnedTermSource::UserApproved,
+        );
 
         let terms = manager.get_learned_terms();
         assert!(terms.contains(&"GraphQL".to_string()));
@@ -333,8 +341,18 @@ mod tests {
     fn test_get_rejection_patterns_by_style() {
         let mut manager = create_test_manager();
 
-        manager.record_rejection("test1", "test2", StyleTemplate::Formal, RejectionCategory::TooFormal);
-        manager.record_rejection("test3", "test4", StyleTemplate::Concise, RejectionCategory::UnnecessaryChange);
+        manager.record_rejection(
+            "test1",
+            "test2",
+            StyleTemplate::Formal,
+            RejectionCategory::TooFormal,
+        );
+        manager.record_rejection(
+            "test3",
+            "test4",
+            StyleTemplate::Concise,
+            RejectionCategory::UnnecessaryChange,
+        );
 
         let formal_patterns = manager.get_rejection_patterns(StyleTemplate::Formal);
         assert_eq!(formal_patterns.len(), 1);

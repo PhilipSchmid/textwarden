@@ -15,7 +15,7 @@ pub enum StyleTemplate {
 }
 
 impl StyleTemplate {
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "formal" => Self::Formal,
             "informal" | "casual" => Self::Informal,
@@ -108,8 +108,8 @@ pub struct ModelInfo {
     pub filename: String,
     pub download_url: String,
     pub size_bytes: u64,
-    pub speed_rating: f32,    // 0-10 scale
-    pub quality_rating: f32,  // 0-10 scale
+    pub speed_rating: f32,   // 0-10 scale
+    pub quality_rating: f32, // 0-10 scale
     pub languages: Vec<String>,
     pub is_multilingual: bool,
     pub description: String,
@@ -130,7 +130,7 @@ pub enum RejectionCategory {
 }
 
 impl RejectionCategory {
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "wrong_meaning" | "wrongmeaning" => Self::WrongMeaning,
             "too_formal" | "tooformal" => Self::TooFormal,
@@ -255,10 +255,10 @@ mod tests {
 
     #[test]
     fn test_style_template_conversion() {
-        assert_eq!(StyleTemplate::from_str("formal"), StyleTemplate::Formal);
-        assert_eq!(StyleTemplate::from_str("FORMAL"), StyleTemplate::Formal);
-        assert_eq!(StyleTemplate::from_str("casual"), StyleTemplate::Informal);
-        assert_eq!(StyleTemplate::from_str("unknown"), StyleTemplate::Default);
+        assert_eq!(StyleTemplate::parse("formal"), StyleTemplate::Formal);
+        assert_eq!(StyleTemplate::parse("FORMAL"), StyleTemplate::Formal);
+        assert_eq!(StyleTemplate::parse("casual"), StyleTemplate::Informal);
+        assert_eq!(StyleTemplate::parse("unknown"), StyleTemplate::Default);
     }
 
     #[test]

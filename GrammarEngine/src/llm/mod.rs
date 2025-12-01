@@ -12,9 +12,11 @@ pub mod prompts;
 pub mod sentence_detector;
 
 // Re-export commonly used types
-pub use config::{ModelConfig, InferenceSettings, AVAILABLE_MODELS};
+pub use config::{InferenceSettings, ModelConfig, AVAILABLE_MODELS};
 pub use context::ContextManager;
 pub use engine::LlmEngine;
 pub use model_manager::ModelManager;
 pub use prompts::{build_style_prompt, parse_llm_response};
-pub use sentence_detector::{extract_complete_sentences, ends_with_complete_sentence, SentenceSpan};
+pub use sentence_detector::{
+    ends_with_complete_sentence, extract_complete_sentences, SentenceSpan,
+};
