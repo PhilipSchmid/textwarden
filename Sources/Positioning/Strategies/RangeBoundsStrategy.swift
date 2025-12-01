@@ -32,12 +32,49 @@ class RangeBoundsStrategy: GeometryProvider {
 
         // Convert filtered coordinates to original coordinates
         let offset = parser.textReplacementOffset
-        let cfRange = CFRange(
+        let adjustedRange = NSRange(
             location: errorRange.location + offset,
             length: max(1, errorRange.length)
         )
+        let cfRange = CFRange(
+            location: adjustedRange.location,
+            length: adjustedRange.length
+        )
 
-        // Get bounds using standard range API
+        // Try multi-line bounds first for better accuracy on multi-line errors
+        if let quartzLineBounds = AccessibilityBridge.resolveMultiLineBounds(adjustedRange, in: element),
+           quartzLineBounds.count > 1 {
+            // Multi-line error detected - convert all line bounds to Cocoa coordinates
+            let cocoaLineBounds = quartzLineBounds.map { CoordinateMapper.toCocoaCoordinates($0) }
+
+            // Validate all line bounds
+            let validLineBounds = cocoaLineBounds.filter { CoordinateMapper.validateBounds($0) }
+            guard !validLineBounds.isEmpty else {
+                Logger.debug("RangeBoundsStrategy: All line bounds failed validation")
+                return nil
+            }
+
+            // Calculate overall bounding box from all lines
+            let overallBounds = calculateOverallBounds(from: validLineBounds)
+
+            Logger.debug("RangeBoundsStrategy: Multi-line error with \(validLineBounds.count) lines, overall bounds: \(overallBounds)")
+
+            return GeometryResult(
+                bounds: overallBounds,
+                lineBounds: validLineBounds,
+                confidence: 0.90,
+                strategy: strategyName,
+                metadata: [
+                    "api": "range-bounds-multiline",
+                    "range_location": cfRange.location,
+                    "range_length": cfRange.length,
+                    "line_count": validLineBounds.count,
+                    "overall_bounds": NSStringFromRect(overallBounds)
+                ]
+            )
+        }
+
+        // Fall back to single-range bounds (single line or when line API unavailable)
         guard let quartzBounds = AccessibilityBridge.resolveBoundsUsingRange(
             cfRange,
             in: element
@@ -64,6 +101,7 @@ class RangeBoundsStrategy: GeometryProvider {
 
         return GeometryResult(
             bounds: cocoaBounds,
+            lineBounds: nil,
             confidence: 0.90,
             strategy: strategyName,
             metadata: [
@@ -74,5 +112,24 @@ class RangeBoundsStrategy: GeometryProvider {
                 "cocoa_bounds": NSStringFromRect(cocoaBounds)
             ]
         )
+    }
+
+    /// Calculate the overall bounding box that encompasses all line bounds
+    private func calculateOverallBounds(from lineBounds: [CGRect]) -> CGRect {
+        guard let first = lineBounds.first else { return .zero }
+
+        var minX = first.minX
+        var minY = first.minY
+        var maxX = first.maxX
+        var maxY = first.maxY
+
+        for bounds in lineBounds.dropFirst() {
+            minX = min(minX, bounds.minX)
+            minY = min(minY, bounds.minY)
+            maxX = max(maxX, bounds.maxX)
+            maxY = max(maxY, bounds.maxY)
+        }
+
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
 }

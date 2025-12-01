@@ -369,6 +369,248 @@ enum AccessibilityBridge {
         return rect
     }
 
+    // MARK: - Multi-Line Bounds API
+
+    /// Calculate per-line bounds for a text range that may span multiple lines
+    /// Returns an array of bounds, one for each line the range spans
+    /// Returns nil if line-based APIs are not available
+    /// Returns bounds in Quartz coordinates (top-left origin) - caller must convert
+    static func resolveMultiLineBounds(
+        _ range: NSRange,
+        in element: AXUIElement
+    ) -> [CGRect]? {
+        // First, get the overall bounds to check if this might be multi-line
+        let cfRange = CFRange(location: range.location, length: range.length)
+        guard let overallBounds = resolveBoundsUsingRange(cfRange, in: element) else {
+            Logger.debug("AccessibilityBridge: Could not get overall bounds for range \(range)")
+            return nil
+        }
+
+        // Estimate typical line height by getting bounds for a single character
+        var typicalLineHeight: CGFloat = 20.0  // Default fallback
+        let singleCharRange = CFRange(location: range.location, length: 1)
+        if let charBounds = resolveBoundsUsingRange(singleCharRange, in: element) {
+            typicalLineHeight = max(charBounds.height, 12.0)  // At least 12px
+        }
+
+        // Check if bounds suggest multi-line (height > 1.5x typical line height)
+        let estimatedLineCount = Int(ceil(overallBounds.height / typicalLineHeight))
+        let likelyMultiLine = overallBounds.height > typicalLineHeight * 1.5
+
+        Logger.debug("AccessibilityBridge: Range \(range) overall bounds: \(overallBounds), lineHeight: \(typicalLineHeight), estimatedLines: \(estimatedLineCount), likelyMultiLine: \(likelyMultiLine)")
+
+        // Try to get line numbers from AX API
+        let startLine = tryGetLineForIndex(range.location, in: element)
+        let endIndex = range.location + range.length - 1
+        let endLine = tryGetLineForIndex(max(0, endIndex), in: element)
+
+        let axReportsMultiLine = startLine != nil && endLine != nil && startLine != endLine
+
+        Logger.debug("AccessibilityBridge: AX reports lines \(startLine ?? -1) to \(endLine ?? -1), axReportsMultiLine: \(axReportsMultiLine)")
+
+        // If AX says single-line AND bounds don't suggest multi-line, return single bounds
+        if !axReportsMultiLine && !likelyMultiLine {
+            Logger.debug("AccessibilityBridge: Treating as single-line (AX and bounds agree)")
+            return [overallBounds]
+        }
+
+        // Try Method 1: Use AXRangeForLine to get each line's character range
+        // Only if AX reported valid different line numbers
+        var lineBounds: [CGRect] = []
+
+        if axReportsMultiLine, let start = startLine, let end = endLine {
+            var rangeForLineWorks = true
+
+            for lineNum in start...end {
+                // Get the character range for this line
+                guard let lineRange = tryGetRangeForLine(lineNum, in: element) else {
+                    Logger.debug("AccessibilityBridge: AXRangeForLine failed for line \(lineNum)")
+                    rangeForLineWorks = false
+                    break
+                }
+
+                // Calculate the intersection of our error range with this line's range
+                let lineStart = lineRange.location
+                let lineEnd = lineRange.location + lineRange.length
+                let errorStart = range.location
+                let errorEnd = range.location + range.length
+
+                let intersectStart = max(lineStart, errorStart)
+                let intersectEnd = min(lineEnd, errorEnd)
+
+                guard intersectStart < intersectEnd else {
+                    Logger.debug("AccessibilityBridge: No intersection for line \(lineNum)")
+                    continue
+                }
+
+                let intersectRange = CFRange(location: intersectStart, length: intersectEnd - intersectStart)
+
+                // Get bounds for this portion of text
+                if let bounds = resolveBoundsUsingRange(intersectRange, in: element) {
+                    lineBounds.append(bounds)
+                    Logger.debug("AccessibilityBridge: Line \(lineNum) bounds: \(bounds)")
+                }
+            }
+
+            if rangeForLineWorks && !lineBounds.isEmpty {
+                Logger.debug("AccessibilityBridge: Calculated \(lineBounds.count) line bounds using AXRangeForLine")
+                return lineBounds
+            }
+        }
+
+        // Method 2: Sample characters to detect line breaks using Y-coordinate changes
+        // For very long ranges, sample every N characters to find approximate line boundaries
+        Logger.debug("AccessibilityBridge: Falling back to Y-coordinate sampling for multi-line bounds (estimatedLines: \(estimatedLineCount))")
+        lineBounds = []
+
+        let rangeLength = range.length
+
+        // Sample rate: check every ~10 characters, but at least sample each expected line
+        let sampleStep = max(1, min(10, rangeLength / max(estimatedLineCount * 3, 1)))
+
+        var lineBreakIndices: [Int] = [range.location]  // Start of first line
+        var lastY: CGFloat?
+
+        var sampleIndex = range.location
+        while sampleIndex < range.location + range.length {
+            let charRange = CFRange(location: sampleIndex, length: 1)
+            if let charBounds = resolveBoundsUsingRange(charRange, in: element) {
+                // Detect line change by Y coordinate change (more than half line height = new line)
+                if let prevY = lastY {
+                    let yDiff = abs(charBounds.origin.y - prevY)
+                    if yDiff > charBounds.height * 0.5 {
+                        // Line break detected - find exact boundary with binary search
+                        let exactBreak = findLineBreak(
+                            between: lineBreakIndices.last ?? range.location,
+                            and: sampleIndex,
+                            in: element,
+                            previousY: prevY
+                        ) ?? sampleIndex
+                        lineBreakIndices.append(exactBreak)
+                        Logger.debug("AccessibilityBridge: Detected line break at index \(exactBreak)")
+                    }
+                }
+                lastY = charBounds.origin.y
+            }
+            sampleIndex += sampleStep
+        }
+
+        // Add end of range as final boundary
+        lineBreakIndices.append(range.location + range.length)
+
+        // Convert line break indices to bounds
+        for i in 0..<(lineBreakIndices.count - 1) {
+            let lineStart = lineBreakIndices[i]
+            let lineEnd = lineBreakIndices[i + 1]
+            let lineLength = lineEnd - lineStart
+
+            if lineLength > 0 {
+                let lineRange = CFRange(location: lineStart, length: lineLength)
+                if let bounds = resolveBoundsUsingRange(lineRange, in: element) {
+                    lineBounds.append(bounds)
+                    Logger.debug("AccessibilityBridge: Line \(i) bounds from sampling: \(bounds)")
+                }
+            }
+        }
+
+        // If we found multiple lines via sampling, return them
+        if lineBounds.count > 1 {
+            Logger.debug("AccessibilityBridge: Calculated \(lineBounds.count) line bounds using Y-coordinate sampling")
+            return lineBounds
+        }
+
+        // Method 3: Geometric fallback - split the overall bounds into estimated line segments
+        // This is used when AX APIs don't support line-level queries but we know it's multi-line
+        Logger.debug("AccessibilityBridge: Using geometric fallback to split bounds into \(estimatedLineCount) lines")
+        lineBounds = []
+
+        for lineIndex in 0..<estimatedLineCount {
+            // Calculate the Y position for this line segment
+            // Overall bounds are in Quartz (top-left origin), so Y increases downward
+            let lineY = overallBounds.origin.y + (CGFloat(lineIndex) * typicalLineHeight)
+
+            // For the width, we need to estimate where each line starts and ends
+            // For the first line, start at the left edge of overall bounds
+            // For middle lines, assume they span the full width
+            // For the last line, it may end before the right edge
+
+            let lineRect: CGRect
+            if lineIndex == 0 {
+                // First line - starts at overall X, width is full or to end of line
+                lineRect = CGRect(
+                    x: overallBounds.origin.x,
+                    y: lineY,
+                    width: overallBounds.width,
+                    height: typicalLineHeight
+                )
+            } else if lineIndex == estimatedLineCount - 1 {
+                // Last line - may not span full width
+                // Estimate based on proportional text
+                let lastLineWidth = min(overallBounds.width, overallBounds.width * 0.7)  // Estimate 70% for last line
+                lineRect = CGRect(
+                    x: overallBounds.origin.x,
+                    y: lineY,
+                    width: lastLineWidth,
+                    height: typicalLineHeight
+                )
+            } else {
+                // Middle lines - span full width
+                lineRect = CGRect(
+                    x: overallBounds.origin.x,
+                    y: lineY,
+                    width: overallBounds.width,
+                    height: typicalLineHeight
+                )
+            }
+
+            lineBounds.append(lineRect)
+            Logger.debug("AccessibilityBridge: Geometric line \(lineIndex) bounds: \(lineRect)")
+        }
+
+        if !lineBounds.isEmpty {
+            Logger.debug("AccessibilityBridge: Created \(lineBounds.count) line bounds using geometric split")
+            return lineBounds
+        }
+
+        // Ultimate fallback - return the overall bounds as single element
+        Logger.debug("AccessibilityBridge: All methods failed, returning overall bounds as single line")
+        return [overallBounds]
+    }
+
+    /// Binary search to find exact line break point between two indices
+    private static func findLineBreak(
+        between start: Int,
+        and end: Int,
+        in element: AXUIElement,
+        previousY: CGFloat
+    ) -> Int? {
+        guard end > start + 1 else { return end }
+
+        var low = start
+        var high = end
+
+        while high - low > 1 {
+            let mid = (low + high) / 2
+            let charRange = CFRange(location: mid, length: 1)
+
+            if let charBounds = resolveBoundsUsingRange(charRange, in: element) {
+                let yDiff = abs(charBounds.origin.y - previousY)
+                if yDiff > charBounds.height * 0.5 {
+                    // Line break is before or at mid
+                    high = mid
+                } else {
+                    // Line break is after mid
+                    low = mid
+                }
+            } else {
+                // Can't get bounds, move forward
+                low = mid
+            }
+        }
+
+        return high
+    }
+
     // MARK: - Estimation (Fallback)
 
     /// Estimate position when all AX APIs fail

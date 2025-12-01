@@ -249,7 +249,7 @@ class ErrorOverlayWindow: NSPanel {
                 text: fullText
             )
 
-            Logger.debug("ErrorOverlay: PositionResolver returned bounds: \(geometryResult.bounds), strategy: \(geometryResult.strategy), confidence: \(geometryResult.confidence)", category: Logger.ui)
+            Logger.debug("ErrorOverlay: PositionResolver returned bounds: \(geometryResult.bounds), strategy: \(geometryResult.strategy), confidence: \(geometryResult.confidence), isMultiLine: \(geometryResult.isMultiLine)", category: Logger.ui)
 
             // Handle unavailable results (graceful degradation)
             // Unavailable results mean we should NOT show an underline rather than show it wrong
@@ -265,42 +265,57 @@ class ErrorOverlayWindow: NSPanel {
                 return nil
             }
 
-            let bounds = geometryResult.bounds
-
-            Logger.debug("ErrorOverlay: Final error bounds (screen): \(bounds)", category: Logger.ui)
-
             // getElementFrame() returns Quartz coordinates (top-left origin)
             // NSPanel.setFrame() works directly with Quartz in multi-monitor setups
             Logger.debug("ErrorOverlay: Element frame (Quartz): \(elementFrame)", category: Logger.ui)
 
-            // Convert to overlay-local coordinates
-            let localBounds = convertToLocal(bounds, from: elementFrame)
-            Logger.debug("ErrorOverlay: Error bounds (local): \(localBounds)", category: Logger.ui)
+            // Convert all line bounds to local coordinates
+            let allScreenBounds = geometryResult.allLineBounds
+            var allLocalBounds: [CGRect] = []
 
-            // CRITICAL: Validate local bounds - reject invalid coordinates
-            // Invalid bounds cause hover detection to fail
-            let maxValidHeight: CGFloat = 100.0  // Text lines shouldn't be > 100px
-            if localBounds.origin.y < -10 || localBounds.height > maxValidHeight {
-                Logger.warning("ErrorOverlay: Rejecting invalid local bounds (y=\(localBounds.origin.y), h=\(localBounds.height)) for error at \(error.start)-\(error.end)")
+            for (lineIndex, screenBounds) in allScreenBounds.enumerated() {
+                let localBounds = convertToLocal(screenBounds, from: elementFrame)
+                Logger.debug("ErrorOverlay: Line \(lineIndex) bounds - screen: \(screenBounds), local: \(localBounds)", category: Logger.ui)
+
+                // CRITICAL: Validate local bounds - reject invalid coordinates
+                // Invalid bounds cause hover detection to fail
+                let maxValidHeight: CGFloat = 100.0  // Text lines shouldn't be > 100px
+                if localBounds.origin.y < -10 || localBounds.height > maxValidHeight {
+                    Logger.warning("ErrorOverlay: Skipping invalid line bounds (y=\(localBounds.origin.y), h=\(localBounds.height))")
+                    continue
+                }
+
+                allLocalBounds.append(localBounds)
+            }
+
+            // If no valid bounds remain, skip this error
+            guard !allLocalBounds.isEmpty else {
+                Logger.warning("ErrorOverlay: All line bounds invalid for error at \(error.start)-\(error.end)")
                 skippedCount += 1
                 return nil
             }
 
-            // Expand bounds downward to include the underline area
-            // The underline is drawn below the text, so we need to extend the hit area
+            // Calculate overall expanded bounds for hit detection (covers all lines)
             let thickness = CGFloat(UserPreferences.shared.underlineThickness)
-            let offset = max(2.0, thickness / 2.0)
+            let offsetAmount = max(2.0, thickness / 2.0)
+
+            let overallLocalBounds = calculateOverallBounds(from: allLocalBounds)
             let expandedBounds = CGRect(
-                x: localBounds.minX,
-                y: localBounds.minY - offset - thickness - 2.0, // Extend down to include underline + extra padding
-                width: localBounds.width,
-                height: localBounds.height + offset + thickness + 2.0 // Increase height to cover underline area
+                x: overallLocalBounds.minX,
+                y: overallLocalBounds.minY - offsetAmount - thickness - 2.0,
+                width: overallLocalBounds.width,
+                height: overallLocalBounds.height + offsetAmount + thickness + 2.0
             )
-            Logger.debug("ErrorOverlay: Expanded bounds for hit detection: \(expandedBounds)", category: Logger.ui)
+
+            Logger.debug("ErrorOverlay: Multi-line error with \(allLocalBounds.count) lines, expanded bounds: \(expandedBounds)", category: Logger.ui)
+
+            // Use the last line's bounds as the primary drawing bounds (for popup anchor)
+            let primaryDrawingBounds = allLocalBounds.last ?? allLocalBounds[0]
 
             return ErrorUnderline(
                 bounds: expandedBounds,
-                drawingBounds: localBounds,
+                drawingBounds: primaryDrawingBounds,
+                allDrawingBounds: allLocalBounds,
                 color: underlineColor(for: error.category),
                 error: error
             )
@@ -312,7 +327,10 @@ class ErrorOverlayWindow: NSPanel {
         if bundleID.contains("notion") {
             Logger.info("NOTION UNDERLINES: \(underlines.count) underlines created")
             for (i, ul) in underlines.enumerated() {
-                Logger.info("  Underline \(i): bounds=\(ul.bounds), drawingBounds=\(ul.drawingBounds)")
+                Logger.info("  Underline \(i): bounds=\(ul.bounds), drawingBounds=\(ul.drawingBounds), allDrawingBounds.count=\(ul.allDrawingBounds.count)")
+                for (j, lineBounds) in ul.allDrawingBounds.enumerated() {
+                    Logger.info("    Line \(j): \(lineBounds)")
+                }
             }
         }
 
@@ -741,6 +759,25 @@ class ErrorOverlayWindow: NSPanel {
         return CGRect(x: estimatedX, y: estimatedY, width: clampedWidth, height: estimatedHeight)
     }
 
+    /// Calculate the overall bounding box that encompasses all bounds
+    private func calculateOverallBounds(from bounds: [CGRect]) -> CGRect {
+        guard let first = bounds.first else { return .zero }
+
+        var minX = first.minX
+        var minY = first.minY
+        var maxX = first.maxX
+        var maxY = first.maxY
+
+        for rect in bounds.dropFirst() {
+            minX = min(minX, rect.minX)
+            minY = min(minY, rect.minY)
+            maxX = max(maxX, rect.maxX)
+            maxY = max(maxY, rect.maxY)
+        }
+
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
+
     /// Convert screen coordinates to overlay-local coordinates
     private func convertToLocal(_ screenBounds: CGRect, from elementFrame: CGRect) -> CGRect {
         // Screen coordinates are in Cocoa (bottom-left origin)
@@ -797,10 +834,34 @@ class ErrorOverlayWindow: NSPanel {
 // MARK: - Error Underline Model
 
 struct ErrorUnderline {
-    let bounds: CGRect // Bounds for hit detection (expanded to include underline area)
-    let drawingBounds: CGRect // Original bounds for drawing position
+    let bounds: CGRect // Overall bounds for hit detection (expanded to include underline area)
+    let drawingBounds: CGRect // Primary bounds for drawing position (used for popup anchor)
+    let allDrawingBounds: [CGRect] // All line bounds for multi-line underlines
     let color: NSColor
     let error: GrammarErrorModel
+
+    /// Check if this is a multi-line underline
+    var isMultiLine: Bool {
+        allDrawingBounds.count > 1
+    }
+
+    /// Single-line convenience initializer
+    init(bounds: CGRect, drawingBounds: CGRect, color: NSColor, error: GrammarErrorModel) {
+        self.bounds = bounds
+        self.drawingBounds = drawingBounds
+        self.allDrawingBounds = [drawingBounds]
+        self.color = color
+        self.error = error
+    }
+
+    /// Multi-line initializer
+    init(bounds: CGRect, drawingBounds: CGRect, allDrawingBounds: [CGRect], color: NSColor, error: GrammarErrorModel) {
+        self.bounds = bounds
+        self.drawingBounds = drawingBounds
+        self.allDrawingBounds = allDrawingBounds
+        self.color = color
+        self.error = error
+    }
 }
 
 // MARK: - Style Underline Model
@@ -846,8 +907,11 @@ class UnderlineView: NSView {
         context.clear(bounds)
 
         // Draw highlight for hovered underline first (behind the underlines)
+        // For multi-line underlines, highlight all lines
         if let hovered = hoveredUnderline {
-            drawHighlight(in: context, bounds: hovered.drawingBounds, color: hovered.color)
+            for lineBounds in hovered.allDrawingBounds {
+                drawHighlight(in: context, bounds: lineBounds, color: hovered.color)
+            }
         }
 
         // Draw highlight for hovered style underline
@@ -856,8 +920,13 @@ class UnderlineView: NSView {
         }
 
         // Draw each grammar error underline (solid line)
-        for underline in underlines {
-            drawWavyUnderline(in: context, bounds: underline.drawingBounds, color: underline.color)
+        // For multi-line underlines, draw underlines for each line
+        for (underlineIdx, underline) in underlines.enumerated() {
+            Logger.debug("Draw: Underline \(underlineIdx) has \(underline.allDrawingBounds.count) line bounds", category: Logger.ui)
+            for (lineIdx, lineBounds) in underline.allDrawingBounds.enumerated() {
+                Logger.debug("Draw: Drawing line \(lineIdx) at bounds \(lineBounds)", category: Logger.ui)
+                drawWavyUnderline(in: context, bounds: lineBounds, color: underline.color)
+            }
         }
 
         // Draw each style suggestion underline (dotted purple line)
