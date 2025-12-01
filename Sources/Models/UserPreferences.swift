@@ -621,7 +621,7 @@ class UserPreferences: ObservableObject {
         self.keyboardShortcutsEnabled = true
 
         // Suggestion Appearance
-        self.suggestionOpacity = 0.95
+        self.suggestionOpacity = 0.80
         self.suggestionTextSize = 13.0
         self.suggestionPosition = "Auto"
         self.appTheme = "System"
@@ -726,7 +726,7 @@ class UserPreferences: ObservableObject {
         self.keyboardShortcutsEnabled = defaults.object(forKey: Keys.keyboardShortcutsEnabled) as? Bool ?? true
 
         // Suggestion Appearance
-        self.suggestionOpacity = defaults.object(forKey: Keys.suggestionOpacity) as? Double ?? 0.95
+        self.suggestionOpacity = defaults.object(forKey: Keys.suggestionOpacity) as? Double ?? 0.80
         self.suggestionTextSize = defaults.object(forKey: Keys.suggestionTextSize) as? Double ?? 13.0
         self.suggestionPosition = defaults.string(forKey: Keys.suggestionPosition) ?? "Auto"
         self.appTheme = defaults.string(forKey: Keys.appTheme) ?? "System"
@@ -1088,7 +1088,7 @@ class UserPreferences: ObservableObject {
         enableITTerminology = true
         enableSentenceStartCapitalization = true
         keyboardShortcutsEnabled = true
-        suggestionOpacity = 0.95
+        suggestionOpacity = 0.80
         suggestionTextSize = 13.0
         suggestionPosition = "Auto"
         appTheme = "System"
