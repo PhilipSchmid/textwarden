@@ -112,9 +112,8 @@ class LineIndexStrategy: GeometryProvider {
         Logger.debug("LineIndexStrategy: textBeforeErrorInLine='\(textBeforeErrorInLine)', errorText='\(errorText)'", category: Logger.ui)
 
         // Calculate widths using font measurement
-        let context = parser.detectUIContext(element: element)
-        let fontSize = parser.estimatedFontSize(context: context)
-        let font = NSFont.systemFont(ofSize: fontSize)
+        // Try to detect the actual font from the element for accurate measurement
+        let font = detectFont(from: element, parser: parser)
         let attributes: [NSAttributedString.Key: Any] = [.font: font]
 
         let textBeforeWidth = (textBeforeErrorInLine as NSString).size(withAttributes: attributes).width
@@ -235,5 +234,64 @@ class LineIndexStrategy: GeometryProvider {
         }
 
         return bounds
+    }
+
+    // MARK: - Font Detection
+
+    /// Detect the font being used in the element for accurate text measurement
+    private func detectFont(from element: AXUIElement, parser: ContentParser) -> NSFont {
+        // Try to get font info from attributed string at position 0
+        if let font = getAttributedStringFontInfo(from: element, at: 0) {
+            Logger.debug("LineIndexStrategy: Detected font '\(font.fontName)' size \(font.pointSize)", category: Logger.ui)
+            return font
+        }
+
+        // Fallback to parser's estimated font size with system font
+        let context = parser.detectUIContext(element: element)
+        let fontSize = parser.estimatedFontSize(context: context)
+
+        Logger.debug("LineIndexStrategy: Using fallback system font size \(fontSize)", category: Logger.ui)
+        return NSFont.systemFont(ofSize: fontSize)
+    }
+
+    /// Get font info from attributed string at a specific position
+    private func getAttributedStringFontInfo(from element: AXUIElement, at position: Int) -> NSFont? {
+        // Try AXAttributedStringForRange with a small range at the given position
+        var cfRange = CFRange(location: position, length: 1)
+        guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else {
+            return nil
+        }
+
+        var attrStringValue: CFTypeRef?
+        let result = AXUIElementCopyParameterizedAttributeValue(
+            element,
+            "AXAttributedStringForRange" as CFString,
+            rangeValue,
+            &attrStringValue
+        )
+
+        guard result == .success,
+              let attrString = attrStringValue as? NSAttributedString,
+              attrString.length > 0 else {
+            return nil
+        }
+
+        // Extract font from attributes
+        let attrs = attrString.attributes(at: 0, effectiveRange: nil)
+        if let font = attrs[.font] as? NSFont {
+            return font
+        }
+
+        // Try looking for AXFont key in attributed string
+        if let fontDict = attrs[NSAttributedString.Key(rawValue: "AXFont")] as? [String: Any] {
+            if let fontName = fontDict["AXFontName"] as? String,
+               let fontSize = fontDict["AXFontSize"] as? CGFloat {
+                if let font = NSFont(name: fontName, size: fontSize) {
+                    return font
+                }
+            }
+        }
+
+        return nil
     }
 }

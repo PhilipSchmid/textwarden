@@ -114,8 +114,11 @@ enum CoordinateMapper {
     /// Convert from Quartz (top-left origin) to Cocoa (bottom-left origin)
     /// This is the most common conversion needed
     static func toCocoaCoordinates(_ quartzRect: CGRect) -> CGRect {
-        guard let screen = NSScreen.main else {
-            Logger.warning("No main screen found during coordinate conversion")
+        // Use PRIMARY screen height (the one with Cocoa frame origin at 0,0)
+        // This is where the Quartz coordinate system origin is defined
+        let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero }
+        guard let screen = primaryScreen ?? NSScreen.main else {
+            Logger.warning("No screen found during coordinate conversion")
             return quartzRect
         }
 
@@ -131,8 +134,10 @@ enum CoordinateMapper {
     /// Convert from Cocoa (bottom-left origin) to Quartz (top-left origin)
     /// Rarely needed but included for completeness
     static func toQuartzCoordinates(_ cocoaRect: CGRect) -> CGRect {
-        guard let screen = NSScreen.main else {
-            Logger.warning("No main screen found during coordinate conversion")
+        // Use PRIMARY screen height (the one with Cocoa frame origin at 0,0)
+        let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero }
+        guard let screen = primaryScreen ?? NSScreen.main else {
+            Logger.warning("No screen found during coordinate conversion")
             return cocoaRect
         }
 
