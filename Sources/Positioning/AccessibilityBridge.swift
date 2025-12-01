@@ -9,6 +9,60 @@
 import Foundation
 import ApplicationServices
 
+// MARK: - Safe AXValue Extraction Helpers
+
+/// Safely extract CGRect from a CFTypeRef that should be an AXValue
+/// Returns nil if the value is not an AXValue or extraction fails
+func safeAXValueGetRect(_ value: CFTypeRef) -> CGRect? {
+    guard CFGetTypeID(value) == AXValueGetTypeID() else {
+        return nil
+    }
+    var rect = CGRect.zero
+    guard AXValueGetValue(value as! AXValue, .cgRect, &rect) else {
+        return nil
+    }
+    return rect
+}
+
+/// Safely extract CGPoint from a CFTypeRef that should be an AXValue
+/// Returns nil if the value is not an AXValue or extraction fails
+func safeAXValueGetPoint(_ value: CFTypeRef) -> CGPoint? {
+    guard CFGetTypeID(value) == AXValueGetTypeID() else {
+        return nil
+    }
+    var point = CGPoint.zero
+    guard AXValueGetValue(value as! AXValue, .cgPoint, &point) else {
+        return nil
+    }
+    return point
+}
+
+/// Safely extract CGSize from a CFTypeRef that should be an AXValue
+/// Returns nil if the value is not an AXValue or extraction fails
+func safeAXValueGetSize(_ value: CFTypeRef) -> CGSize? {
+    guard CFGetTypeID(value) == AXValueGetTypeID() else {
+        return nil
+    }
+    var size = CGSize.zero
+    guard AXValueGetValue(value as! AXValue, .cgSize, &size) else {
+        return nil
+    }
+    return size
+}
+
+/// Safely extract CFRange from a CFTypeRef that should be an AXValue
+/// Returns nil if the value is not an AXValue or extraction fails
+func safeAXValueGetRange(_ value: CFTypeRef) -> CFRange? {
+    guard CFGetTypeID(value) == AXValueGetTypeID() else {
+        return nil
+    }
+    var range = CFRange(location: 0, length: 0)
+    guard AXValueGetValue(value as! AXValue, .cfRange, &range) else {
+        return nil
+    }
+    return range
+}
+
 /// Low-level Accessibility API wrapper
 /// Isolates all C API complexity and provides clean Swift interface
 enum AccessibilityBridge {
@@ -31,8 +85,7 @@ enum AccessibilityBridge {
             return nil
         }
 
-        var range = CFRange(location: 0, length: 0)
-        guard AXValueGetValue(axValue as! AXValue, .cfRange, &range) else {
+        guard let range = safeAXValueGetRange(axValue) else {
             Logger.debug("AccessibilityBridge: Could not extract CFRange from AXVisibleCharacterRange")
             return nil
         }
@@ -247,15 +300,12 @@ enum AccessibilityBridge {
 
         Logger.debug("  Type validation passed, extracting CGRect from AXValue...", category: Logger.accessibility)
 
-        var rect = CGRect.zero
-        let success = AXValueGetValue(axValue as! AXValue, .cgRect, &rect)
-
-        Logger.debug("  AXValueGetValue result: \(success), rect: \(rect)", category: Logger.accessibility)
-
-        guard success else {
+        guard let rect = safeAXValueGetRect(axValue) else {
             Logger.debug("  FAILED at CGRect extraction from AXValue", category: Logger.accessibility)
             return nil
         }
+
+        Logger.debug("  AXValueGetValue result: true, rect: \(rect)", category: Logger.accessibility)
 
         // Validate bounds before returning
         Logger.debug("  Validating bounds via CoordinateMapper...", category: Logger.accessibility)
@@ -305,10 +355,7 @@ enum AccessibilityBridge {
             return nil
         }
 
-        var rect = CGRect.zero
-        let success = AXValueGetValue(axValue as! AXValue, .cgRect, &rect)
-
-        guard success else {
+        guard let rect = safeAXValueGetRect(axValue) else {
             Logger.debug("Failed to extract CGRect from AXValue")
             return nil
         }
@@ -373,11 +420,8 @@ enum AccessibilityBridge {
             return nil
         }
 
-        var origin = CGPoint.zero
-        var rectSize = CGSize.zero
-
-        guard AXValueGetValue(position as! AXValue, .cgPoint, &origin),
-              AXValueGetValue(size as! AXValue, .cgSize, &rectSize) else {
+        guard let origin = safeAXValueGetPoint(position),
+              let rectSize = safeAXValueGetSize(size) else {
             return nil
         }
 
@@ -561,18 +605,17 @@ enum AccessibilityBridge {
 
         // 10. Try AXSelectedTextRange (cursor position)
         var selectedRangeValue: CFTypeRef?
-        if AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &selectedRangeValue) == .success {
-            var selectedRange = CFRange()
-            if AXValueGetValue(selectedRangeValue as! AXValue, .cfRange, &selectedRange) {
-                result.cursorPosition = selectedRange.location
-                Logger.info("  Cursor position: \(selectedRange.location) ✓")
+        if AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &selectedRangeValue) == .success,
+           let selectedRangeValue = selectedRangeValue,
+           let selectedRange = safeAXValueGetRange(selectedRangeValue) {
+            result.cursorPosition = selectedRange.location
+            Logger.info("  Cursor position: \(selectedRange.location) ✓")
 
-                // Try to get bounds AT cursor position
-                let cursorRange = CFRange(location: selectedRange.location, length: 1)
-                if let cursorBounds = tryGetBoundsForRange(cursorRange, in: element) {
-                    result.cursorBounds = cursorBounds
-                    Logger.info("  Cursor bounds: \(cursorBounds) ✓")
-                }
+            // Try to get bounds AT cursor position
+            let cursorRange = CFRange(location: selectedRange.location, length: 1)
+            if let cursorBounds = tryGetBoundsForRange(cursorRange, in: element) {
+                result.cursorBounds = cursorBounds
+                Logger.info("  Cursor bounds: \(cursorBounds) ✓")
             }
         }
 
@@ -614,12 +657,8 @@ enum AccessibilityBridge {
             &boundsValue
         )
 
-        guard result == .success, let bv = boundsValue else {
-            return nil
-        }
-
-        var rect = CGRect.zero
-        guard AXValueGetValue(bv as! AXValue, .cgRect, &rect) else {
+        guard result == .success, let bv = boundsValue,
+              let rect = safeAXValueGetRect(bv) else {
             return nil
         }
 
@@ -664,12 +703,8 @@ enum AccessibilityBridge {
             &rangeValue
         )
 
-        guard result == .success, let rv = rangeValue else {
-            return nil
-        }
-
-        var range = CFRange()
-        guard AXValueGetValue(rv as! AXValue, .cfRange, &range) else {
+        guard result == .success, let rv = rangeValue,
+              let range = safeAXValueGetRange(rv) else {
             return nil
         }
 
