@@ -97,6 +97,12 @@ class AnalysisCoordinator: ObservableObject {
     private let maxPositionSyncRetries = 20  // Max 20 retries * 50ms = 1000ms max wait
     private var lastElementPosition: CGPoint?  // Track element position for stability check
 
+    /// Scroll detection - uses global scroll wheel event observer
+    private var overlaysHiddenDueToScroll = false
+    private var scrollDebounceTimer: Timer?
+    /// Global scroll wheel event monitor
+    private var scrollWheelMonitor: Any?
+
     /// Hover switching timer - delays popover switching when hovering from one error to another
     private var hoverSwitchTimer: Timer?
     /// Pending error waiting for delayed hover switch
@@ -145,7 +151,40 @@ class AnalysisCoordinator: ObservableObject {
         setupPopoverCallbacks()
         setupOverlayCallbacks()
         setupCalibrationListener()
+        setupScrollWheelMonitor()
         // Window position monitoring will be started when we begin monitoring an app
+    }
+
+    deinit {
+        if let monitor = scrollWheelMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+    }
+
+    /// Setup global scroll wheel event monitor for detecting scroll events
+    private func setupScrollWheelMonitor() {
+        scrollWheelMonitor = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            guard let self = self else { return }
+
+            // Only process if we're actively monitoring and have errors displayed
+            guard self.textMonitor.monitoredElement != nil, !self.currentErrors.isEmpty else { return }
+
+            // Verify scroll is from the monitored app's window
+            guard event.windowNumber > 0,
+                  let monitoredBundleID = self.textMonitor.currentContext?.bundleIdentifier,
+                  let frontApp = NSWorkspace.shared.frontmostApplication,
+                  frontApp.bundleIdentifier == monitoredBundleID else { return }
+
+            // Filter out trackpad touches with no actual movement
+            let deltaY = event.scrollingDeltaY
+            let deltaX = event.scrollingDeltaX
+            guard abs(deltaY) > 1 || abs(deltaX) > 1 else { return }
+
+            DispatchQueue.main.async {
+                self.handleScrollStarted()
+            }
+        }
+        Logger.debug("Scroll wheel monitor installed", category: Logger.analysis)
     }
 
     /// Setup popover callbacks
@@ -500,12 +539,15 @@ class AnalysisCoordinator: ObservableObject {
         windowPositionTimer = nil
         windowMovementDebounceTimer?.invalidate()
         windowMovementDebounceTimer = nil
+        scrollDebounceTimer?.invalidate()
+        scrollDebounceTimer = nil
         lastWindowPosition = nil
         overlaysHiddenDueToMovement = false
         overlaysHiddenDueToWindowOffScreen = false
+        overlaysHiddenDueToScroll = false
     }
 
-    /// Check if window has moved
+    /// Check if window has moved or content has scrolled
     private func checkWindowPosition() {
         guard let element = textMonitor.monitoredElement else {
             lastWindowPosition = nil
@@ -525,6 +567,8 @@ class AnalysisCoordinator: ObservableObject {
             Logger.debug("Window monitoring: Window back on screen - restoring overlays", category: Logger.analysis)
             handleWindowBackOnScreen()
         }
+
+        // Note: Scroll detection is now handled by global scrollWheelMonitor
 
         // Check if position has changed
         if let lastPosition = lastWindowPosition {
@@ -552,6 +596,52 @@ class AnalysisCoordinator: ObservableObject {
         }
 
         lastWindowPosition = currentPosition
+    }
+
+    /// Handle scroll started - hide underlines only (keep indicator visible)
+    private func handleScrollStarted() {
+        // Cancel any pending restore first
+        scrollDebounceTimer?.invalidate()
+        scrollDebounceTimer = nil
+
+        if !overlaysHiddenDueToScroll {
+            Logger.debug("Scroll monitoring: Scroll started - hiding underlines only", category: Logger.analysis)
+            overlaysHiddenDueToScroll = true
+
+            // Hide underlines only (not floating indicator)
+            errorOverlay.hide()
+            suggestionPopover.hide()
+
+            // Clear the position cache so underlines are recalculated after scroll
+            PositionResolver.shared.clearCache()
+        }
+
+        // Determine restore delay based on app type
+        // Electron/Chromium apps need much longer delay for AX layer to update positions
+        let bundleID = textMonitor.currentContext?.bundleIdentifier ?? ""
+        let isElectronApp = ElectronDetector.usesWebTechnologies(bundleID)
+        let restoreDelay: TimeInterval = isElectronApp ? 0.7 : 0.3
+
+        // Start/restart debounce timer for restore (will fire when scrolling stops)
+        scrollDebounceTimer = Timer.scheduledTimer(withTimeInterval: restoreDelay, repeats: false) { [weak self] _ in
+            self?.restoreUnderlinesAfterScroll()
+        }
+    }
+
+    /// Restore underlines after scroll has stopped
+    private func restoreUnderlinesAfterScroll() {
+        guard overlaysHiddenDueToScroll else { return }
+
+        Logger.debug("Scroll monitoring: Scroll stopped - restoring underlines", category: Logger.analysis)
+        overlaysHiddenDueToScroll = false
+
+        // Re-show underlines using cached errors (positions will be recalculated)
+        if let element = textMonitor.monitoredElement,
+           let context = textMonitor.currentContext,
+           !currentErrors.isEmpty {
+            let underlinesRestored = errorOverlay.update(errors: currentErrors, element: element, context: context)
+            Logger.debug("Scroll monitoring: Restored \(underlinesRestored) underlines from \(currentErrors.count) cached errors", category: Logger.analysis)
+        }
     }
 
     /// Get window position for the given element
