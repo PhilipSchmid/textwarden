@@ -61,6 +61,8 @@ TextWarden is built on excellent open source projects:
 - [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) - Global keyboard shortcuts for macOS
 - [LaunchAtLogin-Modern](https://github.com/sindresorhus/LaunchAtLogin-Modern) - Launch at login functionality
 
+Special thanks to [VoiceInk](https://github.com/Beingpax/VoiceInk) for the inspiration on leveraging local LLMs in macOS apps. VoiceInk is a fantastic voice-to-text tool - highly recommended.
+
 ## License
 
 Apache License 2.0
