@@ -1,7 +1,8 @@
 # Makefile for TextWarden Grammar Checker
 # macOS-native grammar checker with Rust + Swift
 
-.PHONY: help build build-no-llm build-rust build-rust-llm run test clean reset logs quick-test install dev all
+.PHONY: help build build-no-llm build-rust build-rust-llm run test clean reset logs quick-test install dev all \
+        lint lint-rust fmt fmt-rust fmt-check fmt-check-rust ci-check pre-commit
 
 # Default target
 .DEFAULT_GOAL := help
@@ -282,22 +283,56 @@ version: ## Show version information
 
 ##@ CI/CD
 
+lint: lint-rust ## Run all linters
+
+lint-rust: ## Run Rust linting (clippy)
+	@echo "$(BLUE)🔍 Running Rust clippy...$(NC)"
+	@cd $(RUST_DIR) && cargo clippy --all-targets -- -D warnings
+	@echo "$(GREEN)✅ Clippy passed$(NC)"
+
+fmt: fmt-rust ## Format all code
+
+fmt-rust: ## Format Rust code
+	@echo "$(BLUE)🔧 Formatting Rust code...$(NC)"
+	@cd $(RUST_DIR) && cargo fmt
+	@echo "$(GREEN)✅ Rust formatted$(NC)"
+
+fmt-check: fmt-check-rust ## Check all code formatting
+
+fmt-check-rust: ## Check Rust code formatting (no changes)
+	@echo "$(BLUE)🔍 Checking Rust formatting...$(NC)"
+	@cd $(RUST_DIR) && cargo fmt --check
+	@echo "$(GREEN)✅ Rust formatting OK$(NC)"
+
+ci-check: ## Run exactly what CI runs (use before pushing)
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(BLUE)🔄 Running CI checks locally...$(NC)"
+	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo ""
+	@echo "$(YELLOW)[1/4] Checking Rust formatting...$(NC)"
+	@cd $(RUST_DIR) && cargo fmt --check
+	@echo "$(GREEN)✅ Formatting OK$(NC)"
+	@echo ""
+	@echo "$(YELLOW)[2/4] Running Clippy...$(NC)"
+	@cd $(RUST_DIR) && cargo clippy --all-targets -- -D warnings
+	@echo "$(GREEN)✅ Clippy passed$(NC)"
+	@echo ""
+	@echo "$(YELLOW)[3/4] Running Rust tests...$(NC)"
+	@cd $(RUST_DIR) && cargo test
+	@echo "$(GREEN)✅ Rust tests passed$(NC)"
+	@echo ""
+	@echo "$(YELLOW)[4/4] Building Swift app...$(NC)"
+	@make -s build-no-llm
+	@echo "$(GREEN)✅ Swift build passed$(NC)"
+	@echo ""
+	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+	@echo "$(GREEN)✅ All CI checks passed! Safe to push.$(NC)"
+	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
+
 ci: clean build test ## Run full CI pipeline (clean, build, test)
 	@echo "$(GREEN)✅ CI pipeline complete$(NC)"
 
-pre-commit: ## Run pre-commit checks
-	@echo "$(BLUE)🔍 Running pre-commit checks...$(NC)"
-	@echo "Checking Swift formatting..."
-	@if command -v swiftlint > /dev/null 2>&1; then \
-		swiftlint --quiet; \
-		echo "$(GREEN)✅ SwiftLint passed$(NC)"; \
-	else \
-		echo "$(YELLOW)⚠️  SwiftLint not installed (optional)$(NC)"; \
-	fi
-	@echo "Checking Rust formatting..."
-	@cd $(RUST_DIR) && cargo fmt --check && echo "$(GREEN)✅ Rust formatting passed$(NC)" || echo "$(YELLOW)⚠️  Run: cd $(RUST_DIR) && cargo fmt$(NC)"
-	@echo "Running Rust tests..."
-	@cd $(RUST_DIR) && cargo test --quiet && echo "$(GREEN)✅ Rust tests passed$(NC)"
+pre-commit: fmt-check-rust lint-rust test-rust ## Run pre-commit checks (format, lint, test)
 	@echo "$(GREEN)✅ Pre-commit checks complete$(NC)"
 
 ##@ Quick Recipes
