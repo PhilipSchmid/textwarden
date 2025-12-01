@@ -24,18 +24,6 @@ struct StyleCheckingSettingsView: View {
                     }
                 }
                 .toggleStyle(.switch)
-
-                if preferences.enableStyleChecking {
-                    Toggle(isOn: $preferences.styleAutoLoadModel) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Auto-load model on launch")
-                            Text("Automatically load the selected model when the app starts")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .toggleStyle(.switch)
-                }
             } header: {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 8) {
@@ -269,8 +257,10 @@ struct StyleCheckingSettingsView: View {
 
         preferences.selectedModelId = model.id
         if model.isDownloaded && modelManager.loadedModelId != model.id {
-            Task {
-                await modelManager.loadModel(model.id)
+            // Use Task.detached to avoid blocking main thread during model load/unload
+            let modelId = model.id
+            Task.detached(priority: .userInitiated) {
+                await modelManager.loadModel(modelId)
             }
         }
     }
@@ -315,13 +305,27 @@ struct ModelRowView: View {
 
     @State private var showError = false
 
+    /// Whether this model has an error (selected but failed to load)
+    private var hasError: Bool {
+        isSelected && model.isDownloaded && lastError != nil
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            // Selection indicator
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .foregroundColor(isSelected ? .purple : .secondary)
+            // Selection indicator - clickable when model is downloaded
+            // Shows red exclamation when there's an error
+            Image(systemName: hasError ? "exclamationmark.circle.fill" : (isSelected ? "checkmark.circle.fill" : "circle"))
+                .foregroundColor(hasError ? .red : (isSelected ? .purple : .secondary))
                 .font(.title3)
                 .padding(.top, 2)
+                .contentShape(Circle())
+                .onTapGesture {
+                    // Only allow selection if model is downloaded and no model is loading
+                    if model.isDownloaded && !isAnyModelLoading {
+                        onSelect()
+                    }
+                }
+                .help(hasError ? (lastError ?? "Model failed to load") : (model.isDownloaded ? "Click to select this model" : "Download this model first"))
 
             // Model info
             VStack(alignment: .leading, spacing: 6) {
@@ -388,7 +392,7 @@ struct ModelRowView: View {
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 4)
-        .background(isSelected ? Color.purple.opacity(0.08) : Color.clear)
+        .background(hasError ? Color.red.opacity(0.08) : (isSelected ? Color.purple.opacity(0.08) : Color.clear))
         .cornerRadius(8)
         .onChange(of: lastError) { _, newValue in
             showError = newValue != nil
@@ -442,6 +446,53 @@ struct ModelRowView: View {
                 Capsule()
                     .fill(Color.orange.opacity(0.75))
             )
+        } else if isSelected && model.isDownloaded && lastError != nil {
+            // Error state - model selected but failed to load
+            Menu {
+                Button {
+                    // Retry loading
+                    onDismissError()
+                    onSelect()
+                } label: {
+                    Label("Retry Loading", systemImage: "arrow.clockwise")
+                }
+
+                Divider()
+
+                Button {
+                    // Show in Finder
+                    if let modelsDir = modelManager.modelsDirectory {
+                        let modelPath = modelsDir.appendingPathComponent(model.filename)
+                        NSWorkspace.shared.selectFile(modelPath.path, inFileViewerRootedAtPath: "")
+                    }
+                } label: {
+                    Label("Show in Finder", systemImage: "folder")
+                }
+
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(model.downloadUrl, forType: .string)
+                } label: {
+                    Label("Copy Download URL", systemImage: "doc.on.doc")
+                }
+            } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text("Error")
+                }
+                .font(buttonFont)
+                .foregroundColor(.white)
+                .frame(minWidth: buttonMinWidth, minHeight: buttonHeight)
+                .background(
+                    Capsule()
+                        .fill(Color.red.opacity(0.85))
+                )
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .help(lastError ?? "Model failed to load")
         } else if isSelected && model.isDownloaded {
             // Selected state - show green "Selected" button with menu
             Menu {
