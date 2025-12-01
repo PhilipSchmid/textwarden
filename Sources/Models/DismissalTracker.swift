@@ -100,13 +100,13 @@ class DismissalTracker {
         let data = try encoder.encode(file)
         try data.write(to: fileURL, options: .atomic)
 
-        print("📝 DismissalTracker: Saved \(patterns.count) patterns to \(fileURL.path)")
+        Logger.debug("DismissalTracker: Saved \(patterns.count) patterns", category: Logger.general)
     }
 
     /// Load patterns from JSON file
     private func load() {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            print("📝 DismissalTracker: No existing file, starting fresh")
+            Logger.debug("DismissalTracker: No existing file, starting fresh", category: Logger.general)
             return
         }
 
@@ -119,15 +119,15 @@ class DismissalTracker {
 
             // Validate version
             guard file.version == 1 else {
-                print("⚠️ DismissalTracker: Unsupported version \(file.version)")
+                Logger.warning("DismissalTracker: Unsupported version \(file.version)", category: Logger.general)
                 return
             }
 
             patterns = file.patterns
-            print("📝 DismissalTracker: Loaded \(patterns.count) patterns from \(fileURL.path)")
+            Logger.debug("DismissalTracker: Loaded \(patterns.count) patterns", category: Logger.general)
 
         } catch {
-            print("❌ DismissalTracker: Failed to load: \(error)")
+            Logger.error("DismissalTracker: Failed to load", error: error, category: Logger.general)
         }
     }
 }

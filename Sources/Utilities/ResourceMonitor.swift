@@ -38,7 +38,7 @@ public class ResourceMonitor {
             self.collectSwiftAppSample()
         }
 
-        print("ResourceMonitor: Started monitoring (interval: \(samplingInterval)s)")
+        Logger.debug("Started resource monitoring (interval: \(samplingInterval)s)", category: Logger.performance)
     }
 
     /// Stop background resource monitoring
@@ -52,7 +52,7 @@ public class ResourceMonitor {
             self?.samplingTimer = nil
         }
 
-        print("ResourceMonitor: Stopped monitoring")
+        Logger.debug("Stopped resource monitoring", category: Logger.performance)
     }
 
     // MARK: - Private Methods

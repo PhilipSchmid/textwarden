@@ -971,7 +971,7 @@ class UserPreferences: ObservableObject {
     /// Add a word to the custom dictionary
     func addToCustomDictionary(_ word: String) {
         guard customDictionary.count < 1000 else {
-            print("Custom dictionary limit reached (1000 words)")
+            Logger.warning("Custom dictionary limit reached (1000 words)", category: Logger.general)
             return
         }
         customDictionary.insert(word.lowercased())
@@ -995,7 +995,7 @@ class UserPreferences: ObservableObject {
     /// Ignore a specific error text globally
     func ignoreErrorText(_ text: String) {
         guard ignoredErrorTexts.count < 1000 else {
-            print("Ignored error texts limit reached (1000 entries)")
+            Logger.warning("Ignored error texts limit reached (1000 entries)", category: Logger.general)
             return
         }
         ignoredErrorTexts.insert(text)

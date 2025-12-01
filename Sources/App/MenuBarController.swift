@@ -39,7 +39,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         guard let button = statusItem?.button else {
-            print("Failed to create status item button")
+            Logger.error("Failed to create status item button", category: Logger.ui)
             return
         }
 

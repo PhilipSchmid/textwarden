@@ -104,13 +104,13 @@ class CustomVocabulary: ObservableObject {
         let data = try encoder.encode(file)
         try data.write(to: fileURL, options: .atomic)
 
-        print("📝 CustomVocabulary: Saved \(words.count) words to \(fileURL.path)")
+        Logger.debug("CustomVocabulary: Saved \(words.count) words", category: Logger.general)
     }
 
     /// Load vocabulary from JSON file
     private func load() {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            print("📝 CustomVocabulary: No existing file, starting fresh")
+            Logger.debug("CustomVocabulary: No existing file, starting fresh", category: Logger.general)
             return
         }
 
@@ -123,15 +123,15 @@ class CustomVocabulary: ObservableObject {
 
             // Validate version
             guard file.version == 1 else {
-                print("⚠️ CustomVocabulary: Unsupported version \(file.version)")
+                Logger.warning("CustomVocabulary: Unsupported version \(file.version)", category: Logger.general)
                 return
             }
 
             words = Set(file.words.prefix(maxWords))
-            print("📝 CustomVocabulary: Loaded \(words.count) words from \(fileURL.path)")
+            Logger.debug("CustomVocabulary: Loaded \(words.count) words", category: Logger.general)
 
         } catch {
-            print("❌ CustomVocabulary: Failed to load: \(error)")
+            Logger.error("CustomVocabulary: Failed to load", error: error, category: Logger.general)
         }
     }
 }

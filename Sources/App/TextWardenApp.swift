@@ -209,10 +209,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Log current state
         Logger.debug("Style checking preferences - enabled: \(preferences.enableStyleChecking), selectedModel: \(preferences.selectedModelId)", category: Logger.llm)
 
-        // Refresh models on background thread
-        DispatchQueue.main.sync {
+        // Refresh models - dispatch to main thread asynchronously to avoid deadlock
+        // Using async instead of sync prevents blocking the background thread if main thread is busy
+        DispatchQueue.main.async {
             modelManager.refreshModels()
         }
+
+        // Wait briefly to allow the refresh to complete before checking models
+        Thread.sleep(forTimeInterval: 0.1)
 
         Logger.debug("Available models: \(modelManager.models.count), downloaded: \(modelManager.downloadedModels.count)", category: Logger.llm)
 

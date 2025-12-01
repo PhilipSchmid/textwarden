@@ -294,18 +294,18 @@ struct OnboardingView: View {
     // MARK: - Actions
 
     private func handleActionButton() {
-        print("🎬 Onboarding: Button clicked at step: \(currentStep)")
+        Logger.debug("Onboarding: Button clicked at step: \(currentStep)", category: Logger.ui)
 
         switch currentStep {
         case .welcome:
-            print("🔐 Onboarding: Requesting Accessibility permission...")
+            Logger.info("Onboarding: Requesting Accessibility permission...", category: Logger.permissions)
             // Request permission (triggers system dialog)
             permissionManager.requestPermission()
             currentStep = .permissionRequest
             startPolling()
 
         case .permissionRequest:
-            print("⚙️ Onboarding: Opening System Settings...")
+            Logger.info("Onboarding: Opening System Settings...", category: Logger.permissions)
             // Open System Settings for manual permission grant
             permissionManager.openSystemPreferences()
             startPolling()
@@ -313,7 +313,7 @@ struct OnboardingView: View {
             elapsedTime = 0
 
         case .verification:
-            print("✅ Onboarding: Verification complete, moving to launch at login...")
+            Logger.info("Onboarding: Verification complete, moving to launch at login...", category: Logger.ui)
             currentStep = .launchAtLogin
 
         case .launchAtLogin:
@@ -323,13 +323,13 @@ struct OnboardingView: View {
     }
 
     private func handleEnableLaunchAtLogin() {
-        print("✅ Onboarding: Enabling launch at login...")
+        Logger.info("Onboarding: Enabling launch at login...", category: Logger.general)
         LaunchAtLogin.isEnabled = true
         dismiss()
     }
 
     private func handleSkipLaunchAtLogin() {
-        print("⏭️ Onboarding: Skipping launch at login...")
+        Logger.info("Onboarding: Skipping launch at login...", category: Logger.general)
         dismiss()
     }
 
@@ -342,11 +342,11 @@ struct OnboardingView: View {
 
     private func startPolling() {
         guard !isPolling else {
-            print("⏸️ Onboarding: Already polling, skipping")
+            Logger.debug("Onboarding: Already polling, skipping", category: Logger.permissions)
             return
         }
 
-        print("⏱️ Onboarding: Starting permission polling (every 1 second)")
+        Logger.debug("Onboarding: Starting permission polling (every 1 second)", category: Logger.permissions)
         isPolling = true
         elapsedTime = 0
 
@@ -358,15 +358,15 @@ struct OnboardingView: View {
             permissionManager.checkPermissionStatus()
 
             if permissionManager.isPermissionGranted {
-                print("✅ Onboarding: Permission granted! Advancing to verification")
+                Logger.info("Onboarding: Permission granted! Advancing to verification", category: Logger.permissions)
                 currentStep = .verification
                 stopPolling()
             } else if elapsedTime >= maxWaitTime {
-                print("⏰ Onboarding: Timeout reached after \(elapsedTime) seconds")
+                Logger.warning("Onboarding: Timeout reached after \(elapsedTime) seconds", category: Logger.permissions)
                 showTimeoutWarning = true
                 stopPolling()
             } else if Int(elapsedTime) % 10 == 0 {
-                print("⏳ Onboarding: Still waiting... (\(Int(elapsedTime))s elapsed)")
+                Logger.debug("Onboarding: Still waiting... (\(Int(elapsedTime))s elapsed)", category: Logger.permissions)
             }
         }
     }
