@@ -159,6 +159,35 @@ class ElementTreeStrategy: GeometryProvider {
 
             let cocoaBounds = CoordinateMapper.toCocoaCoordinates(childBounds)
             if CoordinateMapper.validateBounds(cocoaBounds) {
+                // Check for multi-line: If bounds height suggests multiple lines, try to get per-line bounds
+                let multiLineResult = resolveMultiLineBoundsForChild(
+                    childErrorRange,
+                    in: targetElement,
+                    overallBounds: childBounds
+                )
+
+                if let lineBounds = multiLineResult, lineBounds.count > 1 {
+                    // Convert all line bounds to Cocoa coordinates
+                    let cocoaLineBounds = lineBounds.map { CoordinateMapper.toCocoaCoordinates($0) }
+                    let validLineBounds = cocoaLineBounds.filter { CoordinateMapper.validateBounds($0) }
+
+                    if validLineBounds.count > 1 {
+                        Logger.debug("ElementTreeStrategy: SUCCESS multi-line with \(validLineBounds.count) lines: \(cocoaBounds)", category: Logger.ui)
+                        return GeometryResult(
+                            bounds: cocoaBounds,
+                            lineBounds: validLineBounds,
+                            confidence: 0.95,
+                            strategy: strategyName,
+                            metadata: [
+                                "api": "element-tree-range-bounds-multiline",
+                                "element_role": role,
+                                "child_range": "\(childErrorRange)",
+                                "line_count": validLineBounds.count
+                            ]
+                        )
+                    }
+                }
+
                 Logger.debug("ElementTreeStrategy: SUCCESS using child AXBoundsForRange: \(cocoaBounds)", category: Logger.ui)
                 return GeometryResult(
                     bounds: cocoaBounds,
@@ -509,5 +538,181 @@ class ElementTreeStrategy: GeometryProvider {
                 "element_frame": NSStringFromRect(frame)
             ]
         )
+    }
+
+    // MARK: - Multi-Line Resolution
+
+    /// Resolve per-line bounds for a child element's text range
+    /// Specifically designed for Electron/Chromium apps where parent element AX APIs fail
+    /// but child element AXBoundsForRange works
+    private func resolveMultiLineBoundsForChild(
+        _ range: NSRange,
+        in element: AXUIElement,
+        overallBounds: CGRect
+    ) -> [CGRect]? {
+        // Get typical line height from a single character
+        var typicalLineHeight: CGFloat = 20.0
+        let singleCharRange = NSRange(location: range.location, length: 1)
+        if let charBounds = getBoundsForRange(singleCharRange, in: element) {
+            typicalLineHeight = max(charBounds.height, 12.0)
+        }
+
+        // Check if bounds height suggests multi-line
+        let estimatedLineCount = Int(ceil(overallBounds.height / typicalLineHeight))
+        let likelyMultiLine = overallBounds.height > typicalLineHeight * 1.5
+
+        Logger.debug("ElementTreeStrategy: Multi-line check - height: \(overallBounds.height), lineHeight: \(typicalLineHeight), estimatedLines: \(estimatedLineCount), likely: \(likelyMultiLine)")
+
+        guard likelyMultiLine && estimatedLineCount > 1 else {
+            return nil // Single line, no need for multi-line bounds
+        }
+
+        // Method 1: Sample Y-coordinates to detect line breaks
+        var lineBounds: [CGRect] = []
+        var lineBreakIndices: [Int] = [range.location]
+        var lastY: CGFloat?
+
+        // Sample every ~5 characters to find line breaks
+        let sampleStep = max(1, min(5, range.length / (estimatedLineCount * 3)))
+        var sampleIndex = range.location
+
+        while sampleIndex < range.location + range.length {
+            let charRange = NSRange(location: sampleIndex, length: 1)
+            if let charBounds = getBoundsForRange(charRange, in: element) {
+                if let prevY = lastY {
+                    let yDiff = abs(charBounds.origin.y - prevY)
+                    if yDiff > charBounds.height * 0.5 {
+                        // Line break detected
+                        lineBreakIndices.append(sampleIndex)
+                        Logger.debug("ElementTreeStrategy: Line break at index \(sampleIndex), Y jumped from \(prevY) to \(charBounds.origin.y)")
+                    }
+                }
+                lastY = charBounds.origin.y
+            }
+            sampleIndex += sampleStep
+        }
+
+        lineBreakIndices.append(range.location + range.length)
+
+        // Convert line break indices to bounds
+        // We need to get bounds for just the FIRST character of each line to get correct Y position
+        // Then construct proper per-line bounds
+        var lineYPositions: [CGFloat] = []
+        for i in 0..<(lineBreakIndices.count - 1) {
+            let lineStart = lineBreakIndices[i]
+            // Get bounds for just the first character to get the correct Y position
+            let firstCharRange = NSRange(location: lineStart, length: 1)
+            if let firstCharBounds = getBoundsForRange(firstCharRange, in: element) {
+                lineYPositions.append(firstCharBounds.origin.y)
+                Logger.debug("ElementTreeStrategy: Line \(i) starts at Y=\(firstCharBounds.origin.y)")
+            }
+        }
+
+        // If we found line Y positions, construct geometric bounds for each line
+        if lineYPositions.count > 1 {
+            Logger.debug("ElementTreeStrategy: Found \(lineYPositions.count) lines via Y-sampling, constructing geometric bounds")
+
+            // Get the left margin X from the first line (line 0)
+            // All continuation lines should start at this left margin
+            var leftMarginX = overallBounds.origin.x
+            let firstLineCharRange = NSRange(location: lineBreakIndices[0], length: 1)
+            if let firstLineCharBounds = getBoundsForRange(firstLineCharRange, in: element) {
+                leftMarginX = firstLineCharBounds.origin.x
+            }
+
+            for i in 0..<lineYPositions.count {
+                let lineY = lineYPositions[i]
+                let lineStart = lineBreakIndices[i]
+                let lineEnd = lineBreakIndices[i + 1]
+
+                let isFirstLine = i == 0
+                let isLastLine = i == lineYPositions.count - 1
+
+                // X position logic:
+                // - First line: Use actual X of first character (error might not start at left margin)
+                // - Middle/last lines: Use left margin X (text wraps to left edge)
+                var lineX: CGFloat
+                if isFirstLine {
+                    let firstCharRange = NSRange(location: lineStart, length: 1)
+                    if let firstCharBounds = getBoundsForRange(firstCharRange, in: element) {
+                        lineX = firstCharBounds.origin.x
+                    } else {
+                        lineX = leftMarginX
+                    }
+                } else {
+                    // Continuation lines start at left margin
+                    lineX = leftMarginX
+                }
+
+                // Width logic:
+                // - Last line: Get actual width from bounds
+                // - Other lines: Extend to right edge of overall bounds
+                var lineWidth: CGFloat
+                if isLastLine {
+                    // Calculate actual width by getting bounds for last line
+                    let lastLineRange = NSRange(location: lineStart, length: lineEnd - lineStart)
+                    if let lastLineBounds = getBoundsForRange(lastLineRange, in: element) {
+                        lineWidth = lastLineBounds.width
+                    } else {
+                        lineWidth = overallBounds.width * 0.5
+                    }
+                } else {
+                    // Extend to right edge
+                    lineWidth = overallBounds.maxX - lineX
+                }
+
+                let lineRect = CGRect(
+                    x: lineX,
+                    y: lineY,
+                    width: lineWidth,
+                    height: typicalLineHeight
+                )
+                lineBounds.append(lineRect)
+                Logger.debug("ElementTreeStrategy: Constructed line \(i) bounds: \(lineRect) (isFirst=\(isFirstLine), isLast=\(isLastLine))")
+            }
+
+            return lineBounds
+        }
+
+        // Method 2: Geometric fallback - split overall bounds into estimated line segments
+        Logger.debug("ElementTreeStrategy: Using geometric fallback to split into \(estimatedLineCount) lines")
+        lineBounds = []
+
+        for lineIndex in 0..<estimatedLineCount {
+            let lineY = overallBounds.origin.y + (CGFloat(lineIndex) * typicalLineHeight)
+
+            let lineRect: CGRect
+            if lineIndex == 0 {
+                // First line - use original X position
+                lineRect = CGRect(
+                    x: overallBounds.origin.x,
+                    y: lineY,
+                    width: overallBounds.width,
+                    height: typicalLineHeight
+                )
+            } else if lineIndex == estimatedLineCount - 1 {
+                // Last line - may not span full width
+                let lastLineWidth = min(overallBounds.width, overallBounds.width * 0.7)
+                lineRect = CGRect(
+                    x: overallBounds.origin.x,
+                    y: lineY,
+                    width: lastLineWidth,
+                    height: typicalLineHeight
+                )
+            } else {
+                // Middle lines - span full width
+                lineRect = CGRect(
+                    x: overallBounds.origin.x,
+                    y: lineY,
+                    width: overallBounds.width,
+                    height: typicalLineHeight
+                )
+            }
+
+            lineBounds.append(lineRect)
+            Logger.debug("ElementTreeStrategy: Geometric line \(lineIndex): \(lineRect)")
+        }
+
+        return lineBounds.isEmpty ? nil : lineBounds
     }
 }

@@ -82,7 +82,13 @@ extension GeometryProvider {
 /// Contains bounds with metadata about calculation quality
 struct GeometryResult {
     /// Screen bounds in Cocoa coordinate system (bottom-left origin)
+    /// For single-line text, this is the only bounds needed
     let bounds: CGRect
+
+    /// Per-line bounds for multi-line text
+    /// If nil or empty, the error fits on a single line and `bounds` should be used
+    /// Each rect represents one line of the multi-line text, in reading order (top to bottom)
+    let lineBounds: [CGRect]?
 
     /// Confidence level (0.0 to 1.0)
     /// 1.0 = Perfect AX API bounds
@@ -96,6 +102,21 @@ struct GeometryResult {
 
     /// Additional metadata for debugging
     let metadata: [String: Any]
+
+    /// Memberwise initializer with optional lineBounds (defaults to nil)
+    init(
+        bounds: CGRect,
+        lineBounds: [CGRect]? = nil,
+        confidence: Double,
+        strategy: String,
+        metadata: [String: Any]
+    ) {
+        self.bounds = bounds
+        self.lineBounds = lineBounds
+        self.confidence = confidence
+        self.strategy = strategy
+        self.metadata = metadata
+    }
 
     /// Check if this result has high confidence
     var isHighConfidence: Bool {
@@ -113,16 +134,32 @@ struct GeometryResult {
         confidence == 0 && strategy == "unavailable"
     }
 
+    /// Check if this is a multi-line result
+    var isMultiLine: Bool {
+        guard let lineBounds = lineBounds else { return false }
+        return lineBounds.count > 1
+    }
+
+    /// Get all line bounds (returns single-element array with main bounds if not multi-line)
+    var allLineBounds: [CGRect] {
+        if let lineBounds = lineBounds, !lineBounds.isEmpty {
+            return lineBounds
+        }
+        return [bounds]
+    }
+
     // MARK: - Factory Methods
 
     /// Create high-confidence result
     static func highConfidence(
         bounds: CGRect,
         strategy: String,
+        lineBounds: [CGRect]? = nil,
         metadata: [String: Any] = [:]
     ) -> GeometryResult {
         GeometryResult(
             bounds: bounds,
+            lineBounds: lineBounds,
             confidence: 0.95,
             strategy: strategy,
             metadata: metadata
@@ -133,10 +170,12 @@ struct GeometryResult {
     static func mediumConfidence(
         bounds: CGRect,
         strategy: String,
+        lineBounds: [CGRect]? = nil,
         metadata: [String: Any] = [:]
     ) -> GeometryResult {
         GeometryResult(
             bounds: bounds,
+            lineBounds: lineBounds,
             confidence: 0.75,
             strategy: strategy,
             metadata: metadata
@@ -147,10 +186,12 @@ struct GeometryResult {
     static func lowConfidence(
         bounds: CGRect,
         strategy: String = "fallback",
+        lineBounds: [CGRect]? = nil,
         reason: String
     ) -> GeometryResult {
         GeometryResult(
             bounds: bounds,
+            lineBounds: lineBounds,
             confidence: 0.3,
             strategy: strategy,
             metadata: ["reason": reason]
@@ -163,6 +204,7 @@ struct GeometryResult {
     static func unavailable(reason: String) -> GeometryResult {
         GeometryResult(
             bounds: .zero,
+            lineBounds: nil,
             confidence: 0,
             strategy: "unavailable",
             metadata: ["reason": reason, "hideSuggested": true]
@@ -183,6 +225,7 @@ enum ElectronDetector {
         "com.vscodium",                // VSCodium
         "com.discordapp.discord",      // Discord
         "com.figma.Desktop",           // Figma
+        "notion.id",                   // Notion
     ]
 
     /// Check if bundle ID indicates Electron app
