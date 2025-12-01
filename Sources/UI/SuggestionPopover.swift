@@ -1082,6 +1082,8 @@ struct PopoverContentView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Ignore this error")
+                    .accessibilityLabel("Ignore this error")
+                    .accessibilityHint("Double tap to dismiss this error for this session")
 
                     // Ignore Rule button - Medium blue accent
                     Button(action: { popover.ignoreRule() }) {
@@ -1111,6 +1113,8 @@ struct PopoverContentView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Never show this rule again")
+                    .accessibilityLabel("Never show this rule")
+                    .accessibilityHint("Double tap to permanently ignore this grammar rule")
 
                     if error.category == "Spelling" {
                         Button(action: { popover.addToDictionary() }) {
@@ -1135,6 +1139,8 @@ struct PopoverContentView: View {
                         }
                         .buttonStyle(.plain)
                         .help("Add this word to your personal dictionary")
+                        .accessibilityLabel("Add to dictionary")
+                        .accessibilityHint("Double tap to add this word to your personal dictionary")
                     }
 
                     Spacer()
@@ -1146,6 +1152,7 @@ struct PopoverContentView: View {
                             .foregroundColor(
                                 Color(hue: 215/360, saturation: 0.65, brightness: effectiveColorScheme == .dark ? 0.80 : 0.50)
                             )
+                            .accessibilityLabel("Error \(popover.unifiedIndex + 1) of \(popover.totalItemCount)")
 
                         HStack(spacing: 6) {
                             Button(action: { popover.previousUnifiedItem() }) {
@@ -1169,6 +1176,8 @@ struct PopoverContentView: View {
                             .buttonStyle(.plain)
                             .keyboardShortcut(.upArrow, modifiers: [])
                             .help("Previous (↑)")
+                            .accessibilityLabel("Previous error")
+                            .accessibilityHint("Double tap to go to the previous error")
 
                             Button(action: { popover.nextUnifiedItem() }) {
                                 Image(systemName: "chevron.right")
@@ -1191,6 +1200,8 @@ struct PopoverContentView: View {
                             .buttonStyle(.plain)
                             .keyboardShortcut(.downArrow, modifiers: [])
                             .help("Next (↓)")
+                            .accessibilityLabel("Next error")
+                            .accessibilityHint("Double tap to go to the next error")
                         }
                     }
                 }
@@ -1735,6 +1746,7 @@ struct StylePopoverContentView: View {
                         .fill(Color.purple)
                         .frame(width: 6, height: 6)
                         .padding(.top, 8)
+                        .accessibilityHidden(true) // Decorative
 
                     VStack(alignment: .leading, spacing: 12) {
                         // Header label only (no navigation here)
@@ -1742,6 +1754,7 @@ struct StylePopoverContentView: View {
                             .font(.system(size: baseTextSize * 0.85, weight: .semibold, design: .rounded))
                             .foregroundColor(colors.textSecondary)
                             .tracking(0.6)
+                            .accessibilityAddTraits(.isHeader)
 
                         // Before/After diff view (no dark background)
                         VStack(alignment: .leading, spacing: 8) {
@@ -1756,6 +1769,8 @@ struct StylePopoverContentView: View {
                                     .foregroundColor(.red.opacity(0.85))
                                     .strikethrough(true, color: .red)
                             }
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("Original text: \(suggestion.originalText)")
 
                             // Suggested text
                             HStack(alignment: .top, spacing: 8) {
@@ -1767,6 +1782,8 @@ struct StylePopoverContentView: View {
                                     .font(.system(size: baseTextSize))
                                     .foregroundColor(.green)
                             }
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("Suggested text: \(suggestion.suggestedText)")
                         }
 
                         // Explanation
@@ -1774,6 +1791,7 @@ struct StylePopoverContentView: View {
                             .font(.system(size: baseTextSize))
                             .foregroundColor(colors.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityLabel("Explanation: \(suggestion.explanation)")
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -1789,6 +1807,8 @@ struct StylePopoverContentView: View {
                         }
                         .buttonStyle(.plain)
                         .help("Close (⌥Esc)")
+                        .accessibilityLabel("Close style suggestion")
+                        .accessibilityHint("Double tap to close this suggestion")
 
                         Spacer()
                     }
@@ -1815,6 +1835,8 @@ struct StylePopoverContentView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Accept this suggestion")
+                    .accessibilityLabel("Accept suggestion")
+                    .accessibilityHint("Double tap to accept and apply this style suggestion")
 
                     // Reject menu
                     Menu {
@@ -1829,6 +1851,8 @@ struct StylePopoverContentView: View {
                             .foregroundColor(colors.textSecondary)
                     }
                     .menuStyle(.borderlessButton)
+                    .accessibilityLabel("Reject suggestion")
+                    .accessibilityHint("Double tap to choose a reason for rejecting this suggestion")
 
                     Spacer()
 
@@ -1839,6 +1863,7 @@ struct StylePopoverContentView: View {
                             .foregroundColor(
                                 Color(hue: 280/360, saturation: 0.65, brightness: effectiveColorScheme == .dark ? 0.80 : 0.50)
                             )
+                            .accessibilityLabel("Suggestion \(popover.unifiedIndex + 1) of \(popover.totalItemCount)")
 
                         HStack(spacing: 6) {
                             Button(action: { popover.previousUnifiedItem() }) {
@@ -1861,6 +1886,8 @@ struct StylePopoverContentView: View {
                             }
                             .buttonStyle(.plain)
                             .help("Previous")
+                            .accessibilityLabel("Previous suggestion")
+                            .accessibilityHint("Double tap to go to the previous suggestion")
 
                             Button(action: { popover.nextUnifiedItem() }) {
                                 Image(systemName: "chevron.right")
@@ -1882,6 +1909,8 @@ struct StylePopoverContentView: View {
                             }
                             .buttonStyle(.plain)
                             .help("Next")
+                            .accessibilityLabel("Next suggestion")
+                            .accessibilityHint("Double tap to go to the next suggestion")
                         }
                     }
                 }
@@ -1891,6 +1920,7 @@ struct StylePopoverContentView: View {
                 Text("No style suggestions to display")
                     .foregroundColor(colors.textSecondary)
                     .padding()
+                    .accessibilityLabel("No style suggestions to display")
             }
         }
         .frame(minWidth: 300, idealWidth: 380, maxWidth: 450)

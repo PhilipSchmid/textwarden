@@ -22,48 +22,56 @@ struct PreferencesView: View {
                     Label("General", systemImage: "gearshape")
                 }
                 .tag(SettingsTab.general.rawValue)
+                .accessibilityLabel("General settings tab")
 
             SpellCheckingView()
                 .tabItem {
                     Label("Grammar", systemImage: "text.badge.checkmark")
                 }
                 .tag(SettingsTab.grammar.rawValue)
+                .accessibilityLabel("Grammar checking settings tab")
 
             StyleCheckingSettingsView()
                 .tabItem {
                     Label("Style", systemImage: "sparkles")
                 }
                 .tag(SettingsTab.style.rawValue)
+                .accessibilityLabel("Style checking settings tab")
 
             ApplicationSettingsView(preferences: preferences)
                 .tabItem {
                     Label("Applications", systemImage: "app.badge")
                 }
                 .tag(SettingsTab.applications.rawValue)
+                .accessibilityLabel("Application settings tab")
 
             WebsiteSettingsView(preferences: preferences)
                 .tabItem {
                     Label("Websites", systemImage: "globe")
                 }
                 .tag(SettingsTab.websites.rawValue)
+                .accessibilityLabel("Website settings tab")
 
             StatisticsView()
                 .tabItem {
                     Label("Statistics", systemImage: "chart.bar.fill")
                 }
                 .tag(SettingsTab.statistics.rawValue)
+                .accessibilityLabel("Usage statistics tab")
 
             DiagnosticsView(preferences: preferences)
                 .tabItem {
                     Label("Diagnostics", systemImage: "wrench.and.screwdriver")
                 }
                 .tag(SettingsTab.diagnostics.rawValue)
+                .accessibilityLabel("Diagnostics and troubleshooting tab")
 
             AboutView()
                 .tabItem {
                     Label("About", systemImage: "info.circle")
                 }
                 .tag(SettingsTab.about.rawValue)
+                .accessibilityLabel("About TextWarden tab")
         }
         .frame(minWidth: 750, minHeight: 600)
         // Theme is managed via NSApp.appearance in PreferencesWindowController
@@ -729,6 +737,7 @@ private struct MetricCard: View {
                 .frame(width: 28, height: 28)
                 .background(color.opacity(0.12))
                 .cornerRadius(6)
+                .accessibilityHidden(true) // Decorative icon
 
             // Content
             VStack(alignment: .leading, spacing: 1) {
@@ -749,6 +758,8 @@ private struct MetricCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title): \(value)")
     }
 }
 
@@ -782,6 +793,7 @@ private struct CategoryRow: View {
                         .fill(color.opacity(0.5))
                         .frame(width: geometry.size.width * 0.75 * barPercentage)
                         .frame(height: 6)
+                        .accessibilityHidden(true) // Visual progress bar
 
                     Spacer()
 
@@ -800,6 +812,8 @@ private struct CategoryRow: View {
             }
             .frame(height: 20)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(formatCategoryName(category)): \(count) errors, \(Int(percentage)) percent of total")
     }
 
     private func formatCategoryName(_ category: String) -> String {
@@ -863,6 +877,7 @@ private struct LatencyRow: View {
                         .fill(color.opacity(0.5))
                         .frame(width: geometry.size.width * 0.75 * percentage)
                         .frame(height: 6)
+                        .accessibilityHidden(true) // Visual progress bar
 
                     Spacer()
 
@@ -875,6 +890,8 @@ private struct LatencyRow: View {
             }
             .frame(height: 20)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label) latency: \(String(format: "%.0f", value)) milliseconds")
     }
 }
 
@@ -983,6 +1000,7 @@ private struct AppRow: View {
                         .fill(color.opacity(0.5))
                         .frame(width: geometry.size.width * 0.75 * barPercentage)
                         .frame(height: 6)
+                        .accessibilityHidden(true) // Visual progress bar
 
                     Spacer()
 
@@ -1001,6 +1019,8 @@ private struct AppRow: View {
             }
             .frame(height: 20)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(appName): \(count) errors, \(Int(percentage)) percent of total")
     }
 }
 
