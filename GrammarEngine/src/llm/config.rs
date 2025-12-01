@@ -49,7 +49,7 @@ impl ModelConfig {
 pub static AVAILABLE_MODELS: &[ModelConfig] = &[
     ModelConfig {
         id: "qwen2.5-1.5b",
-        name: "Qwen 2.5 1.5B (Balanced)",
+        name: "Qwen 2.5 1.5B",
         filename: "qwen2.5-1.5b-instruct-q4_k_m.gguf",
         download_url: "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf",
         size_bytes: 1_050_000_000, // ~1.0 GB
@@ -62,7 +62,7 @@ pub static AVAILABLE_MODELS: &[ModelConfig] = &[
     },
     ModelConfig {
         id: "phi3-mini",
-        name: "Phi-3 Mini (Accurate)",
+        name: "Phi-3 Mini",
         filename: "Phi-3-mini-4k-instruct-q4.gguf",
         download_url: "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf",
         size_bytes: 2_300_000_000, // ~2.3 GB
@@ -75,7 +75,7 @@ pub static AVAILABLE_MODELS: &[ModelConfig] = &[
     },
     ModelConfig {
         id: "llama-3.2-3b",
-        name: "Llama 3.2 3B (Balanced)",
+        name: "Llama 3.2 3B",
         filename: "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
         download_url: "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
         size_bytes: 2_019_377_696, // ~2.0 GB
@@ -88,7 +88,7 @@ pub static AVAILABLE_MODELS: &[ModelConfig] = &[
     },
     ModelConfig {
         id: "gemma2-2b",
-        name: "Gemma 2 2B (Lightweight)",
+        name: "Gemma 2 2B",
         filename: "gemma-2-2b-it-Q4_K_M.gguf",
         download_url: "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf",
         size_bytes: 1_708_582_752, // ~1.6 GB (verified from HuggingFace)
@@ -101,7 +101,7 @@ pub static AVAILABLE_MODELS: &[ModelConfig] = &[
     },
     ModelConfig {
         id: "llama-3.2-1b",
-        name: "Llama 3.2 1B (Lightweight)",
+        name: "Llama 3.2 1B",
         filename: "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
         download_url: "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
         size_bytes: 807_694_464, // ~0.8 GB
@@ -124,14 +124,52 @@ pub fn default_model_id() -> &'static str {
     "qwen2.5-1.5b"
 }
 
+/// Inference preset for user-friendly speed/quality tradeoff
+///
+/// These presets control how the LLM generates responses:
+/// - **Fast**: Shorter responses, more deterministic (faster inference)
+/// - **Balanced**: Default settings, good tradeoff
+/// - **Quality**: Longer responses, more thorough analysis
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum InferencePreset {
+    /// Prioritizes speed - shorter responses, more deterministic
+    Fast,
+    /// Default balanced settings
+    #[default]
+    Balanced,
+    /// Prioritizes quality - more thorough analysis
+    Quality,
+}
+
+impl InferencePreset {
+    /// Get human-readable name
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Self::Fast => "Fast",
+            Self::Balanced => "Balanced",
+            Self::Quality => "Quality",
+        }
+    }
+
+    /// Get description explaining what this preset does
+    pub fn description(&self) -> &'static str {
+        match self {
+            Self::Fast => "Faster responses, shorter suggestions. Best when you want quick feedback.",
+            Self::Balanced => "Good balance of speed and thoroughness. Recommended for most users.",
+            Self::Quality => "More thorough analysis, detailed suggestions. Best for important writing.",
+        }
+    }
+}
+
 /// LLM inference settings
 #[derive(Debug, Clone)]
 pub struct InferenceSettings {
     /// Maximum tokens to generate
     pub max_tokens: u32,
     /// Temperature for sampling (0.0 = deterministic, 1.0 = creative)
+    /// Lower = more consistent/predictable, Higher = more varied
     pub temperature: f32,
-    /// Top-p sampling threshold
+    /// Top-p sampling threshold (nucleus sampling)
     pub top_p: f32,
     /// Number of threads for inference
     pub n_threads: u32,
@@ -141,12 +179,34 @@ pub struct InferenceSettings {
 
 impl Default for InferenceSettings {
     fn default() -> Self {
-        Self {
-            max_tokens: 512,
-            temperature: 0.3, // Lower temperature for more consistent style suggestions
-            top_p: 0.9,
-            n_threads: 4,
-            n_gpu_layers: -1, // Use all GPU layers (Metal on macOS)
+        Self::from(InferencePreset::Balanced)
+    }
+}
+
+impl From<InferencePreset> for InferenceSettings {
+    fn from(preset: InferencePreset) -> Self {
+        match preset {
+            InferencePreset::Fast => Self {
+                max_tokens: 256,      // Shorter responses = faster
+                temperature: 0.2,     // More deterministic = faster sampling
+                top_p: 0.85,
+                n_threads: 4,
+                n_gpu_layers: -1,
+            },
+            InferencePreset::Balanced => Self {
+                max_tokens: 512,      // Good balance
+                temperature: 0.3,     // Slightly creative but consistent
+                top_p: 0.9,
+                n_threads: 4,
+                n_gpu_layers: -1,
+            },
+            InferencePreset::Quality => Self {
+                max_tokens: 768,      // Allow more detailed explanations
+                temperature: 0.1,     // More deterministic = more accurate
+                top_p: 0.95,          // Consider more tokens
+                n_threads: 4,
+                n_gpu_layers: -1,
+            },
         }
     }
 }
