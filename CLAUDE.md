@@ -58,6 +58,7 @@ Levels: `trace` (high-frequency) → `debug` → `info` → `warning` → `error
 ## Git Workflow
 
 - Only commit after user validates and explicitly requests it
+- **Always run `make ci-check` and fix all findings before committing**
 - Use 50/72 rule: subject ≤50 chars, body wrapped at 72
 - Write concise, descriptive commit messages
 - Always sign-off git commits, but not with Claude Code. Also don't mention co-autored by any AI. 
