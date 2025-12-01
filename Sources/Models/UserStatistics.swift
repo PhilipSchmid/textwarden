@@ -62,6 +62,45 @@ struct SuggestionAction: Codable {
     let category: String?
 }
 
+/// Style latency sample with model and preset context
+struct StyleLatencySample: Codable {
+    let timestamp: Date
+    let modelId: String
+    let preset: String  // "fast", "balanced", "quality"
+    let latencyMs: Double
+}
+
+/// Extension to add UI properties to FFI InferencePreset
+extension InferencePreset {
+    static var allCases: [InferencePreset] {
+        [.Fast, .Balanced, .Quality]
+    }
+
+    var displayName: String {
+        switch self {
+        case .Fast: return "Fast"
+        case .Balanced: return "Balanced"
+        case .Quality: return "Quality"
+        }
+    }
+
+    var rawValue: String {
+        switch self {
+        case .Fast: return "fast"
+        case .Balanced: return "balanced"
+        case .Quality: return "quality"
+        }
+    }
+
+    var color: (r: Double, g: Double, b: Double) {
+        switch self {
+        case .Fast: return (0.2, 0.8, 0.4)      // Green
+        case .Balanced: return (0.3, 0.5, 0.9)  // Blue
+        case .Quality: return (0.7, 0.3, 0.8)   // Purple
+        }
+    }
+}
+
 /// Observable user statistics for tracking usage and improvements
 class UserStatistics: ObservableObject {
     static let shared = UserStatistics()
@@ -230,6 +269,13 @@ class UserStatistics: ObservableObject {
         }
     }
 
+    /// Number of style suggestions ignored (dismissed without action)
+    @Published var styleSuggestionsIgnored: Int {
+        didSet {
+            defaults.set(styleSuggestionsIgnored, forKey: Keys.styleSuggestionsIgnored)
+        }
+    }
+
     /// Breakdown of rejections by category
     @Published var styleRejectionCategories: [String: Int] {
         didSet {
@@ -239,11 +285,20 @@ class UserStatistics: ObservableObject {
         }
     }
 
-    /// LLM analysis latency samples (last 100 analyses)
+    /// LLM analysis latency samples (last 100 analyses) - legacy, for backward compatibility
     @Published var styleLatencySamples: [Double] {
         didSet {
             if let encoded = try? encoder.encode(styleLatencySamples) {
                 defaults.set(encoded, forKey: Keys.styleLatencySamples)
+            }
+        }
+    }
+
+    /// Detailed style latency samples with model and preset context (last 500 samples)
+    @Published var detailedStyleLatencySamples: [StyleLatencySample] {
+        didSet {
+            if let encoded = try? encoder.encode(detailedStyleLatencySamples) {
+                defaults.set(encoded, forKey: Keys.detailedStyleLatencySamples)
             }
         }
     }
@@ -678,8 +733,10 @@ class UserStatistics: ObservableObject {
         self.styleSuggestionsShown = 0
         self.styleSuggestionsAccepted = 0
         self.styleSuggestionsRejected = 0
+        self.styleSuggestionsIgnored = 0
         self.styleRejectionCategories = [:]
         self.styleLatencySamples = []
+        self.detailedStyleLatencySamples = []
 
         // Then load saved values
         self.errorsFound = defaults.integer(forKey: Keys.errorsFound)
@@ -735,6 +792,7 @@ class UserStatistics: ObservableObject {
         self.styleSuggestionsShown = defaults.integer(forKey: Keys.styleSuggestionsShown)
         self.styleSuggestionsAccepted = defaults.integer(forKey: Keys.styleSuggestionsAccepted)
         self.styleSuggestionsRejected = defaults.integer(forKey: Keys.styleSuggestionsRejected)
+        self.styleSuggestionsIgnored = defaults.integer(forKey: Keys.styleSuggestionsIgnored)
 
         if let data = defaults.data(forKey: Keys.styleRejectionCategories),
            let dict = try? decoder.decode([String: Int].self, from: data) {
@@ -744,6 +802,11 @@ class UserStatistics: ObservableObject {
         if let data = defaults.data(forKey: Keys.styleLatencySamples),
            let array = try? decoder.decode([Double].self, from: data) {
             self.styleLatencySamples = array
+        }
+
+        if let data = defaults.data(forKey: Keys.detailedStyleLatencySamples),
+           let samples = try? decoder.decode([StyleLatencySample].self, from: data) {
+            self.detailedStyleLatencySamples = samples
         }
 
         // Load resource monitoring data
@@ -1011,7 +1074,7 @@ class UserStatistics: ObservableObject {
 
         if before != resourceSamples.count {
             let removed = before - resourceSamples.count
-            print("ResourceMonitor: Cleaned up \(removed) samples older than 30 days")
+            Logger.debug("ResourceMonitor: Cleaned up \(removed) samples older than 30 days", category: Logger.background)
         }
     }
 
@@ -1073,17 +1136,89 @@ class UserStatistics: ObservableObject {
 
     // MARK: - LLM Style Checking Recording
 
-    /// Record style suggestions shown in an analysis session
-    func recordStyleSuggestions(count: Int, latencyMs: Double) {
+    /// Record style suggestions shown in an analysis session with model and preset context
+    func recordStyleSuggestions(count: Int, latencyMs: Double, modelId: String, preset: String) {
         guard count >= 0, latencyMs >= 0 else { return }
 
         styleSuggestionsShown += count
 
-        // Add latency sample (keep last 100)
+        // Add to legacy array (keep last 100)
         styleLatencySamples.append(latencyMs)
         if styleLatencySamples.count > 100 {
             styleLatencySamples.removeFirst()
         }
+
+        // Add to detailed samples with model/preset context (keep last 500)
+        let sample = StyleLatencySample(
+            timestamp: Date(),
+            modelId: modelId,
+            preset: preset.lowercased(),
+            latencyMs: latencyMs
+        )
+        detailedStyleLatencySamples.append(sample)
+        if detailedStyleLatencySamples.count > 500 {
+            detailedStyleLatencySamples.removeFirst()
+        }
+    }
+
+    // MARK: - Style Latency Query Methods
+
+    /// Get unique model IDs that have latency data
+    var modelsWithLatencyData: [String] {
+        Array(Set(detailedStyleLatencySamples.map { $0.modelId })).sorted()
+    }
+
+    /// Get latency samples filtered by model
+    func styleLatencySamples(forModel modelId: String) -> [StyleLatencySample] {
+        detailedStyleLatencySamples.filter { $0.modelId == modelId }
+    }
+
+    /// Get latency samples filtered by model and preset
+    func styleLatencySamples(forModel modelId: String, preset: String) -> [Double] {
+        detailedStyleLatencySamples
+            .filter { $0.modelId == modelId && $0.preset == preset.lowercased() }
+            .map { $0.latencyMs }
+    }
+
+    /// Get average latency for a model and preset combination
+    func averageStyleLatency(forModel modelId: String, preset: String) -> Double {
+        let samples = styleLatencySamples(forModel: modelId, preset: preset)
+        guard !samples.isEmpty else { return 0 }
+        return samples.reduce(0, +) / Double(samples.count)
+    }
+
+    /// Get median latency for a model and preset combination
+    func medianStyleLatency(forModel modelId: String, preset: String) -> Double {
+        let samples = styleLatencySamples(forModel: modelId, preset: preset)
+        return percentile(of: samples, percentile: 0.50)
+    }
+
+    /// Get P90 latency for a model and preset combination
+    func p90StyleLatency(forModel modelId: String, preset: String) -> Double {
+        let samples = styleLatencySamples(forModel: modelId, preset: preset)
+        return percentile(of: samples, percentile: 0.90)
+    }
+
+    /// Get P95 latency for a model and preset combination
+    func p95StyleLatency(forModel modelId: String, preset: String) -> Double {
+        let samples = styleLatencySamples(forModel: modelId, preset: preset)
+        return percentile(of: samples, percentile: 0.95)
+    }
+
+    /// Get P99 latency for a model and preset combination
+    func p99StyleLatency(forModel modelId: String, preset: String) -> Double {
+        let samples = styleLatencySamples(forModel: modelId, preset: preset)
+        return percentile(of: samples, percentile: 0.99)
+    }
+
+    /// Get sample count for a model and preset combination
+    func sampleCount(forModel modelId: String, preset: String) -> Int {
+        styleLatencySamples(forModel: modelId, preset: preset).count
+    }
+
+    /// Check if a model has any data for a specific preset
+    func hasData(forModel modelId: String, preset: String) -> Bool {
+        !styleLatencySamples(forModel: modelId, preset: preset).isEmpty
     }
 
     /// Record a style suggestion acceptance
@@ -1097,6 +1232,11 @@ class UserStatistics: ObservableObject {
         styleRejectionCategories[category, default: 0] += 1
     }
 
+    /// Record a style suggestion being ignored (dismissed without accept/reject)
+    func recordStyleIgnored() {
+        styleSuggestionsIgnored += 1
+    }
+
     /// Style suggestion acceptance rate (0-100)
     var styleAcceptanceRate: Double {
         let total = styleSuggestionsAccepted + styleSuggestionsRejected
@@ -1108,6 +1248,31 @@ class UserStatistics: ObservableObject {
     var averageStyleLatency: Double {
         guard !styleLatencySamples.isEmpty else { return 0 }
         return styleLatencySamples.reduce(0, +) / Double(styleLatencySamples.count)
+    }
+
+    /// Median LLM latency in milliseconds
+    var medianStyleLatencyMs: Double {
+        return percentile(of: styleLatencySamples, percentile: 0.50)
+    }
+
+    /// P90 LLM latency in milliseconds
+    var p90StyleLatencyMs: Double {
+        return percentile(of: styleLatencySamples, percentile: 0.90)
+    }
+
+    /// P95 LLM latency in milliseconds
+    var p95StyleLatencyMs: Double {
+        return percentile(of: styleLatencySamples, percentile: 0.95)
+    }
+
+    /// P99 LLM latency in milliseconds
+    var p99StyleLatencyMs: Double {
+        return percentile(of: styleLatencySamples, percentile: 0.99)
+    }
+
+    /// Number of LLM analysis runs (total evaluations)
+    var llmAnalysisRuns: Int {
+        return styleLatencySamples.count
     }
 
     // MARK: - Reset
@@ -1133,6 +1298,7 @@ class UserStatistics: ObservableObject {
         styleSuggestionsShown = 0
         styleSuggestionsAccepted = 0
         styleSuggestionsRejected = 0
+        styleSuggestionsIgnored = 0
         styleRejectionCategories = [:]
         styleLatencySamples = []
     }
@@ -1161,7 +1327,9 @@ class UserStatistics: ObservableObject {
         static let styleSuggestionsShown = "statistics.styleSuggestionsShown"
         static let styleSuggestionsAccepted = "statistics.styleSuggestionsAccepted"
         static let styleSuggestionsRejected = "statistics.styleSuggestionsRejected"
+        static let styleSuggestionsIgnored = "statistics.styleSuggestionsIgnored"
         static let styleRejectionCategories = "statistics.styleRejectionCategories"
         static let styleLatencySamples = "statistics.styleLatencySamples"
+        static let detailedStyleLatencySamples = "statistics.detailedStyleLatencySamples"
     }
 }
