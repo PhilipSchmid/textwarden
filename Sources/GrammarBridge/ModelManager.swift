@@ -92,6 +92,21 @@ public class ModelManager: ObservableObject {
             isDefault: false
         ),
         ModelConfig(
+            id: "smollm3-3b",
+            name: "SmolLM3 3B",
+            vendor: "HuggingFace",
+            filename: "HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf",
+            downloadUrl: "https://huggingface.co/bartowski/HuggingFaceTB_SmolLM3-3B-GGUF/resolve/main/HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf",
+            sizeBytes: 2_061_584_302,  // ~1.92 GB
+            speedRating: 7.0,
+            qualityRating: 8.8,
+            languages: ["en", "fr", "es", "de", "it", "pt"],
+            isMultilingual: true,
+            description: "HuggingFace's SmolLM3 with dual-mode reasoning. Excellent multilingual support.",
+            tier: .accurate,
+            isDefault: false
+        ),
+        ModelConfig(
             id: "llama-3.2-3b",
             name: "Llama 3.2 3B",
             vendor: "Meta",

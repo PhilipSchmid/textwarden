@@ -1074,7 +1074,7 @@ class UserStatistics: ObservableObject {
 
         if before != resourceSamples.count {
             let removed = before - resourceSamples.count
-            Logger.debug("ResourceMonitor: Cleaned up \(removed) samples older than 30 days", category: Logger.background)
+            Logger.debug("ResourceMonitor: Cleaned up \(removed) samples older than 30 days", category: Logger.performance)
         }
     }
 

@@ -238,6 +238,162 @@ If no underlines appear:
 
 ---
 
+## Adding LLM Models
+
+TextWarden uses a dual-architecture for LLM model definitions: a primary Rust configuration with a Swift fallback. Both must be kept in sync.
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Model Configuration                       │
+├─────────────────────────────────────────────────────────────┤
+│  PRIMARY: GrammarEngine/src/llm/config.rs (Rust)            │
+│           ↓ via FFI                                         │
+│  FALLBACK: Sources/GrammarBridge/ModelManager.swift (Swift) │
+│           (used when FFI unavailable during app startup)    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Step-by-Step: Adding a New Model
+
+#### 1. Find a Compatible Model
+
+TextWarden uses **GGUF quantized models** via llama.cpp. Look for models on HuggingFace:
+
+- Search for the model name + "GGUF"
+- Recommended quantization: `Q4_K_M` (good balance of size/quality)
+- Recommended size: 1-3B parameters (fast inference on macOS)
+- Check license compatibility
+
+Example sources:
+- https://huggingface.co/bartowski (popular GGUF conversions)
+- https://huggingface.co/TheBloke (another popular source)
+- Original model repos with GGUF releases
+
+#### 2. Gather Model Information
+
+You'll need:
+- **id**: Short identifier (e.g., `"qwen2.5-1.5b"`)
+- **name**: Display name (e.g., `"Qwen 2.5 1.5B"`)
+- **filename**: Exact GGUF filename from HuggingFace
+- **download_url**: Direct download URL to the GGUF file
+- **size_bytes**: File size in bytes (check HuggingFace for exact size)
+- **context_length**: Model's context window size
+- **speed_rating**: 1.0-10.0 (higher = faster, based on benchmarks)
+- **quality_rating**: 1.0-10.0 (higher = better output quality)
+- **languages**: Array of ISO 639-1 language codes supported
+- **description**: Brief description for UI
+- **tier**: Model category (see below)
+
+#### 3. Choose the Model Tier
+
+```rust
+pub enum ModelTier {
+    Lightweight,  // Fast, small models for quick suggestions
+    Balanced,     // Good balance of speed and quality (default)
+    Accurate,     // High quality, may be slower
+}
+```
+
+#### 4. Add to Rust Configuration
+
+Edit `GrammarEngine/src/llm/config.rs`:
+
+```rust
+// Add to AVAILABLE_MODELS array (maintain order by tier, then quality)
+ModelConfig {
+    id: "your-model-id",
+    name: "Your Model Name",
+    filename: "model-file-q4_k_m.gguf",
+    download_url: "https://huggingface.co/.../resolve/main/model-file-q4_k_m.gguf",
+    size_bytes: 2_000_000_000,  // ~2.0 GB
+    context_length: 8192,
+    speed_rating: 7.5,
+    quality_rating: 8.0,
+    languages: &["en", "de", "fr"],  // Languages supported
+    description: "Brief description for users.",
+    tier: ModelTier::Balanced,
+},
+```
+
+#### 5. Add to Swift Fallback
+
+Edit `Sources/GrammarBridge/ModelManager.swift`:
+
+```swift
+// Add to defaultModelConfigs array (same order as Rust)
+ModelConfig(
+    id: "your-model-id",
+    name: "Your Model Name",
+    vendor: "VendorName",
+    filename: "model-file-q4_k_m.gguf",
+    downloadUrl: "https://huggingface.co/.../resolve/main/model-file-q4_k_m.gguf",
+    sizeBytes: 2_000_000_000,  // Must match Rust
+    speedRating: 7.5,
+    qualityRating: 8.0,
+    languages: ["en", "de", "fr"],
+    isMultilingual: true,  // true if languages.count > 1
+    description: "Brief description for users.",
+    tier: .balanced,
+    isDefault: false  // Only one model should be default
+),
+```
+
+#### 6. Verify Build
+
+```bash
+# Test Rust compilation
+cd GrammarEngine && cargo check
+
+# Test full build
+cd .. && make build
+```
+
+#### 7. Test the Model
+
+1. Build and run TextWarden
+2. Go to Preferences → Models
+3. Verify the new model appears in the list
+4. Download the model
+5. Select it as active
+6. Test style suggestions in a text editor
+
+### Checklist for Adding Models
+
+- [ ] Model ID is unique and follows naming convention (`vendor-size`)
+- [ ] Filename exactly matches HuggingFace file
+- [ ] Download URL is direct link to GGUF file (ends in `.gguf`)
+- [ ] Size in bytes is accurate (check HuggingFace)
+- [ ] Both Rust and Swift configs are in sync
+- [ ] Model is placed in correct position (by tier, then quality)
+- [ ] `cargo check` passes
+- [ ] `make build` succeeds
+- [ ] Model appears in Preferences UI
+- [ ] Model downloads successfully
+- [ ] Model generates reasonable suggestions
+
+### Automatic Statistics Tracking
+
+When you add a new model, statistics are automatically tracked:
+- **UserStatistics.swift**: Tracks usage per modelId via `StyleLatencySample`
+- **DiagnosticsView.swift**: Includes model info in diagnostic exports
+
+No additional code changes needed - the model ID is tracked automatically.
+
+### Current Models
+
+| ID | Name | Size | Tier | Languages |
+|----|------|------|------|-----------|
+| qwen2.5-1.5b | Qwen 2.5 1.5B | ~1.0 GB | Balanced | 29+ |
+| phi3-mini | Phi-3 Mini | ~2.3 GB | Accurate | en |
+| smollm3-3b | SmolLM3 3B | ~1.9 GB | Accurate | 6 |
+| llama-3.2-3b | Llama 3.2 3B | ~2.0 GB | Balanced | 8 |
+| gemma2-2b | Gemma 2 2B | ~1.6 GB | Lightweight | en |
+| llama-3.2-1b | Llama 3.2 1B | ~0.8 GB | Lightweight | 8 |
+
+---
+
 ## Performance Profiling
 
 ### Profile with Instruments

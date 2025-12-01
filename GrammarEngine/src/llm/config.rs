@@ -74,6 +74,19 @@ pub static AVAILABLE_MODELS: &[ModelConfig] = &[
         tier: ModelTier::Accurate,
     },
     ModelConfig {
+        id: "smollm3-3b",
+        name: "SmolLM3 3B",
+        filename: "HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf",
+        download_url: "https://huggingface.co/bartowski/HuggingFaceTB_SmolLM3-3B-GGUF/resolve/main/HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf",
+        size_bytes: 2_061_584_302, // ~1.92 GB
+        context_length: 8192,
+        speed_rating: 7.0,
+        quality_rating: 8.8,
+        languages: &["en", "fr", "es", "de", "it", "pt"],
+        description: "HuggingFace's SmolLM3 with dual-mode reasoning. Excellent multilingual support for 6 European languages.",
+        tier: ModelTier::Accurate,
+    },
+    ModelConfig {
         id: "llama-3.2-3b",
         name: "Llama 3.2 3B",
         filename: "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
