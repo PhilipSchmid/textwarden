@@ -42,10 +42,13 @@ impl ModelConfig {
 }
 
 /// Available models for download
-/// These are the recommended models from our research:
-/// - Qwen 2.5 1.5B: Best overall balance
-/// - Phi-3 Mini: Accurate/high quality
-/// - Gemma 2 2B: Lightweight/fast
+/// Only models with GGUF architecture support in mistral.rs are included.
+/// Supported architectures: Llama, Phi2, Phi3, Starcoder2, Qwen2, Qwen3, Qwen3MoE
+///
+/// Recommended models:
+/// - Qwen 2.5 1.5B: Best overall balance (Qwen2 architecture)
+/// - Phi-3 Mini: Accurate/high quality (Phi3 architecture)
+/// - Llama 3.2 1B: Lightweight/fast (Llama architecture)
 pub static AVAILABLE_MODELS: &[ModelConfig] = &[
     ModelConfig {
         id: "qwen2.5-1.5b",
@@ -61,6 +64,19 @@ pub static AVAILABLE_MODELS: &[ModelConfig] = &[
         tier: ModelTier::Balanced,
     },
     ModelConfig {
+        id: "qwen3-4b",
+        name: "Qwen 3 4B",
+        filename: "Qwen3-4B-Q4_K_M.gguf",
+        download_url: "https://huggingface.co/unsloth/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf",
+        size_bytes: 2_497_281_312, // ~2.3 GB
+        context_length: 40960,
+        speed_rating: 6.5,
+        quality_rating: 9.5,
+        languages: &["en", "de", "fr", "es", "it", "pt", "nl", "pl", "ru", "zh", "ja", "ko", "ar", "vi", "th", "id", "ms", "tl", "hi", "bn", "ta", "te", "mr", "ur", "fa", "tr", "he", "uk", "cs"],
+        description: "Alibaba's latest generation. Excellent quality matching larger models. Supports 100+ languages with thinking mode.",
+        tier: ModelTier::Accurate,
+    },
+    ModelConfig {
         id: "phi3-mini",
         name: "Phi-3 Mini",
         filename: "Phi-3-mini-4k-instruct-q4.gguf",
@@ -74,17 +90,17 @@ pub static AVAILABLE_MODELS: &[ModelConfig] = &[
         tier: ModelTier::Accurate,
     },
     ModelConfig {
-        id: "smollm3-3b",
-        name: "SmolLM3 3B",
-        filename: "HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf",
-        download_url: "https://huggingface.co/bartowski/HuggingFaceTB_SmolLM3-3B-GGUF/resolve/main/HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf",
-        size_bytes: 2_061_584_302, // ~1.92 GB
-        context_length: 8192,
-        speed_rating: 7.0,
+        id: "qwen3-1.7b",
+        name: "Qwen 3 1.7B",
+        filename: "Qwen3-1.7B-Q4_K_M.gguf",
+        download_url: "https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf",
+        size_bytes: 1_107_409_472, // ~1.0 GB
+        context_length: 40960,
+        speed_rating: 8.5,
         quality_rating: 8.8,
-        languages: &["en", "fr", "es", "de", "it", "pt"],
-        description: "HuggingFace's SmolLM3 with dual-mode reasoning. Excellent multilingual support for 6 European languages.",
-        tier: ModelTier::Accurate,
+        languages: &["en", "de", "fr", "es", "it", "pt", "nl", "pl", "ru", "zh", "ja", "ko", "ar", "vi", "th", "id", "ms", "tl", "hi", "bn", "ta", "te", "mr", "ur", "fa", "tr", "he", "uk", "cs"],
+        description: "Latest Qwen generation. Matches Qwen 2.5 3B quality in a smaller package. Best multilingual balanced option.",
+        tier: ModelTier::Balanced,
     },
     ModelConfig {
         id: "llama-3.2-3b",
@@ -100,19 +116,6 @@ pub static AVAILABLE_MODELS: &[ModelConfig] = &[
         tier: ModelTier::Balanced,
     },
     ModelConfig {
-        id: "gemma2-2b",
-        name: "Gemma 2 2B",
-        filename: "gemma-2-2b-it-Q4_K_M.gguf",
-        download_url: "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf",
-        size_bytes: 1_708_582_752, // ~1.6 GB (verified from HuggingFace)
-        context_length: 8192,
-        speed_rating: 9.0,
-        quality_rating: 7.0,
-        languages: &["en"],
-        description: "Google's edge-optimized model. Fastest inference, ideal for MacBook Air 8GB or when speed is priority.",
-        tier: ModelTier::Lightweight,
-    },
-    ModelConfig {
         id: "llama-3.2-1b",
         name: "Llama 3.2 1B",
         filename: "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
@@ -123,6 +126,19 @@ pub static AVAILABLE_MODELS: &[ModelConfig] = &[
         quality_rating: 6.0,
         languages: &["en", "de", "fr", "it", "pt", "hi", "es", "th"],
         description: "Meta's ultra-fast lightweight model. Best for quick suggestions on older hardware.",
+        tier: ModelTier::Lightweight,
+    },
+    ModelConfig {
+        id: "qwen3-0.6b",
+        name: "Qwen 3 0.6B",
+        filename: "Qwen3-0.6B-Q4_K_M.gguf",
+        download_url: "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf",
+        size_bytes: 396_705_472, // ~378 MB
+        context_length: 40960,
+        speed_rating: 9.8,
+        quality_rating: 7.0,
+        languages: &["en", "de", "fr", "es", "it", "pt", "nl", "pl", "ru", "zh", "ja", "ko", "ar", "vi", "th", "id", "ms", "tl", "hi", "bn", "ta", "te", "mr", "ur", "fa", "tr", "he", "uk", "cs"],
+        description: "Smallest Qwen 3 model. Ultra-fast with excellent multilingual support. Only 378 MB download.",
         tier: ModelTier::Lightweight,
     },
 ];

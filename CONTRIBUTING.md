@@ -259,12 +259,29 @@ TextWarden uses a dual-architecture for LLM model definitions: a primary Rust co
 
 #### 1. Find a Compatible Model
 
-TextWarden uses **GGUF quantized models** via llama.cpp. Look for models on HuggingFace:
+TextWarden uses **GGUF quantized models** via mistral.rs. Look for models on HuggingFace:
 
 - Search for the model name + "GGUF"
 - Recommended quantization: `Q4_K_M` (good balance of size/quality)
 - Recommended size: 1-3B parameters (fast inference on macOS)
 - Check license compatibility
+- **IMPORTANT**: Verify GGUF architecture compatibility (see below)
+
+**Supported GGUF Architectures** (mistral.rs):
+| Architecture | Example Models |
+|--------------|----------------|
+| Llama | Llama 3.2, Llama 3.1, Llama 2 |
+| Phi2 | Phi-2 |
+| Phi3 | Phi-3, Phi-3.5 |
+| Starcoder2 | StarCoder2 |
+| Qwen2 | Qwen 2, Qwen 2.5 |
+| Qwen3 | Qwen 3 |
+| Qwen3MoE | Qwen 3 MoE variants |
+
+**Not Supported** (GGUF format):
+- Gemma, Gemma 2 (use safetensors format only)
+- SmolLM, SmolLM2, SmolLM3 (use safetensors format only)
+- Mistral (ironically, only safetensors supported in mistral.rs)
 
 Example sources:
 - https://huggingface.co/bartowski (popular GGUF conversions)
@@ -383,14 +400,15 @@ No additional code changes needed - the model ID is tracked automatically.
 
 ### Current Models
 
-| ID | Name | Size | Tier | Languages |
-|----|------|------|------|-----------|
-| qwen2.5-1.5b | Qwen 2.5 1.5B | ~1.0 GB | Balanced | 29+ |
-| phi3-mini | Phi-3 Mini | ~2.3 GB | Accurate | en |
-| smollm3-3b | SmolLM3 3B | ~1.9 GB | Accurate | 6 |
-| llama-3.2-3b | Llama 3.2 3B | ~2.0 GB | Balanced | 8 |
-| gemma2-2b | Gemma 2 2B | ~1.6 GB | Lightweight | en |
-| llama-3.2-1b | Llama 3.2 1B | ~0.8 GB | Lightweight | 8 |
+| ID | Name | Size | Tier | Languages | Architecture |
+|----|------|------|------|-----------|--------------|
+| qwen2.5-1.5b | Qwen 2.5 1.5B | ~1.0 GB | Balanced | 29+ | Qwen2 |
+| qwen3-4b | Qwen 3 4B | ~2.3 GB | Accurate | 100+ | Qwen3 |
+| phi3-mini | Phi-3 Mini | ~2.3 GB | Accurate | en | Phi3 |
+| qwen3-1.7b | Qwen 3 1.7B | ~1.0 GB | Balanced | 100+ | Qwen3 |
+| llama-3.2-3b | Llama 3.2 3B | ~2.0 GB | Balanced | 8 | Llama |
+| llama-3.2-1b | Llama 3.2 1B | ~0.8 GB | Lightweight | 8 | Llama |
+| qwen3-0.6b | Qwen 3 0.6B | ~378 MB | Lightweight | 100+ | Qwen3 |
 
 ---
 

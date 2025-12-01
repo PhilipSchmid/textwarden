@@ -58,8 +58,9 @@ public class ModelManager: ObservableObject {
     }()
 
     /// Default model configurations
+    /// Only models with GGUF architecture support in mistral.rs are included.
+    /// Supported architectures: Llama, Phi2, Phi3, Starcoder2, Qwen2, Qwen3, Qwen3MoE
     /// File sizes verified from Hugging Face x-linked-size headers (November 2025)
-    /// Speed/Quality ratings are relative estimates based on model architecture and size
     private static let defaultModelConfigs: [ModelConfig] = [
         ModelConfig(
             id: "qwen2.5-1.5b",
@@ -74,6 +75,21 @@ public class ModelManager: ObservableObject {
             isMultilingual: true,
             description: "Balanced model with excellent speed and good quality. Recommended for most users.",
             tier: .balanced,
+            isDefault: false
+        ),
+        ModelConfig(
+            id: "qwen3-4b",
+            name: "Qwen 3 4B",
+            vendor: "Alibaba",
+            filename: "Qwen3-4B-Q4_K_M.gguf",
+            downloadUrl: "https://huggingface.co/unsloth/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf",
+            sizeBytes: 2_497_281_312,  // Verified from HuggingFace
+            speedRating: 6.5,
+            qualityRating: 9.5,
+            languages: ["en", "zh", "de", "fr", "es", "pt", "it", "ru", "ja", "ko", "ar", "vi", "th", "nl", "pl"],
+            isMultilingual: true,
+            description: "Alibaba's latest generation. Excellent quality matching larger models. Supports 100+ languages with thinking mode.",
+            tier: .accurate,
             isDefault: false
         ),
         ModelConfig(
@@ -92,18 +108,18 @@ public class ModelManager: ObservableObject {
             isDefault: false
         ),
         ModelConfig(
-            id: "smollm3-3b",
-            name: "SmolLM3 3B",
-            vendor: "HuggingFace",
-            filename: "HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf",
-            downloadUrl: "https://huggingface.co/bartowski/HuggingFaceTB_SmolLM3-3B-GGUF/resolve/main/HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf",
-            sizeBytes: 2_061_584_302,  // ~1.92 GB
-            speedRating: 7.0,
+            id: "qwen3-1.7b",
+            name: "Qwen 3 1.7B",
+            vendor: "Alibaba",
+            filename: "Qwen3-1.7B-Q4_K_M.gguf",
+            downloadUrl: "https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf",
+            sizeBytes: 1_107_409_472,  // Verified from HuggingFace
+            speedRating: 8.5,
             qualityRating: 8.8,
-            languages: ["en", "fr", "es", "de", "it", "pt"],
+            languages: ["en", "zh", "de", "fr", "es", "pt", "it", "ru", "ja", "ko", "ar", "vi", "th", "nl", "pl"],
             isMultilingual: true,
-            description: "HuggingFace's SmolLM3 with dual-mode reasoning. Excellent multilingual support.",
-            tier: .accurate,
+            description: "Latest Qwen generation. Matches Qwen 2.5 3B quality in a smaller package. Best multilingual balanced option.",
+            tier: .balanced,
             isDefault: false
         ),
         ModelConfig(
@@ -122,21 +138,6 @@ public class ModelManager: ObservableObject {
             isDefault: false
         ),
         ModelConfig(
-            id: "gemma2-2b",
-            name: "Gemma 2 2B",
-            vendor: "Google",
-            filename: "gemma-2-2b-it-Q4_K_M.gguf",
-            downloadUrl: "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf",
-            sizeBytes: 1_708_582_752,  // Verified from HuggingFace
-            speedRating: 8.0,
-            qualityRating: 7.0,
-            languages: ["en"],
-            isMultilingual: false,
-            description: "Efficient model. Good balance of speed and quality.",
-            tier: .balanced,
-            isDefault: false
-        ),
-        ModelConfig(
             id: "llama-3.2-1b",
             name: "Llama 3.2 1B",
             vendor: "Meta",
@@ -148,6 +149,21 @@ public class ModelManager: ObservableObject {
             languages: ["en", "de", "fr", "it", "pt", "hi", "es", "th"],
             isMultilingual: true,
             description: "Ultra-fast lightweight model. Best for quick suggestions on older hardware.",
+            tier: .lightweight,
+            isDefault: false
+        ),
+        ModelConfig(
+            id: "qwen3-0.6b",
+            name: "Qwen 3 0.6B",
+            vendor: "Alibaba",
+            filename: "Qwen3-0.6B-Q4_K_M.gguf",
+            downloadUrl: "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf",
+            sizeBytes: 396_705_472,  // Verified from HuggingFace (~378 MB)
+            speedRating: 9.8,
+            qualityRating: 7.0,
+            languages: ["en", "zh", "de", "fr", "es", "pt", "it", "ru", "ja", "ko", "ar", "vi", "th", "nl", "pl"],
+            isMultilingual: true,
+            description: "Smallest Qwen 3 model. Ultra-fast with excellent multilingual support. Only 378 MB download.",
             tier: .lightweight,
             isDefault: false
         )
