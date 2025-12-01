@@ -207,7 +207,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         Logger.info("LLM engine initialized successfully", category: Logger.llm)
 
         // Log current state
-        Logger.debug("Style checking preferences - enabled: \(preferences.enableStyleChecking), autoLoad: \(preferences.styleAutoLoadModel), selectedModel: \(preferences.selectedModelId)", category: Logger.llm)
+        Logger.debug("Style checking preferences - enabled: \(preferences.enableStyleChecking), selectedModel: \(preferences.selectedModelId)", category: Logger.llm)
 
         // Refresh models on background thread
         DispatchQueue.main.sync {
@@ -216,15 +216,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         Logger.debug("Available models: \(modelManager.models.count), downloaded: \(modelManager.downloadedModels.count)", category: Logger.llm)
 
-        // Auto-load model on launch if conditions are met
+        // Auto-load model on launch if style checking is enabled
         guard preferences.enableStyleChecking else {
             Logger.debug("Style checking is disabled - skipping model auto-load", category: Logger.llm)
-            return
-        }
-
-        // Respect the auto-load preference
-        guard preferences.styleAutoLoadModel else {
-            Logger.debug("Auto-load model on launch is disabled - skipping model auto-load", category: Logger.llm)
             return
         }
 

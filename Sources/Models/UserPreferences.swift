@@ -635,7 +635,7 @@ class UserPreferences: ObservableObject {
         self.selectedModelId = "qwen2.5-1.5b"  // Balanced model
         self.styleMinSentenceWords = 5
         self.styleConfidenceThreshold = 0.7
-        self.styleAutoLoadModel = false
+        self.styleAutoLoadModel = true
         self.styleInferencePreset = "balanced"  // Default to balanced
 
         // Then load saved preferences
@@ -742,7 +742,7 @@ class UserPreferences: ObservableObject {
         self.selectedModelId = defaults.string(forKey: Keys.selectedModelId) ?? "qwen2.5-1.5b"
         self.styleMinSentenceWords = defaults.object(forKey: Keys.styleMinSentenceWords) as? Int ?? 5
         self.styleConfidenceThreshold = defaults.object(forKey: Keys.styleConfidenceThreshold) as? Double ?? 0.7
-        self.styleAutoLoadModel = defaults.object(forKey: Keys.styleAutoLoadModel) as? Bool ?? false
+        self.styleAutoLoadModel = defaults.object(forKey: Keys.styleAutoLoadModel) as? Bool ?? true
         self.styleInferencePreset = defaults.string(forKey: Keys.styleInferencePreset) ?? "balanced"
 
         // This prevents grammar checking in terminals where command output can cause false positives

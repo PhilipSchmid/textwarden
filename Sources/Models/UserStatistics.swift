@@ -1163,9 +1163,15 @@ class UserStatistics: ObservableObject {
 
     // MARK: - Style Latency Query Methods
 
-    /// Get unique model IDs that have latency data
+    /// Get unique model IDs that have latency data, including the currently selected model
     var modelsWithLatencyData: [String] {
-        Array(Set(detailedStyleLatencySamples.map { $0.modelId })).sorted()
+        var modelIds = Set(detailedStyleLatencySamples.map { $0.modelId })
+        // Always include the currently selected model so it appears in the dropdown
+        let selectedModelId = UserPreferences.shared.selectedModelId
+        if !selectedModelId.isEmpty {
+            modelIds.insert(selectedModelId)
+        }
+        return Array(modelIds).sorted()
     }
 
     /// Get latency samples filtered by model
