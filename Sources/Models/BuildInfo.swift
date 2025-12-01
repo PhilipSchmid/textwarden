@@ -9,20 +9,13 @@ import Foundation
 
 /// Build information captured at compile time
 struct BuildInfo {
-    /// Timestamp when this build was compiled (UTC)
+    /// Timestamp when the app was launched (UTC)
+    /// Note: This captures app startup time, not compile time
     static let buildTimestamp: String = {
-        // This will be replaced by a build script with actual timestamp
-        // Format: "2025-11-23 12:30:45 UTC"
-        #if DEBUG
-        // For debug builds, use current date/time at first access
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
         formatter.timeZone = TimeZone(identifier: "UTC")
         return formatter.string(from: Date()) + " UTC"
-        #else
-        // For release builds, this should be set by build script
-        return "BUILD_TIMESTAMP_PLACEHOLDER"
-        #endif
     }()
 
     /// Build date as Date object
@@ -42,7 +35,7 @@ struct BuildInfo {
         }
     }()
 
-    /// Human-readable build age (e.g., "2 hours ago", "3 days ago")
+    /// Human-readable session age (e.g., "2 hours ago", "3 days ago")
     static var buildAge: String {
         let now = Date()
         let interval = now.timeIntervalSince(buildDate)
@@ -104,8 +97,8 @@ struct BuildInfo {
     static var fullInfo: String {
         return """
         Version: \(fullVersion)
-        Build Timestamp: \(buildTimestamp)
-        Build Age: \(buildAge)
+        Session Started: \(buildTimestamp)
+        Session Age: \(buildAge)
         """
     }
 }

@@ -935,9 +935,9 @@ struct PopoverContentView: View {
     @Environment(\.dynamicTypeSize) var dynamicTypeSize
     @Environment(\.colorScheme) var systemColorScheme
 
-    /// Effective color scheme based on user preference
+    /// Effective color scheme based on user preference (overlay theme for popovers)
     private var effectiveColorScheme: ColorScheme {
-        switch preferences.suggestionTheme {
+        switch preferences.overlayTheme {
         case "Light":
             return .light
         case "Dark":
@@ -1205,59 +1205,13 @@ struct PopoverContentView: View {
         }
         .frame(minWidth: 300, idealWidth: 350, maxWidth: 450)
         .fixedSize(horizontal: false, vertical: true)
-        .background(
-            ZStack {
-                // Gradient background with blue tones
-                LinearGradient(
-                    colors: [
-                        Color(
-                            hue: 215/360,
-                            saturation: effectiveColorScheme == .dark ? 0.12 : 0.08,
-                            brightness: effectiveColorScheme == .dark ? 0.11 : 0.96
-                        ),
-                        Color(
-                            hue: 215/360,
-                            saturation: effectiveColorScheme == .dark ? 0.18 : 0.12,
-                            brightness: effectiveColorScheme == .dark ? 0.09 : 0.94
-                        )
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .opacity(preferences.suggestionOpacity)
-
-                // Subtle blue accent glow in top-right corner
-                RadialGradient(
-                    colors: [
-                        Color(hue: 215/360, saturation: 0.60, brightness: effectiveColorScheme == .dark ? 0.25 : 0.85).opacity(effectiveColorScheme == .dark ? 0.08 : 0.06),
-                        Color.clear
-                    ],
-                    center: .topTrailing,
-                    startRadius: 0,
-                    endRadius: 200
-                )
-            }
+        // Apply Liquid Glass styling (macOS 26-inspired frosted glass effect)
+        .liquidGlass(
+            style: .regular,
+            tint: .blue,
+            cornerRadius: 14,
+            opacity: preferences.suggestionOpacity
         )
-        // CRITICAL: Use clipShape BEFORE overlay to ensure all content is clipped to rounded corners
-        // This prevents the 90-degree corners from showing at the edges
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(
-            // Border with blue gradient
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [
-                            Color(hue: 215/360, saturation: 0.40, brightness: effectiveColorScheme == .dark ? 0.35 : 0.70).opacity(0.4),
-                            Color(hue: 215/360, saturation: 0.30, brightness: effectiveColorScheme == .dark ? 0.25 : 0.80).opacity(0.3)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1.0
-                )
-        )
-        .shadow(color: colors.shadowColor, radius: 12, x: 0, y: 4)
-        .shadow(color: Color(hue: 215/360, saturation: 0.60, brightness: 0.50).opacity(0.10), radius: 6, x: 0, y: 2)
         .colorScheme(effectiveColorScheme)
         .accessibilityElement(children: .contain)
     }
@@ -1749,9 +1703,9 @@ struct StylePopoverContentView: View {
     @ObservedObject var preferences = UserPreferences.shared
     @Environment(\.colorScheme) var systemColorScheme
 
-    /// Effective color scheme based on user preference
+    /// Effective color scheme based on user preference (overlay theme for popovers)
     private var effectiveColorScheme: ColorScheme {
-        switch preferences.suggestionTheme {
+        switch preferences.overlayTheme {
         case "Light":
             return .light
         case "Dark":
@@ -1941,58 +1895,13 @@ struct StylePopoverContentView: View {
         }
         .frame(minWidth: 300, idealWidth: 380, maxWidth: 450)
         .fixedSize(horizontal: false, vertical: true)
-        .background(
-            ZStack {
-                // Gradient background with purple tones (matching grammar popover structure)
-                LinearGradient(
-                    colors: [
-                        Color(
-                            hue: 280/360,  // Purple hue
-                            saturation: effectiveColorScheme == .dark ? 0.12 : 0.08,
-                            brightness: effectiveColorScheme == .dark ? 0.11 : 0.96
-                        ),
-                        Color(
-                            hue: 280/360,
-                            saturation: effectiveColorScheme == .dark ? 0.18 : 0.12,
-                            brightness: effectiveColorScheme == .dark ? 0.09 : 0.94
-                        )
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .opacity(preferences.suggestionOpacity)
-
-                // Subtle purple accent glow in top-right corner (matching grammar popover)
-                RadialGradient(
-                    colors: [
-                        Color(hue: 280/360, saturation: 0.60, brightness: effectiveColorScheme == .dark ? 0.25 : 0.85).opacity(effectiveColorScheme == .dark ? 0.08 : 0.06),
-                        Color.clear
-                    ],
-                    center: .topTrailing,
-                    startRadius: 0,
-                    endRadius: 200
-                )
-            }
+        // Apply Liquid Glass styling with purple tint (macOS 26-inspired)
+        .liquidGlass(
+            style: .regular,
+            tint: .purple,
+            cornerRadius: 14,
+            opacity: preferences.suggestionOpacity
         )
-        // CRITICAL: Use clipShape BEFORE overlay to ensure all content is clipped to rounded corners
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(
-            // Border with purple gradient (matching grammar popover structure)
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [
-                            Color(hue: 280/360, saturation: 0.40, brightness: effectiveColorScheme == .dark ? 0.35 : 0.70).opacity(0.4),
-                            Color(hue: 280/360, saturation: 0.30, brightness: effectiveColorScheme == .dark ? 0.25 : 0.80).opacity(0.3)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1.0
-                )
-        )
-        .shadow(color: colors.shadowColor, radius: 12, x: 0, y: 4)
-        .shadow(color: Color(hue: 280/360, saturation: 0.60, brightness: 0.50).opacity(0.10), radius: 6, x: 0, y: 2)
         .colorScheme(effectiveColorScheme)
     }
 

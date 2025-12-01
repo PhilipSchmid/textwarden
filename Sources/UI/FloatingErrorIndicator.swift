@@ -412,11 +412,18 @@ class FloatingErrorIndicator: NSPanel {
     }
 
     /// Update indicator to show style suggestions count (stops spinning)
+    /// Note: This preserves existing grammar errors so they can be restored if style check has no findings
     func showStyleSuggestionsReady(count: Int, styleSuggestions: [StyleSuggestionModel]) {
-        Logger.debug("FloatingErrorIndicator: showStyleSuggestionsReady(count: \(count))", category: Logger.ui)
+        Logger.debug("FloatingErrorIndicator: showStyleSuggestionsReady(count: \(count)), existing errors: \(errors.count)", category: Logger.ui)
         self.styleSuggestions = styleSuggestions
-        self.errors = []
-        self.mode = .styleSuggestions(styleSuggestions)
+        // Don't clear errors - preserve them for restoration if style check has no findings
+        // self.errors = [] <- Removed to preserve existing grammar errors
+
+        // Update mode based on what we have
+        if count > 0 {
+            self.mode = .styleSuggestions(styleSuggestions)
+        }
+        // If count == 0, mode will be updated in showStyleCheckComplete
 
         // Always show checkmark first to confirm completion
         showStyleCheckComplete(thenShowCount: count)
@@ -432,23 +439,44 @@ class FloatingErrorIndicator: NSPanel {
         indicatorView?.ringColor = .purple
         indicatorView?.needsDisplay = true
 
-        Logger.debug("FloatingErrorIndicator: Showing style check complete checkmark", category: Logger.ui)
+        Logger.debug("FloatingErrorIndicator: Showing style check complete checkmark, existing errors: \(errors.count)", category: Logger.ui)
 
-        // Short delay for checkmark, then show results or hide
-        // Use 1 second if there are findings, 3 seconds if no findings (before hiding)
-        let delay: TimeInterval = count > 0 ? 1.0 : 3.0
+        // Determine what happens after checkmark display
+        let hasStyleSuggestions = count > 0
+        let hasGrammarErrors = !errors.isEmpty
+
+        // Short delay for checkmark, then show results or restore errors or hide
+        // Use 1 second if there are findings to show, 2 seconds if restoring errors, 3 seconds if hiding
+        let delay: TimeInterval
+        if hasStyleSuggestions {
+            delay = 1.0
+        } else if hasGrammarErrors {
+            delay = 2.0  // Shorter delay when restoring grammar errors
+        } else {
+            delay = 3.0  // Longer delay before hiding (no findings at all)
+        }
+
         let workItem = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
 
-            if count > 0 {
-                // Transition to count display (same as grammar errors, but with purple ring)
-                Logger.debug("FloatingErrorIndicator: Transitioning to count \(count)", category: Logger.ui)
+            if hasStyleSuggestions {
+                // Transition to style suggestions count display
+                Logger.debug("FloatingErrorIndicator: Transitioning to style count \(count)", category: Logger.ui)
                 self.indicatorView?.displayMode = .count(count)
                 self.indicatorView?.ringColor = .purple
+                self.mode = .styleSuggestions(self.styleSuggestions)
+                self.indicatorView?.needsDisplay = true
+            } else if hasGrammarErrors {
+                // No style suggestions, but we have grammar errors - restore error display
+                Logger.debug("FloatingErrorIndicator: Restoring grammar errors display (\(self.errors.count) errors)", category: Logger.ui)
+                self.styleSuggestions = []
+                self.mode = .errors(self.errors)
+                self.indicatorView?.displayMode = .count(self.errors.count)
+                self.indicatorView?.ringColor = self.colorForErrors(self.errors)
                 self.indicatorView?.needsDisplay = true
             } else {
-                // No suggestions, hide the indicator
-                Logger.debug("FloatingErrorIndicator: No suggestions, hiding indicator", category: Logger.ui)
+                // No suggestions and no errors, hide the indicator
+                Logger.debug("FloatingErrorIndicator: No suggestions or errors, hiding indicator", category: Logger.ui)
                 self.hide()
             }
         }
@@ -936,6 +964,7 @@ private class IndicatorView: NSView {
     private var isHovered = false
     private var spinningTimer: Timer?
     private var spinningAngle: CGFloat = 0
+    private var themeObserver: Any?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -947,6 +976,13 @@ private class IndicatorView: NSView {
             userInfo: nil
         )
         addTrackingArea(trackingArea)
+
+        // Observe overlay theme changes to redraw
+        themeObserver = UserPreferences.shared.$overlayTheme
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.needsDisplay = true
+            }
     }
 
     required init?(coder: NSCoder) {
@@ -988,30 +1024,88 @@ private class IndicatorView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
 
+        // Determine if dark mode based on overlay theme preference
+        // Note: For "System" mode, we check the actual macOS system setting (not NSApp.effectiveAppearance)
+        // because the app may have its own theme override via NSApp.appearance
+        let isDarkMode: Bool = {
+            switch UserPreferences.shared.overlayTheme {
+            case "Light":
+                return false
+            case "Dark":
+                return true
+            default: // "System"
+                // Query actual macOS system dark mode setting
+                return UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
+            }
+        }()
+
+        // MARK: - Define background circle (inset to leave room for ring stroke)
+        let backgroundRect = bounds.insetBy(dx: 5, dy: 5)
+        let backgroundPath = NSBezierPath(ovalIn: backgroundRect)
+
+        // MARK: - Draw Drop Shadow (outside the ring only)
+        // Use a slightly larger circle for shadow to ensure it appears behind the ring
+        NSGraphicsContext.saveGraphicsState()
+
+        let shadowColor = NSColor.black.withAlphaComponent(isDarkMode ? 0.35 : 0.2)
         let shadow = NSShadow()
-        shadow.shadowColor = NSColor.black.withAlphaComponent(0.25)
+        shadow.shadowColor = shadowColor
         shadow.shadowOffset = NSSize(width: 0, height: -2)
-        shadow.shadowBlurRadius = 4
+        shadow.shadowBlurRadius = 3  // Reduced to keep shadow within bounds
         shadow.set()
 
-        // Draw background circle with system-adaptive color
-        let backgroundPath = NSBezierPath(ovalIn: bounds.insetBy(dx: 3, dy: 3))
-        NSColor.controlBackgroundColor.setFill()
+        // Draw shadow from a clear fill (shadow only, no visible fill)
+        // This ensures shadow appears outside the circle without adding any background
+        NSColor.clear.setFill()
         backgroundPath.fill()
 
-        // Clear shadow for border
-        NSShadow().set()
+        NSGraphicsContext.restoreGraphicsState()
 
-        // Draw colored ring (thicker, more prominent) - with spinning animation if needed
+        // MARK: - Glass Background (clipped to circle)
+        NSGraphicsContext.saveGraphicsState()
+        backgroundPath.addClip()
+
+        // Base glass color - solid fill first
+        let glassBaseColor = isDarkMode
+            ? NSColor(white: 0.18, alpha: 1.0)
+            : NSColor(white: 0.96, alpha: 1.0)
+        glassBaseColor.setFill()
+        NSBezierPath.fill(backgroundRect)
+
+        // Inner highlight gradient (top to center, clipped to circle)
+        let highlightGradient = NSGradient(colors: [
+            NSColor.white.withAlphaComponent(isDarkMode ? 0.1 : 0.3),
+            NSColor.white.withAlphaComponent(0.0)
+        ])
+        highlightGradient?.draw(in: backgroundRect, angle: 90)
+
+        NSGraphicsContext.restoreGraphicsState()
+
+        // MARK: - Colored Ring (drawn on top of glass background)
         switch displayMode {
         case .spinning:
             drawSpinningRing()
         default:
-            let ringPath = NSBezierPath(ovalIn: bounds.insetBy(dx: 3, dy: 3))
+            let ringPath = NSBezierPath(ovalIn: backgroundRect)
             ringColor.setStroke()
-            ringPath.lineWidth = 3.5
+            ringPath.lineWidth = 2.5
             ringPath.stroke()
+
+            // Subtle inner glow on the ring
+            let innerGlowPath = NSBezierPath(ovalIn: backgroundRect.insetBy(dx: 1.25, dy: 1.25))
+            ringColor.withAlphaComponent(0.25).setStroke()
+            innerGlowPath.lineWidth = 0.75
+            innerGlowPath.stroke()
         }
+
+        // MARK: - Subtle Border (glass edge, inside the ring)
+        let borderPath = NSBezierPath(ovalIn: backgroundRect.insetBy(dx: 1.25, dy: 1.25))
+        let borderColor = isDarkMode
+            ? NSColor.white.withAlphaComponent(0.1)
+            : NSColor.black.withAlphaComponent(0.06)
+        borderColor.setStroke()
+        borderPath.lineWidth = 0.5
+        borderPath.stroke()
 
         // Draw content based on display mode
         switch displayMode {
@@ -1022,18 +1116,19 @@ private class IndicatorView: NSView {
         case .sparkleWithCount(let count):
             drawSparkleWithCount(count)
         case .spinning:
-            drawSparkleIcon()  // Show sparkle while spinning
+            drawSparkleIcon()
         case .styleCheckComplete:
             drawCheckmarkIcon()
         }
     }
 
-    /// Draw spinning ring for style check loading state
+    /// Draw spinning ring for style check loading state (Liquid Glass style)
     private func drawSpinningRing() {
+        let backgroundRect = bounds.insetBy(dx: 5, dy: 5)
         let center = CGPoint(x: bounds.midX, y: bounds.midY)
-        let radius = (bounds.width - 6) / 2
+        let radius = backgroundRect.width / 2
 
-        // Draw background ring (dimmed)
+        // Draw background ring (dimmed, glass-like)
         let backgroundRing = NSBezierPath()
         backgroundRing.appendArc(
             withCenter: center,
@@ -1042,8 +1137,8 @@ private class IndicatorView: NSView {
             endAngle: 360,
             clockwise: false
         )
-        ringColor.withAlphaComponent(0.2).setStroke()
-        backgroundRing.lineWidth = 3.5
+        ringColor.withAlphaComponent(0.15).setStroke()
+        backgroundRing.lineWidth = 2.5
         backgroundRing.stroke()
 
         // Draw animated arc (spinning)
@@ -1051,6 +1146,7 @@ private class IndicatorView: NSView {
         let startAngleDegrees = spinningAngle * 180 / .pi
         let endAngleDegrees = startAngleDegrees + arcLength
 
+        // Main spinning arc
         let spinningArc = NSBezierPath()
         spinningArc.appendArc(
             withCenter: center,
@@ -1060,9 +1156,23 @@ private class IndicatorView: NSView {
             clockwise: false
         )
         ringColor.setStroke()
-        spinningArc.lineWidth = 3.5
+        spinningArc.lineWidth = 2.5
         spinningArc.lineCapStyle = .round
         spinningArc.stroke()
+
+        // Subtle inner glow on spinning arc
+        let glowArc = NSBezierPath()
+        glowArc.appendArc(
+            withCenter: center,
+            radius: radius - 1.25,
+            startAngle: startAngleDegrees,
+            endAngle: endAngleDegrees,
+            clockwise: false
+        )
+        ringColor.withAlphaComponent(0.3).setStroke()
+        glowArc.lineWidth = 0.75
+        glowArc.lineCapStyle = .round
+        glowArc.stroke()
     }
 
     /// Draw sparkle icon with count badge
@@ -1109,17 +1219,33 @@ private class IndicatorView: NSView {
 
     /// Draw error count text
     private func drawErrorCount(_ count: Int) {
+        // Determine text color based on overlay theme (not app theme)
+        // Note: For "System" mode, we check the actual macOS system setting
+        // because the app may have its own theme override via NSApp.appearance
+        let textColor: NSColor = {
+            switch UserPreferences.shared.overlayTheme {
+            case "Light":
+                return NSColor.black
+            case "Dark":
+                return NSColor.white
+            default: // "System"
+                // Query actual macOS system dark mode setting
+                let systemIsDark = UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
+                return systemIsDark ? NSColor.white : NSColor.black
+            }
+        }()
+
         let countString = "\(count)"
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 15, weight: .semibold),
-            .foregroundColor: NSColor.labelColor
+            .font: NSFont.systemFont(ofSize: 14, weight: .semibold),
+            .foregroundColor: textColor
         ]
         let textSize = (countString as NSString).size(withAttributes: attributes)
 
-        // Position text centered
+        // Position text precisely centered (no offset)
         let textRect = NSRect(
             x: (bounds.width - textSize.width) / 2,
-            y: (bounds.height - textSize.height) / 2 + 2,
+            y: (bounds.height - textSize.height) / 2,
             width: textSize.width,
             height: textSize.height
         )
@@ -1128,7 +1254,7 @@ private class IndicatorView: NSView {
 
     /// Draw sparkle icon for style suggestions
     private func drawSparkleIcon() {
-        let symbolConfig = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
+        let symbolConfig = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
         guard let sparkleImage = NSImage(systemSymbolName: "sparkles", accessibilityDescription: "Style Suggestions")?
             .withSymbolConfiguration(symbolConfig) else {
             // Fallback to text if symbol not available
@@ -1144,10 +1270,10 @@ private class IndicatorView: NSView {
             return true
         }
 
-        // Center the image
+        // Center the image precisely
         let imageSize = tintedImage.size
         let x = (bounds.width - imageSize.width) / 2
-        let y = (bounds.height - imageSize.height) / 2 + 1
+        let y = (bounds.height - imageSize.height) / 2
 
         tintedImage.draw(
             in: NSRect(x: x, y: y, width: imageSize.width, height: imageSize.height),
@@ -1161,14 +1287,14 @@ private class IndicatorView: NSView {
     private func drawFallbackSparkle() {
         let sparkleString = "✨"
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 16, weight: .medium),
+            .font: NSFont.systemFont(ofSize: 14, weight: .medium),
             .foregroundColor: NSColor.purple
         ]
         let textSize = (sparkleString as NSString).size(withAttributes: attributes)
 
         let textRect = NSRect(
             x: (bounds.width - textSize.width) / 2,
-            y: (bounds.height - textSize.height) / 2 + 2,
+            y: (bounds.height - textSize.height) / 2,
             width: textSize.width,
             height: textSize.height
         )
@@ -1177,19 +1303,19 @@ private class IndicatorView: NSView {
 
     /// Draw checkmark icon to indicate style check completed successfully
     private func drawCheckmarkIcon() {
-        let symbolConfig = NSImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
+        let symbolConfig = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
         guard let checkmarkImage = NSImage(systemSymbolName: "checkmark", accessibilityDescription: "Style Check Complete")?
             .withSymbolConfiguration(symbolConfig) else {
             // Fallback to text if symbol not available
             let checkString = "✓"
             let attributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 18, weight: .bold),
+                .font: NSFont.systemFont(ofSize: 16, weight: .bold),
                 .foregroundColor: NSColor.purple
             ]
             let textSize = (checkString as NSString).size(withAttributes: attributes)
             let textRect = NSRect(
                 x: (bounds.width - textSize.width) / 2,
-                y: (bounds.height - textSize.height) / 2 + 2,
+                y: (bounds.height - textSize.height) / 2,
                 width: textSize.width,
                 height: textSize.height
             )
@@ -1205,10 +1331,10 @@ private class IndicatorView: NSView {
             return true
         }
 
-        // Center the image
+        // Center the image precisely
         let imageSize = tintedImage.size
         let x = (bounds.width - imageSize.width) / 2
-        let y = (bounds.height - imageSize.height) / 2 + 1
+        let y = (bounds.height - imageSize.height) / 2
 
         tintedImage.draw(
             in: NSRect(x: x, y: y, width: imageSize.width, height: imageSize.height),
