@@ -2051,45 +2051,19 @@ class AnalysisCoordinator: ObservableObject {
     private func applyStyleBrowserReplacement(for suggestion: StyleSuggestionModel, element: AXUIElement, context: ApplicationContext) {
         Logger.debug("Browser style replacement for \(context.applicationName)", category: Logger.analysis)
 
-        // Get current text and find the ACTUAL position of the original text
-        // The positions from Rust are byte offsets which don't match macOS character indices
-        var currentTextRef: CFTypeRef?
-        let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
-
-        guard textResult == .success,
-              let currentText = currentTextRef as? String else {
-            Logger.debug("Could not get current text for browser style replacement", category: Logger.analysis)
-            return
-        }
-
-        // Find the actual position of the original text in the current content
-        guard let range = currentText.range(of: suggestion.originalText) else {
-            Logger.debug("Could not find original text '\(suggestion.originalText)' in current content for browser replacement", category: Logger.analysis)
+        // Select the text to replace (handles Notion child element traversal internally)
+        guard selectTextForReplacement(
+            targetText: suggestion.originalText,
+            fallbackRange: nil,  // Style suggestions use text search, not byte offsets
+            element: element,
+            context: context
+        ) else {
+            Logger.debug("Failed to select text for style replacement", category: Logger.analysis)
             removeSuggestionFromTracking(suggestion)
             return
         }
 
-        // Convert Swift range to character indices for AX API
-        let startIndex = currentText.distance(from: currentText.startIndex, to: range.lowerBound)
-        let length = suggestion.originalText.count
-
-        // Step 1: Try to select the range
-        var suggestionRange = CFRange(location: startIndex, length: length)
-        let rangeValue = AXValueCreate(.cfRange, &suggestionRange)!
-
-        let selectResult = AXUIElementSetAttributeValue(
-            element,
-            kAXSelectedTextRangeAttribute as CFString,
-            rangeValue
-        )
-
-        if selectResult == .success {
-            Logger.debug("AX API accepted selection for browser style replacement", category: Logger.analysis)
-        } else {
-            Logger.debug("AX API selection failed for browser style (error: \(selectResult.rawValue)) - will try paste anyway", category: Logger.analysis)
-        }
-
-        // Step 2: Save original pasteboard and copy suggestion
+        // Save original pasteboard and copy suggestion
         let pasteboard = NSPasteboard.general
         let originalString = pasteboard.string(forType: .string)
 
@@ -2178,24 +2152,30 @@ class AnalysisCoordinator: ObservableObject {
     private func applyBrowserTextReplacement(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement, context: ApplicationContext) {
         Logger.debug("Browser text replacement for \(context.applicationName)", category: Logger.analysis)
 
-        // Step 1: Try to select the error range using AX API
-        // This may silently fail in browsers, but it's fast and works sometimes
-        var errorRange = CFRange(location: error.start, length: error.end - error.start)
-        let rangeValue = AXValueCreate(.cfRange, &errorRange)!
-
-        let selectResult = AXUIElementSetAttributeValue(
-            element,
-            kAXSelectedTextRangeAttribute as CFString,
-            rangeValue
-        )
-
-        if selectResult == .success {
-            Logger.debug("AX API accepted selection for browser (range: \(error.start)-\(error.end))", category: Logger.analysis)
+        // Get the error text for selection
+        let cachedText = self.previousText
+        let errorText: String
+        if !cachedText.isEmpty && error.start < cachedText.count && error.end <= cachedText.count {
+            let startIdx = cachedText.index(cachedText.startIndex, offsetBy: error.start)
+            let endIdx = cachedText.index(cachedText.startIndex, offsetBy: error.end)
+            errorText = String(cachedText[startIdx..<endIdx])
         } else {
-            Logger.debug("AX API selection failed for browser (error: \(selectResult.rawValue)) - will try paste anyway", category: Logger.analysis)
+            // Fallback: use error range directly (may not work for Notion)
+            errorText = ""
         }
 
-        // Step 2: Save original pasteboard content
+        // Select the text to replace (handles Notion child element traversal internally)
+        let fallbackRange = errorText.isEmpty ? CFRange(location: error.start, length: error.end - error.start) : nil
+        let targetText = errorText.isEmpty ? suggestion : errorText
+
+        _ = selectTextForReplacement(
+            targetText: targetText,
+            fallbackRange: fallbackRange,
+            element: element,
+            context: context
+        )
+
+        // Save original pasteboard content
         // Note: We save the string content, not the items themselves
         // NSPasteboardItem objects are bound to their original pasteboard
         let pasteboard = NSPasteboard.general
@@ -2328,6 +2308,162 @@ class AnalysisCoordinator: ObservableObject {
         }
 
         return nil
+    }
+
+    /// Select text in an AX element for replacement
+    /// Handles Notion/Electron apps by traversing child elements to find paragraph-relative offsets
+    /// Returns true if selection succeeded (or was attempted), false if it failed critically
+    private func selectTextForReplacement(
+        targetText: String,
+        fallbackRange: CFRange?,
+        element: AXUIElement,
+        context: ApplicationContext
+    ) -> Bool {
+        let isNotion = context.bundleIdentifier == "notion.id" || context.bundleIdentifier == "com.notion.id"
+
+        if isNotion {
+            Logger.debug("Notion: Looking for text '\(targetText)' to select", category: Logger.analysis)
+
+            // Try to find child element containing the text and select within it
+            if let (childElement, offsetInChild) = findChildElementContainingText(targetText, in: element) {
+                var childRange = CFRange(location: offsetInChild, length: targetText.count)
+                guard let childRangeValue = AXValueCreate(.cfRange, &childRange) else {
+                    Logger.debug("Notion: Failed to create AXValue for child range", category: Logger.analysis)
+                    return false
+                }
+
+                let childSelectResult = AXUIElementSetAttributeValue(
+                    childElement,
+                    kAXSelectedTextRangeAttribute as CFString,
+                    childRangeValue
+                )
+
+                if childSelectResult == .success {
+                    Logger.debug("Notion: Selected text in child element (range: \(offsetInChild)-\(offsetInChild + targetText.count))", category: Logger.analysis)
+                } else {
+                    Logger.debug("Notion: Child selection failed (\(childSelectResult.rawValue))", category: Logger.analysis)
+                }
+                return true
+            } else {
+                Logger.debug("Notion: Could not find child element, falling back to main element", category: Logger.analysis)
+                return true  // Let caller try paste anyway
+            }
+        } else {
+            // Standard browser: try AX API selection directly
+            // This may silently fail, but it's fast and works sometimes
+            guard var range = fallbackRange else {
+                // Need to find text in current element content
+                var currentTextRef: CFTypeRef?
+                let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
+
+                guard textResult == .success,
+                      let currentText = currentTextRef as? String else {
+                    Logger.debug("Could not get current text for browser replacement", category: Logger.analysis)
+                    return false
+                }
+
+                guard let textRange = currentText.range(of: targetText) else {
+                    Logger.debug("Could not find text '\(targetText)' in current content", category: Logger.analysis)
+                    return false
+                }
+
+                let startIndex = currentText.distance(from: currentText.startIndex, to: textRange.lowerBound)
+                var calculatedRange = CFRange(location: startIndex, length: targetText.count)
+                guard let rangeValue = AXValueCreate(.cfRange, &calculatedRange) else {
+                    Logger.debug("Failed to create AXValue for range", category: Logger.analysis)
+                    return false
+                }
+
+                let selectResult = AXUIElementSetAttributeValue(
+                    element,
+                    kAXSelectedTextRangeAttribute as CFString,
+                    rangeValue
+                )
+
+                if selectResult == .success {
+                    Logger.debug("AX API accepted selection for browser", category: Logger.analysis)
+                } else {
+                    Logger.debug("AX API selection failed (\(selectResult.rawValue)) - will try paste anyway", category: Logger.analysis)
+                }
+                return true
+            }
+
+            guard let rangeValue = AXValueCreate(.cfRange, &range) else {
+                Logger.debug("Failed to create AXValue for fallback range", category: Logger.analysis)
+                return false
+            }
+
+            let selectResult = AXUIElementSetAttributeValue(
+                element,
+                kAXSelectedTextRangeAttribute as CFString,
+                rangeValue
+            )
+
+            if selectResult == .success {
+                Logger.debug("AX API accepted selection (range: \(range.location)-\(range.location + range.length))", category: Logger.analysis)
+            } else {
+                Logger.debug("AX API selection failed (\(selectResult.rawValue)) - will try paste anyway", category: Logger.analysis)
+            }
+            return true
+        }
+    }
+
+    /// Find the child element containing the target text and return the offset within that element
+    /// Used for Notion and other Electron apps where document-level offsets don't work
+    private func findChildElementContainingText(_ targetText: String, in element: AXUIElement) -> (AXUIElement, Int)? {
+        var candidates: [(element: AXUIElement, text: String, offset: Int)] = []
+        collectTextElements(in: element, depth: 0, maxDepth: 10, candidates: &candidates, targetText: targetText)
+
+        for candidate in candidates {
+            guard let range = candidate.text.range(of: targetText) else { continue }
+            let offset = candidate.text.distance(from: candidate.text.startIndex, to: range.lowerBound)
+            Logger.debug("Found '\(targetText)' in child element at offset \(offset)", category: Logger.analysis)
+            return (candidate.element, offset)
+        }
+
+        return nil
+    }
+
+    /// Collect child text elements for element tree traversal
+    private func collectTextElements(
+        in element: AXUIElement,
+        depth: Int,
+        maxDepth: Int,
+        candidates: inout [(element: AXUIElement, text: String, offset: Int)],
+        targetText: String
+    ) {
+        guard depth < maxDepth else { return }
+
+        var textValue: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textValue) == .success,
+           let text = textValue as? String,
+           text.contains(targetText) {
+
+            var sizeValue: CFTypeRef?
+            var height: CGFloat = 0
+            if AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
+               let size = sizeValue {
+                var rectSize = CGSize.zero
+                // Force cast is safe: AXValueGetValue returns false if type doesn't match
+                if AXValueGetValue(size as! AXValue, .cgSize, &rectSize) {
+                    height = rectSize.height
+                }
+            }
+
+            // Prefer smaller elements (paragraph-level, not document-level)
+            if height > 0 && height < 200 {
+                candidates.append((element: element, text: text, offset: 0))
+                Logger.debug("Candidate element height=\(height), text length=\(text.count)", category: Logger.analysis)
+            }
+        }
+
+        var childrenValue: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenValue) == .success,
+           let children = childrenValue as? [AXUIElement] {
+            for child in children.prefix(100) {
+                collectTextElements(in: child, depth: depth + 1, maxDepth: maxDepth, candidates: &candidates, targetText: targetText)
+            }
+        }
     }
 
     /// Apply text replacement using keyboard simulation (for Electron apps and Terminals)
