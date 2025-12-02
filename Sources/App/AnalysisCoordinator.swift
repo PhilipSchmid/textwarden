@@ -97,6 +97,8 @@ class AnalysisCoordinator: ObservableObject {
     private let maxPositionSyncRetries = 20  // Max 20 retries * 50ms = 1000ms max wait
     private var lastElementPosition: CGPoint?  // Track element position for stability check
     private var lastResizeTime: Date?  // Track when window was last resized (for Electron settling)
+    private var contentStabilityCount = 0  // Count consecutive stable position samples (for resize)
+    private var lastCharacterBounds: CGRect?  // Track actual character position to detect content reflow
 
     /// Scroll detection - uses global scroll wheel event observer
     private var overlaysHiddenDueToScroll = false
@@ -544,6 +546,8 @@ class AnalysisCoordinator: ObservableObject {
         scrollDebounceTimer = nil
         lastWindowFrame = nil
         lastResizeTime = nil
+        contentStabilityCount = 0
+        lastCharacterBounds = nil
         overlaysHiddenDueToMovement = false
         overlaysHiddenDueToWindowOffScreen = false
         overlaysHiddenDueToScroll = false
@@ -807,6 +811,8 @@ class AnalysisCoordinator: ObservableObject {
             overlaysHiddenDueToMovement = false
             positionSyncRetryCount = 0
             lastElementPosition = nil
+            contentStabilityCount = 0
+            lastCharacterBounds = nil
             return
         }
 
@@ -816,6 +822,8 @@ class AnalysisCoordinator: ObservableObject {
             overlaysHiddenDueToMovement = false
             positionSyncRetryCount = 0
             lastElementPosition = nil
+            contentStabilityCount = 0
+            lastCharacterBounds = nil
             PositionResolver.shared.clearCache()
             let sourceText = currentSegment?.content ?? ""
             applyFilters(to: currentErrors, sourceText: sourceText, element: textMonitor.monitoredElement)
@@ -885,32 +893,113 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Final step of reshowing overlays after all position checks pass
     private func finalizeOverlayReshow() {
-        // For Electron apps (like Notion), add extra settling delay after window resize
-        // React/Electron needs time to re-render and reflow text after resize
+        let bundleID = textMonitor.currentContext?.bundleIdentifier ?? ""
+        let isElectronApp = ElectronDetector.usesWebTechnologies(bundleID)
+
+        // For Electron apps after resize, verify ACTUAL CONTENT position stability
+        // Notion centers content blocks AFTER the window resize completes
+        // We must track character bounds, not just element position
+        if lastResizeTime != nil, isElectronApp {
+            guard let element = textMonitor.monitoredElement else {
+                completeOverlayReshow()
+                return
+            }
+
+            // Get character bounds for a character near the start of text
+            // This detects content block repositioning that element position misses
+            let currentCharBounds = getFirstCharacterBounds(for: element)
+
+            if let lastBounds = lastCharacterBounds, let currBounds = currentCharBounds {
+                // Check both position AND size changes (text reflow can affect both)
+                let positionDelta = hypot(currBounds.origin.x - lastBounds.origin.x,
+                                          currBounds.origin.y - lastBounds.origin.y)
+                let widthDelta = abs(currBounds.width - lastBounds.width)
+
+                if positionDelta < 3.0 && widthDelta < 2.0 {
+                    // Content is stable - increment counter
+                    contentStabilityCount += 1
+                    Logger.debug("Window monitoring: Character bounds stable (count: \(contentStabilityCount)/4, pos delta: \(positionDelta)px)", category: Logger.analysis)
+
+                    // Require 4 consecutive stable samples (4 * 100ms = 400ms of stability)
+                    // This is more conservative to catch late content repositioning
+                    if contentStabilityCount >= 4 {
+                        Logger.debug("Window monitoring: Content fully settled after resize", category: Logger.analysis)
+                        completeOverlayReshow()
+                        return
+                    }
+                } else {
+                    // Content still changing - reset counter
+                    contentStabilityCount = 0
+                    Logger.debug("Window monitoring: Content still moving after resize (pos delta: \(positionDelta)px, width delta: \(widthDelta)px)", category: Logger.analysis)
+                }
+            }
+
+            lastCharacterBounds = currentCharBounds
+
+            // Schedule another stability check with 100ms interval
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                guard let self = self, self.overlaysHiddenDueToMovement else { return }
+                self.finalizeOverlayReshow()
+            }
+            return
+        }
+
+        // For non-resize or non-Electron, just apply minimum settle time
         if let resizeTime = lastResizeTime {
             let timeSinceResize = Date().timeIntervalSince(resizeTime)
-            let bundleID = textMonitor.currentContext?.bundleIdentifier ?? ""
-            let isElectronApp = ElectronDetector.usesWebTechnologies(bundleID)
-
-            // Electron apps need 300ms+ for text to settle after resize
-            let requiredSettleTime: TimeInterval = isElectronApp ? 0.35 : 0.15
+            let requiredSettleTime: TimeInterval = 0.15
 
             if timeSinceResize < requiredSettleTime {
-                // Need more time - schedule another check
                 let remainingTime = requiredSettleTime - timeSinceResize
-                Logger.debug("Window monitoring: Waiting \(Int(remainingTime * 1000))ms for Electron text to settle after resize", category: Logger.analysis)
                 DispatchQueue.main.asyncAfter(deadline: .now() + remainingTime) { [weak self] in
                     guard let self = self, self.overlaysHiddenDueToMovement else { return }
-                    self.finalizeOverlayReshow()
+                    self.completeOverlayReshow()
                 }
                 return
             }
         }
 
+        completeOverlayReshow()
+    }
+
+    /// Get bounds of the first character in the text element
+    /// This tracks actual content position, not just the element container
+    private func getFirstCharacterBounds(for element: AXUIElement) -> CGRect? {
+        // Try to get bounds for character at index 0
+        var boundsValue: CFTypeRef?
+        var mutableRange = CFRangeMake(0, 1)
+        guard let axRange = AXValueCreate(.cfRange, &mutableRange) else {
+            return nil
+        }
+
+        let error = AXUIElementCopyParameterizedAttributeValue(
+            element,
+            kAXBoundsForRangeParameterizedAttribute as CFString,
+            axRange,
+            &boundsValue
+        )
+
+        guard error == .success,
+              let value = boundsValue,
+              CFGetTypeID(value) == AXValueGetTypeID() else {
+            return nil
+        }
+
+        var bounds = CGRect.zero
+        if AXValueGetValue(value as! AXValue, .cgRect, &bounds) {
+            return bounds
+        }
+        return nil
+    }
+
+    /// Actually show the overlays after all stability checks pass
+    private func completeOverlayReshow() {
         overlaysHiddenDueToMovement = false
         positionSyncRetryCount = 0
         lastElementPosition = nil
-        lastResizeTime = nil  // Clear resize tracking
+        lastResizeTime = nil
+        contentStabilityCount = 0
+        lastCharacterBounds = nil
 
         // CRITICAL: Clear position cache AGAIN before re-showing overlays
         // The cache was cleared when movement started, but async analysis operations
