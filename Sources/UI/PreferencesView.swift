@@ -1174,11 +1174,6 @@ struct ApplicationSettingsView: View {
                                 }
                             }
 
-                            // Position Calibration for Electron apps
-                            PositionCalibrationSection(
-                                preferences: preferences,
-                                app: app
-                            )
                         }
                         .padding(.vertical, 4)
                     }
@@ -3499,6 +3494,46 @@ struct DiagnosticsView: View {
                 }
             }
 
+            // MARK: - Session Information
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Started:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(BuildInfo.launchTimestamp)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                    }
+
+                    HStack {
+                        Text("Uptime:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(BuildInfo.uptime)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                    }
+                }
+            } header: {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "clock")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                        Text("Session Information")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+
+                    Text("How long TextWarden has been running")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
             // MARK: - Resource Monitoring Section
             ResourceMonitoringView()
 
@@ -4385,443 +4420,239 @@ struct ResourceMonitoringView: View {
 // MARK: - About View
 
 struct AboutView: View {
-    /// Access the updater from AppDelegate
-    private var updaterViewModel: UpdaterViewModel? {
-        (NSApp.delegate as? AppDelegate)?.updaterViewModel
+    /// Access the updater from AppDelegate - use ObservedObject for proper updates
+    @ObservedObject private var updaterViewModel: UpdaterViewModel
+
+    /// Current year for copyright
+    private var currentYear: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy"
+        return formatter.string(from: Date())
     }
 
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                // App Icon and Title
-                Image("TextWardenLogo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 150, height: 150)
+    /// State for copy feedback
+    @State private var showCopiedFeedback = false
 
-                Text("TextWarden")
-                    .font(.system(size: 42, weight: .bold))
-
-                Text("Real-time Grammar Checking for macOS")
-                    .font(.title3)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-
-                Divider()
-                    .padding(.horizontal, 40)
-
-                // Version Information
-                VStack(spacing: 14) {
-                    InfoRow(label: "Version", value: BuildInfo.fullVersion)
-                    InfoRow(label: "Session Started", value: BuildInfo.buildTimestamp)
-                    InfoRow(label: "Session Age", value: BuildInfo.buildAge)
-                    InfoRow(label: "Grammar Engine", value: "Harper \(BuildInfo.harperVersion)")
-                    InfoRow(label: "Supported Dialects", value: "American, British, Canadian, Australian")
-                    InfoRow(label: "License", value: "Apache 2.0")
-                }
-                .padding(.horizontal, 40)
-
-                // Update Section
-                VStack(spacing: 12) {
-                    Button(action: {
-                        updaterViewModel?.checkForUpdates()
-                    }) {
-                        HStack(spacing: 16) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.accentColor.opacity(0.15))
-                                    .frame(width: 48, height: 48)
-                                Image(systemName: "arrow.triangle.2.circlepath")
-                                    .font(.title3)
-                                    .foregroundColor(.accentColor)
-                            }
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Check for Updates")
-                                    .font(.body)
-                                    .fontWeight(.medium)
-                                Text("Version \(BuildInfo.fullVersion)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(16)
-                        .background(Color.accentColor.opacity(0.08))
-                        .cornerRadius(12)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(updaterViewModel?.canCheckForUpdates == false)
-
-                    if let updater = updaterViewModel {
-                        Toggle("Automatically check for updates", isOn: Binding(
-                            get: { updater.automaticallyChecksForUpdates },
-                            set: { updater.automaticallyChecksForUpdates = $0 }
-                        ))
-                        .toggleStyle(.switch)
-                        .padding(.horizontal, 16)
-                    }
-                }
-                .padding(.horizontal, 40)
-
-                Divider()
-                    .padding(.horizontal, 40)
-
-                // Links
-                VStack(spacing: 16) {
-                    Link(destination: URL(string: "https://github.com/philipschmid/textwarden")!) {
-                        HStack(spacing: 16) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.accentColor.opacity(0.15))
-                                    .frame(width: 48, height: 48)
-                                Image(systemName: "chevron.left.forwardslash.chevron.right")
-                                    .font(.title3)
-                                    .foregroundColor(.accentColor)
-                            }
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("View on GitHub")
-                                    .font(.body)
-                                    .fontWeight(.medium)
-                                Text("Source code and development")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-
-                            Spacer()
-
-                            Image(systemName: "arrow.up.forward")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(16)
-                        .background(Color.accentColor.opacity(0.08))
-                        .cornerRadius(12)
-                    }
-                    .buttonStyle(.plain)
-
-                    Link(destination: URL(string: "https://github.com/philipschmid/textwarden/blob/main/LICENSE")!) {
-                        HStack(spacing: 16) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.accentColor.opacity(0.15))
-                                    .frame(width: 48, height: 48)
-                                Image(systemName: "doc.text")
-                                    .font(.title3)
-                                    .foregroundColor(.accentColor)
-                            }
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("View License")
-                                    .font(.body)
-                                    .fontWeight(.medium)
-                                Text("Apache 2.0 open source license")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-
-                            Spacer()
-
-                            Image(systemName: "arrow.up.forward")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(16)
-                        .background(Color.accentColor.opacity(0.08))
-                        .cornerRadius(12)
-                    }
-                    .buttonStyle(.plain)
-
-                    Link(destination: URL(string: "https://github.com/philipschmid/textwarden/issues")!) {
-                        HStack(spacing: 16) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.accentColor.opacity(0.15))
-                                    .frame(width: 48, height: 48)
-                                Image(systemName: "exclamationmark.bubble")
-                                    .font(.title3)
-                                    .foregroundColor(.accentColor)
-                            }
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Report an Issue")
-                                    .font(.body)
-                                    .fontWeight(.medium)
-                                Text("Bug reports and feature requests")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-
-                            Spacer()
-
-                            Image(systemName: "arrow.up.forward")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(16)
-                        .background(Color.accentColor.opacity(0.08))
-                        .cornerRadius(12)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, 40)
-
-                Spacer()
-
-                Text("© 2025 Philip Schmid. All rights reserved.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding()
+    init() {
+        // Get updater from AppDelegate, with fallback
+        if let appDelegate = NSApp.delegate as? AppDelegate {
+            _updaterViewModel = ObservedObject(wrappedValue: appDelegate.updaterViewModel)
+        } else {
+            // Fallback - create temporary instance (shouldn't happen in practice)
+            _updaterViewModel = ObservedObject(wrappedValue: UpdaterViewModel())
         }
     }
-}
 
-// Helper Views for About Page
-private struct InfoRow: View {
-    let label: String
-    let value: String
-
-    var body: some View {
-        HStack {
-            Text(label)
-                .font(.body)
-                .foregroundColor(.secondary)
-            Spacer()
-            Text(value)
-                .font(.body)
-                .fontWeight(.medium)
+    /// Copy version to clipboard
+    private func copyVersionToClipboard() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(BuildInfo.appVersion, forType: .string)
+        showCopiedFeedback = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            showCopiedFeedback = false
         }
     }
-}
-
-private struct FeatureRow: View {
-    let icon: String
-    let title: String
-    let description: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(.accentColor)
-                .frame(width: 28)
+        Form {
+            // MARK: - About TextWarden (main group header with app info)
+            Section {
+                // App identity row with larger logo
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(spacing: 20) {
+                        Image("TextWardenLogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 128, height: 128)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.body)
-                    .fontWeight(.medium)
-                Text(description)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-        }
-    }
-}
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("TextWarden")
+                                .font(.system(size: 28, weight: .bold))
+                            Text("Grammar and Style Checking for macOS")
+                                .font(.title3)
+                                .foregroundColor(.secondary)
+                        }
 
-// MARK: - Position Calibration Section
-
-fileprivate struct PositionCalibrationSection: View {
-    @ObservedObject var preferences: UserPreferences
-    let app: ApplicationInfo
-    @State private var isExpanded = false
-
-    var body: some View {
-        let calibration = preferences.getCalibration(for: app.bundleIdentifier)
-        let hasCustomCalibration = calibration != .default
-        let isElectronApp = app.bundleIdentifier.contains("electron") ||
-                           app.bundleIdentifier.contains("slack") ||
-                           app.bundleIdentifier.contains("discord") ||
-                           app.bundleIdentifier.contains("msteams") ||
-                           app.bundleIdentifier.contains("vscode")
-
-        VStack(alignment: .leading, spacing: 0) {
-            // Clickable header
-            Button(action: {
-                withAnimation {
-                    isExpanded.toggle()
+                        Spacer()
+                    }
                 }
-            }) {
-                HStack(spacing: 6) {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                .padding(.vertical, 8)
+            } header: {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "info.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                        Text("About TextWarden")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+
+                    Text("Application information and version details")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    Image(systemName: "ruler.fill")
-                        .font(.caption)
-                        .foregroundColor(.blue)
-                    Text("Position Calibration")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                    if hasCustomCalibration {
-                        Image(systemName: "circle.fill")
-                            .font(.system(size: 6))
-                            .foregroundColor(.orange)
-                    }
-                    Spacer()
+
+                    Text("Application")
+                        .font(.headline)
+                        .padding(.top, 8)
                 }
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .padding(.leading, 28)
-            .padding(.top, 8)
 
-            // Expandable content
-            if isExpanded {
-                VStack(alignment: .leading, spacing: 12) {
-                        // Status indicator
-                        HStack {
-                            Image(systemName: calibration == .default ? "checkmark.circle" :
-                                  calibration == .slackPreset ? "star.circle" : "pencil.circle")
-                                .foregroundColor(calibration == .default ? .green :
-                                               calibration == .slackPreset ? .blue : .orange)
-                            Text(calibration == .default ? "Using default positioning" :
-                                 calibration == .slackPreset ? "Using Slack preset" :
-                                 "Using custom positioning")
-                                .font(.caption)
+            // Version & Updates subsection
+            Section {
+                // Version with copy button
+                HStack {
+                    Text("Version")
+                    Spacer()
+                    Button(action: copyVersionToClipboard) {
+                        HStack(spacing: 6) {
+                            Text(BuildInfo.appVersion)
                                 .foregroundColor(.secondary)
+                            Image(systemName: showCopiedFeedback ? "checkmark" : "doc.on.doc")
+                                .font(.caption)
+                                .foregroundColor(showCopiedFeedback ? .green : .secondary)
                         }
-                        .padding(.vertical, 4)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Copy version to clipboard")
+                }
 
-                        // Position Adjustment (Horizontal Offset)
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 4) {
-                                Text("Position Adjustment")
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                                Button {
-                                } label: {
-                                    Image(systemName: "questionmark.circle")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                Toggle("Automatically check for updates on launch", isOn: $updaterViewModel.automaticallyChecksForUpdates)
+
+                Toggle("Include experimental releases", isOn: $updaterViewModel.includeExperimentalUpdates)
+                    .help("Opt-in to receive experimental pre-release versions with new features")
+
+                HStack(spacing: 12) {
+                    Button {
+                        updaterViewModel.checkForUpdates()
+                    } label: {
+                        HStack(spacing: 6) {
+                            if updaterViewModel.isChecking {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                                    .frame(width: 16, height: 16)
+                            } else {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                            }
+                            Text("Check for Updates")
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!updaterViewModel.canCheckForUpdates || updaterViewModel.isChecking)
+
+                    Spacer()
+
+                    HStack(spacing: 6) {
+                        // Status icon
+                        switch updaterViewModel.checkStatus {
+                        case .idle:
+                            EmptyView()
+                        case .checking:
+                            EmptyView()
+                        case .success:
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                                .font(.caption)
+                        case .error:
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.red)
+                                .font(.caption)
+                        }
+
+                        Text(updaterViewModel.statusText)
+                            .font(.caption)
+                            .foregroundColor({
+                                switch updaterViewModel.checkStatus {
+                                case .idle, .checking:
+                                    return .secondary
+                                case .success:
+                                    return .primary
+                                case .error:
+                                    return .red
                                 }
-                                .buttonStyle(.plain)
-                                .help("Shifts underlines left or right to align with text. Use this if underlines appear offset from the actual error.")
+                            }())
+                    }
+                }
+            } header: {
+                Text("Version")
+                    .font(.headline)
+            }
 
-                                Spacer()
-
-                                Text("\(Int(calibration.horizontalOffset)) px")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .monospacedDigit()
-                            }
-
-                            HStack(spacing: 8) {
-                                Text("← Left")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                                    .frame(width: 52, alignment: .leading)
-
-                                Slider(
-                                    value: Binding(
-                                        get: { calibration.horizontalOffset },
-                                        set: { newValue in
-                                            var updated = calibration
-                                            updated.horizontalOffset = newValue
-                                            preferences.setCalibration(for: app.bundleIdentifier, calibration: updated)
-                                        }
-                                    ),
-                                    in: -50...50,
-                                    step: 1
-                                )
-
-                                Text("Right →")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                                    .frame(width: 52, alignment: .trailing)
-                            }
-                        }
-
-                        // Width Adjustment (Width Multiplier)
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 4) {
-                                Text("Width Adjustment")
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                                Button {
-                                } label: {
-                                    Image(systemName: "questionmark.circle")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                .buttonStyle(.plain)
-                                .help("Adjusts the width of underlines. Use this if underlines are too wide or too narrow for the error text.")
-
-                                Spacer()
-
-                                Text(String(format: "%.0f%%", calibration.widthMultiplier * 100))
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .monospacedDigit()
-                            }
-
-                            HStack(spacing: 8) {
-                                Text("Narrower")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                                    .frame(width: 52, alignment: .leading)
-
-                                Slider(
-                                    value: Binding(
-                                        get: { calibration.widthMultiplier },
-                                        set: { newValue in
-                                            var updated = calibration
-                                            updated.widthMultiplier = newValue
-                                            preferences.setCalibration(for: app.bundleIdentifier, calibration: updated)
-                                        }
-                                    ),
-                                    in: 0.5...1.5,
-                                    step: 0.01
-                                )
-
-                                Text("Wider")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                                    .frame(width: 52, alignment: .trailing)
-                            }
-                        }
-
-                        // Preset Buttons
-                        HStack(spacing: 8) {
-                            if isElectronApp {
-                                Button {
-                                    preferences.setCalibration(for: app.bundleIdentifier, calibration: .slackPreset)
-                                } label: {
-                                    Label("Electron Preset", systemImage: "wand.and.stars")
-                                        .font(.caption)
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.small)
-                                .help("Apply recommended settings for Electron apps (0.94x width)")
-                            }
-
-                            Button {
-                                preferences.setCalibration(for: app.bundleIdentifier, calibration: .default)
-                            } label: {
-                                Label("Reset", systemImage: "arrow.counterclockwise")
-                                    .font(.caption)
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .help("Reset to default positioning")
-                        }
-                        .padding(.top, 4)
-
-                        // Info text
-                        Text("💡 Adjust these values while viewing errors in \(app.name) for real-time preview.")
+            // MARK: - Resources (new main group)
+            Section {
+                Link(destination: URL(string: "https://github.com/philipschmid/textwarden")!) {
+                    HStack {
+                        Label("View on GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
+                        Spacer()
+                        Image(systemName: "arrow.up.forward")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                            .padding(.top, 4)
                     }
-                    .padding(.leading, 28)
-                    .padding(.vertical, 8)
+                }
+
+                Link(destination: URL(string: "https://github.com/philipschmid/textwarden/blob/main/LICENSE")!) {
+                    HStack {
+                        Label("View License", systemImage: "doc.text")
+                        Spacer()
+                        Text("Apache 2.0")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Link(destination: URL(string: "https://github.com/philipschmid/textwarden/issues")!) {
+                    HStack {
+                        Label("Report an Issue", systemImage: "exclamationmark.bubble")
+                        Spacer()
+                        Image(systemName: "arrow.up.forward")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            } header: {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "link")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                        Text("Resources")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+
+                    Text("Source code, documentation, and support")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Text("Links")
+                        .font(.headline)
+                        .padding(.top, 8)
+                }
+            }
+
+            // Legal subsection
+            Section {
+                HStack {
+                    Text("License")
+                    Spacer()
+                    Text("Apache 2.0")
+                        .foregroundColor(.secondary)
+                }
+
+                HStack {
+                    Text("Copyright")
+                    Spacer()
+                    Text("© \(currentYear) Philip Schmid")
+                        .foregroundColor(.secondary)
+                }
+            } header: {
+                Text("Legal")
+                    .font(.headline)
             }
         }
+        .formStyle(.grouped)
+        .padding()
     }
 }
 

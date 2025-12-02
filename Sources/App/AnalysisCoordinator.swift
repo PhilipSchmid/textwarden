@@ -160,7 +160,6 @@ class AnalysisCoordinator: ObservableObject {
         setupMonitoring()
         setupPopoverCallbacks()
         setupOverlayCallbacks()
-        setupCalibrationListener()
         setupScrollWheelMonitor()
         // Window position monitoring will be started when we begin monitoring an app
     }
@@ -246,17 +245,6 @@ class AnalysisCoordinator: ObservableObject {
                 self.pendingHoverError = nil
             }
         }
-    }
-
-    /// Setup listener for calibration changes to refresh underlines
-    private func setupCalibrationListener() {
-        UserPreferences.shared.$positioningCalibrations
-            .sink { [weak self] _ in
-                guard let self = self else { return }
-                // Refresh underlines when calibration changes
-                self.refreshUnderlines()
-            }
-            .store(in: &cancellables)
     }
 
     /// Setup overlay callbacks for hover-based popup
@@ -1205,17 +1193,6 @@ class AnalysisCoordinator: ObservableObject {
         return nil
     }
 
-    /// Refresh underlines when calibration settings change
-    /// This re-renders existing underlines with updated positioning
-    func refreshUnderlines() {
-        guard !currentErrors.isEmpty else { return }
-
-        Logger.debug("AnalysisCoordinator: Refreshing underlines after calibration change", category: Logger.analysis)
-
-        // Re-apply filters to trigger underline refresh with new calibration
-        let sourceText = currentSegment?.content ?? ""
-        applyFilters(to: currentErrors, sourceText: sourceText, element: textMonitor.monitoredElement)
-    }
 
     /// Handle text change and trigger analysis (T038)
     private func handleTextChange(_ text: String, in context: ApplicationContext) {
