@@ -4,7 +4,6 @@
 //
 //  Slack-specific content parser with UI context detection
 //  Handles different text rendering in message input vs search bar vs thread replies
-//  Based on empirical calibration data from Scripts/analyze-slack-spacing.swift
 //
 
 import Foundation
@@ -152,7 +151,7 @@ class SlackContentParser: ContentParser {
     }
 
     func spacingMultiplier(context: String?) -> CGFloat {
-        // DATA-DRIVEN CALIBRATION (see Scripts/analyze-slack-spacing.swift)
+        // DATA-DRIVEN CALIBRATION
         //
         // Root cause: Slack's Chromium renderer displays text ~6% narrower than NSFont measures
         // Likely due to: letter-spacing CSS, font substitution, or Chromium text shaping vs CoreText
