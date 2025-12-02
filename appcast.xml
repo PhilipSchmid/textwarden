@@ -1,0 +1,21 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>TextWarden Releases</title>
+        <!--
+        To add a new release:
+        1. Build and archive your app
+        2. Create a signed DMG or ZIP
+        3. Run: /path/to/sign_update YourApp.dmg (or .zip)
+        4. Copy the signature output
+        5. Add a new <item> entry below with:
+           - sparkle:version = CFBundleVersion (build number)
+           - sparkle:shortVersionString = CFBundleShortVersionString (display version)
+           - sparkle:edSignature = the signature from sign_update
+           - enclosure url = download URL
+           - enclosure length = file size in bytes
+
+        Or use generate_appcast tool to auto-generate this from your archives folder.
+        -->
+    </channel>
+</rss>

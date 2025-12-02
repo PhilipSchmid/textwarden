@@ -4,7 +4,8 @@
 .PHONY: help build build-no-llm build-rust build-rust-llm build-swift \
         run run-only install uninstall \
         test test-rust clean clean-all clean-derived \
-        ci-check fmt lint logs kill status reset xcode version
+        ci-check fmt lint logs kill status reset xcode version \
+        release release-alpha release-beta release-rc release-upload
 
 # Default target
 .DEFAULT_GOAL := help
@@ -172,3 +173,45 @@ version: ## Show version info
 	@grep "CFBundleShortVersionString" Info.plist -A1 2>/dev/null | grep string | sed 's/<[^>]*>//g' | xargs echo "  App:" || echo "  App: unknown"
 	@rustc --version 2>/dev/null | sed 's/rustc /  Rust: /' || echo "  Rust: not found"
 	@xcodebuild -version 2>/dev/null | head -1 | sed 's/Xcode /  Xcode: /' || echo "  Xcode: not found"
+
+clean-derived: ## Clean Xcode DerivedData
+	@rm -rf ~/Library/Developer/Xcode/DerivedData/TextWarden-*
+	@echo "$(GREEN)✅ DerivedData cleaned$(NC)"
+
+##@ Releasing
+
+# VERSION can be passed: make release VERSION=0.2.0
+VERSION ?=
+
+release: ## Build and prepare a production release (requires confirmation)
+	@./Scripts/release.sh release $(VERSION)
+
+release-alpha: ## Build alpha release (e.g., 0.2.0-alpha.1)
+	@if [ -z "$(VERSION)" ]; then \
+		CURRENT=$$(./Scripts/release.sh version | cut -d' ' -f1 | sed 's/-.*//'); \
+		echo "$(YELLOW)Tip: make release-alpha VERSION=$${CURRENT}-alpha.1$(NC)"; \
+		exit 1; \
+	fi
+	@./Scripts/release.sh release $(VERSION)
+
+release-beta: ## Build beta release (e.g., 0.2.0-beta.1)
+	@if [ -z "$(VERSION)" ]; then \
+		CURRENT=$$(./Scripts/release.sh version | cut -d' ' -f1 | sed 's/-.*//'); \
+		echo "$(YELLOW)Tip: make release-beta VERSION=$${CURRENT}-beta.1$(NC)"; \
+		exit 1; \
+	fi
+	@./Scripts/release.sh release $(VERSION)
+
+release-rc: ## Build release candidate (e.g., 0.2.0-rc.1)
+	@if [ -z "$(VERSION)" ]; then \
+		CURRENT=$$(./Scripts/release.sh version | cut -d' ' -f1 | sed 's/-.*//'); \
+		echo "$(YELLOW)Tip: make release-rc VERSION=$${CURRENT}-rc.1$(NC)"; \
+		exit 1; \
+	fi
+	@./Scripts/release.sh release $(VERSION)
+
+release-upload: ## Upload prepared release to GitHub
+	@./Scripts/release.sh upload $(VERSION)
+
+release-notes: ## Generate release notes from git commits
+	@./Scripts/release.sh notes

@@ -15,7 +15,7 @@
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.1.0-alpha</string>
+	<string>0.1.0-alpha.1</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>LSMinimumSystemVersion</key>
@@ -27,6 +27,14 @@
 	<key>NSSupportsAutomaticTermination</key>
 	<true/>
 	<key>NSSupportsSuddenTermination</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/PhilipSchmid/textwarden/main/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>dlmQp2PEzV/Ao69pD4OUY3MHXfwIxYzBRDPkxi+PaaU=</string>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+	<key>SUEnableAutomaticChecks</key>
 	<true/>
 </dict>
 </plist>

@@ -486,6 +486,7 @@ struct SettingsDump: Codable {
     }
 
     /// Collect keyboard shortcuts (MUST be called on main thread)
+    @MainActor
     static func collectShortcuts() -> [String: String] {
         var shortcutsDict: [String: String] = [:]
 
