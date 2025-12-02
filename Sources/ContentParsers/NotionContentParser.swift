@@ -45,6 +45,7 @@ class NotionContentParser: ContentParser {
         "Add comment",
         "Type '/' for commands",
         "Write, press 'space' for AI, '/' for commands",  // AI placeholder
+        "Write, press 'space' for AI",  // Shorter variant
         "Press Enter to continue with an empty page",
         "Untitled",
     ]
