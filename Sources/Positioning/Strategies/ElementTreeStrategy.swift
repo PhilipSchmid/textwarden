@@ -508,6 +508,45 @@ class ElementTreeStrategy: GeometryProvider {
         return bounds
     }
 
+    /// Get the line number for a character index using AXLineForIndex
+    private func getLineForIndex(_ index: Int, in element: AXUIElement) -> Int? {
+        var lineValue: CFTypeRef?
+        let result = AXUIElementCopyParameterizedAttributeValue(
+            element,
+            "AXLineForIndex" as CFString,
+            index as CFTypeRef,
+            &lineValue
+        )
+
+        guard result == .success, let lineNum = lineValue as? Int else {
+            return nil
+        }
+
+        return lineNum
+    }
+
+    /// Get the character range for a specific line number using AXRangeForLine
+    private func getRangeForLine(_ lineNumber: Int, in element: AXUIElement) -> NSRange? {
+        var rangeValue: CFTypeRef?
+        let result = AXUIElementCopyParameterizedAttributeValue(
+            element,
+            "AXRangeForLine" as CFString,
+            lineNumber as CFTypeRef,
+            &rangeValue
+        )
+
+        guard result == .success, let rv = rangeValue else {
+            return nil
+        }
+
+        var cfRange = CFRange(location: 0, length: 0)
+        guard AXValueGetValue(rv as! AXValue, .cfRange, &cfRange) else {
+            return nil
+        }
+
+        return NSRange(location: cfRange.location, length: cfRange.length)
+    }
+
     private func createResultFromFrame(_ frame: CGRect, errorText: String, parser: ContentParser? = nil) -> GeometryResult? {
         let fontSize: CGFloat = parser?.estimatedFontSize(context: nil) ?? 14.0
         let font = NSFont.systemFont(ofSize: fontSize)
@@ -543,8 +582,8 @@ class ElementTreeStrategy: GeometryProvider {
     // MARK: - Multi-Line Resolution
 
     /// Resolve per-line bounds for a child element's text range
-    /// Specifically designed for Electron/Chromium apps where parent element AX APIs fail
-    /// but child element AXBoundsForRange works
+    /// Uses AXRangeForLine API to get system-defined line ranges, then computes bounds for
+    /// the intersection of our target range with each line
     private func resolveMultiLineBoundsForChild(
         _ range: NSRange,
         in element: AXUIElement,
@@ -567,111 +606,127 @@ class ElementTreeStrategy: GeometryProvider {
             return nil // Single line, no need for multi-line bounds
         }
 
-        // Method 1: Sample Y-coordinates to detect line breaks
+        // Method 0: Try AXRangeForLine API first - this is the most reliable approach
+        // Get line number for start and end of our range
+        if let startLine = getLineForIndex(range.location, in: element),
+           let endLine = getLineForIndex(range.location + range.length - 1, in: element),
+           startLine != endLine {
+            Logger.debug("ElementTreeStrategy: Using AXRangeForLine - range spans lines \(startLine) to \(endLine)")
+
+            var lineBounds: [CGRect] = []
+
+            for lineNum in startLine...endLine {
+                guard let fullLineRange = getRangeForLine(lineNum, in: element) else {
+                    Logger.debug("ElementTreeStrategy: AXRangeForLine failed for line \(lineNum)")
+                    continue
+                }
+
+                // Compute intersection of our target range with this line's range
+                let intersectStart = max(range.location, fullLineRange.location)
+                let intersectEnd = min(range.location + range.length, fullLineRange.location + fullLineRange.length)
+
+                guard intersectEnd > intersectStart else { continue }
+
+                let intersectionRange = NSRange(location: intersectStart, length: intersectEnd - intersectStart)
+
+                // Get bounds for the first and last character of this line segment
+                let firstCharRange = NSRange(location: intersectStart, length: 1)
+                let lastCharRange = NSRange(location: intersectEnd - 1, length: 1)
+
+                if let firstBounds = getBoundsForRange(firstCharRange, in: element),
+                   let lastBounds = getBoundsForRange(lastCharRange, in: element) {
+                    // Construct line bounds from first to last character
+                    let lineX = firstBounds.origin.x
+                    let lineY = firstBounds.origin.y
+                    let lineWidth = lastBounds.maxX - firstBounds.origin.x
+                    let lineHeight = max(firstBounds.height, typicalLineHeight)
+
+                    let lineRect = CGRect(x: lineX, y: lineY, width: lineWidth, height: lineHeight)
+                    lineBounds.append(lineRect)
+                    Logger.debug("ElementTreeStrategy: Line \(lineNum) bounds via AXRangeForLine: \(lineRect), chars \(intersectionRange.location)-\(intersectionRange.location + intersectionRange.length)")
+                }
+            }
+
+            if lineBounds.count > 1 {
+                return lineBounds
+            }
+            // Fall through to other methods if AXRangeForLine didn't work well
+        }
+
+        // Method 1: Sample each character's Y coordinate to build line segments
+        // This is more accurate than using break indices because we directly identify
+        // which characters belong to each visual line
         var lineBounds: [CGRect] = []
-        var lineBreakIndices: [Int] = [range.location]
-        var lastY: CGFloat?
 
-        // Sample every ~5 characters to find line breaks
-        let sampleStep = max(1, min(5, range.length / (estimatedLineCount * 3)))
-        var sampleIndex = range.location
+        // Build a map of character index -> Y coordinate for the entire range
+        // Then group consecutive characters with similar Y into lines
+        var charYCoords: [(index: Int, y: CGFloat, bounds: CGRect)] = []
 
-        while sampleIndex < range.location + range.length {
-            let charRange = NSRange(location: sampleIndex, length: 1)
+        // Sample every character (or with small step for very long ranges)
+        let sampleStep = max(1, range.length > 500 ? 2 : 1)
+        for i in stride(from: range.location, to: range.location + range.length, by: sampleStep) {
+            let charRange = NSRange(location: i, length: 1)
             if let charBounds = getBoundsForRange(charRange, in: element) {
-                if let prevY = lastY {
-                    let yDiff = abs(charBounds.origin.y - prevY)
-                    if yDiff > charBounds.height * 0.5 {
-                        // Line break detected
-                        lineBreakIndices.append(sampleIndex)
-                        Logger.debug("ElementTreeStrategy: Line break at index \(sampleIndex), Y jumped from \(prevY) to \(charBounds.origin.y)")
-                    }
-                }
-                lastY = charBounds.origin.y
-            }
-            sampleIndex += sampleStep
-        }
-
-        lineBreakIndices.append(range.location + range.length)
-
-        // Convert line break indices to bounds
-        // We need to get bounds for just the FIRST character of each line to get correct Y position
-        // Then construct proper per-line bounds
-        var lineYPositions: [CGFloat] = []
-        for i in 0..<(lineBreakIndices.count - 1) {
-            let lineStart = lineBreakIndices[i]
-            // Get bounds for just the first character to get the correct Y position
-            let firstCharRange = NSRange(location: lineStart, length: 1)
-            if let firstCharBounds = getBoundsForRange(firstCharRange, in: element) {
-                lineYPositions.append(firstCharBounds.origin.y)
-                Logger.debug("ElementTreeStrategy: Line \(i) starts at Y=\(firstCharBounds.origin.y)")
+                charYCoords.append((index: i, y: charBounds.origin.y, bounds: charBounds))
             }
         }
 
-        // If we found line Y positions, construct geometric bounds for each line
-        if lineYPositions.count > 1 {
-            Logger.debug("ElementTreeStrategy: Found \(lineYPositions.count) lines via Y-sampling, constructing geometric bounds")
+        guard charYCoords.count > 1 else {
+            return nil // Not enough data
+        }
 
-            // Get the left margin X from the first line (line 0)
-            // All continuation lines should start at this left margin
-            var leftMarginX = overallBounds.origin.x
-            let firstLineCharRange = NSRange(location: lineBreakIndices[0], length: 1)
-            if let firstLineCharBounds = getBoundsForRange(firstLineCharRange, in: element) {
-                leftMarginX = firstLineCharBounds.origin.x
+        // Group characters into lines based on Y coordinate
+        // A new line starts when Y changes significantly
+        var lines: [(startIndex: Int, endIndex: Int, y: CGFloat, firstBounds: CGRect)] = []
+        var currentLineStart = charYCoords[0].index
+        var currentLineY = charYCoords[0].y
+        var currentFirstBounds = charYCoords[0].bounds
+
+        for i in 1..<charYCoords.count {
+            let (index, y, bounds) = charYCoords[i]
+            let yDiff = abs(y - currentLineY)
+
+            if yDiff > typicalLineHeight * 0.5 {
+                // This character starts a new line
+                // End the previous line at the character BEFORE this one
+                let prevIndex = charYCoords[i - 1].index
+                lines.append((startIndex: currentLineStart, endIndex: prevIndex, y: currentLineY, firstBounds: currentFirstBounds))
+                Logger.debug("ElementTreeStrategy: Line ended at index \(prevIndex), Y=\(currentLineY)")
+
+                // Start new line
+                currentLineStart = index
+                currentLineY = y
+                currentFirstBounds = bounds
+            }
+        }
+
+        // Don't forget the last line
+        let lastIndex = charYCoords[charYCoords.count - 1].index
+        lines.append((startIndex: currentLineStart, endIndex: lastIndex, y: currentLineY, firstBounds: currentFirstBounds))
+
+        Logger.debug("ElementTreeStrategy: Found \(lines.count) lines via Y-coordinate grouping")
+
+        // Build bounds for each line
+        if lines.count > 1 {
+            for (i, line) in lines.enumerated() {
+                // Get bounds for the last character of this line
+                let lastCharRange = NSRange(location: line.endIndex, length: 1)
+                if let lastBounds = getBoundsForRange(lastCharRange, in: element) {
+                    // Calculate line bounds from first to last character
+                    let lineX = line.firstBounds.origin.x
+                    let lineY = line.firstBounds.origin.y
+                    let lineWidth = max(lastBounds.maxX - line.firstBounds.origin.x, typicalLineHeight)
+                    let lineHeight = max(line.firstBounds.height, typicalLineHeight)
+
+                    let lineRect = CGRect(x: lineX, y: lineY, width: lineWidth, height: lineHeight)
+                    lineBounds.append(lineRect)
+                    Logger.debug("ElementTreeStrategy: Line \(i) bounds: \(lineRect), indices \(line.startIndex)-\(line.endIndex)")
+                }
             }
 
-            for i in 0..<lineYPositions.count {
-                let lineY = lineYPositions[i]
-                let lineStart = lineBreakIndices[i]
-                let lineEnd = lineBreakIndices[i + 1]
-
-                let isFirstLine = i == 0
-                let isLastLine = i == lineYPositions.count - 1
-
-                // X position logic:
-                // - First line: Use actual X of first character (error might not start at left margin)
-                // - Middle/last lines: Use left margin X (text wraps to left edge)
-                var lineX: CGFloat
-                if isFirstLine {
-                    let firstCharRange = NSRange(location: lineStart, length: 1)
-                    if let firstCharBounds = getBoundsForRange(firstCharRange, in: element) {
-                        lineX = firstCharBounds.origin.x
-                    } else {
-                        lineX = leftMarginX
-                    }
-                } else {
-                    // Continuation lines start at left margin
-                    lineX = leftMarginX
-                }
-
-                // Width logic:
-                // - Last line: Get actual width from bounds
-                // - Other lines: Extend to right edge of overall bounds
-                var lineWidth: CGFloat
-                if isLastLine {
-                    // Calculate actual width by getting bounds for last line
-                    let lastLineRange = NSRange(location: lineStart, length: lineEnd - lineStart)
-                    if let lastLineBounds = getBoundsForRange(lastLineRange, in: element) {
-                        lineWidth = lastLineBounds.width
-                    } else {
-                        lineWidth = overallBounds.width * 0.5
-                    }
-                } else {
-                    // Extend to right edge
-                    lineWidth = overallBounds.maxX - lineX
-                }
-
-                let lineRect = CGRect(
-                    x: lineX,
-                    y: lineY,
-                    width: lineWidth,
-                    height: typicalLineHeight
-                )
-                lineBounds.append(lineRect)
-                Logger.debug("ElementTreeStrategy: Constructed line \(i) bounds: \(lineRect) (isFirst=\(isFirstLine), isLast=\(isLastLine))")
+            if lineBounds.count > 1 {
+                return lineBounds
             }
-
-            return lineBounds
         }
 
         // Method 2: Geometric fallback - split overall bounds into estimated line segments
