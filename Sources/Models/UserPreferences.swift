@@ -193,7 +193,10 @@ class UserPreferences: ObservableObject {
         "com.apple.Photos",            // Apple Photos
         "com.apple.Preview",           // Apple Preview
         "com.apple.ProblemReporter",   // Apple Problem Reporter
-        "com.prakashjoshipax.VoiceInk" // VoiceInk
+        "com.prakashjoshipax.VoiceInk", // VoiceInk
+        "com.apple.keychainaccess",    // Keychain Access
+        "com.apple.Passwords",         // Passwords
+        "com.apple.Music"              // Apple Music
     ]
 
     /// Custom words to ignore
