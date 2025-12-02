@@ -87,8 +87,8 @@ class AnalysisCoordinator: ObservableObject {
     /// Cache expiration time in seconds (T084)
     private let cacheExpirationTime: TimeInterval = 300 // 5 minutes
 
-    /// Window position tracking
-    private var lastWindowPosition: CGPoint?
+    /// Window position and size tracking
+    private var lastWindowFrame: CGRect?
     private var windowPositionTimer: Timer?
     private var windowMovementDebounceTimer: Timer?
     private var overlaysHiddenDueToMovement = false
@@ -96,6 +96,7 @@ class AnalysisCoordinator: ObservableObject {
     private var positionSyncRetryCount = 0
     private let maxPositionSyncRetries = 20  // Max 20 retries * 50ms = 1000ms max wait
     private var lastElementPosition: CGPoint?  // Track element position for stability check
+    private var lastResizeTime: Date?  // Track when window was last resized (for Electron settling)
 
     /// Scroll detection - uses global scroll wheel event observer
     private var overlaysHiddenDueToScroll = false
@@ -541,21 +542,22 @@ class AnalysisCoordinator: ObservableObject {
         windowMovementDebounceTimer = nil
         scrollDebounceTimer?.invalidate()
         scrollDebounceTimer = nil
-        lastWindowPosition = nil
+        lastWindowFrame = nil
+        lastResizeTime = nil
         overlaysHiddenDueToMovement = false
         overlaysHiddenDueToWindowOffScreen = false
         overlaysHiddenDueToScroll = false
     }
 
-    /// Check if window has moved or content has scrolled
+    /// Check if window has moved, resized, or content has scrolled
     private func checkWindowPosition() {
         guard let element = textMonitor.monitoredElement else {
-            lastWindowPosition = nil
+            lastWindowFrame = nil
             DebugBorderWindow.clearAll()
             return
         }
 
-        guard let currentPosition = getWindowPosition(for: element) else {
+        guard let currentFrame = getWindowFrame(for: element) else {
             // Window is not on screen (minimized, hidden, or closed)
             Logger.debug("Window monitoring: Window not on screen - hiding all overlays", category: Logger.analysis)
             handleWindowOffScreen()
@@ -570,17 +572,30 @@ class AnalysisCoordinator: ObservableObject {
 
         // Note: Scroll detection is now handled by global scrollWheelMonitor
 
-        // Check if position has changed
-        if let lastPosition = lastWindowPosition {
-            let threshold: CGFloat = 5.0  // Movement threshold in pixels
-            let distance = hypot(currentPosition.x - lastPosition.x, currentPosition.y - lastPosition.y)
+        // Check if position or size has changed
+        if let lastFrame = lastWindowFrame {
+            let positionThreshold: CGFloat = 5.0  // Movement threshold in pixels
+            let sizeThreshold: CGFloat = 5.0  // Size change threshold in pixels
 
-            if distance > threshold {
-                Logger.debug("Window monitoring: Movement detected - distance: \(distance)px, from: \(lastPosition) to: \(currentPosition)", category: Logger.analysis)
-                // Window is moving - hide overlays immediately
+            let positionDistance = hypot(currentFrame.origin.x - lastFrame.origin.x, currentFrame.origin.y - lastFrame.origin.y)
+            let widthChange = abs(currentFrame.width - lastFrame.width)
+            let heightChange = abs(currentFrame.height - lastFrame.height)
+
+            let positionChanged = positionDistance > positionThreshold
+            let sizeChanged = widthChange > sizeThreshold || heightChange > sizeThreshold
+
+            if positionChanged || sizeChanged {
+                if sizeChanged {
+                    Logger.debug("Window monitoring: Resize detected - width: \(widthChange)px, height: \(heightChange)px", category: Logger.analysis)
+                    lastResizeTime = Date()  // Track resize time for Electron settling
+                }
+                if positionChanged {
+                    Logger.debug("Window monitoring: Movement detected - distance: \(positionDistance)px", category: Logger.analysis)
+                }
+                // Window is moving or resizing - hide overlays immediately
                 handleWindowMovementStarted()
             } else {
-                // Window stopped moving - show overlays after debounce
+                // Window stopped moving/resizing - show overlays after debounce
                 handleWindowMovementStopped()
 
                 // Update debug borders continuously when window is not moving
@@ -590,12 +605,12 @@ class AnalysisCoordinator: ObservableObject {
                 }
             }
         } else {
-            Logger.debug("Window monitoring: Initial position set: \(currentPosition)", category: Logger.analysis)
+            Logger.debug("Window monitoring: Initial frame set: \(currentFrame)", category: Logger.analysis)
             // Initial position - update debug borders
             updateDebugBorders()
         }
 
-        lastWindowPosition = currentPosition
+        lastWindowFrame = currentFrame
     }
 
     /// Handle scroll started - hide underlines only (keep indicator visible)
@@ -645,7 +660,7 @@ class AnalysisCoordinator: ObservableObject {
     }
 
     /// Get window position for the given element
-    private func getWindowPosition(for element: AXUIElement) -> CGPoint? {
+    private func getWindowFrame(for element: AXUIElement) -> CGRect? {
         var pid: pid_t = 0
         guard AXUIElementGetPid(element, &pid) == .success else { return nil }
 
@@ -662,11 +677,18 @@ class AnalysisCoordinator: ObservableObject {
 
                 let x = boundsDict["X"] ?? 0
                 let y = boundsDict["Y"] ?? 0
-                return CGPoint(x: x, y: y)
+                let width = boundsDict["Width"] ?? 0
+                let height = boundsDict["Height"] ?? 0
+                return CGRect(x: x, y: y, width: width, height: height)
             }
         }
 
         return nil
+    }
+
+    /// Legacy method for compatibility - returns just the position
+    private func getWindowPosition(for element: AXUIElement) -> CGPoint? {
+        return getWindowFrame(for: element)?.origin
     }
 
     /// Handle window movement started
@@ -718,7 +740,7 @@ class AnalysisCoordinator: ObservableObject {
 
         Logger.debug("Window monitoring: Window off-screen - hiding all overlays", category: Logger.analysis)
         overlaysHiddenDueToWindowOffScreen = true
-        lastWindowPosition = nil
+        lastWindowFrame = nil
 
         // Hide all overlays
         errorOverlay.hide()
@@ -863,9 +885,32 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Final step of reshowing overlays after all position checks pass
     private func finalizeOverlayReshow() {
+        // For Electron apps (like Notion), add extra settling delay after window resize
+        // React/Electron needs time to re-render and reflow text after resize
+        if let resizeTime = lastResizeTime {
+            let timeSinceResize = Date().timeIntervalSince(resizeTime)
+            let bundleID = textMonitor.currentContext?.bundleIdentifier ?? ""
+            let isElectronApp = ElectronDetector.usesWebTechnologies(bundleID)
+
+            // Electron apps need 300ms+ for text to settle after resize
+            let requiredSettleTime: TimeInterval = isElectronApp ? 0.35 : 0.15
+
+            if timeSinceResize < requiredSettleTime {
+                // Need more time - schedule another check
+                let remainingTime = requiredSettleTime - timeSinceResize
+                Logger.debug("Window monitoring: Waiting \(Int(remainingTime * 1000))ms for Electron text to settle after resize", category: Logger.analysis)
+                DispatchQueue.main.asyncAfter(deadline: .now() + remainingTime) { [weak self] in
+                    guard let self = self, self.overlaysHiddenDueToMovement else { return }
+                    self.finalizeOverlayReshow()
+                }
+                return
+            }
+        }
+
         overlaysHiddenDueToMovement = false
         positionSyncRetryCount = 0
         lastElementPosition = nil
+        lastResizeTime = nil  // Clear resize tracking
 
         // CRITICAL: Clear position cache AGAIN before re-showing overlays
         // The cache was cleared when movement started, but async analysis operations
