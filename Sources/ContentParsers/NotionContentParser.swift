@@ -445,8 +445,10 @@ class NotionContentParser: ContentParser {
             in: fullText
         )
 
-        // Calculate error width
-        let errorWidth = max((errorText as NSString).size(withAttributes: attributes).width, 20.0)
+        // Calculate error width with a small buffer for Chromium rendering differences
+        // NSFont measurement can underestimate compared to Chromium's text rendering
+        let measuredWidth = (errorText as NSString).size(withAttributes: attributes).width
+        let errorWidth = max(measuredWidth * 1.05, 20.0)  // 5% buffer for rendering variance
 
         // Calculate Y position
         // Each line is approximately lineHeight pixels apart
