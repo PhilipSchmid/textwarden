@@ -30,6 +30,9 @@ class ApplicationConfiguration {
         case "com.google.Chrome", "com.google.Chrome.beta", "com.brave.Browser":
             // Chromium browsers need moderate delays for contenteditable areas
             return 0.10
+        case "notion.id":
+            // Notion is Electron/Chromium-based, needs moderate delay
+            return 0.10
         case "com.apple.Safari":
             // Safari is generally faster
             return 0.08

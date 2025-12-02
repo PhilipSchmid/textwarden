@@ -136,10 +136,10 @@ extension ApplicationContext {
         "com.electron.app",                // Generic Electron
         "com.github.GitHubClient",         // GitHub Desktop
         "com.microsoft.teams",             // Microsoft Teams (Electron)
-        "com.notion.desktop"               // Notion
+        "notion.id"                        // Notion
     ]
 
-    /// Known Chromium-based apps
+    /// Known Chromium-based apps (includes Electron apps since Electron uses Chromium)
     private static let chromiumApps: Set<String> = [
         "com.google.Chrome",
         "com.google.Chrome.beta",
@@ -149,7 +149,8 @@ extension ApplicationContext {
         "org.chromium.Chromium",
         "ai.perplexity.comet",
         "company.thebrowser.Browser",      // Arc browser
-        "company.thebrowser.Browser.beta"  // Arc browser beta
+        "company.thebrowser.Browser.beta", // Arc browser beta
+        "notion.id"                        // Notion (Electron/Chromium-based)
     ]
 
     /// Known browser applications (including non-Chromium browsers)
