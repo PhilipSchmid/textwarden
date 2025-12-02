@@ -183,6 +183,52 @@ public class LLMEngine {
         }.value
     }
 
+    // MARK: - Sentence Rephrasing
+
+    /// Rephrase a sentence to improve readability while preserving meaning
+    ///
+    /// This is used for readability errors (like long sentences) where the grammar engine
+    /// doesn't provide suggestions. The LLM will rewrite the sentence to be clearer,
+    /// potentially splitting it into multiple sentences.
+    ///
+    /// - Parameter sentence: The sentence to rephrase
+    /// - Returns: The rephrased text, or nil if rephrasing failed
+    public func rephraseSentence(_ sentence: String) -> String? {
+        Logger.info("LLMEngine.rephraseSentence: Starting rephrase, sentence_len=\(sentence.count)", category: Logger.llm)
+        let startTime = CFAbsoluteTimeGetCurrent()
+
+        let result = llm_rephrase_sentence(RustString(sentence)).toString()
+
+        let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
+        Logger.info("LLMEngine.rephraseSentence: Completed in \(Int(elapsed))ms", category: Logger.llm)
+
+        // Check for error prefix
+        if result.hasPrefix("ERROR:") {
+            let errorMsg = String(result.dropFirst(6))
+            Logger.warning("LLMEngine.rephraseSentence: Failed - \(errorMsg)", category: Logger.llm)
+            return nil
+        }
+
+        return result
+    }
+
+    /// Rephrase a sentence asynchronously
+    ///
+    /// - Parameter sentence: The sentence to rephrase
+    /// - Returns: The rephrased text, or nil if rephrasing failed
+    @available(macOS 10.15, *)
+    public func rephraseSentence(_ sentence: String) async -> String? {
+        await Task.detached(priority: .userInitiated) { [sentence] in
+            let result = llm_rephrase_sentence(RustString(sentence)).toString()
+
+            if result.hasPrefix("ERROR:") {
+                return nil
+            }
+
+            return result
+        }.value
+    }
+
     // MARK: - Preference Learning
 
     /// Record that a suggestion was accepted by the user
