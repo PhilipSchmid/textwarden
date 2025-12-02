@@ -9,36 +9,21 @@ import Foundation
 
 /// Build information captured at compile time
 struct BuildInfo {
+    /// Date when the app was launched
+    static let launchDate: Date = Date()
+
     /// Timestamp when the app was launched (UTC)
-    /// Note: This captures app startup time, not compile time
-    static let buildTimestamp: String = {
+    static let launchTimestamp: String = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
         formatter.timeZone = TimeZone(identifier: "UTC")
-        return formatter.string(from: Date()) + " UTC"
+        return formatter.string(from: launchDate) + " UTC"
     }()
 
-    /// Build date as Date object
-    static let buildDate: Date = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        formatter.timeZone = TimeZone(identifier: "UTC")
-
-        // Try to parse the timestamp string
-        let timestampString = buildTimestamp.replacingOccurrences(of: " UTC", with: "")
-
-        if let date = formatter.date(from: timestampString) {
-            return date
-        } else {
-            // Fallback to current date if parsing fails
-            return Date()
-        }
-    }()
-
-    /// Human-readable session age (e.g., "2 hours ago", "3 days ago")
-    static var buildAge: String {
+    /// Human-readable uptime (e.g., "2 hours", "3 days")
+    static var uptime: String {
         let now = Date()
-        let interval = now.timeIntervalSince(buildDate)
+        let interval = now.timeIntervalSince(launchDate)
 
         let minutes = Int(interval / 60)
         let hours = Int(interval / 3600)
@@ -47,25 +32,30 @@ struct BuildInfo {
         if minutes < 1 {
             return "just now"
         } else if minutes < 60 {
-            return "\(minutes) minute\(minutes == 1 ? "" : "s") ago"
+            return "\(minutes) minute\(minutes == 1 ? "" : "s")"
         } else if hours < 24 {
-            return "\(hours) hour\(hours == 1 ? "" : "s") ago"
+            return "\(hours) hour\(hours == 1 ? "" : "s")"
         } else if days < 7 {
-            return "\(days) day\(days == 1 ? "" : "s") ago"
+            return "\(days) day\(days == 1 ? "" : "s")"
         } else {
             let weeks = days / 7
-            return "\(weeks) week\(weeks == 1 ? "" : "s") ago"
+            return "\(weeks) week\(weeks == 1 ? "" : "s")"
         }
     }
 
     /// Short format for logging (e.g., "2025-11-23 12:30 UTC")
     static var shortTimestamp: String {
-        let components = buildTimestamp.components(separatedBy: " ")
+        let components = launchTimestamp.components(separatedBy: " ")
         if components.count >= 3 {
             return "\(components[0]) \(components[1].prefix(5)) UTC"
         }
-        return buildTimestamp
+        return launchTimestamp
     }
+
+    // Legacy aliases for backward compatibility
+    static var buildTimestamp: String { launchTimestamp }
+    static var buildDate: Date { launchDate }
+    static var buildAge: String { uptime }
 
     /// App version from Info.plist
     static let appVersion: String = {
@@ -88,17 +78,12 @@ struct BuildInfo {
         return "\(appVersion) (\(buildNumber))"
     }
 
-    /// Harper grammar engine version
-    /// NOTE: This should match the version in GrammarEngine/Cargo.toml
-    /// Update this when upgrading Harper
-    static let harperVersion: String = "0.72"
-
     /// Complete build info for logging
     static var fullInfo: String {
         return """
         Version: \(fullVersion)
-        Session Started: \(buildTimestamp)
-        Session Age: \(buildAge)
+        App Started: \(launchTimestamp)
+        Uptime: \(uptime)
         """
     }
 }

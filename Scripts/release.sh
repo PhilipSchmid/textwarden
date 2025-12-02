@@ -235,6 +235,7 @@ update_appcast() {
     local signature="$4"
     local release_notes="$5"
     local is_prerelease="$6"
+    local version_type="$7"
 
     echo -e "${BLUE}Updating appcast.xml...${NC}"
 
@@ -246,13 +247,21 @@ update_appcast() {
     # Escape release notes for XML
     local escaped_notes=$(echo "$release_notes" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
 
+    # Add channel element for pre-release versions (alpha, beta, rc -> experimental channel)
+    local channel_element=""
+    if [[ "$version_type" == "alpha" || "$version_type" == "beta" || "$version_type" == "rc" ]]; then
+        channel_element="
+            <sparkle:channel>experimental</sparkle:channel>"
+        echo -e "${YELLOW}Adding to experimental channel${NC}"
+    fi
+
     # Create new item entry
     local item="        <item>
             <title>$version</title>
             <pubDate>$pub_date</pubDate>
             <sparkle:version>$build</sparkle:version>
             <sparkle:shortVersionString>$version</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>$channel_element
             <description><![CDATA[
 $escaped_notes
             ]]></description>
@@ -391,7 +400,7 @@ do_release() {
     local signature=$(sign_update "$dmg_path" "$sparkle_bin")
 
     # Update appcast
-    update_appcast "$version" "$new_build" "$dmg_path" "$signature" "$release_notes" "$is_prerelease"
+    update_appcast "$version" "$new_build" "$dmg_path" "$signature" "$release_notes" "$is_prerelease" "$version_type"
 
     # Commit version changes
     echo -e "${BLUE}Committing version changes...${NC}"
