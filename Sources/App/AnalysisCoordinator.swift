@@ -1585,6 +1585,31 @@ class AnalysisCoordinator: ObservableObject {
             return !ignoredTexts.contains(errorText)
         }
 
+        // Filter out Notion-specific false positives
+        // French spaces errors in Notion are often triggered by placeholder text artifacts
+        // (e.g., "Write, press 'space' for AI" placeholder creates invisible whitespace patterns)
+        if let context = monitoredContext,
+           NotionContentParser.supportedBundleIDs.contains(context.bundleIdentifier) {
+            filteredErrors = filteredErrors.filter { error in
+                // Filter French spaces errors where the error text is just whitespace
+                // These are false positives from Notion's placeholder handling
+                if error.message.lowercased().contains("french spaces") {
+                    guard error.start < sourceText.count, error.end <= sourceText.count, error.start < error.end else {
+                        return true
+                    }
+                    let startIdx = sourceText.index(sourceText.startIndex, offsetBy: error.start)
+                    let endIdx = sourceText.index(sourceText.startIndex, offsetBy: error.end)
+                    let errorText = String(sourceText[startIdx..<endIdx])
+                    // Filter if error text is just whitespace
+                    if errorText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Logger.debug("Filtering Notion French spaces false positive", category: Logger.analysis)
+                        return false
+                    }
+                }
+                return true
+            }
+        }
+
         currentErrors = filteredErrors
 
         showErrorUnderlines(filteredErrors, element: element)
