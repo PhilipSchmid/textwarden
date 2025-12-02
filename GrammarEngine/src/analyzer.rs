@@ -243,19 +243,36 @@ pub fn analyze_text(
                 .join("_");
             let lint_id = format!("{}::{}", category, message_key);
 
+            // Extract the original text at this span for InsertAfter suggestions
+            // Harper's span uses character indices, but Rust strings use byte offsets
+            // Convert character indices to byte offsets for correct slicing
+            let original_text = {
+                let chars: Vec<char> = text.chars().collect();
+                if span.start < chars.len() && span.end <= chars.len() {
+                    chars[span.start..span.end].iter().collect::<String>()
+                } else {
+                    String::new()
+                }
+            };
+
             // Extract suggestions from Harper's lint
-            // Harper provides suggestions as Suggestion enum with ReplaceWith variant
+            // Harper provides three suggestion types:
+            // - ReplaceWith: replace the error span with new text
+            // - InsertAfter: insert characters after the span (e.g., Oxford comma)
+            // - Remove: delete the text at the span
             let mut suggestions: Vec<String> = lint
                 .suggestions
                 .iter()
-                .filter_map(|suggestion| {
-                    // Extract text from ReplaceWith variant
-                    // Each suggestion contains a Vec<char> with the replacement text
-                    match suggestion {
-                        harper_core::linting::Suggestion::ReplaceWith(chars) => {
-                            Some(chars.iter().collect())
-                        }
-                        _ => None,
+                .map(|suggestion| match suggestion {
+                    harper_core::linting::Suggestion::ReplaceWith(chars) => chars.iter().collect(),
+                    harper_core::linting::Suggestion::InsertAfter(chars) => {
+                        // Construct full replacement: original text + inserted chars
+                        let insert: String = chars.iter().collect();
+                        format!("{}{}", original_text, insert)
+                    }
+                    harper_core::linting::Suggestion::Remove => {
+                        // Remove suggestion = replace with empty string
+                        String::new()
                     }
                 })
                 .collect();
@@ -739,6 +756,35 @@ mod tests {
             );
         }
         println!("=== END TEST ===\n");
+    }
+
+    #[test]
+    fn test_oxford_comma_suggestions() {
+        // Test that InsertAfter suggestions (like Oxford comma) include the original text
+        // Harper uses InsertAfter(',') for Oxford comma, so suggestion should be "word,"
+        let text = "I like apples, bananas and oranges.";
+        let result = analyze_text(text, "American", false, false, false, false, vec![], true);
+
+        // Find the Oxford comma error (should flag "bananas")
+        let oxford_error = result
+            .errors
+            .iter()
+            .find(|e| e.message.to_lowercase().contains("oxford comma"))
+            .expect("Harper should detect missing Oxford comma");
+
+        // Should have suggestion
+        assert!(
+            !oxford_error.suggestions.is_empty(),
+            "Oxford comma error should have suggestions"
+        );
+
+        // The suggestion should be "bananas," (original word + comma)
+        let suggestion = &oxford_error.suggestions[0];
+        assert_eq!(
+            suggestion, "bananas,",
+            "Oxford comma suggestion should be 'bananas,' but got '{}'",
+            suggestion
+        );
     }
 
     #[test]
