@@ -151,8 +151,13 @@ class SuggestionPopover: NSObject, ObservableObject {
         Logger.debug("SuggestionPopover.show() - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
 
         self.mode = .grammarError
-        self.currentError = error
         self.allErrors = allErrors
+
+        // Find the matching error in allErrors to get the most up-to-date version
+        // This ensures AI-enhanced errors (with suggestions) are used even if the overlay
+        // passed an older version of the error
+        let matchingError = allErrors.first(where: { $0.start == error.start && $0.end == error.end && $0.lintId == error.lintId })
+        self.currentError = matchingError ?? error
         self.currentIndex = allErrors.firstIndex(where: { $0.start == error.start && $0.end == error.end }) ?? 0
 
         // Clear style data
@@ -569,6 +574,26 @@ class SuggestionPopover: NSObject, ObservableObject {
         rebuildContentView()
     }
 
+    /// Update errors list and refresh current error if it was updated (e.g., AI suggestion arrived)
+    /// This is called when AI-enhanced errors are ready to replace the originals
+    func updateErrors(_ updatedErrors: [GrammarErrorModel]) {
+        guard isVisible, let current = currentError else { return }
+
+        // Update the all errors list
+        allErrors = updatedErrors
+
+        // Check if the current error has been updated (same position, but new suggestions)
+        if let updatedCurrent = updatedErrors.first(where: { $0.start == current.start && $0.end == current.end && $0.lintId == current.lintId }) {
+            // Check if suggestions changed (AI suggestion arrived)
+            if updatedCurrent.suggestions.count != current.suggestions.count {
+                Logger.info("SuggestionPopover: Current error updated with new suggestions, rebuilding view", category: Logger.ui)
+                currentError = updatedCurrent
+                // Rebuild to show the new content (Before/After view instead of loading)
+                rebuildContentView()
+            }
+        }
+    }
+
     /// Rebuild the content view from scratch for clean rendering
     /// This ensures no artifacts when switching between errors of different sizes
     private func rebuildContentView() {
@@ -967,6 +992,13 @@ struct PopoverContentView: View {
         baseTextSize
     }
 
+    /// Check if current error is an AI rephrase suggestion (needs wider popover)
+    private var isAIRephraseError: Bool {
+        guard let error = popover.currentError else { return false }
+        let validSuggestions = error.suggestions.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        return error.category == "Readability" && validSuggestions.count == 2
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let error = popover.currentError {
@@ -998,8 +1030,90 @@ struct PopoverContentView: View {
                         // Empty suggestions mean "delete this" - don't show empty buttons
                         let validSuggestions = error.suggestions.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
-                        // Clean blue suggestion buttons (shown below the message)
-                        if !validSuggestions.isEmpty {
+                        // Check if this is a readability error with AI-generated rephrase
+                        // Format: suggestions[0] = original text, suggestions[1] = rephrased text
+                        let isAIRephrase = error.category == "Readability" &&
+                            validSuggestions.count == 2
+
+                        // Check if this is a readability error awaiting AI suggestion
+                        let isLoadingAI = error.category == "Readability" &&
+                            error.message.lowercased().contains("words long") &&
+                            validSuggestions.isEmpty
+
+                        if isLoadingAI {
+                            // Show loading indicator while AI generates suggestion
+                            HStack(spacing: 12) {
+                                ProgressView()
+                                    .scaleEffect(0.85)
+                                    .tint(Color.purple)
+                                Text("Generating AI suggestion...")
+                                    .font(.system(size: bodyTextSize))
+                                    .foregroundColor(colors.textSecondary)
+                                    .italic()
+                            }
+                            .padding(.top, 4)
+                            .accessibilityLabel("Generating AI suggestion, please wait")
+
+                        } else if isAIRephrase {
+                            let originalText = validSuggestions[0]
+                            let rephraseText = validSuggestions[1]
+
+                            // Show AI rephrase in before/after format like style suggestions
+                            VStack(alignment: .leading, spacing: 8) {
+                                // Original text
+                                HStack(alignment: .top, spacing: 8) {
+                                    Text("Before:")
+                                        .font(.system(size: bodyTextSize * 0.85, weight: .medium))
+                                        .foregroundColor(colors.textSecondary)
+                                        .frame(width: 50, alignment: .leading)
+                                    Text(originalText)
+                                        .font(.system(size: bodyTextSize))
+                                        .foregroundColor(.red.opacity(0.85))
+                                        .strikethrough(true, color: .red)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                .accessibilityElement(children: .combine)
+                                .accessibilityLabel("Original text: \(originalText)")
+
+                                // AI suggested text
+                                HStack(alignment: .top, spacing: 8) {
+                                    Text("After:")
+                                        .font(.system(size: bodyTextSize * 0.85, weight: .medium))
+                                        .foregroundColor(colors.textSecondary)
+                                        .frame(width: 50, alignment: .leading)
+                                    Text(rephraseText)
+                                        .font(.system(size: bodyTextSize))
+                                        .foregroundColor(.green)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                .accessibilityElement(children: .combine)
+                                .accessibilityLabel("Suggested text: \(rephraseText)")
+                            }
+                            .padding(.vertical, 4)
+
+                            // Accept button for AI suggestion
+                            Button(action: {
+                                popover.applySuggestion(rephraseText)
+                            }) {
+                                Label("Apply AI Suggestion", systemImage: "sparkles")
+                                    .font(.system(size: bodyTextSize, weight: .medium))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 7)
+                                            .fill(Color.purple)
+                                    )
+                                    .shadow(color: Color.purple.opacity(0.25), radius: 4, x: 0, y: 2)
+                            }
+                            .buttonStyle(.plain)
+                            .keyboardShortcut("1", modifiers: .command)
+                            .help("Apply AI suggestion (⌘1)")
+                            .accessibilityLabel("Apply AI rephrase suggestion")
+                            .accessibilityHint("Double tap to replace the long sentence with AI-improved version")
+
+                        } else if !validSuggestions.isEmpty {
+                            // Standard suggestion buttons (for regular grammar errors)
                             HStack(spacing: 4) {
                                 ForEach(Array(validSuggestions.prefix(3).enumerated()), id: \.offset) { index, suggestion in
                                     Button(action: {
@@ -1214,7 +1328,12 @@ struct PopoverContentView: View {
                     .accessibilityLabel("No grammar errors to display")
             }
         }
-        .frame(minWidth: 300, idealWidth: 350, maxWidth: 450)
+        // Use wider frame for AI rephrase suggestions (long text needs more horizontal space)
+        .frame(
+            minWidth: isAIRephraseError ? 400 : 300,
+            idealWidth: isAIRephraseError ? 550 : 350,
+            maxWidth: isAIRephraseError ? 650 : 450
+        )
         .fixedSize(horizontal: false, vertical: true)
         // Apply Liquid Glass styling (macOS 26-inspired frosted glass effect)
         .liquidGlass(
