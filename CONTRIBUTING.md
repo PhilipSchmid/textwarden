@@ -556,3 +556,81 @@ echo "✅ Setup complete! Open TextWarden.xcodeproj in Xcode to continue."
 ```
 
 Run: `chmod +x dev-setup.sh && ./dev-setup.sh`
+
+---
+
+## Releasing
+
+Releases are built and signed locally using Sparkle for auto-updates.
+
+### Prerequisites
+
+- Sparkle EdDSA private key in macOS Keychain (generated via `generate_keys`)
+- `gh` CLI authenticated with GitHub
+
+### Release Workflow
+
+```bash
+# 1. Test with a pre-release first
+make release-alpha VERSION=0.2.0-alpha.1
+
+# 2. Review the changes
+git log -1 && git diff HEAD~1
+
+# 3. Push to remote
+git push && git push --tags
+
+# 4. Upload to GitHub
+make release-upload VERSION=0.2.0-alpha.1
+
+# 5. When ready for production (requires typing "release" to confirm)
+make release VERSION=0.2.0
+git push && git push --tags
+make release-upload VERSION=0.2.0
+```
+
+### What Happens
+
+`make release VERSION=x.y.z`:
+1. Updates `Info.plist` with version and increments build number
+2. Builds Rust (with LLM) and archives Swift app
+3. Creates signed DMG in `releases/`
+4. Signs DMG with Sparkle EdDSA key
+5. Updates `appcast.xml` with new release entry
+6. Commits changes and creates git tag `vx.y.z`
+
+`make release-upload VERSION=x.y.z`:
+1. Creates GitHub release with auto-generated notes from commits
+2. Uploads DMG as release asset
+
+### Version Types
+
+| Type | Example | Confirmation |
+|------|---------|--------------|
+| Alpha | `0.2.0-alpha.1` | None |
+| Beta | `0.2.0-beta.1` | None |
+| RC | `0.2.0-rc.1` | None |
+| Production | `0.2.0` | Must type "release" |
+
+### Make Targets
+
+| Target | Description |
+|--------|-------------|
+| `make release VERSION=x.y.z` | Build and prepare release |
+| `make release-alpha VERSION=x.y.z-alpha.1` | Build alpha (hints version format) |
+| `make release-beta VERSION=x.y.z-beta.1` | Build beta |
+| `make release-rc VERSION=x.y.z-rc.1` | Build release candidate |
+| `make release-upload VERSION=x.y.z` | Upload to GitHub |
+| `make release-notes` | Preview release notes |
+| `make version` | Show current version |
+
+### Release Notes
+
+Release notes are auto-generated from git commits since the last tag. **You don't need to run anything manually** - notes are generated automatically during `make release` (for appcast.xml) and `make release-upload` (for GitHub release).
+
+Each entry includes:
+- Commit message (subject line)
+- Short hash linking to GitHub commit
+- Author name
+
+Use `make release-notes` to **preview** what will be included before releasing. Write meaningful commit messages as they appear directly in the changelog.

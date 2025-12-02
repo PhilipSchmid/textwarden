@@ -38,6 +38,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var settingsWindow: NSWindow?  // Keep strong reference to settings window
     private var styleCheckingCancellable: AnyCancellable?
 
+    /// Shared updater view model for Sparkle auto-updates
+    let updaterViewModel = UpdaterViewModel()
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         Logger.info("Application launched", category: Logger.lifecycle)
 
@@ -88,6 +91,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Setup keyboard shortcuts
         setupKeyboardShortcuts()
         Logger.info("Keyboard shortcuts initialized", category: Logger.lifecycle)
+
+        // Check for updates silently in background
+        updaterViewModel.checkForUpdatesInBackground()
+        Logger.info("Background update check initiated", category: Logger.lifecycle)
 
         // Check permissions on launch (T055)
         let permissionManager = PermissionManager.shared

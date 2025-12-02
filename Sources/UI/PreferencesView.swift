@@ -4385,6 +4385,11 @@ struct ResourceMonitoringView: View {
 // MARK: - About View
 
 struct AboutView: View {
+    /// Access the updater from AppDelegate
+    private var updaterViewModel: UpdaterViewModel? {
+        (NSApp.delegate as? AppDelegate)?.updaterViewModel
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
@@ -4413,6 +4418,54 @@ struct AboutView: View {
                     InfoRow(label: "Grammar Engine", value: "Harper \(BuildInfo.harperVersion)")
                     InfoRow(label: "Supported Dialects", value: "American, British, Canadian, Australian")
                     InfoRow(label: "License", value: "Apache 2.0")
+                }
+                .padding(.horizontal, 40)
+
+                // Update Section
+                VStack(spacing: 12) {
+                    Button(action: {
+                        updaterViewModel?.checkForUpdates()
+                    }) {
+                        HStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.accentColor.opacity(0.15))
+                                    .frame(width: 48, height: 48)
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .font(.title3)
+                                    .foregroundColor(.accentColor)
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Check for Updates")
+                                    .font(.body)
+                                    .fontWeight(.medium)
+                                Text("Version \(BuildInfo.fullVersion)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(16)
+                        .background(Color.accentColor.opacity(0.08))
+                        .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(updaterViewModel?.canCheckForUpdates == false)
+
+                    if let updater = updaterViewModel {
+                        Toggle("Automatically check for updates", isOn: Binding(
+                            get: { updater.automaticallyChecksForUpdates },
+                            set: { updater.automaticallyChecksForUpdates = $0 }
+                        ))
+                        .toggleStyle(.switch)
+                        .padding(.horizontal, 16)
+                    }
                 }
                 .padding(.horizontal, 40)
 
