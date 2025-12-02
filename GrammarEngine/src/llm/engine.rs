@@ -306,6 +306,83 @@ impl LlmEngine {
         Ok(suggestions)
     }
 
+    /// Rephrase a sentence to improve readability while preserving meaning
+    /// Used for readability errors (like long sentences) where Harper doesn't provide suggestions
+    pub async fn rephrase_sentence(&self, sentence: &str) -> Result<String, String> {
+        tracing::info!(
+            "LlmEngine::rephrase_sentence: START sentence_len={}",
+            sentence.len()
+        );
+
+        // Get the loaded model
+        let guard = self.model.read().await;
+        let loaded = guard.as_ref().ok_or_else(|| {
+            tracing::warn!("LlmEngine::rephrase_sentence: No model loaded");
+            "No model loaded".to_string()
+        })?;
+
+        // Build a simple prompt for rephrasing
+        let prompt = format!(
+            "Rewrite this sentence to improve readability while preserving the exact meaning:\n\n\
+            Original: {}\n\n\
+            You may split it into multiple sentences if that improves clarity. \
+            Provide only the rewritten text, no explanation.",
+            sentence
+        );
+
+        tracing::debug!(
+            "LlmEngine::rephrase_sentence: Prompt built, len={}",
+            prompt.len()
+        );
+
+        // Generate response
+        let generate_start = std::time::Instant::now();
+        let response = self.generate(&loaded.model, &prompt).await?;
+        let generate_elapsed = generate_start.elapsed().as_millis();
+
+        tracing::info!(
+            "LlmEngine::rephrase_sentence: generate() completed in {}ms, response_len={}",
+            generate_elapsed,
+            response.len()
+        );
+
+        // Clean up the response - remove any leading/trailing whitespace and quotes
+        let cleaned = response
+            .trim()
+            .trim_matches('"')
+            .trim_matches('\'')
+            .trim()
+            .to_string();
+
+        // Validate the response isn't empty or just the original
+        if cleaned.is_empty() {
+            return Err("LLM returned empty response".to_string());
+        }
+
+        // Normalize for comparison (ignore case and extra whitespace)
+        let original_normalized: String = sentence
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase();
+        let cleaned_normalized: String = cleaned
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase();
+
+        if original_normalized == cleaned_normalized {
+            return Err("LLM returned the same sentence without changes".to_string());
+        }
+
+        tracing::info!(
+            "LlmEngine::rephrase_sentence: END returning rephrased text, len={}",
+            cleaned.len()
+        );
+
+        Ok(cleaned)
+    }
+
     /// Create a StyleSuggestion from parsed LLM output
     fn create_suggestion(
         &self,
@@ -558,6 +635,10 @@ impl LlmEngine {
         _text: &str,
         _style: StyleTemplate,
     ) -> Result<Vec<StyleSuggestion>, String> {
+        Err("LLM feature not enabled".to_string())
+    }
+
+    pub async fn rephrase_sentence(&self, _sentence: &str) -> Result<String, String> {
         Err("LLM feature not enabled".to_string())
     }
 }

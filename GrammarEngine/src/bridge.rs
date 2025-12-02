@@ -230,6 +230,10 @@ mod ffi {
 
         // Set inference preset (Fast/Balanced/Quality)
         fn llm_set_inference_preset(preset: InferencePreset);
+
+        // Rephrase a sentence to improve readability
+        // Returns the rephrased text on success, or an error message prefixed with "ERROR:"
+        fn llm_rephrase_sentence(sentence: String) -> String;
     }
 }
 
@@ -1120,3 +1124,62 @@ fn llm_set_inference_preset(preset: ffi::InferencePreset) {
 
 #[cfg(not(feature = "llm"))]
 fn llm_set_inference_preset(_preset: ffi::InferencePreset) {}
+
+/// Rephrase a sentence to improve readability while preserving meaning
+///
+/// Returns the rephrased text on success, or an error message prefixed with "ERROR:"
+/// This allows Swift to distinguish between success and failure without needing
+/// a more complex return type.
+#[cfg(feature = "llm")]
+fn llm_rephrase_sentence(sentence: String) -> String {
+    let start = std::time::Instant::now();
+
+    tracing::info!(
+        "llm_rephrase_sentence: START sentence_len={}",
+        sentence.len()
+    );
+
+    // Wrap in catch_unwind to handle any panics during rephrase
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let guard = TOKIO_RUNTIME.block_on(LLM_ENGINE.read());
+        if let Some(ref engine) = *guard {
+            match TOKIO_RUNTIME.block_on(engine.rephrase_sentence(&sentence)) {
+                Ok(rephrased) => {
+                    tracing::info!(
+                        "llm_rephrase_sentence: SUCCESS rephrased_len={}, time={}ms",
+                        rephrased.len(),
+                        start.elapsed().as_millis()
+                    );
+                    rephrased
+                }
+                Err(e) => {
+                    tracing::error!("llm_rephrase_sentence: Engine returned error: {}", e);
+                    format!("ERROR:{}", e)
+                }
+            }
+        } else {
+            tracing::warn!("llm_rephrase_sentence: LLM engine not initialized");
+            "ERROR:LLM engine not initialized".to_string()
+        }
+    }));
+
+    match result {
+        Ok(text) => text,
+        Err(panic_info) => {
+            let panic_msg = if let Some(s) = panic_info.downcast_ref::<&str>() {
+                s.to_string()
+            } else if let Some(s) = panic_info.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "Unknown panic during sentence rephrase".to_string()
+            };
+            tracing::error!("PANIC caught during sentence rephrase: {}", panic_msg);
+            format!("ERROR:Rephrase failed (internal error): {}", panic_msg)
+        }
+    }
+}
+
+#[cfg(not(feature = "llm"))]
+fn llm_rephrase_sentence(_sentence: String) -> String {
+    "ERROR:LLM feature not enabled".to_string()
+}
