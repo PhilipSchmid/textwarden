@@ -60,6 +60,13 @@ class AnalysisCoordinator: ObservableObject {
     /// Cache metadata for LRU eviction (T085)
     private var cacheMetadata: [String: CacheMetadata] = [:]
 
+    /// AI rephrase suggestions cache - maps original sentence text to AI-generated rephrase
+    /// This cache persists across app switches and re-analyses to avoid regenerating expensive LLM suggestions
+    private var aiRephraseCache: [String: String] = [:]
+
+    /// Maximum entries in AI rephrase cache before LRU eviction
+    private let aiRephraseCacheMaxEntries = 50
+
     /// Previous text for incremental analysis
     private var previousText: String = ""
 
@@ -1384,8 +1391,15 @@ class AnalysisCoordinator: ObservableObject {
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
 
-                self.updateErrorCache(for: segment, with: grammarResult.errors)
-                self.applyFilters(to: grammarResult.errors, sourceText: segmentContent, element: capturedElement)
+                // Pre-populate errors with cached AI suggestions before displaying
+                // This ensures cached suggestions show immediately without "Generating" state
+                let errorsWithCachedAI = self.enhanceErrorsWithCachedAI(
+                    grammarResult.errors,
+                    sourceText: segmentContent
+                )
+
+                self.updateErrorCache(for: segment, with: errorsWithCachedAI)
+                self.applyFilters(to: errorsWithCachedAI, sourceText: segmentContent, element: capturedElement)
 
                 // Record grammar statistics
                 let wordCount = segmentContent.split(separator: " ").count
@@ -1403,6 +1417,16 @@ class AnalysisCoordinator: ObservableObject {
                 )
 
                 Logger.debug("AnalysisCoordinator: Grammar analysis complete, UI updated", category: Logger.analysis)
+
+                // Asynchronously enhance readability errors with AI suggestions
+                // This runs in the background and updates UI when ready
+                // Pass errorsWithCachedAI so it skips already-enhanced errors
+                self.enhanceReadabilityErrorsWithAI(
+                    errors: errorsWithCachedAI,
+                    sourceText: segmentContent,
+                    element: capturedElement,
+                    segment: segment
+                )
             }
         }
 
@@ -1936,6 +1960,24 @@ class AnalysisCoordinator: ObservableObject {
         currentStyleSuggestions.removeAll()
     }
 
+    /// Remove error from tracking and update UI immediately
+    /// Called after successfully applying a suggestion to remove underlines
+    private func removeErrorAndUpdateUI(_ error: GrammarErrorModel) {
+        Logger.debug("removeErrorAndUpdateUI: Removing error at \(error.start)-\(error.end)", category: Logger.analysis)
+
+        // Remove the error from currentErrors
+        currentErrors.removeAll { $0.start == error.start && $0.end == error.end }
+
+        // Hide the suggestion popover since we just applied the suggestion
+        suggestionPopover.hide()
+
+        // Update the overlay and indicator immediately
+        let sourceText = currentSegment?.content ?? ""
+        applyFilters(to: currentErrors, sourceText: sourceText, element: textMonitor.monitoredElement)
+
+        Logger.debug("removeErrorAndUpdateUI: UI updated, remaining errors: \(currentErrors.count)", category: Logger.analysis)
+    }
+
     /// Apply text replacement for error (T044)
     private func applyTextReplacement(for error: GrammarErrorModel, with suggestion: String) {
         Logger.debug("applyTextReplacement called - error: '\(error.message)', suggestion: '\(suggestion)'", category: Logger.analysis)
@@ -2009,6 +2051,9 @@ class AnalysisCoordinator: ObservableObject {
                 kAXSelectedTextRangeAttribute as CFString,
                 newRangeValue
             )
+
+            // Step 5: Remove error from UI immediately
+            removeErrorAndUpdateUI(error)
         } else {
             // AX API replacement failed
             Logger.debug("AX API replacement failed (\(replaceError.rawValue)), trying keyboard fallback", category: Logger.analysis)
@@ -2412,6 +2457,9 @@ class AnalysisCoordinator: ObservableObject {
                 // Invalidate cache
                 self.invalidateCacheAfterReplacement(at: error.start..<error.end)
 
+                // Remove error from UI immediately
+                self.removeErrorAndUpdateUI(error)
+
                 Logger.debug("Browser text replacement complete", category: Logger.analysis)
             }
         }
@@ -2800,6 +2848,9 @@ class AnalysisCoordinator: ObservableObject {
 
                                     // Invalidate cache
                                     self.invalidateCacheAfterReplacement(at: error.start..<error.end)
+
+                                    // Remove error from UI immediately
+                                    self.removeErrorAndUpdateUI(error)
                                 }
                             } else {
                                 // Fallback: move to end if we couldn't determine target position
@@ -2812,6 +2863,9 @@ class AnalysisCoordinator: ObservableObject {
 
                                 // Invalidate cache
                                 self.invalidateCacheAfterReplacement(at: error.start..<error.end)
+
+                                // Remove error from UI immediately
+                                self.removeErrorAndUpdateUI(error)
                             }
                         }
                     }
@@ -2870,6 +2924,9 @@ class AnalysisCoordinator: ObservableObject {
 
                         // Invalidate cache
                         self.invalidateCacheAfterReplacement(at: error.start..<error.end)
+
+                        // Remove error from UI immediately
+                        self.removeErrorAndUpdateUI(error)
                     }
                 }
             }
@@ -3414,6 +3471,221 @@ extension AnalysisCoordinator {
         }
 
         return value
+    }
+
+    // MARK: - AI-Enhanced Readability Suggestions
+
+    /// Synchronously enhance errors with cached AI suggestions (main thread only)
+    /// This is called before displaying errors to immediately show cached suggestions
+    /// without going through the async enhancement flow
+    private func enhanceErrorsWithCachedAI(
+        _ errors: [GrammarErrorModel],
+        sourceText: String
+    ) -> [GrammarErrorModel] {
+        // Only process readability errors that might have cached suggestions
+        var enhancedErrors = errors
+
+        for (index, error) in errors.enumerated() {
+            // Check if this is a readability error without suggestions
+            guard error.category == "Readability",
+                  error.message.lowercased().contains("words long"),
+                  error.suggestions.isEmpty else {
+                continue
+            }
+
+            // Extract the sentence text
+            let start = error.start
+            let end = error.end
+
+            guard start >= 0, end <= sourceText.count, start < end else {
+                continue
+            }
+
+            let startIndex = sourceText.index(sourceText.startIndex, offsetBy: start)
+            let endIndex = sourceText.index(sourceText.startIndex, offsetBy: end)
+            let sentence = String(sourceText[startIndex..<endIndex])
+
+            // Check if we have a cached AI suggestion
+            if let cachedRephrase = aiRephraseCache[sentence] {
+                Logger.info("AnalysisCoordinator: Pre-populating cached AI rephrase for sentence of length \(sentence.count)", category: Logger.llm)
+
+                // Create enhanced error with cached AI suggestion
+                let enhancedError = GrammarErrorModel(
+                    start: error.start,
+                    end: error.end,
+                    message: error.message,
+                    severity: error.severity,
+                    category: error.category,
+                    lintId: error.lintId,
+                    suggestions: [sentence, cachedRephrase]
+                )
+                enhancedErrors[index] = enhancedError
+            }
+        }
+
+        return enhancedErrors
+    }
+
+    /// Enhance readability errors (like LongSentences) with AI-generated rephrase suggestions
+    /// This runs asynchronously after grammar analysis and updates the UI when suggestions are ready
+    private func enhanceReadabilityErrorsWithAI(
+        errors: [GrammarErrorModel],
+        sourceText: String,
+        element: AXUIElement?,
+        segment: TextSegment
+    ) {
+        // Check if AI enhancement is available
+        let styleCheckingEnabled = UserPreferences.shared.enableStyleChecking
+        let llmInitialized = LLMEngine.shared.isInitialized
+        let modelLoaded = LLMEngine.shared.isModelLoaded()
+
+        guard styleCheckingEnabled && llmInitialized && modelLoaded else {
+            Logger.debug("AnalysisCoordinator: AI enhancement skipped - style checking not available", category: Logger.llm)
+            return
+        }
+
+        // Find readability errors that have no suggestions (long sentences)
+        // The lint ID format is "Category::message_key", e.g., "Readability::this_sentence_is_50_words_long"
+        // We check if:
+        // 1. Category is "Readability" (error.category == "Readability")
+        // 2. Message contains "words long" (indicates long sentence lint)
+        // 3. Has no suggestions from Harper
+        let readabilityErrorsWithoutSuggestions = errors.filter { error in
+            error.category == "Readability" &&
+            error.message.lowercased().contains("words long") &&
+            error.suggestions.isEmpty
+        }
+
+        // Debug logging for all errors
+        for error in errors {
+            Logger.debug("AnalysisCoordinator: Error - category=\(error.category), lintId=\(error.lintId), suggestions=\(error.suggestions.count)", category: Logger.llm)
+        }
+
+        guard !readabilityErrorsWithoutSuggestions.isEmpty else {
+            return
+        }
+
+        Logger.info("AnalysisCoordinator: Found \(readabilityErrorsWithoutSuggestions.count) readability error(s) needing AI suggestions", category: Logger.llm)
+
+        // Process each readability error asynchronously
+        styleAnalysisQueue.async { [weak self] in
+            guard let self = self else { return }
+
+            var enhancedErrors: [GrammarErrorModel] = []
+
+            for error in readabilityErrorsWithoutSuggestions {
+                // Extract the problematic sentence from source text
+                let start = error.start
+                let end = error.end
+
+                guard start >= 0, end <= sourceText.count, start < end else {
+                    Logger.warning("AnalysisCoordinator: Invalid error range for AI enhancement", category: Logger.llm)
+                    continue
+                }
+
+                let startIndex = sourceText.index(sourceText.startIndex, offsetBy: start)
+                let endIndex = sourceText.index(sourceText.startIndex, offsetBy: end)
+                let sentence = String(sourceText[startIndex..<endIndex])
+
+                // Check AI rephrase cache first
+                var rephrased: String?
+
+                // Access cache on main thread to avoid race conditions
+                DispatchQueue.main.sync {
+                    rephrased = self.aiRephraseCache[sentence]
+                }
+
+                if rephrased != nil {
+                    Logger.info("AnalysisCoordinator: Using cached AI rephrase for sentence of length \(sentence.count)", category: Logger.llm)
+                } else {
+                    Logger.debug("AnalysisCoordinator: Generating AI rephrase for sentence of length \(sentence.count)", category: Logger.llm)
+
+                    // Generate AI suggestion
+                    rephrased = LLMEngine.shared.rephraseSentence(sentence)
+
+                    // Cache the result on main thread
+                    if let newRephrase = rephrased {
+                        DispatchQueue.main.sync {
+                            // Evict old entries if cache is full
+                            if self.aiRephraseCache.count >= self.aiRephraseCacheMaxEntries {
+                                // Remove first (oldest) entry - simple FIFO eviction
+                                if let firstKey = self.aiRephraseCache.keys.first {
+                                    self.aiRephraseCache.removeValue(forKey: firstKey)
+                                }
+                            }
+                            self.aiRephraseCache[sentence] = newRephrase
+                            Logger.debug("AnalysisCoordinator: Cached AI rephrase (cache size: \(self.aiRephraseCache.count))", category: Logger.llm)
+                        }
+                    }
+                }
+
+                if let finalRephrase = rephrased {
+                    Logger.info("AnalysisCoordinator: AI rephrase available", category: Logger.llm)
+
+                    // Create enhanced error with AI suggestion
+                    // Store both original sentence (index 0) and rephrase (index 1) for Before/After display
+                    let enhancedError = GrammarErrorModel(
+                        start: error.start,
+                        end: error.end,
+                        message: error.message,
+                        severity: error.severity,
+                        category: error.category,
+                        lintId: error.lintId,
+                        suggestions: [sentence, finalRephrase]
+                    )
+                    enhancedErrors.append(enhancedError)
+                } else {
+                    Logger.debug("AnalysisCoordinator: AI rephrase failed for sentence", category: Logger.llm)
+                }
+            }
+
+            // Update UI with enhanced errors
+            guard !enhancedErrors.isEmpty else { return }
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+
+                // Replace the original readability errors with enhanced versions
+                var updatedErrors = self.currentErrors
+
+                for enhancedError in enhancedErrors {
+                    // Find and replace the matching error
+                    if let index = updatedErrors.firstIndex(where: { existingError in
+                        existingError.start == enhancedError.start &&
+                        existingError.end == enhancedError.end &&
+                        existingError.lintId == enhancedError.lintId
+                    }) {
+                        updatedErrors[index] = enhancedError
+                        Logger.debug("AnalysisCoordinator: Replaced error at index \(index) with AI-enhanced version", category: Logger.llm)
+                    }
+                }
+
+                // Update the error list and UI
+                self.currentErrors = updatedErrors
+                self.updateErrorCache(for: segment, with: updatedErrors)
+
+                // Refresh the error overlay (underlines and popover) with updated errors
+                if let element = element, let context = self.monitoredContext {
+                    _ = self.errorOverlay.update(errors: updatedErrors, element: element, context: context)
+                }
+
+                // Refresh the floating indicator if visible
+                if let element = element {
+                    self.floatingIndicator.update(
+                        errors: updatedErrors,
+                        styleSuggestions: self.currentStyleSuggestions,
+                        element: element,
+                        context: self.monitoredContext
+                    )
+                }
+
+                // Auto-refresh the popover if it's showing the updated error
+                // This enables seamless transition from "loading" to "Before/After" view
+                self.suggestionPopover.updateErrors(updatedErrors)
+
+                Logger.info("AnalysisCoordinator: Updated UI with \(enhancedErrors.count) AI-enhanced readability error(s)", category: Logger.llm)
+            }
+        }
     }
 }
 
