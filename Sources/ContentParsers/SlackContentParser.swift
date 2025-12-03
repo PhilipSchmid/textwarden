@@ -2,122 +2,41 @@
 //  SlackContentParser.swift
 //  TextWarden
 //
-//  Slack-specific content parser with UI context detection
-//  Handles different text rendering in message input vs search bar vs thread replies
+//  Slack-specific content parser using multi-strategy positioning
+//  Leverages TextMarkerStrategy for Chromium/Electron apps
 //
 
 import Foundation
 import AppKit
 
-// MARK: - Debug Border Window
-class DebugBorderWindow: NSPanel {
-    static var debugWindows: [DebugBorderWindow] = []
-
-    init(frame: NSRect, color: NSColor, label: String) {
-        super.init(
-            contentRect: frame,
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-
-        self.isOpaque = false
-        self.backgroundColor = .clear
-        self.level = .screenSaver  // HIGHER than .floating to be on top
-        self.ignoresMouseEvents = true
-        self.hasShadow = false
-
-        let borderView = DebugBorderView(color: color, label: label)
-        self.contentView = borderView
-
-        self.orderFront(nil)
-        DebugBorderWindow.debugWindows.append(self)
-    }
-
-    static func clearAll() {
-        for window in debugWindows {
-            window.close()
-        }
-        debugWindows.removeAll()
-    }
-}
-
-class DebugBorderView: NSView {
-    let borderColor: NSColor
-    let label: String
-
-    init(color: NSColor, label: String) {
-        self.borderColor = color
-        self.label = label
-        super.init(frame: .zero)
-        self.wantsLayer = true
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-
-        guard let context = NSGraphicsContext.current?.cgContext else { return }
-
-        // Draw THICK border only (no fill)
-        context.setStrokeColor(borderColor.cgColor)
-        context.setLineWidth(5.0)  // Thicker!
-        context.stroke(bounds.insetBy(dx: 2.5, dy: 2.5))
-
-        // Draw label
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.boldSystemFont(ofSize: 16),  // Bigger!
-            .foregroundColor: borderColor
-        ]
-        let labelStr = label as NSString
-        let textSize = labelStr.size(withAttributes: attrs)
-
-        // Position blue box label (CGWindow coords) in top right, others in top left
-        let xPosition: CGFloat
-        if label.contains("CGWindow") {
-            xPosition = bounds.width - textSize.width - 10  // Top right
-        } else {
-            xPosition = 10  // Top left
-        }
-
-        labelStr.draw(at: NSPoint(x: xPosition, y: bounds.height - 30), withAttributes: attrs)
-    }
-}
-
 /// Slack-specific content parser
-/// Handles Electron/React rendering quirks and multiple UI contexts
+/// Uses the multi-strategy PositionResolver for reliable text positioning in Electron apps
 class SlackContentParser: ContentParser {
     let bundleIdentifier = "com.tinyspeck.slackmacgap"
     let parserName = "Slack"
 
+    /// Diagnostic result from probing Slack's AX capabilities
+    private static var diagnosticResult: NotionDiagnosticResult?
+    private static var hasRunDiagnostic = false
+
     /// UI contexts within Slack with different rendering characteristics
     private enum SlackContext: String {
-        case messageInput = "message-input"     // Main message composition
-        case searchBar = "search-bar"           // Global search
-        case threadReply = "thread-reply"       // Thread reply input
-        case editMessage = "edit-message"       // Editing existing message
+        case messageInput = "message-input"
+        case searchBar = "search-bar"
+        case threadReply = "thread-reply"
+        case editMessage = "edit-message"
         case unknown = "unknown"
     }
 
     func detectUIContext(element: AXUIElement) -> String? {
-        // Try to get AXRole and AXDescription for context detection
-        var roleValue: CFTypeRef?
         var descValue: CFTypeRef?
         var identifierValue: CFTypeRef?
 
-        AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue)
         AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute as CFString, &descValue)
         AXUIElementCopyAttributeValue(element, kAXIdentifierAttribute as CFString, &identifierValue)
 
-        _ = roleValue as? String  // Role reserved for future use
         let description = descValue as? String
         let identifier = identifierValue as? String
-
-        // Heuristics based on AX attributes
-        // Note: Slack's Electron app has limited AX support, so this may be unreliable
 
         if let desc = description?.lowercased() {
             if desc.contains("search") {
@@ -141,7 +60,6 @@ class SlackContentParser: ContentParser {
             }
         }
 
-        // Default to message input if we can't determine
         return SlackContext.messageInput.rawValue
     }
 
@@ -151,53 +69,24 @@ class SlackContentParser: ContentParser {
     }
 
     func spacingMultiplier(context: String?) -> CGFloat {
-        // DATA-DRIVEN CALIBRATION
-        //
-        // Root cause: Slack's Chromium renderer displays text ~6% narrower than NSFont measures
-        // Likely due to: letter-spacing CSS, font substitution, or Chromium text shaping vs CoreText
-        //
-        // Empirical testing with "Blub. This is a test Message" (28 chars):
-        //   NSFont measures: 190.54px
-        //   0.95x: 181.01px - Close, but slightly too far RIGHT
-        //   0.94x: 179.11px - Optimal (saves 0.41px per char)
-        //   0.93x: 177.20px - Too far LEFT (saves 0.48px per char)
-        //
-        // Different UI contexts within Slack may have different rendering:
+        // Slack's Chromium renderer displays text ~6% narrower than NSFont measures
         guard let ctx = context else {
-            return 0.94 // Default for message input
+            return 0.94
         }
 
         let slackContext = SlackContext(rawValue: ctx) ?? .unknown
 
         switch slackContext {
-        case .messageInput:
-            // Main message composition area
-            // Calibrated to 0.94x based on user feedback
+        case .messageInput, .threadReply, .editMessage:
             return 0.94
-
         case .searchBar:
-            // Global search bar has different rendering than message input
-            // User feedback: underline too far right with 1.0x, needs correction
-            // Testing shows search bar also needs spacing reduction, but less than message input
-            return 0.96 // Less correction than message input (0.94x)
-
-        case .threadReply:
-            // Thread replies use same CSS as message input
-            return 0.94
-
-        case .editMessage:
-            // Editing uses same input styling
-            return 0.94
-
+            return 0.96
         case .unknown:
-            // Conservative fallback
             return 0.94
         }
     }
 
     func horizontalPadding(context: String?) -> CGFloat {
-        // Slack's message input has approximately 12px left padding
-        // Search bar has different padding
         guard let ctx = context else {
             return 12.0
         }
@@ -205,19 +94,51 @@ class SlackContentParser: ContentParser {
         let slackContext = SlackContext(rawValue: ctx) ?? .unknown
 
         switch slackContext {
-        case .messageInput:
-            return 12.0
         case .searchBar:
-            return 16.0 // Search bar has slightly more padding
-        case .threadReply:
-            return 12.0
-        case .editMessage:
-            return 12.0
-        case .unknown:
+            return 16.0
+        default:
             return 12.0
         }
     }
 
+    /// Use the multi-strategy PositionResolver for positioning
+    /// This leverages TextMarkerStrategy which works well for Chromium/Electron apps
+    func resolvePosition(
+        for errorRange: NSRange,
+        in element: AXUIElement,
+        text: String
+    ) -> GeometryResult {
+        // Run diagnostic ONCE to discover what AX APIs work for Slack
+        if !Self.hasRunDiagnostic {
+            Self.hasRunDiagnostic = true
+            Self.diagnosticResult = AccessibilityBridge.runNotionDiagnostic(element)
+
+            if let result = Self.diagnosticResult {
+                Logger.info("SLACK DIAGNOSTIC SUMMARY:")
+                Logger.info("  Best method: \(result.bestMethodDescription)")
+                Logger.info("  Has working method: \(result.hasWorkingMethod)")
+                Logger.info("  Supported param attrs: \(result.supportedParamAttributes.joined(separator: ", "))")
+            }
+        }
+
+        // Delegate to the PositionResolver which tries strategies in order:
+        // 1. TextMarkerStrategy (opaque markers - works for Chromium)
+        // 2. RangeBoundsStrategy (CFRange bounds)
+        // 3. ElementTreeStrategy (child element traversal)
+        // 4. LineIndexStrategy, OriginStrategy, AnchorSearchStrategy
+        // 5. FontMetricsStrategy (app-specific font estimation)
+        // 6. SelectionBoundsStrategy, NavigationStrategy (last resort)
+        return PositionResolver.shared.resolvePosition(
+            for: errorRange,
+            in: element,
+            text: text,
+            parser: self,
+            bundleID: bundleIdentifier
+        )
+    }
+
+    /// Bounds adjustment - delegates to PositionResolver for consistent multi-strategy approach
+    /// This is called by ErrorOverlayWindow.estimateErrorBounds() for legacy compatibility
     func adjustBounds(
         element: AXUIElement,
         errorRange: NSRange,
@@ -225,191 +146,248 @@ class SlackContentParser: ContentParser {
         errorText: String,
         fullText: String
     ) -> AdjustedBounds? {
-        // STRATEGY:
-        // 1. Try AX API (will likely fail for Slack due to Electron bugs)
-        // 2. Fall back to context-aware text measurement with PER-CHARACTER correction
-        // 3. Log detailed debug info for future calibration
-
         let context = detectUIContext(element: element)
         let fontSize = estimatedFontSize(context: context)
-        let multiplier = spacingMultiplier(context: context)
-        let padding = horizontalPadding(context: context)
 
-        // STRATEGY: Use AX API to get bounds for FULL TEXT, then calculate average char width
-        // This adapts automatically to zoom levels, font sizes, DPI, etc.
-        let fullTextRange = NSRange(location: 0, length: fullText.count)
-        if let fullTextBounds = tryGetAXBounds(element: element, range: fullTextRange),
-           fullText.count > 0 {
-            // Calculate average character width from actual rendered text
-            let averageCharWidth = fullTextBounds.width / CGFloat(fullText.count)
-
-            // Position error based on character index
-            let xPosition = fullTextBounds.origin.x + (CGFloat(errorRange.location) * averageCharWidth)
-            let errorWidth = CGFloat(errorRange.length) * averageCharWidth
-
-            let debugInfo = "Slack: Using full text AX bounds. chars=\(fullText.count), avgWidth=\(String(format: "%.2f", averageCharWidth))px, textBounds=\(fullTextBounds)"
-            Logger.info(debugInfo)
-
-            return AdjustedBounds(
-                position: NSPoint(x: xPosition, y: fullTextBounds.origin.y + fullTextBounds.height - 2),
-                errorWidth: errorWidth,
-                confidence: 1.0,
-                uiContext: context,
-                debugInfo: debugInfo
-            )
+        // Try cursor-anchored positioning first (like Notion)
+        if let cursorResult = getCursorAnchoredPosition(
+            element: element,
+            errorRange: errorRange,
+            textBeforeError: textBeforeError,
+            errorText: errorText,
+            fullText: fullText,
+            context: context,
+            fontSize: fontSize
+        ) {
+            return cursorResult
         }
 
-        // Try AX bounds for error range directly (fallback)
-        if let axBounds = tryGetAXBounds(element: element, range: errorRange) {
-            let debugInfo = "AX API (direct error bounds)"
-            Logger.debug("Slack: AX API returned valid bounds for error range! context=\(context ?? "unknown"), bounds=\(axBounds), \(debugInfo)")
+        // Try direct AX bounds for the error range
+        if let axBounds = getValidAXBounds(element: element, range: errorRange) {
             return AdjustedBounds(
                 position: NSPoint(x: axBounds.origin.x, y: axBounds.origin.y),
                 errorWidth: axBounds.width,
-                confidence: 1.0,
+                confidence: 0.9,
                 uiContext: context,
-                debugInfo: debugInfo
+                debugInfo: "Slack AX bounds (direct)"
             )
         }
 
-        // Try character-by-character AX bounds first
-        // This approach:
-        // 1. Calls AXBoundsForRange for EACH character
-        // 2. Uses the X coordinates DIRECTLY (no multiplication!)
-        // 3. Falls back to measurement only if AX fails
-        var characterBounds: [CGRect] = []
-        var allAXSucceeded = true
-
-        for index in 0..<textBeforeError.count {
-            let charRange = NSRange(location: errorRange.location - textBeforeError.count + index, length: 1)
-
-            if let bounds = tryGetAXBounds(element: element, range: charRange) {
-                characterBounds.append(bounds)
-            } else {
-                allAXSucceeded = false
-                break
-            }
-        }
-
-        // If we got AX bounds for all characters, use them DIRECTLY
-        if allAXSucceeded && !characterBounds.isEmpty {
-            let firstCharBounds = characterBounds[0]
-            let lastCharBounds = characterBounds[characterBounds.count - 1]
-
-            // X position where error starts = right edge of last character before error
-            let baseXPosition = lastCharBounds.origin.x + lastCharBounds.width
-
-            // Total width calculation for debugging
-            let startX = firstCharBounds.origin.x
-            let totalWidth = baseXPosition - startX
-
-            let errorBounds = tryGetAXBounds(element: element, range: errorRange)
-            let errorWidth = errorBounds?.width ?? measureErrorWidth(errorText, fontSize: fontSize)
-
-            let debugInfo = """
-                Slack AX bounds (char-by-char): \
-                charCount=\(textBeforeError.count), \
-                xPosition=\(String(format: "%.2f", baseXPosition))px, \
-                totalWidth=\(String(format: "%.2f", totalWidth))px, \
-                firstChar=\(firstCharBounds), lastChar=\(lastCharBounds)
-                """
-
-            Logger.info(debugInfo)
-
-            return AdjustedBounds(
-                position: NSPoint(x: baseXPosition, y: lastCharBounds.origin.y + lastCharBounds.height - 2),
-                errorWidth: errorWidth,
-                confidence: 1.0, // AX API = highest confidence
-                uiContext: context,
-                debugInfo: debugInfo
-            )
-        }
-
-        // FALLBACK: Text measurement (if AX fails)
-        Logger.debug("Slack: AX bounds failed, falling back to text measurement")
-
-        let font = NSFont.systemFont(ofSize: fontSize)
-        let attributes: [NSAttributedString.Key: Any] = [.font: font]
-
-        let baseTextBeforeWidth = (textBeforeError as NSString).size(withAttributes: attributes).width
-        let baseErrorWidth = (errorText as NSString).size(withAttributes: attributes).width
-
-        // Apply spacing multiplier to match Slack's Chromium rendering
-        // Slack renders text ~6% narrower than NSFont measures (0.94x)
-        // Using multiplier instead of per-character correction avoids cumulative drift
-        let adjustedTextBeforeWidth = baseTextBeforeWidth * multiplier
-        let adjustedErrorWidth = baseErrorWidth * multiplier
-
-        guard let elementFrame = getElementFrame(element: element) else {
-            Logger.error("Slack: Failed to get element frame")
-            return nil
-        }
-
-        let xPosition = elementFrame.origin.x + adjustedTextBeforeWidth
-
-        // Position at text baseline (0.82 from bottom accounts for text rendering offset)
-        let yPosition = elementFrame.origin.y + (elementFrame.height * 0.82)
-
-        let debugInfo = """
-            Slack text measurement fallback: context=\(context ?? "unknown"), \
-            fontSize=\(fontSize)pt, multiplier=\(multiplier)x, padding=\(padding)px, \
-            baseWidth=\(String(format: "%.2f", baseTextBeforeWidth))px, \
-            adjusted=\(String(format: "%.2f", adjustedTextBeforeWidth))px
-            """
-
-        Logger.debug(debugInfo)
-
-        return AdjustedBounds(
-            position: NSPoint(x: xPosition, y: yPosition),
-            errorWidth: adjustedErrorWidth,
-            confidence: 0.75,
-            uiContext: context,
-            debugInfo: debugInfo
+        // Fall back to text measurement with graceful degradation
+        return getTextMeasurementFallback(
+            element: element,
+            errorRange: errorRange,
+            textBeforeError: textBeforeError,
+            errorText: errorText,
+            context: context,
+            fontSize: fontSize
         )
     }
 
-    // MARK: - Private Helpers
+    // MARK: - Cursor-Anchored Positioning
 
-    private func tryGetAXBounds(element: AXUIElement, range: NSRange) -> NSRect? {
+    /// Get cursor position and use it as anchor for more reliable positioning
+    private func getCursorAnchoredPosition(
+        element: AXUIElement,
+        errorRange: NSRange,
+        textBeforeError: String,
+        errorText: String,
+        fullText: String,
+        context: String?,
+        fontSize: CGFloat
+    ) -> AdjustedBounds? {
+        // Get cursor position
+        var selectedRangeValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            element,
+            kAXSelectedTextRangeAttribute as CFString,
+            &selectedRangeValue
+        ) == .success else {
+            return nil
+        }
+
+        var selectedRange = CFRange(location: 0, length: 0)
+        guard AXValueGetValue(selectedRangeValue as! AXValue, .cfRange, &selectedRange) else {
+            return nil
+        }
+
+        let cursorPosition = selectedRange.location
+
+        // Try to get bounds at cursor position
+        var cursorBounds: CGRect?
+
+        // Method 1: AXInsertionPointFrame
+        var insertionPointValue: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, "AXInsertionPointFrame" as CFString, &insertionPointValue) == .success,
+           let axValue = insertionPointValue {
+            var frame = CGRect.zero
+            if AXValueGetValue(axValue as! AXValue, .cgRect, &frame) {
+                if frame.width >= 0 && frame.height > 5 && frame.height < 100 {
+                    cursorBounds = frame
+                    Logger.debug("Slack: Got cursor bounds from AXInsertionPointFrame: \(frame)", category: Logger.ui)
+                }
+            }
+        }
+
+        // Method 2: Bounds for character at cursor
+        if cursorBounds == nil {
+            if let bounds = getValidAXBounds(element: element, range: NSRange(location: cursorPosition, length: 1)) {
+                cursorBounds = bounds
+                Logger.debug("Slack: Got cursor bounds from single char: \(bounds)", category: Logger.ui)
+            }
+        }
+
+        // Method 3: Bounds for character before cursor
+        if cursorBounds == nil && cursorPosition > 0 {
+            if let bounds = getValidAXBounds(element: element, range: NSRange(location: cursorPosition - 1, length: 1)) {
+                cursorBounds = CGRect(
+                    x: bounds.origin.x + bounds.width,
+                    y: bounds.origin.y,
+                    width: 1,
+                    height: bounds.height
+                )
+                Logger.debug("Slack: Got cursor bounds from prev char: \(cursorBounds!)", category: Logger.ui)
+            }
+        }
+
+        guard let cursor = cursorBounds else {
+            return nil
+        }
+
+        // Calculate error position relative to cursor
+        let font = NSFont.systemFont(ofSize: fontSize)
+        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+        let multiplier = spacingMultiplier(context: context)
+
+        let errorWidth = max((errorText as NSString).size(withAttributes: attributes).width * multiplier, 20.0)
+
+        // Calculate X offset from cursor to error
+        let charsBetween = errorRange.location - cursorPosition
+        var xPosition: CGFloat
+
+        if charsBetween >= 0 {
+            // Error is after cursor
+            let textBetween = String(fullText.dropFirst(cursorPosition).prefix(charsBetween))
+            let offsetWidth = (textBetween as NSString).size(withAttributes: attributes).width * multiplier
+            xPosition = cursor.origin.x + offsetWidth
+        } else {
+            // Error is before cursor
+            let textBetween = String(fullText.dropFirst(errorRange.location).prefix(-charsBetween))
+            let offsetWidth = (textBetween as NSString).size(withAttributes: attributes).width * multiplier
+            xPosition = cursor.origin.x - offsetWidth
+        }
+
+        Logger.debug("Slack: Cursor-anchored position - cursor=\(cursorPosition), error=\(errorRange.location), x=\(xPosition)", category: Logger.ui)
+
+        return AdjustedBounds(
+            position: NSPoint(x: xPosition, y: cursor.origin.y),
+            errorWidth: errorWidth,
+            confidence: 0.80,
+            uiContext: context,
+            debugInfo: "Slack cursor-anchored (cursorPos: \(cursorPosition), charsBetween: \(charsBetween))"
+        )
+    }
+
+    // MARK: - AX Bounds Helpers
+
+    private func getValidAXBounds(element: AXUIElement, range: NSRange) -> NSRect? {
         var boundsValue: CFTypeRef?
-        let location = range.location
-        let length = range.length
-
-        var axRange = CFRange(location: location, length: length)
-        let rangeValue = AXValueCreate(.cfRange, &axRange)
+        var axRange = CFRange(location: range.location, length: range.length)
+        guard let rangeValue = AXValueCreate(.cfRange, &axRange) else {
+            return nil
+        }
 
         let result = AXUIElementCopyParameterizedAttributeValue(
             element,
             kAXBoundsForRangeParameterizedAttribute as CFString,
-            rangeValue!,
+            rangeValue,
             &boundsValue
         )
 
-        guard result == .success, let boundsValue = boundsValue else {
+        guard result == .success, let bv = boundsValue else {
             return nil
         }
 
         var bounds = CGRect.zero
-        guard AXValueGetValue(boundsValue as! AXValue, .cgRect, &bounds) else {
+        guard AXValueGetValue(bv as! AXValue, .cgRect, &bounds) else {
             return nil
         }
 
-        // Validate bounds (Slack/Electron typically returns XOrigin=0, YOrigin=screen height)
-        guard bounds.origin.x > 0 && bounds.origin.y > 0 &&
-              bounds.origin.y < NSScreen.main!.frame.height && // Not at screen edge
-              bounds.width > 0 && bounds.height > 0 else {
+        // Validate bounds - reject Chromium bugs (0,0,0,0) or (0, screenHeight, 0, 0)
+        guard bounds.width > 5 && bounds.height > 5 && bounds.height < 100 else {
+            return nil
+        }
+
+        // Also reject if origin is clearly wrong (negative or at screen edge)
+        guard bounds.origin.x > 0 && bounds.origin.y > 0 else {
             return nil
         }
 
         return bounds
     }
 
-    private func getElementFrame(element: AXUIElement) -> NSRect? {
-        // The element parameter is the actual text field, so we want ITS bounds
-        return getElementFrameFromAX(element: element)
+    // MARK: - Text Measurement Fallback
+
+    private func getTextMeasurementFallback(
+        element: AXUIElement,
+        errorRange: NSRange,
+        textBeforeError: String,
+        errorText: String,
+        context: String?,
+        fontSize: CGFloat
+    ) -> AdjustedBounds? {
+        guard let elementFrame = getElementFrame(element: element) else {
+            Logger.warning("Slack: Failed to get element frame for text measurement fallback")
+            return nil
+        }
+
+        let font = NSFont.systemFont(ofSize: fontSize)
+        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+        let multiplier = spacingMultiplier(context: context)
+        let padding = horizontalPadding(context: context)
+
+        // Calculate line height for Slack's message input
+        let lineHeight: CGFloat = fontSize * 1.4  // ~21px for 15pt font
+
+        // Estimate text width per line to determine wrapping
+        // Slack's message input has internal padding on both sides
+        let availableWidth = elementFrame.width - (padding * 2) - 20  // Extra margin for safety
+
+        // Calculate which line the error starts on by simulating text wrapping
+        let textBeforeWidth = (textBeforeError as NSString).size(withAttributes: attributes).width * multiplier
+        let errorLine = Int(textBeforeWidth / availableWidth)
+
+        // Calculate X position on that line (accounting for wrapping)
+        let xOffsetOnLine = textBeforeWidth.truncatingRemainder(dividingBy: availableWidth)
+        let xPosition = elementFrame.origin.x + padding + xOffsetOnLine
+
+        // Calculate error width (may wrap to next line, but we'll underline just the visible part)
+        let baseErrorWidth = (errorText as NSString).size(withAttributes: attributes).width
+        let adjustedErrorWidth = max(baseErrorWidth * multiplier, 20.0)
+
+        // Y position: In Quartz coordinates, Y increases downward from top of screen
+        // Element's origin.y is the TOP of the element in Quartz
+        // First line of text starts after some top padding (~8px), then each subsequent line is lineHeight lower
+        let topPadding: CGFloat = 8.0
+        let yPosition = elementFrame.origin.y + topPadding + (CGFloat(errorLine) * lineHeight) + (lineHeight * 0.85)
+
+        // GRACEFUL DEGRADATION: Text measurement is less reliable
+        let confidence: Double = 0.60
+
+        Logger.debug("Slack: Text measurement - line=\(errorLine), xOffset=\(xOffsetOnLine), x=\(xPosition), y=\(yPosition), availableWidth=\(availableWidth)", category: Logger.ui)
+
+        return AdjustedBounds(
+            position: NSPoint(x: xPosition, y: yPosition),
+            errorWidth: adjustedErrorWidth,
+            confidence: confidence,
+            uiContext: context,
+            debugInfo: "Slack text measurement (line: \(errorLine), multiplier: \(multiplier))"
+        )
     }
 
-    private func getElementFrameFromAX(element: AXUIElement) -> NSRect? {
+    // MARK: - Element Frame
+
+    private func getElementFrame(element: AXUIElement) -> NSRect? {
         var positionValue: CFTypeRef?
         var sizeValue: CFTypeRef?
 
@@ -428,7 +406,7 @@ class SlackContentParser: ContentParser {
 
         var frame = NSRect(origin: position, size: size)
 
-        // Slack's Electron-based AX implementation returns negative X values as sentinel values
+        // Slack's Electron-based AX implementation sometimes returns negative X values
         if position.x < 0 {
             if let windowFrame = getSlackWindowFrame(element: element, elementPosition: position) {
                 let leftPadding: CGFloat = 20.0
@@ -451,10 +429,7 @@ class SlackContentParser: ContentParser {
             return nil
         }
 
-        // Find Slack's window that contains the text input element
-        // Element position Y is reliable even though X is broken
-        let elementY = elementPosition.y  // This is in Quartz coordinates
-
+        let elementY = elementPosition.y
         var candidateWindows: [(NSRect, String)] = []
 
         for windowInfo in windowList {
@@ -470,37 +445,22 @@ class SlackContentParser: ContentParser {
 
             let windowFrame = NSRect(x: x, y: y, width: width, height: height)
             let windowName = (windowInfo[kCGWindowName as String] as? String) ?? "Unknown"
-            let windowLayer = windowInfo[kCGWindowLayer as String] as? Int ?? -1
 
             candidateWindows.append((windowFrame, windowName))
 
-            Logger.debug("SLACK: Found window: \(windowName), Frame: \(windowFrame), Layer: \(windowLayer)", category: Logger.ui)
-
-            // Check if element Y position is within this window's Y range
             let windowTop = y
             let windowBottom = y + height
 
             if elementY >= windowTop && elementY <= windowBottom {
-                Logger.debug("SLACK: Window '\(windowName)' contains element (Y=\(elementY) in range \(windowTop)-\(windowBottom))", category: Logger.ui)
-
                 return windowFrame
             }
         }
 
-        // If no window contains the element, log all candidates and return the largest
-        if !candidateWindows.isEmpty {
-            Logger.debug("SLACK: No window contains element Y=\(elementY). Found \(candidateWindows.count) windows. Using largest.", category: Logger.ui)
-
-            let largest = candidateWindows.max(by: { $0.0.width * $0.0.height < $1.0.width * $1.0.height })
-            return largest?.0
+        // Return largest window if no exact match
+        if let largest = candidateWindows.max(by: { $0.0.width * $0.0.height < $1.0.width * $1.0.height }) {
+            return largest.0
         }
 
         return nil
-    }
-
-    private func measureErrorWidth(_ text: String, fontSize: CGFloat) -> CGFloat {
-        let font = NSFont.systemFont(ofSize: fontSize)
-        let attributes: [NSAttributedString.Key: Any] = [.font: font]
-        return (text as NSString).size(withAttributes: attributes).width
     }
 }

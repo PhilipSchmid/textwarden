@@ -2504,15 +2504,18 @@ class AnalysisCoordinator: ObservableObject {
         context: ApplicationContext
     ) -> Bool {
         let isNotion = context.bundleIdentifier == "notion.id" || context.bundleIdentifier == "com.notion.id"
+        let isSlack = context.bundleIdentifier == "com.tinyspeck.slackmacgap"
 
-        if isNotion {
-            Logger.debug("Notion: Looking for text '\(targetText)' to select", category: Logger.analysis)
+        // Electron apps (Notion, Slack) need child element traversal for selection
+        if isNotion || isSlack {
+            let appName = isNotion ? "Notion" : "Slack"
+            Logger.debug("\(appName): Looking for text '\(targetText)' to select", category: Logger.analysis)
 
             // Try to find child element containing the text and select within it
             if let (childElement, offsetInChild) = findChildElementContainingText(targetText, in: element) {
                 var childRange = CFRange(location: offsetInChild, length: targetText.count)
                 guard let childRangeValue = AXValueCreate(.cfRange, &childRange) else {
-                    Logger.debug("Notion: Failed to create AXValue for child range", category: Logger.analysis)
+                    Logger.debug("\(appName): Failed to create AXValue for child range", category: Logger.analysis)
                     return false
                 }
 
@@ -2523,13 +2526,13 @@ class AnalysisCoordinator: ObservableObject {
                 )
 
                 if childSelectResult == .success {
-                    Logger.debug("Notion: Selected text in child element (range: \(offsetInChild)-\(offsetInChild + targetText.count))", category: Logger.analysis)
+                    Logger.debug("\(appName): Selected text in child element (range: \(offsetInChild)-\(offsetInChild + targetText.count))", category: Logger.analysis)
                 } else {
-                    Logger.debug("Notion: Child selection failed (\(childSelectResult.rawValue))", category: Logger.analysis)
+                    Logger.debug("\(appName): Child selection failed (\(childSelectResult.rawValue))", category: Logger.analysis)
                 }
                 return true
             } else {
-                Logger.debug("Notion: Could not find child element, falling back to main element", category: Logger.analysis)
+                Logger.debug("\(appName): Could not find child element, falling back to main element", category: Logger.analysis)
                 return true  // Let caller try paste anyway
             }
         } else {
@@ -2660,11 +2663,12 @@ class AnalysisCoordinator: ObservableObject {
 
         Logger.debug("Using keyboard simulation for text replacement (app: \(context.applicationName), isTerminal: \(context.isTerminalApp), isBrowser: \(context.isBrowser))", category: Logger.analysis)
 
-        // SPECIAL HANDLING FOR BROWSERS
-        // Browsers have contenteditable areas where AX API often silently fails
+        // SPECIAL HANDLING FOR BROWSERS AND SLACK
+        // Browsers and Slack have contenteditable areas where AX API often silently fails
         // Use simplified approach: select via AX API, then paste via menu action or Cmd+V
         // Inspired by SelectedTextKit's menu action approach
-        if context.isBrowser {
+        let isSlack = context.bundleIdentifier == "com.tinyspeck.slackmacgap"
+        if context.isBrowser || isSlack {
             applyBrowserTextReplacement(for: error, with: suggestion, element: element, context: context)
             return
         }
