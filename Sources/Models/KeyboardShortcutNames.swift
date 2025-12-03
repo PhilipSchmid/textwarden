@@ -12,10 +12,10 @@ extension KeyboardShortcuts.Name {
     // MARK: - Grammar Checking
 
     /// Toggle grammar checking on/off globally
-    static let toggleGrammarChecking = Self("toggleGrammarChecking", default: .init(.g, modifiers: [.command, .shift]))
+    static let toggleGrammarChecking = Self("toggleGrammarChecking", default: .init(.g, modifiers: [.command, .control]))
 
     /// Trigger style check on current text
-    static let runStyleCheck = Self("runStyleCheck", default: .init(.s, modifiers: [.command, .shift]))
+    static let runStyleCheck = Self("runStyleCheck", default: .init(.s, modifiers: [.command, .control]))
 
     // MARK: - Suggestion Popover
 
