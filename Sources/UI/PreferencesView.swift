@@ -10,6 +10,102 @@ import LaunchAtLogin
 import KeyboardShortcuts
 import UniformTypeIdentifiers
 import Charts
+import AppKit
+
+// MARK: - Native macOS Text Field (left-aligned)
+
+/// A native macOS text field wrapper for SwiftUI with left-aligned text
+struct LeftAlignedTextField: NSViewRepresentable {
+    @Binding var text: String
+    var placeholder: String = ""
+    var onSubmit: (() -> Void)?
+
+    func makeNSView(context: Context) -> NSTextField {
+        let textField = NSTextField()
+        textField.placeholderString = placeholder
+        textField.delegate = context.coordinator
+        textField.bezelStyle = .roundedBezel
+        textField.focusRingType = .exterior
+        textField.alignment = .left
+        textField.lineBreakMode = .byTruncatingTail
+        return textField
+    }
+
+    func updateNSView(_ nsView: NSTextField, context: Context) {
+        if nsView.stringValue != text {
+            nsView.stringValue = text
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text, onSubmit: onSubmit)
+    }
+
+    class Coordinator: NSObject, NSTextFieldDelegate {
+        @Binding var text: String
+        var onSubmit: (() -> Void)?
+
+        init(text: Binding<String>, onSubmit: (() -> Void)?) {
+            self._text = text
+            self.onSubmit = onSubmit
+        }
+
+        func controlTextDidChange(_ obj: Notification) {
+            if let textField = obj.object as? NSTextField {
+                text = textField.stringValue
+            }
+        }
+
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                onSubmit?()
+                return true
+            }
+            return false
+        }
+    }
+}
+
+// MARK: - Native macOS Search Field
+
+/// A native macOS search field wrapper for SwiftUI
+struct SearchField: NSViewRepresentable {
+    @Binding var text: String
+    var placeholder: String = "Search..."
+
+    func makeNSView(context: Context) -> NSSearchField {
+        let searchField = NSSearchField()
+        searchField.placeholderString = placeholder
+        searchField.delegate = context.coordinator
+        searchField.bezelStyle = .roundedBezel
+        searchField.focusRingType = .exterior
+        return searchField
+    }
+
+    func updateNSView(_ nsView: NSSearchField, context: Context) {
+        if nsView.stringValue != text {
+            nsView.stringValue = text
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+
+    class Coordinator: NSObject, NSSearchFieldDelegate {
+        @Binding var text: String
+
+        init(text: Binding<String>) {
+            self._text = text
+        }
+
+        func controlTextDidChange(_ obj: Notification) {
+            if let searchField = obj.object as? NSSearchField {
+                text = searchField.stringValue
+            }
+        }
+    }
+}
 
 struct PreferencesView: View {
     @ObservedObject private var preferences = UserPreferences.shared
@@ -2552,6 +2648,8 @@ private struct CustomVocabularyContent: View {
     @Binding var searchText: String
     @Binding var errorMessage: String?
     @State private var ignoredSearchText: String = ""
+    @State private var showClearDictionaryAlert: Bool = false
+    @State private var showClearIgnoredAlert: Bool = false
 
     private var filteredWords: [String] {
         let allWords = Array(vocabulary.words).sorted()
@@ -2667,151 +2765,175 @@ private struct CustomVocabularyContent: View {
 
             // MARK: - Custom Dictionary Section
             Section {
-                // Add word input
-                HStack(spacing: 12) {
-                    TextField("Add word...", text: $newWord)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit {
-                            addWord()
-                        }
+                // Add word input row
+                HStack(spacing: 8) {
+                    Text("Add new word:")
+                        .foregroundColor(.secondary)
+
+                    LeftAlignedTextField(
+                        text: $newWord,
+                        placeholder: "",
+                        onSubmit: { addWord() }
+                    )
+                    .frame(minHeight: 22, maxHeight: 22)
 
                     Button("Add") {
                         addWord()
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bordered)
                     .disabled(newWord.isEmpty)
-                }
+                    .help("Add word to dictionary")
 
-                // Error message
-                if let errorMessage = errorMessage {
-                    HStack {
-                        Image(systemName: "exclamationmark.circle.fill")
-                            .foregroundColor(.red)
-                        Text(errorMessage)
+                    // Error message inline
+                    if let errorMessage = errorMessage {
+                        Label(errorMessage, systemImage: "exclamationmark.circle.fill")
                             .font(.caption)
                             .foregroundColor(.red)
                     }
                 }
 
-                // Word list (if not empty)
+                // Search field (only show when there are words)
                 if !vocabulary.words.isEmpty {
-                    // Search bar with rounded border style
-                    TextField("Search words...", text: $searchText)
-                        .textFieldStyle(.roundedBorder)
+                    SearchField(text: $searchText, placeholder: "Search \(vocabulary.words.count) words...")
+                        .frame(height: 22)
+                }
 
-                    // Header with count and clear all button
-                    HStack {
-                        Text("\(filteredWords.count) word\(filteredWords.count == 1 ? "" : "s")")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-
-                        if vocabulary.words.count >= 1000 {
-                            Label("Limit reached", systemImage: "exclamationmark.triangle.fill")
-                                .font(.caption)
-                                .foregroundColor(.orange)
-                        }
-
-                        Spacer()
-
-                        Button(role: .destructive) {
-                            clearAll()
-                        } label: {
-                            Label("Clear All", systemImage: "trash")
-                                .font(.caption)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    }
-
-                    // Word list
-                    if filteredWords.isEmpty && !searchText.isEmpty {
-                        Text("No matching words")
-                            .foregroundColor(.secondary)
-                            .font(.subheadline)
-                    } else {
-                        ForEach(filteredWords, id: \.self) { word in
-                            HStack {
-                                Text(word)
-                                Spacer()
-                                Button {
-                                    removeWord(word)
-                                } label: {
-                                    Image(systemName: "minus.circle.fill")
-                                        .foregroundColor(.red)
-                                }
-                                .buttonStyle(.plain)
-                                .help("Remove \"\(word)\" from dictionary")
+                // Word list
+                if vocabulary.words.isEmpty {
+                    Text("No words added yet")
+                        .foregroundColor(.secondary)
+                        .font(.subheadline)
+                        .padding(.vertical, 8)
+                } else if filteredWords.isEmpty && !searchText.isEmpty {
+                    Text("No matching words")
+                        .foregroundColor(.secondary)
+                        .font(.subheadline)
+                        .padding(.vertical, 8)
+                } else {
+                    ForEach(filteredWords, id: \.self) { word in
+                        HStack {
+                            Text(word)
+                                .lineLimit(1)
+                            Spacer()
+                            Button {
+                                removeWord(word)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.secondary)
                             }
+                            .buttonStyle(.plain)
+                            .help("Remove from dictionary")
                         }
                     }
                 }
             } header: {
-                Text("Custom Dictionary")
-                    .font(.headline)
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Custom Dictionary")
+                            .font(.headline)
+                        Text("Words added here won't be flagged as spelling errors")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    if !vocabulary.words.isEmpty {
+                        Button {
+                            showClearDictionaryAlert = true
+                        } label: {
+                            Label("Clear list", systemImage: "trash")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundColor(.accentColor)
+                    }
+                }
+            }
+            .alert("Clear Custom Dictionary?", isPresented: $showClearDictionaryAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Clear All", role: .destructive) {
+                    clearAll()
+                }
+            } message: {
+                Text("This will remove all \(vocabulary.words.count) words from your custom dictionary. This action cannot be undone.")
             }
 
             // MARK: - Ignored Words Section
-            // Only show if there are ignored words
-            if !preferences.ignoredErrorTexts.isEmpty {
-                Section {
-                    // Search bar with rounded border style
-                    TextField("Search ignored words...", text: $ignoredSearchText)
-                        .textFieldStyle(.roundedBorder)
+            Section {
+                // Search field (only show when there are ignored words)
+                if !preferences.ignoredErrorTexts.isEmpty {
+                    SearchField(text: $ignoredSearchText, placeholder: "Search \(preferences.ignoredErrorTexts.count) words...")
+                        .frame(height: 22)
+                }
 
-                    // Header with count and clear all button
-                    HStack {
-                        Text("\(filteredIgnoredTexts.count) word\(filteredIgnoredTexts.count == 1 ? "" : "s")")
+                // Word list
+                if preferences.ignoredErrorTexts.isEmpty {
+                    Text("No ignored words")
+                        .foregroundColor(.secondary)
+                        .font(.subheadline)
+                        .padding(.vertical, 8)
+                } else if filteredIgnoredTexts.isEmpty && !ignoredSearchText.isEmpty {
+                    Text("No matching words")
+                        .foregroundColor(.secondary)
+                        .font(.subheadline)
+                        .padding(.vertical, 8)
+                } else {
+                    ForEach(filteredIgnoredTexts, id: \.self) { ignoredText in
+                        HStack {
+                            Text(ignoredText)
+                                .lineLimit(1)
+                            Spacer()
+
+                            // Move to dictionary button
+                            Button {
+                                moveToCustomDictionary(ignoredText)
+                            } label: {
+                                Image(systemName: "plus.circle")
+                                    .foregroundColor(.accentColor)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Add to Custom Dictionary")
+
+                            // Remove button
+                            Button {
+                                preferences.ignoredErrorTexts.remove(ignoredText)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Stop ignoring (will be checked again)")
+                        }
+                    }
+                }
+            } header: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Ignored Words")
+                            .font(.headline)
+                        Text("Errors you've dismissed. Click + to add to dictionary instead.")
                             .font(.caption)
                             .foregroundColor(.secondary)
-
-                        Spacer()
-
-                        Button(role: .destructive) {
-                            preferences.ignoredErrorTexts.removeAll()
+                    }
+                    Spacer()
+                    if !preferences.ignoredErrorTexts.isEmpty {
+                        Button {
+                            showClearIgnoredAlert = true
                         } label: {
-                            Label("Clear All", systemImage: "trash")
+                            Label("Clear list", systemImage: "trash")
                                 .font(.caption)
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+                        .buttonStyle(.plain)
+                        .foregroundColor(.accentColor)
                     }
-
-                    // Word list
-                    if filteredIgnoredTexts.isEmpty && !ignoredSearchText.isEmpty {
-                        Text("No matching words")
-                            .foregroundColor(.secondary)
-                            .font(.subheadline)
-                    } else {
-                        ForEach(filteredIgnoredTexts, id: \.self) { ignoredText in
-                            HStack {
-                                Text(ignoredText)
-                                Spacer()
-                                // Move to Custom Dictionary button
-                                Button {
-                                    moveToCustomDictionary(ignoredText)
-                                } label: {
-                                    Image(systemName: "text.book.closed.fill")
-                                        .foregroundColor(.blue)
-                                }
-                                .buttonStyle(.plain)
-                                .help("Move to Custom Dictionary")
-
-                                // Re-enable checking button
-                                Button {
-                                    preferences.ignoredErrorTexts.remove(ignoredText)
-                                } label: {
-                                    Image(systemName: "minus.circle.fill")
-                                        .foregroundColor(.red)
-                                }
-                                .buttonStyle(.plain)
-                                .help("Re-enable checking")
-                            }
-                        }
-                    }
-                } header: {
-                    Text("Ignored Words")
-                        .font(.headline)
                 }
+            }
+            .alert("Clear Ignored Words?", isPresented: $showClearIgnoredAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Clear All", role: .destructive) {
+                    preferences.ignoredErrorTexts.removeAll()
+                }
+            } message: {
+                Text("This will remove all \(preferences.ignoredErrorTexts.count) ignored words. These errors will be flagged again. This action cannot be undone.")
             }
         }
     }
