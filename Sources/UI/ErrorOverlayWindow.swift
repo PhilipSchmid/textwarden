@@ -197,7 +197,7 @@ class ErrorOverlayWindow: NSPanel {
 
         // Use text field element's AX bounds (not window bounds!)
         // The element passed is the actual text field, so we want ITS bounds
-        let elementFrame: CGRect
+        var elementFrame: CGRect
 
         // Strategy 1: Try AX API to get text field bounds
         if let frame = getElementFrame(element) {
@@ -212,11 +212,22 @@ class ErrorOverlayWindow: NSPanel {
             Logger.debug("ErrorOverlay: Using mouse cursor fallback: \(elementFrame)", category: Logger.ui)
         }
 
+        Logger.debug("ErrorOverlay: Element frame (may include scroll content): \(elementFrame)", category: Logger.ui)
+
+        // CRITICAL: Constrain element frame to visible window frame
+        // Element frame may include full scrollable content, but we only want the visible portion
+        if let windowFrame = getApplicationWindowFrame() {
+            Logger.debug("ErrorOverlay: Visible window frame: \(windowFrame)", category: Logger.ui)
+            let visibleFrame = elementFrame.intersection(windowFrame)
+            if !visibleFrame.isEmpty {
+                Logger.debug("ErrorOverlay: Constraining to visible frame: \(visibleFrame)", category: Logger.ui)
+                elementFrame = visibleFrame
+            }
+        }
+
         Logger.debug("ErrorOverlay: Final element frame: \(elementFrame)", category: Logger.ui)
 
-        Logger.debug("DEBUG: Element frame details - X: \(elementFrame.origin.x), Y: \(elementFrame.origin.y), Width: \(elementFrame.width), Height: \(elementFrame.height)", category: Logger.ui)
-
-        // Position overlay window to match element
+        // Position overlay window to match visible element area
         setFrame(elementFrame, display: true)
         Logger.debug("ErrorOverlay: Window positioned at \(elementFrame)", category: Logger.ui)
 
@@ -236,10 +247,30 @@ class ErrorOverlayWindow: NSPanel {
             return 0
         }
 
+        // Get visible character range to filter out off-screen errors
+        let visibleRange = AccessibilityBridge.getVisibleCharacterRange(element)
+        if let visibleRange = visibleRange {
+            Logger.debug("ErrorOverlay: Visible character range: \(visibleRange.location)-\(visibleRange.location + visibleRange.length)", category: Logger.ui)
+        }
+
         // Calculate underline positions for each error using new positioning system
         var skippedCount = 0
+        var skippedDueToVisibility = 0
         let underlines = errors.compactMap { error -> ErrorUnderline? in
             let errorRange = NSRange(location: error.start, length: error.end - error.start)
+
+            // Filter out errors that are completely outside the visible character range
+            if let visibleRange = visibleRange {
+                let errorEnd = error.start + (error.end - error.start)
+                let visibleEnd = visibleRange.location + visibleRange.length
+
+                // Skip if error ends before visible range starts OR error starts after visible range ends
+                if errorEnd < visibleRange.location || error.start > visibleEnd {
+                    Logger.debug("ErrorOverlay: Skipping error at \(error.start)-\(error.end) - outside visible range \(visibleRange.location)-\(visibleEnd)", category: Logger.ui)
+                    skippedDueToVisibility += 1
+                    return nil
+                }
+            }
 
             // Use new multi-strategy positioning system
             Logger.debug("BEFORE calling parser.resolvePosition() - parser type: \(type(of: parser)), parserName: \(parser.parserName)", category: Logger.ui)
@@ -274,6 +305,14 @@ class ErrorOverlayWindow: NSPanel {
             var allLocalBounds: [CGRect] = []
 
             for (lineIndex, screenBounds) in allScreenBounds.enumerated() {
+                // CRITICAL: Filter out underlines whose screen bounds fall outside the visible element frame
+                // This handles scrolled text where underlines would appear outside the window
+                // Check in screen coordinates BEFORE converting to local
+                if !elementFrame.intersects(screenBounds) {
+                    Logger.debug("ErrorOverlay: Skipping line \(lineIndex) outside element frame - screen: \(screenBounds), element: \(elementFrame)", category: Logger.ui)
+                    continue
+                }
+
                 let localBounds = convertToLocal(screenBounds, from: elementFrame)
                 Logger.debug("ErrorOverlay: Line \(lineIndex) bounds - screen: \(screenBounds), local: \(localBounds)", category: Logger.ui)
 
@@ -282,6 +321,13 @@ class ErrorOverlayWindow: NSPanel {
                 let maxValidHeight: CGFloat = 100.0  // Text lines shouldn't be > 100px
                 if localBounds.origin.y < -10 || localBounds.height > maxValidHeight {
                     Logger.warning("ErrorOverlay: Skipping invalid line bounds (y=\(localBounds.origin.y), h=\(localBounds.height))")
+                    continue
+                }
+
+                // Additional check: ensure local bounds are within the window's drawable area
+                let windowHeight = elementFrame.height
+                if localBounds.origin.y > windowHeight || localBounds.maxY < 0 {
+                    Logger.debug("ErrorOverlay: Skipping line outside visible area (y=\(localBounds.origin.y), windowHeight=\(windowHeight))", category: Logger.ui)
                     continue
                 }
 
@@ -321,7 +367,7 @@ class ErrorOverlayWindow: NSPanel {
             )
         }
 
-        Logger.info("ErrorOverlay: Created \(underlines.count) underlines from \(errors.count) errors (skipped \(skippedCount) due to graceful degradation)")
+        Logger.info("ErrorOverlay: Created \(underlines.count) underlines from \(errors.count) errors (skipped \(skippedCount) positioning, \(skippedDueToVisibility) not visible)")
 
         // Extra debug for Notion
         if bundleID.contains("notion") {
