@@ -28,13 +28,14 @@ enum ParserType {
     case browser
     case notion
     case terminal
+    case teams
 }
 
 // MARK: - Strategy Type
 
 /// Identifies a positioning strategy
 enum StrategyType: String, CaseIterable {
-    case slack
+    case chromium   // Selection-based marker range positioning for Chromium apps (Slack, Teams, etc.)
     case textMarker
     case rangeBounds
     case elementTree

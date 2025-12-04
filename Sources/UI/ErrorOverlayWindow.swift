@@ -382,9 +382,9 @@ class ErrorOverlayWindow: NSPanel {
             )
         }
 
-        // Restore cursor position after all Slack measurements are complete
+        // Restore cursor position after all Chromium measurements are complete
         // This must be called AFTER all positioning calculations are done
-        SlackStrategy.restoreCursorPosition()
+        ChromiumStrategy.restoreCursorPosition()
 
         Logger.info("ErrorOverlay: Created \(underlines.count) underlines from \(errors.count) errors (skipped \(skippedCount) positioning, \(skippedDueToVisibility) not visible)")
 

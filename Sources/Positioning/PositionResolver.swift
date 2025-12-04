@@ -39,7 +39,7 @@ class PositionResolver {
         // as they interfere with typing (manipulate cursor/selection)
         let strategies: [GeometryProvider] = [
             // Tier: Precise
-            SlackStrategy(),
+            ChromiumStrategy(),
             TextMarkerStrategy(),
             RangeBoundsStrategy(),
 
