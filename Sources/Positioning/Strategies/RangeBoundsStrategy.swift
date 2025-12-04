@@ -14,6 +14,7 @@ import ApplicationServices
 class RangeBoundsStrategy: GeometryProvider {
 
     var strategyName: String { "RangeBounds" }
+    var strategyType: StrategyType { .rangeBounds }
     var tier: StrategyTier { .precise }
     var tierPriority: Int { 20 }
 

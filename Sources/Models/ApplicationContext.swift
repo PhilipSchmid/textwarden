@@ -200,9 +200,11 @@ extension ApplicationContext {
     }
 
     /// Check if this app requires keyboard-based text replacement
-    /// Returns true for Electron apps, Terminal apps, browsers, and Mac Catalyst apps where AX API is known to fail
+    /// Returns true for apps where AX API setValue is known to fail
+    /// Uses AppRegistry's textReplacementMethod setting
     var requiresKeyboardReplacement: Bool {
-        isElectronApp || isTerminalApp || isBrowser || isMacCatalystApp
+        let config = AppRegistry.shared.configuration(for: bundleIdentifier)
+        return config.features.textReplacementMethod == .browserStyle || isMacCatalystApp
     }
 
     /// Known Mac Catalyst apps (iOS apps running on macOS)

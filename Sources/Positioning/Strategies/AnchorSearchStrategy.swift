@@ -17,6 +17,7 @@ import ApplicationServices
 class AnchorSearchStrategy: GeometryProvider {
 
     var strategyName: String { "AnchorSearch" }
+    var strategyType: StrategyType { .anchorSearch }
     var tier: StrategyTier { .reliable }
     var tierPriority: Int { 30 }
 

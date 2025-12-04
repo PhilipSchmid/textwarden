@@ -14,8 +14,9 @@ import ApplicationServices
 class TextMarkerStrategy: GeometryProvider {
 
     var strategyName: String { "TextMarker" }
+    var strategyType: StrategyType { .textMarker }
     var tier: StrategyTier { .precise }
-    var tierPriority: Int { 1 }  // TESTING: Run first to see TextMarker results on Slack
+    var tierPriority: Int { 1 }
 
     func canHandle(element: AXUIElement, bundleID: String) -> Bool {
         // Works best for Electron/Chromium apps

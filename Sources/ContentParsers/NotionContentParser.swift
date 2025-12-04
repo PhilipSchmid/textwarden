@@ -30,13 +30,6 @@ class NotionContentParser: ContentParser {
     private static var diagnosticResult: NotionDiagnosticResult?
     private static var hasRunDiagnostic = false
 
-    /// Supported Notion bundle identifiers
-    static let supportedBundleIDs: Set<String> = [
-        "notion.id",           // Main Notion app
-        "com.notion.id",       // Alternative
-        "com.notion.desktop"   // Desktop variant
-    ]
-
     /// UI elements that Notion includes in AX text but should be filtered
     /// These are detected via exact match or prefix matching
     private static let notionUIElements: [String] = [

@@ -60,6 +60,7 @@ struct ElementScore {
 class ElementTreeStrategy: GeometryProvider {
 
     var strategyName: String { "ElementTree" }
+    var strategyType: StrategyType { .elementTree }
     var tier: StrategyTier { .reliable }
     var tierPriority: Int { 5 }
 

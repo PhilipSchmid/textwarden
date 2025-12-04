@@ -16,6 +16,7 @@ import ApplicationServices
 class OriginStrategy: GeometryProvider {
 
     var strategyName: String { "Origin" }
+    var strategyType: StrategyType { .origin }
     var tier: StrategyTier { .reliable }
     var tierPriority: Int { 20 }
 

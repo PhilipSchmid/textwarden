@@ -32,22 +32,28 @@ class TextMonitor: ObservableObject {
     /// Extended debounce for Chromium apps that require delayed positioning
     /// Slack and other Chromium apps need cursor manipulation for accurate positioning,
     /// which can only happen after typing stops. Longer debounce = less cursor interference.
-    private let chromiumDebounceInterval: TimeInterval = 1.5  // 1.5s for Chromium apps
+    private let chromiumDebounceInterval: TimeInterval = 1.0  // 1s for Chromium/Electron apps
 
     /// Get the appropriate debounce interval for the current app
     private var debounceInterval: TimeInterval {
         guard let bundleID = currentContext?.bundleIdentifier else {
             return defaultDebounceInterval
         }
-        // Use longer debounce for Slack to allow accurate positioning without cursor interference
-        if bundleID == "com.tinyspeck.slackmacgap" {
+
+        // Use AppRegistry to determine if app needs typing pause
+        let appConfig = AppRegistry.shared.configuration(for: bundleID)
+        if appConfig.features.requiresTypingPause {
             return chromiumDebounceInterval
         }
+
         return defaultDebounceInterval
     }
 
-    /// Callback for text changes
+    /// Callback for text changes (after debounce)
     var onTextChange: ((String, ApplicationContext) -> Void)?
+
+    /// Callback for immediate text changes (before debounce) - used to hide overlays immediately
+    var onImmediateTextChange: ((String, ApplicationContext) -> Void)?
 
     /// Retry scheduler for accessibility API operations
     private let retryScheduler = RetryScheduler(config: .accessibilityAPI)
@@ -225,7 +231,7 @@ class TextMonitor: ObservableObject {
         // For browsers, skip UI elements like search fields, URL bars, find-in-page
         // These are not meaningful for grammar checking - we want actual web content
         if let bundleId = currentContext?.bundleIdentifier,
-           BrowserContentParser.supportedBrowsers.contains(bundleId) {
+           AppRegistry.shared.configuration(for: bundleId).parserType == .browser {
             if BrowserContentParser.isBrowserUIElement(element) {
                 Logger.debug("TextMonitor: Skipping browser UI element (not web content)", category: Logger.accessibility)
                 // Clear any existing monitoring and notify to hide overlays
@@ -377,14 +383,24 @@ class TextMonitor: ObservableObject {
 
     /// Handle text change with debouncing (T036)
     private func handleTextChange(_ text: String) {
-        // Notify SlackStrategy about text change for typing detection
+        guard let context = currentContext else { return }
+
+        // IMMEDIATE: Notify about text change right away (before debounce)
+        // This allows hiding overlays immediately when typing starts
+        onImmediateTextChange?(text, context)
+
+        // Notify typing detector for all apps
+        // This enables hiding underlines during typing for Electron apps (Slack, Notion, etc.)
+        TypingDetector.shared.notifyTextChange()
+
+        // Also notify SlackStrategy for its internal cache/cursor management
         SlackStrategy.notifyTextChange()
 
         // Invalidate existing timer
         debounceTimer?.invalidate()
 
         debounceTimer = Timer.scheduledTimer(withTimeInterval: debounceInterval, repeats: false) { [weak self] _ in
-            guard let self = self, let context = self.currentContext else { return }
+            guard let self = self else { return }
 
             DispatchQueue.main.async {
                 self.currentText = text

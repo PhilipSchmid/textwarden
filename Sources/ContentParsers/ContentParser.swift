@@ -103,11 +103,13 @@ protocol ContentParser {
     ///   - errorRange: NSRange of the error within the text
     ///   - element: AXUIElement containing the text
     ///   - text: Full text content from the element
+    ///   - actualBundleID: Optional actual bundle ID (use when parser's bundleIdentifier differs from runtime bundle)
     /// - Returns: GeometryResult with bounds and confidence information
     func resolvePosition(
         for errorRange: NSRange,
         in element: AXUIElement,
-        text: String
+        text: String,
+        actualBundleID: String?
     ) -> GeometryResult
 }
 
@@ -250,18 +252,20 @@ extension ContentParser {
     ///   - errorRange: NSRange of the error within the text
     ///   - element: AXUIElement containing the text
     ///   - text: Full text content from the element
+    ///   - actualBundleID: Optional actual bundle ID (use when parser's bundleIdentifier differs from runtime bundle)
     /// - Returns: GeometryResult with bounds and confidence information
     func resolvePosition(
         for errorRange: NSRange,
         in element: AXUIElement,
-        text: String
+        text: String,
+        actualBundleID: String? = nil
     ) -> GeometryResult {
         return PositionResolver.shared.resolvePosition(
             for: errorRange,
             in: element,
             text: text,
             parser: self,
-            bundleID: bundleIdentifier
+            bundleID: actualBundleID ?? bundleIdentifier
         )
     }
 }

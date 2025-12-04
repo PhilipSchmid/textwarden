@@ -17,8 +17,9 @@ import Carbon.HIToolbox
 class NavigationStrategy: GeometryProvider {
 
     var strategyName: String { "Navigation" }
-    var tier: StrategyTier { .reliable }  // Promoted - this is key for Chromium apps!
-    var tierPriority: Int { 4 }  // Try before SelectionBounds and FontMetrics
+    var strategyType: StrategyType { .navigation }
+    var tier: StrategyTier { .fallback }
+    var tierPriority: Int { 4 }
 
     // Key codes for arrow keys
     private let kVK_LeftArrow: CGKeyCode = 123

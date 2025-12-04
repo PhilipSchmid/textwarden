@@ -16,6 +16,7 @@ import ApplicationServices
 class LineIndexStrategy: GeometryProvider {
 
     var strategyName: String { "LineIndex" }
+    var strategyType: StrategyType { .lineIndex }
     var tier: StrategyTier { .reliable }
     var tierPriority: Int { 10 }
 

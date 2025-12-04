@@ -2,15 +2,15 @@
 //  PositionResolver.swift
 //  TextWarden
 //
-//  Multi-strategy position resolution engine
-//  Automatically selects best strategy and falls back on failure
+//  Multi-strategy position resolution engine.
+//  Uses AppRegistry to determine which strategies to use for each app.
 //
 
 import Foundation
 import ApplicationServices
 
 /// Position resolution engine with multiple strategies
-/// Automatically tries strategies in priority order until one succeeds
+/// Uses AppRegistry to filter and order strategies per app
 class PositionResolver {
 
     // MARK: - Singleton
@@ -20,7 +20,12 @@ class PositionResolver {
     // MARK: - Properties
 
     private let cache = PositionCache()
-    private var strategies: [GeometryProvider] = []
+
+    /// All available strategies (used as pool for filtering)
+    private var allStrategies: [GeometryProvider] = []
+
+    /// Strategies indexed by type for quick lookup
+    private var strategiesByType: [StrategyType: GeometryProvider] = [:]
 
     // MARK: - Initialization
 
@@ -29,63 +34,82 @@ class PositionResolver {
     }
 
     private func registerStrategies() {
-        strategies = []
-        // Strategies are organized by capability tiers (precise > reliable > estimated > fallback)
-        // Within each tier, lower tierPriority values are tried first
+        // Register all active strategies
+        // Note: SelectionBoundsStrategy and NavigationStrategy have been moved to Legacy/
+        // as they interfere with typing (manipulate cursor/selection)
+        let strategies: [GeometryProvider] = [
+            // Tier: Precise
+            SlackStrategy(),
+            TextMarkerStrategy(),
+            RangeBoundsStrategy(),
 
-        // Tier: Precise - Direct AX bounds that are known to be reliable
-        registerStrategy(SlackStrategy())           // Slack-specific character probing
-        registerStrategy(TextMarkerStrategy())      // Opaque markers (Electron/Chrome)
-        registerStrategy(RangeBoundsStrategy())     // CFRange bounds (native apps)
+            // Tier: Reliable
+            ElementTreeStrategy(),
+            LineIndexStrategy(),
+            OriginStrategy(),
+            AnchorSearchStrategy(),
 
-        // Tier: Reliable - Calculations based on known-good anchors
-        registerStrategy(ElementTreeStrategy())     // Child element traversal (Notion)
-        registerStrategy(LineIndexStrategy())       // Line-based positioning
-        registerStrategy(OriginStrategy())          // Position extraction when dimensions are zero
-        registerStrategy(AnchorSearchStrategy())    // Probe nearby characters for anchor
+            // Tier: Estimated
+            FontMetricsStrategy()
+        ]
 
-        // Tier: Estimated - Font-based measurement
-        registerStrategy(FontMetricsStrategy())     // App-specific font estimation
+        // Store all strategies
+        allStrategies = strategies
 
-        // Tier: Fallback - Last resort methods
-        registerStrategy(SelectionBoundsStrategy()) // Selection manipulation
-        registerStrategy(NavigationStrategy())      // Cursor navigation
+        // Index by type for quick lookup
+        for strategy in strategies {
+            strategiesByType[strategy.strategyType] = strategy
+        }
 
-        // Sort by tier (ascending), then by tierPriority (ascending)
-        strategies.sort { lhs, rhs in
+        // Sort by tier and priority
+        allStrategies.sort { lhs, rhs in
             if lhs.tier != rhs.tier {
                 return lhs.tier < rhs.tier
             }
             return lhs.tierPriority < rhs.tierPriority
         }
 
-        Logger.debug("PositionResolver initialized with \(strategies.count) strategies")
-        Logger.debug("PositionResolver: Initialized with \(strategies.count) strategies", category: Logger.ui)
-        for strategy in strategies {
-            Logger.debug("  Strategy: \(strategy.strategyName) (tier: \(strategy.tier.description), priority: \(strategy.tierPriority))", category: Logger.ui)
+        Logger.debug("PositionResolver: Initialized with \(allStrategies.count) strategies")
+        for strategy in allStrategies {
+            Logger.debug("  Strategy: \(strategy.strategyName) (tier: \(strategy.tier.description), priority: \(strategy.tierPriority))")
         }
     }
 
-    // MARK: - Strategy Registration
+    // MARK: - Strategy Selection
 
-    /// Register a new positioning strategy
-    /// Strategies are automatically sorted by tier and priority
-    func registerStrategy(_ strategy: GeometryProvider) {
-        strategies.append(strategy)
-        strategies.sort { lhs, rhs in
-            if lhs.tier != rhs.tier {
-                return lhs.tier < rhs.tier
+    /// Get strategies for a specific app, filtered and ordered by AppRegistry configuration
+    private func strategiesForApp(bundleID: String) -> [GeometryProvider] {
+        let config = AppRegistry.shared.configuration(for: bundleID)
+
+        // Start with preferred strategies if specified, otherwise use all
+        var orderedStrategies: [GeometryProvider]
+
+        if !config.preferredStrategies.isEmpty {
+            // Use preferred order from configuration
+            orderedStrategies = config.preferredStrategies.compactMap { type in
+                strategiesByType[type]
             }
-            return lhs.tierPriority < rhs.tierPriority
+
+            // Add any remaining strategies not in the preferred list (maintaining tier order)
+            let preferredSet = Set(config.preferredStrategies)
+            let remaining = allStrategies.filter { !preferredSet.contains($0.strategyType) }
+            orderedStrategies.append(contentsOf: remaining)
+        } else {
+            // Use default tier-based ordering
+            orderedStrategies = allStrategies
         }
 
-        Logger.debug("Registered strategy: \(strategy.strategyName) (tier: \(strategy.tier.description))")
+        // Filter out disabled strategies
+        let disabledSet = config.disabledStrategies
+        orderedStrategies = orderedStrategies.filter { !disabledSet.contains($0.strategyType) }
+
+        return orderedStrategies
     }
 
     // MARK: - Position Resolution
 
     /// Resolve position using best available strategy
-    /// Tries each strategy in tier order until one succeeds
+    /// Tries each strategy in order until one succeeds
     /// Returns an "unavailable" result (confidence 0) if text is not visible or all strategies fail
     func resolvePosition(
         for errorRange: NSRange,
@@ -108,7 +132,6 @@ class PositionResolver {
         }
 
         // Check visibility BEFORE attempting positioning
-        // This prevents incorrect underline positioning for text that's scrolled out of view
         if !AccessibilityBridge.isRangeVisible(errorRange, in: element) {
             Logger.debug("PositionResolver: Range \(errorRange) is not visible - skipping positioning")
             return GeometryResult.unavailable(reason: "Range not visible (scrolled out of view)")
@@ -117,15 +140,17 @@ class PositionResolver {
         // Get edit area frame for validation
         let editAreaFrame = AccessibilityBridge.getEditAreaFrame(element)
 
-        // Try each strategy in tier order
+        // Get strategies for this app (filtered and ordered by AppRegistry)
+        let strategies = strategiesForApp(bundleID: bundleID)
+
         Logger.debug("PositionResolver: Trying \(strategies.count) strategies for bundleID: \(bundleID)", category: Logger.ui)
+
         for strategy in strategies {
             Logger.debug("  Trying strategy: \(strategy.strategyName) (tier: \(strategy.tier.description))", category: Logger.ui)
 
-            // Check if strategy can handle this element
+            // Check if strategy can handle this element (technical capability check)
             guard strategy.canHandle(element: element, bundleID: bundleID) else {
-                Logger.debug("PositionResolver: Strategy \(strategy.strategyName) cannot handle bundleID: \(bundleID)")
-                Logger.debug("  Strategy \(strategy.strategyName) cannot handle bundleID: \(bundleID)", category: Logger.ui)
+                Logger.debug("  Strategy \(strategy.strategyName) cannot handle element", category: Logger.ui)
                 continue
             }
 
@@ -138,20 +163,17 @@ class PositionResolver {
                 text: text,
                 parser: parser
             ) {
-                // Check if this is an "unavailable" result - return it immediately
-                // This is used when a strategy wants to signal "don't show underline" without
-                // falling back to other strategies (e.g., during typing when cursor manipulation is unsafe)
+                // Check if this is an "unavailable" result - return immediately
                 if result.isUnavailable {
-                    Logger.debug("PositionResolver: Strategy \(strategy.strategyName) returned unavailable - respecting request to hide underline")
+                    Logger.debug("PositionResolver: Strategy \(strategy.strategyName) returned unavailable")
                     return result
                 }
 
                 // Validate bounds are within edit area
                 if let editArea = editAreaFrame {
-                    // Convert result bounds to Quartz for comparison (editArea is in Quartz)
                     let quartzBounds = CoordinateMapper.toQuartzCoordinates(result.bounds)
                     if !AccessibilityBridge.validateBoundsWithinEditArea(quartzBounds, editAreaFrame: editArea) {
-                        Logger.debug("PositionResolver: Strategy \(strategy.strategyName) bounds outside edit area - trying next strategy")
+                        Logger.debug("PositionResolver: Strategy \(strategy.strategyName) bounds outside edit area")
                         continue
                     }
                 }
@@ -159,9 +181,7 @@ class PositionResolver {
                 Logger.debug("PositionResolver: Strategy \(strategy.strategyName) succeeded with confidence \(result.confidence)")
                 Logger.debug("  Strategy \(strategy.strategyName) SUCCEEDED with confidence \(result.confidence)", category: Logger.ui)
 
-                // Cache successful result (unless strategy opts out via metadata)
-                // Strategies with their own caching (like SlackStrategy) should opt out
-                // to avoid double-caching and stale data issues
+                // Cache successful result (unless strategy opts out)
                 let skipCache = result.metadata["skip_resolver_cache"] as? Bool ?? false
                 if !skipCache {
                     cache.store(result, for: cacheKey)
@@ -169,48 +189,18 @@ class PositionResolver {
 
                 return result
             } else {
-                Logger.debug("PositionResolver: Strategy \(strategy.strategyName) failed")
                 Logger.debug("  Strategy \(strategy.strategyName) FAILED", category: Logger.ui)
             }
         }
 
         // Graceful degradation - don't show underline rather than show it wrong
-        Logger.warning("PositionResolver: All strategies failed for range \(errorRange) - using graceful degradation")
-
-        // Return an "unavailable" result that tells the UI not to show an underline
-        // This is better than showing an underline in the wrong position
+        Logger.warning("PositionResolver: All strategies failed for range \(errorRange)")
         return GeometryResult.unavailable(reason: "All positioning strategies failed")
-    }
-
-    // MARK: - Fallback
-
-    private func createFallbackResult(
-        errorRange: NSRange,
-        element: AXUIElement,
-        text: String
-    ) -> GeometryResult {
-        // Very rough estimation
-        if let estimatedBounds = AccessibilityBridge.estimatePosition(
-            at: errorRange.location,
-            in: element
-        ) {
-            return GeometryResult.lowConfidence(
-                bounds: estimatedBounds,
-                reason: "All positioning strategies failed"
-            )
-        }
-
-        // Ultimate fallback - center of screen
-        return GeometryResult.lowConfidence(
-            bounds: CGRect(x: 400, y: 400, width: 100, height: 20),
-            reason: "Complete positioning failure, using screen center"
-        )
     }
 
     // MARK: - Cache Management
 
     /// Clear position cache
-    /// Useful when app switches or text field changes
     func clearCache() {
         cache.clear()
     }
@@ -218,5 +208,14 @@ class PositionResolver {
     /// Get cache statistics
     func cacheStatistics() -> CacheStatistics {
         return cache.statistics()
+    }
+
+    // MARK: - Debugging
+
+    /// Get strategies that would be used for a bundle ID (for debugging)
+    func debugStrategiesFor(bundleID: String) -> [(name: String, type: StrategyType, tier: StrategyTier)] {
+        return strategiesForApp(bundleID: bundleID).map {
+            (name: $0.strategyName, type: $0.strategyType, tier: $0.tier)
+        }
     }
 }

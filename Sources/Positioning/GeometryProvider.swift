@@ -47,6 +47,9 @@ protocol GeometryProvider {
     /// Strategy name for debugging and logging
     var strategyName: String { get }
 
+    /// Strategy type identifier for configuration matching
+    var strategyType: StrategyType { get }
+
     /// Capability tier - determines execution order
     /// Strategies in lower tiers (precise) are tried before higher tiers (fallback)
     var tier: StrategyTier { get }
@@ -56,7 +59,8 @@ protocol GeometryProvider {
     var tierPriority: Int { get }
 
     /// Check if this strategy can handle the given element
-    /// Allows strategies to opt-out based on app type or element capabilities
+    /// Note: App-specific filtering is handled by AppRegistry - this should check
+    /// technical capabilities only (e.g., whether AX APIs are available)
     func canHandle(element: AXUIElement, bundleID: String) -> Bool
 
     /// Calculate position geometry for error range

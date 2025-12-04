@@ -412,6 +412,100 @@ No additional code changes needed - the model ID is tracked automatically.
 
 ---
 
+## Adding Application Support
+
+TextWarden uses a centralized `AppConfiguration` system to define app-specific behavior. To add support for a new application:
+
+### 1. Add Configuration to AppRegistry
+
+Edit `Sources/AppConfiguration/AppRegistry.swift`:
+
+```swift
+// Add a new static configuration
+static let myNewApp = AppConfiguration(
+    identifier: "mynewapp",
+    displayName: "My New App",
+    bundleIDs: ["com.example.mynewapp"],
+    category: .electron,  // .native, .electron, .browser, .terminal, or .custom
+    parserType: .generic, // Use existing parser or create new one
+    fontConfig: FontConfig(
+        defaultSize: 14,
+        fontFamily: nil,
+        spacingMultiplier: 1.0
+    ),
+    horizontalPadding: 8
+    // Omit other fields to use category defaults
+)
+
+// Register in registerBuiltInConfigurations()
+private func registerBuiltInConfigurations() {
+    register(.slack)
+    register(.browsers)
+    register(.notion)
+    register(.terminals)
+    register(.myNewApp)  // Add this line
+}
+```
+
+### 2. Choose the Right Category
+
+| Category | Use For | Default Behavior |
+|----------|---------|------------------|
+| `.native` | Standard macOS apps (TextEdit, Notes) | Standard AX APIs, underlines enabled, standard text replacement |
+| `.electron` | Electron apps (Slack, Notion, VSCode) | TextMarker strategy, keyboard-based text replacement |
+| `.browser` | Web browsers (Chrome, Safari) | Underlines disabled, keyboard-based text replacement |
+| `.terminal` | Terminal emulators | Underlines disabled, prompt detection |
+| `.custom` | Apps needing unique handling | All strategies enabled |
+
+### 3. Configure Text Replacement Method
+
+The `textReplacementMethod` in `AppFeatures` controls how corrections are applied:
+
+| Method | Use When | How It Works |
+|--------|----------|--------------|
+| `.standard` | AX API works reliably | Uses `AXUIElementSetAttributeValue` directly |
+| `.browserStyle` | AX API fails silently | Selects text, copies to clipboard, pastes replacement |
+
+Most Electron and browser apps need `.browserStyle` because their AX API accepts setValue calls but doesn't actually update the DOM.
+
+### 4. Optional: Create Custom Parser
+
+If the app needs special text handling, create a new parser in `Sources/ContentParsers/`:
+
+```swift
+class MyNewAppContentParser: ContentParser {
+    let bundleIdentifier: String
+    let parserName = "MyNewApp"
+
+    private var config: AppConfiguration {
+        AppRegistry.shared.configuration(for: bundleIdentifier)
+    }
+
+    // Implement ContentParser protocol methods...
+}
+```
+
+Then add the parser type to `AppConfiguration.swift` and `ContentParserFactory.swift`.
+
+### 5. Find Bundle Identifier
+
+To find an app's bundle identifier:
+
+```bash
+osascript -e 'id of app "AppName"'
+# or
+mdls -name kMDItemCFBundleIdentifier /Applications/AppName.app
+```
+
+### 6. Test
+
+```bash
+make ci-check  # Verify build
+# Run app and test in the new application
+```
+
+---
+
 ## Performance Profiling
 
 ### Profile with Instruments
