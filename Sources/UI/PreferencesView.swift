@@ -1967,19 +1967,25 @@ struct GeneralPreferencesView: View {
             }
 
             Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Thickness:")
-                        Spacer()
-                        Text(String(format: "%.1fpt", preferences.underlineThickness))
-                            .foregroundColor(.secondary)
-                    }
-                    Slider(value: $preferences.underlineThickness, in: 1.0...5.0, step: 0.5)
+                Toggle("Show error underlines", isOn: $preferences.showUnderlines)
+                    .help("Show wavy underlines beneath spelling and grammar errors")
 
-                    Text("Adjust the thickness of error underlines")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                if preferences.showUnderlines {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Thickness:")
+                            Spacer()
+                            Text(String(format: "%.1fpt", preferences.underlineThickness))
+                                .foregroundColor(.secondary)
+                        }
+                        Slider(value: $preferences.underlineThickness, in: 1.0...5.0, step: 0.5)
+                    }
+                    .padding(.top, 4)
                 }
+
+                Text("Underlines are only shown in applications with proper accessibility API support (e.g., native macOS apps, Slack, Notion). Some apps like Microsoft Teams and web browsers don't provide accurate text positioning, so only the floating error indicator is used.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             } header: {
                 Text("Underlines")
                     .font(.headline)

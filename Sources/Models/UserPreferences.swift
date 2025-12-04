@@ -448,6 +448,13 @@ class UserPreferences: ObservableObject {
         "Dark"
     ]
 
+    /// Whether to show error underlines (global toggle)
+    @Published var showUnderlines: Bool {
+        didSet {
+            defaults.set(showUnderlines, forKey: Keys.showUnderlines)
+        }
+    }
+
     /// Error underline thickness (1.0 to 5.0)
     @Published var underlineThickness: Double {
         didSet {
@@ -589,6 +596,7 @@ class UserPreferences: ObservableObject {
         self.suggestionPosition = "Auto"
         self.appTheme = "System"
         self.overlayTheme = "System"
+        self.showUnderlines = true
         self.underlineThickness = 3.0
         self.indicatorPosition = "Bottom Right"
 
@@ -700,6 +708,7 @@ class UserPreferences: ObservableObject {
         } else {
             self.overlayTheme = "System"
         }
+        self.showUnderlines = defaults.object(forKey: Keys.showUnderlines) as? Bool ?? true
         self.underlineThickness = defaults.object(forKey: Keys.underlineThickness) as? Double ?? 3.0
         self.indicatorPosition = defaults.string(forKey: Keys.indicatorPosition) ?? "Bottom Right"
 
@@ -1047,6 +1056,7 @@ class UserPreferences: ObservableObject {
         suggestionPosition = "Auto"
         appTheme = "System"
         overlayTheme = "System"
+        showUnderlines = true
         underlineThickness = 3.0
         indicatorPosition = "Bottom Right"
     }
@@ -1089,6 +1099,7 @@ class UserPreferences: ObservableObject {
         static let suggestionPosition = "suggestionPosition"
         static let appTheme = "appTheme"
         static let overlayTheme = "overlayTheme"
+        static let showUnderlines = "showUnderlines"
         static let underlineThickness = "underlineThickness"
         static let indicatorPosition = "indicatorPosition"
 
