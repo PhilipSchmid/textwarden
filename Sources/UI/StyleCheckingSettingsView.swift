@@ -42,6 +42,19 @@ struct StyleCheckingSettingsView: View {
             }
 
             if preferences.enableStyleChecking {
+                // MARK: - Auto Check Section
+                Section {
+                    Toggle(isOn: $preferences.autoStyleChecking) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Automatic Style Checks")
+                            Text("Run style analysis automatically while typing. When disabled, use the keyboard shortcut to trigger checks manually.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .toggleStyle(.switch)
+                }
+
                 // MARK: - Writing Style Section
                 Section {
                     // Custom segmented control with tooltips

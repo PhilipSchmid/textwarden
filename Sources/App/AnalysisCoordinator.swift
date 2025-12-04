@@ -1400,13 +1400,16 @@ class AnalysisCoordinator: ObservableObject {
         let segmentContent = segment.content
 
         // Detailed logging for style checking eligibility
+        // Auto style checking requires both enableStyleChecking AND autoStyleChecking
+        // Manual style checks (via shortcut) only require enableStyleChecking
         let styleCheckingEnabled = UserPreferences.shared.enableStyleChecking
+        let autoStyleChecking = UserPreferences.shared.autoStyleChecking
         let llmInitialized = LLMEngine.shared.isInitialized
         let modelLoaded = LLMEngine.shared.isModelLoaded()
         let loadedModelId = LLMEngine.shared.getLoadedModelId()
-        let runStyleChecking = styleCheckingEnabled && llmInitialized && modelLoaded
+        let runStyleChecking = styleCheckingEnabled && autoStyleChecking && llmInitialized && modelLoaded
 
-        Logger.info("AnalysisCoordinator: Style check eligibility - enabled=\(styleCheckingEnabled), llmInit=\(llmInitialized), modelLoaded=\(modelLoaded), modelId='\(loadedModelId)', willRun=\(runStyleChecking)", category: Logger.llm)
+        Logger.info("AnalysisCoordinator: Style check eligibility - enabled=\(styleCheckingEnabled), auto=\(autoStyleChecking), llmInit=\(llmInitialized), modelLoaded=\(modelLoaded), modelId='\(loadedModelId)', willRun=\(runStyleChecking)", category: Logger.llm)
 
         // ========== GRAMMAR ANALYSIS (immediate) ==========
         // Grammar analysis runs independently and updates UI as soon as it completes
