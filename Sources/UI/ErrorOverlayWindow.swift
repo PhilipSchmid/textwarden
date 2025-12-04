@@ -199,6 +199,14 @@ class ErrorOverlayWindow: NSPanel {
             return 0
         }
 
+        // Check global underlines toggle first
+        if !UserPreferences.shared.showUnderlines {
+            Logger.info("ErrorOverlay: Underlines globally disabled in preferences - skipping")
+            hide()
+            return 0
+        }
+
+        // Check per-app underlines setting
         let underlinesDisabled = !appConfig.features.visualUnderlinesEnabled
         Logger.info("ErrorOverlay: Using parser '\(parser.parserName)' for bundleID '\(bundleID)', underlinesDisabled=\(underlinesDisabled)")
 
