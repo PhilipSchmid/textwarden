@@ -243,13 +243,30 @@ enum AccessibilityBridge {
             Logger.debug("  Could not get text for marker range", category: Logger.accessibility)
         }
 
-        // CRITICAL: Pass markers as a simple array
-        // Some Electron apps (like Slack) expect a CFArray, not a special AXTextMarkerRange object
-        Logger.debug("  Creating marker range as CFArray [startMarker, endMarker]...", category: Logger.accessibility)
+        // Method 1: Use AXTextMarkerRangeForUnorderedTextMarkers API to create proper range
+        Logger.info("  Trying AXTextMarkerRangeForUnorderedTextMarkers to create proper range...", category: Logger.accessibility)
 
-        let markerRange = [startMarker, endMarker] as CFArray
+        let markerPair = [startMarker, endMarker] as CFArray
+        var rangeValue: CFTypeRef?
 
-        Logger.debug("  Created marker range array", category: Logger.accessibility)
+        let rangeResult = AXUIElementCopyParameterizedAttributeValue(
+            element,
+            "AXTextMarkerRangeForUnorderedTextMarkers" as CFString,
+            markerPair,
+            &rangeValue
+        )
+
+        Logger.info("  AXTextMarkerRangeForUnorderedTextMarkers result: \(rangeResult.rawValue)", category: Logger.accessibility)
+
+        var markerRange: CFTypeRef
+        if rangeResult == .success, let properRange = rangeValue {
+            Logger.info("  ✓ Created proper marker range via AXTextMarkerRangeForUnorderedTextMarkers", category: Logger.accessibility)
+            markerRange = properRange
+        } else {
+            // Fallback: Pass markers as simple array (some apps accept this)
+            Logger.info("  AXTextMarkerRangeForUnorderedTextMarkers failed (\(rangeResult.rawValue)), using array fallback", category: Logger.accessibility)
+            markerRange = markerPair
+        }
 
         var boundsValue: CFTypeRef?
         Logger.debug("  Calling AXUIElementCopyParameterizedAttributeValue with AXBoundsForTextMarkerRange...", category: Logger.accessibility)
@@ -1054,4 +1071,71 @@ struct ChildBoundsInfo {
     let role: String
     let frame: CGRect
     let textPreview: String?
+}
+
+// MARK: - InsertionPointFrame Strategy
+
+extension AccessibilityBridge {
+
+    /// Get AXInsertionPointFrame for current cursor position
+    /// Works in Chromium when AXBoundsForRange fails
+    static func getInsertionPointFrame(_ element: AXUIElement) -> CGRect? {
+        var value: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(
+            element,
+            "AXInsertionPointFrame" as CFString,
+            &value
+        )
+
+        guard result == .success, let axValue = value else {
+            Logger.debug("AccessibilityBridge: AXInsertionPointFrame failed with error \(result.rawValue)")
+            return nil
+        }
+
+        guard let rect = safeAXValueGetRect(axValue) else {
+            Logger.debug("AccessibilityBridge: Could not extract CGRect from AXInsertionPointFrame")
+            return nil
+        }
+
+        return rect
+    }
+
+    /// Get current selection range
+    static func getSelectedTextRange(_ element: AXUIElement) -> CFRange? {
+        var value: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(
+            element,
+            kAXSelectedTextRangeAttribute as CFString,
+            &value
+        )
+
+        guard result == .success, let axValue = value else {
+            return nil
+        }
+
+        return safeAXValueGetRange(axValue)
+    }
+
+    /// Set selection range - used for cursor-based positioning
+    /// Returns true if successful
+    static func setSelectedTextRange(_ element: AXUIElement, location: Int, length: Int = 0) -> Bool {
+        var range = CFRange(location: location, length: length)
+        guard let rangeValue = AXValueCreate(.cfRange, &range) else {
+            Logger.debug("AccessibilityBridge: Failed to create CFRange value")
+            return false
+        }
+
+        let result = AXUIElementSetAttributeValue(
+            element,
+            kAXSelectedTextRangeAttribute as CFString,
+            rangeValue
+        )
+
+        if result != .success {
+            Logger.debug("AccessibilityBridge: Failed to set selection range, error \(result.rawValue)")
+        }
+
+        return result == .success
+    }
+
 }

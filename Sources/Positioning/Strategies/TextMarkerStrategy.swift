@@ -15,7 +15,7 @@ class TextMarkerStrategy: GeometryProvider {
 
     var strategyName: String { "TextMarker" }
     var tier: StrategyTier { .precise }
-    var tierPriority: Int { 10 }
+    var tierPriority: Int { 1 }  // TESTING: Run first to see TextMarker results on Slack
 
     func canHandle(element: AXUIElement, bundleID: String) -> Bool {
         // Works best for Electron/Chromium apps

@@ -161,7 +161,20 @@ class AnalysisCoordinator: ObservableObject {
         setupPopoverCallbacks()
         setupOverlayCallbacks()
         setupScrollWheelMonitor()
+        setupSlackTypingCallback()
         // Window position monitoring will be started when we begin monitoring an app
+    }
+
+    /// Setup callback to hide underlines immediately when typing starts in Slack
+    private func setupSlackTypingCallback() {
+        SlackStrategy.onTypingStarted = { [weak self] in
+            guard let self = self else { return }
+            // Only hide if we're monitoring Slack
+            if self.textMonitor.currentContext?.bundleIdentifier == "com.tinyspeck.slackmacgap" {
+                Logger.debug("AnalysisCoordinator: Hiding underlines due to typing in Slack", category: Logger.ui)
+                self.errorOverlay.hide()
+            }
+        }
     }
 
     deinit {
