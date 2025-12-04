@@ -21,6 +21,7 @@ import ApplicationServices
 class SlackStrategy: GeometryProvider {
 
     var strategyName: String { "Slack" }
+    var strategyType: StrategyType { .slack }
     var tier: StrategyTier { .precise }
     var tierPriority: Int { 5 }
 
@@ -37,7 +38,7 @@ class SlackStrategy: GeometryProvider {
     private static var textFirstSeenTime: Date = .distantPast
 
     /// Minimum time text must be stable before measuring (avoids cursor interference during typing)
-    private static let typingPauseThreshold: TimeInterval = 1.5
+    private static let typingPauseThreshold: TimeInterval = 1.0
 
     // MARK: - Cursor Restoration State
 

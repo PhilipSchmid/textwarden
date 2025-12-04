@@ -16,8 +16,15 @@ class SlackContentParser: ContentParser {
     let bundleIdentifier = "com.tinyspeck.slackmacgap"
     let parserName = "Slack"
 
-    /// Keep underlines visible for development - we're implementing Slack-specific strategies
-    var disablesVisualUnderlines: Bool { false }
+    /// Cached configuration from AppRegistry
+    private var config: AppConfiguration {
+        AppRegistry.shared.configuration(for: bundleIdentifier)
+    }
+
+    /// Visual underlines enabled/disabled from AppConfiguration
+    var disablesVisualUnderlines: Bool {
+        return !config.features.visualUnderlinesEnabled
+    }
 
     /// Diagnostic result from probing Slack's AX capabilities
     private static var diagnosticResult: NotionDiagnosticResult?
@@ -68,41 +75,41 @@ class SlackContentParser: ContentParser {
     }
 
     func estimatedFontSize(context: String?) -> CGFloat {
-        // Slack uses consistent 15pt font across all UI contexts
-        return 15.0
+        // Use font size from AppConfiguration
+        return config.fontConfig.defaultSize
     }
 
     func spacingMultiplier(context: String?) -> CGFloat {
-        // Slack's Chromium renderer uses Lato font which renders slightly narrower than macOS system font
-        // Empirically tuned: 0.97 provides best alignment for most text
+        // Base multiplier from AppConfiguration, with context-specific adjustments
+        let baseMultiplier = config.fontConfig.spacingMultiplier
         guard let ctx = context else {
-            return 0.97
+            return baseMultiplier
         }
 
         let slackContext = SlackContext(rawValue: ctx) ?? .unknown
 
         switch slackContext {
-        case .messageInput, .threadReply, .editMessage:
-            return 0.97
+        case .messageInput, .threadReply, .editMessage, .unknown:
+            return baseMultiplier
         case .searchBar:
-            return 0.98
-        case .unknown:
-            return 0.97
+            return baseMultiplier + 0.01  // Slightly wider for search bar
         }
     }
 
     func horizontalPadding(context: String?) -> CGFloat {
+        // Base padding from AppConfiguration, with context-specific adjustments
+        let basePadding = config.horizontalPadding
         guard let ctx = context else {
-            return 12.0
+            return basePadding
         }
 
         let slackContext = SlackContext(rawValue: ctx) ?? .unknown
 
         switch slackContext {
         case .searchBar:
-            return 16.0
+            return basePadding + 4.0  // Extra padding for search bar
         default:
-            return 12.0
+            return basePadding
         }
     }
 

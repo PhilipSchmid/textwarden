@@ -2,21 +2,23 @@
 //  ApplicationConfiguration.swift
 //  TextWarden
 //
-//  Application-specific configuration (timing, fonts, layout)
-//  Separated from ApplicationContext to follow Single Responsibility Principle
+//  Application-specific configuration for text replacement and rendering.
+//  Uses AppRegistry as the source of truth for app categorization.
 //
 
 import Foundation
 import AppKit
 
 /// Provides app-specific configuration for text replacement and rendering
-/// This class handles all tunable parameters that vary by application
+/// Uses AppRegistry for app categorization, adds timing-specific configuration
 class ApplicationConfiguration {
 
     // MARK: - Keyboard Operation Timing
 
     /// Get recommended timing delay for keyboard operations (in seconds)
+    /// Based on app category with app-specific overrides for known slow apps
     static func keyboardOperationDelay(for bundleIdentifier: String) -> TimeInterval {
+        // App-specific overrides for known timing requirements
         switch bundleIdentifier {
         case "com.tinyspeck.slackmacgap":
             // Slack needs longer delays due to React rendering
@@ -24,28 +26,23 @@ class ApplicationConfiguration {
         case "com.hnc.Discord":
             // Discord is also React-based
             return 0.15
-        case "com.microsoft.VSCode":
-            // VS Code is faster
-            return 0.08
-        case "com.google.Chrome", "com.google.Chrome.beta", "com.brave.Browser":
-            // Chromium browsers need moderate delays for contenteditable areas
-            return 0.10
-        case "notion.id":
-            // Notion is Electron/Chromium-based, needs moderate delay
-            return 0.10
-        case "com.apple.Safari":
-            // Safari is generally faster
-            return 0.08
         case "org.mozilla.firefox", "org.mozilla.firefoxdeveloperedition":
             // Firefox has known issues, use longer delay
             return 0.12
         default:
-            // Default delay based on app type
-            if isElectronApp(bundleIdentifier) {
-                return 0.1
-            } else if isBrowser(bundleIdentifier) {
-                return 0.10
-            }
+            break
+        }
+
+        // Use AppRegistry category for default timing
+        let config = AppRegistry.shared.configuration(for: bundleIdentifier)
+        switch config.category {
+        case .electron:
+            return 0.10
+        case .browser:
+            return 0.10
+        case .terminal:
+            return 0.05
+        case .native, .custom:
             return 0.05
         }
     }
@@ -53,52 +50,27 @@ class ApplicationConfiguration {
     // MARK: - Font and Rendering
 
     /// Estimated font size for text measurement (heuristic-based)
-    /// Used when AX API bounds are unavailable or implausible
+    /// Delegates to AppRegistry configuration
     static func estimatedFontSize(for bundleIdentifier: String) -> CGFloat {
-        switch bundleIdentifier {
-        case "com.tinyspeck.slackmacgap":
-            return 15.0
-        case "com.hnc.Discord":
-            return 15.0
-        case "com.microsoft.VSCode":
-            return 14.0
-        default:
-            return isElectronApp(bundleIdentifier) ? 15.0 : 13.0
-        }
+        let config = AppRegistry.shared.configuration(for: bundleIdentifier)
+        return config.fontConfig.defaultSize
     }
 
     /// Character width correction factor (per character)
     /// Accounts for cumulative rendering differences between NSFont measurement
     /// and actual app rendering. Applied as: measuredWidth - (charCount * correction)
     static func characterWidthCorrection(for bundleIdentifier: String) -> CGFloat {
-        switch bundleIdentifier {
-        case "com.tinyspeck.slackmacgap":
-            // Disable correction - use raw NSFont measurement
-            // Font measurement appears more accurate than expected
-            return 0.0
-        case "com.hnc.Discord":
-            return 0.0
-        default:
-            return 0.0
-        }
+        // Currently disabled for all apps - raw NSFont measurement is accurate enough
+        return 0.0
     }
 
     // MARK: - Layout and Padding
 
     /// Horizontal padding inside text input elements
-    /// Used for estimation when AX API fails
+    /// Delegates to AppRegistry configuration
     static func estimatedLeftPadding(for bundleIdentifier: String) -> CGFloat {
-        switch bundleIdentifier {
-        case "com.tinyspeck.slackmacgap":
-            // Slack's message input has approximately 12px left padding
-            return 12.0
-        case "com.hnc.Discord":
-            return 12.0
-        case "com.microsoft.VSCode":
-            return 10.0
-        default:
-            return isElectronApp(bundleIdentifier) ? 12.0 : 8.0
-        }
+        let config = AppRegistry.shared.configuration(for: bundleIdentifier)
+        return config.horizontalPadding
     }
 
     // MARK: - Feature Support
@@ -106,47 +78,14 @@ class ApplicationConfiguration {
     /// Check if this app supports format-preserving replacements
     /// Future feature: preserve bold/italic/links when replacing text
     static func supportsFormatPreservation(for bundleIdentifier: String) -> Bool {
-        // For now, only native macOS apps support this
-        return !isElectronApp(bundleIdentifier) && !isChromiumBased(bundleIdentifier)
+        let config = AppRegistry.shared.configuration(for: bundleIdentifier)
+        return config.features.supportsFormattedText
     }
 
-    // MARK: - Private Helpers
-
-    /// Check if bundle identifier is an Electron app
-    private static func isElectronApp(_ bundleIdentifier: String) -> Bool {
-        let electronApps: Set<String> = [
-            "com.tinyspeck.slackmacgap",
-            "com.hnc.Discord",
-            "com.microsoft.VSCode",
-            "com.electron.app",
-            "com.github.GitHubClient",
-            "com.microsoft.teams",
-            "com.notion.desktop"
-        ]
-        return electronApps.contains(bundleIdentifier) || bundleIdentifier.contains("electron")
-    }
-
-    /// Check if bundle identifier is a Chromium-based browser
-    private static func isChromiumBased(_ bundleIdentifier: String) -> Bool {
-        let chromiumApps: Set<String> = [
-            "com.google.Chrome",
-            "com.google.Chrome.beta",
-            "com.microsoft.edgemac",
-            "com.brave.Browser",
-            "com.vivaldi.Vivaldi",
-            "org.chromium.Chromium"
-        ]
-        return chromiumApps.contains(bundleIdentifier) || bundleIdentifier.contains("chromium")
-    }
-
-    /// Check if bundle identifier is a browser (Chromium or otherwise)
-    private static func isBrowser(_ bundleIdentifier: String) -> Bool {
-        let browserApps: Set<String> = [
-            "com.apple.Safari",
-            "org.mozilla.firefox",
-            "org.mozilla.firefoxdeveloperedition",
-            "com.operasoftware.Opera"
-        ]
-        return isChromiumBased(bundleIdentifier) || browserApps.contains(bundleIdentifier)
+    /// Check if this app requires keyboard-based text replacement
+    /// Returns true for apps where AX API setValue is known to fail
+    static func requiresKeyboardReplacement(for bundleIdentifier: String) -> Bool {
+        let config = AppRegistry.shared.configuration(for: bundleIdentifier)
+        return config.features.textReplacementMethod != .standard
     }
 }

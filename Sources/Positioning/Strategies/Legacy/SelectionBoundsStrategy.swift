@@ -18,8 +18,9 @@ import AppKit
 class SelectionBoundsStrategy: GeometryProvider {
 
     var strategyName: String { "SelectionBounds" }
-    var tier: StrategyTier { .reliable }  // Promoted from fallback - this is key for Chromium!
-    var tierPriority: Int { 5 }  // Try before FontMetrics
+    var strategyType: StrategyType { .selectionBounds }
+    var tier: StrategyTier { .fallback }
+    var tierPriority: Int { 5 }
 
     func canHandle(element: AXUIElement, bundleID: String) -> Bool {
         // DISABLED: This strategy manipulates cursor position which interferes with typing.

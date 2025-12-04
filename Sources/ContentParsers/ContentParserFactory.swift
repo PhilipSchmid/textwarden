@@ -2,67 +2,81 @@
 //  ContentParserFactory.swift
 //  TextWarden
 //
-//  Factory for creating app-specific content parsers
-//  Extensible architecture for adding new app support
+//  Factory for creating app-specific content parsers.
+//  Uses AppRegistry as the source of truth for parser selection.
 //
 
 import Foundation
 
 /// Factory for creating app-specific content parsers
-class ContentParserFactory {
+final class ContentParserFactory {
+
     /// Shared singleton instance
     static let shared = ContentParserFactory()
 
-    /// Registry of parsers by bundle identifier
-    private var parsers: [String: ContentParser] = [:]
+    /// Parser instances by type
+    private let parsersByType: [ParserType: ContentParser]
+
+    /// Cached parsers by bundle ID for quick lookup
+    private var parserCache: [String: ContentParser] = [:]
 
     private init() {
-        // Register known parsers
-        registerParser(SlackContentParser())
+        // Initialize one instance of each parser type
+        parsersByType = [
+            .generic: GenericContentParser(bundleIdentifier: "default"),
+            .slack: SlackContentParser(),
+            .browser: BrowserContentParser(bundleIdentifier: "browser"),
+            .notion: NotionContentParser(bundleIdentifier: "notion"),
+            .terminal: TerminalContentParser(bundleIdentifier: "terminal")
+        ]
 
-        // Register terminal parsers for all supported terminal apps
-        for (bundleID, _) in TerminalContentParser.supportedTerminals {
-            registerParser(TerminalContentParser(bundleIdentifier: bundleID))
-        }
-
-        // Register browser parsers for all supported browsers
-        for bundleID in BrowserContentParser.supportedBrowsers {
-            registerParser(BrowserContentParser(bundleIdentifier: bundleID))
-        }
-
-        // Register Notion parser for all Notion bundle IDs
-        for bundleID in NotionContentParser.supportedBundleIDs {
-            registerParser(NotionContentParser(bundleIdentifier: bundleID))
-        }
-    }
-
-    /// Register a content parser
-    /// - Parameter parser: The parser to register
-    func registerParser(_ parser: ContentParser) {
-        parsers[parser.bundleIdentifier] = parser
-        Logger.info("ContentParserFactory: Registered parser '\(parser.parserName)' for \(parser.bundleIdentifier)")
+        Logger.info("ContentParserFactory: Initialized with \(parsersByType.count) parser types")
     }
 
     /// Get parser for a bundle identifier
-    /// - Parameter bundleID: Bundle identifier of the application
-    /// - Returns: App-specific parser or generic fallback
+    /// Uses AppRegistry to determine the correct parser type
     func parser(for bundleID: String) -> ContentParser {
-        if let parser = parsers[bundleID] {
-            Logger.debug("ContentParserFactory: Using \(parser.parserName) parser for \(bundleID)")
-            return parser
+        // Check cache first
+        if let cached = parserCache[bundleID] {
+            return cached
         }
 
-        Logger.debug("ContentParserFactory: Using generic parser for \(bundleID)")
-        return GenericContentParser(bundleIdentifier: bundleID)
+        // Get configuration from registry
+        let config = AppRegistry.shared.configuration(for: bundleID)
+
+        // Get parser for the configured type
+        let parser: ContentParser
+        if let typeParser = parsersByType[config.parserType] {
+            parser = typeParser
+        } else {
+            parser = parsersByType[.generic]!
+        }
+
+        // Cache for next lookup
+        parserCache[bundleID] = parser
+
+        Logger.debug("ContentParserFactory: Using \(config.parserType) parser for \(bundleID)")
+        return parser
     }
 
-    /// Get list of supported bundle identifiers
-    var supportedBundleIdentifiers: [String] {
-        return Array(parsers.keys)
+    /// Get configuration for a bundle identifier
+    /// Convenience method to access AppRegistry
+    func configuration(for bundleID: String) -> AppConfiguration {
+        return AppRegistry.shared.configuration(for: bundleID)
     }
 
-    /// Check if a specific parser is registered for a bundle ID
+    /// Check if a specific (non-generic) parser is configured for a bundle ID
     func hasSpecificParser(for bundleID: String) -> Bool {
-        return parsers[bundleID] != nil
+        return AppRegistry.shared.hasConfiguration(for: bundleID)
+    }
+
+    /// Get list of all bundle IDs with specific configurations
+    var supportedBundleIdentifiers: [String] {
+        return AppRegistry.shared.allConfigurations.flatMap { Array($0.bundleIDs) }
+    }
+
+    /// Clear parser cache (useful for testing)
+    func clearCache() {
+        parserCache.removeAll()
     }
 }

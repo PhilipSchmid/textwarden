@@ -13,18 +13,7 @@ import AppKit
 /// Handles terminal apps to avoid checking massive output buffers
 class TerminalContentParser: ContentParser {
     let bundleIdentifier: String
-    let parserName: String
-
-    /// Supported terminal apps
-    static let supportedTerminals = [
-        "com.apple.Terminal": "Terminal",
-        "com.googlecode.iterm2": "iTerm2",
-        "co.zeit.hyper": "Hyper",
-        "dev.warp.Warp-Stable": "Warp",
-        "org.alacritty": "Alacritty",
-        "net.kovidgoyal.kitty": "Kitty",
-        "com.github.wez.wezterm": "WezTerm",
-    ]
+    let parserName: String = "Terminal"
 
     /// Offset of user input within the full terminal text
     /// Used to map error positions from preprocessed text to full text for replacement
@@ -32,7 +21,6 @@ class TerminalContentParser: ContentParser {
 
     init(bundleIdentifier: String) {
         self.bundleIdentifier = bundleIdentifier
-        self.parserName = Self.supportedTerminals[bundleIdentifier] ?? "Terminal"
     }
 
     func detectUIContext(element: AXUIElement) -> String? {
@@ -55,7 +43,7 @@ class TerminalContentParser: ContentParser {
     }
 
     func supports(bundleID: String) -> Bool {
-        return Self.supportedTerminals.keys.contains(bundleID)
+        return AppRegistry.shared.configuration(for: bundleID).parserType == .terminal
     }
 
     /// Disable visual underlines for terminals (positioning is unreliable)

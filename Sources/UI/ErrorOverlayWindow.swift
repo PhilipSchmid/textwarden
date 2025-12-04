@@ -173,33 +173,37 @@ class ErrorOverlayWindow: NSPanel {
 
     /// Update overlay with new errors and monitored element
     /// Returns the number of underlines that were successfully created
+    /// - Parameters:
+    ///   - errors: Grammar errors to show underlines for
+    ///   - element: The AX element containing the text
+    ///   - context: Application context
+    ///   - sourceText: The text that was analyzed (used to detect if text has changed)
     @discardableResult
-    func update(errors: [GrammarErrorModel], element: AXUIElement, context: ApplicationContext?) -> Int {
+    func update(errors: [GrammarErrorModel], element: AXUIElement, context: ApplicationContext?, sourceText: String? = nil) -> Int {
         Logger.debug("ErrorOverlay: update() called with \(errors.count) errors", category: Logger.ui)
         self.errors = errors
         self.monitoredElement = element
 
-        // Check if the parser wants to disable visual underlines
+        // Check if visual underlines are enabled for this app
         let bundleID = context?.bundleIdentifier ?? "unknown"
+        let appConfig = AppRegistry.shared.configuration(for: bundleID)
         let parser = ContentParserFactory.shared.parser(for: bundleID)
 
-        // For Slack: Hide underlines while typing to avoid misplacement during text changes
+        // For apps with typing pause: Hide underlines while typing to avoid misplacement
         // The floating error indicator will still show the error count
-        if bundleID == "com.tinyspeck.slackmacgap" && SlackStrategy.isCurrentlyTyping {
-            Logger.debug("ErrorOverlay: Hiding underlines during typing (Slack)", category: Logger.ui)
+        // TypingDetector tracks typing state for all apps via TypingDetector.shared.notifyTextChange()
+        if appConfig.features.requiresTypingPause && TypingDetector.shared.isCurrentlyTyping {
+            Logger.debug("ErrorOverlay: Hiding underlines during typing (\(appConfig.displayName))", category: Logger.ui)
             hide()
             // Return 0 underlines but errors will still be counted by the indicator
             return 0
         }
-        Logger.info("ErrorOverlay: Using parser '\(parser.parserName)' for bundleID '\(bundleID)', disablesVisualUnderlines=\(parser.disablesVisualUnderlines)")
 
-        // Extra debug for Notion
-        if bundleID.contains("notion") {
-            Logger.info("NOTION DETECTED: parser=\(parser.parserName), type=\(type(of: parser)), disablesUnderlines=\(parser.disablesVisualUnderlines)")
-        }
+        let underlinesDisabled = !appConfig.features.visualUnderlinesEnabled
+        Logger.info("ErrorOverlay: Using parser '\(parser.parserName)' for bundleID '\(bundleID)', underlinesDisabled=\(underlinesDisabled)")
 
-        if parser.disablesVisualUnderlines {
-            Logger.info("ErrorOverlay: Parser '\(parser.parserName)' disables visual underlines - skipping")
+        if underlinesDisabled {
+            Logger.info("ErrorOverlay: Visual underlines disabled for '\(appConfig.displayName)' - skipping")
             hide()
             return 0
         }
@@ -256,6 +260,7 @@ class ErrorOverlayWindow: NSPanel {
             return 0
         }
 
+
         // Get visible character range to filter out off-screen errors
         let visibleRange = AccessibilityBridge.getVisibleCharacterRange(element)
         if let visibleRange = visibleRange {
@@ -282,11 +287,12 @@ class ErrorOverlayWindow: NSPanel {
             }
 
             // Use new multi-strategy positioning system
-            Logger.debug("BEFORE calling parser.resolvePosition() - parser type: \(type(of: parser)), parserName: \(parser.parserName)", category: Logger.ui)
+            Logger.debug("BEFORE calling parser.resolvePosition() - parser type: \(type(of: parser)), parserName: \(parser.parserName), actualBundleID: \(bundleID)", category: Logger.ui)
             let geometryResult = parser.resolvePosition(
                 for: errorRange,
                 in: element,
-                text: fullText
+                text: fullText,
+                actualBundleID: bundleID
             )
 
             Logger.debug("ErrorOverlay: PositionResolver returned bounds: \(geometryResult.bounds), strategy: \(geometryResult.strategy), confidence: \(geometryResult.confidence), isMultiLine: \(geometryResult.isMultiLine)", category: Logger.ui)

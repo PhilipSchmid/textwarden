@@ -161,19 +161,50 @@ class AnalysisCoordinator: ObservableObject {
         setupPopoverCallbacks()
         setupOverlayCallbacks()
         setupScrollWheelMonitor()
-        setupSlackTypingCallback()
+        setupTypingCallback()
         // Window position monitoring will be started when we begin monitoring an app
     }
 
-    /// Setup callback to hide underlines immediately when typing starts in Slack
-    private func setupSlackTypingCallback() {
-        SlackStrategy.onTypingStarted = { [weak self] in
+    /// Setup callback to hide underlines immediately when typing starts
+    /// TypingDetector is notified for ALL apps, so this works for Slack, Notion, and other Electron apps
+    private func setupTypingCallback() {
+        TypingDetector.shared.onTypingStarted = { [weak self] in
             guard let self = self else { return }
-            // Only hide if we're monitoring Slack
-            if self.textMonitor.currentContext?.bundleIdentifier == "com.tinyspeck.slackmacgap" {
-                Logger.debug("AnalysisCoordinator: Hiding underlines due to typing in Slack", category: Logger.ui)
+
+            // Check if we're monitoring an app that requires typing pause
+            guard let bundleID = self.textMonitor.currentContext?.bundleIdentifier else { return }
+            let appConfig = AppRegistry.shared.configuration(for: bundleID)
+
+            // Only act on keyboard events for apps that delay AX notifications (like Notion)
+            // For apps like Slack that send immediate AX notifications, this callback won't fire
+            // (filtered out in TypingDetector.handleKeyDown)
+            if appConfig.features.delaysAXNotifications {
+                Logger.debug("AnalysisCoordinator: Typing detected in \(appConfig.displayName) - hiding overlay and clearing cache", category: Logger.ui)
+
+                // Hide overlay immediately
                 self.errorOverlay.hide()
+
+                // CRITICAL: Clear position cache since text is changing
+                // This prevents stale positions from being used when underlines reappear
+                PositionResolver.shared.clearCache()
             }
+        }
+
+        // Setup callback for when typing stops
+        // This is critical for apps like Notion that don't send timely AX notifications
+        TypingDetector.shared.onTypingStopped = { [weak self] in
+            guard let self = self else { return }
+            guard let element = self.textMonitor.monitoredElement else { return }
+
+            Logger.debug("AnalysisCoordinator: Typing stopped - clearing errors and extracting text", category: Logger.ui)
+
+            // Clear errors and previous text to force complete re-analysis
+            // This ensures fresh positions are calculated after text reflow
+            self.currentErrors = []
+            self.previousText = ""
+
+            // Proactively extract text since Notion may not send AX notifications
+            self.textMonitor.extractText(from: element)
         }
     }
 
@@ -446,6 +477,20 @@ class AnalysisCoordinator: ObservableObject {
             self.handleTextChange(text, in: context)
         }
 
+        // Monitor IMMEDIATE text changes (before debounce) - hide overlays right away
+        textMonitor.onImmediateTextChange = { [weak self] text, context in
+            guard let self = self else { return }
+
+            // For apps that require typing pause: hide overlay immediately when any text change is detected
+            let appConfig = AppRegistry.shared.configuration(for: context.bundleIdentifier)
+            if appConfig.features.requiresTypingPause {
+                Logger.debug("AnalysisCoordinator: Immediate text change in \(context.applicationName) - hiding overlay", category: Logger.ui)
+                self.errorOverlay.hide()
+                // Also clear position cache since positions will be stale
+                PositionResolver.shared.clearCache()
+            }
+        }
+
         // Monitor permission changes
         permissionManager.$isPermissionGranted
             .sink { [weak self] isGranted in
@@ -485,6 +530,9 @@ class AnalysisCoordinator: ObservableObject {
             return
         }
 
+        // Update TypingDetector with current bundle ID for keyboard event filtering
+        TypingDetector.shared.currentBundleID = context.bundleIdentifier
+
         Logger.debug("AnalysisCoordinator: Permission granted, calling textMonitor.startMonitoring", category: Logger.analysis)
         textMonitor.startMonitoring(
             processID: context.processID,
@@ -503,6 +551,10 @@ class AnalysisCoordinator: ObservableObject {
         currentErrors = []
         currentSegment = nil
         previousText = ""  // Clear previous text so analysis runs when we return
+
+        // Clear typing detector state
+        TypingDetector.shared.currentBundleID = nil
+        TypingDetector.shared.reset()
 
         // Only clear style state if not in a manual style check
         // During manual style check, preserve results so user sees them when returning
@@ -1237,17 +1289,25 @@ class AnalysisCoordinator: ObservableObject {
         // (like Cmd+F search) to real content, without waiting for async analysis
         updateDebugBorders()
 
-        // CRITICAL: If text has changed, hide old underlines IMMEDIATELY
-        // This prevents stale underlines from lingering at wrong positions during re-analysis
-        // We hide the overlay but keep currentErrors cached so they can be restored if text hasn't actually changed
+        // CRITICAL: If text has changed, handle cache invalidation appropriately
         if text != previousText {
             Logger.debug("AnalysisCoordinator: Text changed - hiding overlay immediately for re-analysis", category: Logger.analysis)
             errorOverlay.hide()
+
+            // For Electron apps: Clear ALL caches when text changes
+            // Electron apps have fragile positioning - byte offsets become invalid when text shifts
+            let appConfig = AppRegistry.shared.configuration(for: context.bundleIdentifier)
+            if appConfig.category == .electron || appConfig.category == .browser {
+                Logger.debug("AnalysisCoordinator: Electron app - clearing position cache and errors", category: Logger.analysis)
+                PositionResolver.shared.clearCache()
+                currentErrors.removeAll()
+            }
         }
 
         // If we have cached errors for this exact text, show them immediately
         // This provides instant feedback when returning from browser UI elements (like Cmd+F)
         // A fresh analysis will still run to catch any changes
+        // NOTE: For Electron apps, currentErrors was cleared above, so this won't trigger
         if let cachedSegment = currentSegment,
            cachedSegment.content == text,
            !currentErrors.isEmpty,
@@ -1737,7 +1797,7 @@ class AnalysisCoordinator: ObservableObject {
         // French spaces errors in Notion are often triggered by placeholder text artifacts
         // (e.g., "Write, press 'space' for AI" placeholder creates invisible whitespace patterns)
         if let context = monitoredContext,
-           NotionContentParser.supportedBundleIDs.contains(context.bundleIdentifier) {
+           AppRegistry.shared.configuration(for: context.bundleIdentifier).parserType == .notion {
             filteredErrors = filteredErrors.filter { error in
                 // Filter French spaces errors where the error text is just whitespace
                 // These are false positives from Notion's placeholder handling
@@ -1763,6 +1823,9 @@ class AnalysisCoordinator: ObservableObject {
         showErrorUnderlines(filteredErrors, element: element)
     }
 
+    /// Timer for Electron layout stabilization delay
+    private var electronLayoutTimer: Timer?
+
     /// Show visual underlines for errors
     private func showErrorUnderlines(_ errors: [GrammarErrorModel], element: AXUIElement?) {
         Logger.debug("AnalysisCoordinator: showErrorUnderlines called with \(errors.count) errors", category: Logger.analysis)
@@ -1777,6 +1840,27 @@ class AnalysisCoordinator: ObservableObject {
             Logger.debug("AnalysisCoordinator: Skipping overlay update - window is off-screen", category: Logger.analysis)
             return
         }
+
+        // For Electron apps: Add a small delay to let the DOM stabilize
+        // Electron apps (Notion, Slack) may have stale AX positions briefly after text changes
+        let bundleID = monitoredContext?.bundleIdentifier ?? ""
+        let appConfig = AppRegistry.shared.configuration(for: bundleID)
+        if appConfig.category == .electron {
+            // Cancel any pending layout timer
+            electronLayoutTimer?.invalidate()
+
+            // Delay showing underlines to let Electron's DOM stabilize
+            electronLayoutTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: false) { [weak self] _ in
+                self?.showErrorUnderlinesInternal(errors, element: element)
+            }
+            return
+        }
+
+        showErrorUnderlinesInternal(errors, element: element)
+    }
+
+    /// Internal method to actually show underlines (after any stabilization delay)
+    private func showErrorUnderlinesInternal(_ errors: [GrammarErrorModel], element: AXUIElement?) {
 
         guard let providedElement = element else {
             Logger.debug("AnalysisCoordinator: No monitored element - hiding overlays", category: Logger.analysis)
@@ -1826,7 +1910,9 @@ class AnalysisCoordinator: ObservableObject {
                 Logger.debug("AnalysisCoordinator: About to call errorOverlay.update() with context - bundleID: '\(bundleID)', appName: '\(appName)'", category: Logger.analysis)
 
                 // Try to show visual underlines for grammar errors
-                let underlinesCreated = errorOverlay.update(errors: errors, element: providedElement, context: monitoredContext)
+                // Pass the analyzed text so overlay can detect if text has changed
+                let sourceText = currentSegment?.content
+                let underlinesCreated = errorOverlay.update(errors: errors, element: providedElement, context: monitoredContext, sourceText: sourceText)
 
                 if underlinesCreated == 0 {
                     Logger.debug("AnalysisCoordinator: \(errors.count) errors detected in '\(appName)' but no underlines created - showing floating indicator only", category: Logger.analysis)
@@ -3058,15 +3144,39 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Invalidate cache after text replacement (T044a)
     func invalidateCacheAfterReplacement(at range: Range<Int>) {
-        // Clear overlapping errors
-        currentErrors.removeAll { error in
-            let errorRange = error.start..<error.end
-            return errorRange.overlaps(range)
-        }
+        // Clear position cache - geometry is now stale since text positions shifted
+        PositionResolver.shared.clearCache()
 
-        // Trigger re-analysis
-        if let segment = currentSegment {
-            analyzeText(segment)
+        // Check if this is an Electron app (Notion, etc.) where positioning is fragile
+        let bundleID = monitoredContext?.bundleIdentifier ?? ""
+        let appConfig = AppRegistry.shared.configuration(for: bundleID)
+        let isElectronApp = appConfig.category == .electron || appConfig.category == .browser
+
+        if isElectronApp {
+            // For Electron apps: Clear ALL errors and force complete re-analysis
+            // Their byte offsets become invalid when text shifts, causing underline drift
+            currentErrors.removeAll()
+            errorOverlay.hide()
+            floatingIndicator.hide()
+
+            // Force fresh analysis by clearing cached text and re-extracting
+            // This triggers immediate re-analysis instead of waiting for next AX notification
+            previousText = ""
+            if let element = textMonitor.monitoredElement {
+                textMonitor.extractText(from: element)
+            }
+        } else {
+            // For native apps: Just clear overlapping errors and trigger re-analysis
+            // Native apps handle position updates more reliably
+            currentErrors.removeAll { error in
+                let errorRange = error.start..<error.end
+                return errorRange.overlaps(range)
+            }
+
+            // Trigger re-analysis
+            if let segment = currentSegment {
+                analyzeText(segment)
+            }
         }
     }
 }

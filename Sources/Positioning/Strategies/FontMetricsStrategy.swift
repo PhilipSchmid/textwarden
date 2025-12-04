@@ -14,6 +14,7 @@ import ApplicationServices
 class FontMetricsStrategy: GeometryProvider {
 
     var strategyName: String { "FontMetrics" }
+    var strategyType: StrategyType { .fontMetrics }
     var tier: StrategyTier { .estimated }
     var tierPriority: Int { 10 }
 
