@@ -182,7 +182,9 @@ class UserPreferences: ObservableObject {
         "com.prakashjoshipax.VoiceInk", // VoiceInk
         "com.apple.keychainaccess",    // Keychain Access
         "com.apple.Passwords",         // Passwords
-        "com.apple.Music"              // Apple Music
+        "com.apple.Music",             // Apple Music
+        // Hardware device managers
+        "com.logi.cp-dev-mgr"          // Logitech Device Manager
     ]
 
     /// Custom words to ignore
