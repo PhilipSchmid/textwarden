@@ -59,6 +59,7 @@ final class AppRegistry {
 
     private func registerBuiltInConfigurations() {
         register(.slack)
+        register(.teams)
         register(.browsers)
         register(.notion)
         register(.terminals)
@@ -84,7 +85,7 @@ extension AppConfiguration {
             spacingMultiplier: 0.97
         ),
         horizontalPadding: 12,
-        preferredStrategies: [.slack, .textMarker, .rangeBounds, .elementTree, .lineIndex],
+        preferredStrategies: [.chromium, .textMarker, .rangeBounds, .elementTree, .lineIndex],
         features: AppFeatures(
             visualUnderlinesEnabled: true,
             textReplacementMethod: .browserStyle,
@@ -92,6 +93,36 @@ extension AppConfiguration {
             supportsFormattedText: true,
             childElementTraversal: true,
             delaysAXNotifications: false  // Slack sends AX notifications immediately
+        )
+    )
+
+    // MARK: - Microsoft Teams
+
+    static let teams = AppConfiguration(
+        identifier: "teams",
+        displayName: "Microsoft Teams",
+        bundleIDs: ["com.microsoft.teams2"],
+        category: .electron,
+        parserType: .teams,
+        fontConfig: FontConfig(
+            defaultSize: 14,
+            fontFamily: "Segoe UI",
+            spacingMultiplier: 1.0
+        ),
+        horizontalPadding: 0,
+        // Teams WebView2 accessibility APIs are fundamentally broken for character positioning:
+        // - AXBoundsForRange returns (0, y, 0, 0) - no X position or width
+        // - AXBoundsForTextMarkerRange returns window frame, not character bounds
+        // - Child element frames don't correspond to visual text positions
+        // Visual underlines disabled; floating error indicator still works for corrections.
+        preferredStrategies: [],
+        features: AppFeatures(
+            visualUnderlinesEnabled: false,  // Disabled due to broken WebView2 AX APIs
+            textReplacementMethod: .browserStyle,
+            requiresTypingPause: false,  // No need to wait - not querying position APIs
+            supportsFormattedText: true,
+            childElementTraversal: true,
+            delaysAXNotifications: false
         )
     )
 

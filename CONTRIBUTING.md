@@ -416,6 +416,28 @@ No additional code changes needed - the model ID is tracked automatically.
 
 TextWarden uses a centralized `AppConfiguration` system to define app-specific behavior. To add support for a new application:
 
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    AppRegistry                               │
+│  (Single source of truth for all app configurations)        │
+├─────────────────────────────────────────────────────────────┤
+│  - slack: AppConfiguration     (underlines enabled)         │
+│  - teams: AppConfiguration     (underlines disabled)        │
+│  - browsers: AppConfiguration  (underlines disabled)        │
+│  - notion: AppConfiguration    (underlines enabled)         │
+│  - terminals: AppConfiguration (underlines disabled)        │
+│  - default: AppConfiguration   (fallback for unknown apps)  │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│  ContentParserFactory          PositionResolver             │
+│  (selects parser by app)       (selects strategies by app)  │
+└─────────────────────────────────────────────────────────────┘
+```
+
 ### 1. Add Configuration to AppRegistry
 
 Edit `Sources/AppConfiguration/AppRegistry.swift`:
@@ -433,13 +455,21 @@ static let myNewApp = AppConfiguration(
         fontFamily: nil,
         spacingMultiplier: 1.0
     ),
-    horizontalPadding: 8
-    // Omit other fields to use category defaults
+    horizontalPadding: 8,
+    features: AppFeatures(
+        visualUnderlinesEnabled: true,  // Set false if AX APIs broken
+        textReplacementMethod: .browserStyle,
+        requiresTypingPause: true,      // Set false if underlines disabled
+        supportsFormattedText: false,
+        childElementTraversal: true,
+        delaysAXNotifications: false
+    )
 )
 
 // Register in registerBuiltInConfigurations()
 private func registerBuiltInConfigurations() {
     register(.slack)
+    register(.teams)
     register(.browsers)
     register(.notion)
     register(.terminals)
@@ -454,10 +484,29 @@ private func registerBuiltInConfigurations() {
 | `.native` | Standard macOS apps (TextEdit, Notes) | Standard AX APIs, underlines enabled, standard text replacement |
 | `.electron` | Electron apps (Slack, Notion, VSCode) | TextMarker strategy, keyboard-based text replacement |
 | `.browser` | Web browsers (Chrome, Safari) | Underlines disabled, keyboard-based text replacement |
-| `.terminal` | Terminal emulators | Underlines disabled, prompt detection |
+| `.terminal` | Terminal emulators | Underlines disabled |
 | `.custom` | Apps needing unique handling | All strategies enabled |
 
-### 3. Configure Text Replacement Method
+### 3. Decide on Visual Underlines
+
+Not all apps support accurate character positioning via accessibility APIs. Test the app's AX implementation:
+
+```swift
+// Test in code or use Accessibility Inspector
+AXUIElementCopyParameterizedAttributeValue(element, "AXBoundsForRange", rangeValue, &bounds)
+```
+
+| AX API Behavior | Recommendation |
+|-----------------|----------------|
+| Returns accurate bounds | `visualUnderlinesEnabled: true` |
+| Returns garbage/zero values | `visualUnderlinesEnabled: false` |
+| Returns window frame instead | `visualUnderlinesEnabled: false` |
+
+**When underlines are disabled**: Text analysis still works, and the floating error indicator provides corrections. This is better than showing inaccurate underlines.
+
+**When underlines are disabled**: Also set `requiresTypingPause: false` since there's no need to wait for positioning API queries.
+
+### 4. Configure Text Replacement Method
 
 The `textReplacementMethod` in `AppFeatures` controls how corrections are applied:
 
@@ -468,7 +517,7 @@ The `textReplacementMethod` in `AppFeatures` controls how corrections are applie
 
 Most Electron and browser apps need `.browserStyle` because their AX API accepts setValue calls but doesn't actually update the DOM.
 
-### 4. Optional: Create Custom Parser
+### 5. Optional: Create Custom Parser
 
 If the app needs special text handling, create a new parser in `Sources/ContentParsers/`:
 
@@ -487,7 +536,7 @@ class MyNewAppContentParser: ContentParser {
 
 Then add the parser type to `AppConfiguration.swift` and `ContentParserFactory.swift`.
 
-### 5. Find Bundle Identifier
+### 6. Find Bundle Identifier
 
 To find an app's bundle identifier:
 
@@ -497,12 +546,23 @@ osascript -e 'id of app "AppName"'
 mdls -name kMDItemCFBundleIdentifier /Applications/AppName.app
 ```
 
-### 6. Test
+### 7. Test
 
 ```bash
 make ci-check  # Verify build
 # Run app and test in the new application
 ```
+
+### Currently Supported Apps
+
+| App | Underlines | Notes |
+|-----|------------|-------|
+| Native macOS apps | ✅ | TextEdit, Notes, Mail, etc. |
+| Slack | ✅ | ChromiumStrategy for positioning |
+| Notion | ✅ | ElementTreeStrategy for positioning |
+| Microsoft Teams | ❌ | WebView2 AX APIs broken |
+| Web Browsers | ❌ | Too many DOM variations |
+| Terminal apps | ❌ | Not useful for command input |
 
 ---
 

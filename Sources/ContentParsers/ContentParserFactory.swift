@@ -27,7 +27,8 @@ final class ContentParserFactory {
             .slack: SlackContentParser(),
             .browser: BrowserContentParser(bundleIdentifier: "browser"),
             .notion: NotionContentParser(bundleIdentifier: "notion"),
-            .terminal: TerminalContentParser(bundleIdentifier: "terminal")
+            .terminal: TerminalContentParser(bundleIdentifier: "terminal"),
+            .teams: TeamsContentParser()
         ]
 
         Logger.info("ContentParserFactory: Initialized with \(parsersByType.count) parser types")

@@ -1,8 +1,8 @@
 //
-//  SlackStrategy.swift
+//  ChromiumStrategy.swift
 //  TextWarden
 //
-//  Slack-specific positioning strategy using selection-based marker range positioning.
+//  Positioning strategy for Chromium-based apps (Slack, MS Teams, etc.)
 //  Chromium's standard AXBoundsForRange returns invalid values, so we use the
 //  AXSelectedTextMarkerRange + AXBoundsForTextMarkerRange approach instead.
 //
@@ -11,17 +11,18 @@ import Foundation
 import AppKit
 import ApplicationServices
 
-/// Slack-specific positioning strategy
+/// Chromium-based app positioning strategy
 ///
+/// Works with Slack (Electron), MS Teams (Edge WebView2), and other Chromium apps.
 /// Uses selection-based marker range positioning which requires cursor manipulation.
 /// To avoid interfering with typing, we cache bounds and only update when:
 /// - Text content changes
 /// - Element frame changes (resize, line wrap)
 /// - Formatting changes (bold, italic, code, etc.)
-class SlackStrategy: GeometryProvider {
+class ChromiumStrategy: GeometryProvider {
 
-    var strategyName: String { "Slack" }
-    var strategyType: StrategyType { .slack }
+    var strategyName: String { "Chromium" }
+    var strategyType: StrategyType { .chromium }
     var tier: StrategyTier { .precise }
     var tierPriority: Int { 5 }
 
@@ -51,10 +52,19 @@ class SlackStrategy: GeometryProvider {
     private static var lastMeasuredBounds: CGRect?
     private static var consecutiveSameBoundsCount: Int = 0
 
+    /// Bundle IDs of Chromium-based apps that use this strategy
+    private static let chromiumBundleIDs: Set<String> = [
+        "com.tinyspeck.slackmacgap",  // Slack
+        "com.microsoft.teams2"         // Microsoft Teams
+    ]
+
     // MARK: - Public Interface
 
     func canHandle(element: AXUIElement, bundleID: String) -> Bool {
-        return bundleID == "com.tinyspeck.slackmacgap"
+        // Check if this is a Chromium-based app that should use this strategy
+        // Apps must be in preferredStrategies with .chromium to use this
+        let config = AppRegistry.shared.configuration(for: bundleID)
+        return config.preferredStrategies.contains(.chromium)
     }
 
     /// Callback to hide underlines immediately when typing starts
@@ -114,7 +124,7 @@ class SlackStrategy: GeometryProvider {
         invalidateCacheIfNeeded(element: element, text: text)
 
         // Return cached bounds if available
-        if let cachedBounds = SlackStrategy.boundsCache[adjustedRange] {
+        if let cachedBounds = ChromiumStrategy.boundsCache[adjustedRange] {
             let cocoaBounds = convertQuartzToCocoa(cachedBounds)
             return GeometryResult(
                 bounds: cocoaBounds,
@@ -125,7 +135,8 @@ class SlackStrategy: GeometryProvider {
         }
 
         // Don't measure while user is typing
-        guard !SlackStrategy.isCurrentlyTyping else {
+        guard !ChromiumStrategy.isCurrentlyTyping else {
+            Logger.debug("ChromiumStrategy: Skipping - user is typing", category: Logger.analysis)
             return GeometryResult.unavailable(reason: "Waiting for typing pause")
         }
 
@@ -133,12 +144,31 @@ class SlackStrategy: GeometryProvider {
         saveCursorPosition(element: element)
 
         // Measure bounds using selection-based approach
-        guard let bounds = measureBoundsViaSelection(element: element, range: adjustedRange) else {
+        guard var bounds = measureBoundsViaSelection(element: element, range: adjustedRange) else {
+            Logger.debug("ChromiumStrategy: measureBoundsViaSelection returned nil for range \(adjustedRange)", category: Logger.analysis)
             return nil
         }
 
+        // Handle Teams case: position is valid but width is -1 (needs estimation)
+        if bounds.width < 0 {
+            // Estimate width based on error text length
+            let errorText: String
+            if let startIdx = text.index(text.startIndex, offsetBy: errorRange.location, limitedBy: text.endIndex),
+               let endIdx = text.index(startIdx, offsetBy: errorRange.length, limitedBy: text.endIndex) {
+                errorText = String(text[startIdx..<endIdx])
+            } else {
+                errorText = ""
+            }
+
+            // Use system font for estimation (reasonable for most apps)
+            let font = NSFont.systemFont(ofSize: 15)
+            let estimatedWidth = (errorText as NSString).size(withAttributes: [.font: font]).width
+            bounds = CGRect(x: bounds.origin.x, y: bounds.origin.y, width: max(estimatedWidth, 20), height: bounds.height)
+            Logger.debug("ChromiumStrategy: Estimated width \(estimatedWidth) for '\(errorText)'", category: Logger.analysis)
+        }
+
         // Cache and return
-        SlackStrategy.boundsCache[adjustedRange] = bounds
+        ChromiumStrategy.boundsCache[adjustedRange] = bounds
         let cocoaBounds = convertQuartzToCocoa(bounds)
 
         guard CoordinateMapper.validateBounds(cocoaBounds) else {
@@ -147,7 +177,7 @@ class SlackStrategy: GeometryProvider {
 
         return GeometryResult(
             bounds: cocoaBounds,
-            confidence: 0.95,
+            confidence: bounds.width > 0 ? 0.95 : 0.85,  // Slightly lower confidence for estimated width
             strategy: strategyName,
             metadata: ["api": "selection-marker-range", "skip_conversion": true, "skip_resolver_cache": true]
         )
@@ -157,19 +187,19 @@ class SlackStrategy: GeometryProvider {
 
     private func invalidateCacheIfNeeded(element: AXUIElement, text: String) {
         let currentFrame = getElementFrame(element: element) ?? .zero
-        let oldText = SlackStrategy.cachedText
+        let oldText = ChromiumStrategy.cachedText
 
         let textChanged = text != oldText
-        let frameChanged = currentFrame != SlackStrategy.cachedElementFrame && SlackStrategy.cachedElementFrame != .zero
+        let frameChanged = currentFrame != ChromiumStrategy.cachedElementFrame && ChromiumStrategy.cachedElementFrame != .zero
 
         // Only check formatting if text didn't change (pure formatting change)
         // When text changes, the attributed string hash will also change, so we use text prefix check instead
         let formattingChanged: Bool
         if !textChanged {
             let currentAttrHash = getAttributedStringHash(element: element)
-            formattingChanged = currentAttrHash != SlackStrategy.cachedAttributedStringHash && SlackStrategy.cachedAttributedStringHash != 0
-            if formattingChanged || SlackStrategy.cachedAttributedStringHash == 0 {
-                SlackStrategy.cachedAttributedStringHash = currentAttrHash
+            formattingChanged = currentAttrHash != ChromiumStrategy.cachedAttributedStringHash && ChromiumStrategy.cachedAttributedStringHash != 0
+            if formattingChanged || ChromiumStrategy.cachedAttributedStringHash == 0 {
+                ChromiumStrategy.cachedAttributedStringHash = currentAttrHash
             }
         } else {
             formattingChanged = false
@@ -184,24 +214,24 @@ class SlackStrategy: GeometryProvider {
 
             if textAppended {
                 // Text was appended at the end - preserve existing cache entries
-                SlackStrategy.cachedAttributedStringHash = getAttributedStringHash(element: element)
+                ChromiumStrategy.cachedAttributedStringHash = getAttributedStringHash(element: element)
             } else {
                 // Text changed in a way that affects existing positions - clear cache
-                SlackStrategy.boundsCache.removeAll()
-                SlackStrategy.lastMeasuredBounds = nil
-                SlackStrategy.consecutiveSameBoundsCount = 0
-                SlackStrategy.cachedAttributedStringHash = getAttributedStringHash(element: element)
+                ChromiumStrategy.boundsCache.removeAll()
+                ChromiumStrategy.lastMeasuredBounds = nil
+                ChromiumStrategy.consecutiveSameBoundsCount = 0
+                ChromiumStrategy.cachedAttributedStringHash = getAttributedStringHash(element: element)
             }
 
-            SlackStrategy.cachedText = text
-            SlackStrategy.cachedElementFrame = currentFrame
+            ChromiumStrategy.cachedText = text
+            ChromiumStrategy.cachedElementFrame = currentFrame
         } else {
             // Initialize tracking on first run
-            if SlackStrategy.cachedElementFrame == .zero {
-                SlackStrategy.cachedElementFrame = currentFrame
+            if ChromiumStrategy.cachedElementFrame == .zero {
+                ChromiumStrategy.cachedElementFrame = currentFrame
             }
-            if SlackStrategy.cachedAttributedStringHash == 0 {
-                SlackStrategy.cachedAttributedStringHash = getAttributedStringHash(element: element)
+            if ChromiumStrategy.cachedAttributedStringHash == 0 {
+                ChromiumStrategy.cachedAttributedStringHash = getAttributedStringHash(element: element)
             }
         }
     }
@@ -209,7 +239,7 @@ class SlackStrategy: GeometryProvider {
     // MARK: - Selection-Based Measurement
 
     private func saveCursorPosition(element: AXUIElement) {
-        guard !SlackStrategy.measurementInProgress else { return }
+        guard !ChromiumStrategy.measurementInProgress else { return }
 
         var selValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &selValue) == .success,
@@ -217,18 +247,23 @@ class SlackStrategy: GeometryProvider {
 
         var range = CFRange(location: 0, length: 0)
         if AXValueGetValue(sv as! AXValue, .cfRange, &range) {
-            SlackStrategy.savedCursorPosition = range
-            SlackStrategy.savedCursorElement = element
-            SlackStrategy.measurementInProgress = true
+            ChromiumStrategy.savedCursorPosition = range
+            ChromiumStrategy.savedCursorElement = element
+            ChromiumStrategy.measurementInProgress = true
         }
     }
 
     /// Measure bounds by setting selection and reading AXBoundsForTextMarkerRange
     private func measureBoundsViaSelection(element: AXUIElement, range: NSRange) -> CGRect? {
         var targetRange = CFRange(location: range.location, length: range.length)
-        guard let targetValue = AXValueCreate(.cfRange, &targetRange) else { return nil }
+        guard let targetValue = AXValueCreate(.cfRange, &targetRange) else {
+            Logger.debug("ChromiumStrategy: Failed to create AXValue for range", category: Logger.analysis)
+            return nil
+        }
 
-        guard AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, targetValue) == .success else {
+        let setResult = AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, targetValue)
+        guard setResult == .success else {
+            Logger.debug("ChromiumStrategy: Failed to set selection - error \(setResult.rawValue)", category: Logger.analysis)
             return nil
         }
 
@@ -241,44 +276,74 @@ class SlackStrategy: GeometryProvider {
                 usleep(15000)  // 15ms between retries
             }
 
-            guard let bounds = readSelectedTextBounds(element: element) else { continue }
+            guard let bounds = readSelectedTextBounds(element: element) else {
+                if attempt == 7 {
+                    Logger.debug("ChromiumStrategy: readSelectedTextBounds returned nil after 8 attempts", category: Logger.analysis)
+                }
+                continue
+            }
 
             // Detect stale data (Chromium returning previous selection's bounds)
-            if let lastBounds = SlackStrategy.lastMeasuredBounds,
+            if let lastBounds = ChromiumStrategy.lastMeasuredBounds,
                abs(bounds.origin.x - lastBounds.origin.x) < 1 &&
                abs(bounds.origin.y - lastBounds.origin.y) < 1 &&
                abs(bounds.width - lastBounds.width) < 1 {
-                SlackStrategy.consecutiveSameBoundsCount += 1
+                ChromiumStrategy.consecutiveSameBoundsCount += 1
                 if attempt < 6 { continue }
             } else {
-                SlackStrategy.consecutiveSameBoundsCount = 0
+                ChromiumStrategy.consecutiveSameBoundsCount = 0
             }
 
-            SlackStrategy.lastMeasuredBounds = bounds
+            Logger.debug("ChromiumStrategy: Got bounds \(bounds) on attempt \(attempt)", category: Logger.analysis)
+            ChromiumStrategy.lastMeasuredBounds = bounds
             return bounds
         }
 
+        Logger.debug("ChromiumStrategy: All 8 attempts failed to get valid bounds", category: Logger.analysis)
         return nil
     }
 
     private func readSelectedTextBounds(element: AXUIElement) -> CGRect? {
         var markerRangeRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, "AXSelectedTextMarkerRange" as CFString, &markerRangeRef) == .success,
-              let markerRange = markerRangeRef else { return nil }
+        let markerResult = AXUIElementCopyAttributeValue(element, "AXSelectedTextMarkerRange" as CFString, &markerRangeRef)
+        guard markerResult == .success, let markerRange = markerRangeRef else {
+            // This is expected to fail sometimes during polling
+            return nil
+        }
 
         var boundsRef: CFTypeRef?
-        guard AXUIElementCopyParameterizedAttributeValue(
+        let boundsResult = AXUIElementCopyParameterizedAttributeValue(
             element,
             "AXBoundsForTextMarkerRange" as CFString,
             markerRange,
             &boundsRef
-        ) == .success, let bv = boundsRef else { return nil }
+        )
+        guard boundsResult == .success, let bv = boundsRef else {
+            return nil
+        }
 
         var rect = CGRect.zero
-        guard AXValueGetValue(bv as! AXValue, .cgRect, &rect),
-              rect.width > 0 && rect.height > 0 && rect.height < 100 else { return nil }
+        guard AXValueGetValue(bv as! AXValue, .cgRect, &rect) else {
+            return nil
+        }
 
-        return rect
+        // Validate bounds
+        // For Teams (WebView2), we may get valid position but zero dimensions
+        // In that case, we'll use the position and estimate dimensions
+        if rect.width > 0 && rect.height > 0 && rect.height < 100 {
+            return rect
+        }
+
+        // Check if we have a valid position even with zero/invalid dimensions
+        // This happens with MS Teams - position is correct but dimensions are 0
+        if rect.origin.x > 0 && rect.origin.y > 0 && (rect.width == 0 || rect.height == 0) {
+            Logger.debug("ChromiumStrategy: Got position with zero dimensions \(rect) - will estimate size", category: Logger.analysis)
+            // Return with a marker height, width will be calculated by caller
+            return CGRect(x: rect.origin.x, y: rect.origin.y, width: -1, height: 18)  // -1 width = needs estimation
+        }
+
+        Logger.debug("ChromiumStrategy: Rejected bounds \(rect) - invalid", category: Logger.analysis)
+        return nil
     }
 
     // MARK: - Element Inspection
