@@ -34,6 +34,7 @@ class PositionResolver {
         // Within each tier, lower tierPriority values are tried first
 
         // Tier: Precise - Direct AX bounds that are known to be reliable
+        registerStrategy(SlackStrategy())           // Slack-specific character probing
         registerStrategy(TextMarkerStrategy())      // Opaque markers (Electron/Chrome)
         registerStrategy(RangeBoundsStrategy())     // CFRange bounds (native apps)
 
@@ -137,6 +138,14 @@ class PositionResolver {
                 text: text,
                 parser: parser
             ) {
+                // Check if this is an "unavailable" result - return it immediately
+                // This is used when a strategy wants to signal "don't show underline" without
+                // falling back to other strategies (e.g., during typing when cursor manipulation is unsafe)
+                if result.isUnavailable {
+                    Logger.debug("PositionResolver: Strategy \(strategy.strategyName) returned unavailable - respecting request to hide underline")
+                    return result
+                }
+
                 // Validate bounds are within edit area
                 if let editArea = editAreaFrame {
                     // Convert result bounds to Quartz for comparison (editArea is in Quartz)
@@ -150,8 +159,13 @@ class PositionResolver {
                 Logger.debug("PositionResolver: Strategy \(strategy.strategyName) succeeded with confidence \(result.confidence)")
                 Logger.debug("  Strategy \(strategy.strategyName) SUCCEEDED with confidence \(result.confidence)", category: Logger.ui)
 
-                // Cache successful result
-                cache.store(result, for: cacheKey)
+                // Cache successful result (unless strategy opts out via metadata)
+                // Strategies with their own caching (like SlackStrategy) should opt out
+                // to avoid double-caching and stale data issues
+                let skipCache = result.metadata["skip_resolver_cache"] as? Bool ?? false
+                if !skipCache {
+                    cache.store(result, for: cacheKey)
+                }
 
                 return result
             } else {

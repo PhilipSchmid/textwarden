@@ -10,10 +10,14 @@ import Foundation
 import AppKit
 
 /// Slack-specific content parser
-/// Uses the multi-strategy PositionResolver for reliable text positioning in Electron apps
+/// Uses graceful degradation: error indicator shown but underlines hidden
+/// due to Slack's AX APIs returning invalid bounds (Chromium bug)
 class SlackContentParser: ContentParser {
     let bundleIdentifier = "com.tinyspeck.slackmacgap"
     let parserName = "Slack"
+
+    /// Keep underlines visible for development - we're implementing Slack-specific strategies
+    var disablesVisualUnderlines: Bool { false }
 
     /// Diagnostic result from probing Slack's AX capabilities
     private static var diagnosticResult: NotionDiagnosticResult?
@@ -69,20 +73,21 @@ class SlackContentParser: ContentParser {
     }
 
     func spacingMultiplier(context: String?) -> CGFloat {
-        // Slack's Chromium renderer displays text ~6% narrower than NSFont measures
+        // Slack's Chromium renderer uses Lato font which renders slightly narrower than macOS system font
+        // Empirically tuned: 0.97 provides best alignment for most text
         guard let ctx = context else {
-            return 0.94
+            return 0.97
         }
 
         let slackContext = SlackContext(rawValue: ctx) ?? .unknown
 
         switch slackContext {
         case .messageInput, .threadReply, .editMessage:
-            return 0.94
+            return 0.97
         case .searchBar:
-            return 0.96
+            return 0.98
         case .unknown:
-            return 0.94
+            return 0.97
         }
     }
 
@@ -341,9 +346,26 @@ class SlackContentParser: ContentParser {
             return nil
         }
 
-        let font = NSFont.systemFont(ofSize: fontSize)
+        // Use Lato font if available (Slack's actual font), otherwise fall back to system font
+        // Apply a multiplier to correct for font rendering differences between macOS and Chromium
+        let font: NSFont
+        let multiplier: CGFloat
+
+        if let latoFont = NSFont(name: "Lato-Regular", size: fontSize) ??
+                          NSFont(name: "Lato", size: fontSize) {
+            font = latoFont
+            // Lato renders almost identically, minimal correction needed
+            multiplier = 0.99
+            Logger.debug("Slack: Using Lato font for text measurement", category: Logger.ui)
+        } else {
+            // Fall back to system font with Chromium rendering correction
+            font = NSFont.systemFont(ofSize: fontSize)
+            // Chromium's text rendering is narrower than macOS for system font
+            multiplier = spacingMultiplier(context: context)
+            Logger.debug("Slack: Lato not found, using system font with multiplier \(multiplier)", category: Logger.ui)
+        }
+
         let attributes: [NSAttributedString.Key: Any] = [.font: font]
-        let multiplier = spacingMultiplier(context: context)
         let padding = horizontalPadding(context: context)
 
         // Calculate line height for Slack's message input

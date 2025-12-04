@@ -26,8 +26,25 @@ class TextMonitor: ObservableObject {
     /// Debounce timer for text changes
     private var debounceTimer: Timer?
 
-    /// Debounce interval in seconds
-    private let debounceInterval: TimeInterval = 0.05  // 50ms for snappier UX
+    /// Default debounce interval in seconds
+    private let defaultDebounceInterval: TimeInterval = 0.05  // 50ms for snappier UX
+
+    /// Extended debounce for Chromium apps that require delayed positioning
+    /// Slack and other Chromium apps need cursor manipulation for accurate positioning,
+    /// which can only happen after typing stops. Longer debounce = less cursor interference.
+    private let chromiumDebounceInterval: TimeInterval = 1.5  // 1.5s for Chromium apps
+
+    /// Get the appropriate debounce interval for the current app
+    private var debounceInterval: TimeInterval {
+        guard let bundleID = currentContext?.bundleIdentifier else {
+            return defaultDebounceInterval
+        }
+        // Use longer debounce for Slack to allow accurate positioning without cursor interference
+        if bundleID == "com.tinyspeck.slackmacgap" {
+            return chromiumDebounceInterval
+        }
+        return defaultDebounceInterval
+    }
 
     /// Callback for text changes
     var onTextChange: ((String, ApplicationContext) -> Void)?
@@ -360,6 +377,9 @@ class TextMonitor: ObservableObject {
 
     /// Handle text change with debouncing (T036)
     private func handleTextChange(_ text: String) {
+        // Notify SlackStrategy about text change for typing detection
+        SlackStrategy.notifyTextChange()
+
         // Invalidate existing timer
         debounceTimer?.invalidate()
 

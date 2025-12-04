@@ -41,6 +41,10 @@ A small indicator appears when issues are found. Click to see suggestions. Accep
 
 Beyond basic grammar checking, TextWarden offers intelligent style suggestions powered by a local AI model running entirely on your Mac. Get recommendations for clearer phrasing, better word choices, and improved readability - all without sending your text to any server. The AI runs on your hardware using Apple Silicon's neural engine, keeping your writing private while providing smart suggestions that go beyond simple rule-based checks.
 
+## Known Limitations
+
+**Slack Text Replacement**: When applying corrections in Slack, text formatting (bold, italic, inline code, etc.) is not preserved. The corrected text will be inserted as plain text. This is a limitation of Slack's accessibility API which doesn't support inserting formatted text.
+
 ## Requirements
 
 - Apple Silicon Mac (M1 or later)

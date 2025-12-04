@@ -12,34 +12,23 @@ import ApplicationServices
 import Carbon.HIToolbox
 
 /// Navigation-based positioning strategy
-/// Uses synthetic key events to move cursor and measure real screen position
+/// Uses synthetic key events to move cursor and measure real screen position.
+/// Works when standard AX APIs fail.
 class NavigationStrategy: GeometryProvider {
 
     var strategyName: String { "Navigation" }
-    var tier: StrategyTier { .fallback }
-    var tierPriority: Int { 20 }
+    var tier: StrategyTier { .reliable }  // Promoted - this is key for Chromium apps!
+    var tierPriority: Int { 4 }  // Try before SelectionBounds and FontMetrics
 
     // Key codes for arrow keys
     private let kVK_LeftArrow: CGKeyCode = 123
     private let kVK_RightArrow: CGKeyCode = 124
 
     func canHandle(element: AXUIElement, bundleID: String) -> Bool {
-        // Exclude Notion - synthetic key events cause visible cursor flickering
-        let notionBundleIDs: Set<String> = [
-            "notion.id",
-            "com.notion.id"
-        ]
-
-        if notionBundleIDs.contains(bundleID) {
-            return false
-        }
-
-        let chromiumApps: Set<String> = [
-            "com.slack.Slack",
-            "com.microsoft.VSCode",
-            "com.discord.Discord"
-        ]
-        return chromiumApps.contains(bundleID)
+        // DISABLED: This strategy uses synthetic arrow key presses which interferes with typing.
+        // The cursor movement is visible to the user and makes the app unusable.
+        // We need a non-invasive approach for Chromium apps.
+        return false
     }
 
     func calculateGeometry(
@@ -212,6 +201,25 @@ class NavigationStrategy: GeometryProvider {
     // MARK: - Cursor Bounds
 
     private func getCursorBounds(element: AXUIElement, position: Int) -> CGRect? {
+        // Try AXInsertionPointFrame FIRST - this is more reliable after synthetic navigation
+        // AXBoundsForRange often returns bogus (0,0,0,0) data in Chromium apps
+        var insertionValue: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, "AXInsertionPointFrame" as CFString, &insertionValue) == .success,
+           let axValue = insertionValue,
+           CFGetTypeID(axValue) == AXValueGetTypeID() {
+            var frame = CGRect.zero
+            if AXValueGetValue(axValue as! AXValue, .cgRect, &frame) {
+                // Validate the frame
+                if frame.height > 5 && frame.height < 100 && frame.origin.x > 0 {
+                    Logger.debug("NavigationStrategy: Got valid bounds from AXInsertionPointFrame: \(frame)")
+                    return frame
+                } else {
+                    Logger.debug("NavigationStrategy: AXInsertionPointFrame returned invalid frame: \(frame)")
+                }
+            }
+        }
+
+        // Fallback to AXBoundsForRange
         var cfRange = CFRange(location: position, length: 1)
         guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else {
             return nil
@@ -225,28 +233,21 @@ class NavigationStrategy: GeometryProvider {
             &boundsValue
         )
 
-        if result == .success, let bv = boundsValue {
+        if result == .success, let bv = boundsValue,
+           CFGetTypeID(bv) == AXValueGetTypeID() {
             var bounds = CGRect.zero
             if AXValueGetValue(bv as! AXValue, .cgRect, &bounds) {
-                if bounds.width > 0 || bounds.height > 0 {
-                    Logger.debug("NavigationStrategy: Got bounds from AXBoundsForRange: \(bounds)")
+                // Validate bounds - Chromium bug returns (0, y, 0, 0)
+                if bounds.width > 0 && bounds.height > 5 && bounds.origin.x > 0 {
+                    Logger.debug("NavigationStrategy: Got valid bounds from AXBoundsForRange: \(bounds)")
                     return bounds
+                } else {
+                    Logger.debug("NavigationStrategy: AXBoundsForRange returned invalid bounds: \(bounds)")
                 }
             }
         }
 
-        // Try AXInsertionPointFrame as alternative
-        var insertionValue: CFTypeRef?
-        if AXUIElementCopyAttributeValue(element, "AXInsertionPointFrame" as CFString, &insertionValue) == .success,
-           let axValue = insertionValue {
-            var frame = CGRect.zero
-            if AXValueGetValue(axValue as! AXValue, .cgRect, &frame) {
-                Logger.debug("NavigationStrategy: Got bounds from AXInsertionPointFrame: \(frame)")
-                return frame
-            }
-        }
-
-        Logger.debug("NavigationStrategy: Could not get cursor bounds at position \(position)")
+        Logger.debug("NavigationStrategy: Could not get valid cursor bounds at position \(position)")
         return nil
     }
 }

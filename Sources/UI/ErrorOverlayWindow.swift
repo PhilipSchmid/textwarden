@@ -182,6 +182,15 @@ class ErrorOverlayWindow: NSPanel {
         // Check if the parser wants to disable visual underlines
         let bundleID = context?.bundleIdentifier ?? "unknown"
         let parser = ContentParserFactory.shared.parser(for: bundleID)
+
+        // For Slack: Hide underlines while typing to avoid misplacement during text changes
+        // The floating error indicator will still show the error count
+        if bundleID == "com.tinyspeck.slackmacgap" && SlackStrategy.isCurrentlyTyping {
+            Logger.debug("ErrorOverlay: Hiding underlines during typing (Slack)", category: Logger.ui)
+            hide()
+            // Return 0 underlines but errors will still be counted by the indicator
+            return 0
+        }
         Logger.info("ErrorOverlay: Using parser '\(parser.parserName)' for bundleID '\(bundleID)', disablesVisualUnderlines=\(parser.disablesVisualUnderlines)")
 
         // Extra debug for Notion
@@ -366,6 +375,10 @@ class ErrorOverlayWindow: NSPanel {
                 error: error
             )
         }
+
+        // Restore cursor position after all Slack measurements are complete
+        // This must be called AFTER all positioning calculations are done
+        SlackStrategy.restoreCursorPosition()
 
         Logger.info("ErrorOverlay: Created \(underlines.count) underlines from \(errors.count) errors (skipped \(skippedCount) positioning, \(skippedDueToVisibility) not visible)")
 

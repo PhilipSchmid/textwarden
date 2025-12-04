@@ -2,41 +2,30 @@
 //  SelectionBoundsStrategy.swift
 //  TextWarden
 //
-//  Selection-based positioning strategy
-//  Sets selection to the target range and queries selection bounds.
+//  Selection-based positioning strategy using insertion point frame.
+//  For Chromium/Electron apps where AXBoundsForRange returns invalid data.
+//
+//  Key insight: Set cursor position (zero-length selection), then query
+//  AXInsertionPointFrame which often works even when AXBoundsForRange fails.
 //
 
 import Foundation
 import ApplicationServices
+import AppKit
 
-/// Selection-based positioning strategy
-/// Sets selection to error range, reads bounds, restores original selection
+/// Selection-based positioning strategy using insertion point frame
+/// Sets cursor position, gets AXInsertionPointFrame, then calculates bounds
 class SelectionBoundsStrategy: GeometryProvider {
 
     var strategyName: String { "SelectionBounds" }
-    var tier: StrategyTier { .fallback }
-    var tierPriority: Int { 10 }
+    var tier: StrategyTier { .reliable }  // Promoted from fallback - this is key for Chromium!
+    var tierPriority: Int { 5 }  // Try before FontMetrics
 
     func canHandle(element: AXUIElement, bundleID: String) -> Bool {
-        // Exclude Notion - this strategy manipulates selection which causes cursor flickering
-        let notionBundleIDs: Set<String> = [
-            "notion.id",
-            "com.notion.id"
-        ]
-
-        if notionBundleIDs.contains(bundleID) {
-            return false
-        }
-
-        let chromiumBasedApps: Set<String> = [
-            "com.slack.Slack",
-            "com.microsoft.VSCode",
-            "com.spotify.client",
-            "com.discord.Discord",
-            "com.figma.Desktop"
-        ]
-
-        return chromiumBasedApps.contains(bundleID)
+        // DISABLED: This strategy manipulates cursor position which interferes with typing.
+        // The selection movement is visible to the user and makes the app unusable.
+        // We need a non-invasive approach for Chromium apps.
+        return false
     }
 
     func calculateGeometry(
@@ -46,7 +35,7 @@ class SelectionBoundsStrategy: GeometryProvider {
         parser: ContentParser
     ) -> GeometryResult? {
 
-        Logger.debug("SelectionBoundsStrategy: Attempting for range \(errorRange)", category: Logger.ui)
+        Logger.debug("SelectionBoundsStrategy: Attempting for range \(errorRange) in '\(text.prefix(50))...'", category: Logger.ui)
 
         // Step 1: Save current selection
         guard let originalSelection = getCurrentSelection(element: element) else {
@@ -56,60 +45,108 @@ class SelectionBoundsStrategy: GeometryProvider {
 
         Logger.debug("SelectionBoundsStrategy: Saved original selection at \(originalSelection.location), length \(originalSelection.length)")
 
-        // Step 2: Set selection to error range (adjusted for offset)
-        var adjustedRange = errorRange
-        if let notionParser = parser as? NotionContentParser {
-            adjustedRange = NSRange(
-                location: errorRange.location + notionParser.textReplacementOffset,
-                length: errorRange.length
+        // Step 2: Calculate adjusted range (for offset like in Notion)
+        let offset = parser.textReplacementOffset
+        let adjustedStart = errorRange.location + offset
+        let adjustedEnd = adjustedStart + errorRange.length
+
+        // Step 3: Set cursor to START of error (zero-length selection)
+        guard setSelection(element: element, range: NSRange(location: adjustedStart, length: 0)) else {
+            Logger.debug("SelectionBoundsStrategy: Could not set cursor to error start")
+            restoreSelection(element: element, originalSelection: originalSelection)
+            return nil
+        }
+
+        usleep(5000)  // 5ms for UI update
+
+        // Step 4: Get insertion point frame at START of error
+        guard let startFrame = getInsertionPointFrame(element: element) else {
+            Logger.debug("SelectionBoundsStrategy: Could not get insertion point frame at start")
+            restoreSelection(element: element, originalSelection: originalSelection)
+            return nil
+        }
+
+        Logger.debug("SelectionBoundsStrategy: Start frame at \(adjustedStart): \(startFrame)")
+
+        // Step 5: Set cursor to END of error
+        guard setSelection(element: element, range: NSRange(location: adjustedEnd, length: 0)) else {
+            Logger.debug("SelectionBoundsStrategy: Could not set cursor to error end")
+            restoreSelection(element: element, originalSelection: originalSelection)
+            return nil
+        }
+
+        usleep(5000)  // 5ms for UI update
+
+        // Step 6: Get insertion point frame at END of error
+        guard let endFrame = getInsertionPointFrame(element: element) else {
+            Logger.debug("SelectionBoundsStrategy: Could not get insertion point frame at end")
+            restoreSelection(element: element, originalSelection: originalSelection)
+            return nil
+        }
+
+        Logger.debug("SelectionBoundsStrategy: End frame at \(adjustedEnd): \(endFrame)")
+
+        // Step 7: Restore original selection (always do this)
+        restoreSelection(element: element, originalSelection: originalSelection)
+
+        // Step 8: Calculate bounds from start and end positions
+        // Check if start and end are on same line (same Y coordinate)
+        let sameLineThreshold: CGFloat = 5.0
+        let sameY = abs(startFrame.origin.y - endFrame.origin.y) < sameLineThreshold
+
+        var quartzBounds: CGRect
+
+        if sameY {
+            // Single line: bounds span from start.x to end.x
+            let width = max(endFrame.origin.x - startFrame.origin.x, 10.0)
+            quartzBounds = CGRect(
+                x: startFrame.origin.x,
+                y: startFrame.origin.y,
+                width: width,
+                height: startFrame.height
             )
-        }
+            Logger.debug("SelectionBoundsStrategy: Single line bounds: \(quartzBounds)")
+        } else {
+            // Multi-line: use start position, estimate width from error text
+            let errorText = String(text.dropFirst(errorRange.location).prefix(errorRange.length))
+            let font = NSFont.systemFont(ofSize: parser.estimatedFontSize(context: nil))
+            let textWidth = (errorText as NSString).size(withAttributes: [.font: font]).width
+            let adjustedWidth = textWidth * parser.spacingMultiplier(context: nil)
 
-        guard setSelection(element: element, range: adjustedRange) else {
-            Logger.debug("SelectionBoundsStrategy: Could not set selection to error range")
-            return nil
-        }
-
-        usleep(10000)  // 10ms for UI update
-
-        // Step 3: Get bounds for the selection
-        let bounds = getSelectionBounds(element: element, range: adjustedRange)
-
-        // Step 4: Restore original selection (always do this)
-        let restored = setSelection(element: element, range: originalSelection)
-        if !restored {
-            Logger.warning("SelectionBoundsStrategy: Could not restore original selection!")
-        }
-
-        guard let boundsRect = bounds else {
-            Logger.debug("SelectionBoundsStrategy: Could not get bounds for selection")
-            return nil
+            quartzBounds = CGRect(
+                x: startFrame.origin.x,
+                y: startFrame.origin.y,
+                width: max(adjustedWidth, 10.0),
+                height: startFrame.height
+            )
+            Logger.debug("SelectionBoundsStrategy: Multi-line, using estimated width: \(quartzBounds)")
         }
 
         // Validate bounds
-        guard boundsRect.width > 0 && boundsRect.height > 0 && boundsRect.height < 200 else {
-            Logger.debug("SelectionBoundsStrategy: Invalid bounds \(boundsRect)")
+        guard quartzBounds.width > 0 && quartzBounds.height > 0 && quartzBounds.height < 200 else {
+            Logger.debug("SelectionBoundsStrategy: Invalid bounds \(quartzBounds)")
             return nil
         }
 
-        // Convert to Cocoa coordinates
-        let cocoaBounds = CoordinateMapper.toCocoaCoordinates(boundsRect)
+        // Step 9: Convert to Cocoa coordinates
+        let cocoaBounds = CoordinateMapper.toCocoaCoordinates(quartzBounds)
 
         guard CoordinateMapper.validateBounds(cocoaBounds) else {
             Logger.debug("SelectionBoundsStrategy: Converted bounds failed validation")
             return nil
         }
 
-        Logger.debug("SelectionBoundsStrategy: Success! Bounds: \(cocoaBounds)")
+        Logger.info("SelectionBoundsStrategy: SUCCESS! Bounds: \(cocoaBounds)")
 
         return GeometryResult(
             bounds: cocoaBounds,
-            confidence: 0.85,
+            confidence: 0.90,  // High confidence - this is direct cursor position data
             strategy: strategyName,
             metadata: [
-                "api": "selection-bounds",
-                "original_selection": "\(originalSelection)",
-                "adjusted_range": "\(adjustedRange)"
+                "api": "insertion-point-frame",
+                "start_frame": "\(startFrame)",
+                "end_frame": "\(endFrame)",
+                "same_line": sameY
             ]
         )
     }
@@ -125,6 +162,10 @@ class SelectionBoundsStrategy: GeometryProvider {
         )
 
         guard result == .success, let axValue = value else {
+            return nil
+        }
+
+        guard CFGetTypeID(axValue) == AXValueGetTypeID() else {
             return nil
         }
 
@@ -151,30 +192,49 @@ class SelectionBoundsStrategy: GeometryProvider {
         return result == .success
     }
 
-    private func getSelectionBounds(element: AXUIElement, range: NSRange) -> CGRect? {
-        var cfRange = CFRange(location: range.location, length: range.length)
-        guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else {
-            return nil
+    private func restoreSelection(element: AXUIElement, originalSelection: NSRange) {
+        if !setSelection(element: element, range: originalSelection) {
+            Logger.warning("SelectionBoundsStrategy: Could not restore original selection!")
         }
+    }
 
-        var boundsValue: CFTypeRef?
-        let result = AXUIElementCopyParameterizedAttributeValue(
+    /// Get the cursor position frame using AXInsertionPointFrame
+    /// This API works in Chromium when AXBoundsForRange fails
+    private func getInsertionPointFrame(element: AXUIElement) -> CGRect? {
+        var value: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(
             element,
-            kAXBoundsForRangeParameterizedAttribute as CFString,
-            rangeValue,
-            &boundsValue
+            "AXInsertionPointFrame" as CFString,
+            &value
         )
 
-        guard result == .success, let bv = boundsValue else {
-            Logger.debug("SelectionBoundsStrategy: AXBoundsForRange failed with code \(result.rawValue)")
+        guard result == .success, let axValue = value else {
+            Logger.debug("SelectionBoundsStrategy: AXInsertionPointFrame failed: \(result.rawValue)")
             return nil
         }
 
-        var bounds = CGRect.zero
-        guard AXValueGetValue(bv as! AXValue, .cgRect, &bounds) else {
+        guard CFGetTypeID(axValue) == AXValueGetTypeID() else {
+            Logger.debug("SelectionBoundsStrategy: AXInsertionPointFrame returned non-AXValue type")
             return nil
         }
 
-        return bounds
+        var frame = CGRect.zero
+        guard AXValueGetValue(axValue as! AXValue, .cgRect, &frame) else {
+            Logger.debug("SelectionBoundsStrategy: Could not extract CGRect from AXInsertionPointFrame")
+            return nil
+        }
+
+        // Validate frame - Chromium bug may return zero dimensions or negative coordinates
+        guard frame.height > 5 && frame.height < 100 else {
+            Logger.debug("SelectionBoundsStrategy: Invalid frame height: \(frame)")
+            return nil
+        }
+
+        guard frame.origin.x > 0 else {
+            Logger.debug("SelectionBoundsStrategy: Invalid frame x position: \(frame)")
+            return nil
+        }
+
+        return frame
     }
 }
