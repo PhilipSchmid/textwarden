@@ -1021,43 +1021,43 @@ struct SentenceContextView: View {
             return nil
         }
 
-        // Find sentence boundaries
+        // Find sentence boundaries by searching backwards from error for sentence start
+        // and forwards from error for sentence end
         let errorStartIndex = sourceText.index(sourceText.startIndex, offsetBy: error.start)
 
-        // Find sentence start (look for . ! ? or start of string)
+        // Find sentence start by searching backwards for . ! ? followed by space/newline
         var sentenceStart = sourceText.startIndex
-        if let range = sourceText[..<errorStartIndex].range(of: "[.!?]\\s+", options: .regularExpression, range: nil, locale: nil) {
-            sentenceStart = range.upperBound
-        } else {
-            // Check from beginning
-            var searchIndex = errorStartIndex
-            while searchIndex > sourceText.startIndex {
-                let prevIndex = sourceText.index(before: searchIndex)
-                let char = sourceText[prevIndex]
-                if char == "." || char == "!" || char == "?" {
-                    // Found end of previous sentence
+        var searchIndex = errorStartIndex
+        while searchIndex > sourceText.startIndex {
+            let prevIndex = sourceText.index(before: searchIndex)
+            let char = sourceText[prevIndex]
+            if char == "." || char == "!" || char == "?" {
+                // Check if this is end of previous sentence (followed by space/newline or at error position)
+                if searchIndex == errorStartIndex || sourceText[searchIndex].isWhitespace || sourceText[searchIndex].isNewline {
                     sentenceStart = searchIndex
                     break
                 }
-                searchIndex = prevIndex
             }
+            searchIndex = prevIndex
         }
 
-        // Skip leading whitespace
-        while sentenceStart < sourceText.endIndex && sourceText[sentenceStart].isWhitespace {
+        // Skip leading whitespace and newlines
+        while sentenceStart < sourceText.endIndex &&
+              (sourceText[sentenceStart].isWhitespace || sourceText[sentenceStart].isNewline) {
             sentenceStart = sourceText.index(after: sentenceStart)
         }
 
-        // Find sentence end (look for . ! ? or end of string)
+        // Find sentence end by searching forwards for . ! ?
         var sentenceEnd = sourceText.endIndex
-        var searchStart = errorStartIndex
-        while searchStart < sourceText.endIndex {
-            let char = sourceText[searchStart]
+        searchIndex = errorStartIndex
+        while searchIndex < sourceText.endIndex {
+            let char = sourceText[searchIndex]
             if char == "." || char == "!" || char == "?" {
-                sentenceEnd = sourceText.index(after: searchStart)
+                // Include the punctuation in the sentence
+                sentenceEnd = sourceText.index(after: searchIndex)
                 break
             }
-            searchStart = sourceText.index(after: searchStart)
+            searchIndex = sourceText.index(after: searchIndex)
         }
 
         let sentenceStartOffset = sourceText.distance(from: sourceText.startIndex, to: sentenceStart)
