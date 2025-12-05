@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["staticlib"]
 
 [dependencies]
-harper-core = "0.72"
+harper-core = "1.1"
 swift-bridge = "0.1.57"
 uuid = { version = "1.0", features = ["v4"] }
 whichlang = "0.1.0"
