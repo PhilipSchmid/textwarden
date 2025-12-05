@@ -67,6 +67,9 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Current error index (grammar mode)
     @Published var currentIndex: Int = 0
 
+    /// Source text for error context display
+    @Published var sourceText: String = ""
+
     /// Current style suggestion being displayed (style mode)
     @Published private(set) var currentStyleSuggestion: StyleSuggestionModel?
 
@@ -146,12 +149,14 @@ class SuggestionPopover: NSObject, ObservableObject {
     ///   - allErrors: All errors for context
     ///   - position: Screen position for the popover
     ///   - constrainToWindow: Optional window frame to constrain popover positioning (keeps popover inside app window)
-    func show(error: GrammarErrorModel, allErrors: [GrammarErrorModel], at position: CGPoint, constrainToWindow: CGRect? = nil) {
+    ///   - sourceText: Source text for context display
+    func show(error: GrammarErrorModel, allErrors: [GrammarErrorModel], at position: CGPoint, constrainToWindow: CGRect? = nil, sourceText: String = "") {
         // DEBUG: Log activation policy BEFORE showing
         Logger.debug("SuggestionPopover.show() - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
 
         self.mode = .grammarError
         self.allErrors = allErrors
+        self.sourceText = sourceText
 
         // Find the matching error in allErrors to get the most up-to-date version
         // This ensures AI-enhanced errors (with suggestions) are used even if the overlay
@@ -816,12 +821,14 @@ class SuggestionPopover: NSObject, ObservableObject {
     ///   - styleSuggestions: Style suggestions to display
     ///   - position: Screen position for the popover
     ///   - constrainToWindow: Optional window frame to constrain popover positioning
-    func showUnified(errors: [GrammarErrorModel], styleSuggestions: [StyleSuggestionModel], at position: CGPoint, constrainToWindow: CGRect? = nil) {
+    ///   - sourceText: Source text for context display
+    func showUnified(errors: [GrammarErrorModel], styleSuggestions: [StyleSuggestionModel], at position: CGPoint, constrainToWindow: CGRect? = nil, sourceText: String = "") {
         Logger.debug("SuggestionPopover.showUnified - errors=\(errors.count), styleSuggestions=\(styleSuggestions.count)", category: Logger.ui)
 
         // Store both collections for unified cycling
         self.allErrors = errors
         self.allStyleSuggestions = styleSuggestions
+        self.sourceText = sourceText
 
         // Start at unified index 0 (first item sorted by position)
         self.unifiedIndex = 0
@@ -940,6 +947,214 @@ class SuggestionPopover: NSObject, ObservableObject {
 // MARK: - Unified Content View
 
 /// Unified content view that switches between grammar and style suggestion content
+// MARK: - Sentence Context View
+
+/// Helper to extract sentence containing error and highlight the error word(s)
+struct SentenceContextView: View {
+    let sourceText: String
+    let error: GrammarErrorModel
+    let allErrors: [GrammarErrorModel]
+    let colors: AppColors
+    let textSize: CGFloat
+
+    /// Maximum word count for sentences (Harper's long sentence threshold is 40)
+    private let maxSentenceWords = 40
+
+    var body: some View {
+        if let sentenceInfo = extractSentenceWithErrors() {
+            VStack(alignment: .leading, spacing: 4) {
+                // Build attributed text with highlighted errors
+                buildHighlightedText(sentenceInfo: sentenceInfo)
+                    .font(.system(size: textSize * 0.9))
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.vertical, 6)
+            .padding(.horizontal, 8)
+            .background(colors.backgroundRaised.opacity(0.5))
+            .cornerRadius(6)
+        }
+    }
+
+    /// Sentence info containing the sentence text and error ranges within it
+    private struct SentenceInfo {
+        let sentence: String
+        let sentenceStart: Int  // Offset in source text
+        let errorRanges: [(range: Range<String.Index>, category: String)]
+        let isTruncated: Bool
+    }
+
+    /// Extract the sentence containing the current error
+    private func extractSentenceWithErrors() -> SentenceInfo? {
+        guard error.start < sourceText.count, error.end <= sourceText.count else {
+            return nil
+        }
+
+        // Find sentence boundaries
+        let errorStartIndex = sourceText.index(sourceText.startIndex, offsetBy: error.start)
+
+        // Find sentence start (look for . ! ? or start of string)
+        var sentenceStart = sourceText.startIndex
+        if let range = sourceText[..<errorStartIndex].range(of: "[.!?]\\s+", options: .regularExpression, range: nil, locale: nil) {
+            sentenceStart = range.upperBound
+        } else {
+            // Check from beginning
+            var searchIndex = errorStartIndex
+            while searchIndex > sourceText.startIndex {
+                let prevIndex = sourceText.index(before: searchIndex)
+                let char = sourceText[prevIndex]
+                if char == "." || char == "!" || char == "?" {
+                    // Found end of previous sentence
+                    sentenceStart = searchIndex
+                    break
+                }
+                searchIndex = prevIndex
+            }
+        }
+
+        // Skip leading whitespace
+        while sentenceStart < sourceText.endIndex && sourceText[sentenceStart].isWhitespace {
+            sentenceStart = sourceText.index(after: sentenceStart)
+        }
+
+        // Find sentence end (look for . ! ? or end of string)
+        var sentenceEnd = sourceText.endIndex
+        var searchStart = errorStartIndex
+        while searchStart < sourceText.endIndex {
+            let char = sourceText[searchStart]
+            if char == "." || char == "!" || char == "?" {
+                sentenceEnd = sourceText.index(after: searchStart)
+                break
+            }
+            searchStart = sourceText.index(after: searchStart)
+        }
+
+        let sentenceStartOffset = sourceText.distance(from: sourceText.startIndex, to: sentenceStart)
+        var sentence = String(sourceText[sentenceStart..<sentenceEnd])
+
+        // Check if sentence is too long and needs truncation
+        let wordCount = sentence.split(separator: " ").count
+        var isTruncated = false
+
+        if wordCount > maxSentenceWords {
+            // Truncate around the error position
+            sentence = truncateSentence(sentence, errorOffset: error.start - sentenceStartOffset)
+            isTruncated = true
+        }
+
+        // Find all errors in this sentence
+        let sentenceEndOffset = sentenceStartOffset + sentence.count
+        let errorsInSentence = allErrors.filter { err in
+            err.start >= sentenceStartOffset && err.end <= sentenceEndOffset
+        }
+
+        // Build error ranges relative to the sentence
+        var errorRanges: [(range: Range<String.Index>, category: String)] = []
+        for err in errorsInSentence {
+            let relativeStart = err.start - sentenceStartOffset
+            let relativeEnd = err.end - sentenceStartOffset
+
+            guard relativeStart >= 0, relativeEnd <= sentence.count else { continue }
+
+            if let startIdx = sentence.index(sentence.startIndex, offsetBy: relativeStart, limitedBy: sentence.endIndex),
+               let endIdx = sentence.index(sentence.startIndex, offsetBy: relativeEnd, limitedBy: sentence.endIndex),
+               startIdx < endIdx {
+                errorRanges.append((range: startIdx..<endIdx, category: err.category))
+            }
+        }
+
+        return SentenceInfo(
+            sentence: sentence,
+            sentenceStart: sentenceStartOffset,
+            errorRanges: errorRanges,
+            isTruncated: isTruncated
+        )
+    }
+
+    /// Truncate a long sentence around the error position
+    private func truncateSentence(_ sentence: String, errorOffset: Int) -> String {
+        let words = sentence.split(separator: " ", omittingEmptySubsequences: false)
+        guard words.count > maxSentenceWords else { return sentence }
+
+        // Find which word contains the error
+        var charCount = 0
+        var errorWordIndex = 0
+        for (index, word) in words.enumerated() {
+            let wordEnd = charCount + word.count + 1  // +1 for space
+            if charCount <= errorOffset && errorOffset < wordEnd {
+                errorWordIndex = index
+                break
+            }
+            charCount = wordEnd
+        }
+
+        // Show words around the error (about 15 words on each side)
+        let contextWords = 15
+        let startWord = max(0, errorWordIndex - contextWords)
+        let endWord = min(words.count, errorWordIndex + contextWords + 1)
+
+        var result = ""
+        if startWord > 0 {
+            result += "..."
+        }
+        result += words[startWord..<endWord].joined(separator: " ")
+        if endWord < words.count {
+            result += "..."
+        }
+
+        return result
+    }
+
+    /// Build the highlighted text view
+    @ViewBuilder
+    private func buildHighlightedText(sentenceInfo: SentenceInfo) -> some View {
+        let sentence = sentenceInfo.sentence
+
+        if sentenceInfo.errorRanges.isEmpty {
+            Text(sentence)
+                .foregroundColor(colors.textSecondary)
+        } else {
+            // Build Text with highlights using + concatenation
+            buildAttributedTextView(sentence: sentence, errorRanges: sentenceInfo.errorRanges)
+        }
+    }
+
+    /// Build attributed text with highlighted error words
+    private func buildAttributedTextView(sentence: String, errorRanges: [(range: Range<String.Index>, category: String)]) -> Text {
+        // Sort ranges by start position
+        let sortedRanges = errorRanges.sorted { $0.range.lowerBound < $1.range.lowerBound }
+
+        var result = Text("")
+        var currentIndex = sentence.startIndex
+
+        for errorRange in sortedRanges {
+            // Add text before this error
+            if currentIndex < errorRange.range.lowerBound {
+                let beforeText = String(sentence[currentIndex..<errorRange.range.lowerBound])
+                result = result + Text(beforeText).foregroundColor(colors.textSecondary)
+            }
+
+            // Add highlighted error text
+            let errorText = String(sentence[errorRange.range])
+            let categoryColor = colors.categoryColor(for: errorRange.category)
+            result = result + Text(errorText)
+                .foregroundColor(categoryColor)
+                .fontWeight(.semibold)
+                .underline(true, color: categoryColor)
+
+            currentIndex = errorRange.range.upperBound
+        }
+
+        // Add remaining text after last error
+        if currentIndex < sentence.endIndex {
+            let afterText = String(sentence[currentIndex...])
+            result = result + Text(afterText).foregroundColor(colors.textSecondary)
+        }
+
+        return result
+    }
+}
+
 struct UnifiedPopoverContentView: View {
     @ObservedObject var popover: SuggestionPopover
 
@@ -1025,6 +1240,17 @@ struct PopoverContentView: View {
                             .foregroundColor(colors.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityLabel("Error: \(error.message)")
+
+                        // Show sentence context with highlighted error word(s)
+                        if !popover.sourceText.isEmpty {
+                            SentenceContextView(
+                                sourceText: popover.sourceText,
+                                error: error,
+                                allErrors: popover.allErrors,
+                                colors: colors,
+                                textSize: captionTextSize
+                            )
+                        }
 
                         // Filter out empty and whitespace-only suggestions
                         // Empty suggestions mean "delete this" - don't show empty buttons

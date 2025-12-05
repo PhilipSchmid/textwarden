@@ -156,6 +156,9 @@ class AnalysisCoordinator: ObservableObject {
     /// Flag to prevent regular analysis from hiding indicator during manual style check
     private var isManualStyleCheckActive: Bool = false
 
+    /// Last analyzed source text (for popover context display)
+    private var lastAnalyzedText: String = ""
+
     private init() {
         setupMonitoring()
         setupPopoverCallbacks()
@@ -844,7 +847,7 @@ class AnalysisCoordinator: ObservableObject {
             // but we CAN show the floating indicator using just the PID from context
             // The user will see the error count badge; underlines will appear when they click
             Logger.debug("Window monitoring: No element but have \(currentErrors.count) cached errors - showing floating indicator", category: Logger.analysis)
-            floatingIndicator.updateWithContext(errors: currentErrors, context: context)
+            floatingIndicator.updateWithContext(errors: currentErrors, context: context, sourceText: lastAnalyzedText)
             // DON'T call startMonitoring - it will likely fail to find an editable element
             // in browsers (focus may be on nothing or a UI element after restore), which
             // triggers handleTextChange with nil element, hiding our floating indicator
@@ -1399,6 +1402,9 @@ class AnalysisCoordinator: ObservableObject {
         let capturedElement = textMonitor.monitoredElement
         let segmentContent = segment.content
 
+        // Store for popover context display
+        lastAnalyzedText = segmentContent
+
         // Detailed logging for style checking eligibility
         // Auto style checking requires both enableStyleChecking AND autoStyleChecking
         // Manual style checks (via shortcut) only require enableStyleChecking
@@ -1584,7 +1590,8 @@ class AnalysisCoordinator: ObservableObject {
                                     errors: self.currentErrors,
                                     styleSuggestions: filteredSuggestions,
                                     element: element,
-                                    context: self.monitoredContext
+                                    context: self.monitoredContext,
+                                    sourceText: self.lastAnalyzedText
                                 )
                             }
                         } else {
@@ -1935,7 +1942,8 @@ class AnalysisCoordinator: ObservableObject {
                     errors: errors,
                     styleSuggestions: currentStyleSuggestions,
                     element: providedElement,
-                    context: monitoredContext
+                    context: monitoredContext,
+                    sourceText: lastAnalyzedText
                 )
             } else {
                 Logger.debug("AnalysisCoordinator: Skipping indicator update - manual style check in progress", category: Logger.analysis)
@@ -2420,7 +2428,8 @@ class AnalysisCoordinator: ObservableObject {
                     errors: [],
                     styleSuggestions: currentStyleSuggestions,
                     element: element,
-                    context: monitoredContext
+                    context: monitoredContext,
+                    sourceText: lastAnalyzedText
                 )
             }
         }
@@ -3782,7 +3791,8 @@ extension AnalysisCoordinator {
                         errors: updatedErrors,
                         styleSuggestions: self.currentStyleSuggestions,
                         element: element,
-                        context: self.monitoredContext
+                        context: self.monitoredContext,
+                        sourceText: self.lastAnalyzedText
                     )
                 }
 
