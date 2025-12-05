@@ -960,12 +960,17 @@ struct SentenceContextView: View {
     /// Maximum word count for sentences (Harper's long sentence threshold is 40)
     private let maxSentenceWords = 40
 
+    /// Check if an error is the current one being displayed
+    private func isCurrentError(_ err: GrammarErrorModel) -> Bool {
+        return err.start == error.start && err.end == error.end && err.lintId == error.lintId
+    }
+
     var body: some View {
         if let sentenceInfo = extractSentenceWithErrors() {
             VStack(alignment: .leading, spacing: 4) {
                 // Build attributed text with highlighted errors
                 buildHighlightedText(sentenceInfo: sentenceInfo)
-                    .font(.system(size: textSize * 0.9))
+                    .font(.system(size: textSize))
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -980,7 +985,7 @@ struct SentenceContextView: View {
     private struct SentenceInfo {
         let sentence: String
         let sentenceStart: Int  // Offset in source text
-        let errorRanges: [(range: Range<String.Index>, category: String)]
+        let errorRanges: [(range: Range<String.Index>, category: String, isCurrent: Bool)]
         let isTruncated: Bool
     }
 
@@ -1049,7 +1054,7 @@ struct SentenceContextView: View {
         }
 
         // Build error ranges relative to the sentence
-        var errorRanges: [(range: Range<String.Index>, category: String)] = []
+        var errorRanges: [(range: Range<String.Index>, category: String, isCurrent: Bool)] = []
         for err in errorsInSentence {
             let relativeStart = err.start - sentenceStartOffset
             let relativeEnd = err.end - sentenceStartOffset
@@ -1059,7 +1064,7 @@ struct SentenceContextView: View {
             if let startIdx = sentence.index(sentence.startIndex, offsetBy: relativeStart, limitedBy: sentence.endIndex),
                let endIdx = sentence.index(sentence.startIndex, offsetBy: relativeEnd, limitedBy: sentence.endIndex),
                startIdx < endIdx {
-                errorRanges.append((range: startIdx..<endIdx, category: err.category))
+                errorRanges.append((range: startIdx..<endIdx, category: err.category, isCurrent: isCurrentError(err)))
             }
         }
 
@@ -1120,7 +1125,8 @@ struct SentenceContextView: View {
     }
 
     /// Build attributed text with highlighted error words
-    private func buildAttributedTextView(sentence: String, errorRanges: [(range: Range<String.Index>, category: String)]) -> Text {
+    /// Current error gets underline + color, other errors get color only (no underline)
+    private func buildAttributedTextView(sentence: String, errorRanges: [(range: Range<String.Index>, category: String, isCurrent: Bool)]) -> Text {
         // Sort ranges by start position
         let sortedRanges = errorRanges.sorted { $0.range.lowerBound < $1.range.lowerBound }
 
@@ -1135,12 +1141,23 @@ struct SentenceContextView: View {
             }
 
             // Add highlighted error text
+            // Current error: underline + bold + color
+            // Other errors: color only (slightly muted) - no underline
             let errorText = String(sentence[errorRange.range])
             let categoryColor = colors.categoryColor(for: errorRange.category)
-            result = result + Text(errorText)
-                .foregroundColor(categoryColor)
-                .fontWeight(.semibold)
-                .underline(true, color: categoryColor)
+
+            if errorRange.isCurrent {
+                // Current error - full highlight with underline
+                result = result + Text(errorText)
+                    .foregroundColor(categoryColor)
+                    .fontWeight(.semibold)
+                    .underline(true, color: categoryColor)
+            } else {
+                // Other errors in same sentence - color only, no underline
+                result = result + Text(errorText)
+                    .foregroundColor(categoryColor.opacity(0.8))
+                    .fontWeight(.medium)
+            }
 
             currentIndex = errorRange.range.upperBound
         }
@@ -1227,6 +1244,14 @@ struct PopoverContentView: View {
                         .accessibilityLabel("Category: \(error.category)")
 
                     VStack(alignment: .leading, spacing: 12) {
+                        // Filter out empty and whitespace-only suggestions (computed early for conditional display)
+                        // Empty suggestions mean "delete this" - don't show empty buttons
+                        let validSuggestions = error.suggestions.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+                        // Check if we have actionable suggestions (not AI rephrase which shows differently)
+                        let isAIRephrase = error.category == "Readability" && validSuggestions.count == 2
+                        let hasRegularSuggestions = !validSuggestions.isEmpty && !isAIRephrase
+
                         // Clean category label
                         Text(error.category.uppercased())
                             .font(.system(size: captionTextSize, weight: .semibold, design: .rounded))
@@ -1234,32 +1259,27 @@ struct PopoverContentView: View {
                             .tracking(0.6)
                             .accessibilityLabel("Category: \(error.category)")
 
-                        // Always show error message - it explains what's wrong
-                        Text(error.message)
-                            .font(.system(size: bodyTextSize))
-                            .foregroundColor(colors.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityLabel("Error: \(error.message)")
+                        // Show error message only when there are no actionable suggestions
+                        // When suggestions exist, the sentence context makes the issue clear
+                        if !hasRegularSuggestions {
+                            Text(error.message)
+                                .font(.system(size: bodyTextSize))
+                                .foregroundColor(colors.textPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityLabel("Error: \(error.message)")
+                        }
 
                         // Show sentence context with highlighted error word(s)
+                        // Uses bodyTextSize to respect typography setting
                         if !popover.sourceText.isEmpty {
                             SentenceContextView(
                                 sourceText: popover.sourceText,
                                 error: error,
                                 allErrors: popover.allErrors,
                                 colors: colors,
-                                textSize: captionTextSize
+                                textSize: bodyTextSize
                             )
                         }
-
-                        // Filter out empty and whitespace-only suggestions
-                        // Empty suggestions mean "delete this" - don't show empty buttons
-                        let validSuggestions = error.suggestions.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-
-                        // Check if this is a readability error with AI-generated rephrase
-                        // Format: suggestions[0] = original text, suggestions[1] = rephrased text
-                        let isAIRephrase = error.category == "Readability" &&
-                            validSuggestions.count == 2
 
                         // Check if this is a readability error awaiting AI suggestion
                         let isLoadingAI = error.category == "Readability" &&
