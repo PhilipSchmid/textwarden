@@ -156,6 +156,10 @@ class AnalysisCoordinator: ObservableObject {
     /// Flag to prevent regular analysis from hiding indicator during manual style check
     private var isManualStyleCheckActive: Bool = false
 
+    /// The full text content when current style suggestions were generated
+    /// Used to invalidate suggestions when the underlying text changes
+    private var styleAnalysisSourceText: String = ""
+
     /// Flag to prevent text-change handler from clearing errors during replacement
     /// When true, text changes are expected (we're applying a suggestion) and should not trigger re-analysis
     private var isApplyingReplacement: Bool = false
@@ -1317,6 +1321,16 @@ class AnalysisCoordinator: ObservableObject {
             Logger.debug("AnalysisCoordinator: Text changed during replacement - skipping cache clear (positions already adjusted)", category: Logger.analysis)
         }
 
+        // Clear style suggestions if the full text has changed from when they were generated
+        // This handles the case where user selects text, runs style check, then edits elsewhere
+        // The suggestions are only valid for the exact text state they were analyzed against
+        if !currentStyleSuggestions.isEmpty && text != styleAnalysisSourceText && !isApplyingReplacement {
+            Logger.debug("AnalysisCoordinator: Clearing style suggestions - source text changed", category: Logger.analysis)
+            currentStyleSuggestions.removeAll()
+            styleAnalysisSourceText = ""
+            floatingIndicator.hide()
+        }
+
         // If we have cached errors for this exact text, show them immediately
         // This provides instant feedback when returning from browser UI elements (like Cmd+F)
         // A fresh analysis will still run to catch any changes
@@ -1327,6 +1341,36 @@ class AnalysisCoordinator: ObservableObject {
            let element = textMonitor.monitoredElement {
             Logger.debug("AnalysisCoordinator: Restoring cached errors immediately (\(currentErrors.count) errors)", category: Logger.analysis)
             showErrorUnderlines(currentErrors, element: element)
+        }
+
+        // Restore cached style suggestions if available for this text
+        // This provides instant feedback when returning to the app after switching away
+        // Only restore if the full text matches what was analyzed (styleAnalysisSourceText)
+        if currentStyleSuggestions.isEmpty && (styleAnalysisSourceText.isEmpty || text == styleAnalysisSourceText) {
+            let styleCacheKey = computeStyleCacheKey(text: text)
+            if let cachedStyleSuggestions = styleCache[styleCacheKey], !cachedStyleSuggestions.isEmpty {
+                Logger.debug("AnalysisCoordinator: Restoring cached style suggestions (\(cachedStyleSuggestions.count) suggestions)", category: Logger.analysis)
+                currentStyleSuggestions = cachedStyleSuggestions
+                styleAnalysisSourceText = text
+
+                // Update cache access time
+                let styleName = UserPreferences.shared.selectedWritingStyle
+                styleCacheMetadata[styleCacheKey] = StyleCacheMetadata(
+                    lastAccessed: Date(),
+                    style: styleName
+                )
+
+                // Update the floating indicator to show the restored style suggestions
+                if let element = textMonitor.monitoredElement {
+                    floatingIndicator.update(
+                        errors: currentErrors,
+                        styleSuggestions: currentStyleSuggestions,
+                        element: element,
+                        context: monitoredContext,
+                        sourceText: text
+                    )
+                }
+            }
         }
 
         let segment = TextSegment(
@@ -1538,6 +1582,7 @@ class AnalysisCoordinator: ObservableObject {
                 Logger.debug("AnalysisCoordinator: Using cached style results (\(cached.count) suggestions)", category: Logger.analysis)
                 DispatchQueue.main.async { [weak self] in
                     self?.currentStyleSuggestions = cached
+                    self?.styleAnalysisSourceText = segmentContent
                 }
                 return
             }
@@ -1590,6 +1635,7 @@ class AnalysisCoordinator: ObservableObject {
                             let threshold = Float(UserPreferences.shared.styleConfidenceThreshold)
                             let filteredSuggestions = styleResult.suggestions.filter { $0.confidence >= threshold }
                             self.currentStyleSuggestions = filteredSuggestions
+                            self.styleAnalysisSourceText = segmentContent
 
                             // Cache the results
                             self.styleCache[cacheKey] = filteredSuggestions
@@ -1619,12 +1665,11 @@ class AnalysisCoordinator: ObservableObject {
                 }
             }
         } else {
-            // Style checking disabled - clear any existing suggestions and cancel pending timer
+            // Auto style checking disabled - just cancel any pending timer
+            // DON'T clear existing suggestions - they might be from a manual style check
+            // and should persist until the user switches apps or edits text
             styleDebounceTimer?.invalidate()
             styleDebounceTimer = nil
-            DispatchQueue.main.async { [weak self] in
-                self?.currentStyleSuggestions = []
-            }
         }
     }
 
@@ -3542,6 +3587,7 @@ extension AnalysisCoordinator {
     // MARK: - Manual Style Check
 
     /// Run a manual style check triggered by keyboard shortcut
+    /// If text is selected, only analyzes the selected portion; otherwise analyzes all text
     /// First checks cache for instant results, otherwise shows spinning indicator and runs analysis
     func runManualStyleCheck() {
         Logger.info("AnalysisCoordinator: runManualStyleCheck() triggered", category: Logger.llm)
@@ -3559,18 +3605,31 @@ extension AnalysisCoordinator {
             return
         }
 
-        // Get text to analyze
-        guard let text = getCurrentText(), !text.isEmpty else {
+        // Check for selected text first - if user has text selected, only analyze that
+        // Otherwise fall back to analyzing all text
+        let selectedText = getSelectedText()
+        let isSelectionMode = selectedText != nil
+
+        // Always capture full text for invalidation tracking
+        guard let fullText = getCurrentText(), !fullText.isEmpty else {
             Logger.warning("AnalysisCoordinator: No text available for manual style check", category: Logger.llm)
             return
+        }
+
+        // Text to analyze is either the selection or the full text
+        let text = selectedText ?? fullText
+
+        if isSelectionMode {
+            Logger.info("AnalysisCoordinator: Manual style check - analyzing selected text (\(text.count) chars)", category: Logger.llm)
         }
 
         let styleName = UserPreferences.shared.selectedWritingStyle
         let style = WritingStyle.allCases.first { $0.displayName == styleName } ?? .default
 
         // Check cache first - instant results if text hasn't changed
+        // Note: Cache is keyed by analyzed text, but we also need full text to match for validity
         let cacheKey = computeStyleCacheKey(text: text)
-        if let cached = styleCache[cacheKey] {
+        if let cached = styleCache[cacheKey], fullText == styleAnalysisSourceText {
             Logger.info("AnalysisCoordinator: Manual style check - using cached results (\(cached.count) suggestions)", category: Logger.llm)
 
             // Update cache access time
@@ -3582,6 +3641,7 @@ extension AnalysisCoordinator {
             // Set flag and show results immediately
             isManualStyleCheckActive = true
             currentStyleSuggestions = cached
+            styleAnalysisSourceText = fullText
 
             // Show checkmark and results immediately (no spinning needed)
             floatingIndicator.showStyleSuggestionsReady(
@@ -3608,6 +3668,9 @@ extension AnalysisCoordinator {
             guard let self = self else { return }
             self.floatingIndicator.showStyleCheckInProgress(element: element, context: context)
         }
+
+        // Capture fullText for setting styleAnalysisSourceText when analysis completes
+        let capturedFullText = fullText
 
         // Run style analysis in background
         styleAnalysisQueue.async { [weak self] in
@@ -3640,6 +3703,7 @@ extension AnalysisCoordinator {
                     let threshold = Float(UserPreferences.shared.styleConfidenceThreshold)
                     let filteredSuggestions = styleResult.suggestions.filter { $0.confidence >= threshold }
                     self.currentStyleSuggestions = filteredSuggestions
+                    self.styleAnalysisSourceText = capturedFullText
 
                     // Cache the results for instant access next time
                     self.styleCache[cacheKey] = filteredSuggestions
@@ -3694,6 +3758,32 @@ extension AnalysisCoordinator {
         }
 
         return value
+    }
+
+    /// Get currently selected text from monitored element, if any
+    /// Returns nil if no text is selected (cursor only) or if selection cannot be retrieved
+    private func getSelectedText() -> String? {
+        guard let element = textMonitor.monitoredElement else { return nil }
+
+        // First check if there's a selection range with non-zero length
+        guard let range = AccessibilityBridge.getSelectedTextRange(element),
+              range.length > 0 else {
+            return nil
+        }
+
+        // Get the selected text content
+        var selectedTextRef: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(
+            element,
+            kAXSelectedTextAttribute as CFString,
+            &selectedTextRef
+        )
+
+        guard result == .success, let selectedText = selectedTextRef as? String, !selectedText.isEmpty else {
+            return nil
+        }
+
+        return selectedText
     }
 
     // MARK: - AI-Enhanced Readability Suggestions
