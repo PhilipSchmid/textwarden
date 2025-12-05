@@ -25,9 +25,10 @@ A small indicator appears when issues are found. Click to see suggestions. Accep
 
 ## Getting Started
 
-1. Download TextWarden
-2. Grant Accessibility permission when prompted (required to read text in other apps)
-3. Start typing - TextWarden works automatically in the background
+1. Download the latest version from the [Releases page](https://github.com/philipschmid/textwarden/releases)
+2. Move TextWarden to your Applications folder and open it
+3. Grant Accessibility permission when prompted (required to read text in other apps)
+4. Start typing - TextWarden works automatically in the background
 
 ## Features
 
@@ -104,6 +105,12 @@ TextWarden tracks your writing statistics locally, including total errors found,
 - **Keyboard shortcuts**: Customizable shortcuts for common actions
 - **Menu bar integration**: Quick access to pause, resume, and settings
 - **Launch at login**: Optionally start TextWarden when you log in
+
+### Automatic Updates
+
+TextWarden can automatically check for updates and notify you when a new version is available. Enable automatic update checks in Settings → Advanced.
+
+To receive early access to new features, enable the **experimental channel** in Settings. This includes alpha, beta, and release candidate versions. Stable releases are available on the default channel.
 
 ## Known Limitations
 
