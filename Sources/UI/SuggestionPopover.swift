@@ -364,7 +364,7 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         panel?.contentView = trackingView
         panel?.isFloatingPanel = true
-        panel?.level = .popUpMenu  // Use popUpMenu level - these never activate the app
+        panel?.level = .popUpMenu + 1  // Above error overlay (.popUpMenu) so underlines don't cover popover
         panel?.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel?.isMovableByWindowBackground = true
         panel?.title = mode == .grammarError ? "Grammar Suggestion" : "Style Suggestion"
@@ -642,9 +642,32 @@ class SuggestionPopover: NSObject, ObservableObject {
         guard let error = currentError else { return }
         onApplySuggestion?(error, suggestion)
 
+        // Calculate position shift for remaining errors
+        let originalLength = error.end - error.start
+        let newLength = suggestion.count
+        let lengthDelta = newLength - originalLength
+
         // Move to next error or hide
         if allErrors.count > 1 {
+            // Remove the current error
             allErrors.removeAll { $0.start == error.start && $0.end == error.end }
+
+            // Adjust positions of subsequent errors
+            allErrors = allErrors.map { err in
+                if err.start >= error.end {
+                    return GrammarErrorModel(
+                        start: err.start + lengthDelta,
+                        end: err.end + lengthDelta,
+                        message: err.message,
+                        severity: err.severity,
+                        category: err.category,
+                        lintId: err.lintId,
+                        suggestions: err.suggestions
+                    )
+                }
+                return err
+            }
+
             if currentIndex >= allErrors.count {
                 currentIndex = 0
             }

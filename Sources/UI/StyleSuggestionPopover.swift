@@ -148,7 +148,7 @@ class StyleSuggestionPopover: ObservableObject {
 
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.level = .popUpMenu  // Use popUpMenu level - these never activate the app
+        panel.level = .popUpMenu + 1  // Above error overlay (.popUpMenu) so underlines don't cover popover
         panel.hasShadow = true
         panel.isMovableByWindowBackground = false
         panel.isFloatingPanel = true
