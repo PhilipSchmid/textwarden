@@ -41,6 +41,23 @@ A small indicator appears when issues are found. Click to see suggestions. Accep
 
 Beyond basic grammar checking, TextWarden offers intelligent style suggestions powered by a local AI model running entirely on your Mac. Get recommendations for clearer phrasing, better word choices, and improved readability - all without sending your text to any server. The AI runs on your hardware using Apple Silicon's neural engine, keeping your writing private while providing smart suggestions that go beyond simple rule-based checks.
 
+### Using Style Analysis
+
+Style analysis can be triggered in two ways:
+
+- **Keyboard shortcut**: Press `Cmd+Control+S` (customizable in Settings) to run a style check on demand
+- **Automatic**: Enable automatic style checking in Settings to analyze text as you type
+
+When using the keyboard shortcut:
+- **With text selected**: Only the selected text is analyzed for style improvements
+- **Without selection**: The entire text field is analyzed
+
+Style suggestions appear in a popover where you can review and apply them with a single click.
+
+## Multilingual Support
+
+TextWarden uses sentence-level language detection to avoid false positives when you mix languages. Each sentence is analyzed independently - if a sentence is detected as German, Spanish, or another non-English language, grammar errors in that sentence are automatically suppressed. This is helpful when writing emails that include foreign names, quotes, or phrases like "Freundliche Grüsse" or "Merci beaucoup" without being flagged for spelling errors.
+
 ## Known Limitations
 
 **Slack Text Replacement**: When applying corrections in Slack, text formatting (bold, italic, inline code, etc.) is not preserved. The corrected text will be inserted as plain text. This is a limitation of Slack's accessibility API which doesn't support inserting formatted text.
