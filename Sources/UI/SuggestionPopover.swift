@@ -82,6 +82,9 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Unified index for cycling through all items (grammar errors + style suggestions)
     @Published var unifiedIndex: Int = 0
 
+    /// Flag to prevent rapid-fire suggestion applications (race condition protection)
+    @Published var isProcessing: Bool = false
+
     /// All unified items (grammar errors + style suggestions) sorted by position
     var unifiedItems: [PopoverItem] {
         var items: [PopoverItem] = []
@@ -640,6 +643,14 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Apply suggestion (T044)
     func applySuggestion(_ suggestion: String) {
         guard let error = currentError else { return }
+
+        // Prevent rapid-fire clicks - wait for previous replacement to complete
+        guard !isProcessing else {
+            Logger.debug("Popover: Ignoring click - still processing previous suggestion", category: Logger.ui)
+            return
+        }
+
+        isProcessing = true
         onApplySuggestion?(error, suggestion)
 
         // Calculate position shift for remaining errors
@@ -684,14 +695,17 @@ class SuggestionPopover: NSObject, ObservableObject {
 
             if currentError == nil {
                 hide()
+                isProcessing = false
             } else {
-                // Resize panel after slight delay to let SwiftUI update
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                // Delay before allowing next action - let the text replacement complete
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                    self?.isProcessing = false
                     self?.resizePanel()
                 }
             }
         } else {
             hide()
+            isProcessing = false
         }
     }
 
@@ -1374,11 +1388,12 @@ struct PopoverContentView: View {
                                     .padding(.vertical, 8)
                                     .background(
                                         RoundedRectangle(cornerRadius: 7)
-                                            .fill(Color.purple)
+                                            .fill(popover.isProcessing ? Color.purple.opacity(0.5) : Color.purple)
                                     )
                                     .shadow(color: Color.purple.opacity(0.25), radius: 4, x: 0, y: 2)
                             }
                             .buttonStyle(.plain)
+                            .disabled(popover.isProcessing)
                             .keyboardShortcut("1", modifiers: .command)
                             .help("Apply AI suggestion (⌘1)")
                             .accessibilityLabel("Apply AI rephrase suggestion")
@@ -1399,11 +1414,12 @@ struct PopoverContentView: View {
                                             .padding(.vertical, 6)
                                             .background(
                                                 RoundedRectangle(cornerRadius: 7)
-                                                    .fill(colors.primary)
+                                                    .fill(popover.isProcessing ? colors.primary.opacity(0.5) : colors.primary)
                                             )
                                             .shadow(color: colors.primary.opacity(0.25), radius: 4, x: 0, y: 2)
                                     }
                                     .buttonStyle(.plain)
+                                    .disabled(popover.isProcessing)
                                     .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
                                     .help("Apply suggestion (⌘\(index + 1))")
                                     .accessibilityLabel("Apply suggestion: \(suggestion)")
