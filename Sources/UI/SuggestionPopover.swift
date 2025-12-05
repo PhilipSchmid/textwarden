@@ -324,9 +324,20 @@ class SuggestionPopover: NSObject, ObservableObject {
         // When user clicks outside, hide the popover
         // The click will naturally activate the clicked app (we can't prevent event propagation)
         clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
-            guard let self = self else { return }
+            guard let self = self, let panel = self.panel else { return }
 
-            Logger.debug("Popover: Global click detected - hiding popover", category: Logger.ui)
+            // Check if click is inside the popover panel - if so, don't hide
+            // Global events report screen coordinates, panel.frame is also in screen coords
+            let clickLocation = event.locationInWindow
+            // For global events, locationInWindow is actually screen coordinates
+            let panelFrame = panel.frame
+
+            if panelFrame.contains(clickLocation) {
+                Logger.trace("Popover: Click inside popover - ignoring", category: Logger.ui)
+                return
+            }
+
+            Logger.debug("Popover: Global click detected outside popover - hiding", category: Logger.ui)
 
             // CRITICAL: Cancel any pending auto-hide timer
             self.hideTimer?.invalidate()
