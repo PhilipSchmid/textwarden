@@ -647,6 +647,15 @@ class SuggestionPopover: NSObject, ObservableObject {
         let newLength = suggestion.count
         let lengthDelta = newLength - originalLength
 
+        // Update sourceText to reflect the applied correction
+        if !sourceText.isEmpty,
+           error.start < sourceText.count,
+           error.end <= sourceText.count {
+            let startIndex = sourceText.index(sourceText.startIndex, offsetBy: error.start)
+            let endIndex = sourceText.index(sourceText.startIndex, offsetBy: error.end)
+            sourceText.replaceSubrange(startIndex..<endIndex, with: suggestion)
+        }
+
         // Move to next error or hide
         if allErrors.count > 1 {
             // Remove the current error
