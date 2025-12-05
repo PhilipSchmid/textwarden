@@ -35,7 +35,7 @@ llm = ["mistralrs", "tokio", "reqwest", "futures-util", "lazy_static"]
 swift-bridge-build = "0.1.57"
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 
 [profile.release]
 opt-level = 3
