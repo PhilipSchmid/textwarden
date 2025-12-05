@@ -990,17 +990,11 @@ struct SentenceContextView: View {
 
     var body: some View {
         if let sentenceInfo = extractSentenceWithErrors() {
-            VStack(alignment: .leading, spacing: 4) {
-                // Build attributed text with highlighted errors
-                buildHighlightedText(sentenceInfo: sentenceInfo)
-                    .font(.system(size: textSize))
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.vertical, 6)
-            .padding(.horizontal, 8)
-            .background(colors.backgroundRaised.opacity(0.5))
-            .cornerRadius(6)
+            // Sentence context - no background box, just the text with highlights
+            buildHighlightedText(sentenceInfo: sentenceInfo)
+                .font(.system(size: textSize))
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -1140,7 +1134,7 @@ struct SentenceContextView: View {
 
         if sentenceInfo.errorRanges.isEmpty {
             Text(sentence)
-                .foregroundColor(colors.textSecondary)
+                .foregroundColor(colors.textPrimary)
         } else {
             // Build Text with highlights using + concatenation
             buildAttributedTextView(sentence: sentence, errorRanges: sentenceInfo.errorRanges)
@@ -1157,10 +1151,10 @@ struct SentenceContextView: View {
         var currentIndex = sentence.startIndex
 
         for errorRange in sortedRanges {
-            // Add text before this error
+            // Add text before this error (primary color for good contrast)
             if currentIndex < errorRange.range.lowerBound {
                 let beforeText = String(sentence[currentIndex..<errorRange.range.lowerBound])
-                result = result + Text(beforeText).foregroundColor(colors.textSecondary)
+                result = result + Text(beforeText).foregroundColor(colors.textPrimary)
             }
 
             // Add highlighted error text
@@ -1185,10 +1179,10 @@ struct SentenceContextView: View {
             currentIndex = errorRange.range.upperBound
         }
 
-        // Add remaining text after last error
+        // Add remaining text after last error (primary color for good contrast)
         if currentIndex < sentence.endIndex {
             let afterText = String(sentence[currentIndex...])
-            result = result + Text(afterText).foregroundColor(colors.textSecondary)
+            result = result + Text(afterText).foregroundColor(colors.textPrimary)
         }
 
         return result
