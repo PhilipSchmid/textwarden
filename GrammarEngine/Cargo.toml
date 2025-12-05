@@ -24,7 +24,7 @@ tokio = { version = "1.0", features = ["rt", "rt-multi-thread", "sync", "time"],
 reqwest = { version = "0.12", features = ["stream"], optional = true }
 futures-util = { version = "0.3", optional = true }
 lazy_static = { version = "1.5", optional = true }
-directories = "5.0"
+directories = "6.0"
 similar = "2.6"  # For text diff computation
 
 [features]
