@@ -2055,8 +2055,8 @@ class AnalysisCoordinator: ObservableObject {
         // Remove the error from currentErrors
         currentErrors.removeAll { $0.start == error.start && $0.end == error.end }
 
-        // Hide the suggestion popover since we just applied the suggestion
-        suggestionPopover.hide()
+        // Don't hide the popover here - let it manage its own visibility
+        // The popover automatically advances to the next error or hides itself
 
         // Update the overlay and indicator immediately
         let sourceText = currentSegment?.content ?? ""
