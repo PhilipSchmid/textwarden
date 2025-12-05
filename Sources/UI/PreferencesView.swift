@@ -1217,13 +1217,20 @@ struct ApplicationSettingsView: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(app.name)
                                         .font(.body)
-                                    Text(app.bundleIdentifier)
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                        .onTapGesture(count: 2) {
+                                    HStack(spacing: 4) {
+                                        Text(app.bundleIdentifier)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                        Button {
                                             copyToClipboard(app.bundleIdentifier)
+                                        } label: {
+                                            Image(systemName: "doc.on.doc")
+                                                .font(.caption2)
+                                                .foregroundColor(.secondary)
                                         }
-                                        .help("Double-click to copy bundle identifier")
+                                        .buttonStyle(.plain)
+                                        .help("Copy bundle identifier")
+                                    }
                                 }
 
                                 Spacer()
@@ -1306,13 +1313,20 @@ struct ApplicationSettingsView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(app.name)
                                             .font(.body)
-                                        Text(app.bundleIdentifier)
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                            .onTapGesture(count: 2) {
+                                        HStack(spacing: 4) {
+                                            Text(app.bundleIdentifier)
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                            Button {
                                                 copyToClipboard(app.bundleIdentifier)
+                                            } label: {
+                                                Image(systemName: "doc.on.doc")
+                                                    .font(.caption2)
+                                                    .foregroundColor(.secondary)
                                             }
-                                            .help("Double-click to copy bundle identifier")
+                                            .buttonStyle(.plain)
+                                            .help("Copy bundle identifier")
+                                        }
                                     }
 
                                     Spacer()
