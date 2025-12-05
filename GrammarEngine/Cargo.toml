@@ -13,7 +13,7 @@ uuid = { version = "1.0", features = ["v4"] }
 whichlang = "0.1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
-sysinfo = "0.32"
+sysinfo = "0.37"
 
 # LLM Style Checking dependencies
 # Note: mistralrs requires git dependency as it's not published to crates.io
