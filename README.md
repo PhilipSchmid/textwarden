@@ -3,25 +3,40 @@
 
 **Grammar checking that respects your privacy.**
 
-TextWarden checks your spelling and grammar while you type - in any app on your Mac. Unlike other tools, everything runs locally on your computer. Your writing never leaves your device. Beyond basic grammar checking, TextWarden also offers optional AI-powered style suggestions using a local language model running entirely on your Mac.
+TextWarden checks your spelling and grammar while you type - in any app on your Mac. Unlike other tools, everything runs locally on your computer. Your writing never leaves your device.
 
 <p align="center">
   <img src="Assets/textwarden_logo.svg" alt="TextWarden Logo" width="320" height="320">
 </p>
 
-## Core Principles
+## Why TextWarden?
 
 **Private by Design**
-Your text stays on your Mac. There are no cloud servers, no accounts, and no data collection. TextWarden works completely offline.
+Your text stays on your Mac. No cloud servers, no accounts, no data collection. Works completely offline.
 
 **Blazingly Fast**
-Grammar checking powered by Harper, a high-performance Rust-based engine. Checks complete in milliseconds, so you never notice any delay while typing.
+Powered by Harper, a high-performance Rust-based grammar engine. Checks complete in milliseconds.
 
-**Works Across Apps**
-TextWarden integrates with most macOS applications through the Accessibility API. It works well with Apple Mail, Apple Notes, Pages, Safari, and many other apps. Some applications with limited accessibility support may have reduced functionality - see [Known Limitations](#known-limitations) for details.
+**Works Everywhere**
+Integrates with most macOS apps through the Accessibility API - Mail, Notes, Pages, Safari, Slack, and more.
 
 **Simple and Unobtrusive**
-A small indicator appears when issues are found. Click to see suggestions. Accept with one click or keyboard shortcut. That's it.
+A small indicator appears when issues are found. Click to see suggestions. Accept with one click. That's it.
+
+## Features
+
+- **Real-time grammar and spelling** - Catches errors as you type
+- **AI-powered style suggestions** - Optional local LLM for clarity and readability improvements
+- **Multilingual awareness** - Detects non-English sentences and ignores them (no false positives on foreign phrases)
+- **Custom dictionary** - Add your own technical terms and proper nouns
+- **Dialect support** - American, British, Canadian, or Australian English
+- **App controls** - Enable, disable, or pause checking per application
+- **Automatic updates** - Stay current with optional update checks
+
+## Requirements
+
+- Apple Silicon Mac (M1 or later)
+- macOS 14 or later
 
 ## Getting Started
 
@@ -30,7 +45,7 @@ A small indicator appears when issues are found. Click to see suggestions. Accep
 3. Grant Accessibility permission when prompted (required to read text in other apps)
 4. Start typing - TextWarden works automatically in the background
 
-## Features
+## Feature Details
 
 ### Real-Time Grammar and Spelling
 
@@ -42,13 +57,12 @@ TextWarden continuously monitors your writing and highlights errors as you type.
 - Capitalization errors
 - Word choice and commonly confused words
 - Redundant phrases
-- Style improvements
 
-You can enable or disable specific categories in Settings to customize which types of errors are flagged.
+You can enable or disable specific categories in Settings.
 
-### AI-Powered Style Suggestions (Opt-In)
+### AI-Powered Style Suggestions
 
-Beyond rule-based grammar checking, TextWarden offers intelligent style suggestions powered by a local AI model running entirely on your Mac. This feature is disabled by default and can be enabled in Settings. The AI analyzes your writing and suggests improvements for clarity, conciseness, and readability - all without sending your text to any server.
+Beyond rule-based grammar checking, TextWarden offers intelligent style suggestions powered by a local AI model running entirely on your Mac. This feature is disabled by default and can be enabled in Settings.
 
 Style analysis can be triggered in two ways:
 
@@ -57,87 +71,60 @@ Style analysis can be triggered in two ways:
 
 When using the keyboard shortcut with text selected, only the selected portion is analyzed. Without a selection, the entire text field is analyzed.
 
-Available writing styles: Default, Concise, Formal, Casual, and Business. You can also adjust the confidence threshold to control how many suggestions appear.
+Available writing styles: Default, Concise, Formal, Casual, and Business.
 
 ### Multilingual Support
 
-TextWarden uses sentence-level language detection to avoid false positives when you mix languages. Each sentence is analyzed independently - if a sentence is detected as German, Spanish, or another non-English language, grammar errors in that sentence are automatically suppressed. This is useful when writing emails that include foreign names, quotes, or phrases like "Freundliche Grüsse" or "Merci beaucoup".
+TextWarden uses sentence-level language detection to avoid false positives when you mix languages. Each sentence is analyzed independently - if a sentence is detected as German, Spanish, or another non-English language, grammar errors in that sentence are automatically suppressed. This is useful when writing emails that include foreign phrases like "Freundliche Grüsse" or "Merci beaucoup".
 
-Supported languages for detection include: Spanish, French, German, Italian, Portuguese, Dutch, Russian, Chinese, Japanese, Korean, Arabic, Hindi, Turkish, Swedish, and Vietnamese.
+Supported languages for detection: Spanish, French, German, Italian, Portuguese, Dutch, Russian, Chinese, Japanese, Korean, Arabic, Hindi, Turkish, Swedish, and Vietnamese.
 
-### Custom Dictionary
-
-Add words that TextWarden doesn't recognize to your personal dictionary. This is useful for technical terms, proper nouns, or specialized vocabulary specific to your field. Words in your custom dictionary will never be flagged as spelling errors.
-
-### App-Specific Controls
+### App and Website Controls
 
 Control exactly where TextWarden runs:
 
 - Enable or disable checking for specific applications
 - Pause checking temporarily (1 hour, 24 hours, or indefinitely)
-- Per-app pause controls for fine-grained management
 - Disable checking for specific websites when using browsers
-
-### Dialect Support
-
-Choose your preferred English dialect:
-
-- American English
-- British English
-- Canadian English
-- Australian English
-
-TextWarden adjusts spelling and grammar rules accordingly (e.g., "color" vs "colour").
-
-### Website-Specific Controls
-
-When using browsers, TextWarden can be disabled for specific websites. This is useful for sites with custom editors or where you don't want grammar checking enabled.
-
-### Usage Statistics
-
-TextWarden tracks your writing statistics locally, including total errors found, corrections applied, and style suggestions accepted. View your statistics in Settings to see how TextWarden is helping improve your writing over time. All statistics stay on your device.
 
 ### Additional Features
 
-- **Internet abbreviations**: Recognizes common abbreviations like "btw", "afaik", "imo" without flagging them
-- **Gen Z slang**: Optionally recognize modern internet slang
-- **IT terminology**: Built-in dictionary of technical terms, programming languages, and tech company names
-- **Keyboard shortcuts**: Customizable shortcuts for common actions
-- **Menu bar integration**: Quick access to pause, resume, and settings
-- **Launch at login**: Optionally start TextWarden when you log in
+- **Custom dictionary** - Add technical terms, proper nouns, or specialized vocabulary
+- **Dialect support** - American, British, Canadian, or Australian English spelling rules
+- **Internet abbreviations** - Recognizes "btw", "afaik", "imo" without flagging them
+- **IT terminology** - Built-in dictionary of technical terms and company names
+- **Usage statistics** - Track errors found and corrections applied (stored locally)
+- **Keyboard shortcuts** - Customizable shortcuts for common actions
+- **Menu bar integration** - Quick access to pause, resume, and settings
+- **Launch at login** - Optionally start TextWarden when you log in
 
 ### Automatic Updates
 
 TextWarden can automatically check for updates and notify you when a new version is available. Enable automatic update checks in Settings → Advanced.
 
-To receive early access to new features, enable the **experimental channel** in Settings. This includes alpha, beta, and release candidate versions. Stable releases are available on the default channel.
+To receive early access to new features, enable the **experimental channel** in Settings. This includes alpha, beta, and release candidate versions.
 
 ## Known Limitations
 
 TextWarden is a privacy-focused, local-first tool with certain trade-offs:
 
-- **macOS only**: Currently only available for Apple Silicon Macs (M1 or later)
-- **English only**: Grammar checking is limited to English due to Harper's current language support (though other languages are detected and ignored)
-- **Accessibility API constraints**: Some apps with custom text rendering or limited accessibility support may not work correctly
-- **Text formatting**: When applying corrections in some apps (e.g., Slack), text formatting (bold, italic, inline code) may not be preserved due to accessibility API limitations
-- **Visual underlines**: Not all applications support visual error underlines; the floating indicator always works as a fallback
+- **macOS only** - Currently only available for Apple Silicon Macs (M1 or later)
+- **English only** - Grammar checking limited to English (Harper's current language support)
+- **Accessibility API constraints** - Some apps with custom text rendering may not work correctly
+- **Text formatting** - When applying corrections in some apps, formatting (bold, italic) may not be preserved
+- **Visual underlines** - Not all applications support visual error underlines; the floating indicator always works as a fallback
 
 ### Looking for More?
 
 If you need cross-platform support (Windows, Linux, iOS, Android), grammar checking in languages other than English, or a more polished experience with commercial support, consider [Grammarly](https://www.grammarly.com). They offer an excellent product with broad application support and a refined user experience that has been developed over many years. TextWarden focuses specifically on privacy and local processing, which comes with the trade-offs mentioned above.
 
-## Requirements
-
-- Apple Silicon Mac (M1 or later)
-- macOS 14 or later
-
 ## Privacy
 
-TextWarden never sends your text anywhere. The only network activity is downloading AI models (optional), which you can also download manually. Block TextWarden in your firewall and it works exactly the same - all grammar and style checking runs locally on your Mac.
+TextWarden never sends your text anywhere. The only network activity is downloading AI models (optional), which you can also download manually. Block TextWarden in your firewall and it works exactly the same.
 
 ## Credits
 
-TextWarden is built on excellent open source projects:
+Built on excellent open source projects:
 
 - [Harper](https://github.com/Automattic/harper) - Fast, privacy-focused grammar checker
 - [mistral.rs](https://github.com/EricLBuehler/mistral.rs) - Local LLM inference engine
@@ -150,12 +137,12 @@ Special thanks to [VoiceInk](https://github.com/Beingpax/VoiceInk) for the inspi
 
 ## Troubleshooting
 
-If you encounter issues with TextWarden, see our [Troubleshooting Guide](TROUBLESHOOTING.md) for help with common problems and how to collect diagnostic information.
+See the [Troubleshooting Guide](TROUBLESHOOTING.md) for help with common problems and how to collect diagnostic information.
 
 ## Support
 
-- **Bug reports**: Please [open an issue](https://github.com/philipschmid/textwarden/issues/new/choose) with diagnostic information (see [Troubleshooting Guide](TROUBLESHOOTING.md))
-- **Feature requests**: Use [GitHub Discussions](https://github.com/philipschmid/textwarden/discussions) to suggest new features
+- **Bug reports**: [Open an issue](https://github.com/philipschmid/textwarden/issues/new/choose) with diagnostic information
+- **Feature requests**: Use [GitHub Discussions](https://github.com/philipschmid/textwarden/discussions)
 - **Questions**: Check existing discussions or start a new one
 
 ## License
