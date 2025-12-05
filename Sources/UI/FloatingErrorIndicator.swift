@@ -55,6 +55,9 @@ class FloatingErrorIndicator: NSPanel {
     /// Current style suggestions being displayed
     private var styleSuggestions: [StyleSuggestionModel] = []
 
+    /// Source text for error context display
+    private var sourceText: String = ""
+
     /// Current monitored element
     private var monitoredElement: AXUIElement?
 
@@ -202,13 +205,15 @@ class FloatingErrorIndicator: NSPanel {
         errors: [GrammarErrorModel],
         styleSuggestions: [StyleSuggestionModel] = [],
         element: AXUIElement,
-        context: ApplicationContext?
+        context: ApplicationContext?,
+        sourceText: String = ""
     ) {
         Logger.debug("FloatingErrorIndicator: update() called with \(errors.count) errors, \(styleSuggestions.count) style suggestions", category: Logger.ui)
         self.errors = errors
         self.styleSuggestions = styleSuggestions
         self.monitoredElement = element
         self.context = context
+        self.sourceText = sourceText
 
         // Determine mode based on what we have
         if !errors.isEmpty && !styleSuggestions.isEmpty {
@@ -255,12 +260,14 @@ class FloatingErrorIndicator: NSPanel {
     func updateWithContext(
         errors: [GrammarErrorModel],
         styleSuggestions: [StyleSuggestionModel] = [],
-        context: ApplicationContext
+        context: ApplicationContext,
+        sourceText: String = ""
     ) {
         Logger.debug("FloatingErrorIndicator: updateWithContext() called with \(errors.count) errors, \(styleSuggestions.count) style suggestions", category: Logger.ui)
         self.errors = errors
         self.styleSuggestions = styleSuggestions
         self.context = context
+        self.sourceText = sourceText
         // Don't set monitoredElement - we don't have one
 
         // Determine mode based on what we have
@@ -845,7 +852,8 @@ class FloatingErrorIndicator: NSPanel {
                 errors: errors,
                 styleSuggestions: styleSuggestions,
                 at: position,
-                constrainToWindow: windowFrame
+                constrainToWindow: windowFrame,
+                sourceText: sourceText
             )
         } else if mode.hasStyleSuggestions {
             // Style suggestions only - show style popover
@@ -873,7 +881,8 @@ class FloatingErrorIndicator: NSPanel {
                 error: firstError,
                 allErrors: errors,
                 at: position,
-                constrainToWindow: windowFrame
+                constrainToWindow: windowFrame,
+                sourceText: sourceText
             )
         }
     }
