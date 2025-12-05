@@ -43,6 +43,9 @@ class StyleSuggestionPopover: ObservableObject {
     /// Used to detect "ignored" suggestions when popover is dismissed without action
     private var currentSuggestionActedUpon: Bool = false
 
+    /// Counter to force SwiftUI view identity reset on content update
+    private var rebuildCounter: Int = 0
+
     private init() {}
 
     // MARK: - Show/Hide
@@ -164,7 +167,11 @@ class StyleSuggestionPopover: ObservableObject {
     }
 
     private func updateContent() {
-        guard let suggestion = currentSuggestion else { return }
+        guard let suggestion = currentSuggestion,
+              let panel = popoverPanel else { return }
+
+        // Increment counter to force SwiftUI to treat this as a completely new view
+        rebuildCounter += 1
 
         let contentView = StyleSuggestionPopoverContent(
             suggestion: suggestion,
@@ -187,12 +194,41 @@ class StyleSuggestionPopover: ObservableObject {
                 self?.onDismiss?()
             }
         )
+        // Wrap with id() to force complete re-layout
+        .id(rebuildCounter)
 
         let hostingView = NSHostingView(rootView: contentView)
-        hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: 200)
 
-        popoverPanel?.contentView = hostingView
-        popoverPanel?.setContentSize(hostingView.fittingSize)
+        // Step 1: Give hosting view plenty of room for initial layout
+        hostingView.frame = NSRect(x: 0, y: 0, width: 500, height: 400)
+
+        // Step 2: Set as content view
+        panel.contentView = hostingView
+
+        // Step 3: Force SwiftUI layout pass
+        hostingView.invalidateIntrinsicContentSize()
+        hostingView.layoutSubtreeIfNeeded()
+
+        // Step 4: Get the ACTUAL size SwiftUI wants
+        let fittingSize = hostingView.fittingSize
+        let width = min(max(fittingSize.width, 320), 450)
+        let height = min(fittingSize.height, 400)
+
+        // Step 5: Calculate panel position to keep TOP edge fixed
+        let currentFrame = panel.frame
+        let currentTop = currentFrame.origin.y + currentFrame.size.height
+        let newOriginY = currentTop - height
+
+        // Step 6: Resize panel to final size
+        panel.setFrame(NSRect(x: currentFrame.origin.x, y: newOriginY, width: width, height: height), display: false, animate: false)
+
+        // Step 7: Constrain hosting view to final size
+        hostingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
+
+        // Step 8: Final layout pass and redraw
+        hostingView.invalidateIntrinsicContentSize()
+        hostingView.layoutSubtreeIfNeeded()
+        panel.display()
     }
 
     private func positionPopover(at position: CGPoint, constrainTo windowFrame: CGRect?) {

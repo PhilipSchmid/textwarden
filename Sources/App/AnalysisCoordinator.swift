@@ -156,6 +156,10 @@ class AnalysisCoordinator: ObservableObject {
     /// Flag to prevent regular analysis from hiding indicator during manual style check
     private var isManualStyleCheckActive: Bool = false
 
+    /// Flag to prevent text-change handler from clearing errors during replacement
+    /// When true, text changes are expected (we're applying a suggestion) and should not trigger re-analysis
+    private var isApplyingReplacement: Bool = false
+
     /// Last analyzed source text (for popover context display)
     private var lastAnalyzedText: String = ""
 
@@ -246,9 +250,12 @@ class AnalysisCoordinator: ObservableObject {
     /// Setup popover callbacks
     private func setupPopoverCallbacks() {
         // Handle apply suggestion (T044, T044a)
-        suggestionPopover.onApplySuggestion = { [weak self] error, suggestion in
-            guard let self = self else { return }
-            self.applyTextReplacement(for: error, with: suggestion)
+        suggestionPopover.onApplySuggestion = { [weak self] error, suggestion, completion in
+            guard let self = self else {
+                completion()
+                return
+            }
+            self.applyTextReplacement(for: error, with: suggestion, completion: completion)
         }
 
         // Handle dismiss error (T045, T048)
@@ -1293,7 +1300,8 @@ class AnalysisCoordinator: ObservableObject {
         updateDebugBorders()
 
         // CRITICAL: If text has changed, handle cache invalidation appropriately
-        if text != previousText {
+        // BUT: Skip this if we're actively applying a replacement - we handle that separately
+        if text != previousText && !isApplyingReplacement {
             Logger.debug("AnalysisCoordinator: Text changed - hiding overlay immediately for re-analysis", category: Logger.analysis)
             errorOverlay.hide()
 
@@ -1305,6 +1313,8 @@ class AnalysisCoordinator: ObservableObject {
                 PositionResolver.shared.clearCache()
                 currentErrors.removeAll()
             }
+        } else if text != previousText && isApplyingReplacement {
+            Logger.debug("AnalysisCoordinator: Text changed during replacement - skipping cache clear (positions already adjusted)", category: Logger.analysis)
         }
 
         // If we have cached errors for this exact text, show them immediately
@@ -1372,6 +1382,13 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Analyze text with incremental support (T039)
     private func analyzeText(_ segment: TextSegment) {
+        // Skip analysis if we're actively applying a replacement
+        // The text will be re-analyzed after the replacement completes
+        if isApplyingReplacement {
+            Logger.debug("AnalysisCoordinator: Skipping analysis during replacement", category: Logger.analysis)
+            return
+        }
+
         let text = segment.content
 
         // Check if text has changed significantly
@@ -2049,11 +2066,48 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Remove error from tracking and update UI immediately
     /// Called after successfully applying a suggestion to remove underlines
-    private func removeErrorAndUpdateUI(_ error: GrammarErrorModel) {
-        Logger.debug("removeErrorAndUpdateUI: Removing error at \(error.start)-\(error.end)", category: Logger.analysis)
+    /// Also adjusts positions of remaining errors to account for text length change
+    /// - Parameters:
+    ///   - error: The error that was fixed
+    ///   - suggestion: The replacement text that was applied
+    ///   - lengthDelta: The change in text length (suggestion.count - errorLength)
+    private func removeErrorAndUpdateUI(_ error: GrammarErrorModel, suggestion: String, lengthDelta: Int = 0) {
+        Logger.debug("removeErrorAndUpdateUI: Removing error at \(error.start)-\(error.end), suggestion: '\(suggestion)', lengthDelta: \(lengthDelta)", category: Logger.analysis)
 
         // Remove the error from currentErrors
         currentErrors.removeAll { $0.start == error.start && $0.end == error.end }
+
+        // Update currentSegment with the new text content
+        // This is CRITICAL: the underline positions are calculated from currentSegment.content
+        // If we don't update it, subsequent errors will have incorrect underline positions
+        if let segment = currentSegment {
+            var newContent = segment.content
+            let startIdx = newContent.index(newContent.startIndex, offsetBy: min(error.start, newContent.count))
+            let endIdx = newContent.index(newContent.startIndex, offsetBy: min(error.end, newContent.count))
+            if startIdx <= endIdx && endIdx <= newContent.endIndex {
+                newContent.replaceSubrange(startIdx..<endIdx, with: suggestion)
+                currentSegment = segment.with(content: newContent)
+                Logger.debug("removeErrorAndUpdateUI: Updated currentSegment content (new length: \(newContent.count))", category: Logger.analysis)
+            }
+        }
+
+        // Adjust positions of remaining errors that come after the fixed error
+        if lengthDelta != 0 {
+            currentErrors = currentErrors.map { err in
+                if err.start >= error.end {
+                    return GrammarErrorModel(
+                        start: err.start + lengthDelta,
+                        end: err.end + lengthDelta,
+                        message: err.message,
+                        severity: err.severity,
+                        category: err.category,
+                        lintId: err.lintId,
+                        suggestions: err.suggestions
+                    )
+                }
+                return err
+            }
+        }
 
         // Don't hide the popover here - let it manage its own visibility
         // The popover automatically advances to the next error or hides itself
@@ -2066,22 +2120,33 @@ class AnalysisCoordinator: ObservableObject {
     }
 
     /// Apply text replacement for error (T044)
-    private func applyTextReplacement(for error: GrammarErrorModel, with suggestion: String) {
+    /// Completion is called when the replacement is done (synchronously for AX API, async for keyboard)
+    private func applyTextReplacement(for error: GrammarErrorModel, with suggestion: String, completion: @escaping () -> Void) {
         Logger.debug("applyTextReplacement called - error: '\(error.message)', suggestion: '\(suggestion)'", category: Logger.analysis)
 
         guard let element = textMonitor.monitoredElement else {
             Logger.debug("No monitored element for text replacement", category: Logger.analysis)
+            completion()
             return
         }
 
         Logger.debug("Have monitored element, context: \(monitoredContext?.applicationName ?? "nil")", category: Logger.analysis)
+
+        // Set flag to prevent text-change handler from clearing errors during replacement
+        isApplyingReplacement = true
+
+        // Wrap the completion to reset the flag
+        let wrappedCompletion: () -> Void = { [weak self] in
+            self?.isApplyingReplacement = false
+            completion()
+        }
 
         // Use keyboard automation directly for known Electron apps
         // This avoids trying the AX API which is known to fail on Electron
         if let context = monitoredContext, context.requiresKeyboardReplacement {
             Logger.debug("Detected Electron app (\(context.applicationName)) - using keyboard automation directly", category: Logger.analysis)
 
-            applyTextReplacementViaKeyboard(for: error, with: suggestion, element: element)
+            applyTextReplacementViaKeyboard(for: error, with: suggestion, element: element, completion: wrappedCompletion)
             return
         }
 
@@ -2110,7 +2175,7 @@ class AnalysisCoordinator: ObservableObject {
             // Fallback: Use clipboard + keyboard simulation
             Logger.debug("AX API selection failed (\(selectError.rawValue)), using keyboard fallback", category: Logger.analysis)
 
-            applyTextReplacementViaKeyboard(for: error, with: suggestion, element: element)
+            applyTextReplacementViaKeyboard(for: error, with: suggestion, element: element, completion: completion)
             return
         }
 
@@ -2140,13 +2205,18 @@ class AnalysisCoordinator: ObservableObject {
             )
 
             // Step 5: Remove error from UI immediately
-            removeErrorAndUpdateUI(error)
+            // Calculate length delta to adjust positions of remaining errors
+            let lengthDelta = suggestion.count - (error.end - error.start)
+            removeErrorAndUpdateUI(error, suggestion: suggestion, lengthDelta: lengthDelta)
+
+            // AX API is synchronous - call completion immediately
+            wrappedCompletion()
         } else {
             // AX API replacement failed
             Logger.debug("AX API replacement failed (\(replaceError.rawValue)), trying keyboard fallback", category: Logger.analysis)
 
             // Try keyboard fallback
-            applyTextReplacementViaKeyboard(for: error, with: suggestion, element: element)
+            applyTextReplacementViaKeyboard(for: error, with: suggestion, element: element, completion: wrappedCompletion)
         }
     }
 
@@ -2441,23 +2511,34 @@ class AnalysisCoordinator: ObservableObject {
     /// 2. Copy suggestion to clipboard
     /// 3. Try paste via menu action (more reliable)
     /// 4. Fallback to Cmd+V if menu fails
-    private func applyBrowserTextReplacement(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement, context: ApplicationContext) {
+    private func applyBrowserTextReplacement(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement, context: ApplicationContext, completion: @escaping () -> Void) {
         Logger.debug("Browser text replacement for \(context.applicationName)", category: Logger.analysis)
 
-        // Get the error text for selection
-        let cachedText = self.previousText
+        // CRITICAL: Look up the CURRENT error position from currentErrors
+        // The popover may have stale positions if previous replacements shifted the text
+        // Match by message + lintId + category (should uniquely identify the error)
+        let currentError = currentErrors.first { err in
+            err.message == error.message && err.lintId == error.lintId && err.category == error.category
+        } ?? error  // Fallback to original if not found
+
+        Logger.debug("Browser replacement: Using positions \(currentError.start)-\(currentError.end) (original was \(error.start)-\(error.end))", category: Logger.analysis)
+
+        // Get the error text for selection using CURRENT positions
+        let cachedText = self.currentSegment?.content ?? self.previousText
         let errorText: String
-        if !cachedText.isEmpty && error.start < cachedText.count && error.end <= cachedText.count {
-            let startIdx = cachedText.index(cachedText.startIndex, offsetBy: error.start)
-            let endIdx = cachedText.index(cachedText.startIndex, offsetBy: error.end)
+        if !cachedText.isEmpty && currentError.start < cachedText.count && currentError.end <= cachedText.count {
+            let startIdx = cachedText.index(cachedText.startIndex, offsetBy: currentError.start)
+            let endIdx = cachedText.index(cachedText.startIndex, offsetBy: currentError.end)
             errorText = String(cachedText[startIdx..<endIdx])
+            Logger.debug("Browser replacement: Extracted error text '\(errorText)' from positions \(currentError.start)-\(currentError.end)", category: Logger.analysis)
         } else {
             // Fallback: use error range directly (may not work for Notion)
             errorText = ""
+            Logger.debug("Browser replacement: Could not extract error text, will use fallback", category: Logger.analysis)
         }
 
         // Select the text to replace (handles Notion child element traversal internally)
-        let fallbackRange = errorText.isEmpty ? CFRange(location: error.start, length: error.end - error.start) : nil
+        let fallbackRange = errorText.isEmpty ? CFRange(location: currentError.start, length: currentError.end - currentError.start) : nil
         let targetText = errorText.isEmpty ? suggestion : errorText
 
         _ = selectTextForReplacement(
@@ -2512,17 +2593,25 @@ class AnalysisCoordinator: ObservableObject {
             }
 
             // Step 6: Fallback to keyboard shortcut if menu failed
+            // Calculate when the paste will complete
+            let pasteCompleteDelay: TimeInterval
             if !pasteSucceeded {
+                // Need to wait for keyboard fallback delay + paste execution time
+                pasteCompleteDelay = delay + 0.1
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     self.pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
                     Logger.debug("Pasted via keyboard shortcut (Cmd+V fallback)", category: Logger.analysis)
                 }
+            } else {
+                // Menu paste is faster
+                pasteCompleteDelay = 0.1
             }
 
-            // Step 7: Restore original pasteboard after a delay (SelectedTextKit uses 50ms)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                // Only restore if the pasteboard hasn't been changed by something else
-                // This prevents us from overwriting user's deliberate clipboard actions
+            // Step 7: Wait for paste to complete, then restore pasteboard and signal completion
+            // IMPORTANT: Must wait long enough for Electron apps to process the paste
+            let completionDelay = pasteCompleteDelay + 0.15  // Extra buffer for Electron processing
+            DispatchQueue.main.asyncAfter(deadline: .now() + completionDelay) {
+                // Restore original pasteboard
                 if pasteboard.changeCount == originalChangeCount + 1 {
                     // Pasteboard only has our change - safe to restore
                     if let originalContent = originalString {
@@ -2540,15 +2629,20 @@ class AnalysisCoordinator: ObservableObject {
                 }
 
                 // Record statistics
-                UserStatistics.shared.recordSuggestionApplied(category: error.category)
+                UserStatistics.shared.recordSuggestionApplied(category: currentError.category)
 
-                // Invalidate cache
-                self.invalidateCacheAfterReplacement(at: error.start..<error.end)
+                // Invalidate cache - use currentError's CURRENT positions
+                self.invalidateCacheAfterReplacement(at: currentError.start..<currentError.end)
 
                 // Remove error from UI immediately
-                self.removeErrorAndUpdateUI(error)
+                // Calculate length delta to adjust positions of remaining errors
+                let lengthDelta = suggestion.count - (currentError.end - currentError.start)
+                self.removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
 
-                Logger.debug("Browser text replacement complete", category: Logger.analysis)
+                Logger.debug("Browser text replacement complete (waited \(completionDelay)s)", category: Logger.analysis)
+
+                // Signal completion to the popover - safe to advance to next error now
+                completion()
             }
         }
     }
@@ -2766,9 +2860,10 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Apply text replacement using keyboard simulation (for Electron apps and Terminals)
     /// Uses hybrid replacement approach: try AX API first, fall back to keyboard
-    private func applyTextReplacementViaKeyboard(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement) {
+    private func applyTextReplacementViaKeyboard(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement, completion: @escaping () -> Void) {
         guard let context = self.monitoredContext else {
             Logger.debug("No context available for keyboard replacement", category: Logger.analysis)
+            completion()
             return
         }
 
@@ -2780,7 +2875,7 @@ class AnalysisCoordinator: ObservableObject {
         // Inspired by SelectedTextKit's menu action approach
         let isSlack = context.bundleIdentifier == "com.tinyspeck.slackmacgap"
         if context.isBrowser || isSlack {
-            applyBrowserTextReplacement(for: error, with: suggestion, element: element, context: context)
+            applyBrowserTextReplacement(for: error, with: suggestion, element: element, context: context, completion: completion)
             return
         }
 
@@ -2942,7 +3037,11 @@ class AnalysisCoordinator: ObservableObject {
                                     self.invalidateCacheAfterReplacement(at: error.start..<error.end)
 
                                     // Remove error from UI immediately
-                                    self.removeErrorAndUpdateUI(error)
+                                    let lengthDelta = suggestion.count - (error.end - error.start)
+                                    self.removeErrorAndUpdateUI(error, suggestion: suggestion, lengthDelta: lengthDelta)
+
+                                    // Signal completion
+                                    completion()
                                 }
                             } else {
                                 // Fallback: move to end if we couldn't determine target position
@@ -2957,7 +3056,11 @@ class AnalysisCoordinator: ObservableObject {
                                 self.invalidateCacheAfterReplacement(at: error.start..<error.end)
 
                                 // Remove error from UI immediately
-                                self.removeErrorAndUpdateUI(error)
+                                let lengthDelta = suggestion.count - (error.end - error.start)
+                                self.removeErrorAndUpdateUI(error, suggestion: suggestion, lengthDelta: lengthDelta)
+
+                                // Signal completion
+                                completion()
                             }
                         }
                     }
@@ -3018,7 +3121,11 @@ class AnalysisCoordinator: ObservableObject {
                         self.invalidateCacheAfterReplacement(at: error.start..<error.end)
 
                         // Remove error from UI immediately
-                        self.removeErrorAndUpdateUI(error)
+                        let lengthDelta = suggestion.count - (error.end - error.start)
+                        self.removeErrorAndUpdateUI(error, suggestion: suggestion, lengthDelta: lengthDelta)
+
+                        // Signal completion
+                        completion()
                     }
                 }
             }

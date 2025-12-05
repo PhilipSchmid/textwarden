@@ -85,6 +85,10 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Flag to prevent rapid-fire suggestion applications (race condition protection)
     @Published var isProcessing: Bool = false
 
+    /// Counter to force SwiftUI view identity reset on rebuild
+    /// Incrementing this causes SwiftUI to treat the view as completely new
+    @Published var rebuildCounter: Int = 0
+
     /// All unified items (grammar errors + style suggestions) sorted by position
     var unifiedItems: [PopoverItem] {
         var items: [PopoverItem] = []
@@ -99,7 +103,8 @@ class SuggestionPopover: NSObject, ObservableObject {
     }
 
     /// Callback for applying suggestion (grammar mode)
-    var onApplySuggestion: ((GrammarErrorModel, String) -> Void)?
+    /// The completion handler should be called when the replacement is done
+    var onApplySuggestion: ((GrammarErrorModel, String, @escaping () -> Void) -> Void)?
 
     /// Callback for accepting style suggestion (style mode)
     var onAcceptStyleSuggestion: ((StyleSuggestionModel) -> Void)?
@@ -247,7 +252,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         // CRITICAL: Resize panel after SwiftUI has had time to layout the new content
         // This fixes border/corner issues when message text causes size changes
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            self?.resizePanel()
+            self?.rebuildContentView()
         }
     }
 
@@ -512,56 +517,6 @@ class SuggestionPopover: NSObject, ObservableObject {
         hide()
     }
 
-    /// Resize panel to fit current content
-    private func resizePanel() {
-        guard let panel = panel else { return }
-
-        if let trackingView = panel.contentView as? PopoverTrackingView,
-           let hostingView = trackingView.subviews.first {
-
-            // Force SwiftUI to recalculate size
-            hostingView.invalidateIntrinsicContentSize()
-            hostingView.needsLayout = true
-            hostingView.layoutSubtreeIfNeeded()
-
-            let fittingSize = hostingView.fittingSize
-            // Auto-scale: min 320px, max 550px width to accommodate longer messages and future LLM suggestions
-            let width = min(max(fittingSize.width, 320), 550)
-            // Auto-scale height with reasonable max to prevent massive popovers
-            let height = min(fittingSize.height, 400)
-
-            let currentOrigin = panel.frame.origin
-            let currentSize = panel.frame.size
-            let isShrinking = width < currentSize.width || height < currentSize.height
-
-            // CRITICAL: When shrinking, we must update panel FIRST, then views
-            // This prevents the old larger layer mask from showing stale content
-            if isShrinking {
-                // Shrinking: resize panel first to clip the old content
-                panel.setFrame(NSRect(x: currentOrigin.x, y: currentOrigin.y, width: width, height: height), display: false, animate: false)
-            }
-
-            // Update view frames
-            hostingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
-            trackingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
-
-            if !isShrinking {
-                // Growing: resize panel after views are ready
-                panel.setFrame(NSRect(x: currentOrigin.x, y: currentOrigin.y, width: width, height: height), display: true, animate: false)
-            }
-
-            // Force complete redraw of layer and views
-            trackingView.layer?.setNeedsLayout()
-            trackingView.layer?.layoutIfNeeded()
-            trackingView.layer?.setNeedsDisplay()
-            trackingView.needsDisplay = true
-            hostingView.needsDisplay = true
-            panel.display()
-
-            Logger.trace("Popover: Resized to \(width) x \(height)", category: Logger.ui)
-        }
-    }
-
     /// Navigate to next error (T047)
     func nextError() {
         guard !allErrors.isEmpty else { return }
@@ -608,33 +563,59 @@ class SuggestionPopover: NSObject, ObservableObject {
         guard let panel = panel,
               let trackingView = panel.contentView as? PopoverTrackingView else { return }
 
-        // Remove old hosting view
+        // Increment counter to force SwiftUI to treat this as a completely new view
+        // This prevents cached layout from LiquidGlass background
+        rebuildCounter += 1
+
+        // Remove old hosting view completely
         trackingView.subviews.forEach { $0.removeFromSuperview() }
 
-        // Create fresh content view using unified view that respects current mode
+        // Create fresh content view
         let contentView = UnifiedPopoverContentView(popover: self)
         let hostingView = NSHostingView(rootView: contentView)
 
-        // Force layout to get correct size
-        hostingView.needsLayout = true
+        // KEY INSIGHT: Don't set frames manually. Let SwiftUI size itself naturally.
+        // 1. Create hosting view with a large temporary frame so SwiftUI isn't constrained
+        // 2. Add to hierarchy
+        // 3. Let SwiftUI calculate its intrinsic size
+        // 4. THEN resize everything to match
+
+        // Step 1: Give hosting view plenty of room for initial layout
+        hostingView.frame = NSRect(x: 0, y: 0, width: 550, height: 500)
+        trackingView.frame = NSRect(x: 0, y: 0, width: 550, height: 500)
+
+        // Step 2: Add to hierarchy
+        trackingView.addSubview(hostingView)
+
+        // Step 3: Force SwiftUI layout pass with unconstrained space
+        hostingView.invalidateIntrinsicContentSize()
         hostingView.layoutSubtreeIfNeeded()
 
+        // Step 4: Get the ACTUAL size SwiftUI wants
         let fittingSize = hostingView.fittingSize
         let width = min(max(fittingSize.width, 320), 550)
         let height = min(fittingSize.height, 400)
 
-        // Set frames
+        Logger.debug("Popover rebuildContentView: fittingSize=\(fittingSize), final=\(width)x\(height)", category: Logger.ui)
+
+        // Step 5: Calculate panel position to keep TOP edge fixed
+        let currentFrame = panel.frame
+        let currentTop = currentFrame.origin.y + currentFrame.size.height
+        let newOriginY = currentTop - height
+
+        // Step 6: Resize panel to final size
+        panel.setFrame(NSRect(x: currentFrame.origin.x, y: newOriginY, width: width, height: height), display: false, animate: false)
+
+        // Step 7: NOW constrain views to final size (this triggers SwiftUI re-layout at correct size)
+        trackingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
         hostingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
         hostingView.autoresizingMask = [.width, .height]
-        trackingView.frame = NSRect(x: 0, y: 0, width: width, height: height)
-        trackingView.addSubview(hostingView)
 
-        // Resize panel
-        let currentOrigin = panel.frame.origin
-        panel.setFrame(NSRect(x: currentOrigin.x, y: currentOrigin.y, width: width, height: height), display: true, animate: false)
+        // Step 8: Final layout pass at correct size
+        hostingView.invalidateIntrinsicContentSize()
+        hostingView.layoutSubtreeIfNeeded()
 
-        // Force redraw
-        trackingView.needsDisplay = true
+        // Step 9: Force redraw
         panel.display()
 
         Logger.debug("Popover: Rebuilt content - \(width) x \(height)", category: Logger.ui)
@@ -651,61 +632,63 @@ class SuggestionPopover: NSObject, ObservableObject {
         }
 
         isProcessing = true
-        onApplySuggestion?(error, suggestion)
 
-        // Calculate position shift for remaining errors
+        // Calculate position shift for remaining errors (needed for completion handler)
         let originalLength = error.end - error.start
         let newLength = suggestion.count
         let lengthDelta = newLength - originalLength
 
-        // Update sourceText to reflect the applied correction
-        if !sourceText.isEmpty,
-           error.start < sourceText.count,
-           error.end <= sourceText.count {
-            let startIndex = sourceText.index(sourceText.startIndex, offsetBy: error.start)
-            let endIndex = sourceText.index(sourceText.startIndex, offsetBy: error.end)
-            sourceText.replaceSubrange(startIndex..<endIndex, with: suggestion)
-        }
+        // Call the replacement with completion handler
+        onApplySuggestion?(error, suggestion) { [weak self] in
+            guard let self = self else { return }
 
-        // Move to next error or hide
-        if allErrors.count > 1 {
-            // Remove the current error
-            allErrors.removeAll { $0.start == error.start && $0.end == error.end }
-
-            // Adjust positions of subsequent errors
-            allErrors = allErrors.map { err in
-                if err.start >= error.end {
-                    return GrammarErrorModel(
-                        start: err.start + lengthDelta,
-                        end: err.end + lengthDelta,
-                        message: err.message,
-                        severity: err.severity,
-                        category: err.category,
-                        lintId: err.lintId,
-                        suggestions: err.suggestions
-                    )
+            DispatchQueue.main.async {
+                // Update sourceText to reflect the applied correction
+                if !self.sourceText.isEmpty,
+                   error.start < self.sourceText.count,
+                   error.end <= self.sourceText.count {
+                    let startIndex = self.sourceText.index(self.sourceText.startIndex, offsetBy: error.start)
+                    let endIndex = self.sourceText.index(self.sourceText.startIndex, offsetBy: error.end)
+                    self.sourceText.replaceSubrange(startIndex..<endIndex, with: suggestion)
                 }
-                return err
-            }
 
-            if currentIndex >= allErrors.count {
-                currentIndex = 0
-            }
-            currentError = allErrors.isEmpty ? nil : allErrors[currentIndex]
+                // Move to next error or hide
+                if self.allErrors.count > 1 {
+                    // Remove the current error
+                    self.allErrors.removeAll { $0.start == error.start && $0.end == error.end }
 
-            if currentError == nil {
-                hide()
-                isProcessing = false
-            } else {
-                // Delay before allowing next action - let the text replacement complete
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-                    self?.isProcessing = false
-                    self?.resizePanel()
+                    // Adjust positions of subsequent errors
+                    self.allErrors = self.allErrors.map { err in
+                        if err.start >= error.end {
+                            return GrammarErrorModel(
+                                start: err.start + lengthDelta,
+                                end: err.end + lengthDelta,
+                                message: err.message,
+                                severity: err.severity,
+                                category: err.category,
+                                lintId: err.lintId,
+                                suggestions: err.suggestions
+                            )
+                        }
+                        return err
+                    }
+
+                    if self.currentIndex >= self.allErrors.count {
+                        self.currentIndex = 0
+                    }
+                    self.currentError = self.allErrors.isEmpty ? nil : self.allErrors[self.currentIndex]
+
+                    if self.currentError == nil {
+                        self.hide()
+                    } else {
+                        self.rebuildContentView()
+                    }
+                } else {
+                    self.hide()
                 }
+
+                self.isProcessing = false
             }
-        } else {
-            hide()
-            isProcessing = false
         }
     }
 
@@ -727,7 +710,7 @@ class SuggestionPopover: NSObject, ObservableObject {
             } else {
                 // Resize panel after slight delay to let SwiftUI update
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                    self?.resizePanel()
+                    self?.rebuildContentView()
                 }
             }
         } else {
@@ -753,7 +736,7 @@ class SuggestionPopover: NSObject, ObservableObject {
             } else {
                 // Resize panel after slight delay to let SwiftUI update
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                    self?.resizePanel()
+                    self?.rebuildContentView()
                 }
             }
         } else {
@@ -779,7 +762,7 @@ class SuggestionPopover: NSObject, ObservableObject {
             } else {
                 // Resize panel after slight delay to let SwiftUI update
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                    self?.resizePanel()
+                    self?.rebuildContentView()
                 }
             }
         } else {
@@ -1039,12 +1022,17 @@ struct SentenceContextView: View {
         // and forwards from error for sentence end
         let errorStartIndex = sourceText.index(sourceText.startIndex, offsetBy: error.start)
 
-        // Find sentence start by searching backwards for . ! ? followed by space/newline
+        // Find sentence start by searching backwards for:
+        // 1. Sentence terminators: . ! ? followed by space/newline
+        // 2. Colon followed by newline (list headers like "Title:")
+        // 3. Double newline (paragraph break)
         var sentenceStart = sourceText.startIndex
         var searchIndex = errorStartIndex
         while searchIndex > sourceText.startIndex {
             let prevIndex = sourceText.index(before: searchIndex)
             let char = sourceText[prevIndex]
+
+            // Standard sentence terminators
             if char == "." || char == "!" || char == "?" {
                 // Check if this is end of previous sentence (followed by space/newline or at error position)
                 if searchIndex == errorStartIndex || sourceText[searchIndex].isWhitespace || sourceText[searchIndex].isNewline {
@@ -1052,6 +1040,33 @@ struct SentenceContextView: View {
                     break
                 }
             }
+
+            // Colon followed by newline acts as sentence boundary (list headers)
+            if char == ":" && searchIndex < sourceText.endIndex && sourceText[searchIndex].isNewline {
+                sentenceStart = searchIndex
+                break
+            }
+
+            // Newline acts as sentence boundary when it's a line break in a list
+            // (detected by checking if current line starts with a list marker)
+            if char.isNewline {
+                // Check if this newline starts a new logical sentence (e.g., list item)
+                var checkIndex = searchIndex
+                // Skip whitespace after newline
+                while checkIndex < sourceText.endIndex && sourceText[checkIndex].isWhitespace && !sourceText[checkIndex].isNewline {
+                    checkIndex = sourceText.index(after: checkIndex)
+                }
+                // If followed by list marker or error is on this line, treat newline as boundary
+                if checkIndex < sourceText.endIndex {
+                    let nextChar = sourceText[checkIndex]
+                    let listBullets: Set<Character> = ["•", "◦", "‣", "⁃", "▪", "▸", "►", "○", "■", "□", "●", "-", "*"]
+                    if listBullets.contains(nextChar) || nextChar.isNumber {
+                        sentenceStart = searchIndex
+                        break
+                    }
+                }
+            }
+
             searchIndex = prevIndex
         }
 
@@ -1061,7 +1076,54 @@ struct SentenceContextView: View {
             sentenceStart = sourceText.index(after: sentenceStart)
         }
 
-        // Find sentence end by searching forwards for . ! ?
+        // Skip list markers (bullets, numbers, etc.) at the start of sentences
+        // Common markers: • ◦ ‣ ⁃ ▪ ▸ ► - * followed by whitespace
+        // Also numbered lists: 1. 2. a) b) etc.
+        if sentenceStart < sourceText.endIndex {
+            let char = sourceText[sentenceStart]
+            let listBullets: Set<Character> = ["•", "◦", "‣", "⁃", "▪", "▸", "►", "○", "■", "□", "●"]
+
+            if listBullets.contains(char) {
+                // Skip bullet and following whitespace
+                sentenceStart = sourceText.index(after: sentenceStart)
+                while sentenceStart < sourceText.endIndex &&
+                      sourceText[sentenceStart].isWhitespace {
+                    sentenceStart = sourceText.index(after: sentenceStart)
+                }
+            } else if char == "-" || char == "*" {
+                // Check if followed by whitespace (list marker) vs part of a word
+                let nextIndex = sourceText.index(after: sentenceStart)
+                if nextIndex < sourceText.endIndex && sourceText[nextIndex].isWhitespace {
+                    sentenceStart = nextIndex
+                    while sentenceStart < sourceText.endIndex &&
+                          sourceText[sentenceStart].isWhitespace {
+                        sentenceStart = sourceText.index(after: sentenceStart)
+                    }
+                }
+            } else if char.isNumber {
+                // Check for numbered list like "1. " or "1) "
+                var checkIndex = sentenceStart
+                while checkIndex < sourceText.endIndex && sourceText[checkIndex].isNumber {
+                    checkIndex = sourceText.index(after: checkIndex)
+                }
+                if checkIndex < sourceText.endIndex {
+                    let afterNumber = sourceText[checkIndex]
+                    if afterNumber == "." || afterNumber == ")" {
+                        let afterPunc = sourceText.index(after: checkIndex)
+                        if afterPunc < sourceText.endIndex && sourceText[afterPunc].isWhitespace {
+                            // This is a numbered list marker, skip it
+                            sentenceStart = afterPunc
+                            while sentenceStart < sourceText.endIndex &&
+                                  sourceText[sentenceStart].isWhitespace {
+                                sentenceStart = sourceText.index(after: sentenceStart)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Find sentence end by searching forwards for . ! ? or newline (for list items)
         var sentenceEnd = sourceText.endIndex
         searchIndex = errorStartIndex
         while searchIndex < sourceText.endIndex {
@@ -1069,6 +1131,11 @@ struct SentenceContextView: View {
             if char == "." || char == "!" || char == "?" {
                 // Include the punctuation in the sentence
                 sentenceEnd = sourceText.index(after: searchIndex)
+                break
+            }
+            // Newline ends sentence for list items
+            if char.isNewline {
+                sentenceEnd = searchIndex
                 break
             }
             searchIndex = sourceText.index(after: searchIndex)
@@ -1216,12 +1283,17 @@ struct UnifiedPopoverContentView: View {
     @ObservedObject var popover: SuggestionPopover
 
     var body: some View {
-        switch popover.mode {
-        case .grammarError:
-            PopoverContentView(popover: popover)
-        case .styleSuggestion:
-            StylePopoverContentView(popover: popover)
+        // Use rebuildCounter as view identity to force complete re-layout
+        // Without this, SwiftUI may cache the LiquidGlass background size
+        Group {
+            switch popover.mode {
+            case .grammarError:
+                PopoverContentView(popover: popover)
+            case .styleSuggestion:
+                StylePopoverContentView(popover: popover)
+            }
         }
+        .id(popover.rebuildCounter)
     }
 }
 
@@ -1275,7 +1347,7 @@ struct PopoverContentView: View {
         VStack(alignment: .leading, spacing: 0) {
             if let error = popover.currentError {
                 // Main content with category indicator and message
-                HStack(alignment: .top, spacing: 16) {
+                HStack(alignment: .top, spacing: 10) {
                     // Subtle category indicator
                     Circle()
                         .fill(colors.categoryColor(for: error.category))
@@ -1401,7 +1473,8 @@ struct PopoverContentView: View {
 
                         } else if !validSuggestions.isEmpty {
                             // Standard suggestion buttons (for regular grammar errors)
-                            HStack(spacing: 4) {
+                            // Use FlowLayout to wrap buttons if they don't fit in one row
+                            FlowLayout(spacing: 6) {
                                 ForEach(Array(validSuggestions.prefix(3).enumerated()), id: \.offset) { index, suggestion in
                                     Button(action: {
                                         popover.applySuggestion(suggestion)
@@ -1409,8 +1482,8 @@ struct PopoverContentView: View {
                                         Text(suggestion)
                                             .font(.system(size: bodyTextSize, weight: .medium))
                                             .foregroundColor(.white)
-                                            .lineLimit(1)
-                                            .padding(.horizontal, 8)
+                                            .fixedSize(horizontal: true, vertical: false)  // Never truncate
+                                            .padding(.horizontal, 8)  // Reduced from 10 to fit more buttons
                                             .padding(.vertical, 6)
                                             .background(
                                                 RoundedRectangle(cornerRadius: 7)
@@ -1426,27 +1499,24 @@ struct PopoverContentView: View {
                                     .accessibilityHint("Double tap to apply this suggestion")
                                 }
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                    // Clean close button
-                    VStack {
-                        Button(action: { popover.hide() }) {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(colors.textSecondary)
-                                .frame(width: 20, height: 20)
-                                .background(colors.backgroundRaised)
-                                .cornerRadius(4)
-                        }
-                        .buttonStyle(.plain)
-                        .keyboardShortcut(.escape, modifiers: .option)
-                        .help("Close (⌥Esc)")
-                        .accessibilityLabel("Close suggestion popover")
-
-                        Spacer()
+                    // Clean close button - aligned to top, doesn't push content up
+                    Button(action: { popover.hide() }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(colors.textSecondary)
+                            .frame(width: 20, height: 20)
+                            .background(colors.backgroundRaised)
+                            .cornerRadius(4)
                     }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(.escape, modifiers: .option)
+                    .help("Close (⌥Esc)")
+                    .accessibilityLabel("Close suggestion popover")
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 18)
@@ -1616,13 +1686,6 @@ struct PopoverContentView: View {
                     .accessibilityLabel("No grammar errors to display")
             }
         }
-        // Use wider frame for AI rephrase suggestions (long text needs more horizontal space)
-        .frame(
-            minWidth: isAIRephraseError ? 400 : 300,
-            idealWidth: isAIRephraseError ? 550 : 350,
-            maxWidth: isAIRephraseError ? 650 : 450
-        )
-        .fixedSize(horizontal: false, vertical: true)
         // Apply Liquid Glass styling (macOS 26-inspired frosted glass effect)
         .liquidGlass(
             style: .regular,
@@ -1630,6 +1693,9 @@ struct PopoverContentView: View {
             cornerRadius: 14,
             opacity: preferences.suggestionOpacity
         )
+        // Fixed width based on content type, vertical sizing to content
+        .frame(width: isAIRephraseError ? 500 : 380)
+        .fixedSize(horizontal: false, vertical: true)
         .colorScheme(effectiveColorScheme)
         .accessibilityElement(children: .contain)
     }
@@ -2202,23 +2268,19 @@ struct StylePopoverContentView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                    // Close button
-                    VStack {
-                        Button(action: { popover.hide() }) {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(colors.textSecondary)
-                                .frame(width: 20, height: 20)
-                                .background(colors.backgroundRaised)
-                                .cornerRadius(4)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Close (⌥Esc)")
-                        .accessibilityLabel("Close style suggestion")
-                        .accessibilityHint("Double tap to close this suggestion")
-
-                        Spacer()
+                    // Close button - no VStack wrapper to prevent pushing content up
+                    Button(action: { popover.hide() }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(colors.textSecondary)
+                            .frame(width: 20, height: 20)
+                            .background(colors.backgroundRaised)
+                            .cornerRadius(4)
                     }
+                    .buttonStyle(.plain)
+                    .help("Close (⌥Esc)")
+                    .accessibilityLabel("Close style suggestion")
+                    .accessibilityHint("Double tap to close this suggestion")
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 18)
@@ -2330,8 +2392,6 @@ struct StylePopoverContentView: View {
                     .accessibilityLabel("No style suggestions to display")
             }
         }
-        .frame(minWidth: 300, idealWidth: 380, maxWidth: 450)
-        .fixedSize(horizontal: false, vertical: true)
         // Apply Liquid Glass styling with purple tint (macOS 26-inspired)
         .liquidGlass(
             style: .regular,
@@ -2339,7 +2399,69 @@ struct StylePopoverContentView: View {
             cornerRadius: 14,
             opacity: preferences.suggestionOpacity
         )
+        // Fixed width, vertical sizing to content
+        .frame(width: 380)
+        .fixedSize(horizontal: false, vertical: true)
         .colorScheme(effectiveColorScheme)
     }
 
+}
+
+// MARK: - FlowLayout
+
+/// A layout that arranges views horizontally and wraps to new lines when needed
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+    /// Minimum width before wrapping - use a generous default to prevent premature wrapping
+    /// 380px popover - 24px padding - 22px circle - 20px close button - 16px HStack spacing = ~298px available
+    /// But we want more buffer, so use 350px to ensure 3 buttons fit on one line when possible
+    var minWidthBeforeWrap: CGFloat = 350
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let result = arrangeSubviews(proposal: proposal, subviews: subviews)
+        return result.size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let arrangement = arrangeSubviews(proposal: proposal, subviews: subviews)
+
+        for (index, position) in arrangement.positions.enumerated() {
+            let subview = subviews[index]
+            let size = subview.sizeThatFits(.unspecified)
+            subview.place(
+                at: CGPoint(x: bounds.minX + position.x, y: bounds.minY + position.y),
+                proposal: ProposedViewSize(size)
+            )
+        }
+    }
+
+    private func arrangeSubviews(proposal: ProposedViewSize, subviews: Subviews) -> (size: CGSize, positions: [CGPoint]) {
+        // Use the proposed width if available, otherwise use a generous minimum
+        // This prevents premature wrapping when parent doesn't pass width proposal
+        let maxWidth = proposal.width ?? minWidthBeforeWrap
+        var positions: [CGPoint] = []
+        var currentX: CGFloat = 0
+        var currentY: CGFloat = 0
+        var lineHeight: CGFloat = 0
+        var totalWidth: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+
+            // Check if we need to wrap to next line
+            if currentX + size.width > maxWidth && currentX > 0 {
+                currentX = 0
+                currentY += lineHeight + spacing
+                lineHeight = 0
+            }
+
+            positions.append(CGPoint(x: currentX, y: currentY))
+            lineHeight = max(lineHeight, size.height)
+            currentX += size.width + spacing
+            totalWidth = max(totalWidth, currentX - spacing)
+        }
+
+        let totalHeight = currentY + lineHeight
+        return (CGSize(width: totalWidth, height: totalHeight), positions)
+    }
 }
