@@ -1,0 +1,110 @@
+name: Bug Report
+description: Report a bug or unexpected behavior in TextWarden
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the information below to help us investigate.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Describe the bug...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior.
+      placeholder: |
+        1. Open TextWarden
+        2. Go to '...'
+        3. Click on '...'
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: Describe what you expected...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+      placeholder: Describe what actually happened...
+    validations:
+      required: true
+
+  - type: input
+    id: app
+    attributes:
+      label: Application
+      description: Which application were you using when the bug occurred?
+      placeholder: e.g., Slack, Safari, TextEdit
+    validations:
+      required: false
+
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS Version
+      description: What version of macOS are you running?
+      placeholder: e.g., macOS 15.1 (Sequoia)
+    validations:
+      required: true
+
+  - type: input
+    id: textwarden-version
+    attributes:
+      label: TextWarden Version
+      description: What version of TextWarden are you using? (Check in Settings → About)
+      placeholder: e.g., 0.2.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: If applicable, add screenshots to help explain the problem. Drag and drop images here.
+      placeholder: Drag and drop screenshots here...
+    validations:
+      required: false
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostic Export
+      description: |
+        Please attach a diagnostic export from TextWarden:
+        1. Open TextWarden Settings
+        2. Go to the **Advanced** tab
+        3. Click **Export Diagnostics**
+        4. Attach the exported file here
+
+        The diagnostic export includes logs, system info, and configuration (no personal text data).
+      placeholder: Drag and drop the diagnostic export file here...
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem here.
+      placeholder: Any additional information...
+    validations:
+      required: false
