@@ -281,11 +281,18 @@ pub fn analyze_text(
             // This is only applied if the user has enabled this feature in preferences
             if enable_sentence_start_capitalization {
                 // Check if this error is at the beginning of a sentence
-                // Use get() for safe slicing to avoid panics on invalid UTF-8 boundaries
+                // Harper's span uses CHARACTER indices, but Rust strings use byte offsets
+                // Convert character index to byte offset for correct slicing
+                let chars: Vec<char> = text.chars().collect();
+                let byte_offset = if span.start < chars.len() {
+                    chars[..span.start].iter().collect::<String>().len()
+                } else {
+                    text.len()
+                };
+
                 let is_sentence_start = span.start == 0 || {
                     // Check if preceded by sentence-ending punctuation (., !, ?)
-                    // Use get() which returns None if span.start is not at a valid UTF-8 boundary
-                    text.get(..span.start)
+                    text.get(..byte_offset)
                         .and_then(|prefix| {
                             prefix
                                 .trim_end()
@@ -3136,5 +3143,266 @@ mod tests {
         assert!(has_teh_error, "'teh' should be flagged as spelling error");
 
         // The test doesn't assert on Ciliium - it's for investigation only
+    }
+
+    // ==================== Unicode and Multi-byte Character Tests ====================
+
+    #[test]
+    fn test_sentence_start_capitalization_with_curly_apostrophe() {
+        // BUG REPRODUCTION: User reported "THis" at sentence start suggesting lowercase "this"
+        // The issue: Curly apostrophe (') is 3 bytes in UTF-8 (U+2019)
+        // Harper uses CHARACTER indices but we need to handle byte offsets correctly
+        //
+        // Text: "I'm testing. THis is wrong." (with curly apostrophe)
+        // ' is RIGHT SINGLE QUOTATION MARK (U+2019) = bytes E2 80 99
+
+        let text = "I\u{2019}m testing. THis is wrong.";
+
+        println!("\n=== CURLY APOSTROPHE SENTENCE-START TEST ===");
+        println!("Text: '{}'", text);
+        println!(
+            "Byte length: {} (27 chars but 29 bytes due to curly apostrophe)",
+            text.len()
+        );
+        println!("Char count: {}", text.chars().count());
+
+        let result = analyze_text(text, "American", false, false, false, false, vec![], true);
+
+        println!("\nErrors found: {}", result.errors.len());
+        for error in &result.errors {
+            let chars: Vec<char> = text.chars().collect();
+            let error_text = if error.start < chars.len() && error.end <= chars.len() {
+                chars[error.start..error.end].iter().collect::<String>()
+            } else {
+                "(out of bounds)".to_string()
+            };
+            println!(
+                "  '{}' [{}]: {:?}",
+                error_text, error.category, error.suggestions
+            );
+        }
+
+        // Find the "THis" error
+        let chars: Vec<char> = text.chars().collect();
+        let this_error = result.errors.iter().find(|e| {
+            if e.start < chars.len() && e.end <= chars.len() {
+                let error_text: String = chars[e.start..e.end].iter().collect();
+                error_text == "THis"
+            } else {
+                false
+            }
+        });
+
+        assert!(this_error.is_some(), "Should find error for 'THis'");
+
+        if let Some(error) = this_error {
+            println!("\nTHis error details:");
+            println!("  Start (char): {}, End (char): {}", error.start, error.end);
+            println!("  Suggestions: {:?}", error.suggestions);
+
+            // The first suggestion should be "This" (capitalized) since it's at sentence start
+            if let Some(first_sugg) = error.suggestions.first() {
+                let first_char = first_sugg.chars().next().unwrap_or(' ');
+                println!(
+                    "  First suggestion: '{}', starts with: '{}'",
+                    first_sugg, first_char
+                );
+                assert!(
+                    first_char.is_uppercase(),
+                    "BUG: Suggestion '{}' should start with uppercase at sentence start",
+                    first_sugg
+                );
+                assert_eq!(
+                    first_sugg, "This",
+                    "Expected 'This' but got '{}'",
+                    first_sugg
+                );
+                println!("  ✓ Correctly suggests 'This' at sentence start");
+            }
+        }
+
+        println!("=== END TEST ===\n");
+    }
+
+    #[test]
+    fn test_sentence_start_with_various_unicode() {
+        // Test various Unicode characters before the sentence start
+        // These all have multi-byte UTF-8 representations
+        let test_cases = vec![
+            // (text, error_word, expected_suggestion, description)
+            (
+                "I\u{2019}m ok. THis wrong.",
+                "THis",
+                "This",
+                "curly apostrophe U+2019 (3 bytes)",
+            ),
+            (
+                "Café. THis wrong.",
+                "THis",
+                "This",
+                "e with acute U+00E9 (2 bytes)",
+            ),
+            (
+                "日本語. THis wrong.",
+                "THis",
+                "This",
+                "Japanese (3 bytes each)",
+            ),
+            ("🎉! THis wrong.", "THis", "This", "emoji U+1F389 (4 bytes)"),
+            (
+                "\u{201C}Hello\u{201D}. THis wrong.",
+                "THis",
+                "This",
+                "smart quotes (3 bytes each)",
+            ),
+        ];
+
+        println!("\n=== UNICODE SENTENCE-START TEST ===");
+        for (text, error_word, expected, description) in test_cases {
+            println!("\nTest: {} ", description);
+            println!("Text: '{}'", text);
+            println!("Bytes: {}, Chars: {}", text.len(), text.chars().count());
+
+            let result = analyze_text(text, "American", false, false, false, false, vec![], true);
+
+            let chars: Vec<char> = text.chars().collect();
+            let error = result.errors.iter().find(|e| {
+                if e.start < chars.len() && e.end <= chars.len() {
+                    let error_text: String = chars[e.start..e.end].iter().collect();
+                    error_text == error_word
+                } else {
+                    false
+                }
+            });
+
+            if let Some(err) = error {
+                if let Some(first_sugg) = err.suggestions.first() {
+                    println!("  Suggestion: '{}', Expected: '{}'", first_sugg, expected);
+                    assert_eq!(
+                        first_sugg, expected,
+                        "Failed for '{}': expected '{}' but got '{}'",
+                        description, expected, first_sugg
+                    );
+                    println!("  ✓ Pass");
+                } else {
+                    println!("  ⚠️ No suggestions found");
+                }
+            } else {
+                println!("  ⚠️ Error '{}' not found", error_word);
+            }
+        }
+        println!("\n=== END TEST ===\n");
+    }
+
+    #[test]
+    fn test_deduplication_preserves_best_suggestions() {
+        // Test that when overlapping errors are deduplicated, we keep the error
+        // with properly capitalized suggestions (if sentence-start capitalization applies)
+        //
+        // Harper may return multiple errors for the same span (e.g., SPELLING and TYPO)
+        // Our deduplication picks the "best" one based on category priority
+        // We need to ensure ALL errors for a span get sentence-start capitalization applied
+        // BEFORE deduplication, so the chosen error has capitalized suggestions
+
+        let text = "THis is wrong.";
+
+        println!("\n=== DEDUPLICATION SUGGESTION TEST ===");
+        println!("Text: '{}'", text);
+
+        let result = analyze_text(text, "American", false, false, false, false, vec![], true);
+
+        println!("Errors after deduplication: {}", result.errors.len());
+        for error in &result.errors {
+            println!(
+                "  '{}' [{}] ({}): {:?}",
+                &text[error.start..error.end],
+                error.category,
+                error.lint_id,
+                error.suggestions
+            );
+        }
+
+        // There should be exactly one error for "THis" after deduplication
+        let this_errors: Vec<_> = result
+            .errors
+            .iter()
+            .filter(|e| &text[e.start..e.end] == "THis")
+            .collect();
+
+        assert_eq!(
+            this_errors.len(),
+            1,
+            "Should have exactly one error for 'THis' after deduplication"
+        );
+
+        let error = this_errors[0];
+        if let Some(first_sugg) = error.suggestions.first() {
+            let first_char = first_sugg.chars().next().unwrap_or(' ');
+            assert!(
+                first_char.is_uppercase(),
+                "After deduplication, suggestion '{}' should be capitalized",
+                first_sugg
+            );
+            println!(
+                "✓ Deduplicated error has capitalized suggestion: '{}'",
+                first_sugg
+            );
+        }
+
+        println!("=== END TEST ===\n");
+    }
+
+    #[test]
+    fn test_sentence_boundaries_comprehensive() {
+        // Comprehensive test for various sentence boundary patterns
+        let test_cases = vec![
+            // (text, expected_errors with (word, expected_first_suggestion))
+            ("THis start.", vec![("THis", "This")]),
+            ("Ok. THis after period.", vec![("THis", "This")]),
+            ("Really! THis after exclamation.", vec![("THis", "This")]),
+            ("What? THis after question.", vec![("THis", "This")]),
+            ("Hello...  THis after ellipsis.", vec![("THis", "This")]),
+            // Middle of sentence - should NOT capitalize
+            ("The THis is wrong.", vec![("THis", "this")]),
+            ("I saw THis yesterday.", vec![("THis", "this")]),
+            // After colon/semicolon - typically not sentence start
+            ("Note: THis follows colon.", vec![("THis", "this")]),
+            ("Done; THis follows semicolon.", vec![("THis", "this")]),
+        ];
+
+        println!("\n=== SENTENCE BOUNDARY COMPREHENSIVE TEST ===");
+        for (text, expectations) in test_cases {
+            println!("\nText: '{}'", text);
+            let result = analyze_text(text, "American", false, false, false, false, vec![], true);
+
+            for (error_word, expected_sugg) in expectations {
+                let error = result.errors.iter().find(|e| {
+                    e.start < text.len()
+                        && e.end <= text.len()
+                        && &text[e.start..e.end] == error_word
+                });
+
+                if let Some(err) = error {
+                    if let Some(first_sugg) = err.suggestions.first() {
+                        let matches = first_sugg == expected_sugg;
+                        println!(
+                            "  '{}': got '{}', expected '{}' {}",
+                            error_word,
+                            first_sugg,
+                            expected_sugg,
+                            if matches { "✓" } else { "✗" }
+                        );
+                        assert_eq!(
+                            first_sugg, expected_sugg,
+                            "For '{}' in '{}': expected '{}' but got '{}'",
+                            error_word, text, expected_sugg, first_sugg
+                        );
+                    }
+                } else {
+                    println!("  ⚠️ '{}' not flagged as error", error_word);
+                }
+            }
+        }
+        println!("\n=== END TEST ===\n");
     }
 }
