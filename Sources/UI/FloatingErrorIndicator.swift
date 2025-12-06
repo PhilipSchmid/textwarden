@@ -43,8 +43,13 @@ enum IndicatorMode {
 
 /// Floating error indicator window
 class FloatingErrorIndicator: NSPanel {
+
+    // MARK: - Singleton
+
     /// Shared singleton instance
     static let shared = FloatingErrorIndicator()
+
+    // MARK: - Properties
 
     /// Current display mode
     private var mode: IndicatorMode = .errors([])
@@ -72,6 +77,8 @@ class FloatingErrorIndicator: NSPanel {
 
     /// Cancellables for Combine subscriptions
     private var cancellables = Set<AnyCancellable>()
+
+    // MARK: - Initialization
 
     private init() {
         let initialFrame = NSRect(x: 0, y: 0, width: 40, height: 40)
@@ -199,6 +206,8 @@ class FloatingErrorIndicator: NSPanel {
             }
             .store(in: &cancellables)
     }
+
+    // MARK: - Public API
 
     /// Update indicator with errors and optional style suggestions
     func update(
@@ -494,6 +503,8 @@ class FloatingErrorIndicator: NSPanel {
     /// Work item for delayed hide/transition (can be cancelled)
     private var styleCheckHideWorkItem: DispatchWorkItem?
 
+    // MARK: - Drag & Drop Positioning
+
     /// Handle drag end with snap-back to valid border area
     private func handleDragEnd(at finalPosition: CGPoint) {
         guard let element = monitoredElement,
@@ -662,6 +673,8 @@ class FloatingErrorIndicator: NSPanel {
 
         setFrame(finalFrame, display: true)
     }
+
+    // MARK: - Window Frame Helpers
 
     /// Get the actual visible window frame using CGWindowListCopyWindowInfo
     /// This avoids the scrollback buffer issue with Terminal apps
@@ -847,6 +860,8 @@ class FloatingErrorIndicator: NSPanel {
         return NSRect(origin: position, size: size)
     }
 
+    // MARK: - Error Color Mapping
+
     /// Get color for errors based on severity
     private func colorForErrors(_ errors: [GrammarErrorModel]) -> NSColor {
         // Prioritize by severity: Spelling > Grammar > Style
@@ -860,6 +875,8 @@ class FloatingErrorIndicator: NSPanel {
             return .systemBlue
         }
     }
+
+    // MARK: - Popover Display
 
     /// Show errors/suggestions popover
     private func showErrors() {
@@ -983,6 +1000,9 @@ enum IndicatorDisplayMode {
 
 /// Custom view for drawing the circular indicator
 private class IndicatorView: NSView {
+
+    // MARK: - Properties
+
     var displayMode: IndicatorDisplayMode = .count(0) {
         didSet {
             updateSpinningAnimation()
@@ -1002,6 +1022,8 @@ private class IndicatorView: NSView {
     private var spinningTimer: Timer?
     private var spinningAngle: CGFloat = 0
     private var themeObserver: Any?
+
+    // MARK: - Initialization
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -1030,6 +1052,8 @@ private class IndicatorView: NSView {
         spinningTimer?.invalidate()
     }
 
+    // MARK: - Animation
+
     /// Start or stop spinning animation based on display mode
     private func updateSpinningAnimation() {
         switch displayMode {
@@ -1057,6 +1081,8 @@ private class IndicatorView: NSView {
         spinningTimer = nil
         spinningAngle = 0
     }
+
+    // MARK: - Drawing
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
@@ -1381,6 +1407,8 @@ private class IndicatorView: NSView {
         )
     }
 
+    // MARK: - Mouse Events
+
     override func mouseDown(with event: NSEvent) {
         Logger.debug("IndicatorView: mouseDown called at \(event.locationInWindow)", category: Logger.ui)
 
@@ -1476,6 +1504,8 @@ private class IndicatorView: NSView {
         // Redraw to update dot opacity
         needsDisplay = true
     }
+
+    // MARK: - Tracking Area
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()

@@ -18,6 +18,9 @@ import AppKit
 
 /// Notion-specific content parser using cursor-anchored positioning
 class NotionContentParser: ContentParser {
+
+    // MARK: - Properties
+
     let bundleIdentifier: String
     let parserName = "Notion"
 
@@ -63,6 +66,8 @@ class NotionContentParser: ContentParser {
     private var cachedCursorInfo: (position: Int, frame: NSRect, timestamp: Date)?
     private let cursorCacheTimeout: TimeInterval = 0.5  // 500ms cache
 
+    // MARK: - Initialization
+
     init(bundleIdentifier: String) {
         self.bundleIdentifier = bundleIdentifier
     }
@@ -71,6 +76,8 @@ class NotionContentParser: ContentParser {
     var textReplacementOffset: Int {
         return uiElementOffset
     }
+
+    // MARK: - Text Preprocessing
 
     /// Preprocess Notion text to filter out UI elements
     func preprocessText(_ text: String) -> String? {
@@ -170,6 +177,8 @@ class NotionContentParser: ContentParser {
         return "page-content"
     }
 
+    // MARK: - Content Detection
+
     /// Check if an element is a Notion content block (vs UI chrome)
     private func isContentBlock(roleDescription: String?) -> Bool {
         guard let roleDesc = roleDescription else { return false }
@@ -200,6 +209,8 @@ class NotionContentParser: ContentParser {
     var disablesVisualUnderlines: Bool {
         return false  // Enable underlines - we have cursor-anchored positioning
     }
+
+    // MARK: - Bounds Adjustment
 
     /// Bounds adjustment using cursor position as anchor
     /// IMPORTANT: errorRange is based on FILTERED text positions.

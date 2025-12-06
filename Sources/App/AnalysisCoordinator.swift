@@ -30,10 +30,15 @@ func logToDebugFile(_ message: String) {
 
 /// Coordinates grammar analysis workflow: monitoring → analysis → UI
 class AnalysisCoordinator: ObservableObject {
+
+    // MARK: - Singleton
+
     static let shared = AnalysisCoordinator()
 
+    // MARK: - Dependencies
+
     /// Text monitor for accessibility
-    private let textMonitor = TextMonitor()
+    let textMonitor = TextMonitor()
 
     /// Application tracker
     private let applicationTracker = ApplicationTracker.shared
@@ -42,17 +47,19 @@ class AnalysisCoordinator: ObservableObject {
     private let permissionManager = PermissionManager.shared
 
     /// Suggestion popover
-    private let suggestionPopover = SuggestionPopover.shared
+    let suggestionPopover = SuggestionPopover.shared
 
     /// Error overlay window for visual underlines (lazy initialization)
-    private lazy var errorOverlay: ErrorOverlayWindow = {
+    lazy var errorOverlay: ErrorOverlayWindow = {
         let window = ErrorOverlayWindow()
         Logger.debug("AnalysisCoordinator: Error overlay window created", category: Logger.ui)
         return window
     }()
 
     /// Floating error indicator for apps without visual underlines
-    private let floatingIndicator = FloatingErrorIndicator.shared
+    let floatingIndicator = FloatingErrorIndicator.shared
+
+    // MARK: - Grammar Analysis Cache
 
     /// Error cache mapping text segments to detected errors
     private var errorCache: [String: [GrammarErrorModel]] = [:]
@@ -68,7 +75,9 @@ class AnalysisCoordinator: ObservableObject {
     private let aiRephraseCacheMaxEntries = 50
 
     /// Previous text for incremental analysis
-    private var previousText: String = ""
+    var previousText: String = ""
+
+    // MARK: - Published State
 
     /// Currently displayed errors
     @Published private(set) var currentErrors: [GrammarErrorModel] = []
@@ -77,7 +86,7 @@ class AnalysisCoordinator: ObservableObject {
     @Published private(set) var currentSegment: TextSegment?
 
     /// Currently monitored application context
-    private var monitoredContext: ApplicationContext?
+    var monitoredContext: ApplicationContext?
 
     /// Current browser URL (only populated when monitoring a browser)
     private var currentBrowserURL: URL?
@@ -93,6 +102,8 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Cache expiration time in seconds (T084)
     private let cacheExpirationTime: TimeInterval = 300 // 5 minutes
+
+    // MARK: - Window Tracking State
 
     /// Window position and size tracking
     private var lastWindowFrame: CGRect?
@@ -121,7 +132,7 @@ class AnalysisCoordinator: ObservableObject {
     /// Time when last suggestion was applied programmatically
     /// Used to suppress typing detection briefly after applying a suggestion
     /// (prevents paste-triggered AX notifications from hiding overlays)
-    private var lastReplacementTime: Date?
+    var lastReplacementTime: Date?
 
     // MARK: - LLM Style Checking
 
@@ -132,10 +143,10 @@ class AnalysisCoordinator: ObservableObject {
     private let styleAnalysisQueue = DispatchQueue(label: "com.textwarden.styleanalysis", qos: .userInitiated)
 
     /// Style cache - maps text hash to style suggestions (LLM results are expensive, cache aggressively)
-    private var styleCache: [String: [StyleSuggestionModel]] = [:]
+    var styleCache: [String: [StyleSuggestionModel]] = [:]
 
     /// Style cache metadata for LRU eviction
-    private var styleCacheMetadata: [String: StyleCacheMetadata] = [:]
+    var styleCacheMetadata: [String: StyleCacheMetadata] = [:]
 
     /// Maximum cached style results
     private let maxStyleCacheEntries = 20
@@ -167,26 +178,28 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Flag to prevent text-change handler from clearing errors during replacement
     /// When true, text changes are expected (we're applying a suggestion) and should not trigger re-analysis
-    private var isApplyingReplacement: Bool = false
+    var isApplyingReplacement: Bool = false
 
     /// Timestamp when replacement completed in an app with focus bounce behavior.
     /// Some apps (like Mail's WebKit) fire multiple AXFocusedUIElementChanged notifications
     /// during paste, causing the monitored element to temporarily become nil.
     /// During the grace period, we preserve the popover to avoid flicker.
-    private var replacementCompletedAt: Date?
+    var replacementCompletedAt: Date?
 
     /// Grace period after replacement to preserve popover in apps with focus bounce behavior.
     /// Focus typically settles within 300-500ms after paste operation completes.
-    private let focusBounceGracePeriod: TimeInterval = 0.5
+    let focusBounceGracePeriod: TimeInterval = 0.5
 
     /// Check if we're within the focus bounce grace period after replacement
-    private func isWithinFocusBounceGracePeriod() -> Bool {
+    func isWithinFocusBounceGracePeriod() -> Bool {
         guard let completedAt = replacementCompletedAt else { return false }
         return Date().timeIntervalSince(completedAt) < focusBounceGracePeriod
     }
 
     /// Last analyzed source text (for popover context display)
-    private var lastAnalyzedText: String = ""
+    var lastAnalyzedText: String = ""
+
+    // MARK: - Initialization
 
     private init() {
         setupMonitoring()
@@ -196,6 +209,8 @@ class AnalysisCoordinator: ObservableObject {
         setupTypingCallback()
         // Window position monitoring will be started when we begin monitoring an app
     }
+
+    // MARK: - Setup Methods
 
     /// Setup callback to hide underlines immediately when typing starts
     /// TypingDetector is notified for ALL apps, so this works for Slack, Notion, and other Electron apps
@@ -421,6 +436,8 @@ class AnalysisCoordinator: ObservableObject {
         guard let e1 = error1, let e2 = error2 else { return false }
         return e1.start == e2.start && e1.end == e2.end
     }
+
+    // MARK: - Monitoring Control
 
     /// Setup text monitoring and application tracking (T037)
     private func setupMonitoring() {
@@ -1301,6 +1318,7 @@ class AnalysisCoordinator: ObservableObject {
         return nil
     }
 
+    // MARK: - Text Analysis
 
     /// Handle text change and trigger analysis (T038)
     private func handleTextChange(_ text: String, in context: ApplicationContext) {
@@ -2062,6 +2080,8 @@ class AnalysisCoordinator: ObservableObject {
         }
     }
 
+    // MARK: - Public API
+
     /// Get errors for current text
     func getCurrentErrors() -> [GrammarErrorModel] {
         currentErrors
@@ -2156,6 +2176,8 @@ class AnalysisCoordinator: ObservableObject {
         styleCacheMetadata.removeAll()
         currentStyleSuggestions.removeAll()
     }
+
+    // MARK: - Text Replacement
 
     /// Remove error from tracking and update UI immediately
     /// Called after successfully applying a suggestion to remove underlines
@@ -4301,7 +4323,7 @@ private struct CacheMetadata {
 }
 
 /// Metadata for style cache entries
-private struct StyleCacheMetadata {
+struct StyleCacheMetadata {
     let lastAccessed: Date
     let style: String // The writing style used for this analysis
 }

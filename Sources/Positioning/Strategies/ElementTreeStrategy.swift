@@ -59,6 +59,8 @@ struct ElementScore {
 /// Traverses AX hierarchy to find AXStaticText children containing the error text
 class ElementTreeStrategy: GeometryProvider {
 
+    // MARK: - Properties
+
     var strategyName: String { "ElementTree" }
     var strategyType: StrategyType { .elementTree }
     var tier: StrategyTier { .reliable }
@@ -84,6 +86,8 @@ class ElementTreeStrategy: GeometryProvider {
         ]
         return targetApps.contains(bundleID)
     }
+
+    // MARK: - Geometry Calculation
 
     func calculateGeometry(
         errorRange: NSRange,

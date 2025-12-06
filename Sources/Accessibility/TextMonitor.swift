@@ -11,11 +11,16 @@ import Combine
 
 /// Monitors text changes in applications via Accessibility API
 class TextMonitor: ObservableObject {
+
+    // MARK: - Published State
+
     /// Published text changes
     @Published private(set) var currentText: String = ""
 
     /// Current application context
     @Published private(set) var currentContext: ApplicationContext?
+
+    // MARK: - Private State
 
     /// AX observer for the current application
     private var observer: AXObserver?
@@ -49,6 +54,8 @@ class TextMonitor: ObservableObject {
         return defaultDebounceInterval
     }
 
+    // MARK: - Callbacks
+
     /// Callback for text changes (after debounce)
     var onTextChange: ((String, ApplicationContext) -> Void)?
 
@@ -57,6 +64,8 @@ class TextMonitor: ObservableObject {
 
     /// Retry scheduler for accessibility API operations
     private let retryScheduler = RetryScheduler(config: .accessibilityAPI)
+
+    // MARK: - Monitoring Control
 
     /// Start monitoring an application
     func startMonitoring(processID: pid_t, bundleIdentifier: String, appName: String) {
@@ -328,6 +337,8 @@ class TextMonitor: ObservableObject {
         }
     }
 
+    // MARK: - Text Extraction
+
     /// Maximum text length to analyze (prevent analyzing huge terminal buffers)
     private let maxTextLength = 100_000
 
@@ -471,7 +482,7 @@ private func axObserverCallback(
     }
 }
 
-// MARK: - Helper Extensions
+// MARK: - Element Discovery
 
 extension TextMonitor {
     /// Search for editable field from main window
