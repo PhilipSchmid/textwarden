@@ -235,7 +235,16 @@ class ErrorOverlayWindow: NSPanel {
 
         Logger.debug("ErrorOverlay: Element frame (may include scroll content): \(elementFrame)", category: Logger.ui)
 
-        // CRITICAL: Constrain element frame to visible window frame
+        // CRITICAL: Keep track of both original and constrained frames
+        // originalElementFrame: The full AX bounds of the text area (used for coordinate calculations)
+        // elementFrame: Constrained to visible window (used for overlay window positioning)
+        //
+        // AXBoundsForRange returns absolute screen coordinates relative to the ORIGINAL element,
+        // not the visible/constrained portion. We must use originalElementFrame when converting
+        // AX bounds to local coordinates.
+        let originalElementFrame = elementFrame
+
+        // Constrain element frame to visible window frame for overlay positioning
         // Element frame may include full scrollable content, but we only want the visible portion
         if let windowFrame = getApplicationWindowFrame() {
             Logger.debug("ErrorOverlay: Visible window frame: \(windowFrame)", category: Logger.ui)
@@ -247,12 +256,11 @@ class ErrorOverlayWindow: NSPanel {
         }
 
         Logger.debug("ErrorOverlay: Final element frame: \(elementFrame)", category: Logger.ui)
+        Logger.debug("ErrorOverlay: Original element frame (for coord calc): \(originalElementFrame)", category: Logger.ui)
 
         // Position overlay window to match visible element area
         setFrame(elementFrame, display: true)
         Logger.debug("ErrorOverlay: Window positioned at \(elementFrame)", category: Logger.ui)
-
-        Logger.debug("DEBUG: Actual window frame after setFrame - \(self.frame)", category: Logger.ui)
 
         // Extract full text once for all positioning calculations
         var textValue: CFTypeRef?
@@ -270,14 +278,26 @@ class ErrorOverlayWindow: NSPanel {
 
 
         // Get visible character range to filter out off-screen errors
-        let visibleRange = AccessibilityBridge.getVisibleCharacterRange(element)
-        if let visibleRange = visibleRange {
-            Logger.debug("ErrorOverlay: Visible character range: \(visibleRange.location)-\(visibleRange.location + visibleRange.length)", category: Logger.ui)
+        // Note: Some apps (like Mail's WebKit) return Int.max for visibleRange which is invalid
+        var visibleRange = AccessibilityBridge.getVisibleCharacterRange(element)
+        if let vr = visibleRange {
+            // Sanity check: if location is absurdly large (> 1 billion chars), it's invalid
+            // This happens with Mail's WebKit which returns Int64.max
+            if vr.location > 1_000_000_000 || vr.length > 1_000_000_000 {
+                Logger.debug("ErrorOverlay: Visible character range is invalid (\(vr.location)-\(vr.location + vr.length)), ignoring", category: Logger.ui)
+                visibleRange = nil
+            } else {
+                Logger.debug("ErrorOverlay: Visible character range: \(vr.location)-\(vr.location + vr.length)", category: Logger.ui)
+            }
         }
 
         // Calculate underline positions for each error using new positioning system
         var skippedCount = 0
         var skippedDueToVisibility = 0
+
+        // Clear debug marker (will be set if enabled for parsers with custom bounds)
+        underlineView?.firstCharDebugMarker = nil
+
         let underlines = errors.compactMap { error -> ErrorUnderline? in
             let errorRange = NSRange(location: error.start, length: error.end - error.start)
 
@@ -327,6 +347,14 @@ class ErrorOverlayWindow: NSPanel {
             let allScreenBounds = geometryResult.allLineBounds
             var allLocalBounds: [CGRect] = []
 
+            // Set first character debug marker if enabled (uses parser's custom bounds)
+            if UserPreferences.shared.showDebugCharacterMarkers,
+               let firstCharBounds = parser.getBoundsForRange(range: NSRange(location: 0, length: 1), in: element) {
+                let firstCharCocoa = CoordinateMapper.toCocoaCoordinates(firstCharBounds)
+                let firstCharLocal = convertToLocal(firstCharCocoa, from: elementFrame)
+                underlineView?.firstCharDebugMarker = firstCharLocal
+            }
+
             for (lineIndex, screenBounds) in allScreenBounds.enumerated() {
                 // CRITICAL: Filter out underlines whose screen bounds fall outside the visible element frame
                 // This handles scrolled text where underlines would appear outside the window
@@ -336,10 +364,19 @@ class ErrorOverlayWindow: NSPanel {
                     continue
                 }
 
-                let localBounds = convertToLocal(screenBounds, from: elementFrame)
-                Logger.debug("ErrorOverlay: Line \(lineIndex) bounds - screen: \(screenBounds), local: \(localBounds)", category: Logger.ui)
+                // CRITICAL: Use the CONSTRAINED element frame (where window is actually positioned)
+                // for local coordinate calculations. The window is at elementFrame, so:
+                //   local = screen - elementFrame
+                // Then underline appears at: elementFrame + local = screen ✓
+                //
+                // Note: Parsers with custom bounds (getBoundsForRange) already provide
+                // properly converted screen coordinates, so no additional offset needed.
+                let frameForConversion: CGRect = elementFrame
+                let localBounds = convertToLocal(screenBounds, from: frameForConversion)
 
-                // CRITICAL: Validate local bounds - reject invalid coordinates
+                Logger.debug("ErrorOverlay: Line \(lineIndex) - screen: \(screenBounds), local: \(localBounds)", category: Logger.ui)
+
+                // Validate local bounds - reject invalid coordinates
                 // Invalid bounds cause hover detection to fail
                 let maxValidHeight: CGFloat = 100.0  // Text lines shouldn't be > 100px
                 if localBounds.origin.y < -10 || localBounds.height > maxValidHeight {
@@ -957,6 +994,7 @@ class UnderlineView: NSView {
     var hoveredUnderline: ErrorUnderline?
     var hoveredStyleUnderline: StyleUnderline?
     var allowsClickPassThrough: Bool = false
+    var firstCharDebugMarker: CGRect?  // For coordinate debugging (first char position)
 
     // CRITICAL: Use flipped coordinates (top-left origin) to match window positioning
     // When isFlipped = true: (0,0) is top-left, Y increases downward
@@ -975,6 +1013,11 @@ class UnderlineView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
+
+        // DEBUG: Log actual window position at draw time
+        if UserPreferences.shared.showDebugBorderTextFieldBounds, let window = self.window {
+            Logger.info("UnderlineView.draw: Window ACTUAL frame at draw time: \(window.frame)", category: Logger.ui)
+        }
 
         // Clear background
         context.clear(bounds)
@@ -999,6 +1042,12 @@ class UnderlineView: NSView {
             for (lineIdx, lineBounds) in underline.allDrawingBounds.enumerated() {
                 Logger.debug("Draw: Drawing line \(lineIdx) at bounds \(lineBounds)", category: Logger.ui)
                 drawWavyUnderline(in: context, bounds: lineBounds, color: underline.color)
+
+                // Draw orange marker at underline START position for coordinate debugging
+                if UserPreferences.shared.showDebugCharacterMarkers {
+                    context.setFillColor(NSColor.systemOrange.cgColor)
+                    context.fill(CGRect(x: lineBounds.minX, y: lineBounds.minY, width: 6, height: 6))
+                }
             }
         }
 
@@ -1022,6 +1071,43 @@ class UnderlineView: NSView {
             ]
             let labelStr = label as NSString
             labelStr.draw(at: NSPoint(x: 10, y: 10), withAttributes: attrs)
+
+            // DEBUG: Draw markers to verify coordinate alignment
+            // Green marker at (0,0) to show window origin
+            context.setFillColor(NSColor.systemGreen.cgColor)
+            context.fill(CGRect(x: 0, y: 0, width: 10, height: 10))
+
+            // Blue marker at (24, 15) for reference point
+            context.setFillColor(NSColor.systemBlue.cgColor)
+            context.fill(CGRect(x: 24, y: 15, width: 10, height: 10))
+
+            // Draw coordinate labels
+            let coordAttrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.boldSystemFont(ofSize: 10),
+                .foregroundColor: NSColor.systemGreen
+            ]
+            let originLabel = "(0,0)" as NSString
+            originLabel.draw(at: NSPoint(x: 12, y: 0), withAttributes: coordAttrs)
+
+            let offsetAttrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.boldSystemFont(ofSize: 10),
+                .foregroundColor: NSColor.systemBlue
+            ]
+            let offsetLabel = "(24,15)" as NSString
+            offsetLabel.draw(at: NSPoint(x: 36, y: 15), withAttributes: offsetAttrs)
+
+            // Draw cyan marker at first character position (only if character markers are enabled)
+            if UserPreferences.shared.showDebugCharacterMarkers, let firstCharMarker = firstCharDebugMarker {
+                context.setFillColor(NSColor.systemTeal.cgColor)
+                context.fill(CGRect(x: firstCharMarker.origin.x, y: firstCharMarker.origin.y, width: 8, height: 8))
+
+                let firstCharAttrs: [NSAttributedString.Key: Any] = [
+                    .font: NSFont.boldSystemFont(ofSize: 9),
+                    .foregroundColor: NSColor.systemTeal
+                ]
+                let firstCharLabel = "1st(\(Int(firstCharMarker.origin.x)),\(Int(firstCharMarker.origin.y)))" as NSString
+                firstCharLabel.draw(at: NSPoint(x: firstCharMarker.origin.x + 10, y: firstCharMarker.origin.y), withAttributes: firstCharAttrs)
+            }
         }
     }
 

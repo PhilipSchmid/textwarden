@@ -169,6 +169,22 @@ class AnalysisCoordinator: ObservableObject {
     /// When true, text changes are expected (we're applying a suggestion) and should not trigger re-analysis
     private var isApplyingReplacement: Bool = false
 
+    /// Timestamp when replacement completed in an app with focus bounce behavior.
+    /// Some apps (like Mail's WebKit) fire multiple AXFocusedUIElementChanged notifications
+    /// during paste, causing the monitored element to temporarily become nil.
+    /// During the grace period, we preserve the popover to avoid flicker.
+    private var replacementCompletedAt: Date?
+
+    /// Grace period after replacement to preserve popover in apps with focus bounce behavior.
+    /// Focus typically settles within 300-500ms after paste operation completes.
+    private let focusBounceGracePeriod: TimeInterval = 0.5
+
+    /// Check if we're within the focus bounce grace period after replacement
+    private func isWithinFocusBounceGracePeriod() -> Bool {
+        guard let completedAt = replacementCompletedAt else { return false }
+        return Date().timeIntervalSince(completedAt) < focusBounceGracePeriod
+    }
+
     /// Last analyzed source text (for popover context display)
     private var lastAnalyzedText: String = ""
 
@@ -1290,11 +1306,30 @@ class AnalysisCoordinator: ObservableObject {
     private func handleTextChange(_ text: String, in context: ApplicationContext) {
         Logger.debug("AnalysisCoordinator: Text changed in \(context.applicationName) (\(text.count) chars)", category: Logger.analysis)
 
+        let appConfig = AppRegistry.shared.configuration(for: context.bundleIdentifier)
+
         // If no element is being monitored (e.g., browser UI element was detected),
         // immediately hide overlays without waiting for async analysis
         // This ensures overlays disappear immediately when user clicks on browser
         // search fields, URL bars, find-in-page, etc.
+        //
+        // EXCEPTION: Some apps (like Mail's WebKit) fire multiple AXFocusedUIElementChanged
+        // notifications during paste, causing the monitored element to temporarily become nil.
+        // For these apps, we preserve the popover during the grace period after replacement.
         if textMonitor.monitoredElement == nil {
+            // Check if this app has focus bounce behavior and we're in replacement or grace period
+            let hasFocusBounce = appConfig.features.focusBouncesDuringPaste
+            let isActiveReplacement = isApplyingReplacement && hasFocusBounce
+            let isInGracePeriod = hasFocusBounce && isWithinFocusBounceGracePeriod()
+
+            if isActiveReplacement || isInGracePeriod {
+                Logger.debug("AnalysisCoordinator: Focus bounce app - preserving popover during replacement/grace period", category: Logger.analysis)
+                // Still hide overlay and clear previousText, but preserve popover
+                errorOverlay.hide()
+                previousText = ""
+                return
+            }
+
             Logger.debug("AnalysisCoordinator: No monitored element - hiding overlays immediately", category: Logger.analysis)
             errorOverlay.hide()
             // Don't hide indicator during manual style check (showing checkmark/results)
@@ -2592,6 +2627,13 @@ class AnalysisCoordinator: ObservableObject {
         // Try the proper WebKit API first
         if MailContentParser.replaceText(range: range, with: suggestion, in: element) {
             Logger.info("Mail: AXReplaceRangeWithText succeeded", category: Logger.analysis)
+
+            // Record statistics
+            UserStatistics.shared.recordSuggestionApplied(category: currentError.category)
+
+            // Invalidate cache and trigger re-analysis (crucial for showing remaining errors)
+            invalidateCacheAfterReplacement(at: currentError.start..<currentError.end)
+
             // Update UI immediately so popover shows next error
             removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
             completion()
@@ -2619,20 +2661,123 @@ class AnalysisCoordinator: ObservableObject {
 
         // Wait then paste - use shorter delays for native apps (50ms is enough)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            self?.pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
-            Logger.debug("Mail: Pasted via Cmd+V", category: Logger.analysis)
+            guard let self = self else { return }
 
-            // Update UI immediately so popover shows next error
-            self?.removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
+            let startTime = Date()
+            Logger.trace("WebKit paste: T=0ms starting", category: Logger.analysis)
+
+            self.pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
+            Logger.trace("WebKit paste: T=\(Int(Date().timeIntervalSince(startTime) * 1000))ms pasted via Cmd+V", category: Logger.analysis)
+
+            // Record statistics
+            UserStatistics.shared.recordSuggestionApplied(category: currentError.category)
+
+            // IMPORTANT: Call removeErrorAndUpdateUI FIRST before invalidateCacheAfterReplacement
+            // removeErrorAndUpdateUI removes just the fixed error and adjusts positions of remaining errors
+            self.removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
+            Logger.trace("WebKit paste: T=\(Int(Date().timeIntervalSince(startTime) * 1000))ms error removed from UI", category: Logger.analysis)
+
+            // Clear position cache for remaining errors (byte offsets are now stale)
+            self.invalidateCacheAfterReplacementForWebKit(at: currentError.start..<currentError.end)
+            Logger.trace("WebKit paste: T=\(Int(Date().timeIntervalSince(startTime) * 1000))ms cache invalidated", category: Logger.analysis)
 
             // Restore clipboard and complete
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
                 if let original = originalString {
                     pasteboard.clearContents()
                     pasteboard.setString(original, forType: .string)
                 }
+                // Set grace period BEFORE calling completion (which sets isApplyingReplacement=false)
+                // This ensures the popover stays visible during focus settling
+                self?.replacementCompletedAt = Date()
+                Logger.trace("WebKit paste: T=\(Int(Date().timeIntervalSince(startTime) * 1000))ms completing, grace period started", category: Logger.analysis)
                 completion()
+
+                // Schedule delayed re-analysis for focus-bounce apps
+                // WebKit apps fire AXFocusedUIElementChanged during paste, clearing the monitored element.
+                // Wait for focus to settle, then re-acquire the element and re-analyze.
+                self?.scheduleDelayedReanalysis(startTime: startTime)
             }
+        }
+    }
+
+    /// Schedule delayed re-analysis after text replacement for apps with focus bounce behavior.
+    /// WebKit/Electron apps may fire AXFocusedUIElementChanged during paste, clearing the monitored element.
+    /// This waits for focus to settle, then restarts monitoring to find the composition element.
+    private func scheduleDelayedReanalysis(startTime: Date) {
+        guard let context = monitoredContext else { return }
+        let appConfig = AppRegistry.shared.configuration(for: context.bundleIdentifier)
+        guard appConfig.features.focusBouncesDuringPaste else { return }
+
+        Logger.trace("Focus bounce reanalysis: T=\(Int(Date().timeIntervalSince(startTime) * 1000))ms scheduling", category: Logger.analysis)
+
+        // Wait 300ms for focus to settle after focus bounce
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self = self else { return }
+            guard let context = self.monitoredContext else { return }
+
+            let appConfig = AppRegistry.shared.configuration(for: context.bundleIdentifier)
+            guard appConfig.features.focusBouncesDuringPaste else {
+                Logger.trace("Focus bounce reanalysis: skipping - app no longer has focus bounce", category: Logger.analysis)
+                return
+            }
+
+            Logger.trace("Focus bounce reanalysis: T=\(Int(Date().timeIntervalSince(startTime) * 1000))ms starting", category: Logger.analysis)
+
+            // If we have a monitored element and remaining errors, just refresh the overlay
+            if self.textMonitor.monitoredElement != nil && !self.currentErrors.isEmpty {
+                Logger.trace("Focus bounce reanalysis: have element and errors, refreshing overlay", category: Logger.analysis)
+                if let element = self.textMonitor.monitoredElement {
+                    self.showErrorUnderlines(self.currentErrors, element: element)
+                }
+                return
+            }
+
+            // No monitored element - restart monitoring to re-acquire the composition element
+            Logger.trace("Focus bounce reanalysis: no element, restarting monitoring", category: Logger.analysis)
+
+            self.textMonitor.stopMonitoring()
+            self.textMonitor.startMonitoring(
+                processID: context.processID,
+                bundleIdentifier: context.bundleIdentifier,
+                appName: context.applicationName
+            )
+
+            // After monitoring restarts, extract text to trigger analysis
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                guard let self = self else { return }
+                Logger.trace("Focus bounce reanalysis: T=\(Int(Date().timeIntervalSince(startTime) * 1000))ms extracting text", category: Logger.analysis)
+
+                if let element = self.textMonitor.monitoredElement {
+                    self.textMonitor.extractText(from: element)
+                } else {
+                    Logger.debug("Focus bounce reanalysis: still no element after restart", category: Logger.analysis)
+                }
+            }
+        }
+    }
+
+    /// WebKit-specific cache invalidation that only clears position cache, not errors.
+    /// Used when removeErrorAndUpdateUI already handled error adjustments.
+    /// This just clears the position cache so underlines are recalculated at new positions.
+    private func invalidateCacheAfterReplacementForWebKit(at range: Range<Int>) {
+        Logger.trace("WebKit cache invalidation: clearing position cache only", category: Logger.analysis)
+
+        // Clear position cache - geometry is now stale since text positions shifted
+        PositionResolver.shared.clearCache()
+
+        // Hide overlays temporarily while we recalculate positions
+        errorOverlay.hide()
+
+        // Clear previousText so the next text change triggers analysis
+        previousText = ""
+
+        // DON'T clear currentErrors - removeErrorAndUpdateUI already handled that
+        // DON'T call textMonitor.extractText - we already have the correct errors
+        // Just need to recalculate underline positions for remaining errors
+        if let element = textMonitor.monitoredElement, !currentErrors.isEmpty {
+            Logger.trace("WebKit cache invalidation: refreshing \(currentErrors.count) remaining errors", category: Logger.analysis)
+            showErrorUnderlines(currentErrors, element: element)
         }
     }
 
@@ -3453,27 +3598,29 @@ class AnalysisCoordinator: ObservableObject {
         // Clear position cache - geometry is now stale since text positions shifted
         PositionResolver.shared.clearCache()
 
-        // Check if this is an Electron app (Notion, etc.) where positioning is fragile
         let bundleID = monitoredContext?.bundleIdentifier ?? ""
         let appConfig = AppRegistry.shared.configuration(for: bundleID)
-        let isElectronApp = appConfig.category == .electron || appConfig.category == .browser
 
-        if isElectronApp {
-            // For Electron apps: Clear ALL errors and force complete re-analysis
-            // Their byte offsets become invalid when text shifts, causing underline drift
+        // Check if this app requires full re-analysis (Electron, WebKit, browsers)
+        // These apps have fragile byte offsets that become invalid when text shifts
+        if appConfig.features.requiresFullReanalysisAfterReplacement {
+            Logger.trace("Cache invalidation: full re-analysis required for \(appConfig.displayName)", category: Logger.analysis)
+            // Clear ALL errors and force complete re-analysis
             currentErrors.removeAll()
             errorOverlay.hide()
             floatingIndicator.hide()
 
             // Force fresh analysis by clearing cached text and re-extracting
-            // This triggers immediate re-analysis instead of waiting for next AX notification
             previousText = ""
             if let element = textMonitor.monitoredElement {
+                Logger.trace("Cache invalidation: extracting text for re-analysis", category: Logger.analysis)
                 textMonitor.extractText(from: element)
+            } else {
+                Logger.debug("Cache invalidation: no monitored element for re-analysis", category: Logger.analysis)
             }
         } else {
+            Logger.trace("Cache invalidation: incremental update for native app", category: Logger.analysis)
             // For native apps: Just clear overlapping errors and trigger re-analysis
-            // Native apps handle position updates more reliably
             currentErrors.removeAll { error in
                 let errorRange = error.start..<error.end
                 return errorRange.overlaps(range)

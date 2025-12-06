@@ -502,6 +502,15 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Show character position markers for coordinate debugging
+    /// Orange marker = underline start position
+    /// Cyan marker = first character position (requires showDebugBorderTextFieldBounds)
+    @Published var showDebugCharacterMarkers: Bool {
+        didSet {
+            defaults.set(showDebugCharacterMarkers, forKey: Keys.showDebugCharacterMarkers)
+        }
+    }
+
     // MARK: - LLM Style Checking
 
     /// Enable LLM-powered style suggestions
@@ -608,9 +617,10 @@ class UserPreferences: ObservableObject {
         self.indicatorPosition = "Bottom Right"
 
         // Diagnostics
-        self.showDebugBorderTextFieldBounds = true
-        self.showDebugBorderCGWindowCoords = true
-        self.showDebugBorderCocoaCoords = true
+        self.showDebugBorderTextFieldBounds = false
+        self.showDebugBorderCGWindowCoords = false
+        self.showDebugBorderCocoaCoords = false
+        self.showDebugCharacterMarkers = false
 
         // LLM Style Checking
         self.enableStyleChecking = false  // Off by default
@@ -721,9 +731,10 @@ class UserPreferences: ObservableObject {
         self.indicatorPosition = defaults.string(forKey: Keys.indicatorPosition) ?? "Bottom Right"
 
         // Diagnostics
-        self.showDebugBorderTextFieldBounds = defaults.object(forKey: Keys.showDebugBorderTextFieldBounds) as? Bool ?? true
-        self.showDebugBorderCGWindowCoords = defaults.object(forKey: Keys.showDebugBorderCGWindowCoords) as? Bool ?? true
-        self.showDebugBorderCocoaCoords = defaults.object(forKey: Keys.showDebugBorderCocoaCoords) as? Bool ?? true
+        self.showDebugBorderTextFieldBounds = defaults.object(forKey: Keys.showDebugBorderTextFieldBounds) as? Bool ?? false
+        self.showDebugBorderCGWindowCoords = defaults.object(forKey: Keys.showDebugBorderCGWindowCoords) as? Bool ?? false
+        self.showDebugBorderCocoaCoords = defaults.object(forKey: Keys.showDebugBorderCocoaCoords) as? Bool ?? false
+        self.showDebugCharacterMarkers = defaults.object(forKey: Keys.showDebugCharacterMarkers) as? Bool ?? false
 
         // LLM Style Checking
         self.enableStyleChecking = defaults.object(forKey: Keys.enableStyleChecking) as? Bool ?? false
@@ -1116,6 +1127,7 @@ class UserPreferences: ObservableObject {
         static let showDebugBorderTextFieldBounds = "showDebugBorderTextFieldBounds"
         static let showDebugBorderCGWindowCoords = "showDebugBorderCGWindowCoords"
         static let showDebugBorderCocoaCoords = "showDebugBorderCocoaCoords"
+        static let showDebugCharacterMarkers = "showDebugCharacterMarkers"
 
         // LLM Style Checking
         static let enableStyleChecking = "enableStyleChecking"

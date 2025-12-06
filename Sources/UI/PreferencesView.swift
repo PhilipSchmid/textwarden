@@ -3783,6 +3783,15 @@ struct DiagnosticsView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.leading, 20)
+                        .padding(.bottom, 8)
+
+                    Toggle("Show Character Position Markers", isOn: $preferences.showDebugCharacterMarkers)
+                        .help("Display markers showing character positions for debugging text positioning")
+
+                    Text("Orange = underline start (Cyan = first char when combined with Text Field Bounds)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 20)
 
                     Divider()
                         .padding(.vertical, 4)

@@ -29,6 +29,7 @@ enum ParserType {
     case notion
     case terminal
     case teams
+    case mail
 }
 
 // MARK: - Strategy Type
@@ -100,13 +101,26 @@ struct AppFeatures: Equatable {
     /// When true, TypingDetector will use keyboard events to proactively trigger re-analysis.
     let delaysAXNotifications: Bool
 
+    /// Whether focus bounces between elements during paste operations.
+    /// Some WebKit-based apps (like Mail) fire multiple AXFocusedUIElementChanged notifications
+    /// during Cmd+V, causing the monitored element to temporarily become nil.
+    /// When true, AnalysisCoordinator uses a grace period to preserve the popover during focus settling.
+    let focusBouncesDuringPaste: Bool
+
+    /// Whether this app requires full re-analysis after text replacement.
+    /// Electron and WebKit apps have fragile byte offsets that become invalid when text shifts.
+    /// When true, all errors are cleared and fresh analysis is triggered after replacement.
+    let requiresFullReanalysisAfterReplacement: Bool
+
     static let standard = AppFeatures(
         visualUnderlinesEnabled: true,
         textReplacementMethod: .standard,
         requiresTypingPause: false,
         supportsFormattedText: false,
         childElementTraversal: false,
-        delaysAXNotifications: false
+        delaysAXNotifications: false,
+        focusBouncesDuringPaste: false,
+        requiresFullReanalysisAfterReplacement: false
     )
 }
 
@@ -124,7 +138,9 @@ extension AppCategory {
                 requiresTypingPause: false,
                 supportsFormattedText: false,
                 childElementTraversal: false,
-                delaysAXNotifications: false
+                delaysAXNotifications: false,
+                focusBouncesDuringPaste: false,
+                requiresFullReanalysisAfterReplacement: false
             )
         case .electron:
             return AppFeatures(
@@ -133,7 +149,9 @@ extension AppCategory {
                 requiresTypingPause: false,
                 supportsFormattedText: false,
                 childElementTraversal: true,
-                delaysAXNotifications: false  // Most Electron apps send notifications immediately
+                delaysAXNotifications: false,  // Most Electron apps send notifications immediately
+                focusBouncesDuringPaste: false,
+                requiresFullReanalysisAfterReplacement: true  // Electron byte offsets are fragile
             )
         case .browser:
             return AppFeatures(
@@ -142,7 +160,9 @@ extension AppCategory {
                 requiresTypingPause: false,
                 supportsFormattedText: false,
                 childElementTraversal: true,
-                delaysAXNotifications: false
+                delaysAXNotifications: false,
+                focusBouncesDuringPaste: false,
+                requiresFullReanalysisAfterReplacement: true  // Browser byte offsets are fragile
             )
         case .terminal:
             return AppFeatures(
@@ -151,7 +171,9 @@ extension AppCategory {
                 requiresTypingPause: false,
                 supportsFormattedText: false,
                 childElementTraversal: false,
-                delaysAXNotifications: false
+                delaysAXNotifications: false,
+                focusBouncesDuringPaste: false,
+                requiresFullReanalysisAfterReplacement: false
             )
         case .custom:
             return .standard

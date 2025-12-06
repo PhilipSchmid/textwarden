@@ -93,7 +93,9 @@ extension AppConfiguration {
             requiresTypingPause: true,
             supportsFormattedText: true,
             childElementTraversal: true,
-            delaysAXNotifications: false  // Slack sends AX notifications immediately
+            delaysAXNotifications: false,  // Slack sends AX notifications immediately
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: true  // Electron byte offsets are fragile
         )
     )
 
@@ -123,7 +125,9 @@ extension AppConfiguration {
             requiresTypingPause: false,  // No need to wait - not querying position APIs
             supportsFormattedText: true,
             childElementTraversal: true,
-            delaysAXNotifications: false
+            delaysAXNotifications: false,
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: true  // Electron byte offsets are fragile
         )
     )
 
@@ -184,7 +188,9 @@ extension AppConfiguration {
             requiresTypingPause: true,
             supportsFormattedText: false,
             childElementTraversal: true,
-            delaysAXNotifications: true  // Notion batches AX notifications, needs keyboard detection
+            delaysAXNotifications: true,  // Notion batches AX notifications, needs keyboard detection
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: true  // Electron byte offsets are fragile
         )
     )
 
@@ -232,7 +238,9 @@ extension AppConfiguration {
             requiresTypingPause: false,
             supportsFormattedText: true,  // Mail supports rich text
             childElementTraversal: true,  // May need to traverse AXWebArea children
-            delaysAXNotifications: true  // WebKit may batch AX notifications, use keyboard detection as backup
+            delaysAXNotifications: false,  // Mail sends AX notifications promptly like Slack
+            focusBouncesDuringPaste: true,  // Mail's WebKit fires multiple focus events during Cmd+V
+            requiresFullReanalysisAfterReplacement: true  // WebKit byte offsets are fragile
         )
     )
 
