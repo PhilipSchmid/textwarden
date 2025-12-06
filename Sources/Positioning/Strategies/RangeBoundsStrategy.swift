@@ -37,6 +37,12 @@ class RangeBoundsStrategy: GeometryProvider {
             location: errorRange.location + offset,
             length: max(1, errorRange.length)
         )
+
+        // Check if parser provides custom bounds calculation (e.g., Mail's WebKit API)
+        if parser.getBoundsForRange(range: NSRange(location: 0, length: 1), in: element) != nil {
+            return calculateCustomParserGeometry(adjustedRange: adjustedRange, element: element, parser: parser)
+        }
+
         let cfRange = CFRange(
             location: adjustedRange.location,
             length: adjustedRange.length
@@ -132,5 +138,63 @@ class RangeBoundsStrategy: GeometryProvider {
         }
 
         return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
+
+    // MARK: - Custom Parser Bounds
+
+    /// Calculate geometry using parser's custom bounds calculation.
+    /// Used for apps with non-standard accessibility APIs (e.g., Mail's WebKit).
+    /// Gets start and end character bounds separately to avoid multi-char range bugs.
+    private func calculateCustomParserGeometry(
+        adjustedRange: NSRange,
+        element: AXUIElement,
+        parser: ContentParser
+    ) -> GeometryResult? {
+        // Get start character bounds
+        let startCharRange = NSRange(location: adjustedRange.location, length: 1)
+        guard let startCharBounds = parser.getBoundsForRange(range: startCharRange, in: element) else {
+            Logger.debug("RangeBoundsStrategy: Custom parser failed to get start char bounds", category: Logger.ui)
+            return nil
+        }
+
+        // Get end character bounds
+        let endCharPosition = adjustedRange.location + adjustedRange.length - 1
+        let endCharRange = NSRange(location: endCharPosition, length: 1)
+        guard let endCharBounds = parser.getBoundsForRange(range: endCharRange, in: element) else {
+            Logger.debug("RangeBoundsStrategy: Custom parser failed to get end char bounds", category: Logger.ui)
+            return nil
+        }
+
+        // Calculate combined bounds from start of first char to end of last char
+        // Bounds are expected to be in Quartz screen coordinates (top-left origin)
+        let quartzBounds = CGRect(
+            x: startCharBounds.origin.x,
+            y: startCharBounds.origin.y,
+            width: (endCharBounds.origin.x + endCharBounds.width) - startCharBounds.origin.x,
+            height: startCharBounds.height
+        )
+
+        // Convert from Quartz screen → Cocoa screen
+        let cocoaBounds = CoordinateMapper.toCocoaCoordinates(quartzBounds)
+
+        // Validate converted bounds
+        guard CoordinateMapper.validateBounds(cocoaBounds) else {
+            Logger.debug("RangeBoundsStrategy: Custom parser bounds failed validation: \(cocoaBounds)")
+            return nil
+        }
+
+        return GeometryResult(
+            bounds: cocoaBounds,
+            lineBounds: nil,
+            confidence: 0.95,
+            strategy: strategyName,
+            metadata: [
+                "api": "custom-parser-bounds",
+                "range_location": adjustedRange.location,
+                "range_length": adjustedRange.length,
+                "quartz_screen_bounds": NSStringFromRect(quartzBounds),
+                "cocoa_bounds": NSStringFromRect(cocoaBounds)
+            ]
+        )
     }
 }

@@ -118,6 +118,11 @@ class AnalysisCoordinator: ObservableObject {
     /// Pending error waiting for delayed hover switch
     private var pendingHoverError: (error: GrammarErrorModel, position: CGPoint, windowFrame: CGRect?)?
 
+    /// Time when last suggestion was applied programmatically
+    /// Used to suppress typing detection briefly after applying a suggestion
+    /// (prevents paste-triggered AX notifications from hiding overlays)
+    private var lastReplacementTime: Date?
+
     // MARK: - LLM Style Checking
 
     /// Currently displayed style suggestions from LLM analysis
@@ -190,6 +195,14 @@ class AnalysisCoordinator: ObservableObject {
             // For apps like Slack that send immediate AX notifications, this callback won't fire
             // (filtered out in TypingDetector.handleKeyDown)
             if appConfig.features.delaysAXNotifications {
+                // Skip if we just applied a suggestion programmatically
+                // (prevents paste-triggered AX notifications from hiding overlays we just showed)
+                if let lastReplacement = self.lastReplacementTime,
+                   Date().timeIntervalSince(lastReplacement) < 0.5 {
+                    Logger.debug("AnalysisCoordinator: Ignoring typing callback - just applied suggestion", category: Logger.ui)
+                    return
+                }
+
                 Logger.debug("AnalysisCoordinator: Typing detected in \(appConfig.displayName) - hiding overlay and clearing cache", category: Logger.ui)
 
                 // Hide overlay immediately
@@ -2195,6 +2208,14 @@ class AnalysisCoordinator: ObservableObject {
             return
         }
 
+        // Apple Mail: use WebKit-specific AXReplaceRangeWithText API
+        // Standard AX selection + kAXSelectedTextAttribute doesn't work for Mail's WebKit
+        if let context = monitoredContext, context.bundleIdentifier == "com.apple.mail" {
+            Logger.debug("Detected Apple Mail - using WebKit-specific text replacement", category: Logger.analysis)
+            applyMailTextReplacement(for: error, with: suggestion, element: element, completion: wrappedCompletion)
+            return
+        }
+
         // For native macOS apps, try AX API first (it's faster and preserves formatting)
         // Use selection-based replacement to preserve formatting (bold, links, code, etc.)
         // Step 1: Save current selection
@@ -2550,6 +2571,71 @@ class AnalysisCoordinator: ObservableObject {
         }
     }
 
+    /// Apply text replacement for Apple Mail using AXReplaceRangeWithText
+    /// Mail's WebKit composition area supports this proper API, which preserves formatting
+    private func applyMailTextReplacement(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement, completion: @escaping () -> Void) {
+        Logger.debug("Mail text replacement using AXReplaceRangeWithText", category: Logger.analysis)
+
+        // Mark that we're applying a suggestion - prevents typing callback from hiding overlays
+        lastReplacementTime = Date()
+
+        // Look up the CURRENT error position from currentErrors
+        let currentError = currentErrors.first { err in
+            err.message == error.message && err.lintId == error.lintId && err.category == error.category
+        } ?? error
+
+        Logger.debug("Mail replacement: Using positions \(currentError.start)-\(currentError.end)", category: Logger.analysis)
+
+        let range = NSRange(location: currentError.start, length: currentError.end - currentError.start)
+        let lengthDelta = suggestion.count - (currentError.end - currentError.start)
+
+        // Try the proper WebKit API first
+        if MailContentParser.replaceText(range: range, with: suggestion, in: element) {
+            Logger.info("Mail: AXReplaceRangeWithText succeeded", category: Logger.analysis)
+            // Update UI immediately so popover shows next error
+            removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
+            completion()
+            return
+        }
+
+        // Fallback: try selection + paste approach
+        Logger.debug("Mail: AXReplaceRangeWithText failed, falling back to selection + paste", category: Logger.analysis)
+
+        let selectSuccess = MailContentParser.selectTextForReplacement(range: range, in: element)
+        Logger.debug("Mail: Selection \(selectSuccess ? "succeeded" : "failed")", category: Logger.analysis)
+
+        // Even if selection fails, try paste anyway
+        let pasteboard = NSPasteboard.general
+        let originalString = pasteboard.string(forType: .string)
+
+        pasteboard.clearContents()
+        pasteboard.setString(suggestion, forType: .string)
+
+        // Activate Mail
+        let apps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.mail")
+        if let mailApp = apps.first {
+            mailApp.activate()
+        }
+
+        // Wait then paste - use shorter delays for native apps (50ms is enough)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            self?.pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
+            Logger.debug("Mail: Pasted via Cmd+V", category: Logger.analysis)
+
+            // Update UI immediately so popover shows next error
+            self?.removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
+
+            // Restore clipboard and complete
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                if let original = originalString {
+                    pasteboard.clearContents()
+                    pasteboard.setString(original, forType: .string)
+                }
+                completion()
+            }
+        }
+    }
+
     /// Apply text replacement for browsers using menu action with keyboard fallback
     /// Browsers often have silently failing AX APIs, so we use SelectedTextKit's approach:
     /// 1. Try to select text range via AX API (even if it silently fails)
@@ -2755,6 +2841,35 @@ class AnalysisCoordinator: ObservableObject {
     ) -> Bool {
         let isNotion = context.bundleIdentifier == "notion.id" || context.bundleIdentifier == "com.notion.id"
         let isSlack = context.bundleIdentifier == "com.tinyspeck.slackmacgap"
+        let isMail = context.bundleIdentifier == "com.apple.mail"
+
+        // Apple Mail: use WebKit-specific marker-based selection
+        if isMail {
+            Logger.debug("Mail: Using WebKit-specific text selection for '\(targetText)'", category: Logger.analysis)
+
+            if let range = fallbackRange {
+                let nsRange = NSRange(location: range.location, length: range.length)
+                let success = MailContentParser.selectTextForReplacement(range: nsRange, in: element)
+                if success {
+                    Logger.debug("Mail: WebKit selection succeeded", category: Logger.analysis)
+                } else {
+                    Logger.debug("Mail: WebKit selection failed - paste may go to wrong location", category: Logger.analysis)
+                }
+                return true  // Always try paste even if selection fails
+            } else {
+                // Try to find the text position
+                if let currentText = extractCurrentText(from: element),
+                   let textRange = currentText.range(of: targetText) {
+                    let start = currentText.distance(from: currentText.startIndex, to: textRange.lowerBound)
+                    let nsRange = NSRange(location: start, length: targetText.count)
+                    let success = MailContentParser.selectTextForReplacement(range: nsRange, in: element)
+                    Logger.debug("Mail: Text search + selection \(success ? "succeeded" : "failed")", category: Logger.analysis)
+                    return true
+                }
+                Logger.debug("Mail: Could not find text to select", category: Logger.analysis)
+                return true  // Still try paste
+            }
+        }
 
         // Electron apps (Notion, Slack) need child element traversal for selection
         if isNotion || isSlack {
@@ -2845,6 +2960,25 @@ class AnalysisCoordinator: ObservableObject {
         }
     }
 
+    /// Extract current text from an element (for text search during replacement)
+    /// Handles Mail's WebKit-based elements that need child traversal
+    private func extractCurrentText(from element: AXUIElement) -> String? {
+        // First try standard AXValue
+        var valueRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
+           let text = valueRef as? String,
+           !text.isEmpty {
+            return text
+        }
+
+        // For Mail/WebKit: use MailContentParser's extraction
+        if let parser = ContentParserFactory.shared.parser(for: "com.apple.mail") as? MailContentParser {
+            return parser.extractText(from: element)
+        }
+
+        return nil
+    }
+
     /// Find the child element containing the target text and return the offset within that element
     /// Used for Notion and other Electron apps where document-level offsets don't work
     private func findChildElementContainingText(_ targetText: String, in element: AXUIElement) -> (AXUIElement, Int)? {
@@ -2913,6 +3047,14 @@ class AnalysisCoordinator: ObservableObject {
         }
 
         Logger.debug("Using keyboard simulation for text replacement (app: \(context.applicationName), isTerminal: \(context.isTerminalApp), isBrowser: \(context.isBrowser))", category: Logger.analysis)
+
+        // SPECIAL HANDLING FOR APPLE MAIL
+        // Mail's WebKit composition area supports AXReplaceRangeWithText - use it directly
+        let isMail = context.bundleIdentifier == "com.apple.mail"
+        if isMail {
+            applyMailTextReplacement(for: error, with: suggestion, element: element, completion: completion)
+            return
+        }
 
         // SPECIAL HANDLING FOR BROWSERS AND SLACK
         // Browsers and Slack have contenteditable areas where AX API often silently fails

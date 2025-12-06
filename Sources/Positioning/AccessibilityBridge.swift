@@ -102,6 +102,13 @@ enum AccessibilityBridge {
             return true
         }
 
+        // Sanity check: if visible range location is absurdly large (> 1 billion chars), it's invalid
+        // This happens with Mail's WebKit which returns Int64.max
+        if visibleRange.location > 1_000_000_000 || visibleRange.length > 1_000_000_000 {
+            Logger.debug("AccessibilityBridge: Visible range is invalid (\(visibleRange)), assuming visible")
+            return true
+        }
+
         // Check if ranges overlap
         let rangeEnd = range.location + range.length
         let visibleEnd = visibleRange.location + visibleRange.length
@@ -141,6 +148,111 @@ enum AccessibilityBridge {
         }
 
         return originValid
+    }
+
+    // MARK: - WebKit Layout-to-Screen Coordinate Conversion
+
+    /// Convert a layout point to screen point for WebKit elements
+    /// WebKit internally uses "layout coordinates" which differ from screen coordinates
+    /// This is critical for Apple Mail and Safari which use WebKit for text rendering
+    static func convertLayoutPointToScreen(
+        _ layoutPoint: CGPoint,
+        in element: AXUIElement
+    ) -> CGPoint? {
+        // Create AXValue for the layout point
+        var point = layoutPoint
+        guard let pointValue = AXValueCreate(.cgPoint, &point) else {
+            Logger.warning("AccessibilityBridge: Failed to create CGPoint AXValue for layout-to-screen conversion")
+            return nil
+        }
+
+        var screenPointValue: CFTypeRef?
+        let result = AXUIElementCopyParameterizedAttributeValue(
+            element,
+            "AXScreenPointForLayoutPoint" as CFString,
+            pointValue,
+            &screenPointValue
+        )
+
+        guard result == .success, let spv = screenPointValue else {
+            Logger.warning("AccessibilityBridge: AXScreenPointForLayoutPoint failed with error \(result.rawValue)")
+            Logger.warning("AccessibilityBridge: Attempted to convert layout point: \(layoutPoint)")
+            
+            // Check if element supports this attribute
+            let attributes = getSupportedParameterizedAttributes(element)
+            if !attributes.contains("AXScreenPointForLayoutPoint") {
+                Logger.warning("AccessibilityBridge: Element does NOT support AXScreenPointForLayoutPoint!")
+                Logger.warning("AccessibilityBridge: Available parameterized attributes: \(attributes)")
+            }
+            
+            return nil
+        }
+
+        guard let screenPoint = safeAXValueGetPoint(spv) else {
+            Logger.warning("AccessibilityBridge: Failed to extract CGPoint from AXScreenPointForLayoutPoint result")
+            return nil
+        }
+
+        Logger.debug("AccessibilityBridge: Converted layout point \(layoutPoint) → screen point \(screenPoint)")
+        return screenPoint
+    }
+
+    /// Convert a layout size to screen size for WebKit elements
+    static func convertLayoutSizeToScreen(
+        _ layoutSize: CGSize,
+        in element: AXUIElement
+    ) -> CGSize? {
+        var size = layoutSize
+        guard let sizeValue = AXValueCreate(.cgSize, &size) else {
+            return nil
+        }
+
+        var screenSizeValue: CFTypeRef?
+        let result = AXUIElementCopyParameterizedAttributeValue(
+            element,
+            "AXScreenSizeForLayoutSize" as CFString,
+            sizeValue,
+            &screenSizeValue
+        )
+
+        guard result == .success, let ssv = screenSizeValue else {
+            return nil
+        }
+
+        return safeAXValueGetSize(ssv)
+    }
+
+    /// Convert a layout rect to screen rect for WebKit elements
+    /// This is the main function used to convert WebKit bounds to screen coordinates
+    static func convertLayoutRectToScreen(
+        _ layoutRect: CGRect,
+        in element: AXUIElement
+    ) -> CGRect? {
+        // Convert origin
+        guard let screenOrigin = convertLayoutPointToScreen(layoutRect.origin, in: element) else {
+            Logger.debug("AccessibilityBridge: Layout-to-screen origin conversion failed")
+            return nil
+        }
+
+        // Convert size (optional - size usually doesn't change much)
+        let screenSize: CGSize
+        if let convertedSize = convertLayoutSizeToScreen(layoutRect.size, in: element) {
+            screenSize = convertedSize
+        } else {
+            // Fall back to same size if conversion fails
+            screenSize = layoutRect.size
+        }
+
+        let screenRect = CGRect(origin: screenOrigin, size: screenSize)
+        Logger.debug("AccessibilityBridge: Converted layout rect \(layoutRect) to screen rect \(screenRect)")
+        return screenRect
+    }
+
+    /// Check if element supports WebKit layout-to-screen coordinate conversion
+    /// Returns true for WebKit-based apps like Mail, Safari
+    static func supportsLayoutToScreenConversion(_ element: AXUIElement) -> Bool {
+        let attributes = getSupportedParameterizedAttributes(element)
+        return attributes.contains("AXScreenPointForLayoutPoint")
     }
 
     // MARK: - Capability Detection
