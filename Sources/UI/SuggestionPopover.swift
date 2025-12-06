@@ -44,7 +44,12 @@ enum PopoverItem {
 
 /// Manages the suggestion popover window
 class SuggestionPopover: NSObject, ObservableObject {
+
+    // MARK: - Singleton
+
     static let shared = SuggestionPopover()
+
+    // MARK: - Properties
 
     /// The popover panel
     private var panel: NonActivatingPanel?
@@ -129,6 +134,8 @@ class SuggestionPopover: NSObject, ObservableObject {
         return panel?.isVisible == true && currentError != nil
     }
 
+    // MARK: - Initialization
+
     private override init() {
         super.init()
     }
@@ -150,6 +157,8 @@ class SuggestionPopover: NSObject, ObservableObject {
             }
         }
     }
+
+    // MARK: - Show Methods
 
     /// Show popover with error at cursor position
     /// - Parameters:
@@ -256,6 +265,8 @@ class SuggestionPopover: NSObject, ObservableObject {
         }
     }
 
+    // MARK: - Hide Methods
+
     /// Schedule hiding of popover with a delay
     func scheduleHide() {
         // Cancel any existing timer
@@ -313,6 +324,8 @@ class SuggestionPopover: NSObject, ObservableObject {
         hideTimer = nil
         performHide()
     }
+
+    // MARK: - Panel Management
 
     /// Setup click outside monitor to close popover when user clicks elsewhere
     private func setupClickOutsideMonitor() {
@@ -528,6 +541,8 @@ class SuggestionPopover: NSObject, ObservableObject {
         hide()
     }
 
+    // MARK: - Navigation
+
     /// Navigate to next error (T047)
     func nextError() {
         guard !allErrors.isEmpty else { return }
@@ -567,6 +582,8 @@ class SuggestionPopover: NSObject, ObservableObject {
             }
         }
     }
+
+    // MARK: - View Rebuild
 
     /// Rebuild the content view from scratch for clean rendering
     /// This ensures no artifacts when switching between errors of different sizes
@@ -631,6 +648,8 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         Logger.debug("Popover: Rebuilt content - \(width) x \(height)", category: Logger.ui)
     }
+
+    // MARK: - Grammar Error Actions
 
     /// Apply suggestion (T044)
     func applySuggestion(_ suggestion: String) {

@@ -11,6 +11,9 @@ import ApplicationServices
 /// Manages a transparent overlay panel that draws error underlines
 /// CRITICAL: Uses NSPanel to prevent activating the app
 class ErrorOverlayWindow: NSPanel {
+
+    // MARK: - Properties
+
     /// Current errors to display
     private var errors: [GrammarErrorModel] = []
 
@@ -34,6 +37,8 @@ class ErrorOverlayWindow: NSPanel {
 
     /// Callback when hover ends
     var onHoverEnd: (() -> Void)?
+
+    // MARK: - Initialization
 
     init() {
         // CRITICAL: Use .nonactivatingPanel to prevent TextWarden from stealing focus
@@ -80,6 +85,8 @@ class ErrorOverlayWindow: NSPanel {
     override var canBecomeMain: Bool {
         return false
     }
+
+    // MARK: - Mouse Monitoring
 
     private func setupGlobalMouseMonitor() {
         // Monitor mouse moved events globally
@@ -170,6 +177,8 @@ class ErrorOverlayWindow: NSPanel {
 
         Logger.debug("ErrorOverlay: Global mouse monitor set up", category: Logger.ui)
     }
+
+    // MARK: - Overlay Updates
 
     /// Update overlay with new errors and monitored element
     /// Returns the number of underlines that were successfully created
@@ -486,6 +495,8 @@ class ErrorOverlayWindow: NSPanel {
         }
     }
 
+    // MARK: - Debug Helpers
+
     /// Log to debug file (same as TextWardenApp)
     private func logToDebugFile(_ message: String) {
         let logPath = "/tmp/textwarden-debug.log"
@@ -503,6 +514,8 @@ class ErrorOverlayWindow: NSPanel {
             }
         }
     }
+
+    // MARK: - Window Frame Helpers
 
     /// Get the application window frame for smart popover positioning
     /// Returns the visible window frame if available
@@ -712,6 +725,8 @@ class ErrorOverlayWindow: NSPanel {
         return frame
     }
 
+    // MARK: - Bounds Calculation
+
     /// Get bounds for specific error range
     private func getErrorBounds(for error: GrammarErrorModel, in element: AXUIElement) -> CGRect? {
         let location = error.start
@@ -888,6 +903,8 @@ class ErrorOverlayWindow: NSPanel {
         return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
 
+    // MARK: - Coordinate Conversion
+
     /// Convert screen coordinates to overlay-local coordinates
     private func convertToLocal(_ screenBounds: CGRect, from elementFrame: CGRect) -> CGRect {
         // Screen coordinates are in Cocoa (bottom-left origin)
@@ -912,6 +929,8 @@ class ErrorOverlayWindow: NSPanel {
             height: screenBounds.height
         )
     }
+
+    // MARK: - Color Mapping
 
     /// Get underline color for category (high-level categorization)
     private func underlineColor(for category: String) -> NSColor {
@@ -989,12 +1008,17 @@ extension StyleUnderline {
 // MARK: - Underline View
 
 class UnderlineView: NSView {
+
+    // MARK: - Properties
+
     var underlines: [ErrorUnderline] = []
     var styleUnderlines: [StyleUnderline] = []
     var hoveredUnderline: ErrorUnderline?
     var hoveredStyleUnderline: StyleUnderline?
     var allowsClickPassThrough: Bool = false
     var firstCharDebugMarker: CGRect?  // For coordinate debugging (first char position)
+
+    // MARK: - View Configuration
 
     // CRITICAL: Use flipped coordinates (top-left origin) to match window positioning
     // When isFlipped = true: (0,0) is top-left, Y increases downward
@@ -1010,6 +1034,8 @@ class UnderlineView: NSView {
         }
         return super.hitTest(point)
     }
+
+    // MARK: - Drawing
 
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
@@ -1110,6 +1136,8 @@ class UnderlineView: NSView {
             }
         }
     }
+
+    // MARK: - Underline Drawing Helpers
 
     /// Draw straight underline
     private func drawWavyUnderline(in context: CGContext, bounds: CGRect, color: NSColor) {
