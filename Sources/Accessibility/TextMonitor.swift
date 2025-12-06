@@ -248,6 +248,26 @@ class TextMonitor: ObservableObject {
             }
         }
 
+        // For Apple Mail, skip non-composition elements (sidebar folders, message list, search)
+        // Only check text in actual email composition areas (new mail, reply, forward)
+        if let bundleId = currentContext?.bundleIdentifier,
+           AppRegistry.shared.configuration(for: bundleId).parserType == .mail {
+            if !MailContentParser.isMailCompositionElement(element) {
+                Logger.debug("TextMonitor: Skipping non-composition Mail element (sidebar/list/search)", category: Logger.accessibility)
+                // Clear any existing monitoring and notify to hide overlays
+                if let previousElement = monitoredElement {
+                    AXObserverRemoveNotification(observer, previousElement, kAXValueChangedNotification as CFString)
+                }
+                monitoredElement = nil
+                currentText = ""
+                // Notify that we've stopped monitoring (this will trigger overlay hiding)
+                if let context = currentContext {
+                    onTextChange?("", context)
+                }
+                return
+            }
+        }
+
         // CRITICAL: Only monitor editable text fields, not read-only content
         // This prevents checking terminal output, chat history, etc.
         guard isEditableElement(element) else {
@@ -315,38 +335,48 @@ class TextMonitor: ObservableObject {
     func extractText(from element: AXUIElement) {
         Logger.debug("TextMonitor: extractText called", category: Logger.accessibility)
 
-        var value: CFTypeRef?
-
-        // Try to get AXValue (text content)
-        let valueError = AXUIElementCopyAttributeValue(
-            element,
-            kAXValueAttribute as CFString,
-            &value
-        )
-
         var extractedText: String?
 
-        if valueError == .success, let textValue = value as? String {
-            Logger.debug("TextMonitor: Got AXValue text (\(textValue.count) chars)", category: Logger.accessibility)
-            // Log first 200 chars to see what we're actually getting
-            let preview = String(textValue.prefix(200))
-            Logger.debug("TextMonitor: Text preview: \"\(preview)\"", category: Logger.accessibility)
-            extractedText = textValue
-        } else {
-            Logger.debug("TextMonitor: Failed to get AXValue (error: \(valueError.rawValue)), trying AXSelectedText", category: Logger.accessibility)
-            // Fallback: try AXSelectedText
-            var selectedText: CFTypeRef?
-            let selectedError = AXUIElementCopyAttributeValue(
+        // First, try app-specific extraction via ContentParser
+        // This allows apps like Apple Mail to use custom extraction logic
+        if let bundleId = currentContext?.bundleIdentifier {
+            let parser = ContentParserFactory.shared.parser(for: bundleId)
+            if let parserText = parser.extractText(from: element) {
+                Logger.debug("TextMonitor: Got text from parser (\(parserText.count) chars)", category: Logger.accessibility)
+                extractedText = parserText
+            }
+        }
+
+        // Fall back to standard AXValue extraction
+        if extractedText == nil {
+            var value: CFTypeRef?
+            let valueError = AXUIElementCopyAttributeValue(
                 element,
-                kAXSelectedTextAttribute as CFString,
-                &selectedText
+                kAXValueAttribute as CFString,
+                &value
             )
 
-            if selectedError == .success, let selected = selectedText as? String {
-                Logger.debug("TextMonitor: Got AXSelectedText (\(selected.count) chars)", category: Logger.accessibility)
-                extractedText = selected
+            if valueError == .success, let textValue = value as? String, !textValue.isEmpty {
+                Logger.debug("TextMonitor: Got AXValue text (\(textValue.count) chars)", category: Logger.accessibility)
+                let preview = String(textValue.prefix(200))
+                Logger.debug("TextMonitor: Text preview: \"\(preview)\"", category: Logger.accessibility)
+                extractedText = textValue
             } else {
-                Logger.debug("TextMonitor: Failed to get AXSelectedText (error: \(selectedError.rawValue))", category: Logger.accessibility)
+                Logger.debug("TextMonitor: AXValue empty or failed (error: \(valueError.rawValue)), trying AXSelectedText", category: Logger.accessibility)
+                // Fallback: try AXSelectedText
+                var selectedText: CFTypeRef?
+                let selectedError = AXUIElementCopyAttributeValue(
+                    element,
+                    kAXSelectedTextAttribute as CFString,
+                    &selectedText
+                )
+
+                if selectedError == .success, let selected = selectedText as? String {
+                    Logger.debug("TextMonitor: Got AXSelectedText (\(selected.count) chars)", category: Logger.accessibility)
+                    extractedText = selected
+                } else {
+                    Logger.debug("TextMonitor: Failed to get AXSelectedText (error: \(selectedError.rawValue))", category: Logger.accessibility)
+                }
             }
         }
 

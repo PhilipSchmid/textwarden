@@ -665,6 +665,7 @@ class FloatingErrorIndicator: NSPanel {
 
     /// Get the actual visible window frame using CGWindowListCopyWindowInfo
     /// This avoids the scrollback buffer issue with Terminal apps
+    /// Uses element's kAXWindowAttribute to find the correct window (not largest)
     private func getVisibleWindowFrame(for element: AXUIElement) -> CGRect? {
         var pid: pid_t = 0
         if AXUIElementGetPid(element, &pid) != .success {
@@ -672,15 +673,20 @@ class FloatingErrorIndicator: NSPanel {
             return nil
         }
 
+        // First, get the window frame from the element's kAXWindowAttribute
+        // This ensures we get the CORRECT window (e.g., composition window, not main window)
+        let elementWindowFrame = getWindowFrame(for: element)
+
         let options = CGWindowListOption(arrayLiteral: .optionOnScreenOnly)
         guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
             Logger.debug("FloatingErrorIndicator: Failed to get window list", category: Logger.ui)
             return nil
         }
 
-        // Find the LARGEST window for this PID
-        // This ensures we get the main application window, not floating panels/popups like Cmd+F search
+        // If we have the element's window frame, find the matching CGWindow
+        // Otherwise fall back to largest window for this PID
         var bestWindow: (x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat, area: CGFloat)?
+        var matchedWindow: (x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat)?
 
         for windowInfo in windowList {
             if let windowPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
@@ -697,22 +703,44 @@ class FloatingErrorIndicator: NSPanel {
                 // Skip tiny windows (< 100x100, likely tooltips or popups)
                 guard width >= 100 && height >= 100 else { continue }
 
-                // Keep track of the largest window
+                // If we have an element window frame, try to match it
+                if let axFrame = elementWindowFrame {
+                    // CGWindow uses top-left origin, AX uses bottom-left
+                    // Compare position with some tolerance (window chrome can cause slight differences)
+                    let tolerance: CGFloat = 50
+                    let sizeMatch = abs(width - axFrame.width) < tolerance && abs(height - axFrame.height) < tolerance
+
+                    if sizeMatch {
+                        Logger.debug("FloatingErrorIndicator: Found matching window for element (size match: \(width)x\(height))", category: Logger.ui)
+                        matchedWindow = (x: x, y: y, width: width, height: height)
+                        break  // Found exact match, use it
+                    }
+                }
+
+                // Keep track of the largest window as fallback
                 if bestWindow == nil || area > bestWindow!.area {
                     bestWindow = (x: x, y: y, width: width, height: height, area: area)
                 }
             }
         }
 
-        guard let best = bestWindow else {
+        // Prefer matched window (element's actual window), fall back to largest
+        let windowToUse: (x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat)
+        if let matched = matchedWindow {
+            Logger.debug("FloatingErrorIndicator: Using matched window (element's window)", category: Logger.ui)
+            windowToUse = matched
+        } else if let best = bestWindow {
+            Logger.debug("FloatingErrorIndicator: No exact match, using largest window as fallback", category: Logger.ui)
+            windowToUse = (x: best.x, y: best.y, width: best.width, height: best.height)
+        } else {
             Logger.debug("FloatingErrorIndicator: No matching window found in window list", category: Logger.ui)
             return nil
         }
 
-        let x = best.x
-        let y = best.y
-        let width = best.width
-        let height = best.height
+        let x = windowToUse.x
+        let y = windowToUse.y
+        let width = windowToUse.width
+        let height = windowToUse.height
 
         // CGWindowListCopyWindowInfo returns coordinates with y=0 at TOP
         // NSScreen uses Cocoa coordinates with y=0 at BOTTOM
