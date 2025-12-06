@@ -28,7 +28,8 @@ final class ContentParserFactory {
             .browser: BrowserContentParser(bundleIdentifier: "browser"),
             .notion: NotionContentParser(bundleIdentifier: "notion"),
             .terminal: TerminalContentParser(bundleIdentifier: "terminal"),
-            .teams: TeamsContentParser()
+            .teams: TeamsContentParser(),
+            .mail: MailContentParser()
         ]
 
         Logger.info("ContentParserFactory: Initialized with \(parsersByType.count) parser types")

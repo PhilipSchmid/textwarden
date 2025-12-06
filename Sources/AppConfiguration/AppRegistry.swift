@@ -63,6 +63,7 @@ final class AppRegistry {
         register(.browsers)
         register(.notion)
         register(.terminals)
+        register(.mail)
         // Note: .default is not registered, used as fallback
     }
 }
@@ -205,6 +206,34 @@ extension AppConfiguration {
         parserType: .terminal,
         horizontalPadding: 5
         // Uses terminal category defaults (underlines disabled)
+    )
+
+    // MARK: - Apple Mail
+
+    static let mail = AppConfiguration(
+        identifier: "mail",
+        displayName: "Apple Mail",
+        bundleIDs: ["com.apple.mail"],
+        category: .native,
+        parserType: .mail,
+        fontConfig: FontConfig(
+            defaultSize: 13,
+            fontFamily: nil,
+            spacingMultiplier: 1.0
+        ),
+        horizontalPadding: 4,
+        // Mail uses WebKit for composition - needs different strategies and text replacement
+        // WebKit elements don't support standard AX bounds queries reliably
+        // Text replacement needs browser-style (selection + paste) because AXValue is read-only
+        preferredStrategies: [.textMarker, .rangeBounds, .lineIndex],
+        features: AppFeatures(
+            visualUnderlinesEnabled: true,
+            textReplacementMethod: .browserStyle,  // WebKit needs selection + paste
+            requiresTypingPause: false,
+            supportsFormattedText: true,  // Mail supports rich text
+            childElementTraversal: true,  // May need to traverse AXWebArea children
+            delaysAXNotifications: true  // WebKit may batch AX notifications, use keyboard detection as backup
+        )
     )
 
     // MARK: - Default (Fallback)

@@ -87,6 +87,12 @@ protocol ContentParser {
     /// - Returns: Filtered text ready for grammar checking, or nil to skip analysis
     func preprocessText(_ text: String) -> String?
 
+    /// Custom text extraction for apps with non-standard accessibility structures
+    /// Override this for apps where standard AXValue doesn't work (e.g., Apple Mail's WebKit)
+    /// - Parameter element: The AXUIElement to extract text from
+    /// - Returns: Extracted text, or nil to fall back to standard extraction
+    func extractText(from element: AXUIElement) -> String?
+
     /// Whether this parser wants to disable visual underlines
     /// Used for apps where positioning is unreliable (terminals, some Electron apps)
     /// When true, errors will use alternative notification (floating indicator)
@@ -97,6 +103,15 @@ protocol ContentParser {
     /// but replacements need to be applied to the full text (including prompt)
     /// Returns 0 for most parsers, only non-zero for terminal parsers
     var textReplacementOffset: Int { get }
+
+    /// Custom bounds calculation for apps with non-standard accessibility APIs.
+    /// Override this for apps where standard AXBoundsForRange doesn't work correctly
+    /// (e.g., Apple Mail's WebKit which needs single-char queries and coordinate conversion).
+    /// - Parameters:
+    ///   - range: Character range to get bounds for
+    ///   - element: The AXUIElement containing the text
+    /// - Returns: Bounds in Quartz screen coordinates, or nil to use standard calculation
+    func getBoundsForRange(range: NSRange, in element: AXUIElement) -> CGRect?
 
     /// Resolve position geometry for error range using multi-strategy engine
     /// - Parameters:
@@ -125,6 +140,11 @@ extension ContentParser {
         return text
     }
 
+    /// Default: no custom extraction, use standard AXValue
+    func extractText(from element: AXUIElement) -> String? {
+        return nil
+    }
+
     /// Default: allow visual underlines
     var disablesVisualUnderlines: Bool {
         return false
@@ -133,6 +153,11 @@ extension ContentParser {
     /// Default: no offset needed for text replacement
     var textReplacementOffset: Int {
         return 0
+    }
+
+    /// Default: no custom bounds calculation, return nil to use standard API
+    func getBoundsForRange(range: NSRange, in element: AXUIElement) -> CGRect? {
+        return nil
     }
 
     /// Default bounds adjustment using generic text measurement
