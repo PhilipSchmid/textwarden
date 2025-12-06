@@ -1826,8 +1826,9 @@ class AnalysisCoordinator: ObservableObject {
 
     // Note: updateErrorCache is now implemented in the Performance Optimizations extension
 
-    /// Deduplicate consecutive identical errors
-    /// This prevents flooding the UI with 157 "Horizontal ellipsis" errors
+    /// Deduplicate consecutive identical errors at the same position
+    /// This prevents flooding the UI with 157 "Horizontal ellipsis" errors when they're all at the same spot
+    /// But keeps separate errors for the same misspelling at different positions in the text
     private func deduplicateErrors(_ errors: [GrammarErrorModel]) -> [GrammarErrorModel] {
         guard !errors.isEmpty else { return errors }
 
@@ -1838,14 +1839,17 @@ class AnalysisCoordinator: ObservableObject {
             let current = errors[i]
             let previous = errors[i-1]
 
-            // Check if this error is identical to the previous one
+            // Check if this error is identical to the previous one AND at the same position
+            // Errors at different positions should NOT be deduplicated (e.g., same typo twice)
             if current.message == previous.message &&
                current.category == previous.category &&
-               current.lintId == previous.lintId {
-                // Same error - add to current group
+               current.lintId == previous.lintId &&
+               current.start == previous.start &&
+               current.end == previous.end {
+                // Same error at same position - add to current group
                 currentGroup.append(current)
             } else {
-                // Different error - save one representative from the group
+                // Different error or same error at different position - save one representative from the group
                 if let representative = currentGroup.first {
                     deduplicated.append(representative)
                 }
