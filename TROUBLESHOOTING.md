@@ -31,6 +31,29 @@ This guide helps you diagnose and resolve common issues with TextWarden.
 2. If using AI style checking, the model requires additional memory
 3. Try restarting TextWarden from the menu bar
 
+### Visual underlines appear misaligned
+
+Visual underlines rely on macOS Accessibility APIs to determine character positions. Not all applications expose accurate positioning data.
+
+**Supported applications**: Visual underlines have been tested and calibrated for:
+- Slack
+- Safari and other Chromium-based browsers (Chrome, Edge, Arc, Brave)
+- Apple Mail
+- Apple Messages
+- Notion
+
+For other applications, the floating error indicator (red dot) always works as a fallback. If you'd like visual underlines for a specific app that isn't listed above, please open a [feature request](https://github.com/philipschmid/textwarden/discussions) describing the app and how you use it.
+
+**If underlines appear offset in a supported app**:
+
+1. **Enable trace logging**: In Settings > General, set the log level to "Trace" to capture detailed positioning data
+2. **Check the logs**: Look at `~/Library/Logs/TextWarden/textwarden.log` for entries from positioning strategies (InsertionPointStrategy, ChromiumStrategy, etc.)
+3. **Multi-monitor setups**: If underlines appear correct on your primary display but offset on external monitors, this may be a coordinate conversion issue
+4. **Report the issue**: Use Export Diagnostics (which includes the trace logs) and include:
+   - The application name and version
+   - Whether you're using an external monitor
+   - Screenshots showing the misalignment
+
 ## Collecting Diagnostic Information
 
 When reporting issues, please include diagnostic information to help us investigate.

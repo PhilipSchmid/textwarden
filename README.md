@@ -108,11 +108,12 @@ To receive early access to new features, enable the **experimental channel** in 
 
 TextWarden is a privacy-focused, local-first tool with certain trade-offs:
 
-- **macOS only** - Currently only available for Apple Silicon Macs (M1 or later)
+- **macOS only** - Currently only available for Apple Silicon Macs (M1 or later). There are no plans to support Windows or Linux - approximately 95% of TextWarden's development effort goes into macOS-specific integration: precise cursor positioning via the Accessibility API, pixel-perfect error underline placement, seamless text replacement that preserves formatting, and per-application behavior tuning. These deep OS integrations don't translate to other platforms.
 - **English only** - Grammar checking limited to English (Harper's current language support)
 - **Accessibility API constraints** - Some apps with custom text rendering may not work correctly
 - **Text formatting** - When applying corrections in some apps, formatting (bold, italic) may not be preserved
-- **Visual underlines** - Not all applications support visual error underlines; the floating indicator always works as a fallback
+- **Visual underlines** - Not all applications support visual error underlines; see [Tested Applications](#tested-applications) for details and the [Troubleshooting Guide](TROUBLESHOOTING.md#visual-underlines-appear-misaligned) for help
+- **Mac Catalyst apps** - Apps like Apple Messages are iOS apps running on macOS via Mac Catalyst. Apple's accessibility bridge for Catalyst is incomplete - standard text positioning APIs (`AXBoundsForRange`, `AXRangeForLine`) return invalid data. TextWarden uses font-metrics-based positioning as a fallback, which may be less precise for multi-line text with soft wrapping
 
 ### Looking for More?
 
@@ -139,7 +140,26 @@ Special thanks to [VoiceInk](https://github.com/Beingpax/VoiceInk) for the inspi
 
 See the [Troubleshooting Guide](TROUBLESHOOTING.md) for help with common problems and how to collect diagnostic information.
 
-## Support
+### Tested Applications
+
+TextWarden uses the macOS Accessibility API and works with most applications. Visual underlines (showing errors directly in the text) have been specifically tested and calibrated for:
+
+| Application | Grammar Checking | Visual Underlines |
+|-------------|-----------------|-------------------|
+| **Slack** | Full | Full |
+| **Safari** | Full | Full |
+| **Chrome, Comet** | Full | Full |
+| **Apple Mail** | Full | Full |
+| **Apple Messages** | Full | Full |
+| **Notion** | Full | Full |
+| **Microsoft Teams** | Full | Indicator only* |
+| **Terminal apps** (iTerm2, Terminal.app, Warp) | Full | Indicator only* |
+
+*\*These apps use a floating indicator instead of inline underlines due to accessibility API limitations.*
+
+**Other applications**: TextWarden works with most apps that support standard text editing. Grammar checking and the floating error indicator work broadly; visual underlines may vary. [Request support](https://github.com/philipschmid/textwarden/discussions) for additional apps.
+
+### Support
 
 - **Bug reports**: [Open an issue](https://github.com/philipschmid/textwarden/issues/new/choose) with diagnostic information
 - **Feature requests**: Use [GitHub Discussions](https://github.com/philipschmid/textwarden/discussions)
