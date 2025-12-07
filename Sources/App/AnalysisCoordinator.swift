@@ -3072,15 +3072,22 @@ class AnalysisCoordinator: ObservableObject {
                 return true  // Let caller try paste anyway
             }
         } else {
-            // Standard browser: try AX API selection directly
+            // Standard browser / Mac Catalyst: try AX API selection directly
             // This may silently fail, but it's fast and works sometimes
+            //
+            // Mac Catalyst apps (like Messages) require UTF-16 indices for AXSelectedTextRange,
+            // not grapheme cluster indices. We need to convert if there are emojis/multi-codepoint
+            // characters in the text before the error position.
+            let isCatalyst = context.isMacCatalystApp
+
+            // Get the current text content (needed for UTF-16 conversion on Mac Catalyst)
+            var currentTextRef: CFTypeRef?
+            let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
+            let currentText = (textResult == .success) ? (currentTextRef as? String) : nil
+
             guard var range = fallbackRange else {
                 // Need to find text in current element content
-                var currentTextRef: CFTypeRef?
-                let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
-
-                guard textResult == .success,
-                      let currentText = currentTextRef as? String else {
+                guard let currentText = currentText else {
                     Logger.debug("Could not get current text for browser replacement", category: Logger.analysis)
                     return false
                 }
@@ -3090,8 +3097,17 @@ class AnalysisCoordinator: ObservableObject {
                     return false
                 }
 
+                // For Mac Catalyst apps, convert grapheme indices to UTF-16 indices
                 let startIndex = currentText.distance(from: currentText.startIndex, to: textRange.lowerBound)
-                var calculatedRange = CFRange(location: startIndex, length: targetText.count)
+                var calculatedRange: CFRange
+                if isCatalyst {
+                    let utf16Range = convertToUTF16Range(NSRange(location: startIndex, length: targetText.count), in: currentText)
+                    calculatedRange = CFRange(location: utf16Range.location, length: utf16Range.length)
+                    Logger.debug("Mac Catalyst: Converted selection range from grapheme [\(startIndex), \(targetText.count)] to UTF-16 [\(utf16Range.location), \(utf16Range.length)]", category: Logger.analysis)
+                } else {
+                    calculatedRange = CFRange(location: startIndex, length: targetText.count)
+                }
+
                 guard let rangeValue = AXValueCreate(.cfRange, &calculatedRange) else {
                     Logger.debug("Failed to create AXValue for range", category: Logger.analysis)
                     return false
@@ -3109,6 +3125,14 @@ class AnalysisCoordinator: ObservableObject {
                     Logger.debug("AX API selection failed (\(selectResult.rawValue)) - will try paste anyway", category: Logger.analysis)
                 }
                 return true
+            }
+
+            // For Mac Catalyst apps with a fallback range, convert to UTF-16 if we have the text
+            if isCatalyst, let text = currentText {
+                let graphemeRange = NSRange(location: range.location, length: range.length)
+                let utf16Range = convertToUTF16Range(graphemeRange, in: text)
+                range = CFRange(location: utf16Range.location, length: utf16Range.length)
+                Logger.debug("Mac Catalyst: Converted fallback range from grapheme [\(graphemeRange.location), \(graphemeRange.length)] to UTF-16 [\(utf16Range.location), \(utf16Range.length)]", category: Logger.analysis)
             }
 
             guard let rangeValue = AXValueCreate(.cfRange, &range) else {
@@ -3129,6 +3153,33 @@ class AnalysisCoordinator: ObservableObject {
             }
             return true
         }
+    }
+
+    /// Convert grapheme cluster indices to UTF-16 code unit indices.
+    /// Mac Catalyst apps and some accessibility APIs use UTF-16 code units,
+    /// while Swift String indices are grapheme clusters.
+    /// This matters for text containing emojis: 🖐️ is 1 grapheme but 3-4 UTF-16 code units.
+    private func convertToUTF16Range(_ range: NSRange, in text: String) -> NSRange {
+        let textCount = text.count
+        let safeLocation = min(range.location, textCount)
+        let safeEndLocation = min(range.location + range.length, textCount)
+
+        // Get String.Index for the grapheme cluster positions
+        guard let startIndex = text.index(text.startIndex, offsetBy: safeLocation, limitedBy: text.endIndex),
+              let endIndex = text.index(text.startIndex, offsetBy: safeEndLocation, limitedBy: text.endIndex) else {
+            // Fallback to original range if conversion fails
+            return range
+        }
+
+        // Extract the prefix strings and measure their UTF-16 lengths
+        let prefixToStart = String(text[..<startIndex])
+        let prefixToEnd = String(text[..<endIndex])
+
+        let utf16Location = (prefixToStart as NSString).length
+        let utf16EndLocation = (prefixToEnd as NSString).length
+        let utf16Length = max(1, utf16EndLocation - utf16Location)
+
+        return NSRange(location: utf16Location, length: utf16Length)
     }
 
     /// Extract current text from an element (for text search during replacement)
@@ -3227,12 +3278,13 @@ class AnalysisCoordinator: ObservableObject {
             return
         }
 
-        // SPECIAL HANDLING FOR BROWSERS AND SLACK
-        // Browsers and Slack have contenteditable areas where AX API often silently fails
+        // SPECIAL HANDLING FOR BROWSERS, SLACK, AND MAC CATALYST APPS
+        // These apps have contenteditable areas where AX API often silently fails
         // Use simplified approach: select via AX API, then paste via menu action or Cmd+V
         // Inspired by SelectedTextKit's menu action approach
         let isSlack = context.bundleIdentifier == "com.tinyspeck.slackmacgap"
-        if context.isBrowser || isSlack {
+        let isMessages = context.bundleIdentifier == "com.apple.MobileSMS"
+        if context.isBrowser || isSlack || isMessages || context.isMacCatalystApp {
             applyBrowserTextReplacement(for: error, with: suggestion, element: element, context: context, completion: completion)
             return
         }
