@@ -288,12 +288,18 @@ class ErrorOverlayWindow: NSPanel {
 
         // Get visible character range to filter out off-screen errors
         // Note: Some apps (like Mail's WebKit) return Int.max for visibleRange which is invalid
+        // Note: Mac Catalyst apps (like Messages) return {0, 0} which means "unsupported"
         var visibleRange = AccessibilityBridge.getVisibleCharacterRange(element)
         if let vr = visibleRange {
             // Sanity check: if location is absurdly large (> 1 billion chars), it's invalid
             // This happens with Mail's WebKit which returns Int64.max
             if vr.location > 1_000_000_000 || vr.length > 1_000_000_000 {
                 Logger.debug("ErrorOverlay: Visible character range is invalid (\(vr.location)-\(vr.location + vr.length)), ignoring", category: Logger.ui)
+                visibleRange = nil
+            } else if vr.length == 0 {
+                // Zero-length visible range means the app doesn't properly support this API
+                // This happens with Mac Catalyst apps like Messages which return {0, 0}
+                Logger.debug("ErrorOverlay: Visible character range has zero length (\(vr.location)-\(vr.location + vr.length)), ignoring", category: Logger.ui)
                 visibleRange = nil
             } else {
                 Logger.debug("ErrorOverlay: Visible character range: \(vr.location)-\(vr.location + vr.length)", category: Logger.ui)
@@ -560,11 +566,22 @@ class ErrorOverlayWindow: NSPanel {
                    let width = boundsDict["Width"],
                    let height = boundsDict["Height"] {
 
-                    // CGWindow coordinates are in Quartz (top-left origin)
-                    // Convert to Cocoa (bottom-left origin)
-                    if let screen = NSScreen.main {
-                        let screenHeight = screen.frame.height
-                        let cocoaY = screenHeight - y - height
+                    // CGWindow coordinates are in Quartz (top-left origin relative to primary screen's top-left)
+                    // Convert to Cocoa (bottom-left origin relative to primary screen's bottom-left)
+                    //
+                    // IMPORTANT: For multi-monitor setups, we need to use the primary screen's height
+                    // for the coordinate conversion, NOT the screen where the window is located.
+                    // Quartz origin is at top-left of primary screen, Cocoa origin is at bottom-left of primary screen.
+                    // The conversion formula is: cocoaY = primaryScreenHeight - quartzY - windowHeight
+                    //
+                    // Find primary screen (the one with origin 0,0)
+                    let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero } ?? NSScreen.main
+                    if let primaryScreen = primaryScreen {
+                        // The global coordinate system height is the primary screen's height in this context
+                        // Actually, Quartz uses a global coordinate system where Y=0 is at the top of the primary screen
+                        // and extends downward. For multi-monitor setups, the conversion needs the primary screen height.
+                        let primaryScreenHeight = primaryScreen.frame.height
+                        let cocoaY = primaryScreenHeight - y - height
                         var frame = NSRect(x: x, y: cocoaY, width: width, height: height)
 
                         // Account for window chrome (title bar, borders)

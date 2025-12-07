@@ -428,7 +428,11 @@ class SuggestionPopover: NSObject, ObservableObject {
     ///   - cursorPosition: The screen position for the popover
     ///   - constrainToWindow: Optional window frame to constrain positioning (keeps popover inside app window)
     private func positionPanel(at cursorPosition: CGPoint, constrainToWindow: CGRect? = nil) {
-        guard let panel = panel, let screen = NSScreen.main else { return }
+        guard let panel = panel else { return }
+
+        // Find the screen containing the cursor position (important for multi-monitor setups)
+        let screen = NSScreen.screens.first(where: { $0.frame.contains(cursorPosition) }) ?? NSScreen.main
+        guard let screen = screen else { return }
 
         Logger.debug("Popover: Input cursor position (screen): \(cursorPosition)", category: Logger.ui)
 
