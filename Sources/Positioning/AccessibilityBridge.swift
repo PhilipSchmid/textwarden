@@ -109,6 +109,13 @@ enum AccessibilityBridge {
             return true
         }
 
+        // Sanity check: if visible range has zero length, the app doesn't properly support this API
+        // This happens with Mac Catalyst apps like Messages which return {0, 0}
+        if visibleRange.length == 0 {
+            Logger.debug("AccessibilityBridge: Visible range has zero length (\(visibleRange)), assuming visible")
+            return true
+        }
+
         // Check if ranges overlap
         let rangeEnd = range.location + range.length
         let visibleEnd = visibleRange.location + visibleRange.length

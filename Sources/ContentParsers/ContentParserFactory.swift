@@ -40,6 +40,10 @@ final class ContentParserFactory {
     func parser(for bundleID: String) -> ContentParser {
         // Check cache first
         if let cached = parserCache[bundleID] {
+            // For generic parser, update the current bundle ID for config lookups
+            if let genericParser = cached as? GenericContentParser {
+                genericParser.setCurrentBundleID(bundleID)
+            }
             return cached
         }
 
@@ -52,6 +56,11 @@ final class ContentParserFactory {
             parser = typeParser
         } else {
             parser = parsersByType[.generic]!
+        }
+
+        // For generic parser, set the current bundle ID for config lookups
+        if let genericParser = parser as? GenericContentParser {
+            genericParser.setCurrentBundleID(bundleID)
         }
 
         // Cache for next lookup

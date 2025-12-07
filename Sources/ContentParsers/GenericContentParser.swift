@@ -3,20 +3,36 @@
 //  TextWarden
 //
 //  Generic content parser for apps without specific implementations
-//  Uses standard AX API and reasonable defaults
+//  Uses standard AX API and reads from AppConfiguration when available
 //
 
 import Foundation
 import AppKit
 
 /// Generic content parser for apps without specific implementations
-/// Falls back to standard AX API with conservative defaults
+/// Reads configuration from AppRegistry when available, otherwise uses conservative defaults
 class GenericContentParser: ContentParser {
     let bundleIdentifier: String
     let parserName = "Generic"
 
+    /// Thread-local storage for current bundle ID being processed
+    /// This allows the shared instance to look up config for the actual app
+    private static var currentBundleID: String?
+
+    /// Get configuration for current app or fall back to stored bundleIdentifier
+    private var config: AppConfiguration {
+        let bundleID = Self.currentBundleID ?? bundleIdentifier
+        return AppRegistry.shared.configuration(for: bundleID)
+    }
+
     init(bundleIdentifier: String) {
         self.bundleIdentifier = bundleIdentifier
+    }
+
+    /// Set the current bundle ID for config lookups
+    /// Called by the factory or positioning code before using this parser
+    func setCurrentBundleID(_ bundleID: String) {
+        Self.currentBundleID = bundleID
     }
 
     func detectUIContext(element: AXUIElement) -> String? {
@@ -25,18 +41,18 @@ class GenericContentParser: ContentParser {
     }
 
     func estimatedFontSize(context: String?) -> CGFloat {
-        // Conservative default
-        return 13.0
+        // Use font size from AppConfiguration if available, otherwise conservative default
+        return config.fontConfig.defaultSize
     }
 
     func spacingMultiplier(context: String?) -> CGFloat {
-        // No correction for unknown apps - use raw NSFont measurement
-        return 1.0
+        // Use spacing multiplier from AppConfiguration if available
+        return config.fontConfig.spacingMultiplier
     }
 
     func horizontalPadding(context: String?) -> CGFloat {
-        // Conservative default padding
-        return 8.0
+        // Use horizontal padding from AppConfiguration
+        return config.horizontalPadding
     }
 
     /// Generic parser uses default implementation from protocol

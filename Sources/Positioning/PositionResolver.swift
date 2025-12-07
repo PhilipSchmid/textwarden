@@ -44,6 +44,7 @@ class PositionResolver {
             RangeBoundsStrategy(),
 
             // Tier: Reliable
+            InsertionPointStrategy(),  // For Mac Catalyst apps (Messages, etc.)
             ElementTreeStrategy(),
             LineIndexStrategy(),
             OriginStrategy(),

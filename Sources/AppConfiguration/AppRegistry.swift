@@ -64,6 +64,7 @@ final class AppRegistry {
         register(.notion)
         register(.terminals)
         register(.mail)
+        register(.messages)
         // Note: .default is not registered, used as fallback
     }
 }
@@ -241,6 +242,37 @@ extension AppConfiguration {
             delaysAXNotifications: false,  // Mail sends AX notifications promptly like Slack
             focusBouncesDuringPaste: true,  // Mail's WebKit fires multiple focus events during Cmd+V
             requiresFullReanalysisAfterReplacement: true  // WebKit byte offsets are fragile
+        )
+    )
+
+    // MARK: - Apple Messages
+
+    static let messages = AppConfiguration(
+        identifier: "messages",
+        displayName: "Apple Messages",
+        bundleIDs: ["com.apple.MobileSMS"],
+        category: .custom,
+        parserType: .generic,
+        fontConfig: FontConfig(
+            defaultSize: 13,  // Match previous behavior - font size affects text width calculations
+            fontFamily: "SF Pro",
+            spacingMultiplier: 1.0
+        ),
+        horizontalPadding: 5,  // Offset for Messages text field padding
+        // Messages is a Mac Catalyst app. Standard AX APIs (AXRangeForLine, AXBoundsForRange)
+        // return slightly inaccurate X coordinates for wrapped lines with multi-codepoint characters
+        // (emojis). The Y coordinate is correct. RangeBoundsStrategy handles this with UTF-16
+        // index adjustment for the error range.
+        preferredStrategies: [.textMarker, .rangeBounds, .lineIndex, .insertionPoint, .fontMetrics],
+        features: AppFeatures(
+            visualUnderlinesEnabled: true,
+            textReplacementMethod: .browserStyle,  // Catalyst apps need keyboard-based replacement
+            requiresTypingPause: false,
+            supportsFormattedText: false,  // Messages input is plain text
+            childElementTraversal: false,
+            delaysAXNotifications: false,
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: true  // Catalyst byte offsets may be fragile
         )
     )
 

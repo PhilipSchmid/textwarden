@@ -44,6 +44,7 @@ enum StrategyType: String, CaseIterable {
     case origin
     case anchorSearch
     case fontMetrics
+    case insertionPoint  // Cursor/caret based positioning for Mac Catalyst apps
 
     // MARK: - Legacy (not registered in PositionResolver)
     // These strategies interfere with typing (manipulate cursor/selection)
