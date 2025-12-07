@@ -43,13 +43,20 @@ class RangeBoundsStrategy: GeometryProvider {
             return calculateCustomParserGeometry(adjustedRange: adjustedRange, element: element, parser: parser)
         }
 
+        // Convert grapheme cluster indices to UTF-16 indices for the accessibility API
+        // macOS accessibility APIs use UTF-16 code units, not grapheme clusters
+        // This is critical for text containing emojis (e.g., 😉 = 1 grapheme but 2 UTF-16 units)
+        let utf16Range = convertToUTF16Range(adjustedRange, in: text)
+
         let cfRange = CFRange(
-            location: adjustedRange.location,
-            length: adjustedRange.length
+            location: utf16Range.location,
+            length: utf16Range.length
         )
 
         // Try multi-line bounds first for better accuracy on multi-line errors
-        if let quartzLineBounds = AccessibilityBridge.resolveMultiLineBounds(adjustedRange, in: element),
+        // Use UTF-16 range for the API call
+        let utf16NSRange = NSRange(location: utf16Range.location, length: utf16Range.length)
+        if let quartzLineBounds = AccessibilityBridge.resolveMultiLineBounds(utf16NSRange, in: element),
            quartzLineBounds.count > 1 {
             // Multi-line error detected - convert all line bounds to Cocoa coordinates
             let cocoaLineBounds = quartzLineBounds.map { CoordinateMapper.toCocoaCoordinates($0) }
@@ -197,4 +204,36 @@ class RangeBoundsStrategy: GeometryProvider {
             ]
         )
     }
+
+    // MARK: - UTF-16 Conversion
+
+    /// Convert grapheme cluster indices to UTF-16 code unit indices.
+    /// macOS accessibility APIs (AXBoundsForRange, etc.) use UTF-16 code units,
+    /// while Swift String indices are grapheme clusters.
+    /// This matters for text containing emojis: 😉 is 1 grapheme but 2 UTF-16 code units.
+    private func convertToUTF16Range(_ range: NSRange, in text: String) -> NSRange {
+        let textCount = text.count
+        let safeLocation = min(range.location, textCount)
+        let safeEndLocation = min(range.location + range.length, textCount)
+
+        // Get String.Index for the grapheme cluster positions
+        guard let startIndex = text.index(text.startIndex, offsetBy: safeLocation, limitedBy: text.endIndex),
+              let endIndex = text.index(text.startIndex, offsetBy: safeEndLocation, limitedBy: text.endIndex) else {
+            // Fallback to original range if conversion fails
+            return range
+        }
+
+        // Extract the prefix strings and measure their UTF-16 lengths
+        let prefixToStart = String(text[..<startIndex])
+        let prefixToEnd = String(text[..<endIndex])
+
+        let utf16Location = (prefixToStart as NSString).length
+        let utf16EndLocation = (prefixToEnd as NSString).length
+        let utf16Length = max(1, utf16EndLocation - utf16Location)
+
+        Logger.debug("RangeBoundsStrategy: UTF-16 conversion: grapheme [\(range.location), \(range.length)] -> UTF-16 [\(utf16Location), \(utf16Length)]", category: Logger.ui)
+
+        return NSRange(location: utf16Location, length: utf16Length)
+    }
+
 }
