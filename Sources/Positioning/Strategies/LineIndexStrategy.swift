@@ -34,17 +34,24 @@ class LineIndexStrategy: GeometryProvider {
 
         Logger.debug("LineIndexStrategy: Starting for range \(errorRange)", category: Logger.ui)
 
-        // Convert filtered coordinates to original coordinates
+        // Convert filtered coordinates to original coordinates (still in grapheme clusters)
         let offset = parser.textReplacementOffset
-        let originalLocation = errorRange.location + offset
+        let originalLocationGrapheme = errorRange.location + offset
 
-        // Step 1: Get the line number for the error position
-        guard let lineNumber = getLineForIndex(originalLocation, in: element) else {
-            Logger.debug("LineIndexStrategy: AXLineForIndex failed for index \(errorRange.location)")
+        // Convert grapheme cluster index to UTF-16 for accessibility APIs
+        // macOS accessibility APIs (AXLineForIndex, AXRangeForLine, AXBoundsForRange) use UTF-16 code units
+        let originalLocationUTF16 = graphemeToUTF16(originalLocationGrapheme, in: text)
+        let errorLengthUTF16 = graphemeToUTF16(originalLocationGrapheme + errorRange.length, in: text) - originalLocationUTF16
+
+        Logger.debug("LineIndexStrategy: Grapheme location \(originalLocationGrapheme) -> UTF-16 location \(originalLocationUTF16)", category: Logger.ui)
+
+        // Step 1: Get the line number for the error position (using UTF-16 index)
+        guard let lineNumber = getLineForIndex(originalLocationUTF16, in: element) else {
+            Logger.debug("LineIndexStrategy: AXLineForIndex failed for index \(originalLocationUTF16)")
             return nil
         }
 
-        Logger.debug("LineIndexStrategy: Error at index \(originalLocation) is on line \(lineNumber)", category: Logger.ui)
+        Logger.debug("LineIndexStrategy: Error at UTF-16 index \(originalLocationUTF16) is on line \(lineNumber)", category: Logger.ui)
 
         // Step 2: Get the character range for this line
         guard let lineRange = getRangeForLine(lineNumber, in: element) else {
@@ -55,12 +62,28 @@ class LineIndexStrategy: GeometryProvider {
         Logger.debug("LineIndexStrategy: Line \(lineNumber) has range \(lineRange)", category: Logger.ui)
 
         // Step 3: Get bounds for the entire line
-        guard let lineBounds = getBoundsForRange(lineRange, in: element) else {
-            Logger.debug("LineIndexStrategy: AXBoundsForRange failed for line range \(lineRange)")
-            return nil
+        // Try AXBoundsForRange first, fall back to font-metrics estimation if unsupported
+        let lineBounds: CGRect
+        let usingEstimatedBounds: Bool
+        if let axLineBounds = getBoundsForRange(lineRange, in: element) {
+            lineBounds = axLineBounds
+            usingEstimatedBounds = false
+            Logger.debug("LineIndexStrategy: Line bounds (Quartz) from AX: \(lineBounds)", category: Logger.ui)
+        } else {
+            // Fallback: estimate line bounds using element frame and font metrics
+            // This handles apps like Telegram where AXBoundsForRange is unsupported
+            guard let estimatedBounds = estimateLineBounds(
+                lineNumber: lineNumber,
+                element: element,
+                parser: parser
+            ) else {
+                Logger.debug("LineIndexStrategy: Both AXBoundsForRange and estimation failed for line \(lineNumber)")
+                return nil
+            }
+            lineBounds = estimatedBounds
+            usingEstimatedBounds = true
+            Logger.debug("LineIndexStrategy: Estimated line bounds (Quartz): \(lineBounds)", category: Logger.ui)
         }
-
-        Logger.debug("LineIndexStrategy: Line bounds (Quartz): \(lineBounds)", category: Logger.ui)
 
         // Validate line bounds
         guard lineBounds.width > 0 && lineBounds.height > 0 && lineBounds.height < 200 else {
@@ -69,40 +92,39 @@ class LineIndexStrategy: GeometryProvider {
         }
 
         // Step 4: Calculate X offset within the line
-        let lineStartIndex = lineRange.location
-        let offsetInLine = originalLocation - lineStartIndex
+        // All values here are in UTF-16 code units for consistency with accessibility APIs
+        let lineStartUTF16 = lineRange.location
+        let lineEndUTF16 = lineRange.location + lineRange.length
+        let offsetInLineUTF16 = originalLocationUTF16 - lineStartUTF16
 
-        // Extract line text for measurement
-        // Use safe string indexing to handle UTF-16/character count mismatches
-        let lineEndIndex = min(lineRange.location + lineRange.length, text.count)
-        guard lineStartIndex < lineEndIndex && lineStartIndex >= 0 && lineEndIndex <= text.count else {
-            Logger.debug("LineIndexStrategy: Invalid line indices (start=\(lineStartIndex), end=\(lineEndIndex), textCount=\(text.count))")
+        // Convert UTF-16 indices to String.Index for correct text extraction
+        guard let lineStartIdx = stringIndex(forUTF16Offset: lineStartUTF16, in: text),
+              let lineEndIdx = stringIndex(forUTF16Offset: lineEndUTF16, in: text),
+              lineStartIdx <= lineEndIdx else {
+            Logger.debug("LineIndexStrategy: Failed to convert UTF-16 indices to string indices")
             return nil
         }
-
-        // Safe string slicing using index(limited:) approach
-        guard let startIdx = text.index(text.startIndex, offsetBy: lineStartIndex, limitedBy: text.endIndex),
-              let endIdx = text.index(text.startIndex, offsetBy: lineEndIndex, limitedBy: text.endIndex),
-              startIdx <= endIdx else {
-            Logger.debug("LineIndexStrategy: String index out of bounds for line text")
-            return nil
-        }
-        let lineText = String(text[startIdx..<endIdx])
+        let lineText = String(text[lineStartIdx..<lineEndIdx])
 
         // Get text before error within the line
+        // offsetInLineUTF16 is the UTF-16 offset within the line, need to convert to grapheme count
         let textBeforeErrorInLine: String
-        if offsetInLine > 0 && offsetInLine <= lineText.count {
-            textBeforeErrorInLine = String(lineText.prefix(offsetInLine))
+        if offsetInLineUTF16 > 0 {
+            // Convert the error position to a string index within the line text
+            if let errorPosInLine = stringIndex(forUTF16Offset: offsetInLineUTF16, in: lineText) {
+                textBeforeErrorInLine = String(lineText[..<errorPosInLine])
+            } else {
+                textBeforeErrorInLine = ""
+            }
         } else {
             textBeforeErrorInLine = ""
         }
 
-        // Get error text (using original coordinates)
-        // Safe string slicing to handle UTF-16/character count mismatches
-        let errorEndIndex = min(originalLocation + errorRange.length, text.count)
+        // Get error text (using UTF-16 coordinates)
+        let errorEndUTF16 = originalLocationUTF16 + errorLengthUTF16
         let errorText: String
-        if let errorStartIdx = text.index(text.startIndex, offsetBy: originalLocation, limitedBy: text.endIndex),
-           let errorEndIdx = text.index(text.startIndex, offsetBy: errorEndIndex, limitedBy: text.endIndex),
+        if let errorStartIdx = stringIndex(forUTF16Offset: originalLocationUTF16, in: text),
+           let errorEndIdx = stringIndex(forUTF16Offset: errorEndUTF16, in: text),
            errorStartIdx <= errorEndIdx {
             errorText = String(text[errorStartIdx..<errorEndIdx])
         } else {
@@ -151,13 +173,14 @@ class LineIndexStrategy: GeometryProvider {
 
         return GeometryResult(
             bounds: cocoaBounds,
-            confidence: 0.90,
+            confidence: usingEstimatedBounds ? 0.75 : 0.90,
             strategy: strategyName,
             metadata: [
-                "api": "line-index",
+                "api": usingEstimatedBounds ? "line-index-estimated" : "line-index",
                 "line_number": lineNumber,
                 "line_range": "\(lineRange)",
-                "offset_in_line": offsetInLine
+                "offset_in_line_utf16": offsetInLineUTF16,
+                "using_estimated_bounds": usingEstimatedBounds
             ]
         )
     }
@@ -294,5 +317,90 @@ class LineIndexStrategy: GeometryProvider {
         }
 
         return nil
+    }
+
+    // MARK: - Bounds Estimation Fallback
+
+    /// Estimate line bounds when AXBoundsForRange is unavailable
+    /// Uses element frame and font metrics to calculate approximate line position
+    /// This is a fallback for apps like Telegram where AXBoundsForRange returns error
+    private func estimateLineBounds(
+        lineNumber: Int,
+        element: AXUIElement,
+        parser: ContentParser
+    ) -> CGRect? {
+        // Get element frame (position + size)
+        var positionValue: CFTypeRef?
+        var sizeValue: CFTypeRef?
+
+        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
+              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success else {
+            Logger.debug("LineIndexStrategy: Failed to get element position/size for estimation")
+            return nil
+        }
+
+        var position = CGPoint.zero
+        var size = CGSize.zero
+
+        guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &position),
+              AXValueGetValue(sizeValue as! AXValue, .cgSize, &size) else {
+            return nil
+        }
+
+        // Get font info for line height calculation
+        let font = detectFont(from: element, parser: parser)
+        let lineHeight = font.pointSize * 1.3  // Approximate line height (font size * 1.3)
+
+        // Calculate Y position for this line
+        // In Quartz coordinates, Y increases downward from top-left
+        // Line 0 is at the top of the element
+        let lineY = position.y + (CGFloat(lineNumber) * lineHeight) + 4  // 4pt top padding estimate
+
+        // Use element X for line start and full width
+        let lineX = position.x
+        let lineWidth = size.width
+
+        Logger.debug("LineIndexStrategy: Estimated line \(lineNumber) at Y=\(lineY), lineHeight=\(lineHeight)")
+
+        return CGRect(
+            x: lineX,
+            y: lineY,
+            width: lineWidth,
+            height: lineHeight
+        )
+    }
+
+    // MARK: - UTF-16 Index Conversion
+
+    /// Convert a grapheme cluster index to UTF-16 code unit offset.
+    /// Harper provides error positions in grapheme clusters, but macOS accessibility APIs
+    /// (AXLineForIndex, AXRangeForLine, AXBoundsForRange) use UTF-16 code units.
+    /// This matters for text with emojis: 😉 = 1 grapheme but 2 UTF-16 code units.
+    private func graphemeToUTF16(_ graphemeIndex: Int, in string: String) -> Int {
+        let safeIndex = min(graphemeIndex, string.count)
+        guard let stringIndex = string.index(string.startIndex, offsetBy: safeIndex, limitedBy: string.endIndex) else {
+            return graphemeIndex  // Fallback to original if conversion fails
+        }
+        let prefix = String(string[..<stringIndex])
+        return (prefix as NSString).length
+    }
+
+    /// Convert a UTF-16 code unit offset to a String.Index (grapheme cluster based)
+    /// macOS accessibility APIs use UTF-16 indices, but Swift String uses grapheme clusters
+    /// This is necessary for correct string slicing when text contains emojis or other
+    /// multi-codepoint characters (e.g., 😉 = 1 grapheme but 2 UTF-16 code units)
+    private func stringIndex(forUTF16Offset utf16Offset: Int, in string: String) -> String.Index? {
+        guard utf16Offset >= 0 else { return nil }
+
+        let nsString = string as NSString
+        guard utf16Offset <= nsString.length else { return nil }
+
+        // NSString range with length 0 at the UTF-16 offset
+        let utf16Range = NSRange(location: utf16Offset, length: 0)
+
+        // Convert to Range<String.Index>
+        guard let range = Range(utf16Range, in: string) else { return nil }
+
+        return range.lowerBound
     }
 }

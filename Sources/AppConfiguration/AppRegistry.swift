@@ -65,6 +65,7 @@ final class AppRegistry {
         register(.terminals)
         register(.mail)
         register(.messages)
+        register(.telegram)
         // Note: .default is not registered, used as fallback
     }
 }
@@ -273,6 +274,36 @@ extension AppConfiguration {
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: true  // Catalyst byte offsets may be fragile
+        )
+    )
+
+    // MARK: - Telegram
+
+    static let telegram = AppConfiguration(
+        identifier: "telegram",
+        displayName: "Telegram",
+        bundleIDs: ["ru.keepcoder.Telegram"],
+        category: .custom,
+        parserType: .generic,
+        fontConfig: FontConfig(
+            defaultSize: 13,
+            fontFamily: nil,
+            spacingMultiplier: 1.0
+        ),
+        horizontalPadding: 0,
+        // Telegram is a native macOS app with a custom text view:
+        // - AXBoundsForRange fails (unsupported), so RangeBoundsStrategy won't work
+        // - LineIndexStrategy works and provides usable coordinates
+        preferredStrategies: [.lineIndex, .fontMetrics],
+        features: AppFeatures(
+            visualUnderlinesEnabled: true,
+            textReplacementMethod: .standard,
+            requiresTypingPause: false,
+            supportsFormattedText: true,
+            childElementTraversal: false,
+            delaysAXNotifications: false,
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: false
         )
     )
 

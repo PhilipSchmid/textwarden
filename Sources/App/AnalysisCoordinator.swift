@@ -2287,8 +2287,28 @@ class AnalysisCoordinator: ObservableObject {
             &originalSelection
         )
 
-        // Step 2: Set selection to error range
-        var errorRange = CFRange(location: error.start, length: error.end - error.start)
+        // Step 2: Get current text to convert grapheme indices to UTF-16
+        // Harper provides error positions in grapheme clusters, but macOS AX APIs use UTF-16 code units
+        // This matters for text with emojis: 😉 = 1 grapheme but 2 UTF-16 code units
+        var textRef: CFTypeRef?
+        let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef)
+        let currentText = (textResult == .success) ? (textRef as? String) : nil
+
+        // Convert grapheme cluster indices to UTF-16 for the AX API
+        let utf16Location: Int
+        let utf16Length: Int
+        if let text = currentText {
+            let utf16Range = convertToUTF16Range(NSRange(location: error.start, length: error.end - error.start), in: text)
+            utf16Location = utf16Range.location
+            utf16Length = utf16Range.length
+        } else {
+            // Fallback to grapheme indices if text retrieval fails (may be inaccurate for emoji text)
+            utf16Location = error.start
+            utf16Length = error.end - error.start
+        }
+
+        // Step 3: Set selection to error range (using UTF-16 indices)
+        var errorRange = CFRange(location: utf16Location, length: utf16Length)
         let rangeValue = AXValueCreate(.cfRange, &errorRange)!
 
         let selectError = AXUIElementSetAttributeValue(
