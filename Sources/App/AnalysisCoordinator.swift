@@ -2883,22 +2883,32 @@ class AnalysisCoordinator: ObservableObject {
 
         Logger.debug("Copied suggestion to clipboard: '\(suggestion)'", category: Logger.analysis)
 
-        // Step 4: Activate the browser
+        // Step 4: Activate the target app and capture reference for later
+        // Capture reference BEFORE async block to ensure we paste into correct app
         let apps = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier)
-        if let targetApp = apps.first {
-            targetApp.activate()
-            Logger.debug("Activated \(context.applicationName)", category: Logger.analysis)
+        let targetApp = apps.first
+        if let app = targetApp {
+            app.activate()
+            Logger.debug("Activated \(context.applicationName) (pid: \(app.processIdentifier))", category: Logger.analysis)
         }
 
-        // Step 5: Wait for activation, then try paste via menu action
+        // Step 5: Wait for activation, then paste (replaces selected text)
+        // NOTE: We use direct paste-over-selection. While this doesn't create separate undo
+        // operations in Mac Catalyst apps (undo may not work correctly), it avoids spacing
+        // issues that occur with Delete+Paste approach.
         let delay = context.keyboardOperationDelay
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            // Try menu action paste first (more reliable for browsers)
             var pasteSucceeded = false
 
-            // Try to find and click the Paste menu item using AX API
-            if let frontmostApp = NSWorkspace.shared.frontmostApplication {
-                let appElement = AXUIElementCreateApplication(frontmostApp.processIdentifier)
+            // Skip menu paste for Mac Catalyst apps - AXPressAction returns success but doesn't work
+            // Mac Catalyst's AX bridge is incomplete and menu actions are unreliable
+            if context.isMacCatalystApp {
+                Logger.debug("Skipping menu paste for Mac Catalyst app \(context.applicationName) - using keyboard fallback", category: Logger.analysis)
+            } else if let app = targetApp {
+                // Try menu action paste for non-Catalyst apps (more reliable for browsers)
+                let appElement = AXUIElementCreateApplication(app.processIdentifier)
+                Logger.debug("Targeting app for paste: \(app.localizedName ?? "unknown") (pid: \(app.processIdentifier))", category: Logger.analysis)
 
                 // Try to find Edit > Paste menu
                 if let pasteMenuItem = self.findPasteMenuItem(in: appElement) {
@@ -2910,12 +2920,50 @@ class AnalysisCoordinator: ObservableObject {
                         Logger.debug("Menu action press failed: \(pressResult.rawValue)", category: Logger.analysis)
                     }
                 } else {
-                    Logger.debug("Could not find Paste menu item", category: Logger.analysis)
+                    Logger.debug("Could not find Paste menu item in \(app.localizedName ?? "app")", category: Logger.analysis)
                 }
+            } else {
+                Logger.debug("No target app found for bundle: \(context.bundleIdentifier)", category: Logger.analysis)
             }
 
-            // Step 6: Fallback to keyboard shortcut if menu failed
-            // Calculate when the paste will complete
+            // Step 6: For Mac Catalyst apps, use direct keyboard typing instead of paste
+            // This bypasses clipboard issues entirely by simulating keystrokes with Unicode strings
+            // Based on the Force-Paste approach: https://github.com/EugeneDae/Force-Paste
+            if context.isMacCatalystApp {
+                Logger.debug("Mac Catalyst app: Using direct keyboard typing instead of paste", category: Logger.analysis)
+
+                // Type the suggestion character by character using CGEvent
+                self.typeTextDirectly(suggestion)
+
+                // Restore pasteboard immediately since we didn't use it
+                if let originalContent = originalString {
+                    pasteboard.clearContents()
+                    pasteboard.setString(originalContent, forType: .string)
+                    Logger.debug("Restored original pasteboard content", category: Logger.analysis)
+                } else {
+                    pasteboard.clearContents()
+                }
+
+                // Wait a bit for typing to complete, then finish up
+                let typingDelay = Double(suggestion.count) * 0.01 + 0.1  // ~10ms per char + buffer
+                DispatchQueue.main.asyncAfter(deadline: .now() + typingDelay) {
+                    // Record statistics
+                    UserStatistics.shared.recordSuggestionApplied(category: currentError.category)
+
+                    // Invalidate cache
+                    self.invalidateCacheAfterReplacement(at: currentError.start..<currentError.end)
+
+                    // Remove error from UI
+                    let lengthDelta = suggestion.count - (currentError.end - currentError.start)
+                    self.removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
+
+                    Logger.debug("Mac Catalyst text replacement complete via direct typing", category: Logger.analysis)
+                    completion()
+                }
+                return
+            }
+
+            // Step 6b: For non-Catalyst apps, use keyboard shortcut fallback if menu failed
             let pasteCompleteDelay: TimeInterval
             if !pasteSucceeded {
                 // Need to wait for keyboard fallback delay + paste execution time
@@ -2930,8 +2978,7 @@ class AnalysisCoordinator: ObservableObject {
             }
 
             // Step 7: Wait for paste to complete, then restore pasteboard and signal completion
-            // IMPORTANT: Must wait long enough for Electron apps to process the paste
-            let completionDelay = pasteCompleteDelay + 0.15  // Extra buffer for Electron processing
+            let completionDelay = pasteCompleteDelay + 0.15
             DispatchQueue.main.asyncAfter(deadline: .now() + completionDelay) {
                 // Restore original pasteboard
                 if pasteboard.changeCount == originalChangeCount + 1 {
@@ -3200,6 +3247,39 @@ class AnalysisCoordinator: ObservableObject {
         let utf16Length = max(1, utf16EndLocation - utf16Location)
 
         return NSRange(location: utf16Location, length: utf16Length)
+    }
+
+    /// Type text directly using CGEvent keyboard events with Unicode strings.
+    /// This bypasses the clipboard entirely, which is needed for Mac Catalyst apps
+    /// where clipboard paste operations are unreliable.
+    /// Based on the Force-Paste approach: https://github.com/EugeneDae/Force-Paste
+    /// See Apple docs: https://developer.apple.com/documentation/coregraphics/1456028-cgeventkeyboardsetunicodestring
+    private func typeTextDirectly(_ text: String) {
+        Logger.debug("Typing text directly: '\(text)' (\(text.count) chars)", category: Logger.analysis)
+
+        let source = CGEventSource(stateID: .hidSystemState)
+
+        // Convert the entire text to UTF-16 for CGEventKeyboardSetUnicodeString
+        var utf16Chars = Array(text.utf16)
+
+        // Create key down event with the Unicode string
+        // Virtual key 0 is 'a', but the Unicode string overrides it
+        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) else {
+            Logger.error("Failed to create CGEvent for typing", category: Logger.analysis)
+            return
+        }
+
+        // Set the Unicode string on the key down event
+        // This tells the system to input these exact characters regardless of keyboard layout
+        keyDown.keyboardSetUnicodeString(stringLength: utf16Chars.count, unicodeString: &utf16Chars)
+
+        // Post the events to simulate typing
+        // Using .cghidEventTap posts to the HID system, which is more reliable
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
+
+        Logger.debug("Posted keyboard events for direct typing", category: Logger.analysis)
     }
 
     /// Extract current text from an element (for text search during replacement)

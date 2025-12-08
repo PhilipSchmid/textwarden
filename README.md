@@ -113,7 +113,7 @@ TextWarden is a privacy-focused, local-first tool with certain trade-offs:
 - **Accessibility API constraints** - Some apps with custom text rendering may not work correctly
 - **Text formatting** - When applying corrections in some apps, formatting (bold, italic) may not be preserved
 - **Visual underlines** - Not all applications support visual error underlines; see [Tested Applications](#tested-applications) for details and the [Troubleshooting Guide](TROUBLESHOOTING.md#visual-underlines-appear-misaligned) for help
-- **Mac Catalyst apps** - Apps like Apple Messages are iOS apps running on macOS via Mac Catalyst. Apple's accessibility bridge for Catalyst is incomplete - standard text positioning APIs (`AXBoundsForRange`, `AXRangeForLine`) return invalid data. TextWarden uses font-metrics-based positioning as a fallback, which may be less precise for multi-line text with soft wrapping
+- **Mac Catalyst apps** - Apps like Apple Messages and WhatsApp are iOS apps running on macOS via Mac Catalyst. Apple's accessibility bridge for Catalyst is incomplete - standard text positioning APIs (`AXBoundsForRange`, `AXRangeForLine`) return invalid data. TextWarden uses font-metrics-based positioning as a fallback, which may be less precise for multi-line text with soft wrapping. Additionally, in WhatsApp, undoing a correction may require pressing Cmd+Z twice due to how WhatsApp's undo stack handles text replacement
 
 ### Looking for More?
 
@@ -153,6 +153,7 @@ TextWarden uses the macOS Accessibility API and works with most applications. Vi
 | **Apple Messages** | Full | Full |
 | **Notion** | Full | Full |
 | **Telegram** | Full | Full |
+| **WhatsApp** | Full | Full |
 | **Microsoft Teams** | Full | Indicator only* |
 | **Terminal apps** (iTerm2, Terminal.app, Warp) | Full | Indicator only* |
 
