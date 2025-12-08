@@ -157,18 +157,24 @@ class RangeBoundsStrategy: GeometryProvider {
         element: AXUIElement,
         parser: ContentParser
     ) -> GeometryResult? {
+        // For custom parser apps like Mail, we need to convert grapheme cluster indices
+        // to UTF-16 code units. But we must use the ACTUAL text from the AX element,
+        // not the filtered `text` parameter which may be different.
+        // Mail's AXBoundsForRange uses UTF-16 code units matching AXStringForRange.
+        let utf16Range = convertToUTF16RangeUsingElement(adjustedRange, in: element)
+
         // Get start character bounds
-        let startCharRange = NSRange(location: adjustedRange.location, length: 1)
+        let startCharRange = NSRange(location: utf16Range.location, length: 1)
         guard let startCharBounds = parser.getBoundsForRange(range: startCharRange, in: element) else {
-            Logger.debug("RangeBoundsStrategy: Custom parser failed to get start char bounds", category: Logger.ui)
+            Logger.debug("RangeBoundsStrategy: Custom parser failed to get start char bounds at UTF-16 position \(utf16Range.location)", category: Logger.ui)
             return nil
         }
 
         // Get end character bounds
-        let endCharPosition = adjustedRange.location + adjustedRange.length - 1
+        let endCharPosition = utf16Range.location + utf16Range.length - 1
         let endCharRange = NSRange(location: endCharPosition, length: 1)
         guard let endCharBounds = parser.getBoundsForRange(range: endCharRange, in: element) else {
-            Logger.debug("RangeBoundsStrategy: Custom parser failed to get end char bounds", category: Logger.ui)
+            Logger.debug("RangeBoundsStrategy: Custom parser failed to get end char bounds at UTF-16 position \(endCharPosition)", category: Logger.ui)
             return nil
         }
 
@@ -197,8 +203,10 @@ class RangeBoundsStrategy: GeometryProvider {
             strategy: strategyName,
             metadata: [
                 "api": "custom-parser-bounds",
-                "range_location": adjustedRange.location,
-                "range_length": adjustedRange.length,
+                "grapheme_location": adjustedRange.location,
+                "grapheme_length": adjustedRange.length,
+                "utf16_location": utf16Range.location,
+                "utf16_length": utf16Range.length,
                 "quartz_screen_bounds": NSStringFromRect(quartzBounds),
                 "cocoa_bounds": NSStringFromRect(cocoaBounds)
             ]
@@ -206,6 +214,49 @@ class RangeBoundsStrategy: GeometryProvider {
     }
 
     // MARK: - UTF-16 Conversion
+
+    /// Convert grapheme cluster indices to UTF-16 code unit indices by fetching text from the AX element.
+    /// This is used for custom parser apps like Mail where the passed `text` parameter might not match
+    /// the accessibility API's text (due to filtering/processing).
+    /// Uses AXStringForRange to get the actual text that matches Mail's AXBoundsForRange indices.
+    private func convertToUTF16RangeUsingElement(_ range: NSRange, in element: AXUIElement) -> NSRange {
+        // Fetch the actual text from the element using AXStringForRange
+        // This ensures we're converting based on the same text that AXBoundsForRange uses
+        var charCountRef: CFTypeRef?
+        var textLength = 0
+        if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &charCountRef) == .success,
+           let count = charCountRef as? Int {
+            textLength = count
+        } else {
+            // Fallback: use a large range
+            textLength = 100_000
+        }
+
+        // Fetch text using AXStringForRange (matches what AXBoundsForRange expects)
+        var cfRange = CFRange(location: 0, length: textLength)
+        guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else {
+            Logger.debug("RangeBoundsStrategy: Failed to create range value for text fetch", category: Logger.ui)
+            return range
+        }
+
+        var stringRef: CFTypeRef?
+        let result = AXUIElementCopyParameterizedAttributeValue(
+            element,
+            "AXStringForRange" as CFString,
+            rangeValue,
+            &stringRef
+        )
+
+        guard result == .success, let text = stringRef as? String, !text.isEmpty else {
+            Logger.debug("RangeBoundsStrategy: AXStringForRange failed, using original range", category: Logger.ui)
+            return range
+        }
+
+        Logger.debug("RangeBoundsStrategy: Fetched \(text.count) characters from AX element for UTF-16 conversion", category: Logger.ui)
+
+        // Now convert using the actual text from the element
+        return convertToUTF16Range(range, in: text)
+    }
 
     /// Convert grapheme cluster indices to UTF-16 code unit indices.
     /// macOS accessibility APIs (AXBoundsForRange, etc.) use UTF-16 code units,

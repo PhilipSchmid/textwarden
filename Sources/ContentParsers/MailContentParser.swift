@@ -278,9 +278,13 @@ class MailContentParser: ContentParser {
     ) -> Bool {
         Logger.info("MailContentParser: replaceText range \(range.location)-\(range.location + range.length) with '\(replacement)'", category: Logger.accessibility)
 
+        // Convert grapheme cluster indices to UTF-16 for Mail's accessibility API
+        let utf16Range = convertToUTF16Range(range, in: element)
+        Logger.debug("MailContentParser: replaceText UTF-16 conversion: grapheme [\(range.location), \(range.length)] -> UTF-16 [\(utf16Range.location), \(utf16Range.length)]", category: Logger.accessibility)
+
         // Method 1: AXReplaceRangeWithText - the proper API for WebKit
         // Parameter is an array: [CFRange, String]
-        var cfRange = CFRange(location: range.location, length: range.length)
+        var cfRange = CFRange(location: utf16Range.location, length: utf16Range.length)
         guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else {
             Logger.debug("MailContentParser: Failed to create CFRange", category: Logger.accessibility)
             return false
@@ -315,9 +319,13 @@ class MailContentParser: ContentParser {
     ) -> Bool {
         Logger.debug("MailContentParser: selectTextForReplacement range: \(range.location)-\(range.location + range.length)", category: Logger.accessibility)
 
+        // Convert grapheme cluster indices to UTF-16 for Mail's accessibility API
+        let utf16Range = convertToUTF16Range(range, in: element)
+        Logger.debug("MailContentParser: selectTextForReplacement UTF-16 conversion: grapheme [\(range.location), \(range.length)] -> UTF-16 [\(utf16Range.location), \(utf16Range.length)]", category: Logger.accessibility)
+
         // Method 1: Use text markers (most reliable for WebKit)
-        if let startMarker = createTextMarker(at: range.location, in: element),
-           let endMarker = createTextMarker(at: range.location + range.length, in: element) {
+        if let startMarker = createTextMarker(at: utf16Range.location, in: element),
+           let endMarker = createTextMarker(at: utf16Range.location + utf16Range.length, in: element) {
 
             // Create marker range
             if let markerRange = createTextMarkerRange(start: startMarker, end: endMarker, in: element) {
@@ -335,9 +343,9 @@ class MailContentParser: ContentParser {
             }
         }
 
-        // Method 2: Standard CFRange-based selection
+        // Method 2: Standard CFRange-based selection (also using UTF-16 range)
         Logger.debug("MailContentParser: Trying CFRange selection", category: Logger.accessibility)
-        var cfRange = CFRange(location: range.location, length: range.length)
+        var cfRange = CFRange(location: utf16Range.location, length: utf16Range.length)
         guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else {
             return false
         }
@@ -415,6 +423,68 @@ class MailContentParser: ContentParser {
 
         Logger.debug("MailContentParser: createTextMarkerRange failed", category: Logger.accessibility)
         return nil
+    }
+
+    // MARK: - UTF-16 Index Conversion
+
+    /// Convert grapheme cluster indices to UTF-16 code unit indices for Mail's accessibility API.
+    /// Mail's WebKit APIs (AXBoundsForRange, AXTextMarkerForIndex, etc.) use UTF-16 code units,
+    /// while Harper provides error positions in grapheme clusters (Swift String indices).
+    /// This matters for text containing emojis: 👋 = 1 grapheme but 2 UTF-16 code units.
+    private static func convertToUTF16Range(_ range: NSRange, in element: AXUIElement) -> NSRange {
+        // Fetch the actual text from the element using AXStringForRange
+        // This ensures we're converting based on the same text that Mail's AX APIs use
+        var charCountRef: CFTypeRef?
+        var textLength = 0
+        if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &charCountRef) == .success,
+           let count = charCountRef as? Int {
+            textLength = count
+        } else {
+            // Fallback: use a large range
+            textLength = 100_000
+        }
+
+        // Fetch text using AXStringForRange (matches what Mail's AX APIs expect)
+        var cfRange = CFRange(location: 0, length: textLength)
+        guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else {
+            Logger.debug("MailContentParser: Failed to create range value for text fetch", category: Logger.accessibility)
+            return range
+        }
+
+        var stringRef: CFTypeRef?
+        let result = AXUIElementCopyParameterizedAttributeValue(
+            element,
+            "AXStringForRange" as CFString,
+            rangeValue,
+            &stringRef
+        )
+
+        guard result == .success, let text = stringRef as? String, !text.isEmpty else {
+            Logger.debug("MailContentParser: AXStringForRange failed, using original range", category: Logger.accessibility)
+            return range
+        }
+
+        // Now convert grapheme cluster indices to UTF-16 code unit indices
+        let textCount = text.count
+        let safeLocation = min(range.location, textCount)
+        let safeEndLocation = min(range.location + range.length, textCount)
+
+        // Get String.Index for the grapheme cluster positions
+        guard let startIndex = text.index(text.startIndex, offsetBy: safeLocation, limitedBy: text.endIndex),
+              let endIndex = text.index(text.startIndex, offsetBy: safeEndLocation, limitedBy: text.endIndex) else {
+            // Fallback to original range if conversion fails
+            return range
+        }
+
+        // Extract the prefix strings and measure their UTF-16 lengths
+        let prefixToStart = String(text[..<startIndex])
+        let prefixToEnd = String(text[..<endIndex])
+
+        let utf16Location = (prefixToStart as NSString).length
+        let utf16EndLocation = (prefixToEnd as NSString).length
+        let utf16Length = max(1, utf16EndLocation - utf16Location)
+
+        return NSRange(location: utf16Location, length: utf16Length)
     }
 
     // MARK: - Child Element Traversal
