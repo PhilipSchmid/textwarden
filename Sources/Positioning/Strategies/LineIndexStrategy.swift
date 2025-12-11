@@ -108,7 +108,7 @@ class LineIndexStrategy: GeometryProvider {
 
         // Get text before error within the line
         // offsetInLineUTF16 is the UTF-16 offset within the line, need to convert to grapheme count
-        let textBeforeErrorInLine: String
+        var textBeforeErrorInLine: String
         if offsetInLineUTF16 > 0 {
             // Convert the error position to a string index within the line text
             if let errorPosInLine = stringIndex(forUTF16Offset: offsetInLineUTF16, in: lineText) {
@@ -118,6 +118,18 @@ class LineIndexStrategy: GeometryProvider {
             }
         } else {
             textBeforeErrorInLine = ""
+        }
+
+        // Handle edge case: if textBeforeErrorInLine contains a newline, the error is actually
+        // on the next visual line. AXLineForIndex can return the previous line when the error
+        // is at a line boundary. In this case, only use text after the last newline for
+        // width calculation, and adjust the Y position to the next line.
+        var lineOffsetAdjustment = 0
+        if textBeforeErrorInLine.contains("\n") {
+            let parts = textBeforeErrorInLine.components(separatedBy: "\n")
+            lineOffsetAdjustment = parts.count - 1  // Number of newlines crossed
+            textBeforeErrorInLine = parts.last ?? ""
+            Logger.debug("LineIndexStrategy: Adjusted for newline boundary - \(lineOffsetAdjustment) lines down, text before now: '\(textBeforeErrorInLine)'", category: Logger.ui)
         }
 
         // Get error text (using UTF-16 coordinates)
@@ -146,8 +158,20 @@ class LineIndexStrategy: GeometryProvider {
 
         // Step 5: Calculate final bounds
         let errorX = lineBounds.origin.x + textBeforeWidth
-        let errorY = lineBounds.origin.y
-        let errorHeight = lineBounds.height
+
+        // Adjust Y position if the error is on a different visual line than reported by AXLineForIndex
+        // This happens when the error is at a line boundary (right after a newline)
+        let lineHeight = lineBounds.height
+        let errorY: CGFloat
+        if lineOffsetAdjustment > 0 {
+            // Move down by the number of newlines crossed
+            // In Quartz coordinates (top-left origin), increasing Y moves down
+            errorY = lineBounds.origin.y + (CGFloat(lineOffsetAdjustment) * lineHeight)
+            Logger.debug("LineIndexStrategy: Adjusted Y from \(lineBounds.origin.y) to \(errorY) (\(lineOffsetAdjustment) lines)", category: Logger.ui)
+        } else {
+            errorY = lineBounds.origin.y
+        }
+        let errorHeight = lineHeight
 
         let quartzBounds = CGRect(
             x: errorX,

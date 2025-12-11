@@ -212,7 +212,8 @@ extension ApplicationContext {
         "com.apple.MobileSMS",       // Messages
         "com.apple.news",            // Apple News
         "com.apple.stocks",          // Stocks
-        "net.whatsapp.WhatsApp"      // WhatsApp (Catalyst version)
+        "net.whatsapp.WhatsApp",     // WhatsApp (Catalyst version)
+        "ru.keepcoder.Telegram"      // Telegram (Catalyst version)
     ]
 
     /// Check if this is a Mac Catalyst app (iOS app running on macOS)

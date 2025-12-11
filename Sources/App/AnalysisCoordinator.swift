@@ -117,6 +117,7 @@ class AnalysisCoordinator: ObservableObject {
     private var lastResizeTime: Date?  // Track when window was last resized (for Electron settling)
     private var contentStabilityCount = 0  // Count consecutive stable position samples (for resize)
     private var lastCharacterBounds: CGRect?  // Track actual character position to detect content reflow
+    private var lastElementFrame: CGRect?  // Track AXUIElement frame for text field resize detection (Mac Catalyst)
 
     /// Scroll detection - uses global scroll wheel event observer
     private var overlaysHiddenDueToScroll = false
@@ -133,6 +134,14 @@ class AnalysisCoordinator: ObservableObject {
     /// Used to suppress typing detection briefly after applying a suggestion
     /// (prevents paste-triggered AX notifications from hiding overlays)
     var lastReplacementTime: Date?
+
+    /// Time when a conversation switch was detected in a Mac Catalyst chat app
+    /// Used to prevent validateCurrentText() from racing with handleConversationSwitchInChatApp()
+    private var lastConversationSwitchTime: Date?
+
+    /// Text validation timer for Mac Catalyst apps
+    /// Periodically checks if source text has changed (since kAXValueChangedNotification is unreliable)
+    private var textValidationTimer: Timer?
 
     // MARK: - LLM Style Checking
 
@@ -228,19 +237,16 @@ class AnalysisCoordinator: ObservableObject {
             if appConfig.features.delaysAXNotifications {
                 // Skip if we just applied a suggestion programmatically
                 // (prevents paste-triggered AX notifications from hiding overlays we just showed)
+                // Use 1.5s grace period to match handleTextChange for consistency
                 if let lastReplacement = self.lastReplacementTime,
-                   Date().timeIntervalSince(lastReplacement) < 0.5 {
+                   Date().timeIntervalSince(lastReplacement) < 1.5 {
                     Logger.debug("AnalysisCoordinator: Ignoring typing callback - just applied suggestion", category: Logger.ui)
                     return
                 }
 
-                Logger.debug("AnalysisCoordinator: Typing detected in \(appConfig.displayName) - hiding overlay and clearing cache", category: Logger.ui)
-
-                // Hide overlay immediately
-                self.errorOverlay.hide()
-
-                // CRITICAL: Clear position cache since text is changing
-                // This prevents stale positions from being used when underlines reappear
+                // Don't hide overlay - that causes flickering while typing
+                // Just clear position cache so underlines update correctly after re-analysis
+                Logger.trace("AnalysisCoordinator: Typing detected in \(appConfig.displayName) - clearing position cache", category: Logger.ui)
                 PositionResolver.shared.clearCache()
             }
         }
@@ -537,16 +543,17 @@ class AnalysisCoordinator: ObservableObject {
             self.handleTextChange(text, in: context)
         }
 
-        // Monitor IMMEDIATE text changes (before debounce) - hide overlays right away
+        // Monitor IMMEDIATE text changes (before debounce)
+        // Note: We no longer hide overlays here to avoid flickering during typing
+        // Overlays will update naturally after the debounced re-analysis completes
         textMonitor.onImmediateTextChange = { [weak self] text, context in
-            guard let self = self else { return }
+            guard self != nil else { return }
 
-            // For apps that require typing pause: hide overlay immediately when any text change is detected
+            // Just clear the position cache so underlines update correctly after re-analysis
+            // Don't hide overlays - that causes flickering while typing
             let appConfig = AppRegistry.shared.configuration(for: context.bundleIdentifier)
             if appConfig.features.requiresTypingPause {
-                Logger.debug("AnalysisCoordinator: Immediate text change in \(context.applicationName) - hiding overlay", category: Logger.ui)
-                self.errorOverlay.hide()
-                // Also clear position cache since positions will be stale
+                Logger.trace("AnalysisCoordinator: Immediate text change in \(context.applicationName) - clearing position cache", category: Logger.ui)
                 PositionResolver.shared.clearCache()
             }
         }
@@ -654,6 +661,9 @@ class AnalysisCoordinator: ObservableObject {
         }
         RunLoop.main.add(windowPositionTimer!, forMode: .common)
         Logger.debug("Window monitoring: Timer scheduled on main RunLoop", category: Logger.analysis)
+
+        // Also start text validation timer for Mac Catalyst apps
+        startTextValidationTimer()
     }
 
     /// Stop monitoring window position
@@ -664,6 +674,8 @@ class AnalysisCoordinator: ObservableObject {
         windowMovementDebounceTimer = nil
         scrollDebounceTimer?.invalidate()
         scrollDebounceTimer = nil
+        textValidationTimer?.invalidate()
+        textValidationTimer = nil
         lastWindowFrame = nil
         lastResizeTime = nil
         contentStabilityCount = 0
@@ -673,10 +685,156 @@ class AnalysisCoordinator: ObservableObject {
         overlaysHiddenDueToScroll = false
     }
 
+    // MARK: - Text Validation for Mac Catalyst Apps
+
+    /// Start periodic text validation for apps where kAXValueChangedNotification is unreliable
+    /// This is primarily needed for Mac Catalyst apps (Messages, WhatsApp) where text changes
+    /// aren't always reported via accessibility notifications.
+    private func startTextValidationTimer() {
+        guard textValidationTimer == nil else { return }
+
+        // Run at 500ms intervals - frequent enough to catch sent messages, but not too expensive
+        textValidationTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.validateCurrentText()
+        }
+        RunLoop.main.add(textValidationTimer!, forMode: .common)
+        Logger.debug("Text validation: Timer started", category: Logger.analysis)
+    }
+
+    /// Validate that the currently displayed errors match the current text
+    /// If text has changed significantly, hide indicators and clear errors
+    private func validateCurrentText() {
+        // Only validate if we have active errors or indicators showing
+        guard !currentErrors.isEmpty || floatingIndicator.isVisible else { return }
+
+        // Need the monitored element to extract text
+        guard let element = textMonitor.monitoredElement else {
+            Logger.trace("Text validation: No monitored element", category: Logger.analysis)
+            return
+        }
+
+        // Don't validate immediately after a replacement - wait for text to settle
+        // Browser/Catalyst text replacement can take 0.5-0.7 seconds total, plus delayed AX notifications
+        // Use 1.5s grace period to match handleTextChange for consistency
+        if let replacementTime = lastReplacementTime,
+           Date().timeIntervalSince(replacementTime) < 1.5 {
+            return
+        }
+
+        // Don't validate during a conversation switch in Mac Catalyst chat apps
+        // handleConversationSwitchInChatApp() handles this, and we must let it complete
+        // before resuming validation to avoid race conditions
+        if let switchTime = lastConversationSwitchTime,
+           Date().timeIntervalSince(switchTime) < 0.6 {
+            return
+        }
+
+        // Extract current text from the element synchronously
+        guard let currentText = extractTextSynchronously(from: element) else {
+            Logger.trace("Text validation: Could not extract text", category: Logger.analysis)
+            return
+        }
+
+        // Check if text has changed from what we analyzed
+        let analyzedText = lastAnalyzedText
+
+        Logger.trace("Text validation: current='\(currentText.prefix(50))...' (\(currentText.count) chars), analyzed='\(analyzedText.prefix(50))...' (\(analyzedText.count) chars)", category: Logger.analysis)
+
+        // Text matches - no action needed
+        if currentText == analyzedText {
+            return
+        }
+
+        // Text is now empty (e.g., message was sent in chat app)
+        if currentText.isEmpty && !analyzedText.isEmpty {
+            Logger.debug("Text validation: Text is now empty - clearing errors (message likely sent)", category: Logger.analysis)
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                if !self.isManualStyleCheckActive {
+                    self.floatingIndicator.hide()
+                }
+                self.errorOverlay.hide()
+                self.suggestionPopover.hide()
+                DebugBorderWindow.clearAll()
+                self.currentErrors.removeAll()
+                self.lastAnalyzedText = ""
+                PositionResolver.shared.clearCache()
+            }
+            return
+        }
+
+        // Text has changed significantly (different content, not just typing)
+        // This handles switching to a different chat conversation
+        // Note: We check for significant difference to avoid false positives from typing
+        let textChanged = !currentText.hasPrefix(analyzedText) && !analyzedText.hasPrefix(currentText)
+        if textChanged {
+            // Check if this is a Mac Catalyst app - they need special handling because
+            // kAXValueChangedNotification is unreliable, so we must trigger re-analysis here
+            let isCatalystApp = textMonitor.currentContext?.isMacCatalystApp ?? false
+
+            Logger.debug("Text validation: Text content changed - \(isCatalystApp ? "triggering re-analysis" : "hiding indicator") (possibly switched conversation)", category: Logger.analysis)
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+
+                // Always hide UI elements
+                if !self.isManualStyleCheckActive {
+                    self.floatingIndicator.hide()
+                }
+                self.errorOverlay.hide()
+                self.suggestionPopover.hide()
+                DebugBorderWindow.clearAll()
+
+                // For Mac Catalyst apps, clear errors and trigger fresh analysis
+                // For other apps, let the normal AXValueChanged notification handle re-analysis
+                if isCatalystApp {
+                    self.currentErrors.removeAll()
+                    self.lastAnalyzedText = ""
+                    PositionResolver.shared.clearCache()
+
+                    // Trigger fresh analysis after a short delay
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+                        guard let self = self,
+                              let context = self.textMonitor.currentContext,
+                              !currentText.isEmpty else { return }
+                        self.handleTextChange(currentText, in: context)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Extract text from an AXUIElement synchronously
+    /// Used by text validation timer to check if content has changed
+    private func extractTextSynchronously(from element: AXUIElement) -> String? {
+        // First, try app-specific extraction via ContentParser
+        if let bundleId = textMonitor.currentContext?.bundleIdentifier {
+            let parser = ContentParserFactory.shared.parser(for: bundleId)
+            if let parserText = parser.extractText(from: element) {
+                return parserText
+            }
+        }
+
+        // Fall back to standard AXValue extraction
+        var value: CFTypeRef?
+        let valueError = AXUIElementCopyAttributeValue(
+            element,
+            kAXValueAttribute as CFString,
+            &value
+        )
+
+        if valueError == .success, let textValue = value as? String {
+            return textValue
+        }
+
+        return nil
+    }
+
     /// Check if window has moved, resized, or content has scrolled
     private func checkWindowPosition() {
         guard let element = textMonitor.monitoredElement else {
             lastWindowFrame = nil
+            lastElementFrame = nil
             DebugBorderWindow.clearAll()
             return
         }
@@ -695,6 +853,14 @@ class AnalysisCoordinator: ObservableObject {
         }
 
         // Note: Scroll detection is now handled by global scrollWheelMonitor
+
+        // For Mac Catalyst apps: track the element frame (text input field) separately
+        // The window frame stays constant when sending messages, but the text field shrinks
+        if let context = textMonitor.currentContext {
+            if context.isMacCatalystApp {
+                checkElementFrameForCatalyst(element: element)
+            }
+        }
 
         // Check if position or size has changed
         if let lastFrame = lastWindowFrame {
@@ -737,11 +903,140 @@ class AnalysisCoordinator: ObservableObject {
         lastWindowFrame = currentFrame
     }
 
+    /// Check element frame changes for Mac Catalyst apps
+    /// Detects when the text input field shrinks (message sent) or grows (more text typed)
+    /// Also detects when the element position changes significantly (conversation switched)
+    private func checkElementFrameForCatalyst(element: AXUIElement) {
+        guard let currentElementFrame = getElementFrame(element) else {
+            return
+        }
+
+        if let lastFrame = lastElementFrame {
+            let heightChange = currentElementFrame.height - lastFrame.height
+            let positionChange = hypot(
+                currentElementFrame.origin.x - lastFrame.origin.x,
+                currentElementFrame.origin.y - lastFrame.origin.y
+            )
+            let significantHeightChange = abs(heightChange) > 5.0
+            let significantPositionChange = positionChange > 10.0  // Element moved significantly
+
+            if significantHeightChange || significantPositionChange {
+                if significantPositionChange {
+                    // Element position changed significantly - conversation was likely switched
+                    // Always trigger re-analysis (text content has changed)
+                    // This should happen regardless of current error state
+                    Logger.debug("Element monitoring: Element position changed by \(positionChange)px in Mac Catalyst app - triggering re-analysis (conversation switch)", category: Logger.analysis)
+                    handleConversationSwitchInChatApp(element: element)
+                } else if significantHeightChange && heightChange < 0 && (!currentErrors.isEmpty || floatingIndicator.isVisible) {
+                    // Text field shrunk - message was likely sent
+                    Logger.debug("Element monitoring: Text field shrunk by \(abs(heightChange))px in Mac Catalyst app - clearing errors", category: Logger.analysis)
+                    handleMessageSentInChatApp()
+                } else if significantHeightChange && heightChange > 0 && !currentErrors.isEmpty {
+                    // Text field grew - user is typing more, text positions shifted
+                    Logger.debug("Element monitoring: Text field grew by \(heightChange)px in Mac Catalyst app - invalidating positions", category: Logger.analysis)
+                    PositionResolver.shared.clearCache()
+                    errorOverlay.hide()
+                }
+            }
+        } else {
+            Logger.debug("Element monitoring: Initial element frame: \(currentElementFrame)", category: Logger.analysis)
+        }
+
+        lastElementFrame = currentElementFrame
+    }
+
+    /// Handle conversation switch in a Mac Catalyst chat app
+    /// Hides overlays and triggers fresh analysis since the text content has likely changed
+    private func handleConversationSwitchInChatApp(element: AXUIElement) {
+        // Record the time to prevent validateCurrentText() from racing with us
+        lastConversationSwitchTime = Date()
+
+        // Capture the text BEFORE clearing state - we'll use this to detect if text actually changed
+        // WhatsApp's accessibility API is notorious for returning stale text after conversation switches
+        let textBeforeSwitch = lastAnalyzedText
+
+        // Hide all overlays
+        floatingIndicator.hide()
+        errorOverlay.hide()
+        suggestionPopover.hide()
+        DebugBorderWindow.clearAll()
+
+        // Clear position cache
+        PositionResolver.shared.clearCache()
+
+        // Clear current errors and text tracking - the text has changed
+        currentErrors.removeAll()
+        lastAnalyzedText = ""
+        previousText = ""  // Clear previousText so handleTextChange will process the text
+
+        // Use longer delay for WhatsApp - its accessibility API is slower to update after conversation switch
+        // The API may return stale text from the previous conversation if we read too quickly
+        let bundleID = textMonitor.currentContext?.bundleIdentifier ?? ""
+        let delay: TimeInterval = bundleID == "net.whatsapp.WhatsApp" ? 0.5 : 0.2
+
+        // Trigger fresh analysis after a delay (let the UI settle)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self = self else { return }
+            // Re-read the text and trigger analysis
+            guard let monitoredElement = self.textMonitor.monitoredElement,
+                  let context = self.textMonitor.currentContext,
+                  let text = self.extractTextSynchronously(from: monitoredElement),
+                  !text.isEmpty else {
+                return
+            }
+
+            // For WhatsApp: if the text hasn't changed, the accessibility API is still returning stale data
+            // Don't trigger re-analysis with the same text - it would just show the same errors
+            // The user will trigger fresh analysis when they actually interact with the new conversation
+            if context.bundleIdentifier == "net.whatsapp.WhatsApp" && text == textBeforeSwitch {
+                Logger.debug("WhatsApp: Text unchanged after conversation switch (\(text.count) chars) - skipping re-analysis (stale AX data)", category: Logger.analysis)
+                return
+            }
+
+            self.handleTextChange(text, in: context)
+        }
+    }
+
+    /// Get the frame of an AXUIElement using AXPosition and AXSize attributes
+    private func getElementFrame(_ element: AXUIElement) -> CGRect? {
+        var positionValue: CFTypeRef?
+        var sizeValue: CFTypeRef?
+
+        let positionResult = AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue)
+        let sizeResult = AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue)
+
+        guard positionResult == .success,
+              sizeResult == .success,
+              let position = positionValue,
+              let size = sizeValue else {
+            return nil
+        }
+
+        var origin = CGPoint.zero
+        var frameSize = CGSize.zero
+
+        guard AXValueGetValue(position as! AXValue, .cgPoint, &origin),
+              AXValueGetValue(size as! AXValue, .cgSize, &frameSize) else {
+            return nil
+        }
+
+        return CGRect(origin: origin, size: frameSize)
+    }
+
     /// Handle scroll started - hide underlines only (keep indicator visible)
     private func handleScrollStarted() {
         // Cancel any pending restore first
         scrollDebounceTimer?.invalidate()
         scrollDebounceTimer = nil
+
+        // Don't hide popover if we just applied a replacement - the async browser/Catalyst
+        // replacement may trigger scroll events that would interfere with showing the next error
+        // Use 1.5s grace period to match handleTextChange (replacement + delayed AX notifications)
+        if let replacementTime = lastReplacementTime,
+           Date().timeIntervalSince(replacementTime) < 1.5 {
+            Logger.debug("Scroll monitoring: Ignoring scroll - just applied suggestion", category: Logger.analysis)
+            return
+        }
 
         if !overlaysHiddenDueToScroll {
             Logger.debug("Scroll monitoring: Scroll started - hiding underlines only", category: Logger.analysis)
@@ -813,6 +1108,18 @@ class AnalysisCoordinator: ObservableObject {
     /// Legacy method for compatibility - returns just the position
     private func getWindowPosition(for element: AXUIElement) -> CGPoint? {
         return getWindowFrame(for: element)?.origin
+    }
+
+    /// Handle message sent in a Mac Catalyst chat app (text field shrunk)
+    /// Clears all errors and hides indicators since the text is now empty
+    private func handleMessageSentInChatApp() {
+        floatingIndicator.hide()
+        errorOverlay.hide()
+        suggestionPopover.hide()
+        currentErrors.removeAll()
+        lastAnalyzedText = ""
+        PositionResolver.shared.clearCache()
+        DebugBorderWindow.clearAll()
     }
 
     /// Handle window movement started
@@ -1324,6 +1631,14 @@ class AnalysisCoordinator: ObservableObject {
     private func handleTextChange(_ text: String, in context: ApplicationContext) {
         Logger.debug("AnalysisCoordinator: Text changed in \(context.applicationName) (\(text.count) chars)", category: Logger.analysis)
 
+        // Don't process text changes during a conversation switch in Mac Catalyst apps
+        // Let handleConversationSwitchInChatApp() handle the re-analysis after the delay
+        if let switchTime = lastConversationSwitchTime,
+           Date().timeIntervalSince(switchTime) < 0.6 {
+            Logger.debug("AnalysisCoordinator: Ignoring text change - conversation switch in progress", category: Logger.analysis)
+            return
+        }
+
         let appConfig = AppRegistry.shared.configuration(for: context.bundleIdentifier)
 
         // If no element is being monitored (e.g., browser UI element was detected),
@@ -1371,16 +1686,49 @@ class AnalysisCoordinator: ObservableObject {
 
         // CRITICAL: If text has changed, handle cache invalidation appropriately
         // BUT: Skip this if we're actively applying a replacement - we handle that separately
-        if text != previousText && !isApplyingReplacement {
-            Logger.debug("AnalysisCoordinator: Text changed - hiding overlay immediately for re-analysis", category: Logger.analysis)
-            errorOverlay.hide()
+        // Also check lastReplacementTime for delayed AX notifications that arrive after replacement completes
+        let isInReplacementGracePeriod = lastReplacementTime.map { Date().timeIntervalSince($0) < 1.5 } ?? false
+        if text != previousText && !isApplyingReplacement && !isInReplacementGracePeriod {
+            // Determine if this is normal typing (small change) vs significant change (e.g., switching chats)
+            // For typing, we keep overlays visible to avoid flickering - they'll update after re-analysis
+            // For significant changes, we hide everything immediately
+            let lengthDelta = abs(text.count - previousText.count)
+            let isTyping = lengthDelta <= 5 && (text.hasPrefix(previousText.prefix(max(0, previousText.count - 5))) ||
+                                                  previousText.hasPrefix(text.prefix(max(0, text.count - 5))) ||
+                                                  text.hasSuffix(previousText.suffix(max(0, previousText.count - 5))) ||
+                                                  previousText.hasSuffix(text.suffix(max(0, text.count - 5))))
 
-            // For Electron apps: Clear ALL caches when text changes
+            // When text becomes empty (e.g., message sent in chat app), clear everything
+            // This handles the case where user sends a message and the text field clears
+            if text.isEmpty {
+                Logger.debug("AnalysisCoordinator: Text is now empty - clearing all errors and indicator", category: Logger.analysis)
+                errorOverlay.hide()
+                if !isManualStyleCheckActive {
+                    floatingIndicator.hide()
+                }
+                currentErrors.removeAll()
+                PositionResolver.shared.clearCache()
+            } else if !isTyping {
+                // Text changed significantly (e.g., switching chats) - cached errors are invalid
+                // Hide overlays immediately since they don't apply to the new text
+                Logger.debug("AnalysisCoordinator: Text changed significantly - hiding overlays for re-analysis", category: Logger.analysis)
+                errorOverlay.hide()
+                if !isManualStyleCheckActive {
+                    floatingIndicator.hide()
+                }
+                PositionResolver.shared.clearCache()
+            } else {
+                // Normal typing - keep overlays visible to avoid flickering
+                // Just clear the position cache so underlines update correctly after re-analysis
+                Logger.debug("AnalysisCoordinator: Typing detected - keeping overlays visible, clearing position cache", category: Logger.analysis)
+                PositionResolver.shared.clearCache()
+            }
+
+            // For Electron apps: Clear ALL caches when text changes significantly
             // Electron apps have fragile positioning - byte offsets become invalid when text shifts
             let appConfig = AppRegistry.shared.configuration(for: context.bundleIdentifier)
-            if appConfig.category == .electron || appConfig.category == .browser {
-                Logger.debug("AnalysisCoordinator: Electron app - clearing position cache and errors", category: Logger.analysis)
-                PositionResolver.shared.clearCache()
+            if (appConfig.category == .electron || appConfig.category == .browser) && !isTyping {
+                Logger.debug("AnalysisCoordinator: Electron app significant change - clearing errors", category: Logger.analysis)
                 currentErrors.removeAll()
             }
         } else if text != previousText && isApplyingReplacement {
@@ -1390,7 +1738,7 @@ class AnalysisCoordinator: ObservableObject {
         // Clear style suggestions if the full text has changed from when they were generated
         // This handles the case where user selects text, runs style check, then edits elsewhere
         // The suggestions are only valid for the exact text state they were analyzed against
-        if !currentStyleSuggestions.isEmpty && text != styleAnalysisSourceText && !isApplyingReplacement {
+        if !currentStyleSuggestions.isEmpty && text != styleAnalysisSourceText && !isApplyingReplacement && !isInReplacementGracePeriod {
             Logger.debug("AnalysisCoordinator: Clearing style suggestions - source text changed", category: Logger.analysis)
             currentStyleSuggestions.removeAll()
             styleAnalysisSourceText = ""
@@ -2235,6 +2583,17 @@ class AnalysisCoordinator: ObservableObject {
         let sourceText = currentSegment?.content ?? ""
         applyFilters(to: currentErrors, sourceText: sourceText, element: textMonitor.monitoredElement)
 
+        // Update lastAnalyzedText to reflect the replacement
+        // This prevents validateCurrentText from thinking text changed (triggering re-analysis/hiding)
+        // by computing what the new text should be after applying the replacement
+        if !lastAnalyzedText.isEmpty {
+            let errorRange = lastAnalyzedText.index(lastAnalyzedText.startIndex, offsetBy: min(error.start, lastAnalyzedText.count))..<lastAnalyzedText.index(lastAnalyzedText.startIndex, offsetBy: min(error.end, lastAnalyzedText.count))
+            var updatedText = lastAnalyzedText
+            updatedText.replaceSubrange(errorRange, with: suggestion)
+            lastAnalyzedText = updatedText
+            Logger.debug("removeErrorAndUpdateUI: Updated lastAnalyzedText to reflect replacement", category: Logger.analysis)
+        }
+
         Logger.debug("removeErrorAndUpdateUI: UI updated, remaining errors: \(currentErrors.count)", category: Logger.analysis)
     }
 
@@ -2250,6 +2609,12 @@ class AnalysisCoordinator: ObservableObject {
         }
 
         Logger.debug("Have monitored element, context: \(monitoredContext?.applicationName ?? "nil")", category: Logger.analysis)
+
+        // Mark replacement start time - used by grace period checks to prevent
+        // scroll handling, text validation, and text change handlers from hiding the popover
+        // during and shortly after the replacement. This is set here (at the top level)
+        // to ensure ALL replacement paths (AX API, keyboard, browser) get the protection.
+        lastReplacementTime = Date()
 
         // Set flag to prevent text-change handler from clearing errors during replacement
         isApplyingReplacement = true
@@ -2836,6 +3201,9 @@ class AnalysisCoordinator: ObservableObject {
     private func applyBrowserTextReplacement(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement, context: ApplicationContext, completion: @escaping () -> Void) {
         Logger.debug("Browser text replacement for \(context.applicationName)", category: Logger.analysis)
 
+        // Mark that we're applying a suggestion - prevents typing callback and scroll handling from hiding overlays
+        lastReplacementTime = Date()
+
         // CRITICAL: Look up the CURRENT error position from currentErrors
         // The popover may have stale positions if previous replacements shifted the text
         // Match by message + lintId + category (should uniquely identify the error)
@@ -2846,7 +3214,8 @@ class AnalysisCoordinator: ObservableObject {
         Logger.debug("Browser replacement: Using positions \(currentError.start)-\(currentError.end) (original was \(error.start)-\(error.end))", category: Logger.analysis)
 
         // Get the error text for selection using CURRENT positions
-        let cachedText = self.currentSegment?.content ?? self.previousText
+        // Use lastAnalyzedText which is updated after each replacement to reflect the current text state
+        let cachedText = self.lastAnalyzedText.isEmpty ? (self.currentSegment?.content ?? self.previousText) : self.lastAnalyzedText
         let errorText: String
         if !cachedText.isEmpty && currentError.start < cachedText.count && currentError.end <= cachedText.count {
             let startIdx = cachedText.index(cachedText.startIndex, offsetBy: currentError.start)
