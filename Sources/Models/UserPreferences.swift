@@ -194,7 +194,13 @@ class UserPreferences: ObservableObject {
         "com.apple.Passwords",         // Passwords
         "com.apple.Music",             // Apple Music
         // Hardware device managers
-        "com.logi.cp-dev-mgr"          // Logitech Device Manager
+        "com.logi.cp-dev-mgr",          // Logitech Device Manager
+        "pro.betterdisplay.BetterDisplay",  // BetterDisplay
+        "com.electron.dockerdesktop",       // Docker Desktop
+        "com.grammarly.ProjectLlama",       // Grammarly
+        "org.inkscape.Inkscape",            // Inkscape
+        "com.microsoft.OneDrive",           // OneDrive
+        "com.alienator88.Pearcleaner"       // Pearcleaner
     ]
 
     /// Custom words to ignore
@@ -274,13 +280,16 @@ class UserPreferences: ObservableObject {
         "dev.warp.Warp-Stable",
         "org.alacritty",
         "net.kovidgoyal.kitty",
-        "com.github.wez.wezterm"
+        "com.github.wez.wezterm",
+        "com.mitchellh.ghostty"
     ]
 
     /// Applications paused by default (users can enable them in Applications preferences)
     /// These apps are set to .indefinite pause on first run because grammar checking is typically not useful
     static let defaultPausedApplications: Set<String> = [
-        "com.apple.iCal"  // Apple Calendar
+        "com.apple.iCal",               // Apple Calendar
+        "com.todesktop.230313mzl4w4u92", // Cursor IDE
+        "com.exafunction.windsurf"      // Windsurf IDE
     ]
 
     /// Always open settings window in foreground on launch

@@ -170,7 +170,8 @@ extension ApplicationContext {
         "dev.warp.Warp-Stable",
         "org.alacritty",
         "net.kovidgoyal.kitty",
-        "com.github.wez.wezterm"
+        "com.github.wez.wezterm",
+        "com.mitchellh.ghostty"
     ]
 
     /// Check if this is an Electron-based application
