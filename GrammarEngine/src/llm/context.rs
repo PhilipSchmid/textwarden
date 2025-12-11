@@ -14,6 +14,8 @@ use crate::llm_types::{
     AcceptancePattern, LearnedTerm, LearnedTermSource, RejectionCategory, RejectionPattern,
     StyleTemplate, UserWritingContext,
 };
+use serde_json::Error as SerdeError;
+use tracing::warn;
 
 /// Maximum number of learned terms to keep
 const MAX_LEARNED_TERMS: usize = 5000;
@@ -48,8 +50,23 @@ impl ContextManager {
 
     /// Load context from disk
     fn load_context(path: &PathBuf) -> Option<UserWritingContext> {
-        let content = fs::read_to_string(path).ok()?;
-        serde_json::from_str(&content).ok()
+        match fs::read_to_string(path) {
+            Ok(content) => match serde_json::from_str(&content) {
+                Ok(ctx) => Some(ctx),
+                Err(err) => {
+                    preserve_corrupted_context(path, &content, &err);
+                    None
+                }
+            },
+            Err(err) => {
+                warn!(
+                    "Failed to read context file {}: {}",
+                    path.display(),
+                    err
+                );
+                None
+            }
+        }
     }
 
     /// Save context to disk
@@ -250,6 +267,42 @@ impl ContextManager {
     /// Get the full context for prompt building
     pub fn get_context(&self) -> &UserWritingContext {
         &self.context
+    }
+}
+
+/// Persist corrupted context content for later inspection and emit a warning
+fn preserve_corrupted_context(path: &PathBuf, content: &str, err: &SerdeError) {
+    if let Some(parent) = path.parent() {
+        let filename = path
+            .file_name()
+            .map(|f| f.to_string_lossy().to_string())
+            .unwrap_or_else(|| "user_context.json".to_string());
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let backup = parent.join(format!("{}.corrupted.{}", filename, timestamp));
+
+        match fs::write(&backup, content) {
+            Ok(_) => warn!(
+                "Context file corrupted at {}: {}. Backed up to {}",
+                path.display(),
+                err,
+                backup.display()
+            ),
+            Err(write_err) => warn!(
+                "Context file corrupted at {}: {}. Backup failed: {}",
+                path.display(),
+                err,
+                write_err
+            ),
+        }
+    } else {
+        warn!(
+            "Context file corrupted at {}: {}; backup skipped (no parent directory)",
+            path.display(),
+            err
+        );
     }
 }
 
