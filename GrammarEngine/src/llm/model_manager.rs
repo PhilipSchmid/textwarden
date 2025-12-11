@@ -3,15 +3,39 @@
 // Handles model discovery and validation of local model files.
 // Note: Downloads are handled by Swift's URLSession for proper progress reporting.
 
-use std::{fs, io::Read, path::PathBuf};
+use std::{
+    fs,
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 use crate::llm::config::{default_model_id, get_model_config, AVAILABLE_MODELS};
 use crate::llm_types::ModelInfo;
+use sha2::{Digest, Sha256};
 use tracing::warn;
 
 /// GGUF file expectations
 const GGUF_MAGIC: [u8; 4] = [0x47, 0x47, 0x55, 0x46];
 const MIN_GGUF_SIZE: u64 = 1024;
+
+fn compute_sha256(path: &Path) -> Result<String, String> {
+    let mut file =
+        fs::File::open(path).map_err(|e| format!("Failed to open {}: {}", path.display(), e))?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0u8; 8192];
+
+    loop {
+        let bytes_read = file
+            .read(&mut buffer)
+            .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
+        if bytes_read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..bytes_read]);
+    }
+
+    Ok(format!("{:x}", hasher.finalize()))
+}
 
 /// Manager for LLM model files
 pub struct ModelManager {
@@ -128,6 +152,35 @@ impl ModelManager {
                 version,
                 path.display()
             ));
+        }
+
+        // If a checksum file is present (filename + .sha256), verify it
+        if let Some(file_name) = path.file_name() {
+            let checksum_path =
+                path.with_file_name(format!("{}.sha256", file_name.to_string_lossy()));
+            if checksum_path.exists() {
+                let expected = fs::read_to_string(&checksum_path).map_err(|e| {
+                    format!("Failed to read checksum {}: {}", checksum_path.display(), e)
+                })?;
+                let expected = expected.trim().to_lowercase();
+
+                if expected.len() != 64 || !expected.chars().all(|c| c.is_ascii_hexdigit()) {
+                    return Err(format!(
+                        "Checksum file {} is not a valid SHA256 hex string",
+                        checksum_path.display()
+                    ));
+                }
+
+                let actual = compute_sha256(&path)?;
+                if actual != expected {
+                    return Err(format!(
+                        "Checksum mismatch for {}: expected {}, got {}",
+                        path.display(),
+                        expected,
+                        actual
+                    ));
+                }
+            }
         }
 
         Ok(true)
