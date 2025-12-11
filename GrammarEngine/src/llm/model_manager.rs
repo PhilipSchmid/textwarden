@@ -3,12 +3,15 @@
 // Handles model discovery and validation of local model files.
 // Note: Downloads are handled by Swift's URLSession for proper progress reporting.
 
-use std::fs;
-use std::path::PathBuf;
+use std::{fs, io::Read, path::PathBuf};
 
 use crate::llm::config::{default_model_id, get_model_config, AVAILABLE_MODELS};
 use crate::llm_types::ModelInfo;
 use tracing::warn;
+
+/// GGUF file expectations
+const GGUF_MAGIC: [u8; 4] = [0x47, 0x47, 0x55, 0x46];
+const MIN_GGUF_SIZE: u64 = 1024;
 
 /// Manager for LLM model files
 pub struct ModelManager {
@@ -83,7 +86,51 @@ impl ModelManager {
         let min_size = (config.size_bytes as f64 * 0.9) as u64;
         let max_size = (config.size_bytes as f64 * 1.1) as u64;
 
-        Ok(actual_size >= min_size && actual_size <= max_size)
+        if actual_size < MIN_GGUF_SIZE {
+            return Err(format!(
+                "Model file too small to be valid GGUF ({} bytes): {}",
+                actual_size,
+                path.display()
+            ));
+        }
+
+        if !(min_size..=max_size).contains(&actual_size) {
+            return Ok(false);
+        }
+
+        // Validate GGUF magic and version to guard against corrupted downloads/imports
+        let mut file = fs::File::open(&path)
+            .map_err(|e| format!("Failed to open model file {}: {}", path.display(), e))?;
+
+        let mut magic = [0u8; 4];
+        file.read_exact(&mut magic)
+            .map_err(|e| format!("Failed to read GGUF magic from {}: {}", path.display(), e))?;
+        if magic != GGUF_MAGIC {
+            return Err(format!(
+                "Invalid GGUF magic in {}: expected GGUF, got {:02X?}",
+                path.display(),
+                magic
+            ));
+        }
+
+        let mut version_bytes = [0u8; 4];
+        file.read_exact(&mut version_bytes).map_err(|e| {
+            format!(
+                "Failed to read GGUF version from {}: {}",
+                path.display(),
+                e
+            )
+        })?;
+        let version = u32::from_le_bytes(version_bytes);
+        if version == 0 || version > 10 {
+            return Err(format!(
+                "Unsupported GGUF version {} in {}",
+                version,
+                path.display()
+            ));
+        }
+
+        Ok(true)
     }
 
     /// Scan for all available models and their download status
