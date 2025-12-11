@@ -155,22 +155,19 @@ fn build_rejection_context(patterns: &[RejectionPattern], current_style: StyleTe
 ///
 /// Returns a vector of (original, suggested, explanation) tuples
 pub fn parse_llm_response(response: &str) -> Result<Vec<ParsedSuggestion>, ParseError> {
-    // Log at Info level to see what the LLM is actually returning
+    // Log only metadata to avoid leaking user text
     tracing::info!(
-        "parse_llm_response: Raw response ({} chars): {}",
-        response.len(),
-        response
+        "parse_llm_response: Received response_len={}",
+        response.len()
     );
 
     // Try to extract JSON from the response (LLM might include extra text)
     let json_str = extract_json(response)?;
 
-    // Log first 10 bytes as hex for debugging parse errors
-    let first_bytes: Vec<u8> = json_str.bytes().take(20).collect();
-    tracing::info!(
-        "parse_llm_response: Extracted JSON ({} chars), first 20 bytes: {:02x?}",
-        json_str.len(),
-        first_bytes
+    // Record JSON length to aid debugging without exposing content
+    tracing::debug!(
+        "parse_llm_response: Extracted JSON len={}",
+        json_str.len()
     );
 
     // First try parsing as the expected format {"suggestions": [...]}

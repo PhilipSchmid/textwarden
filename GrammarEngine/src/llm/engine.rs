@@ -273,18 +273,18 @@ impl LlmEngine {
             generate_elapsed,
             response.len()
         );
-        tracing::debug!("LlmEngine::analyze_style: Raw response: {}", response);
 
         // Parse the response
         let parsed = parse_llm_response(&response).map_err(|e| {
-            // Include truncated raw response in error for debugging
-            let preview: String = response.chars().take(500).collect();
             tracing::error!(
-                "LlmEngine::analyze_style: Failed to parse response: {}. Raw response preview: {}",
+                "LlmEngine::analyze_style: Failed to parse response: {} (len={})",
                 e,
-                preview
+                response.len()
             );
-            format!("Failed to parse LLM response: {e}. Raw response preview: {preview}")
+            format!(
+                "Failed to parse LLM response: {e}. response_len={}",
+                response.len()
+            )
         })?;
 
         tracing::debug!(
