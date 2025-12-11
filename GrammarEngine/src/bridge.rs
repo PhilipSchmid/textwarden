@@ -9,7 +9,7 @@ use crate::analyzer;
 use crate::llm_types;
 use crate::swift_logger::{register_swift_callback, SwiftLogCallback, SwiftLoggerLayer};
 use std::sync::Once;
-use sysinfo::System;
+use sysinfo::{Pid, System};
 use tracing::Level;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
@@ -240,6 +240,17 @@ mod ffi {
     }
 }
 
+/// Lightweight helper to read current process memory in bytes
+fn read_process_memory(pid: Option<Pid>) -> u64 {
+    if let Some(pid) = pid {
+        let mut sys = System::new();
+        if sys.refresh_process(pid) {
+            return sys.process(pid).map(|p| p.memory()).unwrap_or(0);
+        }
+    }
+    0
+}
+
 // FFI type implementations
 #[derive(Clone)]
 pub struct GrammarError {
@@ -394,15 +405,8 @@ fn analyze_text(
         enable_language_detection
     );
 
-    // Capture memory before analysis
-    let mut sys_before = System::new_all();
-    sys_before.refresh_all();
-
     let pid = sysinfo::get_current_pid().ok();
-    let memory_before = pid
-        .and_then(|p| sys_before.process(p))
-        .map(|p| p.memory())
-        .unwrap_or(0);
+    let memory_before = read_process_memory(pid);
 
     let result = analyzer::analyze_text(
         &text,
@@ -419,13 +423,7 @@ fn analyze_text(
     );
 
     // Capture memory after analysis
-    let mut sys_after = System::new_all();
-    sys_after.refresh_all();
-
-    let memory_after = pid
-        .and_then(|p| sys_after.process(p))
-        .map(|p| p.memory())
-        .unwrap_or(0);
+    let memory_after = read_process_memory(pid);
 
     let memory_delta = (memory_after as i64) - (memory_before as i64);
 
