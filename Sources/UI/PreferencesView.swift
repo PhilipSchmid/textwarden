@@ -1253,6 +1253,18 @@ struct ApplicationSettingsView: View {
                                 .frame(width: 200)
                                 .help("Set pause duration for \(app.name)")
 
+                                // Underline toggle button
+                                Button {
+                                    let currentlyEnabled = preferences.areUnderlinesEnabled(for: app.bundleIdentifier)
+                                    preferences.setUnderlinesEnabled(!currentlyEnabled, for: app.bundleIdentifier)
+                                } label: {
+                                    Image(systemName: preferences.areUnderlinesEnabled(for: app.bundleIdentifier) ? "underline" : "underline")
+                                        .foregroundColor(preferences.areUnderlinesEnabled(for: app.bundleIdentifier) ? .accentColor : .secondary)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                .help(preferences.areUnderlinesEnabled(for: app.bundleIdentifier) ? "Disable underlines for \(app.name)" : "Enable underlines for \(app.name)")
+
                                 // Hide button
                                 Button {
                                     hideApplication(app.bundleIdentifier)

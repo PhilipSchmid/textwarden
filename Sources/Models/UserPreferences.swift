@@ -114,6 +114,16 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Applications where underlines are disabled (user preference override)
+    /// This allows users to disable underlines for specific apps while keeping grammar checking active
+    @Published var appUnderlinesDisabled: Set<String> {
+        didSet {
+            if let encoded = try? encoder.encode(appUnderlinesDisabled) {
+                defaults.set(encoded, forKey: Keys.appUnderlinesDisabled)
+            }
+        }
+    }
+
     /// Disabled websites (domains where grammar checking is disabled)
     /// Supports exact matches (e.g., "github.com") and wildcard patterns (e.g., "*.google.com")
     @Published var disabledWebsites: Set<String> {
@@ -593,6 +603,7 @@ class UserPreferences: ObservableObject {
         self.disabledApplications = []
         self.discoveredApplications = []
         self.hiddenApplications = UserPreferences.defaultHiddenApplications
+        self.appUnderlinesDisabled = []
         self.disabledWebsites = []
         self.appPauseDurations = [:]
         self.appPausedUntil = [:]
@@ -662,6 +673,11 @@ class UserPreferences: ObservableObject {
         if let data = defaults.data(forKey: Keys.hiddenApplications),
            let set = try? decoder.decode(Set<String>.self, from: data) {
             self.hiddenApplications = set
+        }
+
+        if let data = defaults.data(forKey: Keys.appUnderlinesDisabled),
+           let set = try? decoder.decode(Set<String>.self, from: data) {
+            self.appUnderlinesDisabled = set
         }
 
         if let data = defaults.data(forKey: Keys.disabledWebsites),
@@ -914,6 +930,21 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Check if underlines are enabled for a specific application
+    /// Returns true if underlines should be shown (not in the disabled set)
+    func areUnderlinesEnabled(for bundleIdentifier: String) -> Bool {
+        return !appUnderlinesDisabled.contains(bundleIdentifier)
+    }
+
+    /// Set whether underlines are enabled for a specific application
+    func setUnderlinesEnabled(_ enabled: Bool, for bundleIdentifier: String) {
+        if enabled {
+            appUnderlinesDisabled.remove(bundleIdentifier)
+        } else {
+            appUnderlinesDisabled.insert(bundleIdentifier)
+        }
+    }
+
     // MARK: - Website Management
 
     /// Check if grammar checking is enabled for a specific URL
@@ -1100,6 +1131,7 @@ class UserPreferences: ObservableObject {
         static let disabledApplications = "disabledApplications"
         static let discoveredApplications = "discoveredApplications"
         static let hiddenApplications = "hiddenApplications"
+        static let appUnderlinesDisabled = "appUnderlinesDisabled"
         static let disabledWebsites = "disabledWebsites"
         static let appPauseDurations = "appPauseDurations"
         static let appPausedUntil = "appPausedUntil"
