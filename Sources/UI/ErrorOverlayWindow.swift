@@ -215,6 +215,14 @@ class ErrorOverlayWindow: NSPanel {
             return 0
         }
 
+        // Check error count threshold - hide underlines when there are too many errors
+        let maxErrors = UserPreferences.shared.maxErrorsForUnderlines
+        if errors.count > maxErrors {
+            Logger.info("ErrorOverlay: Error count (\(errors.count)) exceeds threshold (\(maxErrors)) - hiding underlines")
+            hide()
+            return 0
+        }
+
         // Check per-app underlines setting
         let underlinesDisabled = !appConfig.features.visualUnderlinesEnabled
         Logger.info("ErrorOverlay: Using parser '\(parser.parserName)' for bundleID '\(bundleID)', underlinesDisabled=\(underlinesDisabled)")

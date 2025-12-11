@@ -1995,9 +1995,27 @@ struct GeneralPreferencesView: View {
                         Slider(value: $preferences.underlineThickness, in: 1.0...5.0, step: 0.5)
                     }
                     .padding(.top, 4)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Hide when errors exceed:")
+                            Spacer()
+                            Text("\(preferences.maxErrorsForUnderlines)")
+                                .foregroundColor(.secondary)
+                        }
+                        Slider(
+                            value: Binding(
+                                get: { Double(preferences.maxErrorsForUnderlines) },
+                                set: { preferences.maxErrorsForUnderlines = Int($0) }
+                            ),
+                            in: 1...20,
+                            step: 1
+                        )
+                    }
+                    .padding(.top, 4)
                 }
 
-                Text("Underlines are only shown in applications with proper accessibility API support (e.g., native macOS apps, Slack, Notion). Some apps like Microsoft Teams and web browsers don't provide accurate text positioning, so only the floating error indicator is used.")
+                Text("Underlines are only shown in applications with proper accessibility API support (e.g., native macOS apps, Slack, Notion). Some apps like Microsoft Teams and web browsers don't provide accurate text positioning, so only the floating error indicator is used. When the error count exceeds the threshold above, underlines are hidden to reduce visual clutter.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             } header: {

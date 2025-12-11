@@ -462,6 +462,14 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Maximum number of errors before hiding underlines and showing only the indicator
+    /// When error count exceeds this threshold, underlines are hidden to reduce visual clutter
+    @Published var maxErrorsForUnderlines: Int {
+        didSet {
+            defaults.set(maxErrorsForUnderlines, forKey: Keys.maxErrorsForUnderlines)
+        }
+    }
+
     /// Error indicator position in Terminal and other apps
     @Published var indicatorPosition: String {
         didSet {
@@ -614,6 +622,7 @@ class UserPreferences: ObservableObject {
         self.overlayTheme = "System"
         self.showUnderlines = true
         self.underlineThickness = 3.0
+        self.maxErrorsForUnderlines = 10
         self.indicatorPosition = "Bottom Right"
 
         // Diagnostics
@@ -728,6 +737,7 @@ class UserPreferences: ObservableObject {
         }
         self.showUnderlines = defaults.object(forKey: Keys.showUnderlines) as? Bool ?? true
         self.underlineThickness = defaults.object(forKey: Keys.underlineThickness) as? Double ?? 3.0
+        self.maxErrorsForUnderlines = defaults.object(forKey: Keys.maxErrorsForUnderlines) as? Int ?? 10
         self.indicatorPosition = defaults.string(forKey: Keys.indicatorPosition) ?? "Bottom Right"
 
         // Diagnostics
@@ -1078,6 +1088,7 @@ class UserPreferences: ObservableObject {
         overlayTheme = "System"
         showUnderlines = true
         underlineThickness = 3.0
+        maxErrorsForUnderlines = 10
         indicatorPosition = "Bottom Right"
     }
 
@@ -1121,6 +1132,7 @@ class UserPreferences: ObservableObject {
         static let overlayTheme = "overlayTheme"
         static let showUnderlines = "showUnderlines"
         static let underlineThickness = "underlineThickness"
+        static let maxErrorsForUnderlines = "maxErrorsForUnderlines"
         static let indicatorPosition = "indicatorPosition"
 
         // Diagnostics
