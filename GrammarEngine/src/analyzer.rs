@@ -415,6 +415,16 @@ mod tests {
     use super::*;
     use harper_core::DictWordMetadata;
 
+    // Silence noisy test output unless explicitly requested
+    #[allow(unused_macros)]
+    macro_rules! println {
+        ($($arg:tt)*) => {{
+            if std::env::var("TEXTWARDEN_TEST_LOG").is_ok() {
+                std::println!($($arg)*);
+            }
+        }};
+    }
+
     #[test]
     fn test_dictionary_contains_abbreviations() {
         // Test that our dictionary loading works correctly
