@@ -165,10 +165,7 @@ pub fn parse_llm_response(response: &str) -> Result<Vec<ParsedSuggestion>, Parse
     let json_str = extract_json(response)?;
 
     // Record JSON length to aid debugging without exposing content
-    tracing::debug!(
-        "parse_llm_response: Extracted JSON len={}",
-        json_str.len()
-    );
+    tracing::debug!("parse_llm_response: Extracted JSON len={}", json_str.len());
 
     // First try parsing as the expected format {"suggestions": [...]}
     if let Ok(parsed) = serde_json::from_str::<LlmResponse>(&json_str) {

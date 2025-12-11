@@ -59,11 +59,7 @@ impl ContextManager {
                 }
             },
             Err(err) => {
-                warn!(
-                    "Failed to read context file {}: {}",
-                    path.display(),
-                    err
-                );
+                warn!("Failed to read context file {}: {}", path.display(), err);
                 None
             }
         }
