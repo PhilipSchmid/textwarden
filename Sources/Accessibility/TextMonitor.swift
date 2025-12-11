@@ -285,10 +285,16 @@ class TextMonitor: ObservableObject {
             AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
             let roleString = role as? String ?? "Unknown"
 
-            let readOnlyRoles = [
-                kAXStaticTextRole as String,
-                "AXScrollArea",
-                "AXLayoutArea"
+            // Roles that are definitively non-editable - don't retry, clear monitoring immediately
+            // This ensures overlays hide promptly when focus moves to navigation elements
+            let readOnlyRoles: Set<String> = [
+                kAXStaticTextRole as String,  // Static labels
+                "AXScrollArea",               // Scroll containers
+                "AXLayoutArea",               // Layout containers
+                "AXTable",                    // Tables (e.g., WebEx conversation list)
+                "AXWindow",                   // Window itself
+                "AXList",                     // List views
+                "AXOutline"                   // Tree/outline views (e.g., sidebar navigation)
             ]
 
             // Only retry if it's not explicitly a read-only role (e.g., AXGroup might become editable)
@@ -298,7 +304,17 @@ class TextMonitor: ObservableObject {
                 }
                 Logger.debug("TextMonitor: Element not editable yet (role: \(roleString)), will retry...", category: Logger.accessibility)
             } else {
-                Logger.debug("TextMonitor: Skipping non-editable element (role: \(roleString))", category: Logger.accessibility)
+                Logger.debug("TextMonitor: Skipping non-editable element (role: \(roleString)) - clearing monitoring", category: Logger.accessibility)
+                // Clear monitoring and notify to hide overlays - focus moved to non-editable element
+                if let previousElement = monitoredElement {
+                    AXObserverRemoveNotification(observer, previousElement, kAXValueChangedNotification as CFString)
+                }
+                monitoredElement = nil
+                currentText = ""
+                // Notify that we've stopped monitoring (this will trigger overlay hiding)
+                if let context = currentContext {
+                    onTextChange?("", context)
+                }
             }
             return
         }
