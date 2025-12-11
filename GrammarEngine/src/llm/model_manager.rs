@@ -138,13 +138,8 @@ impl ModelManager {
         }
 
         let mut version_bytes = [0u8; 4];
-        file.read_exact(&mut version_bytes).map_err(|e| {
-            format!(
-                "Failed to read GGUF version from {}: {}",
-                path.display(),
-                e
-            )
-        })?;
+        file.read_exact(&mut version_bytes)
+            .map_err(|e| format!("Failed to read GGUF version from {}: {}", path.display(), e))?;
         let version = u32::from_le_bytes(version_bytes);
         if version == 0 || version > 10 {
             return Err(format!(
@@ -277,6 +272,7 @@ impl ModelManager {
 mod tests {
     use super::*;
     use std::env;
+    use std::io::Write;
 
     fn create_test_manager() -> ModelManager {
         let temp_dir = env::temp_dir().join("textwarden_model_test");
@@ -321,5 +317,24 @@ mod tests {
 
         assert!(manager.model_path("nonexistent").is_none());
         assert!(!manager.is_model_downloaded("nonexistent"));
+    }
+
+    #[test]
+    fn test_compute_sha256_matches_known_digest() {
+        let dir = env::temp_dir().join("textwarden_model_checksum_test");
+        let _ = fs::create_dir_all(&dir);
+        let path = dir.join("sample.bin");
+
+        let mut file = fs::File::create(&path).expect("create sample file");
+        file.write_all(b"hello world")
+            .expect("write sample content");
+
+        let digest = compute_sha256(&path).expect("compute checksum");
+        assert_eq!(
+            digest,
+            "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+        );
+
+        let _ = fs::remove_file(path);
     }
 }
