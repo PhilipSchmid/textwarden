@@ -6,6 +6,14 @@
 /// Minimum number of words required for a sentence to be analyzed
 pub const MIN_WORDS_FOR_ANALYSIS: usize = 5;
 
+fn is_sentence_terminator(ch: char) -> bool {
+    matches!(
+        ch,
+        '.' | '!' | '?' | '…' // ASCII punctuation and ellipsis
+            | '。' | '！' | '？' // Common CJK sentence endings
+    )
+}
+
 /// Extract complete sentences from text
 ///
 /// A sentence is considered complete if it:
@@ -21,8 +29,8 @@ pub fn extract_complete_sentences(text: &str) -> Vec<SentenceSpan> {
     for (i, char) in text.char_indices() {
         current.push(char);
 
-        // Check for sentence terminators
-        let is_terminator = char == '.' || char == '!' || char == '?';
+        // Check for sentence terminators (ASCII, ellipsis, and common Unicode marks)
+        let is_terminator = is_sentence_terminator(char);
         let is_paragraph_break = char == '\n' && current.trim().len() > 1;
 
         if is_terminator || is_paragraph_break {
@@ -67,7 +75,7 @@ pub fn ends_with_complete_sentence(text: &str) -> bool {
     }
 
     let last_char = trimmed.chars().last().unwrap_or(' ');
-    let is_terminated = last_char == '.' || last_char == '!' || last_char == '?';
+    let is_terminated = is_sentence_terminator(last_char);
 
     if !is_terminated {
         return false;
@@ -148,6 +156,24 @@ mod tests {
         let sentences = extract_complete_sentences(text);
 
         assert_eq!(sentences.len(), 2);
+    }
+
+    #[test]
+    fn test_unicode_sentence_endings() {
+        let text = "これは十分な単語数の文です。これは別の文です！これは質問です？";
+        let sentences = extract_complete_sentences(text);
+
+        assert_eq!(sentences.len(), 3);
+        assert!(ends_with_complete_sentence(text));
+    }
+
+    #[test]
+    fn test_ellipsis_sentence_end() {
+        let text = "This trail ends with an ellipsis… Here comes another sentence.";
+        let sentences = extract_complete_sentences(text);
+
+        assert_eq!(sentences.len(), 2);
+        assert!(ends_with_complete_sentence(text));
     }
 
     #[test]
