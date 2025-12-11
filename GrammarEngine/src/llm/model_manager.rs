@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 use crate::llm::config::{default_model_id, get_model_config, AVAILABLE_MODELS};
 use crate::llm_types::ModelInfo;
+use tracing::warn;
 
 /// Manager for LLM model files
 pub struct ModelManager {
@@ -22,7 +23,11 @@ impl ModelManager {
 
         // Ensure models directory exists
         if let Err(e) = fs::create_dir_all(&models_dir) {
-            eprintln!("Warning: Failed to create models directory: {e}");
+            warn!(
+                "Failed to create models directory: {} (path={})",
+                e,
+                models_dir.display()
+            );
         }
 
         Self {
