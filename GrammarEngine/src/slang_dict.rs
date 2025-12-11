@@ -16,11 +16,12 @@ pub enum WordlistCategory {
     GenZSlang,
     /// IT and technical terminology (API, JSON, localhost, kubernetes, etc.)
     ITTerminology,
-    // Future wordlists can be added here:
-    // /// Medical terminology (diagnosis, medication, etc.)
-    // MedicalTerms,
-    // /// Legal terminology (plaintiff, defendant, jurisdiction, etc.)
-    // LegalTerms,
+    /// Brand and product names with correct capitalization (iPhone, GitHub, eBay, etc.)
+    BrandNames,
+    /// International first names from US SSA and 106 countries
+    PersonNames,
+    /// US Census Bureau surnames (last names)
+    LastNames,
 }
 
 /// Metadata about a wordlist
@@ -53,6 +54,24 @@ impl WordlistCategory {
                 description: "Technical IT terms from NIST, IANA, Linux, CNCF, and more",
                 word_count_estimate: 10000,
             },
+            WordlistCategory::BrandNames => WordlistInfo {
+                category: *self,
+                name: "Brand Names",
+                description: "Fortune 500, Forbes 2000, and technology brand names",
+                word_count_estimate: 2400,
+            },
+            WordlistCategory::PersonNames => WordlistInfo {
+                category: *self,
+                name: "Person Names",
+                description: "International first names from US SSA and 106 countries",
+                word_count_estimate: 100000,
+            },
+            WordlistCategory::LastNames => WordlistInfo {
+                category: *self,
+                name: "Last Names",
+                description: "US Census Bureau surnames (151,670 names)",
+                word_count_estimate: 151670,
+            },
         }
     }
 
@@ -72,6 +91,18 @@ impl WordlistCategory {
             WordlistCategory::ITTerminology => {
                 const IT_TERMS: &str = include_str!("../wordlists/it_terminology.txt");
                 load_words_lowercase_only(IT_TERMS)
+            }
+            WordlistCategory::BrandNames => {
+                const BRAND_NAMES: &str = include_str!("../wordlists/brand_names.txt");
+                load_words_lowercase_only(BRAND_NAMES)
+            }
+            WordlistCategory::PersonNames => {
+                const PERSON_NAMES: &str = include_str!("../wordlists/person_names.txt");
+                load_words_lowercase_only(PERSON_NAMES)
+            }
+            WordlistCategory::LastNames => {
+                const LAST_NAMES: &str = include_str!("../wordlists/last_names.txt");
+                load_words_lowercase_only(LAST_NAMES)
             }
         }
     }
@@ -454,5 +485,126 @@ mod tests {
             term_strings.contains(&"prometheus".to_string()),
             "Should contain CNCF tech 'prometheus'"
         );
+    }
+
+    #[test]
+    fn test_load_brand_names() {
+        let brands = WordlistCategory::BrandNames.load_words();
+
+        // Should have loaded brand names from Fortune 500 + Forbes 2000 + curated brands
+        assert!(brands.len() > 2000, "Should have 2000+ brand names");
+
+        let brand_strings: Vec<String> = brands
+            .iter()
+            .map(|(chars, _)| chars.iter().collect())
+            .collect();
+
+        // Test special capitalization brands (stored lowercase, Harper matches case-insensitively)
+        assert!(
+            brand_strings.contains(&"iphone".to_string()),
+            "Should contain 'iphone'"
+        );
+        assert!(
+            brand_strings.contains(&"github".to_string()),
+            "Should contain 'github'"
+        );
+        assert!(
+            brand_strings.contains(&"ebay".to_string()),
+            "Should contain 'ebay'"
+        );
+        assert!(
+            brand_strings.contains(&"macos".to_string()),
+            "Should contain 'macos'"
+        );
+
+        // Standard brands
+        assert!(
+            brand_strings.contains(&"apple".to_string()),
+            "Should contain 'apple'"
+        );
+        assert!(
+            brand_strings.contains(&"microsoft".to_string()),
+            "Should contain 'microsoft'"
+        );
+        assert!(
+            brand_strings.contains(&"amazon".to_string()),
+            "Should contain 'amazon'"
+        );
+
+        println!("Loaded {} brand names", brands.len());
+    }
+
+    #[test]
+    fn test_load_person_names() {
+        let names = WordlistCategory::PersonNames.load_words();
+
+        // Should have loaded many names from US SSA and 106 countries
+        assert!(names.len() > 100000, "Should have 100000+ person names");
+
+        let name_strings: Vec<String> = names
+            .iter()
+            .map(|(chars, _)| chars.iter().collect())
+            .collect();
+
+        // Test common international names (stored lowercase)
+        assert!(
+            name_strings.contains(&"muhammad".to_string()),
+            "Should contain 'muhammad'"
+        );
+        assert!(
+            name_strings.contains(&"maria".to_string()),
+            "Should contain 'maria'"
+        );
+        assert!(
+            name_strings.contains(&"ahmed".to_string()),
+            "Should contain 'ahmed'"
+        );
+        assert!(
+            name_strings.contains(&"sophia".to_string()),
+            "Should contain 'sophia'"
+        );
+        assert!(
+            name_strings.contains(&"oliver".to_string()),
+            "Should contain 'oliver'"
+        );
+
+        println!("Loaded {} person names", names.len());
+    }
+
+    #[test]
+    fn test_load_last_names() {
+        let names = WordlistCategory::LastNames.load_words();
+
+        // Should have loaded many surnames from US Census
+        assert!(names.len() > 150000, "Should have 150000+ last names");
+
+        let name_strings: Vec<String> = names
+            .iter()
+            .map(|(chars, _)| chars.iter().collect())
+            .collect();
+
+        // Test common surnames (stored lowercase)
+        assert!(
+            name_strings.contains(&"smith".to_string()),
+            "Should contain 'smith'"
+        );
+        assert!(
+            name_strings.contains(&"johnson".to_string()),
+            "Should contain 'johnson'"
+        );
+        assert!(
+            name_strings.contains(&"williams".to_string()),
+            "Should contain 'williams'"
+        );
+        assert!(
+            name_strings.contains(&"garcia".to_string()),
+            "Should contain 'garcia'"
+        );
+        assert!(
+            name_strings.contains(&"martinez".to_string()),
+            "Should contain 'martinez'"
+        );
+
+        println!("Loaded {} last names", names.len());
     }
 }

@@ -1,0 +1,2443 @@
+# Brand and Product Names
+# Curated from authoritative sources including:
+# - Interbrand Best Global Brands (https://interbrand.com/best-global-brands/)
+# - Brand Finance Global 500 (https://brandirectory.com/)
+# - Fortune 500 (https://github.com/cmusam/fortune500)
+# - Forbes Global 2000 (https://github.com/vincentarelbundock/Rdatasets)
+# - Official brand style guides
+# Contains ~2,400 brand/company names for spell checking
+# One brand per line
+
+3M
+A-Mark Precious Metals
+Aareal Bank
+ABB Group
+Abbey National
+Abbott Laboratories
+AbbVie
+Abercrombie & Fitch
+Abertis Infraestructuras
+Abitibi Consolidated
+ABM Industries
+ABN-Amro Holding
+ABSA Group
+Accenture
+Acciona
+Accor
+ACE
+Acer
+Acerinox
+Acom
+ACS Group
+Activision Blizzard
+Adecco
+Adidas
+adidas-Salomon
+Adobe
+Adobe Systems
+Adolph Coors
+ADP
+Advance Auto Parts
+Advanced Info Service
+Advanced Micro
+AdvancePCS
+Advantest
+AECOM
+Aegon Insurance Group
+AEM
+Aeon
+AES
+Aetna
+Affiliated Computer
+Aflac
+AG Edwards
+AGCO
+Agere Systems
+Agfa-Gevaert
+Agilent Technologies
+Agricultural Bank Greece
+Ahold
+Aichi Bank
+Aiful
+AIG
+Aioi Insurance
+Air Canada
+Air France Group
+Air Prods & Chems
+Air Products & Chemicals
+Aire Liquide Group
+Airtable
+Aisin Seiki
+Ajinomoto
+AK Steel Holding
+Aker Kvaerner
+Akita Bank
+Akzo Nobel Group
+Alaska Air Group
+Alberto-Culver
+Albertsons
+Albertsons Cos.
+Alcan
+Alcatel
+Alcoa
+ALFA
+Alibaba
+Alitalia Group
+All Nippon Airways
+Alleghany
+Allegheny Energy
+Allergan
+Allete
+Alliance & Leicester
+Alliance Data Systems
+Alliance UniChem
+Alliant Energy
+Alliant Techsystems
+Allianz Worldwide
+Allied Domecq
+Allied Irish Banks
+Allied Waste Inds
+Allmerica Financial
+Allstate
+Alltel
+Ally Financial
+Almanij
+Alpha Bank
+Alphabet
+Alps Electric
+Alstom
+Altadis
+Altana
+Altera
+Altria Group
+Aluminum Corp of China
+Amadeus Global Travel
+Amazon
+Amazon.com
+AMB Property
+Ambac Financial Group
+AmBev
+Amcor
+AMD
+Amdocs
+AMEC
+Amer Power Conversion
+Amerada Hess
+Ameren
+America Telecom
+American Airlines Group
+American Axle & Manufacturing
+American Axle & Mfg
+American Electric
+American Electric Power
+American Express
+American Family Insurance Group
+American Financial Group
+American Finl Group
+American Intl Group
+American Natl Ins
+American Standard
+American Tower
+AmeriCredit
+Ameriprise Financial
+AmerisourceBergen
+Ameritrade Holding
+Amersham
+AmerUs Group
+Amgen
+AMMB Holdings
+AMP
+Amphenol
+AMR
+AmSouth Bancorp
+AmTrust Financial Services
+Amvescap
+Anadarko Petroleum
+Analog Devices
+Andeavor
+Android
+Anglo American
+Anglo Irish Bank
+Anheuser-Busch Cos
+Anixter International
+Annaly Mortgage Mgmt
+Ansible
+Antarchile
+Anthem
+Antofagasta
+ANZ Banking
+Aomori Bank
+Aon
+Apache
+Apartment Investment
+Aplus
+Apollo-Education Group
+Apple
+Apple Computer
+Applera-Applied Biosys
+Applied Materials
+Aquila
+Arab Bank
+Aracruz Celulose
+Aramark
+Arcelik
+Arcelor
+Arch Capital Group
+Archer Daniels
+Archer Daniels Midland
+Archstone-Smith
+Arconic
+Areva Group
+Arriva
+Arrow Electronics
+Arthur J Gallagher
+Arthur J. Gallagher
+ArvinMeritor
+Asahi Breweries
+Asahi Glass
+Asahi Kasei
+Asbury Automotive Group
+Ascena Retail Group
+ASFA-Autoroutes
+Ashland
+ASML Holding
+Assa Abloy
+Assoc British Foods
+Associated Banc-Corp
+Associated British Ports
+Assurant
+Astoria Financial
+Astra International
+AstraZeneca
+Asustek Computer
+AT&T
+AT&T Wireless
+Atlas Copco
+Atlassian
+Atos Origin
+AU Optronics
+Australian Gas Light
+Auto-Owners Insurance
+Autogrill
+Autoliv
+Automatic Data
+AutoNation
+Autostrade
+AutoZone
+AVA
+Avalonbay Communities
+Avaya
+Aventis
+Avery Dennison
+Avis Budget Group
+Aviva
+Avnet
+Avon Products
+Avtovaz
+Awa Bank
+AWG
+AWS
+AXA Group
+Axel Springer
+Axis Capital Holdings
+Azure
+BAA
+BAE Systems
+Baker Hughes
+Balfour Beatty
+Ball
+Banca Antonveneta
+Banca Carige
+Banca CR Firenze
+Banca Intesa
+Banca Lombarda Group
+Banca Naz del Lavoro
+Banca Popolare di Lodi
+Banca Popolare di Milano
+Banche Popolari Unite
+Banco BPI
+Banco Bradesco Group
+Banco de Chile
+Banco de Sabadell
+Banco di Sardegna
+Banco do Brasil
+Banco Pastor
+Banco Popular Espaqol
+Banco Santander Central
+BancorpSouth
+Bangkok Bank
+Bank
+Bank Central Asia
+Bank Hapoalim
+Bank Leumi Group
+Bank Mandiri
+Bank Negara Indonesia
+Bank of America
+Bank of America Corp.
+Bank of Baroda
+Bank of Bermuda
+Bank of East Asia
+Bank of Fukuoka
+Bank of Greece
+Bank of Hawaii
+Bank of Ikeda
+Bank of India
+Bank of Ireland
+Bank of Iwate
+Bank of Kyoto
+Bank of Montreal
+Bank of Nagoya
+Bank of New York
+Bank of New York Mellon
+Bank of Nova Scotia
+Bank of Ryukyus
+Bank of Saga
+Bank of Yokohama
+Bank One
+Bank Philippine Islands
+Bankgesellschaft Berlin
+Bankinter
+Banknorth Group
+Banque Nat de Belgique
+Baoshan Iron & Steel
+Barclays
+Barloworld
+Barnes & Noble
+Barr Pharmaceuticals
+Barratt Developments
+Barrick Gold
+BASF Group
+Basler Kantonalbank
+Bausch & Lomb
+Baxter International
+Bayer Group
+Bayerische Immobilien
+BayWa
+BB&T
+BB&T Corp.
+Bbloise Group
+BBVA-Banco Bilbao Vizcaya
+Bca Popolare di Sondrio
+BCE
+BCP-Bco Com Portugujs
+BCV Group
+BEA Systems
+Bear Stearns Cos
+Beazer Homes USA
+Beckman Coulter
+Becton Dickinson
+Bed Bath & Beyond
+Beiersdorf
+Beijing Datang Power
+BEKB-BCBE
+BellSouth
+Belo
+Bemis
+Benq
+Berkeley Group
+Berkshire Hathaway
+Berry Global Group
+Best Buy
+BG Group
+Bharat Petroleum
+Bharti Tele-Ventures
+BHP Billiton
+BHW Holding
+Bidvest Group
+Big Food Group
+Bilfinger & Berger
+Biogen
+Biogen Idec
+Biomet
+Bitbucket
+BJ Services
+BJ`s Wholesale Club
+Black & Decker
+BlackRock
+Blackstone Group
+Bluescope Steel
+Bluetooth
+BMW
+BMW-Bayerische Motor
+BNP Paribas
+BOC Group
+BOC Hong Kong
+Boeing
+Boise Cascade
+BOK Financial
+Bombardier
+Booking Holdings
+Boots
+Booz Allen Hamilton
+Boral
+Borders
+BorgWarner
+Boston Properties
+Boston Scientific
+Bouygues Group
+Bowater
+BP
+BPB
+BPER-Emilia Romagna
+BPVN Group
+Bradford & Bingley
+Brambles Group
+Brascan
+Brasil Telecom
+Bridgestone
+Brinker International
+Brisa
+Bristol-Myers Squibb
+Britannic Group
+British Airways
+British Amer Tobacco
+British Land
+British Sky Broadcasting
+Broadcom
+Brookfield Properties
+Brother Inds
+Brown-Forman
+Brunswick
+BT Group
+Buderus
+Buenaventura
+Buhrmann
+Builders FirstSource
+Bunge
+Bunzl
+Burberry
+Burlington Resources
+Burlington Santa Fe
+Burlington Stores
+BW Bank
+C.H. Robinson Worldwide
+Cable & Wireless
+Cablevision NY Group
+Cadbury Schweppes
+Caesars Entertainment
+Calpine
+Cameco
+Campbell Soup
+Canadian Imperial Bank
+Canadian National
+Canadian Natural Res
+Canadian Pacific Railway
+Canadian Tire
+Canara Bank
+Canary Wharf Group
+Canon
+Cap Gemini Ernst & Young
+Capital One Financial
+CapitaLand
+Capitalia
+Capitol Federal Finl
+Cardinal Health
+Career Education
+Caremark Rx
+Carlsberg
+CarMax
+Carnival Corp
+Carrefour Group
+Carso Global Telecom
+Casey’s General Stores
+Casio Computer
+Caterpillar
+Cathay Financial
+Cathay Pacific Airways
+Cattolica Assicurazioni
+CBD-Brasil Distribuieco
+CBRE Group
+CBS
+CDW
+Celanese
+Celesio
+Celgene
+Cemex
+Cendant
+Centene
+CenterPoint Energy
+Centex
+Central European Media
+Central Japan Railway
+Central Leasing
+Centrica
+CenturyLink
+CenturyTel
+Cephalon
+Cepsa
+Ceridian
+Cesky Telecom
+Cez
+CH Robinson Worldwide
+Chanel
+Chang Hwa Com Bank
+Charles Schwab
+Charter Commun
+Charter Communications
+Charter One Finl
+ChatGPT
+Check Point
+Chemours
+Cheniere Energy
+Chesapeake Energy
+Cheung Kong
+Chevron
+ChevronTexaco
+Chi Mei Optoelectronics
+Chiba Bank
+Chiba Kogyo Bank
+China Development Finl
+China Life Insurance
+China Merchants Bank
+China Minsheng Banking
+China Mobile (HK) Hong
+China Motor
+China Petroleum & Chemical
+China Resources Ent
+China Southern Airlines
+China Steel
+China Telecom
+China Unicom
+Chinatrust Financial
+Chiron
+ChoicePoint
+Christian Dior
+CHS
+Chubb
+Chubu Electric Power
+Chugoku Bank
+Chugoku Electric Power
+Chukyo Bank
+Chunghwa Telecom
+Ciba Specialty Chemicals
+CIC Group
+Cigna
+Cimpor-Cimentos Portugal
+Cincinnati Financial
+Cinergy
+Cintas
+Circuit City Stores
+Cisco
+Cisco Systems
+CIT Group
+Citic Pacific
+Citigroup
+Citizens Commun
+Citizens Financial Group
+Citrix Systems
+City Developments
+City National
+CJ
+Clariant
+Claude
+Clear Channel Commun
+Clorox
+Cloudflare
+CLP Holdings
+CMPC
+CMS Energy
+CNF
+CNOOC Hong
+CNP Assurances
+Coach
+Coca-Cola
+Coca-Cola Amatil
+Coca-Cola Enterprises
+Coca-Cola Femsa
+Coca-Cola HBC
+Cognizant Technology Solutions
+Coles Myer
+Colgate
+Colgate-Palmolive
+Colonial BancGroup
+Comcast
+Comerica
+Commerce Asset Holding
+Commerce Bancorp
+Commerce Bancshs
+Commercial Bank of Greece
+Commercial Federal
+Commerzbank
+Commonwealth Bank Group
+Community Health Sys
+Community Health Systems
+Compal Electronics
+Compass Bancshares
+Compass Group
+Computer Associates
+Computer Sciences
+Conagra Brands
+ConAgra Foods
+Concord EFS
+Conduent
+ConocoPhillips
+Conseco
+Consolidated Edison
+Constellation Brands
+Constellation Energy
+Continental
+Continental Airlines
+Convergys
+Converium Holding
+Cooper Industries
+Copilot
+Core-Mark Holding
+Corning
+Corporation Mapfre
+Corus Group
+Cosco Pacific
+Cosmo Oil
+Costco
+Costco Wholesale
+Coty
+Countrywide Financial
+Cousins Properties
+Coventry Health Care
+Cox Communications
+CR Bard
+Credit Agricole
+Credit Foncier
+Credit Saison
+Credit Suisse Group
+Credito Emiliano
+CRH
+Crown Holdings
+CSK
+CSM
+CSN-Cia Siderurgica
+CSR Group
+CSX
+Cullen/Frost Bankers
+Cummins
+Custodia Holding
+CVS
+CVS Health
+D.R. Horton
+Daegu Bank
+Daewoo Intl
+Daewoo Ship & Marine
+Dah Sing Financial
+Dai Nippon Printing
+Daido Life Insurance
+Daiei
+Daiichi Pharmaceutical
+Daikin Industries
+Daikyo
+Daily Mail & General
+Daimaru
+DaimlerChrysler
+Dainippon Ink & Chems
+Daio Paper
+Daisan Bank
+Daishi Bank
+Daito Trust Construction
+Daiwa House Industry
+Daiwa Securities
+Dana
+Danaher
+Danisco
+Darden Restaurants
+Dassault Aviation
+Dassault Systemes
+Datadog
+DaVita
+DBS Group
+DCP Midstream
+Dean Foods
+Deere
+Deere & Co
+Degussa
+Del Monte Foods
+Delek US Holdings
+Delhaize Group
+Dell
+Dell Technologies
+Delphi
+Delta Air Lines
+Den Danske Bank
+Denso
+Dentsply Intl
+Dentsu
+Denway Motors
+Depfa Bank
+Deutsche Bank Group
+Deutsche Boerse
+Deutsche Lufthansa
+Deutsche Post
+Deutsche Telekom
+Developers Diversified Realty
+Devon Energy
+Dexia
+Diageo
+Diamond Lease
+Dick’s Sporting Goods
+Diebold
+Dillard`s
+Dillard’s
+Discord
+Discover Financial Services
+Discovery
+DISH Network
+Disney
+Dixons Group
+DnB Holding
+Docker
+Dogan Holding
+Dollar General
+Dollar Tree
+Dollar Tree Stores
+Dominion Energy
+Dominion Resources
+Domtar
+DoorDash
+Doosan
+Doral Financial
+Dover
+Dow Chemical
+Dow Jones
+DowDuPont
+Downey Financial
+DPL
+DR Horton
+Dr Pepper Snapple Group
+Dropbox
+DSM
+DST Systems
+DTE Energy
+Duke Energy
+Duke Realty
+Dun & Bradstreet
+DXC Technology
+Dynegy
+E-Trade Financial
+E.ON
+EADS
+East Japan Railway
+Eastman Chemical
+Eastman Kodak
+Eaton
+Ebara
+eBay
+EchoStar Commun
+Ecolab
+Edison
+Edison International
+EDP-Elec de Portugal
+EFG Eurobank Ergasias
+Ehime Bank
+EI du Pont de Nemours
+Eiffage
+Eighteenth Bank
+Eisai
+El Paso
+Elasticsearch
+Electrolux Group
+Electronic Arts
+Electronic Data Sys
+Eletrobras
+Eli Lilly
+Eli Lilly and Co
+EMAP
+Embraer
+EMC
+EMCOR Group
+Emerson Electric
+EMI Group
+Empire
+Enagas
+Enbridge
+EnBW-Energie Baden
+EnCana
+Endesa Group
+Endurance Specialty
+ENEL
+Energizer Holdings
+Energy East
+Energy Transfer Equity
+Engelhard
+ENI
+Enka
+Ensco International
+Entergy
+Enterprise Inns
+Enterprise Products Partners
+Envision Healthcare
+EOG Resources
+EON-Edaran Otomobil
+Equifax
+Equitable Resources
+Equity Office Prop
+Equity Residential
+Erie Indemnity
+Erie Insurance Group
+Erste Bank
+Espirito Santo Finl
+Esprit Holdings
+Essilor International
+Estee Lauder
+Estee Lauder Cos
+Eurohypo
+Eurotunnel
+Everest Re Group
+Eversource Energy
+EW Scripps
+Exel
+Exelon
+Expedia Group
+Expeditors Intl
+Expeditors Intl. of Washington
+Express Scripts
+Express Scripts Holding
+Exxon Mobil
+ExxonMobil
+Facebook
+Fairfax Financial
+Falabella
+Family Dollar Stores
+Fannie Mae
+Fanuc
+Far EasTone Telecom
+Farmers Bank of China
+Farmers Insurance Exchange
+Fast Retailing
+FCC Group
+Federal-Mogul
+Federated Dept Strs
+Federated Investors
+FedEx
+Femsa
+Ferrari
+Fiat Group
+FIBI Holding
+Fidelity National Financial
+Fidelity National Finl
+Fidelity National Information Services
+Fifth Third Bancorp
+Figma
+Financiere de l`Odet
+Finansbank
+Finmeccanica
+Finova Group
+Firefox
+First American
+First American Financial
+First BanCorp
+First Citizens Bcshs
+First Data
+First Financial Holding
+First Tennessee Natl
+FirstEnergy
+FirstGroup
+FirstMerit
+Firstrand
+Fiserv
+Fisher Scientific
+Flagstar Bancorp
+FleetBoston Finl
+Flextronics Intl
+Fluor
+Fondiaria-SAI
+Foot Locker
+Ford
+Ford Motor
+Forenings Sparbanken
+Forest Labs
+Formosa Chems & Fibre
+Formosa Petrochemical
+Formosa Plastics
+Fortis
+Fortive
+Fortum
+Fortune Brands
+Foster`s Group
+FPL Group
+France Telecom
+Franklin Resources
+Franz Colruyt
+Fraser & Neave
+Freddie Mac
+Freeport Copper
+Freeport-McMoRan
+Fremont General
+Fresenius
+Fresh Del Monte
+Friedman Billings
+Friends Provident
+Frontier Communications
+Fubon Financial
+Fuji Electric
+Fuji Fire & Marine
+Fuji Heavy Inds
+Fuji Photo Film
+Fuji Television Network
+Fujisawa Pharmaceutical
+Fujitsu
+Fukui Bank
+Fukuoka City Bank
+Fulton Financial
+Funai Electric
+Furukawa Electric
+GAIL (India)
+Galeries Lafayette
+Gallaher Group
+Gambro
+Gamesa
+GameStop
+Gannett
+Gap
+Garmin
+Gas Natural SDG
+Gazprom
+Gecina
+Gemini
+General Dynamics
+General Electric
+General Growth Prop
+General Mills
+General Motors
+General Property Trust
+Generali Group
+Genting
+Genuine Parts
+Genworth Financial
+Genzyme-General
+George Weston
+George Wimpey
+Georgia-Pacific
+Gilead Sciences
+Gillette
+GitHub
+GitLab
+Givaudan
+GKN
+GlaxoSmithKline
+Global Partners
+GlobalSantaFe
+Gmail
+Gold Fields
+Golden West Finl
+Goldman Sachs Group
+Goodrich
+Goodyear
+Goodyear Tire & Rubber
+Google
+GoPro
+Grafana
+Grammarly
+Graybar Electric
+Great A&P Tea
+Great Eastern Holdings
+Great Plains Energy
+Greater Bay Bancorp
+GreenPoint Financial
+Group 1 Automotive
+Group 4 Falck
+Groupe Bruxelles Lambert
+Groupe Danone
+Grupo Bimbo
+Grupo Carso
+Grupo Ferrovial
+Grupo Financiero Banorte
+Grupo Financiero Inbursa
+Grupo Imsa
+Grupo Mexico
+Grupo Modelo
+Grupo Televisa
+GTech Holdings
+Guangdong Electric Power
+Guardian Life Ins. Co. of America
+Gucci
+Gudang Garam
+Guidant
+Gunma Bank
+Guoco Group
+GUS
+H & M Hennes & Mauritz
+H Lundbeck
+H&R Block
+Hachijuni Bank
+Hagemeyer
+Halliburton
+Hammerson
+Hana Bank
+Hanesbrands
+Hanjaya Mandala Sampoerna
+Hanjin Shipping
+Hankyu
+Hannover Re
+Hanshin Construction
+Hanson
+Hanwa
+Hanwha
+Hanwha Chemical
+Harley-Davidson
+Harman International
+Harrah`s Entertain
+Harris
+Hartford Financial Services
+Hartford Finl Service
+Hasbro
+Haseko
+HashiCorp
+Hawaiian Electric
+Hays
+HBOS
+HCA
+HCA Healthcare
+HD Supply Holdings
+HDFC-Housing Devel
+Health Care Property
+Health Management
+Health Net
+HeidelbergCement
+Heineken
+Heineken Holding
+Hellenic Petroleum
+Hellenic Telecom
+Helvetia Patria
+Henderson Land Dev
+Henkel Group
+Henry Schein
+Hermes
+Hermes International
+Heroku
+Hershey
+Hershey Foods
+Hertz Global Holdings
+Hewitt Associates
+Hewlett Packard Enterprise
+Hewlett-Packard
+HHG
+Hibernia
+Higashi-Nippon Bank
+Higo Bank
+Hillenbrand Inds
+Hilton Group
+Hilton Hotels
+Hilton Worldwide Holdings
+Hindalco Industries
+Hindustan Petroleum
+Hirose Electric
+Hiroshima Bank
+Hitachi
+HJ Heinz
+Hochtief
+Hokkaido Bank
+Hokkaido Electric Power
+Hokkoku Bank
+Hokuetsu Bank
+Hokugin Financial Group
+Hokuriku Electric Power
+Holcim
+HollyFrontier
+Holmen
+Home Depot
+Hon Hai Precision Ind
+Honda
+Honda Motor
+Honeywell
+Honeywell International
+Hong Kong & China Gas
+Hong Leong Credit
+Hongkong Electric
+Hormel Foods
+Host Marriott
+Hovnanian Enterprises
+Hoya
+HP
+HSBC
+HSBC Group
+Hua Nan Financial
+Hua Xia Bank
+Huaneng Power Intl
+Huawei
+HubSpot
+Hudson City Bancorp
+Hudson United Bancorp
+Hughes Electronics
+Humana
+Huntington Bancshs
+Huntington Ingalls Industries
+Huntsman
+Husky Energy
+Hutchison Whampoa
+HVB-HypoVereinsbank
+Hyakugo Bank
+Hyakujushi Bank
+Hynix Semiconductor
+Hyosung South
+Hypo Real Estate Holding
+Hyundai
+Hyundai Eng & Const
+Hyundai Heavy Industries
+Hyundai Merchant Marine
+Hyundai Mobis
+Hyundai Motor
+Hyundai South
+Iberdrola
+Iberia
+IBM
+Icahn Enterprises
+ICAP
+ICICI Bank
+IDB Holding
+IFIL
+iHeartMedia
+IKB
+IKEA
+IKON Office Solutions
+Illinois Tool Works
+Imerys
+Impac Mortgage Holding
+Impala Platinum Holdings
+Imperial Chemical Inds
+Imperial Holdings
+Imperial Tobacco Group
+IMS Health
+Inchcape
+Inco
+Independence Community
+Indian Oil
+Indian Overseas Bank
+Inditex
+Indl Dev Bank of India
+Industrial Bank of Korea
+Industrivarden
+IndyMac Bancorp
+Infineon Technologies
+Infosys Technologies
+ING Group
+Ingersoll-Rand
+Ingram Micro
+Ingredion
+INI Steel
+Insight Enterprises
+Instagram
+Insurance Australia Group
+Intel
+InterActiveCorp
+Interbrew
+Intercontinental Exchange
+InterContinental Hotels
+International Paper
+International Power
+International Steel Group
+Interpublic Group
+Intl Bancshares
+INTL FCStone
+Intl Flavors & Frags
+Intl Game Technology
+Intuit
+Invensys
+Investec
+Investkredit Bank
+Investor
+Investors Financial
+iOS
+iPad
+iPhone
+iPod
+IQVIA Holdings
+Irish Life & Permanent
+Iscor
+Isetan
+Ishikawajima-Harima
+Ispat International
+Israel Discount Bank
+ISS
+iStar Financial
+Isuzu Motors
+Italmobiliare
+Itazsa
+ITC
+Ito-Yokado
+Itochu
+ITT Industries
+iTunes
+ITV
+IVAX
+Iwataya Department Store
+Iyo Bank
+J Sainsbury
+J.B. Hunt Transport Services
+J.C. Penney
+J.M. Smucker
+Jabil
+Jabil Circuit
+Jaccs
+Jacobs Engineering
+Jacobs Engineering Group
+Janus Capital Group
+Japan Airlines Sys
+Japan Securities Fin
+Japan Tobacco
+Jardine Matheson
+JC Penney
+JDS Uniphase
+Jean Coutu Group
+Jefferies Financial Group
+Jefferson-Pilot
+JetBlue Airways
+JFE Holdings
+Jiangsu Expressway
+Jira
+John Hancock Financial
+Johnson & Johnson
+Johnson Controls
+Johnson Electric Holdings
+Johnson Matthey
+Jones Apparel Group
+Jones Financial (Edward Jones)
+Jones Lang LaSalle
+Joyo Bank
+JP Morgan Chase
+JPMorgan Chase
+JSR
+Julius Baer Holding
+Juniper Networks
+Juroku Bank
+Jyske Bank
+Kafka
+Kagoshima Bank
+Kajima
+Kanebo
+Kaneka
+Kanematsu
+Kangwon Land
+Kansai Electric Power
+Kao
+KarstadtQuelle
+Kasikornbank
+Kawasaki Heavy Inds
+Kawasaki Kisen Kaisha
+Kawasho
+KB Home
+KDDI
+Keihin Electric Express
+Keio Electric Railway
+Keiyo Bank
+Kelda Group
+Kellogg
+Kellogg's
+Keppel
+Kerr-McGee
+Kerry Group
+Kesa Electricals
+Kesko Group
+KeyCorp
+Keyence
+KeySpan
+KFC
+Kimberly-Clark
+Kimberly-Clark de Mexico
+Kimco Realty
+Kinder Morgan
+Kindred Healthcare
+Kingfisher
+Kinki Nippon Railway
+Kirin Brewery
+Kiyo Bank
+KKPC-Korea Kumho
+KKR
+KLA-Tencor
+KLM
+Kmart Holding
+Knight Ridder
+Kobe Steel
+Koe Group
+Kohl`s
+Kohl’s
+Komatsu
+Kone
+Konica Minolta
+Kookmin Bank
+Koram Bank
+Korea Electric Power
+Korea Exchange Bank
+Korea Gas
+Korean Air
+Kraft Heinz
+Kroger
+Krung-Thai Bank
+KT
+KT&G
+Kubernetes
+Kubota
+Kuhne & Nagel Intl
+Kumagai Gumi
+Kumho Industrial
+Kuraya Sanseido
+Kyocera
+Kyushu Electric Power
+Kyushu-Shinwa Holdings
+L Brands
+L-3 Communications
+L'Oreal
+L`Oreal Group
+L3 Technologies
+Laboratory Corp Amer
+Laboratory Corp. of America
+Lafarge
+Lagardere SCA
+Laidlaw International
+Lam Research
+Lamborghini
+Land O’Lakes
+Land Securities Group
+LandAmerica Financial
+Las Vegas Sands
+Laurentian Bank
+Laurus
+Lear
+Legal & General Group
+Legend Group
+Legg Mason
+Leggett & Platt
+Lego
+Lehman Bros Holdings
+Leidos Holdings
+Lend Lease
+Lennar
+Leopalace21
+Leucadia National
+Level 3 Commun
+Lexmark International
+LG
+LG Card
+LG Construction
+LG Corp
+LG International
+Li & Fung
+Liberty International
+Liberty Media
+Liberty Mutual Insurance Group
+Liberty Property
+LifePoint Health
+Limited Brands
+Lincare Holdings
+Lincoln National
+Linde
+Linear Technology
+LinkedIn
+Linux
+Lite-On Technology
+Lithia Motors
+Live Nation Entertainment
+Liz Claiborne
+LKQ
+Lloyds TSB Group
+LM Ericsson
+Lockheed Martin
+Loews
+LogicaCMG
+Louis Vuitton
+Louisiana-Pacific
+Lowe`s Cos
+Lowe’s
+Lucent Technologies
+Lukoil Holding
+Luxottica Group
+Luzerner Kantonalbank
+Lyft
+Lyondell Chemical
+M
+M-real
+M&T Bank
+M&T Bank Corp.
+M6-Metropole Television
+Mabuchi Motor
+Macerich
+Mack-Cali Realty
+macOS
+Macquarie Bank
+Macy’s
+Maeda
+Magellan Health
+Magna International
+Mahanagar Telephone Nigam
+Malayan Banking
+Malaysia Intl Shipping
+MAN Group
+Man Group Plc
+Mandalay Resort Group
+Manor Care
+Manpower
+ManpowerGroup
+Manulife Financial
+Marathon Oil
+Marathon Petroleum
+Marconi
+Markel
+Marks & Spencer
+Marriott International
+Marriott Intl
+Marsh & McLennan
+Marshall & Ilsley
+Marubeni
+Maruha
+Marui
+Masco
+Massachusetts Mutual Life Insurance
+MasTec
+Mastercard
+Matsushita Electric Indl
+Matsushita Electric Works
+Mattel
+Maxim Integrated Prods
+Maxis Communications
+Maxtor
+May Dept Stores
+Maytag
+Mazda Motor
+MBIA
+MBNA
+McClatchy
+McCormick & Co
+McDonald's
+McDonald`s
+McDonald’s
+McGraw-Hill Cos
+McKesson
+MDC Holdings
+MDU Resources
+MeadWestvaco
+Medco Health Solutions
+Mediaset
+MediaTek
+MedImmune
+Mediobanca
+Mediolanum
+Medtronic
+Mega Financial Holding
+Meiji Dairies
+Mellon Finl
+Mercantil Servicios Fin
+Mercantile Bkshs
+Mercedes-Benz
+Merck
+Merck & Co
+Mercury General
+Merloni Elettrodomestici
+Merrill Lynch
+Meta
+Metalurgica Gerdau
+MetLife
+Metro AG
+Metro Cash and Carry South
+Metro Inc
+Metro-Goldwyn-Mayer
+Metso
+mg technologies
+MGIC Investment
+MGM Mirage
+MGM Resorts International
+Michaels Stores
+Michelin Group
+Michinoku Bank
+Microchip Technology
+Micron Technology
+Microsoft
+Millea Holdings
+Minara Resources
+Mirant
+Mitchells & Butlers
+Mitsubishi
+Mitsubishi Chemical
+Mitsubishi Electric
+Mitsubishi Estate
+Mitsubishi Heavy Inds
+Mitsubishi Materials
+Mitsubishi Motors
+Mitsubishi Tokyo Finl
+Mitsui & Co
+Mitsui Chemicals
+Mitsui Engineering & Ship
+Mitsui Fudosan
+Mitsui OSK Lines
+Mitsui Sumitomo Ins
+Mitsui Trust
+Mitsukoshi
+Miyazaki Bank
+Mizuho Financial
+mmO2
+Mobilcom
+Mohawk Industries
+MOL
+Molex
+Molina Healthcare
+Moller-Maersk
+Molson
+Molson Coors Brewing
+Momiji Holdings
+Mondelez International
+MongoDB
+Monsanto
+Monte dei Paschi
+Montpelier Re Holdings
+MONY Group
+Moody`s
+Moore Wallace
+Morgan Stanley
+Mosaic
+Motorola
+Motorola Solutions
+MTN Group
+MTR
+Munich Re
+Murata Manufacturing
+Murphy Oil
+Murphy USA
+Musashino Bank
+Mutual of Omaha Insurance
+Mylan Labs
+MySQL
+MyTravel Group
+Nabors Industries
+Nagoya Railroad
+Nan Ya Plastic
+Nanto Bank
+NASA
+Natexis Banques Populaire
+National Bank of Canada
+National Bank of Greece
+National City
+National Commerce Finl
+National Fuel Gas
+National Grid Transco
+National Oilwell Varco
+Nationwide
+Nationwide Financial
+Natl Australia Bank
+Natl Semiconductor
+Navistar International
+Navistar Intl
+NCC Group
+NCR
+NEC
+Neiman Marcus Group
+Neptune Orient Lines
+Nestle
+NetApp
+Netflix
+Netlify
+Network Appliance
+New Century Financial
+New World Development Hong
+New York Community
+New York Life Insurance
+New York Times
+Newell Brands
+Newell Rubbermaid
+Newfield Exploration
+Newmont Mining
+News Corp
+News Corp.
+Nexans
+Nexen
+Next
+Nextel Commun
+NextEra Energy
+Neyveli Lignite
+NGL Energy Partners
+Nidec
+Nike
+Nikko Cordial
+Nikon
+Nintendo
+Nippon Electric Glass
+Nippon Express
+Nippon Light Metal
+Nippon Meat Packers
+Nippon Mining
+Nippon Oil
+Nippon Shinpan
+Nippon Steel
+Nippon Steel Trading
+Nippon Tel & Tel
+Nippon TV Network
+Nippon Unipac
+Nippon Yusen
+Nipponkoa Insurance
+Nishi-Nippon Bank
+Nishimatsu Construction
+NiSource
+Nissan
+Nissan Motor
+Nissay Dowa General Ins
+Nisshin Steel
+Nissho Iwai-Nichimen
+Nissin Food Products
+Nitto Denko
+Noble Corp
+Nok
+Nokia
+Nomura Holdings
+Nomura Research Institute
+Noranda
+Nordea
+Nordstrom
+Norfolk Southern
+Norilsk Nickel
+Norsk Hydro
+Norske Skogindustrier
+Nortel Networks
+North Fork Bancorp
+Northeast Utilities
+Northern Rock
+Northern Trust
+Northrop Grumman
+Northumbrian Water
+Northwest Airlines
+Northwestern Mutual
+Notion
+NOVA Chemicals
+Novartis Group
+Novo-Nordisk
+NRG Energy
+NSK
+NStar
+NTL
+Nucor
+Nurnberger Beteiligungs
+Nvidia
+NVR
+Obayashi
+Occidental Petroleum
+Odakyu Electric Railway
+Office Depot
+Ogaki Kyoritsu Bank
+OGE Energy
+Oil & Natural Gas
+Oita Bank
+Oji Paper
+Oki Electric Industry
+OKO Bank
+Old Mutual
+Old National Bncp
+Old Republic International
+Old Republic Intl
+Olin
+Olympus
+Omnicare
+Omnicom Group
+Omron
+OMV Group
+ON Semiconductor
+OneDrive
+Oneok
+Onex
+Ono Pharmaceutical
+OPAP
+OpenAI
+Oracle
+O’Reilly Automotive
+Orient
+Oriental Bank of Commerce
+Oriental Land
+Origin Energy
+Orix
+Orkla
+Osaka Gas
+Oshkosh
+OTP Bank
+Outback Steakhouse
+Outokumpu
+Oversea-Chinese Banking
+Owens & Minor
+Owens Corning
+Owens-Illinois
+Oxford Health Plans
+Paccar
+Pacific Century Regional
+Pacific Life
+PacifiCare Health
+Packaging Corp. of America
+Pactiv
+Pakistan Telecom
+Pall
+Pampers
+Panasonic
+Parker Hannifin
+Parker-Hannifin
+PartnerRe
+Patterson
+Patterson Dental
+Paychex
+PayPal
+PayPal Holdings
+PBF Energy
+PCCW
+Peabody Energy
+Pearson
+Peninsular & Oriental
+Penske Automotive Group
+Pentair
+People`s Bank
+PeopleSoft
+Pepco Holdings
+Pepsi
+Pepsi Bottling Group
+PepsiAmericas
+PepsiCo
+Performance Food
+Performance Food Group
+Pernod Ricard
+Perodua
+Persimmon
+Peter Kiewit Sons’
+Petro-Canada
+Petrobras-Petrsleo Brasil
+PetroChina
+Petrol Ofisi
+Petronas Gas
+Petroplus Intl
+Petsmart
+Peugeot Groupe
+Pfizer
+PG&E
+PG&E Corp.
+Phelps Dodge
+Philip Morris International
+Philips Group
+Phillips 66
+Phoenix Cos
+PICC Property & Casualty
+Pilkington
+Pinault-Printemps-Redoute
+Pinnacle West
+Pinterest
+Pioneer
+Pioneer Natural Res
+Pioneer Natural Resources
+Piraeus Bank
+Pirelli & C
+Pitney Bowes
+Pixar
+PKN Orlen
+Placer Dome
+Plains GP Holdings
+PlayStation
+Plum Creek Timber
+PMI Group
+PNC Financial Services
+Pogo Producing
+Polaris Industries
+Polo Ralph Lauren
+Popular
+Porsche
+Portugal Telecom
+Posco
+PostgreSQL
+Potash of Saskatchewan
+Power Corp of Canada
+PPG Industries
+PPL
+Prada
+Praxair
+Premcor
+Principal Financial
+Procter & Gamble
+Progress Energy
+Progressive
+ProLogis
+Prometheus
+Promise
+Protective Life
+Provident Financial Plc
+Provident Finl Group
+Providian Financial
+Prudential
+Prudential Financial
+PTT Public Company
+Pub Svc Enterprise
+Public Bank
+Public Power
+Public Service Enterprise Group
+Public Storage
+Publicis Groupe
+Publishing & Broadcasting
+Publix Super Markets
+Puget Energy
+Pulte Homes
+PulteGroup
+Puma
+Punch Taverns
+Punjab National Bank
+Pusan Bank
+PVH
+Python
+PyTorch
+Qantas Airways
+QBE Insurance Group
+QLogic
+Qualcomm
+Quanta Computer
+Quanta Services
+Quebecor
+Quest Diagnostics
+Questar
+Qurate Retail
+Qwest Communications
+R.R. Donnelley & Sons
+R&G Financial
+Radian Group
+RadioShack
+Rallye
+Ralph Lauren
+Ranbaxy Laboratories
+Randstad Holding
+Rank Group
+Rashid Hussain
+Raymond James Financial
+Raytheon
+React
+Realogy Holdings
+Reckitt Benckiser
+Red Eectrica de Espaqa
+Reddit
+Redis
+Redwood Trust
+Reebok
+Reebok International
+Reed Elsevier
+Regal Entertainment Group
+Regeneron Pharmaceuticals
+Regions Financial
+Reinsurance Group of America
+Reliance Industries
+Reliance Steel & Aluminum
+Reliant Resources
+Remgro
+RenaissanceRe Holdings
+Renault Group
+Rent-A-Center
+Rentokil Initial
+Repsol-YPF
+Republic Services
+Research In Motion
+Resona Holdings
+Reuters Group
+Rexam
+Rheinmetall
+Rhodia
+Richemont
+Ricoh
+Rinker Group
+Rio Tinto
+Rite Aid
+RJ Reynolds Tobacco
+RMC Group
+Roche Group
+Rockwell Automation
+Rockwell Collins
+Rogers Communications
+Rohm
+Rohm and Haas
+Roku
+Rolex
+Rolls-Royce
+Ross Stores
+Rouse
+Royal & Sun Alliance
+Royal Bank of Canada
+Royal Bank of Scotland
+Royal Caribbean
+Royal Dutch/Shell Group
+Royal KPN
+Royal Numico
+RR Donnelley & Sons
+Rust
+RWE Group
+Ryanair Holdings
+Ryder System
+Ryland Group
+S-Oil South
+S&P Global
+Sabanci Group
+SABMiller
+Sacyr-Vallehermoso
+Safari
+Safeco
+Safeway
+Safeway Plc
+Sage Group
+Sagem
+Saint-Gobain
+Saks
+Salesforce
+salesforce.com
+Salzgitter
+Sampo
+Samsung
+Samsung Electronics
+Samsung Fire & Marine
+Samsung Heavy Industries
+Samsung SDI
+Samsung South
+San Miguel
+San-In Godo Bank
+Sandvik
+Sankyo (machinery)
+Sankyo (pharma)
+Sanlam South
+Sanmina
+Sanmina-SCI
+Sanofi-Synthelabo
+Sanpaolo IMI
+Santos
+Sanyo Electric
+SAP
+Sappi
+Sapporo Hokuyo
+Sara Lee
+SAS Group
+Sasol
+SBC Communications
+Sberbank of Russia
+SCA-Svenska Cellulosa
+Scana
+Scania
+Schering Group
+Schering-Plough
+Schindler Holding
+Schlumberger
+Schneider Electric
+Schroders
+Scientific-Atlanta
+Scor
+Scottish & Newcastle
+Scottish & Southern
+Scottish Power
+Seaboard
+Seagate Technology Cayman
+Sealed Air
+Sears Holdings
+Sears Roebuck
+Seat-Pagine Gialle
+SEB
+SEB-Skand Enskilda
+Secom
+Securian Financial Group
+Securitas
+SEI Investments
+Seibu Railway
+Seiko Epson
+Seino Transportation
+Seiyu
+Sekisui Chemical
+Sekisui House
+SEM-Samsung Electro
+SembCorp Industries
+Sempra Energy
+Serono
+Service Corp Intl
+ServiceMaster
+Severn Trent
+Severstal
+SGS
+Shanghai Automotive
+Shanghai Pudong Dev Bk
+Sharp
+Shaw Communications
+Shell
+Shenzhen Development Bk
+Sherwin-Williams
+Shiga Bank
+Shikoku Bank
+Shikoku Electric Power
+Shimizu
+Shin Kong Financial
+Shin-Etsu Chemical
+Shinhan Financial
+Shinko Securities
+Shinsegae
+Shionogi & Co
+Shire Pharmaceuticals
+Shiseido
+Shizuoka Bank
+Shopify
+Shoppers Drug Mart
+Showa Denko
+Siam Cement
+Siam City Bank
+Siam Commercial Bank
+Sibneft
+Siebel Systems
+Siemens
+Siemens Group
+Sierra Pacific Res
+Sigma-Aldrich
+Signet Group
+Sime Darby
+Simon Property Group
+Singapore Airlines
+Singapore Press
+Singapore Technologies
+Singapore Telecom
+SinoPac Holdings
+SK Corp
+Skandia Insurance
+Skanska
+SKF Group
+Sky Financial Group
+Skype
+Slack
+SLM
+Slough Estates
+SMC
+Smith & Nephew
+Smith International
+Smithfield Foods
+Smiths Group
+Smurfit-Stone
+Snapchat
+SNCF Participations
+Snow Brand Milk
+Societe Generale Group
+Sodexho Alliance
+Softbank
+Sogecable
+Solectron
+Solvay Group
+Somerfield
+Sompo Japan Insurance
+Sonae SGPS
+Sonic Automotive
+Sonoco Products
+Sony
+Soriana
+South Financial Group
+Southern
+Southern Co
+SouthTrust
+Southwest Airlines
+Sovereign Bancorp
+SPAR Handels
+SpartanNash
+SpectraSite
+Spectrum Brands Holdings
+Spirit AeroSystems Holdings
+Spotify
+Sprint FON
+Sprint PCS
+SPX
+Ssangyong Motor
+St Galler Kantonalbank
+St George Bank
+St Jude Medical
+St Paul Cos
+StanCorp Financial
+Standard Bank Group
+Standard Chartered Group
+Standard Pacific
+Stanley Black & Decker
+Stanley Electric
+Stanley Works
+Staples
+Starbucks
+Starwood Hotels
+State Bank of India Group
+State Farm Insurance Cos.
+State Street
+State Street Corp.
+Statoil Group
+Steel Authority of India
+Steel Dynamics
+STMicroelectronics
+Stockland Australia
+Stora Enso
+Storage Technology
+Storebrand
+Stripe
+Stryker
+Subway
+Sudzucker
+Suez Group
+Sumikin Bussan
+Sumisho Lease
+Sumitomo
+Sumitomo Chemical
+Sumitomo Electric
+Sumitomo Forestry
+Sumitomo Heavy Inds
+Sumitomo Metal Inds
+Sumitomo Metal Mining
+Sumitomo Mitsui Financial
+Sumitomo Realty & Dev
+Sumitomo Trust & Banking
+Sun Hung Kai Properties
+Sun Life Financial
+Sun Microsystems
+Suncor Energy
+Suncorp-Metway
+SunGard Data Systems
+Sunoco
+SunTrust Banks
+Supervalu
+Surgutneftegas Oil
+Suruga Bank
+Suzuken
+Suzuki Motor
+Svenska Handelsbanken
+Swatch Group
+Swedish Match
+Swire Pacific
+Swiss Life Holding
+Swiss Re Group
+Swisscom
+Symantec
+Synchrony Financial
+Syngenta
+Synnex
+Synopsys
+Synovus Finl
+Synthes-Stratec
+Sysco
+T Rowe Price
+T-Mobile
+TabCorp Holdings
+Tableau
+Taiheiyo Cement
+Taisei
+Taishin Financial Holding
+Taisho Pharmaceutical
+Taiwan Business Bank
+Taiwan Cellular
+Taiwan Semiconductor
+Taiyo Life Insurance
+Takashimaya
+Takeda Chemical Inds
+Takefuji
+Talisman Energy
+Targa Resources
+Target
+Tata Iron & Steel
+Tate & Lyle Group
+Tatneft
+Tatung
+Taylor Woodrow
+TCF Financial
+TDC Group
+TDK
+Tech Data
+Technip
+Teck Cominco
+TECO Energy
+Teekay Shipping
+Teijin
+Tele & Data Systems
+Tele Norte Leste
+Tele2
+Telecom Italia
+Telecom of New Zealand
+Telefsnica
+Telegram
+Telekom Austria
+Telekom Indonesia
+Telekom Malaysia
+Telenor
+TeliaSonera Group
+Telkom
+Telstra
+Telus
+Temple-Inland
+Tenaga Nasional
+Tenet Healthcare
+Tenneco
+TensorFlow
+Terraform
+Terumo
+Tesco
+Tesla
+Tesoro Petroleum
+Teva Pharmaceutical Inds
+Texas Instruments
+Textron
+Thai Airways Intl
+Thales
+Thermo Electron
+Thermo Fisher Scientific
+Thomson
+Thomson Corp
+Thor Industries
+Thornburg Mortgage
+Thrivent Financial for Lutherans
+ThyssenKrupp Group
+TIAA
+Tiffany
+Tiger Brands
+TikTok
+Time Warner
+TJX
+TJX Cos
+Tobu Railway
+Tochigi Bank
+Toda
+Toho Bank
+Tohoku Electric Power
+Tokyo Broadcasting System
+Tokyo Electric Power
+Tokyo Electron
+Tokyo Gas
+Tokyo Leasing
+Tokyo Tomin Bank
+Tokyu
+Tokyu Land
+Toll Brothers
+Tomen
+Tomkins
+Toppan Printing
+Toray Industries
+Torchmark
+Toronto-Dominion Bank
+Toshiba
+Tosoh
+Tostem Inax
+Total
+Toto
+Towa Bank
+Toyo Seikan Kaisha
+Toyoda Gosei
+Toyota
+Toyota Industries
+Toyota Motor
+Toyota Tsusho
+Toys “R” Us
+Toys R` Us
+TPG
+Tractor Supply
+TransAlta
+TransCanada
+Transmontaigne
+Transocean
+TravelCenters of America
+Travelers Cos.
+Travelers Property Cas
+Travis Perkins
+TreeHouse Foods
+Trello
+Triad Hospitals
+Tribune
+Trizec Properties
+Trustmark
+TRW Automotive Holdings
+TUI Group
+Tupras-Turkiye Petrol
+Turkcell
+Turkiye Garanti Bankasi
+Turkiye Is Bankasi
+tvOS
+Twenty-First Century Fox
+Twilio
+Twitch
+Twitter
+TXU
+Tyco International
+Tyson Foods
+U.S. Bancorp
+UAL
+UBE Industries
+Uber
+UBS
+Ubuntu
+UES of
+UFJ Holdings
+UGI
+Ulta Beauty
+Unibail
+Unibanco Group
+UniCredito Italiano
+Unilever
+Union Bank of India
+Union Pacific
+Union Planters
+Unipol
+Uniqa
+Unisn Fenosa
+Unisys
+United Auto Group
+United Continental Holdings
+United Microelectronics
+United Mizrahi Bank
+United Natural Foods
+United Overseas Bank
+United Parcel Service
+United Rentals
+United States Steel
+United Technologies
+United Utilities
+UnitedHealth Group
+Unitrin
+Univar
+Universal
+Universal Health
+Universal Health Services
+Univision Commun
+Unocal
+Unum Group
+UnumProvident
+UNY
+UPM-Kymmene
+UPS
+US Airways Group
+US Bancorp
+US Commercial
+US Foods Holding
+US Steel
+USAA
+USG
+UST
+UTStarcom
+Vale do Rio Doce
+Valeo
+Valero Energy
+Valiant Holding
+Valley Natl Bancorp
+Van Lanschot
+Varian Medical Systems
+Vattenfall Europe
+Vedior
+Vendex KBB
+Veolia Environnement
+Verbund-Austrian Electric
+Vercel
+Veritas Software
+Veritiv
+Verizon
+Verizon Commun
+VF
+Viacom
+Viad
+Vimpel Communications
+Vinci Group
+Visa
+Vishay Intertech
+visionOS
+Visteon
+Vistra Energy
+Vivendi Universal
+VMware
+VNU
+Vodafone
+voestalpine
+Volkswagen
+Volkswagen Group
+Volvo
+Volvo Group
+Vornado Realty
+Voya Financial
+VSCode
+Vulcan Materials
+W Holding
+W.R. Berkley
+W.W. Grainger
+W&W-Wustenrot
+Wachovia
+Wal-Mart Stores
+Walgreen
+Walgreens Boots Alliance
+Walmart
+Walt Disney
+Washington Federal
+Washington Mutual
+Washington Post
+Waste Management
+watchOS
+Waters
+Watson Pharma
+Weatherford Intl
+Webster Financial
+WEC Energy Group
+Weight Watchers Intl
+WellCare Health Plans
+WellChoice
+WellPoint Health
+Wells Fargo
+Wendy`s International
+WESCO International
+Wesfarmers
+West Japan Railway
+Westcorp
+Western & Southern Financial
+Western Digital
+Western Union
+Westfield America Trust
+Westfield Holdings
+Westfield Trust
+Westlake Chemical
+Westpac Banking Group
+WestRock
+Weyerhaeuser
+Wharf (Holdings) Hong
+WhatsApp
+Whirlpool
+Whitbread Holdings
+White Mountains Ins
+Whitney Holding
+Whole Foods Market
+Wiener Stadtische
+Wikipedia
+William Hill Org
+Williams
+Williams Cos
+Williams-Sonoma
+Willis Group Holdings
+Wilmington Trust
+Windows
+Windstream Holdings
+Wing Lung Bank
+Winn-Dixie Stores
+Wipro
+Wisconsin Energy
+Wm Morrison Supermarkets
+Wm Wrigley Jr
+WMC Resources
+Wolseley
+Wolters Kluwer
+Woodside Petroleum
+Woolworths
+Woori Finance Holdings
+WordPress
+World Fuel Services
+WPP
+WPS Resources
+WR Berkley
+WW Grainger
+Wyeth
+Wyndham Destinations
+Wynn Resorts
+Xbox
+Xcel Energy
+Xerox
+Xfinity
+Xilinx
+XL Capital
+XPO Logistics
+Xstrata
+XTO Energy
+Yahoo
+Yamada Denki
+Yamagata Bank
+Yamaguchi Bank
+Yamaha
+Yamaha Motor
+Yamanashi Chou Bank
+Yamanouchi Pharm
+Yamato Transport
+Yamazaki Baking
+Yanzhou Coal Mining
+Yapi ve Kredi
+Yokogawa Electric
+YouTube
+YTL
+Yue Yuen Industrial
+Yukos
+Yum Brands
+Yum China Holdings
+Zara
+Zendesk
+Zimmer Biomet Holdings
+Zimmer Holdings
+Zions Bancorp
+Zoom
+Zurich Financial Services

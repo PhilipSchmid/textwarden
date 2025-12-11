@@ -145,6 +145,9 @@ pub fn analyze_text(
     enable_internet_abbrev: bool,
     enable_genz_slang: bool,
     enable_it_terminology: bool,
+    enable_brand_names: bool,
+    enable_person_names: bool,
+    enable_last_names: bool,
     enable_language_detection: bool,
     excluded_languages: Vec<String>,
     enable_sentence_start_capitalization: bool,
@@ -189,13 +192,37 @@ pub fn analyze_text(
         merged.add_dictionary(Arc::new(it_dict));
     }
 
+    if enable_brand_names {
+        let brand_words = slang_dict::WordlistCategory::BrandNames.load_words();
+        let mut brand_dict = MutableDictionary::new();
+        brand_dict.extend_words(brand_words);
+        merged.add_dictionary(Arc::new(brand_dict));
+    }
+
+    if enable_person_names {
+        let person_words = slang_dict::WordlistCategory::PersonNames.load_words();
+        let mut person_dict = MutableDictionary::new();
+        person_dict.extend_words(person_words);
+        merged.add_dictionary(Arc::new(person_dict));
+    }
+
+    if enable_last_names {
+        let last_words = slang_dict::WordlistCategory::LastNames.load_words();
+        let mut last_dict = MutableDictionary::new();
+        last_dict.extend_words(last_words);
+        merged.add_dictionary(Arc::new(last_dict));
+    }
+
     let dictionary = Arc::new(merged);
 
     tracing::debug!(
-        "Dictionary configured: abbrev={}, slang={}, it={}",
+        "Dictionary configured: abbrev={}, slang={}, it={}, brands={}, first_names={}, last_names={}",
         enable_internet_abbrev,
         enable_genz_slang,
-        enable_it_terminology
+        enable_it_terminology,
+        enable_brand_names,
+        enable_person_names,
+        enable_last_names
     );
 
     // Initialize Harper linter with curated rules for selected dialect
@@ -482,7 +509,19 @@ mod tests {
 
     #[test]
     fn test_analyze_empty_text() {
-        let result = analyze_text("", "American", false, false, false, false, vec![], true);
+        let result = analyze_text(
+            "",
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
         assert_eq!(result.errors.len(), 0);
         assert_eq!(result.word_count, 0);
     }
@@ -492,6 +531,9 @@ mod tests {
         let result = analyze_text(
             "This is a well-written sentence.",
             "American",
+            false,
+            false,
+            false,
             false,
             false,
             false,
@@ -510,6 +552,9 @@ mod tests {
         let result = analyze_text(
             "The team are working on it.",
             "American",
+            false,
+            false,
+            false,
             false,
             false,
             false,
@@ -569,8 +614,19 @@ mod tests {
         println!("Text: {}", text);
 
         // Test with IT terminology disabled
-        let result_without_it =
-            analyze_text(text, "American", false, false, false, false, vec![], true);
+        let result_without_it = analyze_text(
+            text,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
         println!("\nWithout IT terminology:");
         println!("  Errors found: {}", result_without_it.errors.len());
         for (i, error) in result_without_it.errors.iter().enumerate() {
@@ -586,8 +642,19 @@ mod tests {
         }
 
         // Test with IT terminology enabled
-        let result_with_it =
-            analyze_text(text, "American", false, false, true, false, vec![], true);
+        let result_with_it = analyze_text(
+            text,
+            "American",
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
         println!("\nWith IT terminology:");
         println!("  Errors found: {}", result_with_it.errors.len());
         for (i, error) in result_with_it.errors.iter().enumerate() {
@@ -618,7 +685,19 @@ mod tests {
         println!("\n=== TESTING SENTENCE START CAPITALIZATION ===");
         for (text, error_word, expected_suggestion) in test_cases {
             println!("\nText: '{}'", text);
-            let result = analyze_text(text, "American", false, false, false, false, vec![], true);
+            let result = analyze_text(
+                text,
+                "American",
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                vec![],
+                true,
+            );
 
             // Find the error for the specific word
             if let Some(error) = result
@@ -726,6 +805,9 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
+            false,
             vec![],
             true,
         );
@@ -770,7 +852,19 @@ mod tests {
         // Test that InsertAfter suggestions (like Oxford comma) include the original text
         // Harper uses InsertAfter(',') for Oxford comma, so suggestion should be "word,"
         let text = "I like apples, bananas and oranges.";
-        let result = analyze_text(text, "American", false, false, false, false, vec![], true);
+        let result = analyze_text(
+            text,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
 
         // Find the Oxford comma error (should flag "bananas")
         let oxford_error = result
@@ -797,7 +891,19 @@ mod tests {
     #[test]
     fn test_analyze_performance() {
         let text = &"The quick brown fox jumps over the lazy dog. ".repeat(100);
-        let result = analyze_text(text, "American", false, false, false, false, vec![], true);
+        let result = analyze_text(
+            text,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
         // Analysis should complete in under 1500ms for ~900 words (test mode with opt-level=1)
         // Note: Release builds are ~3x faster (~500ms)
         assert!(
@@ -812,16 +918,71 @@ mod tests {
     fn test_analyze_dialects() {
         // Test that different dialects can be parsed correctly
         let text = "This is a test.";
-        let result_american =
-            analyze_text(text, "American", false, false, false, false, vec![], true);
-        let result_british =
-            analyze_text(text, "British", false, false, false, false, vec![], true);
-        let result_canadian =
-            analyze_text(text, "Canadian", false, false, false, false, vec![], true);
-        let result_australian =
-            analyze_text(text, "Australian", false, false, false, false, vec![], true);
-        let result_invalid =
-            analyze_text(text, "Invalid", false, false, false, false, vec![], true);
+        let result_american = analyze_text(
+            text,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
+        let result_british = analyze_text(
+            text,
+            "British",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
+        let result_canadian = analyze_text(
+            text,
+            "Canadian",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
+        let result_australian = analyze_text(
+            text,
+            "Australian",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
+        let result_invalid = analyze_text(
+            text,
+            "Invalid",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
 
         // All should run without crashing
         assert!(result_american.word_count > 0);
@@ -837,12 +998,34 @@ mod tests {
         let text = "BTW, FYI the meeting is ASAP. LOL!";
 
         // With slang disabled, should flag abbreviations as errors
-        let result_disabled =
-            analyze_text(text, "American", false, false, false, false, vec![], true);
+        let result_disabled = analyze_text(
+            text,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
 
         // With slang enabled, should NOT flag abbreviations
-        let result_enabled =
-            analyze_text(text, "American", true, false, false, false, vec![], true);
+        let result_enabled = analyze_text(
+            text,
+            "American",
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
 
         // We expect fewer errors with slang enabled
         println!("Errors without slang: {}", result_disabled.errors.len());
@@ -858,12 +1041,34 @@ mod tests {
         let text = "That is so sus. She is ghosting me. You slayed!";
 
         // With slang disabled, may flag slang words
-        let result_disabled =
-            analyze_text(text, "American", false, false, false, false, vec![], true);
+        let result_disabled = analyze_text(
+            text,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
 
         // With slang enabled, should recognize these words
-        let result_enabled =
-            analyze_text(text, "American", false, true, false, false, vec![], true);
+        let result_enabled = analyze_text(
+            text,
+            "American",
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
 
         println!(
             "Errors without Gen Z slang: {}",
@@ -877,7 +1082,19 @@ mod tests {
         // Test with both slang options enabled
         let text = "BTW your vibe is totally slay! NGL you ghosted me ASAP.";
 
-        let result = analyze_text(text, "American", true, true, false, false, vec![], true);
+        let result = analyze_text(
+            text,
+            "American",
+            true,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
 
         println!("Text with both slang types enabled:");
         println!("Errors: {}", result.errors.len());
@@ -893,12 +1110,34 @@ mod tests {
         let text = "AFAICT, FYI, BTW, and LOL are common abbreviations.";
 
         // Without slang, should flag as spelling errors
-        let result_disabled =
-            analyze_text(text, "American", false, false, false, false, vec![], true);
+        let result_disabled = analyze_text(
+            text,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
 
         // With slang enabled, should NOT flag these
-        let result_enabled =
-            analyze_text(text, "American", true, false, false, false, vec![], true);
+        let result_enabled = analyze_text(
+            text,
+            "American",
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
 
         println!("\n=== UPPERCASE ABBREVIATIONS TEST ===");
         println!("Text: {}", text);
@@ -956,7 +1195,19 @@ mod tests {
         ];
 
         for text in test_cases {
-            let result = analyze_text(text, "American", true, false, false, false, vec![], true);
+            let result = analyze_text(
+                text,
+                "American",
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                vec![],
+                true,
+            );
 
             println!("\nTesting: '{}'", text);
             println!("Errors: {}", result.errors.len());
@@ -991,6 +1242,9 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
+            false,
             vec![],
             true,
         );
@@ -998,6 +1252,9 @@ mod tests {
             text_with_abbrevs,
             "American",
             true,
+            false,
+            false,
+            false,
             false,
             false,
             false,
@@ -1024,6 +1281,9 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
+            false,
             vec![],
             true,
         );
@@ -1032,6 +1292,9 @@ mod tests {
             "American",
             false,
             true,
+            false,
+            false,
+            false,
             false,
             false,
             vec![],
@@ -1057,7 +1320,19 @@ mod tests {
         // Test edge cases and special scenarios
 
         // Empty text
-        let result = analyze_text("", "American", true, true, false, false, vec![], true);
+        let result = analyze_text(
+            "",
+            "American",
+            true,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
         assert_eq!(result.errors.len(), 0, "Empty text should have no errors");
         assert_eq!(result.word_count, 0, "Empty text should have 0 words");
 
@@ -1066,6 +1341,9 @@ mod tests {
             "BTW FYI LOL ASAP",
             "American",
             true,
+            false,
+            false,
+            false,
             false,
             false,
             false,
@@ -1084,6 +1362,9 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
+            false,
             vec![],
             true,
         );
@@ -1095,6 +1376,9 @@ mod tests {
             "American",
             true,
             true,
+            false,
+            false,
+            false,
             false,
             false,
             vec![],
@@ -1121,7 +1405,19 @@ mod tests {
 
         for (abbrev, description) in test_cases {
             let text = format!("I think {} this works", abbrev);
-            let result = analyze_text(&text, "American", true, false, false, false, vec![], true);
+            let result = analyze_text(
+                &text,
+                "American",
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                vec![],
+                true,
+            );
 
             println!("\nTesting {}: '{}'", description, text);
             println!("  Errors: {}", result.errors.len());
@@ -1173,6 +1469,9 @@ mod tests {
                 false,
                 false,
                 false,
+                false,
+                false,
+                false,
                 vec![],
                 true,
             );
@@ -1184,6 +1483,9 @@ mod tests {
                 &text_upper,
                 "American",
                 true,
+                false,
+                false,
+                false,
                 false,
                 false,
                 false,
@@ -1208,6 +1510,9 @@ mod tests {
                 &text_title,
                 "American",
                 true,
+                false,
+                false,
+                false,
                 false,
                 false,
                 false,
@@ -1272,7 +1577,19 @@ mod tests {
         ];
 
         for (text, expected_error_word) in texts_with_errors {
-            let result = analyze_text(text, "American", true, true, false, false, vec![], true); // Both slang options ON
+            let result = analyze_text(
+                text,
+                "American",
+                true,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                vec![],
+                true,
+            ); // Both slang options ON
 
             println!("\nText: '{}'", text);
             println!("Expected error word: '{}'", expected_error_word);
@@ -1314,7 +1631,19 @@ mod tests {
         // Only "Teh" should be flagged as a spelling error
 
         let text = "btw, lol, omg, afaict, AFAICT, lol, LMK, Teh,";
-        let result = analyze_text(text, "American", true, false, false, false, vec![], true);
+        let result = analyze_text(
+            text,
+            "American",
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
 
         println!("\n=== USER SCREENSHOT SCENARIO TEST ===");
         println!("Text: '{}'", text);
@@ -1462,7 +1791,19 @@ mod tests {
     fn test_language_detection_disabled_by_default() {
         // With language detection disabled, foreign words should still be flagged
         let text = "Hallo world";
-        let result = analyze_text(text, "American", false, false, false, false, vec![], true);
+        let result = analyze_text(
+            text,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
 
         // "Hallo" should be flagged as unknown word
         let hallo_error = result
@@ -1487,7 +1828,10 @@ mod tests {
             false,
             false,
             false, // IT terminology
-            true,  // Enable language detection
+            false,
+            false,
+            false,
+            true, // Enable language detection
             vec!["german".to_string()],
             true,
         );
@@ -1522,6 +1866,9 @@ mod tests {
         let result = analyze_text(
             text,
             "American",
+            false,
+            false,
+            false,
             false,
             false,
             false,
@@ -1564,6 +1911,9 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
+            false,
             true,
             vec!["spanish".to_string()],
             true,
@@ -1601,6 +1951,9 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
+            false,
             true,
             vec!["french".to_string()],
             true,
@@ -1635,6 +1988,9 @@ mod tests {
         let result = analyze_text(
             text,
             "American",
+            false,
+            false,
+            false,
             false,
             false,
             false,
@@ -1699,6 +2055,9 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
+            false,
             true,
             vec!["spanish".to_string()], // Only Spanish excluded
             true,
@@ -1739,7 +2098,10 @@ mod tests {
             true,  // Internet abbreviations ON
             true,  // Gen Z slang ON
             false, // IT terminology
-            true,  // Language detection ON
+            false,
+            false,
+            false,
+            true, // Language detection ON
             vec!["spanish".to_string()],
             true,
         );
@@ -1797,6 +2159,9 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
+            false,
             true,
             vec!["german".to_string()],
             true,
@@ -1844,6 +2209,9 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
+            false,
             true,
             vec!["spanish".to_string()],
             true,
@@ -1883,6 +2251,9 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
+            false,
             true,
             vec!["german".to_string()],
             true,
@@ -1913,6 +2284,9 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
+            false,
             true,
             vec![], // Empty list
             true,
@@ -1936,6 +2310,9 @@ mod tests {
             let result = analyze_text(
                 text,
                 dialect,
+                false,
+                false,
+                false,
                 false,
                 false,
                 false,
@@ -1968,6 +2345,9 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
+            false,
             true,
             vec!["german".to_string()],
             true,
@@ -1987,6 +2367,9 @@ mod tests {
         let result = analyze_text(
             text,
             "American",
+            false,
+            false,
+            false,
             false,
             false,
             false,
@@ -2026,6 +2409,9 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
+            false,
             true,
             vec!["portuguese".to_string()],
             true,
@@ -2062,6 +2448,9 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
+            false,
             true,
             vec!["dutch".to_string()],
             true,
@@ -2092,6 +2481,9 @@ mod tests {
         let result = analyze_text(
             text,
             "American",
+            false,
+            false,
+            false,
             false,
             false,
             false,
@@ -2131,6 +2523,9 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
+            false,
             true,
             vec!["turkish".to_string()],
             true,
@@ -2165,6 +2560,9 @@ mod tests {
         let result = analyze_text(
             text,
             "American",
+            false,
+            false,
+            false,
             false,
             false,
             false,
@@ -2208,6 +2606,9 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
+            false,
             true,
             vec!["french".to_string(), "spanish".to_string()],
             true,
@@ -2242,6 +2643,9 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
+            false,
             true,
             vec!["japanese".to_string(), "korean".to_string()],
             true,
@@ -2271,6 +2675,9 @@ mod tests {
         let result = analyze_text(
             text,
             "American",
+            false,
+            false,
+            false,
             false,
             false,
             false,
@@ -2318,7 +2725,19 @@ mod tests {
         .repeat(4);
 
         let start = Instant::now();
-        let result = analyze_text(&text, "American", false, false, false, false, vec![], true);
+        let result = analyze_text(
+            &text,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
         let elapsed = start.elapsed();
 
         println!("\n=== PERFORMANCE: Baseline Analysis ===");
@@ -2351,7 +2770,19 @@ mod tests {
         .repeat(10);
 
         let start = Instant::now();
-        let result = analyze_text(&text, "American", false, false, false, false, vec![], true);
+        let result = analyze_text(
+            &text,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
         let elapsed = start.elapsed();
 
         println!("\n=== PERFORMANCE: Language Detection Disabled ===");
@@ -2382,6 +2813,9 @@ mod tests {
         let result = analyze_text(
             &text,
             "American",
+            false,
+            false,
+            false,
             false,
             false,
             false,
@@ -2420,6 +2854,9 @@ mod tests {
         let result = analyze_text(
             &text,
             "American",
+            false,
+            false,
+            false,
             false,
             false,
             false,
@@ -2483,7 +2920,7 @@ mod tests {
 
         let start = Instant::now();
         let result = analyze_text(
-            &text, "American", false, false, false, true, all_langs, true,
+            &text, "American", false, false, false, false, false, false, true, all_langs, true,
         );
         let elapsed = start.elapsed();
 
@@ -2512,7 +2949,19 @@ mod tests {
         .repeat(10);
 
         let start = Instant::now();
-        let result = analyze_text(&text, "American", true, true, false, false, vec![], true);
+        let result = analyze_text(
+            &text,
+            "American",
+            true,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
         let elapsed = start.elapsed();
 
         println!("\n=== PERFORMANCE: Abbreviations and Slang ===");
@@ -2547,7 +2996,10 @@ mod tests {
             true,  // internet abbreviations
             true,  // slang
             false, // IT terminology
-            true,  // language detection
+            false,
+            false,
+            false,
+            true, // language detection
             vec!["german".to_string(), "spanish".to_string()],
             true,
         );
@@ -2586,6 +3038,9 @@ mod tests {
             true,
             true,
             false,
+            false,
+            false,
+            false,
             true,
             vec!["german".to_string()],
             true,
@@ -2619,7 +3074,19 @@ mod tests {
         let text = paragraph.repeat(50); // ~1000 words
 
         let start = Instant::now();
-        let result = analyze_text(&text, "American", true, true, false, false, vec![], true);
+        let result = analyze_text(
+            &text,
+            "American",
+            true,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
         let elapsed = start.elapsed();
 
         println!("\n=== PERFORMANCE: Long Document ===");
@@ -2647,12 +3114,34 @@ mod tests {
                     We need to configure the API endpoints and set up localhost testing.";
 
         // With IT terminology disabled, may flag technical terms
-        let result_disabled =
-            analyze_text(text, "American", false, false, false, false, vec![], true);
+        let result_disabled = analyze_text(
+            text,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
 
         // With IT terminology enabled, should recognize these terms
-        let result_enabled =
-            analyze_text(text, "American", false, false, true, false, vec![], true);
+        let result_enabled = analyze_text(
+            text,
+            "American",
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
 
         println!("\n=== IT TERMINOLOGY TEST ===");
         println!("Text: {}", text);
@@ -2686,8 +3175,32 @@ mod tests {
                     Use HTTP for the nginx reverse proxy.";
 
         // Test IT terminology toggle
-        let disabled = analyze_text(text, "American", false, false, false, false, vec![], true);
-        let enabled = analyze_text(text, "American", false, false, true, false, vec![], true);
+        let disabled = analyze_text(
+            text,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
+        let enabled = analyze_text(
+            text,
+            "American",
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
 
         println!("\n=== IT TERMINOLOGY TOGGLE TEST ===");
         println!("Text: {}", text);
@@ -2730,10 +3243,32 @@ mod tests {
 
         println!("\n=== IT TERMINOLOGY COMMON TERMS TEST ===");
         for (text, term) in test_cases {
-            let result_disabled =
-                analyze_text(text, "American", false, false, false, false, vec![], true);
-            let result_enabled =
-                analyze_text(text, "American", false, false, true, false, vec![], true);
+            let result_disabled = analyze_text(
+                text,
+                "American",
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                vec![],
+                true,
+            );
+            let result_enabled = analyze_text(
+                text,
+                "American",
+                false,
+                false,
+                true,
+                false,
+                false,
+                false,
+                false,
+                vec![],
+                true,
+            );
 
             // Check if the term has SPELLING errors when disabled
             let spelling_when_disabled = result_disabled.errors.iter().any(|e| {
@@ -2774,7 +3309,19 @@ mod tests {
                     IMHO we should use nginx ASAP.";
 
         // All features enabled
-        let result = analyze_text(text, "American", true, true, true, false, vec![], true);
+        let result = analyze_text(
+            text,
+            "American",
+            true,
+            true,
+            true,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
 
         println!("\n=== IT TERMINOLOGY + SLANG TEST ===");
         println!("Text: {}", text);
@@ -2832,7 +3379,19 @@ mod tests {
         .repeat(10);
 
         let start = Instant::now();
-        let result = analyze_text(&text, "American", false, false, true, false, vec![], true);
+        let result = analyze_text(
+            &text,
+            "American",
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
         let elapsed = start.elapsed();
 
         println!("\n=== PERFORMANCE: IT Terminology ===");
@@ -2860,7 +3419,19 @@ mod tests {
         .repeat(10);
 
         let start = Instant::now();
-        let result = analyze_text(&text, "American", true, true, true, false, vec![], true);
+        let result = analyze_text(
+            &text,
+            "American",
+            true,
+            true,
+            true,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
         let elapsed = start.elapsed();
 
         println!("\n=== PERFORMANCE: All Wordlists ===");
@@ -2889,7 +3460,19 @@ mod tests {
         println!("\n=== SENTENCE START CAPITALIZATION (ENABLED) ===");
         for (text, error_word, expected_suggestion) in test_cases {
             println!("\nText: '{}'", text);
-            let result = analyze_text(text, "American", false, false, false, false, vec![], true);
+            let result = analyze_text(
+                text,
+                "American",
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                vec![],
+                true,
+            );
 
             // Find the error for the specific word
             if let Some(error) = result
@@ -2929,7 +3512,19 @@ mod tests {
         println!("\n=== SENTENCE START CAPITALIZATION (DISABLED) ===");
         for (text, error_word) in test_cases {
             println!("\nText: '{}'", text);
-            let result = analyze_text(text, "American", false, false, false, false, vec![], false);
+            let result = analyze_text(
+                text,
+                "American",
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                vec![],
+                false,
+            );
 
             // Find the error for the specific word
             if let Some(error) = result
@@ -2969,12 +3564,34 @@ mod tests {
         println!("Text: '{}'", text);
 
         // With enhancement enabled
-        let result_enabled =
-            analyze_text(text, "American", false, false, false, false, vec![], true);
+        let result_enabled = analyze_text(
+            text,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
 
         // With enhancement disabled
-        let result_disabled =
-            analyze_text(text, "American", false, false, false, false, vec![], false);
+        let result_disabled = analyze_text(
+            text,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            false,
+        );
 
         // Find the error for "THis"
         let error_enabled = result_enabled
@@ -3031,7 +3648,19 @@ mod tests {
 
         // Test 1: "Ciliium" with IT terminology enabled
         let text1 = "I use Ciliium for networking.";
-        let result1 = analyze_text(text1, "American", false, false, true, false, vec![], true);
+        let result1 = analyze_text(
+            text1,
+            "American",
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
         println!("Text: '{}' (IT terminology: ON)", text1);
         println!("Errors: {}", result1.errors.len());
         for error in &result1.errors {
@@ -3052,7 +3681,19 @@ mod tests {
 
         // Test 2: "Ciliium" WITHOUT IT terminology (only Harper's curated dict)
         let text2 = "The Ciliium is a part of the cell.";
-        let result2 = analyze_text(text2, "American", false, false, false, false, vec![], true);
+        let result2 = analyze_text(
+            text2,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
         println!("\nText: '{}' (IT terminology: OFF)", text2);
         println!("Errors: {}", result2.errors.len());
         for error in &result2.errors {
@@ -3076,7 +3717,19 @@ mod tests {
 
         // Test 3: Known misspelling to verify spell checker works
         let text3 = "The teh quick fox.";
-        let result3 = analyze_text(text3, "American", false, false, false, false, vec![], true);
+        let result3 = analyze_text(
+            text3,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
         println!("\nText: '{}' (control test)", text3);
         println!("Errors: {}", result3.errors.len());
         for error in &result3.errors {
@@ -3097,7 +3750,19 @@ mod tests {
 
         // Test 4: Correct spelling "cilium"
         let text4 = "The cilium is important.";
-        let result4 = analyze_text(text4, "American", false, false, false, false, vec![], true);
+        let result4 = analyze_text(
+            text4,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
         println!("\nText: '{}' (correct spelling)", text4);
         println!("Errors: {}", result4.errors.len());
         for error in &result4.errors {
@@ -3118,7 +3783,19 @@ mod tests {
 
         // Test 5: "ciliium" lowercase
         let text5 = "The ciliium is important.";
-        let result5 = analyze_text(text5, "American", false, false, false, false, vec![], true);
+        let result5 = analyze_text(
+            text5,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
         println!("\nText: '{}' (lowercase misspelling)", text5);
         println!("Errors: {}", result5.errors.len());
         for error in &result5.errors {
@@ -3166,7 +3843,19 @@ mod tests {
         );
         println!("Char count: {}", text.chars().count());
 
-        let result = analyze_text(text, "American", false, false, false, false, vec![], true);
+        let result = analyze_text(
+            text,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
 
         println!("\nErrors found: {}", result.errors.len());
         for error in &result.errors {
@@ -3263,7 +3952,19 @@ mod tests {
             println!("Text: '{}'", text);
             println!("Bytes: {}, Chars: {}", text.len(), text.chars().count());
 
-            let result = analyze_text(text, "American", false, false, false, false, vec![], true);
+            let result = analyze_text(
+                text,
+                "American",
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                vec![],
+                true,
+            );
 
             let chars: Vec<char> = text.chars().collect();
             let error = result.errors.iter().find(|e| {
@@ -3309,7 +4010,19 @@ mod tests {
         println!("\n=== DEDUPLICATION SUGGESTION TEST ===");
         println!("Text: '{}'", text);
 
-        let result = analyze_text(text, "American", false, false, false, false, vec![], true);
+        let result = analyze_text(
+            text,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+        );
 
         println!("Errors after deduplication: {}", result.errors.len());
         for error in &result.errors {
@@ -3373,7 +4086,19 @@ mod tests {
         println!("\n=== SENTENCE BOUNDARY COMPREHENSIVE TEST ===");
         for (text, expectations) in test_cases {
             println!("\nText: '{}'", text);
-            let result = analyze_text(text, "American", false, false, false, false, vec![], true);
+            let result = analyze_text(
+                text,
+                "American",
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                vec![],
+                true,
+            );
 
             for (error_word, expected_sugg) in expectations {
                 let error = result.errors.iter().find(|e| {

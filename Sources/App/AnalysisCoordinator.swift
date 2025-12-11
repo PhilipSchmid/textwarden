@@ -1904,6 +1904,9 @@ class AnalysisCoordinator: ObservableObject {
             let enableInternetAbbrev = UserPreferences.shared.enableInternetAbbreviations
             let enableGenZSlang = UserPreferences.shared.enableGenZSlang
             let enableITTerminology = UserPreferences.shared.enableITTerminology
+            let enableBrandNames = UserPreferences.shared.enableBrandNames
+            let enablePersonNames = UserPreferences.shared.enablePersonNames
+            let enableLastNames = UserPreferences.shared.enableLastNames
             let enableLanguageDetection = UserPreferences.shared.enableLanguageDetection
             let excludedLanguages = Array(UserPreferences.shared.excludedLanguages.map { UserPreferences.languageCode(for: $0) })
             let enableSentenceStartCapitalization = UserPreferences.shared.enableSentenceStartCapitalization
@@ -1914,6 +1917,9 @@ class AnalysisCoordinator: ObservableObject {
                 enableInternetAbbrev: enableInternetAbbrev,
                 enableGenZSlang: enableGenZSlang,
                 enableITTerminology: enableITTerminology,
+                enableBrandNames: enableBrandNames,
+                enablePersonNames: enablePersonNames,
+                enableLastNames: enableLastNames,
                 enableLanguageDetection: enableLanguageDetection,
                 excludedLanguages: excludedLanguages,
                 enableSentenceStartCapitalization: enableSentenceStartCapitalization
@@ -2102,6 +2108,9 @@ class AnalysisCoordinator: ObservableObject {
             let enableInternetAbbrev = UserPreferences.shared.enableInternetAbbreviations
             let enableGenZSlang = UserPreferences.shared.enableGenZSlang
             let enableITTerminology = UserPreferences.shared.enableITTerminology
+            let enableBrandNames = UserPreferences.shared.enableBrandNames
+            let enablePersonNames = UserPreferences.shared.enablePersonNames
+            let enableLastNames = UserPreferences.shared.enableLastNames
             let enableLanguageDetection = UserPreferences.shared.enableLanguageDetection
             let excludedLanguages = Array(UserPreferences.shared.excludedLanguages.map { UserPreferences.languageCode(for: $0) })
             let enableSentenceStartCapitalization = UserPreferences.shared.enableSentenceStartCapitalization
@@ -2111,6 +2120,9 @@ class AnalysisCoordinator: ObservableObject {
                 enableInternetAbbrev: enableInternetAbbrev,
                 enableGenZSlang: enableGenZSlang,
                 enableITTerminology: enableITTerminology,
+                enableBrandNames: enableBrandNames,
+                enablePersonNames: enablePersonNames,
+                enableLastNames: enableLastNames,
                 enableLanguageDetection: enableLanguageDetection,
                 excludedLanguages: excludedLanguages,
                 enableSentenceStartCapitalization: enableSentenceStartCapitalization

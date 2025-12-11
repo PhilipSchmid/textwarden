@@ -21,6 +21,9 @@ import Foundation
     ///   - enableInternetAbbrev: Enable recognition of internet abbreviations (BTW, FYI, LOL, etc.)
     ///   - enableGenZSlang: Enable recognition of Gen Z slang (ghosting, sus, slay, etc.)
     ///   - enableITTerminology: Enable recognition of IT terminology (kubernetes, docker, API, etc.)
+    ///   - enableBrandNames: Enable recognition of brand/company names (Apple, Microsoft, etc.)
+    ///   - enablePersonNames: Enable recognition of person names (first names)
+    ///   - enableLastNames: Enable recognition of surnames/last names
     ///   - enableLanguageDetection: Enable detection and filtering of non-English words
     ///   - excludedLanguages: Array of language codes to exclude (e.g., ["spanish", "german"])
     ///   - enableSentenceStartCapitalization: Enable capitalization of suggestions at sentence starts
@@ -31,6 +34,9 @@ import Foundation
         enableInternetAbbrev: Bool,
         enableGenZSlang: Bool,
         enableITTerminology: Bool,
+        enableBrandNames: Bool,
+        enablePersonNames: Bool,
+        enableLastNames: Bool,
         enableLanguageDetection: Bool = false,
         excludedLanguages: [String] = [],
         enableSentenceStartCapitalization: Bool = true
@@ -50,6 +56,9 @@ import Foundation
             enableInternetAbbrev,
             enableGenZSlang,
             enableITTerminology,
+            enableBrandNames,
+            enablePersonNames,
+            enableLastNames,
             enableLanguageDetection,
             rustVec,
             enableSentenceStartCapitalization
@@ -67,6 +76,9 @@ import Foundation
     ///   - enableInternetAbbrev: Enable recognition of internet abbreviations (BTW, FYI, LOL, etc.)
     ///   - enableGenZSlang: Enable recognition of Gen Z slang (ghosting, sus, slay, etc.)
     ///   - enableITTerminology: Enable recognition of IT terminology (kubernetes, docker, API, etc.)
+    ///   - enableBrandNames: Enable recognition of brand/company names (Apple, Microsoft, etc.)
+    ///   - enablePersonNames: Enable recognition of person names (first names)
+    ///   - enableLastNames: Enable recognition of surnames/last names
     ///   - enableLanguageDetection: Enable detection and filtering of non-English words
     ///   - excludedLanguages: Array of language codes to exclude (e.g., ["spanish", "german"])
     ///   - enableSentenceStartCapitalization: Enable capitalization of suggestions at sentence starts
@@ -78,11 +90,14 @@ import Foundation
         enableInternetAbbrev: Bool,
         enableGenZSlang: Bool,
         enableITTerminology: Bool,
+        enableBrandNames: Bool,
+        enablePersonNames: Bool,
+        enableLastNames: Bool,
         enableLanguageDetection: Bool = false,
         excludedLanguages: [String] = [],
         enableSentenceStartCapitalization: Bool = true
     ) async -> GrammarAnalysisResult {
-        await Task.detached(priority: .userInitiated) { [text, dialect, enableInternetAbbrev, enableGenZSlang, enableITTerminology, enableLanguageDetection, excludedLanguages, enableSentenceStartCapitalization] in
+        await Task.detached(priority: .userInitiated) { [text, dialect, enableInternetAbbrev, enableGenZSlang, enableITTerminology, enableBrandNames, enablePersonNames, enableLastNames, enableLanguageDetection, excludedLanguages, enableSentenceStartCapitalization] in
             // Call FFI function directly in detached task
             // Convert Swift strings to RustString and create RustVec for language list
             let rustText = RustString(text)
@@ -98,6 +113,9 @@ import Foundation
                 enableInternetAbbrev,
                 enableGenZSlang,
                 enableITTerminology,
+                enableBrandNames,
+                enablePersonNames,
+                enableLastNames,
                 enableLanguageDetection,
                 rustVec,
                 enableSentenceStartCapitalization
@@ -119,6 +137,9 @@ import Foundation
             enableInternetAbbrev: true,
             enableGenZSlang: true,
             enableITTerminology: true,
+            enableBrandNames: true,
+            enablePersonNames: true,
+            enableLastNames: true,
             enableLanguageDetection: false,
             excludedLanguages: [],
             enableSentenceStartCapitalization: true
@@ -138,6 +159,9 @@ import Foundation
             enableInternetAbbrev: true,
             enableGenZSlang: true,
             enableITTerminology: true,
+            enableBrandNames: true,
+            enablePersonNames: true,
+            enableLastNames: true,
             enableLanguageDetection: false,
             excludedLanguages: [],
             enableSentenceStartCapitalization: true
@@ -156,6 +180,9 @@ import Foundation
             enableInternetAbbrev: true,
             enableGenZSlang: true,
             enableITTerminology: true,
+            enableBrandNames: true,
+            enablePersonNames: true,
+            enableLastNames: true,
             enableLanguageDetection: false,
             excludedLanguages: [],
             enableSentenceStartCapitalization: true
@@ -176,6 +203,9 @@ import Foundation
             enableInternetAbbrev: true,
             enableGenZSlang: true,
             enableITTerminology: true,
+            enableBrandNames: true,
+            enablePersonNames: true,
+            enableLastNames: true,
             enableLanguageDetection: false,
             excludedLanguages: [],
             enableSentenceStartCapitalization: true

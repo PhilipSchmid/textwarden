@@ -2751,6 +2751,36 @@ private struct CustomVocabularyContent: View {
                         .foregroundColor(.secondary)
                         .padding(.leading, 20)
                 }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Brand & Company Names", isOn: $preferences.enableBrandNames)
+                        .help("Accept brand names like Apple, Microsoft, Google, Amazon, etc.")
+
+                    Text("2,400+ brand/company names (Fortune 500, Forbes 2000, global brands) • Case-insensitive")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 20)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Person Names (First Names)", isOn: $preferences.enablePersonNames)
+                        .help("Accept common first names like James, Maria, Chen, Fatima, etc.")
+
+                    Text("100,000+ international first names (US SSA + worldwide sources) • Case-insensitive")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 20)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Surnames (Last Names)", isOn: $preferences.enableLastNames)
+                        .help("Accept common surnames like Smith, Garcia, Johnson, etc.")
+
+                    Text("150,000+ surnames from US Census data • Case-insensitive")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 20)
+                }
             } header: {
                 Text("Predefined Wordlists")
                     .font(.headline)
@@ -3314,6 +3344,39 @@ struct CustomVocabularyView: View {
                             .help("Accept technical terms like kubernetes, docker, API, JSON, localhost, etc.")
 
                         Text("10,000+ technical terms (kubernetes, docker, nginx, API, JSON, etc.) • Case-insensitive")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .padding(.leading, 20)
+                    }
+
+                    // Brand Names
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle("Brand & Company Names", isOn: $preferences.enableBrandNames)
+                            .help("Accept brand names like Apple, Microsoft, Google, Amazon, etc.")
+
+                        Text("2,400+ brand/company names (Fortune 500, Forbes 2000, global brands) • Case-insensitive")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .padding(.leading, 20)
+                    }
+
+                    // Person Names
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle("Person Names (First Names)", isOn: $preferences.enablePersonNames)
+                            .help("Accept common first names like James, Maria, Chen, Fatima, etc.")
+
+                        Text("100,000+ international first names (US SSA + worldwide sources) • Case-insensitive")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .padding(.leading, 20)
+                    }
+
+                    // Surnames
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle("Surnames (Last Names)", isOn: $preferences.enableLastNames)
+                            .help("Accept common surnames like Smith, Garcia, Johnson, etc.")
+
+                        Text("150,000+ surnames from US Census data • Case-insensitive")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                             .padding(.leading, 20)

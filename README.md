@@ -94,7 +94,10 @@ Control exactly where TextWarden runs:
 - **Custom dictionary** - Add technical terms, proper nouns, or specialized vocabulary
 - **Dialect support** - American, British, Canadian, or Australian English spelling rules
 - **Internet abbreviations** - Recognizes "btw", "afaik", "imo" without flagging them
-- **IT terminology** - Built-in dictionary of technical terms and company names
+- **IT terminology** - Built-in dictionary of 10,000+ technical terms and company names
+- **Brand names** - 2,400+ company/brand names (Fortune 500, Forbes 2000, global brands)
+- **Person names** - 100,000+ international first names (US SSA + worldwide sources)
+- **Surnames** - 150,000+ last names from US Census data
 - **Usage statistics** - Track errors found and corrections applied (stored locally)
 - **Keyboard shortcuts** - Customizable shortcuts for common actions
 - **Menu bar integration** - Quick access to pause, resume, and settings
@@ -136,7 +139,7 @@ Built on excellent open source projects:
 - [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) - Global keyboard shortcuts for macOS
 - [LaunchAtLogin-Modern](https://github.com/sindresorhus/LaunchAtLogin-Modern) - Launch at login functionality
 
-Special thanks to [VoiceInk](https://github.com/Beingpax/VoiceInk) for the inspiration on leveraging local LLMs in macOS apps. VoiceInk is a fantastic voice-to-text tool - highly recommended.
+Special thanks to [VoiceInk](https://tryvoiceink.com?atp=Ylsxyh&sub1=tw) for the inspiration on leveraging local LLMs in macOS apps. VoiceInk is a fantastic voice-to-text tool that I use daily and already saved me countless hours of typing - highly recommended.
 
 ## Troubleshooting
 

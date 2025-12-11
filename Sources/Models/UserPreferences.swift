@@ -348,6 +348,27 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Enable recognition of brand/company names (Apple, Microsoft, Google, etc.)
+    @Published var enableBrandNames: Bool {
+        didSet {
+            defaults.set(enableBrandNames, forKey: Keys.enableBrandNames)
+        }
+    }
+
+    /// Enable recognition of person names (first names)
+    @Published var enablePersonNames: Bool {
+        didSet {
+            defaults.set(enablePersonNames, forKey: Keys.enablePersonNames)
+        }
+    }
+
+    /// Enable recognition of surnames/last names
+    @Published var enableLastNames: Bool {
+        didSet {
+            defaults.set(enableLastNames, forKey: Keys.enableLastNames)
+        }
+    }
+
     // MARK: - Language Detection
 
     /// Enable detection and filtering of non-English words
@@ -628,6 +649,9 @@ class UserPreferences: ObservableObject {
         self.enableInternetAbbreviations = true
         self.enableGenZSlang = true
         self.enableITTerminology = true
+        self.enableBrandNames = true
+        self.enablePersonNames = true
+        self.enableLastNames = true
         self.enableLanguageDetection = false  // Opt-in feature
         self.excludedLanguages = []
 
@@ -733,6 +757,9 @@ class UserPreferences: ObservableObject {
         self.enableInternetAbbreviations = defaults.object(forKey: Keys.enableInternetAbbreviations) as? Bool ?? true
         self.enableGenZSlang = defaults.object(forKey: Keys.enableGenZSlang) as? Bool ?? true
         self.enableITTerminology = defaults.object(forKey: Keys.enableITTerminology) as? Bool ?? true
+        self.enableBrandNames = defaults.object(forKey: Keys.enableBrandNames) as? Bool ?? true
+        self.enablePersonNames = defaults.object(forKey: Keys.enablePersonNames) as? Bool ?? true
+        self.enableLastNames = defaults.object(forKey: Keys.enableLastNames) as? Bool ?? true
         self.enableLanguageDetection = defaults.object(forKey: Keys.enableLanguageDetection) as? Bool ?? false
         if let data = defaults.data(forKey: Keys.excludedLanguages),
            let set = try? decoder.decode(Set<String>.self, from: data) {
@@ -1119,6 +1146,9 @@ class UserPreferences: ObservableObject {
         enableInternetAbbreviations = true
         enableGenZSlang = true
         enableITTerminology = true
+        enableBrandNames = true
+        enablePersonNames = true
+        enableLastNames = true
         enableSentenceStartCapitalization = true
         keyboardShortcutsEnabled = true
         suggestionOpacity = 0.80
@@ -1156,6 +1186,9 @@ class UserPreferences: ObservableObject {
         static let enableInternetAbbreviations = "enableInternetAbbreviations"
         static let enableGenZSlang = "enableGenZSlang"
         static let enableITTerminology = "enableITTerminology"
+        static let enableBrandNames = "enableBrandNames"
+        static let enablePersonNames = "enablePersonNames"
+        static let enableLastNames = "enableLastNames"
         static let enableLanguageDetection = "enableLanguageDetection"
         static let excludedLanguages = "excludedLanguages"
 
