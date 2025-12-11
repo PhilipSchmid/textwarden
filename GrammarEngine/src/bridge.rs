@@ -9,7 +9,7 @@ use crate::analyzer;
 use crate::llm_types;
 use crate::swift_logger::{register_swift_callback, SwiftLogCallback, SwiftLoggerLayer};
 use std::sync::Once;
-use sysinfo::{Pid, System};
+use sysinfo::{Pid, ProcessesToUpdate, System};
 use tracing::Level;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
@@ -244,9 +244,8 @@ mod ffi {
 fn read_process_memory(pid: Option<Pid>) -> u64 {
     if let Some(pid) = pid {
         let mut sys = System::new();
-        if sys.refresh_process(pid) {
-            return sys.process(pid).map(|p| p.memory()).unwrap_or(0);
-        }
+        sys.refresh_processes(ProcessesToUpdate::All, false);
+        return sys.process(pid).map(|p| p.memory()).unwrap_or(0);
     }
     0
 }
