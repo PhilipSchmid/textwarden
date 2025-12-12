@@ -1040,12 +1040,13 @@ class UserStatistics: ObservableObject {
         guard persistBatchCounter >= 10 else { return }
         persistBatchCounter = 0
 
-        // Capture @Published property and encoder on main thread to avoid race condition
+        // Capture @Published property on main thread to create snapshot
         let samplesToEncode = resourceSamples
-        let encoder = self.encoder
 
         DispatchQueue.global(qos: .utility).async {
             do {
+                // Create local encoder to avoid sharing across threads
+                let encoder = JSONEncoder()
                 let encoded = try encoder.encode(samplesToEncode)
                 // UserDefaults.standard is thread-safe
                 UserDefaults.standard.set(encoded, forKey: Keys.resourceSamples)
