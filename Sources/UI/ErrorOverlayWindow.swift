@@ -516,26 +516,6 @@ class ErrorOverlayWindow: NSPanel {
         }
     }
 
-    // MARK: - Debug Helpers
-
-    /// Log to debug file (same as TextWardenApp)
-    private func logToDebugFile(_ message: String) {
-        let logPath = "/tmp/textwarden-debug.log"
-        let timestamp = Date()
-        let logMessage = "[\(timestamp)] \(message)\n"
-        if let data = logMessage.data(using: .utf8) {
-            if FileManager.default.fileExists(atPath: logPath) {
-                if let fileHandle = FileHandle(forWritingAtPath: logPath) {
-                    fileHandle.seekToEndOfFile()
-                    fileHandle.write(data)
-                    fileHandle.closeFile()
-                }
-            } else {
-                try? data.write(to: URL(fileURLWithPath: logPath))
-            }
-        }
-    }
-
     // MARK: - Window Frame Helpers
 
     /// Get the application window frame for smart popover positioning

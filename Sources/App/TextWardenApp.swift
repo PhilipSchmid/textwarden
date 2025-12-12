@@ -199,11 +199,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Initialize LLM engine and auto-load model (runs on background thread)
     private func initializeLLMEngineAndLoadModel(preferences: UserPreferences, modelManager: ModelManager) {
         // Initialize LLM engine with app support directory
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            Logger.error("Failed to resolve application support directory", category: Logger.llm)
+            return
+        }
         let textWardenDir = appSupport.appendingPathComponent("TextWarden", isDirectory: true)
 
         // Ensure directory exists
-        try? FileManager.default.createDirectory(at: textWardenDir, withIntermediateDirectories: true)
+        do {
+            try FileManager.default.createDirectory(at: textWardenDir, withIntermediateDirectories: true)
+        } catch {
+            Logger.error("Failed to create TextWarden support directory: \(error.localizedDescription)", category: Logger.llm)
+            return
+        }
 
         Logger.info("Initializing LLM engine on background thread...", category: Logger.llm)
         let initSuccess = LLMEngine.shared.initialize(appSupportDir: textWardenDir)

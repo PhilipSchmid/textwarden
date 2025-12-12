@@ -12,7 +12,11 @@ final class SystemMetricsTests: XCTestCase {
         XCTAssertGreaterThan(memory, 0, "Memory usage should be positive")
         XCTAssertLessThan(memory, 16_000_000_000, "Memory should be < 16GB (sanity check)")
 
-        print("Current memory usage: \(ByteCountFormatter.string(fromByteCount: Int64(memory), countStyle: .memory))")
+        XCTContext.runActivity(named: "Memory usage") { activity in
+            let attachment = XCTAttachment(string: ByteCountFormatter.string(fromByteCount: Int64(memory), countStyle: .memory))
+            attachment.lifetime = .keepAlways
+            activity.add(attachment)
+        }
     }
 
     func testGetVirtualMemorySize() {
@@ -20,7 +24,11 @@ final class SystemMetricsTests: XCTestCase {
 
         XCTAssertGreaterThan(virtualMemory, 0, "Virtual memory should be positive")
 
-        print("Virtual memory size: \(ByteCountFormatter.string(fromByteCount: Int64(virtualMemory), countStyle: .memory))")
+        XCTContext.runActivity(named: "Virtual memory size") { activity in
+            let attachment = XCTAttachment(string: ByteCountFormatter.string(fromByteCount: Int64(virtualMemory), countStyle: .memory))
+            attachment.lifetime = .keepAlways
+            activity.add(attachment)
+        }
     }
 
     func testGetCPUUsage() {
@@ -32,7 +40,11 @@ final class SystemMetricsTests: XCTestCase {
         // CPU can exceed 100% on multi-core systems (100% per core)
         XCTAssertLessThanOrEqual(cpu, 100.0 * Double(coreCount) * 2, "CPU should be reasonable")
 
-        print("Current CPU usage: \(String(format: "%.2f%%", cpu))")
+        XCTContext.runActivity(named: "CPU usage") { activity in
+            let attachment = XCTAttachment(string: String(format: "%.2f%%", cpu))
+            attachment.lifetime = .keepAlways
+            activity.add(attachment)
+        }
     }
 
     func testGetResourceSnapshot() {
@@ -42,7 +54,12 @@ final class SystemMetricsTests: XCTestCase {
         XCTAssertGreaterThan(snapshot.virtualMemory, 0)
         XCTAssertGreaterThanOrEqual(snapshot.cpu, 0)
 
-        print("Resource snapshot - CPU: \(String(format: "%.2f%%", snapshot.cpu)), Memory: \(ByteCountFormatter.string(fromByteCount: Int64(snapshot.memory), countStyle: .memory))")
+        XCTContext.runActivity(named: "Resource snapshot") { activity in
+            let details = "CPU: \(String(format: "%.2f%%", snapshot.cpu)), Memory: \(ByteCountFormatter.string(fromByteCount: Int64(snapshot.memory), countStyle: .memory))"
+            let attachment = XCTAttachment(string: details)
+            attachment.lifetime = .keepAlways
+            activity.add(attachment)
+        }
     }
 
     func testConsistentReadings() {

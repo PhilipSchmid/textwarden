@@ -40,7 +40,11 @@ final class LargeDocumentPerformanceTests: XCTestCase {
         let result = grammarEngine.analyzeText(text)
         let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
 
-        print("15K word analysis took: \(elapsed)ms")
+        XCTContext.runActivity(named: "15K word analysis duration") { activity in
+            let attachment = XCTAttachment(string: "\(elapsed)ms")
+            attachment.lifetime = .keepAlways
+            activity.add(attachment)
+        }
         XCTAssertNotNil(result)
 
         // Should complete within reasonable time (allow up to 1 second for very large docs)

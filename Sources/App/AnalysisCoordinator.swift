@@ -10,24 +10,6 @@ import AppKit
 import ApplicationServices
 import Combine
 
-/// Debug file logging
-func logToDebugFile(_ message: String) {
-    let logPath = "/tmp/textwarden-debug.log"
-    let timestamp = Date()
-    let logMessage = "[\(timestamp)] \(message)\n"
-    if let data = logMessage.data(using: .utf8) {
-        if FileManager.default.fileExists(atPath: logPath) {
-            if let fileHandle = FileHandle(forWritingAtPath: logPath) {
-                fileHandle.seekToEndOfFile()
-                fileHandle.write(data)
-                fileHandle.closeFile()
-            }
-        } else {
-            try? data.write(to: URL(fileURLWithPath: logPath))
-        }
-    }
-}
-
 /// Coordinates grammar analysis workflow: monitoring → analysis → UI
 class AnalysisCoordinator: ObservableObject {
 
@@ -70,6 +52,9 @@ class AnalysisCoordinator: ObservableObject {
     /// AI rephrase suggestions cache - maps original sentence text to AI-generated rephrase
     /// This cache persists across app switches and re-analyses to avoid regenerating expensive LLM suggestions
     private var aiRephraseCache: [String: String] = [:]
+
+    /// Serial queue to guard AI rephrase cache access off the main thread
+    private let aiRephraseCacheQueue = DispatchQueue(label: "com.textwarden.aiRephraseCache")
 
     /// Maximum entries in AI rephrase cache before LRU eviction
     private let aiRephraseCacheMaxEntries = 50
@@ -4353,7 +4338,8 @@ class AnalysisCoordinator: ObservableObject {
         // Small delay between key events (prevents event ordering issues)
         // Can be disabled for rapid repeated keys (like arrow navigation)
         if withDelay {
-            Thread.sleep(forTimeInterval: 0.01)
+            // Keep run loop responsive instead of blocking the thread
+            RunLoop.current.run(until: Date().addingTimeInterval(0.01))
         }
     }
 
@@ -4956,8 +4942,8 @@ extension AnalysisCoordinator {
                 // Check AI rephrase cache first
                 var rephrased: String?
 
-                // Access cache on main thread to avoid race conditions
-                DispatchQueue.main.sync {
+                // Access cache on dedicated queue to avoid race conditions
+                aiRephraseCacheQueue.sync {
                     rephrased = self.aiRephraseCache[sentence]
                 }
 
@@ -4969,9 +4955,9 @@ extension AnalysisCoordinator {
                     // Generate AI suggestion
                     rephrased = LLMEngine.shared.rephraseSentence(sentence)
 
-                    // Cache the result on main thread
+                    // Cache the result on dedicated queue
                     if let newRephrase = rephrased {
-                        DispatchQueue.main.sync {
+                        aiRephraseCacheQueue.sync {
                             // Evict old entries if cache is full
                             if self.aiRephraseCache.count >= self.aiRephraseCacheMaxEntries {
                                 // Remove first (oldest) entry - simple FIFO eviction
