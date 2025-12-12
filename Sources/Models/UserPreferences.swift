@@ -289,7 +289,8 @@ class UserPreferences: ObservableObject {
     static let defaultPausedApplications: Set<String> = [
         "com.apple.iCal",               // Apple Calendar
         "com.todesktop.230313mzl4w4u92", // Cursor IDE
-        "com.exafunction.windsurf"      // Windsurf IDE
+        "com.exafunction.windsurf",     // Windsurf IDE
+        "com.microsoft.Excel"           // Excel
     ]
 
     /// Always open settings window in foreground on launch

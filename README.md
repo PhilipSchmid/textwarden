@@ -162,6 +162,7 @@ TextWarden uses the macOS Accessibility API and works with most applications. Vi
 | **Webex** | Full | Full |
 | **Microsoft Word** | Full | Indicator only* |
 | **Microsoft PowerPoint** | Notes only** | Indicator only* |
+| **Microsoft Excel** | Not supported | N/A |
 | **Microsoft Teams** | Full | Indicator only* |
 | **Terminal apps** (iTerm2, Terminal.app, Warp) | Full | Indicator only* |
 
