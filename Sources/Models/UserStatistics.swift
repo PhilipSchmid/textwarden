@@ -242,7 +242,7 @@ class UserStatistics: ObservableObject {
     }
 
     // Retention configuration
-    private let maxResourceAge: TimeInterval = 30 * 24 * 60 * 60  // 30 days
+    private let maxResourceAge: TimeInterval = TimingConstants.statisticsMaxAge
     private let maxInMemorySamples = 720  // 1 hour at 5s interval
     private var persistBatchCounter = 0
 

@@ -108,7 +108,7 @@ struct AccessibilityAnnouncement {
     }
 
     /// Post an announcement after a delay (useful for state changes)
-    static func postDelayed(_ message: String, delay: TimeInterval = 0.5) {
+    static func postDelayed(_ message: String, delay: TimeInterval = TimingConstants.accessibilityAnnounce) {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
             AccessibilityNotification.Announcement(message).post()
         }

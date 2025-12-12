@@ -8,7 +8,7 @@ public class ResourceMonitor {
     public static let shared = ResourceMonitor()
 
     private var samplingTimer: Timer?
-    private let samplingInterval: TimeInterval = 5.0  // 5 seconds
+    private let samplingInterval: TimeInterval = TimingConstants.resourceSampling
     private let samplingQueue = DispatchQueue(label: "com.textwarden.resource-monitor", qos: .utility)
 
     private var isMonitoring = false

@@ -97,7 +97,7 @@ class StyleSuggestionPopover: ObservableObject {
     }
 
     /// Schedule delayed hide (for mouse tracking)
-    func scheduleHide(after delay: TimeInterval = 2.0) {
+    func scheduleHide(after delay: TimeInterval = TimingConstants.popoverAutoHide) {
         // Cancel any existing timer
         hideTimer?.invalidate()
 

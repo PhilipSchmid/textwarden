@@ -20,7 +20,7 @@ struct OnboardingView: View {
     @State private var elapsedTime: TimeInterval = 0
     @State private var showTimeoutWarning = false
 
-    private let maxWaitTime: TimeInterval = 300 // 5 minutes
+    private let maxWaitTime: TimeInterval = TimingConstants.maxPermissionWait
 
     var body: some View {
         ScrollView {
