@@ -11,7 +11,9 @@ public class ResourceMonitor {
     private let samplingInterval: TimeInterval = TimingConstants.resourceSampling
     private let samplingQueue = DispatchQueue(label: "com.textwarden.resource-monitor", qos: .utility)
 
-    private var isMonitoring = false
+    /// Serial queue to protect isMonitoring flag from concurrent access
+    private let stateQueue = DispatchQueue(label: "com.textwarden.resource-monitor.state", qos: .userInitiated)
+    private var _isMonitoring = false
 
     private init() {}
 
@@ -19,9 +21,14 @@ public class ResourceMonitor {
 
     /// Start background resource monitoring
     public func startMonitoring() {
-        guard !isMonitoring else { return }
+        // Thread-safe check-and-set to prevent duplicate starts
+        let shouldStart = stateQueue.sync { () -> Bool in
+            guard !_isMonitoring else { return false }
+            _isMonitoring = true
+            return true
+        }
 
-        isMonitoring = true
+        guard shouldStart else { return }
 
         // Start timer on main thread
         DispatchQueue.main.async { [weak self] in
@@ -43,9 +50,14 @@ public class ResourceMonitor {
 
     /// Stop background resource monitoring
     public func stopMonitoring() {
-        guard isMonitoring else { return }
+        // Thread-safe check-and-set to prevent duplicate stops
+        let shouldStop = stateQueue.sync { () -> Bool in
+            guard _isMonitoring else { return false }
+            _isMonitoring = false
+            return true
+        }
 
-        isMonitoring = false
+        guard shouldStop else { return }
 
         DispatchQueue.main.async { [weak self] in
             self?.samplingTimer?.invalidate()
