@@ -102,18 +102,16 @@ class TextMarkerStrategy: GeometryProvider {
             // Get AXWebArea position
             var positionRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionRef) == .success,
-               let pv = positionRef {
-                var areaPosition = CGPoint.zero
-                AXValueGetValue(pv as! AXValue, .cgPoint, &areaPosition)
+               let pv = positionRef,
+               let areaPosition = safeAXValueGetPoint(pv) {
 
                 // Get first character bounds to find where text actually starts
                 var cfRange = CFRange(location: 0, length: 1)
                 if let rangeValue = AXValueCreate(.cfRange, &cfRange) {
                     var firstCharBoundsRef: CFTypeRef?
                     if AXUIElementCopyParameterizedAttributeValue(element, "AXBoundsForRange" as CFString, rangeValue, &firstCharBoundsRef) == .success,
-                       let fcb = firstCharBoundsRef {
-                        var firstCharBounds = CGRect.zero
-                        AXValueGetValue(fcb as! AXValue, .cgRect, &firstCharBounds)
+                       let fcb = firstCharBoundsRef,
+                       let firstCharBounds = safeAXValueGetRect(fcb) {
 
                         // Calculate the delta: how much the text content is offset from AXWebArea
                         // If first char is at X=327 and AXWebArea is at X=303, delta = 24

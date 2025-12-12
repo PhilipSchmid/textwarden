@@ -87,13 +87,9 @@ final class StrategyProfiler {
             &boundsValue
         )
 
-        guard result == .success, let bv = boundsValue else {
-            return (.unsupported, false, false, false)
-        }
-
-        var bounds = CGRect.zero
-        guard CFGetTypeID(bv) == AXValueGetTypeID(),
-              AXValueGetValue(bv as! AXValue, .cgRect, &bounds) else {
+        guard result == .success,
+              let bv = boundsValue,
+              let bounds = safeAXValueGetRect(bv) else {
             return (.unsupported, false, false, false)
         }
 
@@ -142,13 +138,9 @@ final class StrategyProfiler {
             &boundsValue
         )
 
-        guard result == .success, let bv = boundsValue else {
-            return .unsupported
-        }
-
-        var bounds = CGRect.zero
-        guard CFGetTypeID(bv) == AXValueGetTypeID(),
-              AXValueGetValue(bv as! AXValue, .cgRect, &bounds) else {
+        guard result == .success,
+              let bv = boundsValue,
+              let bounds = safeAXValueGetRect(bv) else {
             return .unsupported
         }
 
@@ -239,17 +231,9 @@ final class StrategyProfiler {
 
         guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
               AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
-              let pv = positionValue, let sv = sizeValue else {
-            return nil
-        }
-
-        var position = CGPoint.zero
-        var size = CGSize.zero
-
-        guard CFGetTypeID(pv) == AXValueGetTypeID(),
-              AXValueGetValue(pv as! AXValue, .cgPoint, &position),
-              CFGetTypeID(sv) == AXValueGetTypeID(),
-              AXValueGetValue(sv as! AXValue, .cgSize, &size) else {
+              let pv = positionValue, let sv = sizeValue,
+              let position = safeAXValueGetPoint(pv),
+              let size = safeAXValueGetSize(sv) else {
             return nil
         }
 

@@ -192,32 +192,32 @@ class MailContentParser: ContentParser {
             &boundsValue
         )
 
-        if result == .success, let bounds = boundsValue {
-            var rect = CGRect.zero
-            if AXValueGetValue(bounds as! AXValue, .cgRect, &rect) {
-                // Heuristic: Determine if coordinates are layout or screen
-                // Layout coords have small X values, screen coords are larger
-                var posRef: CFTypeRef?
-                var elementPosition = CGPoint.zero
-                if AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &posRef) == .success,
-                   let pv = posRef {
-                    AXValueGetValue(pv as! AXValue, .cgPoint, &elementPosition)
-                }
+        if result == .success,
+           let bounds = boundsValue,
+           let rect = safeAXValueGetRect(bounds) {
+            // Heuristic: Determine if coordinates are layout or screen
+            // Layout coords have small X values, screen coords are larger
+            var posRef: CFTypeRef?
+            var elementPosition = CGPoint.zero
+            if AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &posRef) == .success,
+               let pv = posRef,
+               let pos = safeAXValueGetPoint(pv) {
+                elementPosition = pos
+            }
 
-                let looksLikeLayoutCoords = rect.origin.x < 200 && rect.origin.x < (elementPosition.x - 100)
+            let looksLikeLayoutCoords = rect.origin.x < 200 && rect.origin.x < (elementPosition.x - 100)
 
-                if !looksLikeLayoutCoords {
-                    // Already screen coordinates
-                    return rect
-                }
+            if !looksLikeLayoutCoords {
+                // Already screen coordinates
+                return rect
+            }
 
-                // Try to convert from layout to screen
-                if let screenRect = AccessibilityBridge.convertLayoutRectToScreen(rect, in: element) {
-                    return screenRect
-                } else {
-                    // Conversion failed, use as-is
-                    return rect
-                }
+            // Try to convert from layout to screen
+            if let screenRect = AccessibilityBridge.convertLayoutRectToScreen(rect, in: element) {
+                return screenRect
+            } else {
+                // Conversion failed, use as-is
+                return rect
             }
         }
 
@@ -241,29 +241,29 @@ class MailContentParser: ContentParser {
             &markerBoundsValue
         )
 
-        if markerResult == .success, let bounds = markerBoundsValue {
-            var rect = CGRect.zero
-            if AXValueGetValue(bounds as! AXValue, .cgRect, &rect) {
-                // Check if conversion is needed (same heuristic as CFRange method)
-                var posRef: CFTypeRef?
-                var elementPosition = CGPoint.zero
-                if AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &posRef) == .success,
-                   let pv = posRef {
-                    AXValueGetValue(pv as! AXValue, .cgPoint, &elementPosition)
-                }
+        if markerResult == .success,
+           let bounds = markerBoundsValue,
+           let rect = safeAXValueGetRect(bounds) {
+            // Check if conversion is needed (same heuristic as CFRange method)
+            var posRef: CFTypeRef?
+            var elementPosition = CGPoint.zero
+            if AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &posRef) == .success,
+               let pv = posRef,
+               let pos = safeAXValueGetPoint(pv) {
+                elementPosition = pos
+            }
 
-                let looksLikeLayoutCoords = rect.origin.x < 200 && rect.origin.x < (elementPosition.x - 100)
+            let looksLikeLayoutCoords = rect.origin.x < 200 && rect.origin.x < (elementPosition.x - 100)
 
-                if !looksLikeLayoutCoords {
-                    return rect
-                }
+            if !looksLikeLayoutCoords {
+                return rect
+            }
 
-                // Try layout→screen conversion
-                if let screenRect = AccessibilityBridge.convertLayoutRectToScreen(rect, in: element) {
-                    return screenRect
-                } else {
-                    return rect
-                }
+            // Try layout→screen conversion
+            if let screenRect = AccessibilityBridge.convertLayoutRectToScreen(rect, in: element) {
+                return screenRect
+            } else {
+                return rect
             }
         }
 
