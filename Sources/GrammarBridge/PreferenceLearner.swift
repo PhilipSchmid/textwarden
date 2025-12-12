@@ -10,6 +10,7 @@ import Combine
 /// Acceptance patterns help the LLM understand preferred writing style.
 /// Rejection patterns with categories help avoid similar unwanted suggestions.
 @available(macOS 10.15, *)
+@MainActor
 public class PreferenceLearner: ObservableObject {
 
     /// Shared singleton instance
