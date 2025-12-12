@@ -1040,15 +1040,15 @@ class UserStatistics: ObservableObject {
         guard persistBatchCounter >= 10 else { return }
         persistBatchCounter = 0
 
-        // Capture @Published property and encoder/defaults on main thread to avoid race condition
+        // Capture @Published property and encoder on main thread to avoid race condition
         let samplesToEncode = resourceSamples
         let encoder = self.encoder
-        let defaults = self.defaults
 
         DispatchQueue.global(qos: .utility).async {
             do {
                 let encoded = try encoder.encode(samplesToEncode)
-                defaults.set(encoded, forKey: Keys.resourceSamples)
+                // UserDefaults.standard is thread-safe
+                UserDefaults.standard.set(encoded, forKey: Keys.resourceSamples)
             } catch {
                 Logger.warning("Failed to persist resource samples: \(error.localizedDescription)", category: Logger.performance)
             }

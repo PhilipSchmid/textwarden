@@ -4,7 +4,7 @@
 import Foundation
 
 /// A single resource measurement sample
-public struct ResourceMetricSample: Codable, Identifiable {
+public struct ResourceMetricSample: Codable, Identifiable, Sendable {
     public let id: UUID
     public let timestamp: Date
     public let component: ResourceComponent

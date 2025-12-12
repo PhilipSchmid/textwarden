@@ -196,7 +196,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Run heavy initialization on background thread to avoid blocking UI
         DispatchQueue.global(qos: .userInitiated).async {
-            self.initializeLLMEngineAndLoadModel(
+            Self.initializeLLMEngineAndLoadModel(
                 enableStyleChecking: enableStyleChecking,
                 selectedModelId: selectedModelId,
                 modelManager: modelManager
@@ -208,7 +208,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Initialize LLM engine and auto-load model (runs on background thread)
     /// Parameters are captured from MainActor context before dispatch to avoid thread safety issues.
-    private func initializeLLMEngineAndLoadModel(
+    private static func initializeLLMEngineAndLoadModel(
         enableStyleChecking: Bool,
         selectedModelId: String,
         modelManager: ModelManager

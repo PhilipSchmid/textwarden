@@ -6,7 +6,7 @@ import Foundation
 // MARK: - Style Template
 
 /// Writing style template for LLM suggestions
-public enum WritingStyle: String, CaseIterable, Identifiable {
+public enum WritingStyle: String, CaseIterable, Identifiable, Sendable {
     case `default` = "default"
     case formal = "formal"
     case informal = "informal"

@@ -4,7 +4,7 @@
 import Foundation
 
 /// Severity level of a grammar error
-@objc public enum GrammarErrorSeverity: Int, CustomStringConvertible {
+@objc public enum GrammarErrorSeverity: Int, CustomStringConvertible, Sendable {
     case error
     case warning
     case info
@@ -28,7 +28,8 @@ import Foundation
 }
 
 /// A grammar error detected in text
-@objc public class GrammarErrorModel: NSObject {
+/// Note: @unchecked Sendable because all properties are immutable (let)
+@objc public class GrammarErrorModel: NSObject, @unchecked Sendable {
     /// Zero-based character offset where error starts
     @objc public let start: Int
 

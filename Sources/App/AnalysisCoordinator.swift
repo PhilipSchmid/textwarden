@@ -7,7 +7,7 @@
 
 import Foundation
 import AppKit
-import ApplicationServices
+@preconcurrency import ApplicationServices
 import Combine
 
 /// Coordinates grammar analysis workflow: monitoring → analysis → UI
@@ -4293,16 +4293,13 @@ class AnalysisCoordinator: ObservableObject {
         }
 
         var remaining = count
-        // Use weak self to avoid retain cycle in recursive closure
-        weak var weakSelf = self
         func sendNext() {
-            guard let strongSelf = weakSelf else { return }
             guard remaining > 0 else {
                 completion()
                 return
             }
 
-            strongSelf.pressKey(key: keyCode, flags: flags)
+            self.pressKey(key: keyCode, flags: flags)
             remaining -= 1
 
             if remaining > 0 {

@@ -5,7 +5,7 @@ import Foundation
 import SwiftUI
 
 /// Represents different components of the application for resource tracking
-public enum ResourceComponent: String, Codable, CaseIterable {
+public enum ResourceComponent: String, Codable, CaseIterable, Sendable {
     case swiftApp = "Swift Application"
     case grammarEngine = "Grammar Engine (Rust)"
     case styleEngine = "Style Engine (Rust)"  // Future: LLM/AI model
