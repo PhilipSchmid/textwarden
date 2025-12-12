@@ -4069,28 +4069,32 @@ class AnalysisCoordinator: ObservableObject {
             // 4. Cmd+V: Paste corrected text from clipboard
             // 5. Ctrl+A: Move back to beginning
             // 6. Send N right arrows to restore cursor position (calculated based on replacement)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+                guard let self = self else { return }
                 // Step 1: Ctrl+A to go to beginning of line
                 self.pressKey(key: VirtualKeyCode.a, flags: .maskControl)
 
                 Logger.debug("Sent Ctrl+A", category: Logger.analysis)
 
                 // Small delay before Ctrl+K
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                    guard let self = self else { return }
                     // Step 2: Ctrl+K to kill (delete) to end of line
                     self.pressKey(key: VirtualKeyCode.k, flags: .maskControl)
 
                     Logger.debug("Sent Ctrl+K", category: Logger.analysis)
 
                     // Small delay before paste
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                        guard let self = self else { return }
                         // Step 3: Paste the corrected text
                         self.pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
 
                         Logger.debug("Sent Cmd+V", category: Logger.analysis)
 
                         // Step 4: Position cursor at target location
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                            guard let self = self else { return }
                             if let targetPos = targetCursorPosition {
                                 // Navigate to target cursor position
                                 // First move to beginning
@@ -4099,7 +4103,8 @@ class AnalysisCoordinator: ObservableObject {
                                 Logger.debug("Sent Ctrl+A to move to beginning before cursor positioning", category: Logger.analysis)
 
                                 // Small delay, then send right arrows to reach target position
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { [weak self] in
+                                    guard let self = self else { return }
                                     // Send all right arrow keys rapidly (no delays between them to avoid animation)
                                     for _ in 0..<targetPos {
                                         self.pressKey(key: VirtualKeyCode.rightArrow, flags: [], withDelay: false)
