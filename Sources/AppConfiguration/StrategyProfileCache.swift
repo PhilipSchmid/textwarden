@@ -20,7 +20,10 @@ final class StrategyProfileCache {
 
     /// URL for the cache file
     var cacheFileURL: URL {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            Logger.critical("Application Support directory not available", category: Logger.general)
+            fatalError("Application Support directory not available")
+        }
         let textWardenDir = appSupport.appendingPathComponent("TextWarden", isDirectory: true)
         return textWardenDir.appendingPathComponent(cacheFileName)
     }

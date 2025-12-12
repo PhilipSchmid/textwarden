@@ -288,7 +288,10 @@ struct StyleCheckingSettingsView: View {
 
     private func openModelsFolder() {
         // Get or create the models directory
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            Logger.error("Application Support directory not available", category: Logger.ui)
+            return
+        }
         let modelsDir = appSupport.appendingPathComponent("TextWarden/Models", isDirectory: true)
 
         // Create directory if it doesn't exist
