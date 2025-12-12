@@ -126,6 +126,37 @@ TextWarden uses two configuration systems for applications:
 
 Most applications work out of the box with the default configuration. You only need to add custom configuration if an app requires special handling.
 
+### Automatic Capability Detection
+
+When TextWarden encounters an unknown application (no pre-configured settings), it automatically profiles the app's accessibility capabilities by probing:
+
+- **Positioning APIs**: AXBoundsForRange, AXBoundsForTextMarkerRange, AXLineForIndex, AXRangeForLine
+- **Text replacement**: Whether AXValue is settable (standard vs browser-style replacement)
+
+Based on these probes, TextWarden automatically:
+- Selects the best positioning strategies
+- Chooses the appropriate text replacement method
+- Enables/disables visual underlines
+
+This means most apps work without any configuration. You only need to add custom AppRegistry entries for apps that:
+1. Have quirks not detectable by probing (e.g., apps that crash on certain AX calls like Word)
+2. Need specific font configurations for accurate underline positioning
+3. Require special behavioral flags (typing pause, notification delays)
+
+Profiles are cached to disk (`~/Library/Application Support/TextWarden/strategy-profiles.json`) for 7 days.
+
+To see what TextWarden detected for an app, check the logs (Debug mode):
+```
+StrategyProfiler: Profiled com.example.app:
+  Positioning:
+    - BoundsForRange: supported (width:true, height:true, notFrame:true)
+    - TextMarkerRange: unsupported
+    - LineForIndex: supported, RangeForLine: supported
+  Recommendations:
+    - Strategies: [rangeBounds, lineIndex, fontMetrics]
+    - Visual underlines: enabled
+```
+
 ### Finding Bundle Identifiers
 
 The easiest way is to use TextWarden's Settings → Applications list. Each app shows its bundle identifier with a copy icon next to it.
@@ -167,7 +198,7 @@ static let terminalApplications: Set<String> = [
 
 ### Adding Custom App Behavior
 
-Only add to AppRegistry if an app needs special technical handling (positioning, text replacement, etc.).
+Only add to AppRegistry if the automatic detection doesn't work correctly, or if an app needs special handling that can't be auto-detected (crashes, font config, behavioral flags).
 
 Edit `Sources/AppConfiguration/AppRegistry.swift`:
 

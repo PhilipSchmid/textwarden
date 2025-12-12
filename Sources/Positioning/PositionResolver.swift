@@ -78,9 +78,10 @@ class PositionResolver {
 
     // MARK: - Strategy Selection
 
-    /// Get strategies for a specific app, filtered and ordered by AppRegistry configuration
+    /// Get strategies for a specific app, filtered and ordered by AppRegistry configuration.
+    /// Uses effectiveConfiguration() to include auto-detected profiles for unknown apps.
     private func strategiesForApp(bundleID: String) -> [GeometryProvider] {
-        let config = AppRegistry.shared.configuration(for: bundleID)
+        let config = AppRegistry.shared.effectiveConfiguration(for: bundleID)
 
         // Start with preferred strategies if specified, otherwise use all
         var orderedStrategies: [GeometryProvider]

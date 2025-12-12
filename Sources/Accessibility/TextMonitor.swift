@@ -414,6 +414,14 @@ class TextMonitor: ObservableObject {
             Logger.debug("TextMonitor: Extracting initial text...", category: Logger.accessibility)
             // Extract initial text
             extractText(from: element)
+
+            // Trigger profiling for unknown apps (does nothing if app has explicit config)
+            if let bundleID = currentContext?.bundleIdentifier {
+                StrategyRecommendationEngine.shared.onTextMonitoringStarted(
+                    element: element,
+                    bundleID: bundleID
+                )
+            }
         } else {
             Logger.debug("TextMonitor: Failed to add value changed notification: \(result.rawValue)", category: Logger.accessibility)
         }

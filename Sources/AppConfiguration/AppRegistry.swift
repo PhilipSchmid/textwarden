@@ -48,6 +48,32 @@ final class AppRegistry {
         return configurations[bundleID] != nil
     }
 
+    /// Get effective configuration for a bundle ID.
+    /// Uses auto-detected profile for unknown apps, falls back to default.
+    func effectiveConfiguration(for bundleID: String) -> AppConfiguration {
+        // If explicit config exists, use it
+        if let config = configurations[bundleID] {
+            return config
+        }
+
+        // Try to get profile from recommendation engine
+        let engine = StrategyRecommendationEngine.shared
+        if let profile = engine.profile(for: bundleID), !profile.isExpired {
+            // Build dynamic configuration from profile
+            return AppConfiguration(
+                identifier: bundleID,
+                displayName: bundleID,
+                bundleIDs: [bundleID],
+                category: .custom,
+                parserType: .generic,
+                preferredStrategies: profile.recommendedStrategies,
+                features: profile.appFeatures
+            )
+        }
+
+        return .default
+    }
+
     // MARK: - Registration
 
     private func register(_ config: AppConfiguration) {

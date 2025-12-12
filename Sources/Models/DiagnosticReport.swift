@@ -521,6 +521,24 @@ struct SettingsDump: Codable {
     }
 }
 
+// MARK: - Strategy Profile Diagnostics
+
+/// Diagnostics for auto-detected app capability profiles
+struct StrategyProfileDiagnostics: Codable {
+    let profileCount: Int
+    let profileCachePath: String
+    let profiles: [AXCapabilityProfile]
+
+    static func current() -> StrategyProfileDiagnostics {
+        let cache = StrategyProfileCache.shared
+        return StrategyProfileDiagnostics(
+            profileCount: cache.profileCount,
+            profileCachePath: cache.cacheFileURL.path,
+            profiles: cache.allProfiles
+        )
+    }
+}
+
 /// Complete diagnostic report
 struct DiagnosticReport: Codable {
     let reportTimestamp: Date
@@ -545,6 +563,9 @@ struct DiagnosticReport: Codable {
     // LLM Style Checking (models, settings, storage)
     let llmStyleChecking: LLMStyleCheckingDiagnostics
 
+    // Strategy Profiles (auto-detected app capabilities)
+    let strategyProfiles: StrategyProfileDiagnostics
+
     // Crash Info (count of actual .crash/.ips files in crash_reports/ folder)
     let crashReportCount: Int
 
@@ -558,7 +579,7 @@ struct DiagnosticReport: Codable {
     ) -> DiagnosticReport {
         return DiagnosticReport(
             reportTimestamp: Date(),
-            reportVersion: "4.0",  // Bumped to 4.0 for LLM style checking diagnostics
+            reportVersion: "5.0",  // Bumped to 5.0 for strategy profile diagnostics
             appVersion: BuildInfo.appVersion,
             buildNumber: BuildInfo.buildNumber,
             buildTimestamp: BuildInfo.buildTimestamp,
@@ -568,6 +589,7 @@ struct DiagnosticReport: Codable {
             settings: SettingsDump.from(preferences, shortcuts: shortcuts),
             statistics: StatisticsSnapshot.from(UserStatistics.shared),
             llmStyleChecking: LLMStyleCheckingDiagnostics.current(preferences: preferences),
+            strategyProfiles: StrategyProfileDiagnostics.current(),
             crashReportCount: crashReportCount
         )
     }
