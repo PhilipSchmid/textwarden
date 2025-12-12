@@ -195,7 +195,7 @@ extension ContentParser {
         // Apply spacing correction
         let adjustedTextBeforeWidth = textBeforeWidth * multiplier
 
-        guard let elementFrame = getElementFrame(element: element) else {
+        guard let elementFrame = AccessibilityBridge.getElementFrame(element) else {
             return nil
         }
 
@@ -247,26 +247,6 @@ extension ContentParser {
         }
 
         return bounds
-    }
-
-    /// Get element frame from AX API
-    private func getElementFrame(element: AXUIElement) -> NSRect? {
-        var positionValue: CFTypeRef?
-        var sizeValue: CFTypeRef?
-
-        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
-              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success else {
-            return nil
-        }
-
-        guard let posValue = positionValue,
-              let szValue = sizeValue,
-              let position = safeAXValueGetPoint(posValue),
-              let size = safeAXValueGetSize(szValue) else {
-            return nil
-        }
-
-        return NSRect(origin: position, size: size)
     }
 
     /// Resolve position geometry for error range using multi-strategy engine

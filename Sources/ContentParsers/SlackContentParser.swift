@@ -175,7 +175,7 @@ class SlackContentParser: ContentParser {
         }
 
         // Try direct AX bounds for the error range
-        if let axBounds = getValidAXBounds(element: element, range: errorRange) {
+        if let axBounds = getSlackValidatedBounds(element: element, range: errorRange) {
             return AdjustedBounds(
                 position: NSPoint(x: axBounds.origin.x, y: axBounds.origin.y),
                 errorWidth: axBounds.width,
@@ -238,7 +238,7 @@ class SlackContentParser: ContentParser {
 
         // Method 2: Bounds for character at cursor
         if cursorBounds == nil {
-            if let bounds = getValidAXBounds(element: element, range: NSRange(location: cursorPosition, length: 1)) {
+            if let bounds = getSlackValidatedBounds(element: element, range: NSRange(location: cursorPosition, length: 1)) {
                 cursorBounds = bounds
                 Logger.debug("Slack: Got cursor bounds from single char: \(bounds)", category: Logger.ui)
             }
@@ -246,7 +246,7 @@ class SlackContentParser: ContentParser {
 
         // Method 3: Bounds for character before cursor
         if cursorBounds == nil && cursorPosition > 0 {
-            if let bounds = getValidAXBounds(element: element, range: NSRange(location: cursorPosition - 1, length: 1)) {
+            if let bounds = getSlackValidatedBounds(element: element, range: NSRange(location: cursorPosition - 1, length: 1)) {
                 cursorBounds = CGRect(
                     x: bounds.origin.x + bounds.width,
                     y: bounds.origin.y,
@@ -297,32 +297,14 @@ class SlackContentParser: ContentParser {
 
     // MARK: - AX Bounds Helpers
 
-    private func getValidAXBounds(element: AXUIElement, range: NSRange) -> NSRect? {
-        var boundsValue: CFTypeRef?
-        var axRange = CFRange(location: range.location, length: range.length)
-        guard let rangeValue = AXValueCreate(.cfRange, &axRange) else {
+    /// Get validated bounds with Slack-specific origin check
+    /// Slack's Electron app sometimes returns negative coordinates
+    private func getSlackValidatedBounds(element: AXUIElement, range: NSRange) -> NSRect? {
+        guard let bounds = AccessibilityBridge.getBoundsForRange(range, in: element) else {
             return nil
         }
 
-        let result = AXUIElementCopyParameterizedAttributeValue(
-            element,
-            kAXBoundsForRangeParameterizedAttribute as CFString,
-            rangeValue,
-            &boundsValue
-        )
-
-        guard result == .success,
-              let bv = boundsValue,
-              let bounds = safeAXValueGetRect(bv) else {
-            return nil
-        }
-
-        // Validate bounds - reject Chromium bugs (0,0,0,0) or (0, screenHeight, 0, 0)
-        guard bounds.width > 5 && bounds.height > 5 && bounds.height < 100 else {
-            return nil
-        }
-
-        // Also reject if origin is clearly wrong (negative or at screen edge)
+        // Slack-specific: reject negative or zero origin (Electron bug)
         guard bounds.origin.x > 0 && bounds.origin.y > 0 else {
             return nil
         }
@@ -340,7 +322,7 @@ class SlackContentParser: ContentParser {
         context: String?,
         fontSize: CGFloat
     ) -> AdjustedBounds? {
-        guard let elementFrame = getElementFrame(element: element) else {
+        guard let elementFrame = getSlackElementFrame(element: element) else {
             Logger.warning("Slack: Failed to get element frame for text measurement fallback")
             return nil
         }
@@ -408,28 +390,18 @@ class SlackContentParser: ContentParser {
 
     // MARK: - Element Frame
 
-    private func getElementFrame(element: AXUIElement) -> NSRect? {
-        var positionValue: CFTypeRef?
-        var sizeValue: CFTypeRef?
-
-        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
-              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
-              let posValue = positionValue,
-              let szValue = sizeValue,
-              let position = safeAXValueGetPoint(posValue),
-              let size = safeAXValueGetSize(szValue) else {
+    /// Get element frame with Slack-specific workaround for negative X values
+    private func getSlackElementFrame(element: AXUIElement) -> NSRect? {
+        guard var frame = AccessibilityBridge.getElementFrame(element) else {
             return nil
         }
 
-        var frame = NSRect(origin: position, size: size)
-
         // Slack's Electron-based AX implementation sometimes returns negative X values
-        if position.x < 0 {
-            if let windowFrame = getSlackWindowFrame(element: element, elementPosition: position) {
+        if frame.origin.x < 0 {
+            if let windowFrame = getSlackWindowFrame(element: element, elementPosition: frame.origin) {
                 let leftPadding: CGFloat = 20.0
                 frame.origin.x = windowFrame.origin.x + leftPadding
-                frame.origin.y = position.y
-                frame.size = size
+                // Keep original Y and size
             }
         }
 

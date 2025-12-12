@@ -924,7 +924,7 @@ class AnalysisCoordinator: ObservableObject {
     /// Detects when the text input field shrinks (message sent) or grows (more text typed)
     /// Also detects when the element position changes significantly (conversation switched)
     private func checkElementFrameForCatalyst(element: AXUIElement) {
-        guard let currentElementFrame = getElementFrame(element) else {
+        guard let currentElementFrame = AccessibilityBridge.getElementFrame(element) else {
             return
         }
 
@@ -1012,26 +1012,6 @@ class AnalysisCoordinator: ObservableObject {
 
             self.handleTextChange(text, in: context)
         }
-    }
-
-    /// Get the frame of an AXUIElement using AXPosition and AXSize attributes
-    private func getElementFrame(_ element: AXUIElement) -> CGRect? {
-        var positionValue: CFTypeRef?
-        var sizeValue: CFTypeRef?
-
-        let positionResult = AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue)
-        let sizeResult = AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue)
-
-        guard positionResult == .success,
-              sizeResult == .success,
-              let position = positionValue,
-              let size = sizeValue,
-              let origin = safeAXValueGetPoint(position),
-              let frameSize = safeAXValueGetSize(size) else {
-            return nil
-        }
-
-        return CGRect(origin: origin, size: frameSize)
     }
 
     /// Handle scroll started - hide underlines only (keep indicator visible)

@@ -775,7 +775,8 @@ enum AccessibilityBridge {
     // MARK: - Helper Methods
 
     /// Get element frame in Quartz coordinates
-    private static func getElementFrame(_ element: AXUIElement) -> CGRect? {
+    /// Returns the frame (position + size) of an AXUIElement, or nil if unavailable
+    static func getElementFrame(_ element: AXUIElement) -> CGRect? {
         var positionValue: CFTypeRef?
         var sizeValue: CFTypeRef?
 
@@ -804,6 +805,47 @@ enum AccessibilityBridge {
         }
 
         return CGRect(origin: origin, size: rectSize)
+    }
+
+    /// Get bounds for a text range using AXBoundsForRange API
+    /// Returns nil if the API fails or returns invalid bounds (Chromium bugs)
+    /// - Parameters:
+    ///   - range: The text range to get bounds for
+    ///   - element: The AXUIElement containing the text
+    ///   - minSize: Minimum width/height to consider valid (default from GeometryConstants)
+    ///   - maxHeight: Maximum height to consider valid (default from GeometryConstants)
+    /// - Returns: Bounds in Quartz coordinates, or nil if invalid
+    static func getBoundsForRange(
+        _ range: NSRange,
+        in element: AXUIElement,
+        minSize: CGFloat = GeometryConstants.minimumBoundsSize,
+        maxHeight: CGFloat = GeometryConstants.conservativeMaxLineHeight
+    ) -> CGRect? {
+        var boundsValue: CFTypeRef?
+        var axRange = CFRange(location: range.location, length: range.length)
+        guard let rangeValue = AXValueCreate(.cfRange, &axRange) else {
+            return nil
+        }
+
+        let result = AXUIElementCopyParameterizedAttributeValue(
+            element,
+            kAXBoundsForRangeParameterizedAttribute as CFString,
+            rangeValue,
+            &boundsValue
+        )
+
+        guard result == .success,
+              let bv = boundsValue,
+              let bounds = safeAXValueGetRect(bv) else {
+            return nil
+        }
+
+        // Validate: reject Chromium bugs (zero/tiny bounds) or element-sized bounds
+        guard bounds.width > minSize && bounds.height > minSize && bounds.height < maxHeight else {
+            return nil
+        }
+
+        return bounds
     }
 
     /// Get text content using modern marker API

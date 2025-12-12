@@ -37,7 +37,8 @@ class InsertionPointStrategy: GeometryProvider {
         Logger.debug("InsertionPointStrategy: Starting for range \(errorRange)", category: Logger.ui)
 
         // Get element frame - this is our baseline for positioning
-        guard let elementFrame = getElementFrame(element) else {
+        guard let elementFrame = AccessibilityBridge.getElementFrame(element),
+              elementFrame.width > 0, elementFrame.height > 0 else {
             Logger.debug("InsertionPointStrategy: Could not get element frame")
             return nil
         }
@@ -441,40 +442,6 @@ class InsertionPointStrategy: GeometryProvider {
     }
 
     // MARK: - AX API Helpers
-
-    /// Get element's position and size
-    private func getElementFrame(_ element: AXUIElement) -> CGRect? {
-        var positionValue: CFTypeRef?
-        var sizeValue: CFTypeRef?
-
-        let positionResult = AXUIElementCopyAttributeValue(
-            element,
-            kAXPositionAttribute as CFString,
-            &positionValue
-        )
-
-        let sizeResult = AXUIElementCopyAttributeValue(
-            element,
-            kAXSizeAttribute as CFString,
-            &sizeValue
-        )
-
-        guard positionResult == .success,
-              sizeResult == .success,
-              let position = positionValue,
-              let size = sizeValue,
-              let origin = safeAXValueGetPoint(position),
-              let rectSize = safeAXValueGetSize(size) else {
-            return nil
-        }
-
-        // Validate element frame - reject obviously invalid values
-        guard rectSize.width > 0 && rectSize.height > 0 else {
-            return nil
-        }
-
-        return CGRect(origin: origin, size: rectSize)
-    }
 
     /// Get the insertion point (cursor position) from the element
     private func getInsertionPoint(from element: AXUIElement) -> Int? {

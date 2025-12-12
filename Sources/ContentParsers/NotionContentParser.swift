@@ -285,7 +285,7 @@ class NotionContentParser: ContentParser {
         }
 
         // Strategy 2: Try direct AX bounds for the error range (use original position)
-        if let axBounds = getValidAXBounds(element: element, range: originalRange) {
+        if let axBounds = AccessibilityBridge.getBoundsForRange(originalRange, in: element) {
             Logger.debug("NotionContentParser: Got valid AX bounds: \(axBounds)", category: Logger.ui)
             return AdjustedBounds(
                 position: NSPoint(x: axBounds.origin.x, y: axBounds.origin.y),
@@ -482,7 +482,7 @@ class NotionContentParser: ContentParser {
             let textBeforeWidth = (textBeforeErrorOnLine as NSString).size(withAttributes: attributes).width
 
             // Estimate line start X from element frame or cursor
-            if let elementFrame = getElementFrame(element: element) {
+            if let elementFrame = AccessibilityBridge.getElementFrame(element) {
                 // Notion content area starts about 96px from left edge typically
                 let contentPadding: CGFloat = 96.0
                 xPosition = elementFrame.origin.x + contentPadding + textBeforeWidth
@@ -509,37 +509,6 @@ class NotionContentParser: ContentParser {
     }
 
     // MARK: - Helper Methods
-
-    /// Get valid AX bounds, filtering out Chromium bugs (zero width/height)
-    private func getValidAXBounds(element: AXUIElement, range: NSRange) -> NSRect? {
-        var boundsValue: CFTypeRef?
-        var axRange = CFRange(location: range.location, length: range.length)
-        guard let rangeValue = AXValueCreate(.cfRange, &axRange) else {
-            return nil
-        }
-
-        let result = AXUIElementCopyParameterizedAttributeValue(
-            element,
-            kAXBoundsForRangeParameterizedAttribute as CFString,
-            rangeValue,
-            &boundsValue
-        )
-
-        guard result == .success,
-              let bv = boundsValue,
-              let bounds = safeAXValueGetRect(bv) else {
-            return nil
-        }
-
-        // Validate: reject Chromium bug where width/height are 0
-        // Also reject if bounds seem to be the entire element (height > 100)
-        guard bounds.width > 5 && bounds.height > 5 && bounds.height < 100 else {
-            Logger.debug("NotionContentParser: Rejecting invalid bounds: \(bounds)", category: Logger.ui)
-            return nil
-        }
-
-        return bounds
-    }
 
     /// Get bounds for a specific position and length
     private func getBoundsForPosition(element: AXUIElement, position: Int, length: Int) -> NSRect? {
@@ -639,7 +608,7 @@ class NotionContentParser: ContentParser {
 
         let errorWidth = max((errorText as NSString).size(withAttributes: attributes).width, 20.0)
 
-        guard let elementFrame = getElementFrame(element: element) else {
+        guard let elementFrame = AccessibilityBridge.getElementFrame(element) else {
             Logger.debug("NotionContentParser: Element frame fallback - no frame available", category: Logger.ui)
             return nil
         }
@@ -833,20 +802,4 @@ class NotionContentParser: ContentParser {
         )
     }
 
-    /// Get element frame from AX API
-    private func getElementFrame(element: AXUIElement) -> NSRect? {
-        var positionValue: CFTypeRef?
-        var sizeValue: CFTypeRef?
-
-        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
-              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
-              let posValue = positionValue,
-              let szValue = sizeValue,
-              let position = safeAXValueGetPoint(posValue),
-              let size = safeAXValueGetSize(szValue) else {
-            return nil
-        }
-
-        return NSRect(origin: position, size: size)
-    }
 }

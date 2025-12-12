@@ -95,11 +95,11 @@ final class StrategyProfiler {
 
         // Validate bounds quality
         let validWidth = bounds.width > 0
-        let validHeight = bounds.height > 0 && bounds.height < 200  // Suspiciously large = window frame
+        let validHeight = bounds.height > 0 && bounds.height < GeometryConstants.maximumLineHeight  // Suspiciously large = window frame
 
         // Check if bounds match element frame (invalid - returns whole element)
         var notWindowFrame = true
-        if let elementFrame = getElementFrame(element) {
+        if let elementFrame = AccessibilityBridge.getElementFrame(element) {
             let widthSimilar = abs(bounds.width - elementFrame.width) < 10
             let heightSimilar = abs(bounds.height - elementFrame.height) < 10
             if widthSimilar && heightSimilar {
@@ -150,7 +150,7 @@ final class StrategyProfiler {
         }
 
         // Check if bounds are suspiciously large (window frame)
-        if let elementFrame = getElementFrame(element) {
+        if let elementFrame = AccessibilityBridge.getElementFrame(element) {
             let widthSimilar = abs(bounds.width - elementFrame.width) < 10
             let heightSimilar = abs(bounds.height - elementFrame.height) < 10
             if widthSimilar && heightSimilar {
@@ -223,21 +223,6 @@ final class StrategyProfiler {
         let result = AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &value)
         guard result == .success, let num = value as? Int else { return nil }
         return num
-    }
-
-    private func getElementFrame(_ element: AXUIElement) -> CGRect? {
-        var positionValue: CFTypeRef?
-        var sizeValue: CFTypeRef?
-
-        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
-              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
-              let pv = positionValue, let sv = sizeValue,
-              let position = safeAXValueGetPoint(pv),
-              let size = safeAXValueGetSize(sv) else {
-            return nil
-        }
-
-        return CGRect(origin: position, size: size)
     }
 
     private func getTextMarkerForIndex(_ index: Int, in element: AXUIElement) -> CFTypeRef? {

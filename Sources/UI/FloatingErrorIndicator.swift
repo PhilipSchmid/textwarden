@@ -975,23 +975,6 @@ class FloatingErrorIndicator: NSPanel {
             return CGPoint(x: indicatorFrame.midX, y: indicatorFrame.maxY + 10)
         }
     }
-
-    /// Get frame of AX element
-    private func getElementFrame(_ element: AXUIElement) -> CGRect? {
-        var positionValue: CFTypeRef?
-        var sizeValue: CFTypeRef?
-
-        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
-              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
-              let posValue = positionValue,
-              let szValue = sizeValue,
-              let position = safeAXValueGetPoint(posValue),
-              let size = safeAXValueGetSize(szValue) else {
-            return nil
-        }
-
-        return NSRect(origin: position, size: size)
-    }
 }
 
 /// Display mode for the indicator view

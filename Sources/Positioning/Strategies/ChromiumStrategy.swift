@@ -186,7 +186,7 @@ class ChromiumStrategy: GeometryProvider {
     // MARK: - Cache Management
 
     private func invalidateCacheIfNeeded(element: AXUIElement, text: String) {
-        let currentFrame = getElementFrame(element: element) ?? .zero
+        let currentFrame = AccessibilityBridge.getElementFrame(element) ?? .zero
         let oldText = ChromiumStrategy.cachedText
 
         let textChanged = text != oldText
@@ -342,22 +342,6 @@ class ChromiumStrategy: GeometryProvider {
     }
 
     // MARK: - Element Inspection
-
-    private func getElementFrame(element: AXUIElement) -> CGRect? {
-        var posValue: CFTypeRef?
-        var sizeValue: CFTypeRef?
-
-        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &posValue) == .success,
-              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
-              let pv = posValue,
-              let sv = sizeValue,
-              let pos = safeAXValueGetPoint(pv),
-              let size = safeAXValueGetSize(sv) else {
-            return nil
-        }
-
-        return CGRect(origin: pos, size: size)
-    }
 
     /// Get hash of attributed string to detect formatting changes (bold, italic, code, etc.)
     private func getAttributedStringHash(element: AXUIElement) -> Int {

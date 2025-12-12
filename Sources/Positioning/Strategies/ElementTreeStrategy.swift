@@ -135,7 +135,7 @@ class ElementTreeStrategy: GeometryProvider {
         }
 
         // Get the element's frame and role
-        guard let elementFrame = getElementFrame(targetElement) else {
+        guard let elementFrame = AccessibilityBridge.getElementFrame(targetElement) else {
             Logger.debug("ElementTreeStrategy: Could not get element frame")
             return nil
         }
@@ -342,7 +342,7 @@ class ElementTreeStrategy: GeometryProvider {
         guard depth < maxTraversalDepth else { return }
 
         let role = getElementRole(element)
-        let frame = getElementFrame(element)
+        let frame = AccessibilityBridge.getElementFrame(element)
 
         if let elementText = getElementText(element), elementText.contains(targetText) {
             if let f = frame {
@@ -449,34 +449,6 @@ class ElementTreeStrategy: GeometryProvider {
         }
 
         return children
-    }
-
-    private func getElementFrame(_ element: AXUIElement) -> CGRect? {
-        var positionValue: CFTypeRef?
-        var sizeValue: CFTypeRef?
-
-        let positionResult = AXUIElementCopyAttributeValue(
-            element,
-            kAXPositionAttribute as CFString,
-            &positionValue
-        )
-
-        let sizeResult = AXUIElementCopyAttributeValue(
-            element,
-            kAXSizeAttribute as CFString,
-            &sizeValue
-        )
-
-        guard positionResult == .success,
-              sizeResult == .success,
-              let position = positionValue,
-              let size = sizeValue,
-              let origin = safeAXValueGetPoint(position),
-              let rectSize = safeAXValueGetSize(size) else {
-            return nil
-        }
-
-        return CGRect(origin: origin, size: rectSize)
     }
 
     private func getBoundsForRange(_ range: NSRange, in element: AXUIElement) -> CGRect? {

@@ -245,7 +245,7 @@ class ErrorOverlayWindow: NSPanel {
         var elementFrame: CGRect
 
         // Strategy 1: Try AX API to get text field bounds
-        if let frame = getElementFrame(element) {
+        if let frame = getElementFrameInCocoaCoords(element) {
             elementFrame = frame
             Logger.debug("ErrorOverlay: Got text field bounds from AX API: \(elementFrame)", category: Logger.ui)
         }
@@ -369,9 +369,9 @@ class ErrorOverlayWindow: NSPanel {
                 return nil
             }
 
-            // getElementFrame() returns Quartz coordinates (top-left origin)
-            // NSPanel.setFrame() works directly with Quartz in multi-monitor setups
-            Logger.debug("ErrorOverlay: Element frame (Quartz): \(elementFrame)", category: Logger.ui)
+            // getElementFrameInCocoaCoords() returns Cocoa coordinates (bottom-left origin)
+            // NSPanel.setFrame() uses Cocoa coordinates for positioning
+            Logger.debug("ErrorOverlay: Element frame (Cocoa): \(elementFrame)", category: Logger.ui)
 
             // Convert all line bounds to local coordinates
             let allScreenBounds = geometryResult.allLineBounds
@@ -684,48 +684,29 @@ class ErrorOverlayWindow: NSPanel {
         return nil
     }
 
-    /// Get frame of AX element
-    private func getElementFrame(_ element: AXUIElement) -> CGRect? {
-        var positionValue: CFTypeRef?
-        var sizeValue: CFTypeRef?
-
-        let positionResult = AXUIElementCopyAttributeValue(
-            element,
-            kAXPositionAttribute as CFString,
-            &positionValue
-        )
-
-        let sizeResult = AXUIElementCopyAttributeValue(
-            element,
-            kAXSizeAttribute as CFString,
-            &sizeValue
-        )
-
-        guard positionResult == .success,
-              sizeResult == .success,
-              let posValue = positionValue,
-              let szValue = sizeValue,
-              let position = safeAXValueGetPoint(posValue),
-              let size = safeAXValueGetSize(szValue) else {
+    /// Get frame of AX element in Cocoa coordinates (bottom-left origin)
+    /// Uses shared AccessibilityBridge.getElementFrame() for basic retrieval,
+    /// then converts from Quartz to Cocoa coordinates for NSPanel positioning
+    private func getElementFrameInCocoaCoords(_ element: AXUIElement) -> CGRect? {
+        guard var frame = AccessibilityBridge.getElementFrame(element) else {
             return nil
         }
 
-        Logger.debug("DEBUG getElementFrame: RAW AX data - Position: \(position), Size: \(size)", category: Logger.ui)
+        Logger.debug("DEBUG getElementFrame: RAW AX data (Quartz) - \(frame)", category: Logger.ui)
 
         var roleValue: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue)
         let role = roleValue as? String ?? "unknown"
         Logger.debug("DEBUG getElementFrame: Element role: \(role)", category: Logger.ui)
 
-        var frame = CGRect(origin: position, size: size)
-
         // CRITICAL: AX API returns coordinates in Quartz (top-left origin)
         // NSPanel.setFrame() uses Cocoa coordinates (bottom-left origin)
         // Must flip Y coordinate using PRIMARY screen height (the one with Cocoa origin at 0,0)
+        let originalQuartzY = frame.origin.y
         let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero }
         if let screenHeight = primaryScreen?.frame.height ?? NSScreen.main?.frame.height {
             frame.origin.y = screenHeight - frame.origin.y - frame.height
-            Logger.debug("DEBUG getElementFrame: Converted to Cocoa coords - Y from \(position.y) to \(frame.origin.y) (screen height: \(screenHeight))", category: Logger.ui)
+            Logger.debug("DEBUG getElementFrame: Converted to Cocoa coords - Y from \(originalQuartzY) to \(frame.origin.y) (screen height: \(screenHeight))", category: Logger.ui)
         }
 
         return frame

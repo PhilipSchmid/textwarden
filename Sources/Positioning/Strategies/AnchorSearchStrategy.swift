@@ -128,7 +128,7 @@ class AnchorSearchStrategy: GeometryProvider {
             }
             let textAfterLastNewline = textBetween.components(separatedBy: "\n").last ?? ""
             let textAfterWidth = (textAfterLastNewline as NSString).size(withAttributes: attributes).width
-            if let elementFrame = getElementFrame(element) {
+            if let elementFrame = AccessibilityBridge.getElementFrame(element) {
                 errorX = elementFrame.origin.x + textAfterWidth
             }
         }
@@ -227,34 +227,6 @@ class AnchorSearchStrategy: GeometryProvider {
         }
 
         return bounds
-    }
-
-    private func getElementFrame(_ element: AXUIElement) -> CGRect? {
-        var positionValue: CFTypeRef?
-        var sizeValue: CFTypeRef?
-
-        let positionResult = AXUIElementCopyAttributeValue(
-            element,
-            kAXPositionAttribute as CFString,
-            &positionValue
-        )
-
-        let sizeResult = AXUIElementCopyAttributeValue(
-            element,
-            kAXSizeAttribute as CFString,
-            &sizeValue
-        )
-
-        guard positionResult == .success,
-              sizeResult == .success,
-              let position = positionValue,
-              let size = sizeValue,
-              let origin = safeAXValueGetPoint(position),
-              let rectSize = safeAXValueGetSize(size) else {
-            return nil
-        }
-
-        return CGRect(origin: origin, size: rectSize)
     }
 
     // MARK: - UTF-16 Index Conversion
