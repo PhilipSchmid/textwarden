@@ -1013,15 +1013,9 @@ class AnalysisCoordinator: ObservableObject {
         guard positionResult == .success,
               sizeResult == .success,
               let position = positionValue,
-              let size = sizeValue else {
-            return nil
-        }
-
-        var origin = CGPoint.zero
-        var frameSize = CGSize.zero
-
-        guard AXValueGetValue(position as! AXValue, .cgPoint, &origin),
-              AXValueGetValue(size as! AXValue, .cgSize, &frameSize) else {
+              let size = sizeValue,
+              let origin = safeAXValueGetPoint(position),
+              let frameSize = safeAXValueGetSize(size) else {
             return nil
         }
 
@@ -1413,15 +1407,11 @@ class AnalysisCoordinator: ObservableObject {
 
         guard error == .success,
               let value = boundsValue,
-              CFGetTypeID(value) == AXValueGetTypeID() else {
+              let bounds = safeAXValueGetRect(value) else {
             return nil
         }
 
-        var bounds = CGRect.zero
-        if AXValueGetValue(value as! AXValue, .cgRect, &bounds) {
-            return bounds
-        }
-        return nil
+        return bounds
     }
 
     /// Actually show the overlays after all stability checks pass
@@ -1483,8 +1473,7 @@ class AnalysisCoordinator: ObservableObject {
             return nil
         }
 
-        var position = CGPoint.zero
-        guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &position) else {
+        guard let position = safeAXValueGetPoint(positionValue) else {
             return nil
         }
 
@@ -1497,12 +1486,8 @@ class AnalysisCoordinator: ObservableObject {
     private func getAXElementPosition(for element: AXUIElement) -> CGPoint? {
         var positionValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
-              let positionValue = positionValue else {
-            return nil
-        }
-
-        var position = CGPoint.zero
-        guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &position) else {
+              let posValue = positionValue,
+              let position = safeAXValueGetPoint(posValue) else {
             return nil
         }
 
@@ -2697,7 +2682,11 @@ class AnalysisCoordinator: ObservableObject {
 
         // Step 3: Set selection to error range (using UTF-16 indices)
         var errorRange = CFRange(location: utf16Location, length: utf16Length)
-        let rangeValue = AXValueCreate(.cfRange, &errorRange)!
+        guard let rangeValue = AXValueCreate(.cfRange, &errorRange) else {
+            Logger.debug("AXValueCreate failed, using keyboard fallback", category: Logger.analysis)
+            applyTextReplacementViaKeyboard(for: error, with: suggestion, element: element, completion: completion)
+            return
+        }
 
         let selectError = AXUIElementSetAttributeValue(
             element,
@@ -2732,12 +2721,13 @@ class AnalysisCoordinator: ObservableObject {
             // Step 4: Restore original selection (optional, move cursor after replacement)
             // Most apps expect cursor to be after the replacement
             var newPosition = CFRange(location: error.start + suggestion.count, length: 0)
-            let newRangeValue = AXValueCreate(.cfRange, &newPosition)!
-            let _ = AXUIElementSetAttributeValue(
-                element,
-                kAXSelectedTextRangeAttribute as CFString,
-                newRangeValue
-            )
+            if let newRangeValue = AXValueCreate(.cfRange, &newPosition) {
+                let _ = AXUIElementSetAttributeValue(
+                    element,
+                    kAXSelectedTextRangeAttribute as CFString,
+                    newRangeValue
+                )
+            }
 
             // Step 5: Remove error from UI immediately
             // Calculate length delta to adjust positions of remaining errors
@@ -2812,7 +2802,11 @@ class AnalysisCoordinator: ObservableObject {
 
         // Step 2: Set selection to the found text range
         var suggestionRange = CFRange(location: startIndex, length: length)
-        let rangeValue = AXValueCreate(.cfRange, &suggestionRange)!
+        guard let rangeValue = AXValueCreate(.cfRange, &suggestionRange) else {
+            Logger.debug("AXValueCreate failed for style replacement, using keyboard fallback", category: Logger.analysis)
+            applyStyleReplacementViaKeyboard(for: suggestion, element: element)
+            return
+        }
 
         let selectError = AXUIElementSetAttributeValue(
             element,
@@ -2846,12 +2840,13 @@ class AnalysisCoordinator: ObservableObject {
 
             // Move cursor after replacement
             var newPosition = CFRange(location: startIndex + suggestion.suggestedText.count, length: 0)
-            let newRangeValue = AXValueCreate(.cfRange, &newPosition)!
-            let _ = AXUIElementSetAttributeValue(
-                element,
-                kAXSelectedTextRangeAttribute as CFString,
-                newRangeValue
-            )
+            if let newRangeValue = AXValueCreate(.cfRange, &newPosition) {
+                let _ = AXUIElementSetAttributeValue(
+                    element,
+                    kAXSelectedTextRangeAttribute as CFString,
+                    newRangeValue
+                )
+            }
 
             // Remove the applied style suggestion from tracking
             removeSuggestionFromTracking(suggestion)
@@ -2902,7 +2897,10 @@ class AnalysisCoordinator: ObservableObject {
         // Standard keyboard approach: select range, paste replacement
         // Step 1: Try to select the range using AX API
         var suggestionRange = CFRange(location: startIndex, length: length)
-        let rangeValue = AXValueCreate(.cfRange, &suggestionRange)!
+        guard let rangeValue = AXValueCreate(.cfRange, &suggestionRange) else {
+            Logger.debug("AXValueCreate failed for style keyboard replacement", category: Logger.analysis)
+            return
+        }
 
         let selectResult = AXUIElementSetAttributeValue(
             element,
@@ -3900,12 +3898,9 @@ class AnalysisCoordinator: ObservableObject {
             var sizeValue: CFTypeRef?
             var height: CGFloat = 0
             if AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
-               let size = sizeValue {
-                var rectSize = CGSize.zero
-                // Force cast is safe: AXValueGetValue returns false if type doesn't match
-                if AXValueGetValue(size as! AXValue, .cgSize, &rectSize) {
-                    height = rectSize.height
-                }
+               let size = sizeValue,
+               let rectSize = safeAXValueGetSize(size) {
+                height = rectSize.height
             }
 
             // Prefer smaller elements (paragraph-level, not document-level)
@@ -3969,16 +3964,11 @@ class AnalysisCoordinator: ObservableObject {
             )
 
             var originalCursorPosition: Int?
-            if rangeResult == .success, let rangeValue = selectedRangeValue {
-                let range = rangeValue as! AXValue
-                var cfRange = CFRange()
-                let success = AXValueGetValue(range, .cfRange, &cfRange)
-                if success {
-                    originalCursorPosition = cfRange.location
-                    Logger.debug("Terminal: Original cursor position: \(cfRange.location) (selection length: \(cfRange.length))", category: Logger.analysis)
-                } else {
-                    Logger.debug("Terminal: Could not extract CFRange from AXSelectedTextRange", category: Logger.analysis)
-                }
+            if rangeResult == .success,
+               let rangeValue = selectedRangeValue,
+               let cfRange = safeAXValueGetRange(rangeValue) {
+                originalCursorPosition = cfRange.location
+                Logger.debug("Terminal: Original cursor position: \(cfRange.location) (selection length: \(cfRange.length))", category: Logger.analysis)
             } else {
                 Logger.debug("Terminal: Could not query AXSelectedTextRange (error: \(rangeResult.rawValue))", category: Logger.analysis)
             }
@@ -4233,7 +4223,10 @@ class AnalysisCoordinator: ObservableObject {
 
         // Step 1: Set the selection range to the error range
         var selectionRange = CFRange(location: start, length: end - start)
-        let rangeValue = AXValueCreate(.cfRange, &selectionRange)!
+        guard let rangeValue = AXValueCreate(.cfRange, &selectionRange) else {
+            Logger.debug("AXValueCreate failed for selection range", category: Logger.analysis)
+            return false
+        }
 
         let setRangeResult = AXUIElementSetAttributeValue(
             element,
@@ -4459,7 +4452,8 @@ extension AnalysisCoordinator {
             searchIndex = text.index(before: searchIndex)
             let char = text[searchIndex]
 
-            if sentenceTerminators.contains(char.unicodeScalars.first!) {
+            if let firstScalar = char.unicodeScalars.first,
+               sentenceTerminators.contains(firstScalar) {
                 // Move past the terminator and any whitespace
                 sentenceStart = text.index(after: searchIndex)
                 while sentenceStart < text.endIndex && text[sentenceStart].isWhitespace {
@@ -4476,7 +4470,8 @@ extension AnalysisCoordinator {
         while searchIndex < text.endIndex {
             let char = text[searchIndex]
 
-            if sentenceTerminators.contains(char.unicodeScalars.first!) {
+            if let firstScalar = char.unicodeScalars.first,
+               sentenceTerminators.contains(firstScalar) {
                 // Include the terminator
                 sentenceEnd = text.index(after: searchIndex)
                 break
