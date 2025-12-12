@@ -532,7 +532,7 @@ class NotionContentParser: ContentParser {
         }
 
         // Basic validation
-        guard bounds.width >= 0 && bounds.height > 5 && bounds.height < 100 else {
+        guard bounds.width >= 0 && bounds.height > GeometryConstants.minimumBoundsSize && bounds.height < GeometryConstants.conservativeMaxLineHeight else {
             return nil
         }
 

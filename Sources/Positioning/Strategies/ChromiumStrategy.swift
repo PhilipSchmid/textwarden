@@ -325,7 +325,7 @@ class ChromiumStrategy: GeometryProvider {
         // Validate bounds
         // For Teams (WebView2), we may get valid position but zero dimensions
         // In that case, we'll use the position and estimate dimensions
-        if rect.width > 0 && rect.height > 0 && rect.height < 100 {
+        if rect.width > 0 && rect.height > 0 && rect.height < GeometryConstants.conservativeMaxLineHeight {
             return rect
         }
 

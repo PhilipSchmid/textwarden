@@ -348,16 +348,8 @@ class LineIndexStrategy: GeometryProvider {
         parser: ContentParser
     ) -> CGRect? {
         // Get element frame (position + size)
-        var positionValue: CFTypeRef?
-        var sizeValue: CFTypeRef?
-
-        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
-              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
-              let posValue = positionValue,
-              let szValue = sizeValue,
-              let position = safeAXValueGetPoint(posValue),
-              let size = safeAXValueGetSize(szValue) else {
-            Logger.debug("LineIndexStrategy: Failed to get element position/size for estimation")
+        guard let elementFrame = AccessibilityBridge.getElementFrame(element) else {
+            Logger.debug("LineIndexStrategy: Failed to get element frame for estimation")
             return nil
         }
 
@@ -368,11 +360,11 @@ class LineIndexStrategy: GeometryProvider {
         // Calculate Y position for this line
         // In Quartz coordinates, Y increases downward from top-left
         // Line 0 is at the top of the element
-        let lineY = position.y + (CGFloat(lineNumber) * lineHeight) + 4  // 4pt top padding estimate
+        let lineY = elementFrame.origin.y + (CGFloat(lineNumber) * lineHeight) + 4  // 4pt top padding estimate
 
         // Use element X for line start and full width
-        let lineX = position.x
-        let lineWidth = size.width
+        let lineX = elementFrame.origin.x
+        let lineWidth = elementFrame.size.width
 
         Logger.debug("LineIndexStrategy: Estimated line \(lineNumber) at Y=\(lineY), lineHeight=\(lineHeight)")
 

@@ -100,10 +100,7 @@ class TextMarkerStrategy: GeometryProvider {
         if !AccessibilityBridge.supportsLayoutToScreenConversion(element) &&
            parser.getBoundsForRange(range: NSRange(location: 0, length: 1), in: element) != nil {
             // Get AXWebArea position
-            var positionRef: CFTypeRef?
-            if AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionRef) == .success,
-               let pv = positionRef,
-               let areaPosition = safeAXValueGetPoint(pv) {
+            if let areaPosition = AccessibilityBridge.getElementPosition(element) {
 
                 // Get first character bounds to find where text actually starts
                 var cfRange = CFRange(location: 0, length: 1)

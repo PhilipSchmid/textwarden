@@ -1490,14 +1490,7 @@ class AnalysisCoordinator: ObservableObject {
     /// Get AX element position directly (for stability checking)
     /// Returns position in Quartz coordinates (top-left origin)
     private func getAXElementPosition(for element: AXUIElement) -> CGPoint? {
-        var positionValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
-              let posValue = positionValue,
-              let position = safeAXValueGetPoint(posValue) else {
-            return nil
-        }
-
-        return position
+        return AccessibilityBridge.getElementPosition(element)
     }
 
     // MARK: - Debug Border Management

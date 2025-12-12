@@ -83,7 +83,7 @@ class NavigationStrategy: GeometryProvider {
         }
 
         // Validate bounds
-        guard bounds.width >= 0 && bounds.height > 0 && bounds.height < 100 else {
+        guard bounds.width >= 0 && bounds.height > 0 && bounds.height < GeometryConstants.conservativeMaxLineHeight else {
             Logger.debug("NavigationStrategy: Invalid bounds \(bounds)")
             return nil
         }

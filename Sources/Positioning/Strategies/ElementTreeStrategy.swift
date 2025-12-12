@@ -471,7 +471,7 @@ class ElementTreeStrategy: GeometryProvider {
             return nil
         }
 
-        guard bounds.width > 0 && bounds.height > 0 && bounds.height < 200 else {
+        guard bounds.width > 0 && bounds.height > 0 && bounds.height < GeometryConstants.maximumLineHeight else {
             return nil
         }
 

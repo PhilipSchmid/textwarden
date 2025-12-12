@@ -197,13 +197,7 @@ class MailContentParser: ContentParser {
            let rect = safeAXValueGetRect(bounds) {
             // Heuristic: Determine if coordinates are layout or screen
             // Layout coords have small X values, screen coords are larger
-            var posRef: CFTypeRef?
-            var elementPosition = CGPoint.zero
-            if AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &posRef) == .success,
-               let pv = posRef,
-               let pos = safeAXValueGetPoint(pv) {
-                elementPosition = pos
-            }
+            let elementPosition = AccessibilityBridge.getElementPosition(element) ?? .zero
 
             let looksLikeLayoutCoords = rect.origin.x < 200 && rect.origin.x < (elementPosition.x - 100)
 
@@ -245,13 +239,7 @@ class MailContentParser: ContentParser {
            let bounds = markerBoundsValue,
            let rect = safeAXValueGetRect(bounds) {
             // Check if conversion is needed (same heuristic as CFRange method)
-            var posRef: CFTypeRef?
-            var elementPosition = CGPoint.zero
-            if AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &posRef) == .success,
-               let pv = posRef,
-               let pos = safeAXValueGetPoint(pv) {
-                elementPosition = pos
-            }
+            let elementPosition = AccessibilityBridge.getElementPosition(element) ?? .zero
 
             let looksLikeLayoutCoords = rect.origin.x < 200 && rect.origin.x < (elementPosition.x - 100)
 

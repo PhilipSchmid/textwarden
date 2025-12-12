@@ -107,7 +107,7 @@ class RangeBoundsStrategy: GeometryProvider {
         }
 
         // Check for suspiciously small bounds
-        if cocoaBounds.width < 5.0 {
+        if cocoaBounds.width < GeometryConstants.minimumBoundsSize {
             Logger.warning("RangeBoundsStrategy: Bounds width suspiciously small: \(cocoaBounds.width)px")
         }
 

@@ -807,6 +807,26 @@ enum AccessibilityBridge {
         return CGRect(origin: origin, size: rectSize)
     }
 
+    /// Get element position in Quartz coordinates
+    /// Returns the position (origin) of an AXUIElement, or nil if unavailable
+    static func getElementPosition(_ element: AXUIElement) -> CGPoint? {
+        var positionValue: CFTypeRef?
+
+        let positionResult = AXUIElementCopyAttributeValue(
+            element,
+            kAXPositionAttribute as CFString,
+            &positionValue
+        )
+
+        guard positionResult == .success,
+              let position = positionValue,
+              let point = safeAXValueGetPoint(position) else {
+            return nil
+        }
+
+        return point
+    }
+
     /// Get bounds for a text range using AXBoundsForRange API
     /// Returns nil if the API fails or returns invalid bounds (Chromium bugs)
     /// - Parameters:
