@@ -187,6 +187,10 @@ class TextMonitor: ObservableObject {
 
         Logger.debug("TextMonitor: Got focused element, checking if editable...", category: Logger.accessibility)
 
+        guard CFGetTypeID(element) == AXUIElementGetTypeID() else {
+            Logger.warning("TextMonitor: Focused element is not AXUIElement type", category: Logger.accessibility)
+            return
+        }
         let axElement = element as! AXUIElement
 
         // CRITICAL FIX: AXFocusedUIElement might return the wrong element (e.g., sidebar in Slack)
@@ -599,6 +603,10 @@ extension TextMonitor {
             return nil
         }
 
+        guard CFGetTypeID(window) == AXUIElementGetTypeID() else {
+            Logger.warning("TextMonitor: Window is not AXUIElement type", category: Logger.accessibility)
+            return nil
+        }
         let windowElement = window as! AXUIElement
 
         Logger.debug("TextMonitor: Searching main window for editable field...", category: Logger.accessibility)
