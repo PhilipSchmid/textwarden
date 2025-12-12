@@ -247,26 +247,7 @@ See the [mistral.rs documentation](https://github.com/EricLBuehler/mistral.rs#su
    },
    ```
 
-3. **Add to Swift** (`Sources/GrammarBridge/ModelManager.swift`):
-   ```swift
-   ModelConfig(
-       id: "model-id",
-       name: "Model Name",
-       vendor: "Vendor",
-       filename: "model-q4_k_m.gguf",
-       downloadUrl: "https://huggingface.co/.../resolve/main/model-q4_k_m.gguf",
-       sizeBytes: 1_000_000_000,
-       speedRating: 7.5,
-       qualityRating: 8.0,
-       languages: ["en"],
-       isMultilingual: false,
-       description: "Brief description.",
-       tier: .balanced,
-       isDefault: false
-   ),
-   ```
-
-4. **Verify**: `make ci-check`
+3. **Verify**: `make ci-check`
 
 ## Code Style
 
