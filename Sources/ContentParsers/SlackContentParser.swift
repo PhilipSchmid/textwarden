@@ -214,12 +214,9 @@ class SlackContentParser: ContentParser {
             element,
             kAXSelectedTextRangeAttribute as CFString,
             &selectedRangeValue
-        ) == .success else {
-            return nil
-        }
-
-        var selectedRange = CFRange(location: 0, length: 0)
-        guard AXValueGetValue(selectedRangeValue as! AXValue, .cfRange, &selectedRange) else {
+        ) == .success,
+              let rangeRef = selectedRangeValue,
+              let selectedRange = safeAXValueGetRange(rangeRef) else {
             return nil
         }
 
@@ -231,13 +228,11 @@ class SlackContentParser: ContentParser {
         // Method 1: AXInsertionPointFrame
         var insertionPointValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, "AXInsertionPointFrame" as CFString, &insertionPointValue) == .success,
-           let axValue = insertionPointValue {
-            var frame = CGRect.zero
-            if AXValueGetValue(axValue as! AXValue, .cgRect, &frame) {
-                if frame.width >= 0 && frame.height > 5 && frame.height < 100 {
-                    cursorBounds = frame
-                    Logger.debug("Slack: Got cursor bounds from AXInsertionPointFrame: \(frame)", category: Logger.ui)
-                }
+           let axValue = insertionPointValue,
+           let frame = safeAXValueGetRect(axValue) {
+            if frame.width >= 0 && frame.height > 5 && frame.height < 100 {
+                cursorBounds = frame
+                Logger.debug("Slack: Got cursor bounds from AXInsertionPointFrame: \(frame)", category: Logger.ui)
             }
         }
 
@@ -316,12 +311,9 @@ class SlackContentParser: ContentParser {
             &boundsValue
         )
 
-        guard result == .success, let bv = boundsValue else {
-            return nil
-        }
-
-        var bounds = CGRect.zero
-        guard AXValueGetValue(bv as! AXValue, .cgRect, &bounds) else {
+        guard result == .success,
+              let bv = boundsValue,
+              let bounds = safeAXValueGetRect(bv) else {
             return nil
         }
 
@@ -421,15 +413,11 @@ class SlackContentParser: ContentParser {
         var sizeValue: CFTypeRef?
 
         guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
-              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success else {
-            return nil
-        }
-
-        var position = CGPoint.zero
-        var size = CGSize.zero
-
-        guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &position),
-              AXValueGetValue(sizeValue as! AXValue, .cgSize, &size) else {
+              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
+              let posValue = positionValue,
+              let szValue = sizeValue,
+              let position = safeAXValueGetPoint(posValue),
+              let size = safeAXValueGetSize(szValue) else {
             return nil
         }
 
