@@ -40,8 +40,8 @@ class ChromiumStrategy: GeometryProvider {
 
     // MARK: - Typing Detection State (protected by stateQueue)
 
+    /// Tracks when text last changed - used to detect typing pauses before measuring
     private static var _lastTextChangeTime: Date = .distantPast
-    private static var _textFirstSeenTime: Date = .distantPast
 
     /// Minimum time text must be stable before measuring (avoids cursor interference during typing)
     private static let typingPauseThreshold: TimeInterval = TimingConstants.typingPauseThreshold
@@ -79,7 +79,6 @@ class ChromiumStrategy: GeometryProvider {
     static func notifyTextChange() {
         stateQueue.sync {
             _lastTextChangeTime = Date()
-            _textFirstSeenTime = Date()
             _savedCursorPosition = nil
             _savedCursorElement = nil
             _measurementInProgress = false
@@ -90,10 +89,10 @@ class ChromiumStrategy: GeometryProvider {
         }
     }
 
-    /// Check if user is currently typing
+    /// Check if user is currently typing (text changed recently)
     static var isCurrentlyTyping: Bool {
         stateQueue.sync {
-            Date().timeIntervalSince(_textFirstSeenTime) < typingPauseThreshold
+            Date().timeIntervalSince(_lastTextChangeTime) < typingPauseThreshold
         }
     }
 
