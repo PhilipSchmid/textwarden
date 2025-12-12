@@ -3031,13 +3031,21 @@ private struct CustomVocabularyContent: View {
     }
 
     private func removeWord(_ word: String) {
-        try? vocabulary.removeWord(word)
-        errorMessage = nil
+        do {
+            try vocabulary.removeWord(word)
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func clearAll() {
-        try? vocabulary.clearAll()
-        errorMessage = nil
+        do {
+            try vocabulary.clearAll()
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     /// Move an ignored word to the Custom Dictionary
@@ -3620,13 +3628,21 @@ struct CustomVocabularyView: View {
     }
 
     private func removeWord(_ word: String) {
-        try? vocabulary.removeWord(word)
-        errorMessage = nil
+        do {
+            try vocabulary.removeWord(word)
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func clearAll() {
-        try? vocabulary.clearAll()
-        errorMessage = nil
+        do {
+            try vocabulary.clearAll()
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 }
 
