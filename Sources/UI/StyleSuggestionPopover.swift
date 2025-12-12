@@ -48,6 +48,14 @@ class StyleSuggestionPopover: ObservableObject {
 
     private init() {}
 
+    deinit {
+        // Clean up event monitor to prevent memory leaks
+        if let monitor = clickOutsideMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+        hideTimer?.invalidate()
+    }
+
     // MARK: - Show/Hide
 
     /// Show the popover for a style suggestion
