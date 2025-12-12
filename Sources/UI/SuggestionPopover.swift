@@ -1850,7 +1850,9 @@ extension SuggestionPopover {
         let length = error.end - error.start
 
         var range = CFRange(location: location, length: max(1, length))
-        let rangeValue = AXValueCreate(.cfRange, &range)!
+        guard let rangeValue = AXValueCreate(.cfRange, &range) else {
+            return getCursorPosition(in: element)
+        }
 
         var boundsValue: CFTypeRef?
         let boundsError = AXUIElementCopyParameterizedAttributeValue(
@@ -1862,28 +1864,20 @@ extension SuggestionPopover {
 
         guard boundsError == .success,
               let axValue = boundsValue,
-              CFGetTypeID(axValue) == AXValueGetTypeID() else {
+              let rect = safeAXValueGetRect(axValue) else {
             return getCursorPosition(in: element)
         }
 
-        // Extract CGRect from AXValue
-        var rect = CGRect.zero
-        let success = AXValueGetValue(axValue as! AXValue, .cgRect, &rect)
-
-        if success {
-            // CRITICAL: AX API returns coordinates in top-left origin system (Quartz)
-            // NSWindow uses bottom-left origin (AppKit)
-            // Must flip Y coordinate using screen height
-            if let screenHeight = NSScreen.main?.frame.height {
-                let flippedY = screenHeight - rect.origin.y - rect.height
-                return CGPoint(x: rect.origin.x, y: flippedY)
-            }
-
-            // Return bottom-left corner (to position popup below error)
-            return CGPoint(x: rect.origin.x, y: rect.origin.y)
+        // CRITICAL: AX API returns coordinates in top-left origin system (Quartz)
+        // NSWindow uses bottom-left origin (AppKit)
+        // Must flip Y coordinate using screen height
+        if let screenHeight = NSScreen.main?.frame.height {
+            let flippedY = screenHeight - rect.origin.y - rect.height
+            return CGPoint(x: rect.origin.x, y: flippedY)
         }
 
-        return getCursorPosition(in: element)
+        // Return bottom-left corner (to position popup below error)
+        return CGPoint(x: rect.origin.x, y: rect.origin.y)
     }
 
     /// Get cursor position from AX element (T042)
@@ -1911,28 +1905,20 @@ extension SuggestionPopover {
 
         guard boundsError == .success,
               let axValue = boundsValue,
-              CFGetTypeID(axValue) == AXValueGetTypeID() else {
+              let rect = safeAXValueGetRect(axValue) else {
             return fallbackCursorPosition()
         }
 
-        // Extract CGRect from AXValue
-        var rect = CGRect.zero
-        let success = AXValueGetValue(axValue as! AXValue, .cgRect, &rect)
-
-        if success {
-            // CRITICAL: AX API returns coordinates in top-left origin system (Quartz)
-            // NSWindow uses bottom-left origin (AppKit)
-            // Must flip Y coordinate using screen height
-            if let screenHeight = NSScreen.main?.frame.height {
-                let flippedY = screenHeight - rect.origin.y - rect.height
-                return CGPoint(x: rect.origin.x, y: flippedY)
-            }
-
-            // Return bottom-left corner of selection
-            return CGPoint(x: rect.origin.x, y: rect.origin.y)
+        // CRITICAL: AX API returns coordinates in top-left origin system (Quartz)
+        // NSWindow uses bottom-left origin (AppKit)
+        // Must flip Y coordinate using screen height
+        if let screenHeight = NSScreen.main?.frame.height {
+            let flippedY = screenHeight - rect.origin.y - rect.height
+            return CGPoint(x: rect.origin.x, y: flippedY)
         }
 
-        return fallbackCursorPosition()
+        // Return bottom-left corner of selection
+        return CGPoint(x: rect.origin.x, y: rect.origin.y)
     }
 
     /// Fallback cursor position (center of screen)
