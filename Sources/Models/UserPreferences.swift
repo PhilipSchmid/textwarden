@@ -26,6 +26,16 @@ class UserPreferences: ObservableObject {
     private var resumeTimer: Timer?
     private var cleanupTimer: Timer?
 
+    /// Helper to encode and persist a value with logging on failure
+    private func persist<T: Encodable>(_ value: T, forKey key: String) {
+        do {
+            let encoded = try encoder.encode(value)
+            defaults.set(encoded, forKey: key)
+        } catch {
+            Logger.warning("Failed to persist \(key): \(error.localizedDescription)", category: Logger.general)
+        }
+    }
+
     /// Current pause state for grammar checking
     @Published var pauseDuration: PauseDuration {
         didSet {
@@ -72,45 +82,35 @@ class UserPreferences: ObservableObject {
     /// Per-application enable/disable settings
     @Published var disabledApplications: Set<String> {
         didSet {
-            if let encoded = try? encoder.encode(disabledApplications) {
-                defaults.set(encoded, forKey: Keys.disabledApplications)
-            }
+            persist(disabledApplications, forKey: Keys.disabledApplications)
         }
     }
 
     /// Per-application pause durations
     @Published var appPauseDurations: [String: PauseDuration] {
         didSet {
-            if let encoded = try? encoder.encode(appPauseDurations) {
-                defaults.set(encoded, forKey: Keys.appPauseDurations)
-            }
+            persist(appPauseDurations, forKey: Keys.appPauseDurations)
         }
     }
 
     /// Per-application pause expiry dates (for timed pauses)
     @Published var appPausedUntil: [String: Date] {
         didSet {
-            if let encoded = try? encoder.encode(appPausedUntil) {
-                defaults.set(encoded, forKey: Keys.appPausedUntil)
-            }
+            persist(appPausedUntil, forKey: Keys.appPausedUntil)
         }
     }
 
     /// Discovered applications (apps that have been activated while TextWarden is running)
     @Published var discoveredApplications: Set<String> {
         didSet {
-            if let encoded = try? encoder.encode(discoveredApplications) {
-                defaults.set(encoded, forKey: Keys.discoveredApplications)
-            }
+            persist(discoveredApplications, forKey: Keys.discoveredApplications)
         }
     }
 
     /// Hidden applications (apps that user has hidden from the discovered list)
     @Published var hiddenApplications: Set<String> {
         didSet {
-            if let encoded = try? encoder.encode(hiddenApplications) {
-                defaults.set(encoded, forKey: Keys.hiddenApplications)
-            }
+            persist(hiddenApplications, forKey: Keys.hiddenApplications)
         }
     }
 
@@ -118,9 +118,7 @@ class UserPreferences: ObservableObject {
     /// This allows users to disable underlines for specific apps while keeping grammar checking active
     @Published var appUnderlinesDisabled: Set<String> {
         didSet {
-            if let encoded = try? encoder.encode(appUnderlinesDisabled) {
-                defaults.set(encoded, forKey: Keys.appUnderlinesDisabled)
-            }
+            persist(appUnderlinesDisabled, forKey: Keys.appUnderlinesDisabled)
         }
     }
 
@@ -128,9 +126,7 @@ class UserPreferences: ObservableObject {
     /// Supports exact matches (e.g., "github.com") and wildcard patterns (e.g., "*.google.com")
     @Published var disabledWebsites: Set<String> {
         didSet {
-            if let encoded = try? encoder.encode(disabledWebsites) {
-                defaults.set(encoded, forKey: Keys.disabledWebsites)
-            }
+            persist(disabledWebsites, forKey: Keys.disabledWebsites)
         }
     }
 
@@ -210,18 +206,14 @@ class UserPreferences: ObservableObject {
     /// Custom words to ignore
     @Published var customDictionary: Set<String> {
         didSet {
-            if let encoded = try? encoder.encode(customDictionary) {
-                defaults.set(encoded, forKey: Keys.customDictionary)
-            }
+            persist(customDictionary, forKey: Keys.customDictionary)
         }
     }
 
     /// Permanently ignored grammar rules
     @Published var ignoredRules: Set<String> {
         didSet {
-            if let encoded = try? encoder.encode(ignoredRules) {
-                defaults.set(encoded, forKey: Keys.ignoredRules)
-            }
+            persist(ignoredRules, forKey: Keys.ignoredRules)
         }
     }
 
@@ -229,9 +221,7 @@ class UserPreferences: ObservableObject {
     /// Stores error texts that should be ignored across all documents
     @Published var ignoredErrorTexts: Set<String> {
         didSet {
-            if let encoded = try? encoder.encode(ignoredErrorTexts) {
-                defaults.set(encoded, forKey: Keys.ignoredErrorTexts)
-            }
+            persist(ignoredErrorTexts, forKey: Keys.ignoredErrorTexts)
         }
     }
 
@@ -245,9 +235,7 @@ class UserPreferences: ObservableObject {
     /// Enabled grammar check categories (e.g., "Spelling", "Grammar", "Style")
     @Published var enabledCategories: Set<String> {
         didSet {
-            if let encoded = try? encoder.encode(enabledCategories) {
-                defaults.set(encoded, forKey: Keys.enabledCategories)
-            }
+            persist(enabledCategories, forKey: Keys.enabledCategories)
         }
     }
 
@@ -386,9 +374,7 @@ class UserPreferences: ObservableObject {
     /// Languages to exclude from grammar checking (e.g., "spanish", "german")
     @Published var excludedLanguages: Set<String> {
         didSet {
-            if let encoded = try? encoder.encode(excludedLanguages) {
-                defaults.set(encoded, forKey: Keys.excludedLanguages)
-            }
+            persist(excludedLanguages, forKey: Keys.excludedLanguages)
         }
     }
 
