@@ -55,6 +55,7 @@ final class UpdaterDelegate: NSObject, SPUUpdaterDelegate {
 }
 
 /// ViewModel for managing app updates via Sparkle
+@MainActor
 final class UpdaterViewModel: ObservableObject {
 
     /// User preference for automatic update checks (synced with Sparkle)

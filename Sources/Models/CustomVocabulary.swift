@@ -9,6 +9,7 @@ import Foundation
 import Combine
 
 /// Manages custom vocabulary words with JSON file persistence
+@MainActor
 class CustomVocabulary: ObservableObject {
     static let shared = CustomVocabulary()
 

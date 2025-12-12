@@ -7,6 +7,7 @@ import os.log
 
 /// Observable manager for LLM models with download progress tracking
 @available(macOS 10.15, *)
+@MainActor
 public class ModelManager: ObservableObject {
 
     /// Shared singleton instance
@@ -534,13 +535,15 @@ private class ModelDownloadDelegate: NSObject, URLSessionDownloadDelegate {
 
         let percentage = total > 0 ? Double(totalBytesWritten) / Double(total) * 100 : 0
 
-        // Use callback method
-        manager.updateDownloadProgress(
-            modelId: modelId,
-            bytesDownloaded: UInt64(totalBytesWritten),
-            totalBytes: total,
-            percentage: percentage
-        )
+        // Use callback method (dispatch to MainActor since ModelManager is @MainActor)
+        Task { @MainActor in
+            manager.updateDownloadProgress(
+                modelId: modelId,
+                bytesDownloaded: UInt64(totalBytesWritten),
+                totalBytes: total,
+                percentage: percentage
+            )
+        }
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
@@ -551,8 +554,10 @@ private class ModelDownloadDelegate: NSObject, URLSessionDownloadDelegate {
         let destinationURL = info.destinationURL
         downloadInfo.removeValue(forKey: downloadTask.taskIdentifier)
 
-        // Use callback method
-        manager.handleDownloadCompleted(modelId: modelId, tempURL: location, destinationURL: destinationURL)
+        // Use callback method (dispatch to MainActor since ModelManager is @MainActor)
+        Task { @MainActor in
+            manager.handleDownloadCompleted(modelId: modelId, tempURL: location, destinationURL: destinationURL)
+        }
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
@@ -563,7 +568,9 @@ private class ModelDownloadDelegate: NSObject, URLSessionDownloadDelegate {
         let modelId = info.modelId
         downloadInfo.removeValue(forKey: task.taskIdentifier)
 
-        // Use callback method (handles both error and cancellation)
-        manager.handleDownloadError(modelId: modelId, error: error)
+        // Use callback method (dispatch to MainActor since ModelManager is @MainActor)
+        Task { @MainActor in
+            manager.handleDownloadError(modelId: modelId, error: error)
+        }
     }
 }

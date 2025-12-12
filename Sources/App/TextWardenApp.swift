@@ -39,7 +39,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var styleCheckingCancellable: AnyCancellable?
 
     /// Shared updater view model for Sparkle auto-updates
-    let updaterViewModel = UpdaterViewModel()
+    /// Lazy to ensure initialization happens on main thread (UpdaterViewModel is @MainActor)
+    @MainActor lazy var updaterViewModel = UpdaterViewModel()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Logger.info("Application launched", category: Logger.lifecycle)
@@ -238,42 +239,42 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Log current state
         Logger.debug("Style checking preferences - enabled: \(enableStyleChecking), selectedModel: \(selectedModelId)", category: Logger.llm)
 
-        // Refresh models - dispatch to main thread asynchronously to avoid deadlock
-        // Using async instead of sync prevents blocking the background thread if main thread is busy
+        // Refresh models and check for auto-load on the main thread
+        // (ModelManager properties are @MainActor isolated)
         DispatchQueue.main.async {
             modelManager.refreshModels()
-        }
 
-        // Wait briefly to allow the refresh to complete before checking models
-        Thread.sleep(forTimeInterval: 0.1)
+            // Wait briefly to allow the refresh to complete before checking models
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                Logger.debug("Available models: \(modelManager.models.count), downloaded: \(modelManager.downloadedModels.count)", category: Logger.llm)
 
-        Logger.debug("Available models: \(modelManager.models.count), downloaded: \(modelManager.downloadedModels.count)", category: Logger.llm)
+                // Auto-load model on launch if style checking is enabled
+                guard enableStyleChecking else {
+                    Logger.debug("Style checking is disabled - skipping model auto-load", category: Logger.llm)
+                    return
+                }
 
-        // Auto-load model on launch if style checking is enabled
-        guard enableStyleChecking else {
-            Logger.debug("Style checking is disabled - skipping model auto-load", category: Logger.llm)
-            return
-        }
+                Logger.debug("Style checking enabled, checking if model '\(selectedModelId)' is available...", category: Logger.llm)
 
-        Logger.debug("Style checking enabled, checking if model '\(selectedModelId)' is available...", category: Logger.llm)
+                guard let model = modelManager.models.first(where: { $0.id == selectedModelId }) else {
+                    Logger.warning("Selected model '\(selectedModelId)' not found in available models", category: Logger.llm)
+                    return
+                }
 
-        guard let model = modelManager.models.first(where: { $0.id == selectedModelId }) else {
-            Logger.warning("Selected model '\(selectedModelId)' not found in available models", category: Logger.llm)
-            return
-        }
+                Logger.debug("Found model: \(model.name), isDownloaded: \(model.isDownloaded)", category: Logger.llm)
 
-        Logger.debug("Found model: \(model.name), isDownloaded: \(model.isDownloaded)", category: Logger.llm)
+                guard model.isDownloaded else {
+                    Logger.warning("Selected model '\(model.name)' is not downloaded - cannot auto-load", category: Logger.llm)
+                    return
+                }
 
-        guard model.isDownloaded else {
-            Logger.warning("Selected model '\(model.name)' is not downloaded - cannot auto-load", category: Logger.llm)
-            return
-        }
+                Logger.info("Auto-loading AI model: \(model.name) (style checking enabled)", category: Logger.llm)
 
-        Logger.info("Auto-loading AI model: \(model.name) (style checking enabled)", category: Logger.llm)
-
-        // Load model - this is the heavy operation, keep it on background thread
-        Task.detached(priority: .userInitiated) {
-            await modelManager.loadModel(selectedModelId)
+                // Load model on background thread (heavy operation)
+                Task.detached(priority: .userInitiated) {
+                    await modelManager.loadModel(selectedModelId)
+                }
+            }
         }
     }
 
