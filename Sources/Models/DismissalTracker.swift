@@ -16,12 +16,15 @@ class DismissalTracker {
 
     private init() {
         // Setup file URL in Application Support
-        let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first!
+        let baseURL: URL
+        if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            baseURL = appSupport
+        } else {
+            Logger.critical("Application Support directory not available, using temp directory", category: Logger.general)
+            baseURL = FileManager.default.temporaryDirectory
+        }
 
-        let textWardenDir = appSupport.appendingPathComponent("TextWarden")
+        let textWardenDir = baseURL.appendingPathComponent("TextWarden")
 
         try? FileManager.default.createDirectory(
             at: textWardenDir,
