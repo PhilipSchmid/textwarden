@@ -630,7 +630,9 @@ class ErrorOverlayWindow: NSPanel {
 
             var parentValue: CFTypeRef?
             let parentResult = AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentValue)
-            guard parentResult == .success, let parent = parentValue else {
+            guard parentResult == .success,
+                  let parent = parentValue,
+                  CFGetTypeID(parent) == AXUIElementGetTypeID() else {
                 Logger.debug("ErrorOverlay: AX walk stopped at level \(level) - could not get parent (result: \(parentResult.rawValue))", category: Logger.ui)
                 break
             }
