@@ -340,13 +340,16 @@ class FloatingErrorIndicator: NSPanel {
         }
 
         // If no stored position, use default from preferences
-        if percentagePos == nil {
-            percentagePos = IndicatorPositionStore.shared.getDefaultPosition()
+        let resolvedPosition: IndicatorPositionStore.PercentagePosition
+        if let existingPos = percentagePos {
+            resolvedPosition = existingPos
+        } else {
+            resolvedPosition = IndicatorPositionStore.shared.getDefaultPosition()
             Logger.debug("FloatingErrorIndicator: Using default position from preferences", category: Logger.ui)
         }
 
         // Convert percentage to absolute position
-        let position = percentagePos!.toAbsolute(in: visibleFrame, indicatorSize: indicatorSize)
+        let position = resolvedPosition.toAbsolute(in: visibleFrame, indicatorSize: indicatorSize)
         let finalFrame = NSRect(x: position.x, y: position.y, width: indicatorSize, height: indicatorSize)
 
         Logger.debug("FloatingErrorIndicator: Positioning at \(finalFrame)", category: Logger.ui)
@@ -378,7 +381,7 @@ class FloatingErrorIndicator: NSPanel {
                 // Skip tiny windows (< 100x100, likely tooltips or popups)
                 guard width >= 100 && height >= 100 else { continue }
 
-                if bestWindow == nil || area > bestWindow!.area {
+                if bestWindow.map({ area > $0.area }) ?? true {
                     bestWindow = (x: x, y: y, width: width, height: height, area: area)
                 }
             }
@@ -613,13 +616,16 @@ class FloatingErrorIndicator: NSPanel {
         }
 
         // If no stored position, use default from preferences
-        if percentagePos == nil {
-            percentagePos = IndicatorPositionStore.shared.getDefaultPosition()
+        let resolvedPosition: IndicatorPositionStore.PercentagePosition
+        if let existingPos = percentagePos {
+            resolvedPosition = existingPos
+        } else {
+            resolvedPosition = IndicatorPositionStore.shared.getDefaultPosition()
             Logger.debug("FloatingErrorIndicator: Using default position from preferences", category: Logger.ui)
         }
 
         // Convert percentage to absolute position
-        let position = percentagePos!.toAbsolute(in: visibleFrame, indicatorSize: indicatorSize)
+        let position = resolvedPosition.toAbsolute(in: visibleFrame, indicatorSize: indicatorSize)
         let finalFrame = NSRect(x: position.x, y: position.y, width: indicatorSize, height: indicatorSize)
 
         Logger.debug("FloatingErrorIndicator: Positioning at \(finalFrame)", category: Logger.ui)
@@ -731,7 +737,7 @@ class FloatingErrorIndicator: NSPanel {
                 }
 
                 // Keep track of the largest window as fallback
-                if bestWindow == nil || area > bestWindow!.area {
+                if bestWindow.map({ area > $0.area }) ?? true {
                     bestWindow = (x: x, y: y, width: width, height: height, area: area)
                 }
             }
@@ -845,15 +851,11 @@ class FloatingErrorIndicator: NSPanel {
         var sizeValue: CFTypeRef?
 
         guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &positionValue) == .success,
-              AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeValue) == .success else {
-            return nil
-        }
-
-        var position = CGPoint.zero
-        var size = CGSize.zero
-
-        guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &position),
-              AXValueGetValue(sizeValue as! AXValue, .cgSize, &size) else {
+              AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeValue) == .success,
+              let posValue = positionValue,
+              let szValue = sizeValue,
+              let position = safeAXValueGetPoint(posValue),
+              let size = safeAXValueGetSize(szValue) else {
             return nil
         }
 
@@ -973,15 +975,11 @@ class FloatingErrorIndicator: NSPanel {
         var sizeValue: CFTypeRef?
 
         guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
-              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success else {
-            return nil
-        }
-
-        var position = CGPoint.zero
-        var size = CGSize.zero
-
-        guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &position),
-              AXValueGetValue(sizeValue as! AXValue, .cgSize, &size) else {
+              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
+              let posValue = positionValue,
+              let szValue = sizeValue,
+              let position = safeAXValueGetPoint(posValue),
+              let size = safeAXValueGetSize(szValue) else {
             return nil
         }
 
