@@ -1462,7 +1462,9 @@ class AnalysisCoordinator: ObservableObject {
 
             var parentValue: CFTypeRef?
             let parentResult = AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentValue)
-            guard parentResult == .success, let parent = parentValue else { break }
+            guard parentResult == .success,
+                  let parent = parentValue,
+                  CFGetTypeID(parent) == AXUIElementGetTypeID() else { break }
             currentElement = (parent as! AXUIElement)
         }
 
@@ -3564,19 +3566,22 @@ class AnalysisCoordinator: ObservableObject {
     private func findPasteMenuItem(in appElement: AXUIElement) -> AXUIElement? {
         // Try to get the menu bar
         var menuBarValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(appElement, kAXMenuBarAttribute as CFString, &menuBarValue) == .success else {
+        guard AXUIElementCopyAttributeValue(appElement, kAXMenuBarAttribute as CFString, &menuBarValue) == .success,
+              let menuBarRef = menuBarValue,
+              CFGetTypeID(menuBarRef) == AXUIElementGetTypeID() else {
             return nil
         }
 
-        let menuBar = menuBarValue as! AXUIElement
+        let menuBar = menuBarRef as! AXUIElement
 
         // Try to find "Edit" menu
         var childrenValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(menuBar, kAXChildrenAttribute as CFString, &childrenValue) == .success else {
+        guard AXUIElementCopyAttributeValue(menuBar, kAXChildrenAttribute as CFString, &childrenValue) == .success,
+              let childrenArray = childrenValue as? [AXUIElement] else {
             return nil
         }
 
-        let children = childrenValue as! [AXUIElement]
+        let children = childrenArray
 
         for child in children {
             var titleValue: CFTypeRef?
