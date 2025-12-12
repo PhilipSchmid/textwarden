@@ -97,6 +97,7 @@ class IndicatorPositionStore {
 
     /// Get the default position from UserPreferences as percentage
     /// Converts the snap position to percentage coordinates
+    @MainActor
     func getDefaultPosition() -> PercentagePosition {
         let position = UserPreferences.shared.indicatorPosition
 

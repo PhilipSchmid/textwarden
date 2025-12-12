@@ -22,6 +22,7 @@ enum SettingsTab: Int, CaseIterable {
     case about = 7
 }
 
+@MainActor
 class PreferencesWindowController: ObservableObject {
     static let shared = PreferencesWindowController()
 

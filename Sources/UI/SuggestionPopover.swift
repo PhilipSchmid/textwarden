@@ -43,6 +43,7 @@ enum PopoverItem {
 }
 
 /// Manages the suggestion popover window
+@MainActor
 class SuggestionPopover: NSObject, ObservableObject {
 
     // MARK: - Singleton

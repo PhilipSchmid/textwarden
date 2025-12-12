@@ -40,6 +40,7 @@ struct ApplicationContext {
     }
 
     /// Check if grammar checking should be active for this context
+    @MainActor
     func shouldCheck() -> Bool {
         guard isEnabled else { return false }
 

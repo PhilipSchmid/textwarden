@@ -92,6 +92,7 @@ struct LLMStyleCheckingDiagnostics: Codable {
     // Available models (for reference)
     let availableModelsCount: Int
 
+    @MainActor
     static func current(preferences: UserPreferences) -> LLMStyleCheckingDiagnostics {
         let modelManager = ModelManager.shared
 
@@ -455,6 +456,7 @@ struct SettingsDump: Codable {
     let keyboardShortcutsEnabled: Bool
     let shortcuts: [String: String]
 
+    @MainActor
     static func from(_ preferences: UserPreferences, shortcuts: [String: String] = [:]) -> SettingsDump {
         return SettingsDump(
             autoStart: LaunchAtLogin.isEnabled,

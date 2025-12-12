@@ -17,6 +17,7 @@ enum PauseDuration: String, CaseIterable, Codable {
 }
 
 /// Observable user preferences with automatic persistence
+@MainActor
 class UserPreferences: ObservableObject {
     static let shared = UserPreferences()
 
@@ -828,7 +829,9 @@ class UserPreferences: ObservableObject {
         }
 
         cleanupTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
-            self?.cleanupExpiredAppPauses()
+            Task { @MainActor [weak self] in
+                self?.cleanupExpiredAppPauses()
+            }
         }
     }
 

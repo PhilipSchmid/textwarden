@@ -181,6 +181,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// - Initialize LLM engine (on background thread)
     /// - Auto-load model on launch if enabled
     /// - Reactively load/unload model when style checking is toggled
+    @MainActor
     private func setupStyleCheckingModelManagement() {
         let preferences = UserPreferences.shared
         let modelManager = ModelManager.shared
@@ -188,16 +189,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Setup the preference observer first (this is lightweight, can be on main thread)
         setupStyleCheckingObserver(preferences: preferences, modelManager: modelManager)
 
+        // Capture MainActor-isolated values on main thread before dispatching to background
+        let enableStyleChecking = preferences.enableStyleChecking
+        let selectedModelId = preferences.selectedModelId
+
         // Run heavy initialization on background thread to avoid blocking UI
         DispatchQueue.global(qos: .userInitiated).async {
-            self.initializeLLMEngineAndLoadModel(preferences: preferences, modelManager: modelManager)
+            self.initializeLLMEngineAndLoadModel(
+                enableStyleChecking: enableStyleChecking,
+                selectedModelId: selectedModelId,
+                modelManager: modelManager
+            )
         }
 
         Logger.info("Style checking model management setup initiated (async)", category: Logger.llm)
     }
 
     /// Initialize LLM engine and auto-load model (runs on background thread)
-    private func initializeLLMEngineAndLoadModel(preferences: UserPreferences, modelManager: ModelManager) {
+    /// Parameters are captured from MainActor context before dispatch to avoid thread safety issues.
+    private func initializeLLMEngineAndLoadModel(
+        enableStyleChecking: Bool,
+        selectedModelId: String,
+        modelManager: ModelManager
+    ) {
         // Initialize LLM engine with app support directory
         guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             Logger.error("Failed to resolve application support directory", category: Logger.llm)
@@ -222,7 +236,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         Logger.info("LLM engine initialized successfully", category: Logger.llm)
 
         // Log current state
-        Logger.debug("Style checking preferences - enabled: \(preferences.enableStyleChecking), selectedModel: \(preferences.selectedModelId)", category: Logger.llm)
+        Logger.debug("Style checking preferences - enabled: \(enableStyleChecking), selectedModel: \(selectedModelId)", category: Logger.llm)
 
         // Refresh models - dispatch to main thread asynchronously to avoid deadlock
         // Using async instead of sync prevents blocking the background thread if main thread is busy
@@ -236,12 +250,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         Logger.debug("Available models: \(modelManager.models.count), downloaded: \(modelManager.downloadedModels.count)", category: Logger.llm)
 
         // Auto-load model on launch if style checking is enabled
-        guard preferences.enableStyleChecking else {
+        guard enableStyleChecking else {
             Logger.debug("Style checking is disabled - skipping model auto-load", category: Logger.llm)
             return
         }
 
-        let selectedModelId = preferences.selectedModelId
         Logger.debug("Style checking enabled, checking if model '\(selectedModelId)' is available...", category: Logger.llm)
 
         guard let model = modelManager.models.first(where: { $0.id == selectedModelId }) else {
@@ -265,32 +278,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Setup observer for style checking toggle (lightweight, runs on main thread)
+    @MainActor
     private func setupStyleCheckingObserver(preferences: UserPreferences, modelManager: ModelManager) {
         styleCheckingCancellable = preferences.$enableStyleChecking
             .dropFirst() // Skip initial value (we handle that in initializeLLMEngineAndLoadModel)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] enabled in
-                guard self != nil else { return }
-                let selectedModelId = preferences.selectedModelId
+                // Use Task to satisfy @MainActor requirements for accessing preferences
+                Task { @MainActor [weak self] in
+                    guard self != nil else { return }
+                    let selectedModelId = preferences.selectedModelId
 
-                if enabled {
-                    // Style checking enabled - load the selected model if downloaded
-                    if let model = modelManager.models.first(where: { $0.id == selectedModelId }), model.isDownloaded {
-                        Logger.info("Style checking enabled - loading model: \(model.name)", category: Logger.llm)
-                        // Use Task.detached to avoid blocking main thread
-                        Task.detached(priority: .userInitiated) {
-                            await modelManager.loadModel(selectedModelId)
+                    if enabled {
+                        // Style checking enabled - load the selected model if downloaded
+                        if let model = modelManager.models.first(where: { $0.id == selectedModelId }), model.isDownloaded {
+                            Logger.info("Style checking enabled - loading model: \(model.name)", category: Logger.llm)
+                            // Use Task.detached to avoid blocking main thread
+                            Task.detached(priority: .userInitiated) {
+                                await modelManager.loadModel(selectedModelId)
+                            }
+                        } else {
+                            Logger.warning("Style checking enabled but selected model not downloaded", category: Logger.llm)
                         }
                     } else {
-                        Logger.warning("Style checking enabled but selected model not downloaded", category: Logger.llm)
-                    }
-                } else {
-                    // Style checking disabled - unload the model from memory
-                    if modelManager.loadedModelId != nil {
-                        Logger.info("Style checking disabled - unloading model from memory", category: Logger.llm)
-                        // Unload on background thread
-                        DispatchQueue.global(qos: .userInitiated).async {
-                            modelManager.unloadModel()
+                        // Style checking disabled - unload the model from memory
+                        if modelManager.loadedModelId != nil {
+                            Logger.info("Style checking disabled - unloading model from memory", category: Logger.llm)
+                            // Unload on background thread
+                            DispatchQueue.global(qos: .userInitiated).async {
+                                modelManager.unloadModel()
+                            }
                         }
                     }
                 }
@@ -385,12 +402,12 @@ extension AppDelegate: NSWindowDelegate {
 
         // Toggle grammar checking (Cmd+Shift+G by default)
         KeyboardShortcuts.onKeyUp(for: .toggleGrammarChecking) {
-            guard preferences.keyboardShortcutsEnabled else { return }
-
-            Logger.debug("Keyboard shortcut: Toggle grammar checking", category: Logger.ui)
-
-            // Toggle pause duration between active and indefinite
             Task { @MainActor in
+                guard preferences.keyboardShortcutsEnabled else { return }
+
+                Logger.debug("Keyboard shortcut: Toggle grammar checking", category: Logger.ui)
+
+                // Toggle pause duration between active and indefinite
                 if preferences.pauseDuration == .active {
                     preferences.pauseDuration = .indefinite
                     MenuBarController.shared?.setIconState(.inactive)
@@ -403,93 +420,107 @@ extension AppDelegate: NSWindowDelegate {
 
         // Run style check on current text (Cmd+Shift+S by default)
         KeyboardShortcuts.onKeyUp(for: .runStyleCheck) {
-            guard preferences.keyboardShortcutsEnabled else { return }
-
-            Logger.debug("Keyboard shortcut: Run style check", category: Logger.ui)
-
-            // Trigger manual style check via AnalysisCoordinator
             Task { @MainActor in
+                guard preferences.keyboardShortcutsEnabled else { return }
+
+                Logger.debug("Keyboard shortcut: Run style check", category: Logger.ui)
+
+                // Trigger manual style check via AnalysisCoordinator
                 AnalysisCoordinator.shared.runManualStyleCheck()
             }
         }
 
         // Accept current suggestion (Tab by default)
         KeyboardShortcuts.onKeyUp(for: .acceptSuggestion) {
-            guard preferences.keyboardShortcutsEnabled else { return }
-            guard SuggestionPopover.shared.isVisible else { return }
-            guard let error = SuggestionPopover.shared.currentError else { return }
-            guard let firstSuggestion = error.suggestions.first else { return }
+            Task { @MainActor in
+                guard preferences.keyboardShortcutsEnabled else { return }
+                guard SuggestionPopover.shared.isVisible else { return }
+                guard let error = SuggestionPopover.shared.currentError else { return }
+                guard let firstSuggestion = error.suggestions.first else { return }
 
-            Logger.debug("Keyboard shortcut: Accept suggestion - \(firstSuggestion)", category: Logger.ui)
+                Logger.debug("Keyboard shortcut: Accept suggestion - \(firstSuggestion)", category: Logger.ui)
 
-            SuggestionPopover.shared.applySuggestion(firstSuggestion)
+                SuggestionPopover.shared.applySuggestion(firstSuggestion)
+            }
         }
 
         // Dismiss suggestion popover (Escape by default)
         KeyboardShortcuts.onKeyUp(for: .dismissSuggestion) {
-            guard preferences.keyboardShortcutsEnabled else { return }
-            guard SuggestionPopover.shared.isVisible else { return }
+            Task { @MainActor in
+                guard preferences.keyboardShortcutsEnabled else { return }
+                guard SuggestionPopover.shared.isVisible else { return }
 
-            Logger.debug("Keyboard shortcut: Dismiss suggestion", category: Logger.ui)
+                Logger.debug("Keyboard shortcut: Dismiss suggestion", category: Logger.ui)
 
-            SuggestionPopover.shared.hide()
+                SuggestionPopover.shared.hide()
+            }
         }
 
         // Navigate to previous suggestion (Option + Left arrow by default)
         KeyboardShortcuts.onKeyUp(for: .previousSuggestion) {
-            guard preferences.keyboardShortcutsEnabled else { return }
-            guard SuggestionPopover.shared.isVisible else { return }
+            Task { @MainActor in
+                guard preferences.keyboardShortcutsEnabled else { return }
+                guard SuggestionPopover.shared.isVisible else { return }
 
-            Logger.debug("Keyboard shortcut: Previous suggestion", category: Logger.ui)
+                Logger.debug("Keyboard shortcut: Previous suggestion", category: Logger.ui)
 
-            SuggestionPopover.shared.previousError()
+                SuggestionPopover.shared.previousError()
+            }
         }
 
         // Navigate to next suggestion (Option + Right arrow by default)
         KeyboardShortcuts.onKeyUp(for: .nextSuggestion) {
-            guard preferences.keyboardShortcutsEnabled else { return }
-            guard SuggestionPopover.shared.isVisible else { return }
+            Task { @MainActor in
+                guard preferences.keyboardShortcutsEnabled else { return }
+                guard SuggestionPopover.shared.isVisible else { return }
 
-            Logger.debug("Keyboard shortcut: Next suggestion", category: Logger.ui)
+                Logger.debug("Keyboard shortcut: Next suggestion", category: Logger.ui)
 
-            SuggestionPopover.shared.nextError()
+                SuggestionPopover.shared.nextError()
+            }
         }
 
         // Quick apply shortcuts (Option+1, Option+2, Option+3)
         KeyboardShortcuts.onKeyUp(for: .applySuggestion1) {
-            guard preferences.keyboardShortcutsEnabled else { return }
-            guard SuggestionPopover.shared.isVisible else { return }
-            guard let error = SuggestionPopover.shared.currentError else { return }
-            guard error.suggestions.count >= 1 else { return }
+            Task { @MainActor in
+                guard preferences.keyboardShortcutsEnabled else { return }
+                guard SuggestionPopover.shared.isVisible else { return }
+                guard let error = SuggestionPopover.shared.currentError else { return }
+                guard error.suggestions.count >= 1 else { return }
 
-            let suggestion = error.suggestions[0]
-            Logger.debug("Keyboard shortcut: Apply suggestion 1 - \(suggestion)", category: Logger.ui)
+                let suggestion = error.suggestions[0]
+                Logger.debug("Keyboard shortcut: Apply suggestion 1 - \(suggestion)", category: Logger.ui)
 
-            SuggestionPopover.shared.applySuggestion(suggestion)
+                SuggestionPopover.shared.applySuggestion(suggestion)
+            }
         }
 
         KeyboardShortcuts.onKeyUp(for: .applySuggestion2) {
-            guard preferences.keyboardShortcutsEnabled else { return }
-            guard SuggestionPopover.shared.isVisible else { return }
-            guard let error = SuggestionPopover.shared.currentError else { return }
-            guard error.suggestions.count >= 2 else { return }
+            Task { @MainActor in
+                guard preferences.keyboardShortcutsEnabled else { return }
+                guard SuggestionPopover.shared.isVisible else { return }
+                guard let error = SuggestionPopover.shared.currentError else { return }
+                guard error.suggestions.count >= 2 else { return }
 
-            let suggestion = error.suggestions[1]
-            Logger.debug("Keyboard shortcut: Apply suggestion 2 - \(suggestion)", category: Logger.ui)
+                let suggestion = error.suggestions[1]
+                Logger.debug("Keyboard shortcut: Apply suggestion 2 - \(suggestion)", category: Logger.ui)
 
-            SuggestionPopover.shared.applySuggestion(suggestion)
+                SuggestionPopover.shared.applySuggestion(suggestion)
+            }
         }
 
         KeyboardShortcuts.onKeyUp(for: .applySuggestion3) {
-            guard preferences.keyboardShortcutsEnabled else { return }
-            guard SuggestionPopover.shared.isVisible else { return }
-            guard let error = SuggestionPopover.shared.currentError else { return }
-            guard error.suggestions.count >= 3 else { return }
+            Task { @MainActor in
+                guard preferences.keyboardShortcutsEnabled else { return }
+                guard SuggestionPopover.shared.isVisible else { return }
+                guard let error = SuggestionPopover.shared.currentError else { return }
+                guard error.suggestions.count >= 3 else { return }
 
-            let suggestion = error.suggestions[2]
-            Logger.debug("Keyboard shortcut: Apply suggestion 3 - \(suggestion)", category: Logger.ui)
+                let suggestion = error.suggestions[2]
+                Logger.debug("Keyboard shortcut: Apply suggestion 3 - \(suggestion)", category: Logger.ui)
 
-            SuggestionPopover.shared.applySuggestion(suggestion)
+                SuggestionPopover.shared.applySuggestion(suggestion)
+            }
         }
     }
 }
