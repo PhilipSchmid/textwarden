@@ -83,7 +83,7 @@ class PermissionManager: ObservableObject {
     }
 
     /// Start polling for permission status changes
-    func startPolling(interval: TimeInterval = 1.0) {
+    func startPolling(interval: TimeInterval = TimingConstants.permissionPolling) {
         stopPolling()
 
         pollTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
@@ -110,7 +110,7 @@ class PermissionManager: ObservableObject {
     // MARK: - Permission Revocation Monitoring (T113)
 
     /// Start continuous monitoring for permission revocation
-    private func startRevocationMonitoring(interval: TimeInterval = 30.0) {
+    private func startRevocationMonitoring(interval: TimeInterval = TimingConstants.revocationMonitoring) {
         stopRevocationMonitoring()
 
         Logger.info("Starting permission revocation monitoring (every \(Int(interval))s)", category: Logger.permissions)
