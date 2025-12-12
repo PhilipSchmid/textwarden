@@ -351,9 +351,9 @@ struct ApplicationState: Codable {
     let isPaused: Bool
     let currentPauseDuration: String
     let activeApplication: String?
-    let discoveredApplications: [String: String] // bundleId: applicationName
-    let pausedApplications: [String: String] // bundleId: pauseDuration (includes "Paused Indefinitely")
-    let pausedByDefaultApplications: [String: String] // bundleId: applicationName (terminals/hidden apps)
+    let discoveredApplications: [String: String] // bundleID: applicationName
+    let pausedApplications: [String: String] // bundleID: pauseDuration (includes "Paused Indefinitely")
+    let pausedByDefaultApplications: [String: String] // bundleID: applicationName (terminals/hidden apps)
 
     @MainActor
     static func current(preferences: UserPreferences) -> ApplicationState {
@@ -362,25 +362,25 @@ struct ApplicationState: Codable {
 
         // Get paused applications with names
         var pausedApps: [String: String] = [:]
-        for (bundleId, duration) in preferences.appPauseDurations {
+        for (bundleID, duration) in preferences.appPauseDurations {
             if duration != .active {
-                let appName = getApplicationName(for: bundleId)
-                pausedApps[bundleId] = "\(appName) (\(duration.rawValue))"
+                let appName = getApplicationName(for: bundleID)
+                pausedApps[bundleID] = "\(appName) (\(duration.rawValue))"
             }
         }
 
         // Get discovered applications with names
         var discoveredApps: [String: String] = [:]
-        for bundleId in preferences.discoveredApplications {
-            let appName = getApplicationName(for: bundleId)
-            discoveredApps[bundleId] = appName
+        for bundleID in preferences.discoveredApplications {
+            let appName = getApplicationName(for: bundleID)
+            discoveredApps[bundleID] = appName
         }
 
         // Get applications that are paused by default (terminals, etc.)
         var pausedByDefault: [String: String] = [:]
-        for bundleId in UserPreferences.terminalApplications {
-            let appName = getApplicationName(for: bundleId)
-            pausedByDefault[bundleId] = appName
+        for bundleID in UserPreferences.terminalApplications {
+            let appName = getApplicationName(for: bundleID)
+            pausedByDefault[bundleID] = appName
         }
 
         return ApplicationState(
@@ -394,16 +394,16 @@ struct ApplicationState: Codable {
     }
 
     /// Get human-readable application name from bundle ID
-    private static func getApplicationName(for bundleId: String) -> String {
+    private static func getApplicationName(for bundleID: String) -> String {
         let workspace = NSWorkspace.shared
 
         // Try to get app from running applications first
-        if let app = workspace.runningApplications.first(where: { $0.bundleIdentifier == bundleId }) {
-            return app.localizedName ?? bundleId
+        if let app = workspace.runningApplications.first(where: { $0.bundleIdentifier == bundleID }) {
+            return app.localizedName ?? bundleID
         }
 
         // Try to get app URL from bundle identifier
-        if let appURL = workspace.urlForApplication(withBundleIdentifier: bundleId) {
+        if let appURL = workspace.urlForApplication(withBundleIdentifier: bundleID) {
             let appName = FileManager.default.displayName(atPath: appURL.path)
             // Remove .app extension if present
             if appName.hasSuffix(".app") {
@@ -413,7 +413,7 @@ struct ApplicationState: Codable {
         }
 
         // Fallback to bundle ID
-        return bundleId
+        return bundleID
     }
 }
 
