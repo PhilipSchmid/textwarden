@@ -4874,8 +4874,9 @@ extension AnalysisCoordinator {
             let endIndex = sourceText.index(sourceText.startIndex, offsetBy: end)
             let sentence = String(sourceText[startIndex..<endIndex])
 
-            // Check if we have a cached AI suggestion
-            if let cachedRephrase = aiRephraseCache[sentence] {
+            // Check if we have a cached AI suggestion (thread-safe access)
+            let cachedRephrase = aiRephraseCacheQueue.sync { aiRephraseCache[sentence] }
+            if let cachedRephrase = cachedRephrase {
                 Logger.info("AnalysisCoordinator: Pre-populating cached AI rephrase for sentence of length \(sentence.count)", category: Logger.llm)
 
                 // Create enhanced error with cached AI suggestion
