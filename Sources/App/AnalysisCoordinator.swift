@@ -255,9 +255,19 @@ class AnalysisCoordinator: ObservableObject {
     }
 
     deinit {
+        // Clean up event monitor
         if let monitor = scrollWheelMonitor {
             NSEvent.removeMonitor(monitor)
         }
+
+        // Invalidate all timers to prevent memory leaks
+        windowPositionTimer?.invalidate()
+        windowMovementDebounceTimer?.invalidate()
+        scrollDebounceTimer?.invalidate()
+        hoverSwitchTimer?.invalidate()
+        textValidationTimer?.invalidate()
+        styleDebounceTimer?.invalidate()
+        electronLayoutTimer?.invalidate()
     }
 
     /// Setup global scroll wheel event monitor for detecting scroll events
