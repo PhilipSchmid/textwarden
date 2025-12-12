@@ -57,7 +57,11 @@ final class ContentParserFactory {
         if let typeParser = parsersByType[config.parserType] {
             parser = typeParser
         } else {
-            parser = parsersByType[.generic]!
+            // Generic parser is always present by construction
+            guard let genericParser = parsersByType[.generic] else {
+                fatalError("ContentParserFactory: Generic parser missing - this should never happen")
+            }
+            parser = genericParser
         }
 
         // For generic parser, set the current bundle ID for config lookups
