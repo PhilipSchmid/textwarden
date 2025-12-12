@@ -470,15 +470,9 @@ class ElementTreeStrategy: GeometryProvider {
         guard positionResult == .success,
               sizeResult == .success,
               let position = positionValue,
-              let size = sizeValue else {
-            return nil
-        }
-
-        var origin = CGPoint.zero
-        var rectSize = CGSize.zero
-
-        guard AXValueGetValue(position as! AXValue, .cgPoint, &origin),
-              AXValueGetValue(size as! AXValue, .cgSize, &rectSize) else {
+              let size = sizeValue,
+              let origin = safeAXValueGetPoint(position),
+              let rectSize = safeAXValueGetSize(size) else {
             return nil
         }
 
@@ -499,12 +493,9 @@ class ElementTreeStrategy: GeometryProvider {
             &boundsValue
         )
 
-        guard result == .success, let bv = boundsValue else {
-            return nil
-        }
-
-        var bounds = CGRect.zero
-        guard AXValueGetValue(bv as! AXValue, .cgRect, &bounds) else {
+        guard result == .success,
+              let bv = boundsValue,
+              let bounds = safeAXValueGetRect(bv) else {
             return nil
         }
 
@@ -542,12 +533,9 @@ class ElementTreeStrategy: GeometryProvider {
             &rangeValue
         )
 
-        guard result == .success, let rv = rangeValue else {
-            return nil
-        }
-
-        var cfRange = CFRange(location: 0, length: 0)
-        guard AXValueGetValue(rv as! AXValue, .cfRange, &cfRange) else {
+        guard result == .success,
+              let rv = rangeValue,
+              let cfRange = safeAXValueGetRange(rv) else {
             return nil
         }
 

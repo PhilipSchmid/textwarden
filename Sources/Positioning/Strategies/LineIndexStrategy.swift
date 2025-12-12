@@ -246,12 +246,9 @@ class LineIndexStrategy: GeometryProvider {
             &rangeValue
         )
 
-        guard result == .success, let rv = rangeValue else {
-            return nil
-        }
-
-        var range = CFRange()
-        guard AXValueGetValue(rv as! AXValue, .cfRange, &range) else {
+        guard result == .success,
+              let rv = rangeValue,
+              let range = safeAXValueGetRange(rv) else {
             return nil
         }
 
@@ -272,12 +269,9 @@ class LineIndexStrategy: GeometryProvider {
             &boundsValue
         )
 
-        guard result == .success, let bv = boundsValue else {
-            return nil
-        }
-
-        var bounds = CGRect.zero
-        guard AXValueGetValue(bv as! AXValue, .cgRect, &bounds) else {
+        guard result == .success,
+              let bv = boundsValue,
+              let bounds = safeAXValueGetRect(bv) else {
             return nil
         }
 
@@ -358,16 +352,12 @@ class LineIndexStrategy: GeometryProvider {
         var sizeValue: CFTypeRef?
 
         guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
-              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success else {
+              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
+              let posValue = positionValue,
+              let szValue = sizeValue,
+              let position = safeAXValueGetPoint(posValue),
+              let size = safeAXValueGetSize(szValue) else {
             Logger.debug("LineIndexStrategy: Failed to get element position/size for estimation")
-            return nil
-        }
-
-        var position = CGPoint.zero
-        var size = CGSize.zero
-
-        guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &position),
-              AXValueGetValue(sizeValue as! AXValue, .cgSize, &size) else {
             return nil
         }
 
