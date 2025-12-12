@@ -162,8 +162,8 @@ class NotionContentParser: ContentParser {
         // Also check parent elements for block type context
         var parentValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXParentAttribute as CFString, &parentValue) == .success,
-           let pv = parentValue {
-            // AXUIElement is a typealias for AXUIElementRef which is an opaque CFTypeRef
+           let pv = parentValue,
+           CFGetTypeID(pv) == AXUIElementGetTypeID() {
             let parent = pv as! AXUIElement
             var parentRoleDesc: CFTypeRef?
             if AXUIElementCopyAttributeValue(parent, kAXRoleDescriptionAttribute as CFString, &parentRoleDesc) == .success,
