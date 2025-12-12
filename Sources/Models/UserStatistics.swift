@@ -1049,9 +1049,12 @@ class UserStatistics: ObservableObject {
         guard persistBatchCounter >= 10 else { return }
         persistBatchCounter = 0
 
+        // Capture @Published property on main thread to avoid race condition
+        let samplesToEncode = resourceSamples
+
         DispatchQueue.global(qos: .utility).async { [weak self] in
             guard let self = self else { return }
-            if let encoded = try? self.encoder.encode(self.resourceSamples) {
+            if let encoded = try? self.encoder.encode(samplesToEncode) {
                 self.defaults.set(encoded, forKey: Keys.resourceSamples)
             }
         }
