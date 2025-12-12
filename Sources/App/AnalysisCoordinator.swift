@@ -279,8 +279,8 @@ class AnalysisCoordinator: ObservableObject {
             let deltaX = event.scrollingDeltaX
             guard abs(deltaY) > 1 || abs(deltaX) > 1 else { return }
 
-            DispatchQueue.main.async {
-                self.handleScrollStarted()
+            DispatchQueue.main.async { [weak self] in
+                self?.handleScrollStarted()
             }
         }
         Logger.debug("Scroll wheel monitor installed", category: Logger.analysis)
@@ -501,14 +501,16 @@ class AnalysisCoordinator: ObservableObject {
                     }
 
                     // Retry after short delays to catch cases where element wasn't ready immediately
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                        guard let self = self else { return }
                         if let element = self.textMonitor.monitoredElement {
                             Logger.debug("AnalysisCoordinator: Retry 1 - extracting text", category: Logger.analysis)
                             self.textMonitor.extractText(from: element)
                         }
                     }
 
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                        guard let self = self else { return }
                         if let element = self.textMonitor.monitoredElement {
                             Logger.debug("AnalysisCoordinator: Retry 2 - extracting text", category: Logger.analysis)
                             self.textMonitor.extractText(from: element)
