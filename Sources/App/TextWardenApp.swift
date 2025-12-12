@@ -390,12 +390,14 @@ extension AppDelegate: NSWindowDelegate {
             Logger.debug("Keyboard shortcut: Toggle grammar checking", category: Logger.ui)
 
             // Toggle pause duration between active and indefinite
-            if preferences.pauseDuration == .active {
-                preferences.pauseDuration = .indefinite
-                MenuBarController.shared?.setIconState(.inactive)
-            } else {
-                preferences.pauseDuration = .active
-                MenuBarController.shared?.setIconState(.active)
+            Task { @MainActor in
+                if preferences.pauseDuration == .active {
+                    preferences.pauseDuration = .indefinite
+                    MenuBarController.shared?.setIconState(.inactive)
+                } else {
+                    preferences.pauseDuration = .active
+                    MenuBarController.shared?.setIconState(.active)
+                }
             }
         }
 
@@ -406,7 +408,9 @@ extension AppDelegate: NSWindowDelegate {
             Logger.debug("Keyboard shortcut: Run style check", category: Logger.ui)
 
             // Trigger manual style check via AnalysisCoordinator
-            AnalysisCoordinator.shared.runManualStyleCheck()
+            Task { @MainActor in
+                AnalysisCoordinator.shared.runManualStyleCheck()
+            }
         }
 
         // Accept current suggestion (Tab by default)

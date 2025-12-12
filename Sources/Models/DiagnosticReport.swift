@@ -334,6 +334,7 @@ struct PermissionsStatus: Codable {
     let accessibilityGranted: Bool
     let lastPermissionCheck: Date
 
+    @MainActor
     static func current() -> PermissionsStatus {
         PermissionsStatus(
             accessibilityGranted: PermissionManager.shared.isPermissionGranted,
@@ -572,6 +573,7 @@ struct DiagnosticReport: Codable {
     // Note: Logs and full crash reports (.crash/.ips files) are exported as separate files in the ZIP
 
     /// Generate a complete diagnostic report (without logs - those go in separate files)
+    @MainActor
     static func generate(
         preferences: UserPreferences,
         crashReportCount: Int = 0,
@@ -613,6 +615,7 @@ struct DiagnosticReport: Codable {
     ///   - preferences: User preferences
     ///   - shortcuts: Keyboard shortcuts (must be collected on main thread)
     /// - Returns: True if successful, false otherwise
+    @MainActor
     static func exportAsZIP(to destinationURL: URL, preferences: UserPreferences, shortcuts: [String: String] = [:]) -> Bool {
         let fileManager = FileManager.default
         let tempDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)

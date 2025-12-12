@@ -8,6 +8,7 @@
 import Cocoa
 import SwiftUI
 
+@MainActor
 class MenuBarController: NSObject, NSMenuDelegate {
     static var shared: MenuBarController?
 

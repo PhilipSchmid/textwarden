@@ -11,6 +11,7 @@ import ApplicationServices
 import Combine
 
 /// Coordinates grammar analysis workflow: monitoring → analysis → UI
+@MainActor
 class AnalysisCoordinator: ObservableObject {
 
     // MARK: - Singleton

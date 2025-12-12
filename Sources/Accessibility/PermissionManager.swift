@@ -11,6 +11,7 @@ import ApplicationServices
 import Combine
 
 /// Manages Accessibility API permissions
+@MainActor
 class PermissionManager: ObservableObject {
     static let shared = PermissionManager()
 
@@ -157,8 +158,9 @@ class PermissionManager: ObservableObject {
     }
 
     deinit {
-        stopPolling()
-        stopRevocationMonitoring()
+        // Directly invalidate timers (can't call @MainActor methods from deinit)
+        pollTimer?.invalidate()
+        revocationMonitorTimer?.invalidate()
     }
 }
 
