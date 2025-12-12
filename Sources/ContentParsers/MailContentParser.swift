@@ -637,7 +637,8 @@ class MailContentParser: ContentParser {
             var parentRef: CFTypeRef?
             guard let current = currentElement,
                   AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentRef) == .success,
-                  let parent = parentRef else {
+                  let parent = parentRef,
+                  CFGetTypeID(parent) == AXUIElementGetTypeID() else {
                 break
             }
 
