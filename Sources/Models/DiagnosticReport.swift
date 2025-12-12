@@ -164,6 +164,7 @@ struct TimeRangeStatistics: Codable {
     let performance: PerformanceMetrics?
     let resourceUsage: ResourceUsageMetrics?
 
+    @MainActor
     static func from(_ stats: UserStatistics, timeRange: TimeRange) -> TimeRangeStatistics {
         let timeRangeName: String
         switch timeRange {
@@ -266,6 +267,7 @@ struct StatisticsSnapshot: Codable {
     // Time-filtered statistics (grouped by timeframe for performance insights)
     let timeRangeStatistics: [TimeRangeStatistics]
 
+    @MainActor
     static func from(_ stats: UserStatistics) -> StatisticsSnapshot {
         let topApp = stats.topWritingApp
 

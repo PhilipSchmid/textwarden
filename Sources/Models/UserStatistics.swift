@@ -102,6 +102,7 @@ extension InferencePreset {
 }
 
 /// Observable user statistics for tracking usage and improvements
+@MainActor
 class UserStatistics: ObservableObject {
     static let shared = UserStatistics()
 
@@ -342,7 +343,6 @@ class UserStatistics: ObservableObject {
     }
 
     /// Number of custom dictionary words (from UserPreferences)
-    @MainActor
     var customDictionarySize: Int {
         return UserPreferences.shared.customDictionary.count
     }
@@ -1161,7 +1161,6 @@ class UserStatistics: ObservableObject {
     // MARK: - Style Latency Query Methods
 
     /// Get unique model IDs that have latency data, including the currently selected model
-    @MainActor
     var modelsWithLatencyData: [String] {
         var modelIds = Set(detailedStyleLatencySamples.map { $0.modelId })
         // Always include the currently selected model so it appears in the dropdown

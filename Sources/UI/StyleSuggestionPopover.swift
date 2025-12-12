@@ -10,6 +10,7 @@ import AppKit
 import Combine
 
 /// Popover for style suggestions with accept/reject actions
+@MainActor
 class StyleSuggestionPopover: ObservableObject {
 
     /// Shared singleton instance
