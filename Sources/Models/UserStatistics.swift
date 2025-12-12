@@ -109,6 +109,16 @@ class UserStatistics: ObservableObject {
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
+    /// Helper to encode and persist a value with logging on failure
+    private func persist<T: Encodable>(_ value: T, forKey key: String) {
+        do {
+            let encoded = try encoder.encode(value)
+            defaults.set(encoded, forKey: key)
+        } catch {
+            Logger.warning("Failed to persist \(key): \(error.localizedDescription)", category: Logger.general)
+        }
+    }
+
     // MARK: - Core Statistics
 
     /// Total grammar errors detected
@@ -163,36 +173,28 @@ class UserStatistics: ObservableObject {
     /// Set of dates when the app was actively used
     @Published var activeDays: Set<Date> {
         didSet {
-            if let encoded = try? encoder.encode(activeDays) {
-                defaults.set(encoded, forKey: Keys.activeDays)
-            }
+            persist(activeDays, forKey: Keys.activeDays)
         }
     }
 
     /// Breakdown of errors by category
     @Published var categoryBreakdown: [String: Int] {
         didSet {
-            if let encoded = try? encoder.encode(categoryBreakdown) {
-                defaults.set(encoded, forKey: Keys.categoryBreakdown)
-            }
+            persist(categoryBreakdown, forKey: Keys.categoryBreakdown)
         }
     }
 
     /// Application usage tracking: bundleID -> error count
     @Published var appUsageBreakdown: [String: Int] {
         didSet {
-            if let encoded = try? encoder.encode(appUsageBreakdown) {
-                defaults.set(encoded, forKey: Keys.appUsageBreakdown)
-            }
+            persist(appUsageBreakdown, forKey: Keys.appUsageBreakdown)
         }
     }
 
     /// Grammar engine latency samples (last 100 analyses)
     @Published var latencySamples: [Double] {
         didSet {
-            if let encoded = try? encoder.encode(latencySamples) {
-                defaults.set(encoded, forKey: Keys.latencySamples)
-            }
+            persist(latencySamples, forKey: Keys.latencySamples)
         }
     }
 
@@ -201,18 +203,14 @@ class UserStatistics: ObservableObject {
     /// Detailed analysis sessions with timestamps (last 90 days)
     @Published var detailedSessions: [DetailedAnalysisSession] {
         didSet {
-            if let encoded = try? encoder.encode(detailedSessions) {
-                defaults.set(encoded, forKey: Keys.detailedSessions)
-            }
+            persist(detailedSessions, forKey: Keys.detailedSessions)
         }
     }
 
     /// Timestamped suggestion actions (last 90 days)
     @Published var suggestionActions: [SuggestionAction] {
         didSet {
-            if let encoded = try? encoder.encode(suggestionActions) {
-                defaults.set(encoded, forKey: Keys.suggestionActions)
-            }
+            persist(suggestionActions, forKey: Keys.suggestionActions)
         }
     }
 
@@ -226,9 +224,7 @@ class UserStatistics: ObservableObject {
     /// Historical app launch timestamps (last 90 days)
     @Published var appLaunchHistory: [Date] {
         didSet {
-            if let encoded = try? encoder.encode(appLaunchHistory) {
-                defaults.set(encoded, forKey: Keys.appLaunchHistory)
-            }
+            persist(appLaunchHistory, forKey: Keys.appLaunchHistory)
         }
     }
 
@@ -279,27 +275,21 @@ class UserStatistics: ObservableObject {
     /// Breakdown of rejections by category
     @Published var styleRejectionCategories: [String: Int] {
         didSet {
-            if let encoded = try? encoder.encode(styleRejectionCategories) {
-                defaults.set(encoded, forKey: Keys.styleRejectionCategories)
-            }
+            persist(styleRejectionCategories, forKey: Keys.styleRejectionCategories)
         }
     }
 
     /// LLM analysis latency samples (last 100 analyses) - legacy, for backward compatibility
     @Published var styleLatencySamples: [Double] {
         didSet {
-            if let encoded = try? encoder.encode(styleLatencySamples) {
-                defaults.set(encoded, forKey: Keys.styleLatencySamples)
-            }
+            persist(styleLatencySamples, forKey: Keys.styleLatencySamples)
         }
     }
 
     /// Detailed style latency samples with model and preset context (last 500 samples)
     @Published var detailedStyleLatencySamples: [StyleLatencySample] {
         didSet {
-            if let encoded = try? encoder.encode(detailedStyleLatencySamples) {
-                defaults.set(encoded, forKey: Keys.detailedStyleLatencySamples)
-            }
+            persist(detailedStyleLatencySamples, forKey: Keys.detailedStyleLatencySamples)
         }
     }
 
@@ -1054,8 +1044,11 @@ class UserStatistics: ObservableObject {
 
         DispatchQueue.global(qos: .utility).async { [weak self] in
             guard let self = self else { return }
-            if let encoded = try? self.encoder.encode(samplesToEncode) {
+            do {
+                let encoded = try self.encoder.encode(samplesToEncode)
                 self.defaults.set(encoded, forKey: Keys.resourceSamples)
+            } catch {
+                Logger.warning("Failed to persist resource samples: \(error.localizedDescription)", category: Logger.performance)
             }
         }
     }
