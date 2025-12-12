@@ -67,6 +67,7 @@ final class AppRegistry {
         register(.messages)
         register(.telegram)
         register(.word)
+        register(.powerpoint)
         // Note: .default is not registered, used as fallback
     }
 }
@@ -337,6 +338,36 @@ extension AppConfiguration {
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: false  // Word AXValue updates reliably
+        )
+    )
+
+    // MARK: - Microsoft PowerPoint
+
+    static let powerpoint = AppConfiguration(
+        identifier: "powerpoint",
+        displayName: "Microsoft PowerPoint",
+        bundleIDs: ["com.microsoft.Powerpoint"],
+        category: .native,
+        parserType: .powerpoint,
+        fontConfig: FontConfig(
+            defaultSize: 18,
+            fontFamily: nil,
+            spacingMultiplier: 1.0
+        ),
+        horizontalPadding: 4,
+        // PowerPoint uses the same mso99 framework as Word and likely has the same crash issue
+        // with parameterized accessibility attribute queries.
+        // Visual underlines disabled; floating error indicator still works for corrections.
+        preferredStrategies: [],
+        features: AppFeatures(
+            visualUnderlinesEnabled: false,  // Disabled (same AX API issues as Word)
+            textReplacementMethod: .browserStyle,  // Standard AX setValue doesn't work
+            requiresTypingPause: false,
+            supportsFormattedText: true,
+            childElementTraversal: false,
+            delaysAXNotifications: false,
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: false  // PowerPoint AXValue updates reliably
         )
     )
 

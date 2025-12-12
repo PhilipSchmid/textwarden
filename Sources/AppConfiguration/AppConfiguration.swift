@@ -31,6 +31,7 @@ enum ParserType {
     case teams
     case mail
     case word
+    case powerpoint
 }
 
 // MARK: - Strategy Type

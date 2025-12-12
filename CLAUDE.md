@@ -66,7 +66,8 @@ Levels: `trace` (high-frequency) → `debug` → `info` → `warning` → `error
 ## Testing
 
 ```bash
-make build          # Full build
+make build          # Full build only
+make run            # Build AND restart the app (use this for testing!)
 make test           # Run tests
 cargo test          # Rust tests only
 ```

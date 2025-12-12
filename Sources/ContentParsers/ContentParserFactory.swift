@@ -30,7 +30,8 @@ final class ContentParserFactory {
             .terminal: TerminalContentParser(bundleIdentifier: "terminal"),
             .teams: TeamsContentParser(),
             .mail: MailContentParser(),
-            .word: WordContentParser()
+            .word: WordContentParser(),
+            .powerpoint: PowerPointContentParser()
         ]
 
         Logger.info("ContentParserFactory: Initialized with \(parsersByType.count) parser types")

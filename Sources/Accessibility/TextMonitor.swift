@@ -227,6 +227,9 @@ class TextMonitor: ObservableObject {
                 }
             }
 
+            // Note: PowerPoint Notes section uses standard AXTextArea and is found by normal monitoring
+            // Slide text boxes are not accessible via macOS Accessibility API
+
             Logger.debug("TextMonitor: No suitable field found, will monitor focused element anyway", category: Logger.accessibility)
         }
 
@@ -306,6 +309,37 @@ class TextMonitor: ObservableObject {
                     onTextChange?("", context)
                 }
                 return
+            }
+        }
+
+        // For PowerPoint, focus bounces rapidly between elements when clicking in the Notes area.
+        // PowerPoint only exposes the Notes section via accessibility API (slide text boxes are not accessible).
+        // If we already have a valid monitored Notes element (AXTextArea), preserve it when focus
+        // bounces to non-editable elements (AXGroup, AXUnknown, AXScrollArea, etc.).
+        if let bundleId = currentContext?.bundleIdentifier,
+           bundleId == "com.microsoft.Powerpoint",
+           let existingElement = monitoredElement {
+
+            // Check if new element is the Notes AXTextArea
+            var newRoleRef: CFTypeRef?
+            AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &newRoleRef)
+            let newRole = newRoleRef as? String ?? ""
+
+            // Only AXTextArea is valid for Notes - PowerPoint doesn't expose slide text via accessibility
+            let newIsNotesTextArea = (newRole == kAXTextAreaRole as String)
+
+            if newIsNotesTextArea {
+                // New element is also a Notes text area - allow the switch
+                Logger.debug("TextMonitor: PowerPoint - new AXTextArea detected, allowing switch", category: Logger.accessibility)
+                // Continue with normal monitoring
+            } else {
+                // New element is NOT editable - this is focus bounce noise, preserve existing
+                var existingValueRef: CFTypeRef?
+                if AXUIElementCopyAttributeValue(existingElement, kAXValueAttribute as CFString, &existingValueRef) == .success,
+                   existingValueRef != nil {
+                    Logger.debug("TextMonitor: PowerPoint focus bounce - preserving existing monitoring", category: Logger.accessibility)
+                    return  // Keep monitoring existing element, ignore this focus change
+                }
             }
         }
 
@@ -628,12 +662,26 @@ extension TextMonitor {
         let readOnlyRoles = [
             kAXStaticTextRole as String,
             "AXScrollArea",          // Often used for terminal buffers
-            "AXGroup",                // Generic groups (often contain read-only content)
-            "AXLayoutArea"           // Layout areas (not direct input)
+            "AXGroup"                // Generic groups (often contain read-only content)
         ]
 
         if readOnlyRoles.contains(roleString) {
             Logger.debug("TextMonitor: Role '\(roleString)' is read-only - skipping", category: Logger.accessibility)
+            return false
+        }
+
+        // AXLayoutArea is usually read-only, but PowerPoint uses it for editable text boxes
+        if roleString == "AXLayoutArea" {
+            if let bundleId = currentContext?.bundleIdentifier,
+               bundleId == "com.microsoft.Powerpoint" {
+                // PowerPoint uses AXLayoutArea for slide text boxes - check if it has content
+                var valueRef: CFTypeRef?
+                if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success {
+                    Logger.debug("TextMonitor: PowerPoint AXLayoutArea with AXValue - accepting", category: Logger.accessibility)
+                    return true
+                }
+            }
+            Logger.debug("TextMonitor: Role 'AXLayoutArea' is read-only - skipping", category: Logger.accessibility)
             return false
         }
 
@@ -667,14 +715,17 @@ extension TextMonitor {
         )
 
         // If we can check enabled status, ensure it's enabled
+        let bundleId = currentContext?.bundleIdentifier ?? "unknown"
+        Logger.debug("TextMonitor: Enabled check result=\(enabledResult.rawValue), bundleId=\(bundleId)", category: Logger.accessibility)
+
         if enabledResult == .success, let enabled = isEnabled as? Bool {
+            Logger.debug("TextMonitor: AXEnabled=\(enabled) for role \(roleString)", category: Logger.accessibility)
             if !enabled {
-                // Word's AXTextArea reports AXEnabled=false even when editable
-                // Accept AXTextArea for Word since we've already validated it via WordContentParser
+                // Microsoft Office AXTextArea reports AXEnabled=false even when editable
+                // Accept AXTextArea for Word/PowerPoint since we've validated via content parser
                 if roleString == kAXTextAreaRole as String,
-                   let bundleId = currentContext?.bundleIdentifier,
-                   bundleId == "com.microsoft.Word" {
-                    Logger.debug("TextMonitor: Word AXTextArea reports disabled, but accepting anyway", category: Logger.accessibility)
+                   (bundleId == "com.microsoft.Word" || bundleId == "com.microsoft.Powerpoint") {
+                    Logger.debug("TextMonitor: Office AXTextArea reports disabled, but accepting anyway", category: Logger.accessibility)
                     return true
                 }
             }
@@ -682,6 +733,7 @@ extension TextMonitor {
         }
 
         // If we can't check, assume editable (to avoid false negatives)
+        Logger.debug("TextMonitor: Could not check enabled status, assuming editable", category: Logger.accessibility)
         return true
     }
 
@@ -695,6 +747,15 @@ extension TextMonitor {
                 Logger.debug("TextMonitor: Word element rejected by parser (likely toolbar)", category: Logger.accessibility)
             }
             return isDocument
+        }
+
+        // PowerPoint-specific check: filter out toolbar/ribbon elements
+        if bundleId == "com.microsoft.Powerpoint" {
+            let isSlide = PowerPointContentParser.isSlideElement(element)
+            if !isSlide {
+                Logger.debug("TextMonitor: PowerPoint element rejected by parser (likely toolbar)", category: Logger.accessibility)
+            }
+            return isSlide
         }
 
         // For other apps, assume the element is valid

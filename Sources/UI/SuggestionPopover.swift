@@ -1028,6 +1028,43 @@ struct SentenceContextView: View {
         return err.start == error.start && err.end == error.end && err.lintId == error.lintId
     }
 
+    /// Convert a Unicode scalar index to a String.Index
+    /// Harper uses Rust's char indices (Unicode scalar values), but Swift uses grapheme cluster indices.
+    /// Emojis like ❗️ are 2 scalars (U+2757 + U+FE0F) but 1 grapheme cluster.
+    private func scalarIndexToStringIndex(_ scalarIndex: Int, in string: String) -> String.Index? {
+        let scalars = string.unicodeScalars
+        var scalarCount = 0
+        var currentIndex = string.startIndex
+
+        while currentIndex < string.endIndex {
+            if scalarCount == scalarIndex {
+                return currentIndex
+            }
+            // Count how many scalars are in this grapheme cluster
+            let nextIndex = string.index(after: currentIndex)
+            let scalarStart = currentIndex.samePosition(in: scalars) ?? scalars.startIndex
+            let scalarEnd = nextIndex.samePosition(in: scalars) ?? scalars.endIndex
+            let scalarsInCluster = scalars.distance(from: scalarStart, to: scalarEnd)
+            scalarCount += scalarsInCluster
+            currentIndex = nextIndex
+        }
+
+        // If scalarIndex equals total scalar count, return endIndex
+        if scalarCount == scalarIndex {
+            return string.endIndex
+        }
+
+        return nil
+    }
+
+    /// Get the number of Unicode scalars up to a String.Index
+    private func stringIndexToScalarIndex(_ stringIndex: String.Index, in string: String) -> Int {
+        let scalars = string.unicodeScalars
+        let scalarStart = string.startIndex.samePosition(in: scalars) ?? scalars.startIndex
+        let scalarEnd = stringIndex.samePosition(in: scalars) ?? scalars.endIndex
+        return scalars.distance(from: scalarStart, to: scalarEnd)
+    }
+
     var body: some View {
         if let sentenceInfo = extractSentenceWithErrors() {
             // Sentence context - no background box, just the text with highlights
@@ -1041,20 +1078,23 @@ struct SentenceContextView: View {
     /// Sentence info containing the sentence text and error ranges within it
     private struct SentenceInfo {
         let sentence: String
-        let sentenceStart: Int  // Offset in source text
+        let sentenceStartScalar: Int  // Offset in source text (Unicode scalar index)
         let errorRanges: [(range: Range<String.Index>, category: String, isCurrent: Bool)]
         let isTruncated: Bool
     }
 
     /// Extract the sentence containing the current error
     private func extractSentenceWithErrors() -> SentenceInfo? {
-        guard error.start < sourceText.count, error.end <= sourceText.count else {
+        // Harper uses Unicode scalar indices, so check against scalar count
+        let scalarCount = sourceText.unicodeScalars.count
+        guard error.start < scalarCount, error.end <= scalarCount else {
             return nil
         }
 
-        // Find sentence boundaries by searching backwards from error for sentence start
-        // and forwards from error for sentence end
-        let errorStartIndex = sourceText.index(sourceText.startIndex, offsetBy: error.start)
+        // Convert error.start (scalar index) to String.Index
+        guard let errorStartIndex = scalarIndexToStringIndex(error.start, in: sourceText) else {
+            return nil
+        }
 
         // Find sentence start by searching backwards for:
         // 1. Sentence terminators: . ! ? followed by space/newline
@@ -1175,7 +1215,8 @@ struct SentenceContextView: View {
             searchIndex = sourceText.index(after: searchIndex)
         }
 
-        let sentenceStartOffset = sourceText.distance(from: sourceText.startIndex, to: sentenceStart)
+        // sentenceStartOffset is in scalar indices (for arithmetic with error.start/end)
+        let sentenceStartScalarOffset = stringIndexToScalarIndex(sentenceStart, in: sourceText)
         var sentence = String(sourceText[sentenceStart..<sentenceEnd])
 
         // Check if sentence is too long and needs truncation
@@ -1183,27 +1224,32 @@ struct SentenceContextView: View {
         var isTruncated = false
 
         if wordCount > maxSentenceWords {
-            // Truncate around the error position
-            sentence = truncateSentence(sentence, errorOffset: error.start - sentenceStartOffset)
+            // Truncate around the error position (convert scalar offset to grapheme offset for truncation)
+            let errorScalarOffsetInSentence = error.start - sentenceStartScalarOffset
+            // Convert scalar offset to approximate grapheme offset for truncation (OK to be approximate)
+            let approxGraphemeOffset = min(errorScalarOffsetInSentence, sentence.count)
+            sentence = truncateSentence(sentence, errorOffset: approxGraphemeOffset)
             isTruncated = true
         }
 
-        // Find all errors in this sentence
-        let sentenceEndOffset = sentenceStartOffset + sentence.count
+        // Find all errors in this sentence using scalar indices
+        let sentenceEndScalarOffset = stringIndexToScalarIndex(sentenceEnd, in: sourceText)
         let errorsInSentence = allErrors.filter { err in
-            err.start >= sentenceStartOffset && err.end <= sentenceEndOffset
+            err.start >= sentenceStartScalarOffset && err.end <= sentenceEndScalarOffset
         }
 
         // Build error ranges relative to the sentence
         var errorRanges: [(range: Range<String.Index>, category: String, isCurrent: Bool)] = []
         for err in errorsInSentence {
-            let relativeStart = err.start - sentenceStartOffset
-            let relativeEnd = err.end - sentenceStartOffset
+            // Calculate relative scalar indices within the sentence
+            let relativeStartScalar = err.start - sentenceStartScalarOffset
+            let relativeEndScalar = err.end - sentenceStartScalarOffset
 
-            guard relativeStart >= 0, relativeEnd <= sentence.count else { continue }
+            guard relativeStartScalar >= 0, relativeEndScalar <= sentence.unicodeScalars.count else { continue }
 
-            if let startIdx = sentence.index(sentence.startIndex, offsetBy: relativeStart, limitedBy: sentence.endIndex),
-               let endIdx = sentence.index(sentence.startIndex, offsetBy: relativeEnd, limitedBy: sentence.endIndex),
+            // Convert scalar indices to String.Index using the helper
+            if let startIdx = scalarIndexToStringIndex(relativeStartScalar, in: sentence),
+               let endIdx = scalarIndexToStringIndex(relativeEndScalar, in: sentence),
                startIdx < endIdx {
                 errorRanges.append((range: startIdx..<endIdx, category: err.category, isCurrent: isCurrentError(err)))
             }
@@ -1211,7 +1257,7 @@ struct SentenceContextView: View {
 
         return SentenceInfo(
             sentence: sentence,
-            sentenceStart: sentenceStartOffset,
+            sentenceStartScalar: sentenceStartScalarOffset,
             errorRanges: errorRanges,
             isTruncated: isTruncated
         )

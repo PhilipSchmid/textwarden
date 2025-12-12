@@ -768,16 +768,36 @@ class AnalysisCoordinator: ObservableObject {
         // Note: We check for significant difference to avoid false positives from typing
         let textChanged = !currentText.hasPrefix(analyzedText) && !analyzedText.hasPrefix(currentText)
         if textChanged {
-            // Check if this is a Mac Catalyst app - they need special handling because
-            // kAXValueChangedNotification is unreliable, so we must trigger re-analysis here
+            // Check if this app needs special handling for text validation
+            // Mac Catalyst apps and Microsoft Office have unreliable AX notifications
             let isCatalystApp = textMonitor.currentContext?.isMacCatalystApp ?? false
+            let isMicrosoftOffice = textMonitor.currentContext?.bundleIdentifier == "com.microsoft.Word" ||
+                                    textMonitor.currentContext?.bundleIdentifier == "com.microsoft.Powerpoint"
+            let needsReanalysis = isCatalystApp || isMicrosoftOffice
 
-            Logger.debug("Text validation: Text content changed - \(isCatalystApp ? "triggering re-analysis" : "hiding indicator") (possibly switched conversation)", category: Logger.analysis)
+            Logger.debug("Text validation: Text content changed - \(needsReanalysis ? "triggering re-analysis" : "hiding indicator") (possibly switched conversation)", category: Logger.analysis)
 
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
 
-                // Always hide UI elements
+                // For Microsoft Office, don't hide indicators during focus bounces
+                // Just trigger re-analysis to update errors
+                if isMicrosoftOffice {
+                    self.currentErrors.removeAll()
+                    self.lastAnalyzedText = ""
+                    PositionResolver.shared.clearCache()
+
+                    // Trigger fresh analysis
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                        guard let self = self,
+                              let context = self.textMonitor.currentContext,
+                              !currentText.isEmpty else { return }
+                        self.handleTextChange(currentText, in: context)
+                    }
+                    return
+                }
+
+                // Always hide UI elements for other apps
                 if !self.isManualStyleCheckActive {
                     self.floatingIndicator.hide()
                 }
@@ -2265,15 +2285,17 @@ class AnalysisCoordinator: ObservableObject {
 
         // Filter by custom vocabulary (T103)
         // Skip errors that contain words from the user's custom dictionary
+        // Note: error.start/end are Unicode scalar indices from Harper
         let vocabulary = CustomVocabulary.shared
+        let sourceScalarCount = sourceText.unicodeScalars.count
         filteredErrors = filteredErrors.filter { error in
-            // Extract error text from source using start/end indices
-            guard error.start < sourceText.count, error.end <= sourceText.count, error.start < error.end else {
+            // Extract error text from source using scalar indices
+            guard error.start < sourceScalarCount, error.end <= sourceScalarCount, error.start < error.end,
+                  let startIndex = scalarIndexToStringIndex(error.start, in: sourceText),
+                  let endIndex = scalarIndexToStringIndex(error.end, in: sourceText) else {
                 return true // Keep error if indices are invalid
             }
 
-            let startIndex = sourceText.index(sourceText.startIndex, offsetBy: error.start)
-            let endIndex = sourceText.index(sourceText.startIndex, offsetBy: error.end)
             let errorText = String(sourceText[startIndex..<endIndex])
 
             return !vocabulary.containsAnyWord(in: errorText)
@@ -2283,13 +2305,13 @@ class AnalysisCoordinator: ObservableObject {
         // Skip errors that match texts the user has chosen to ignore globally
         let ignoredTexts = UserPreferences.shared.ignoredErrorTexts
         filteredErrors = filteredErrors.filter { error in
-            // Extract error text from source using start/end indices
-            guard error.start < sourceText.count, error.end <= sourceText.count, error.start < error.end else {
+            // Extract error text from source using scalar indices
+            guard error.start < sourceScalarCount, error.end <= sourceScalarCount, error.start < error.end,
+                  let startIndex = scalarIndexToStringIndex(error.start, in: sourceText),
+                  let endIndex = scalarIndexToStringIndex(error.end, in: sourceText) else {
                 return true // Keep error if indices are invalid
             }
 
-            let startIndex = sourceText.index(sourceText.startIndex, offsetBy: error.start)
-            let endIndex = sourceText.index(sourceText.startIndex, offsetBy: error.end)
             let errorText = String(sourceText[startIndex..<endIndex])
 
             return !ignoredTexts.contains(errorText)
@@ -2304,11 +2326,11 @@ class AnalysisCoordinator: ObservableObject {
                 // Filter French spaces errors where the error text is just whitespace
                 // These are false positives from Notion's placeholder handling
                 if error.message.lowercased().contains("french spaces") {
-                    guard error.start < sourceText.count, error.end <= sourceText.count, error.start < error.end else {
+                    guard error.start < sourceScalarCount, error.end <= sourceScalarCount, error.start < error.end,
+                          let startIdx = scalarIndexToStringIndex(error.start, in: sourceText),
+                          let endIdx = scalarIndexToStringIndex(error.end, in: sourceText) else {
                         return true
                     }
-                    let startIdx = sourceText.index(sourceText.startIndex, offsetBy: error.start)
-                    let endIdx = sourceText.index(sourceText.startIndex, offsetBy: error.end)
                     let errorText = String(sourceText[startIdx..<endIdx])
                     // Filter if error text is just whitespace
                     if errorText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -2472,15 +2494,17 @@ class AnalysisCoordinator: ObservableObject {
         UserStatistics.shared.recordSuggestionDismissed()
 
         // Extract error text and persist it globally
+        // Note: error.start/end are Unicode scalar indices from Harper
         if let sourceText = currentSegment?.content {
-            guard error.start < sourceText.count, error.end <= sourceText.count, error.start < error.end else {
+            let scalarCount = sourceText.unicodeScalars.count
+            guard error.start < scalarCount, error.end <= scalarCount, error.start < error.end,
+                  let startIndex = scalarIndexToStringIndex(error.start, in: sourceText),
+                  let endIndex = scalarIndexToStringIndex(error.end, in: sourceText) else {
                 // Invalid indices, just remove from current errors
                 currentErrors.removeAll { $0.start == error.start && $0.end == error.end }
                 return
             }
 
-            let startIndex = sourceText.index(sourceText.startIndex, offsetBy: error.start)
-            let endIndex = sourceText.index(sourceText.startIndex, offsetBy: error.end)
             let errorText = String(sourceText[startIndex..<endIndex])
 
             // Persist this error text globally
@@ -2506,14 +2530,16 @@ class AnalysisCoordinator: ObservableObject {
     /// Add word to custom dictionary
     func addToDictionary(_ error: GrammarErrorModel) {
         // Extract the error text
+        // Note: error.start/end are Unicode scalar indices from Harper
         guard let sourceText = currentSegment?.content else { return }
 
-        guard error.start < sourceText.count, error.end <= sourceText.count, error.start < error.end else {
+        let scalarCount = sourceText.unicodeScalars.count
+        guard error.start < scalarCount, error.end <= scalarCount, error.start < error.end,
+              let startIndex = scalarIndexToStringIndex(error.start, in: sourceText),
+              let endIndex = scalarIndexToStringIndex(error.end, in: sourceText) else {
             return
         }
 
-        let startIndex = sourceText.index(sourceText.startIndex, offsetBy: error.start)
-        let endIndex = sourceText.index(sourceText.startIndex, offsetBy: error.end)
         let errorText = String(sourceText[startIndex..<endIndex])
 
         do {
@@ -3216,28 +3242,29 @@ class AnalysisCoordinator: ObservableObject {
         // Mark that we're applying a suggestion - prevents typing callback and scroll handling from hiding overlays
         lastReplacementTime = Date()
 
-        let isWord = context.bundleIdentifier == "com.microsoft.Word"
+        let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
+                                context.bundleIdentifier == "com.microsoft.Powerpoint"
 
-        // For Word: Get the error text from the ORIGINAL error positions in lastAnalyzedText
+        // For Microsoft Office: Get the error text from the ORIGINAL error positions in lastAnalyzedText
         // Then search for that text in the LIVE document to find current position
         // This handles position shifts from previous replacements
         let errorText: String
         let fallbackRange: CFRange?
 
-        // Define currentError at top level - for Word we use the original error,
+        // Define currentError at top level - for Microsoft Office we use the original error,
         // for other apps we look up from currentErrors to get adjusted positions
         let currentError: GrammarErrorModel
 
-        if isWord {
-            // For Word, use the original error for statistics/tracking
+        if isMicrosoftOffice {
+            // For Microsoft Office, use the original error for statistics/tracking
             // The actual replacement position is determined by searching the live document
             currentError = error
 
-            // Word-specific replacement strategy:
-            // 1. Get live text from Word's AXValue (handles document state correctly)
+            // Microsoft Office replacement strategy:
+            // 1. Get live text from AXValue (handles document state correctly)
             // 2. For capitalization errors (tHis → This): find text with unusual mid-word caps
             // 3. For spelling errors (brrief → brief): search for exact error text
-            // 4. Use UTF-16 offsets for position (Word's AX API uses UTF-16, handles emojis)
+            // 4. Use UTF-16 offsets for position (Office AX API uses UTF-16, handles emojis)
 
             // Helper to convert String.Index to UTF-16 offset
             func utf16Offset(of index: String.Index, in string: String) -> Int {
@@ -3256,7 +3283,7 @@ class AnalysisCoordinator: ObservableObject {
                 return false
             }
 
-            // Get live text from Word
+            // Get live text from document
             var liveTextRef: CFTypeRef?
             var liveText = ""
             if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &liveTextRef) == .success,
@@ -3265,10 +3292,10 @@ class AnalysisCoordinator: ObservableObject {
             }
 
             if liveText.isEmpty {
-                Logger.warning("Word replacement: Could not get live text from Word", category: Logger.analysis)
+                Logger.warning("Office replacement: Could not get live text", category: Logger.analysis)
             }
 
-            Logger.debug("Word replacement: Live text has \(liveText.count) chars, suggestion is '\(suggestion)'", category: Logger.analysis)
+            Logger.debug("Office replacement: Live text has \(liveText.count) chars, suggestion is '\(suggestion)'", category: Logger.analysis)
 
             var foundRange: CFRange? = nil
             var foundText = ""
@@ -3287,7 +3314,7 @@ class AnalysisCoordinator: ObservableObject {
                 }
             }
 
-            Logger.debug("Word replacement: Found \(allMatches.count) case-insensitive matches for '\(suggestion)'", category: Logger.analysis)
+            Logger.debug("Office replacement: Found \(allMatches.count) case-insensitive matches for '\(suggestion)'", category: Logger.analysis)
 
             // Priority 1: Match with unusual capitalization (like "tHis")
             for match in allMatches {
@@ -3296,7 +3323,7 @@ class AnalysisCoordinator: ObservableObject {
                     let length = match.text.utf16.count
                     foundRange = CFRange(location: start, length: length)
                     foundText = match.text
-                    Logger.debug("Word replacement: Found unusual-caps '\(match.text)' at UTF-16 position \(start)-\(start + length)", category: Logger.analysis)
+                    Logger.debug("Office replacement: Found unusual-caps '\(match.text)' at UTF-16 position \(start)-\(start + length)", category: Logger.analysis)
                     break
                 }
             }
@@ -3308,7 +3335,7 @@ class AnalysisCoordinator: ObservableObject {
                     let length = match.text.utf16.count
                     foundRange = CFRange(location: start, length: length)
                     foundText = match.text
-                    Logger.debug("Word replacement: Found case-variant '\(match.text)' at UTF-16 position \(start)-\(start + length)", category: Logger.analysis)
+                    Logger.debug("Office replacement: Found case-variant '\(match.text)' at UTF-16 position \(start)-\(start + length)", category: Logger.analysis)
                     break
                 }
             }
@@ -3318,12 +3345,14 @@ class AnalysisCoordinator: ObservableObject {
                 let cachedText = self.lastAnalyzedText.isEmpty ? (self.currentSegment?.content ?? "") : self.lastAnalyzedText
 
                 // Extract original error text from cached analysis
+                // Note: error.start/end are Unicode scalar indices from Harper, need conversion
                 var errorTextFromCache = ""
-                if !cachedText.isEmpty && error.start < cachedText.count && error.end <= cachedText.count {
-                    let startIdx = cachedText.index(cachedText.startIndex, offsetBy: error.start)
-                    let endIdx = cachedText.index(cachedText.startIndex, offsetBy: error.end)
+                let scalarCount = cachedText.unicodeScalars.count
+                if !cachedText.isEmpty && error.start < scalarCount && error.end <= scalarCount,
+                   let startIdx = scalarIndexToStringIndex(error.start, in: cachedText),
+                   let endIdx = scalarIndexToStringIndex(error.end, in: cachedText) {
                     errorTextFromCache = String(cachedText[startIdx..<endIdx])
-                    Logger.debug("Word replacement: Extracted error text '\(errorTextFromCache)' from cached text", category: Logger.analysis)
+                    Logger.debug("Office replacement: Extracted error text '\(errorTextFromCache)' from cached text (scalar indices \(error.start)-\(error.end))", category: Logger.analysis)
                 }
 
                 // Search for exact error text in live document
@@ -3332,7 +3361,7 @@ class AnalysisCoordinator: ObservableObject {
                     let length = errorTextFromCache.utf16.count
                     foundRange = CFRange(location: start, length: length)
                     foundText = errorTextFromCache
-                    Logger.debug("Word replacement: Found exact error text '\(errorTextFromCache)' at UTF-16 position \(start)-\(start + length)", category: Logger.analysis)
+                    Logger.debug("Office replacement: Found exact error text '\(errorTextFromCache)' at UTF-16 position \(start)-\(start + length)", category: Logger.analysis)
                 }
             }
 
@@ -3342,7 +3371,7 @@ class AnalysisCoordinator: ObservableObject {
                 errorText = foundText
             } else {
                 // Last resort: use Harper's original positions (may be wrong with emojis)
-                Logger.warning("Word replacement: Could not find error text in live document, using original positions \(error.start)-\(error.end)", category: Logger.analysis)
+                Logger.warning("Office replacement: Could not find error text in live document, using original positions \(error.start)-\(error.end)", category: Logger.analysis)
                 fallbackRange = CFRange(location: error.start, length: error.end - error.start)
                 errorText = suggestion
             }
@@ -3354,12 +3383,14 @@ class AnalysisCoordinator: ObservableObject {
 
             Logger.debug("Browser replacement: Using positions \(currentError.start)-\(currentError.end) (original was \(error.start)-\(error.end))", category: Logger.analysis)
 
+            // Note: currentError.start/end are Unicode scalar indices from Harper, need conversion
             let cachedText = self.lastAnalyzedText.isEmpty ? (self.currentSegment?.content ?? self.previousText) : self.lastAnalyzedText
-            if !cachedText.isEmpty && currentError.start < cachedText.count && currentError.end <= cachedText.count {
-                let startIdx = cachedText.index(cachedText.startIndex, offsetBy: currentError.start)
-                let endIdx = cachedText.index(cachedText.startIndex, offsetBy: currentError.end)
+            let scalarCount = cachedText.unicodeScalars.count
+            if !cachedText.isEmpty && currentError.start < scalarCount && currentError.end <= scalarCount,
+               let startIdx = scalarIndexToStringIndex(currentError.start, in: cachedText),
+               let endIdx = scalarIndexToStringIndex(currentError.end, in: cachedText) {
                 errorText = String(cachedText[startIdx..<endIdx])
-                Logger.debug("Browser replacement: Extracted error text '\(errorText)' from positions \(currentError.start)-\(currentError.end)", category: Logger.analysis)
+                Logger.debug("Browser replacement: Extracted error text '\(errorText)' from scalar positions \(currentError.start)-\(currentError.end)", category: Logger.analysis)
             } else {
                 errorText = ""
                 Logger.debug("Browser replacement: Could not extract error text, will use fallback", category: Logger.analysis)
@@ -3414,8 +3445,8 @@ class AnalysisCoordinator: ObservableObject {
 
             // Skip menu paste for Mac Catalyst apps - AXPressAction returns success but doesn't work
             // Mac Catalyst's AX bridge is incomplete and menu actions are unreliable
-            // Also skip for Word - accessing Word's Edit menu causes document refresh/revert issues
-            let skipMenuPaste = context.isMacCatalystApp || isWord
+            // Also skip for Microsoft Office - accessing Edit menu causes document refresh/revert issues
+            let skipMenuPaste = context.isMacCatalystApp || isMicrosoftOffice
             if skipMenuPaste {
                 Logger.debug("Skipping menu paste for \(context.applicationName) - using keyboard fallback", category: Logger.analysis)
             } else if let app = targetApp {
@@ -3518,14 +3549,15 @@ class AnalysisCoordinator: ObservableObject {
                 let lengthDelta = suggestion.count - (currentError.end - currentError.start)
                 self.removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
 
-                // For Word: DON'T trigger re-analysis after replacement
+                // For Microsoft Office: DON'T trigger re-analysis after replacement
                 // removeErrorAndUpdateUI already adjusted positions correctly, and async re-analysis
                 // can produce wrong results due to timing issues (Harper might analyze stale AXValue)
                 // Just clear position cache so underlines are recalculated
-                let isWord = context.bundleIdentifier == "com.microsoft.Word"
-                if isWord {
+                let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
+                                        context.bundleIdentifier == "com.microsoft.Powerpoint"
+                if isMicrosoftOffice {
                     PositionResolver.shared.clearCache()
-                    Logger.debug("Word: Skipping re-analysis, just cleared position cache", category: Logger.analysis)
+                    Logger.debug("Office: Skipping re-analysis, just cleared position cache", category: Logger.analysis)
                 } else {
                     self.invalidateCacheAfterReplacement(at: currentError.start..<currentError.end)
                 }
@@ -3771,6 +3803,36 @@ class AnalysisCoordinator: ObservableObject {
         return NSRange(location: utf16Location, length: utf16Length)
     }
 
+    /// Convert a Unicode scalar index to a String.Index.
+    /// Harper (via Rust) uses Unicode scalar indices (Rust's `char` count),
+    /// but Swift String operations use grapheme cluster indices.
+    /// Emojis like ❗️ are 2 scalars (U+2757 + U+FE0F) but 1 grapheme cluster.
+    private func scalarIndexToStringIndex(_ scalarIndex: Int, in string: String) -> String.Index? {
+        let scalars = string.unicodeScalars
+        var scalarCount = 0
+        var currentIndex = string.startIndex
+
+        while currentIndex < string.endIndex {
+            if scalarCount == scalarIndex {
+                return currentIndex
+            }
+            // Count how many scalars are in this grapheme cluster
+            let nextIndex = string.index(after: currentIndex)
+            let scalarStart = currentIndex.samePosition(in: scalars) ?? scalars.startIndex
+            let scalarEnd = nextIndex.samePosition(in: scalars) ?? scalars.endIndex
+            let scalarsInCluster = scalars.distance(from: scalarStart, to: scalarEnd)
+            scalarCount += scalarsInCluster
+            currentIndex = nextIndex
+        }
+
+        // If scalarIndex equals total scalar count, return endIndex
+        if scalarCount == scalarIndex {
+            return string.endIndex
+        }
+
+        return nil
+    }
+
     /// Type text directly using CGEvent keyboard events with Unicode strings.
     /// This bypasses the clipboard entirely, which is needed for Mac Catalyst apps
     /// where clipboard paste operations are unreliable.
@@ -3900,14 +3962,15 @@ class AnalysisCoordinator: ObservableObject {
             return
         }
 
-        // SPECIAL HANDLING FOR BROWSERS, SLACK, WORD, AND MAC CATALYST APPS
+        // SPECIAL HANDLING FOR BROWSERS, SLACK, MICROSOFT OFFICE, AND MAC CATALYST APPS
         // These apps have contenteditable areas where AX API often silently fails
         // Use simplified approach: select via AX API, then paste via menu action or Cmd+V
         // Inspired by SelectedTextKit's menu action approach
         let isSlack = context.bundleIdentifier == "com.tinyspeck.slackmacgap"
         let isMessages = context.bundleIdentifier == "com.apple.MobileSMS"
-        let isWord = context.bundleIdentifier == "com.microsoft.Word"
-        if context.isBrowser || isSlack || isMessages || isWord || context.isMacCatalystApp {
+        let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
+                                context.bundleIdentifier == "com.microsoft.Powerpoint"
+        if context.isBrowser || isSlack || isMessages || isMicrosoftOffice || context.isMacCatalystApp {
             applyBrowserTextReplacement(for: error, with: suggestion, element: element, context: context, completion: completion)
             return
         }
@@ -3959,8 +4022,12 @@ class AnalysisCoordinator: ObservableObject {
             }
 
             // Apply the correction to the command line text
-            let startIndex = commandLineText.index(commandLineText.startIndex, offsetBy: error.start)
-            let endIndex = commandLineText.index(commandLineText.startIndex, offsetBy: error.end)
+            // Note: error.start/end are Unicode scalar indices from Harper
+            guard let startIndex = scalarIndexToStringIndex(error.start, in: commandLineText),
+                  let endIndex = scalarIndexToStringIndex(error.end, in: commandLineText) else {
+                Logger.warning("Terminal: Failed to convert scalar indices to string indices", category: Logger.analysis)
+                return
+            }
             var correctedText = commandLineText
             correctedText.replaceSubrange(startIndex..<endIndex, with: suggestion)
 
