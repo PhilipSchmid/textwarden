@@ -36,6 +36,9 @@ enum TimingConstants {
     /// Cursor position cache timeout (500ms)
     static let cursorCacheTimeout: TimeInterval = 0.5
 
+    /// Text validation check interval (500ms)
+    static let textValidationInterval: TimeInterval = 0.5
+
     // MARK: - Polling Intervals
 
     /// Permission polling interval
@@ -66,6 +69,12 @@ enum TimingConstants {
 
     /// Popover auto-hide delay
     static let popoverAutoHide: TimeInterval = 2.0
+
+    /// Hover detection delay before showing UI
+    static let hoverDelay: TimeInterval = 0.3
+
+    /// Animation frame interval for spinning indicator
+    static let animationFrameInterval: TimeInterval = 0.03
 
     // MARK: - Keyboard Operations
 

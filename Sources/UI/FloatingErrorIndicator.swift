@@ -1005,7 +1005,7 @@ private class IndicatorView: NSView {
 
     private func startSpinning() {
         guard spinningTimer == nil else { return }
-        spinningTimer = Timer.scheduledTimer(withTimeInterval: 0.03, repeats: true) { [weak self] _ in
+        spinningTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.animationFrameInterval, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             self.spinningAngle -= 0.08  // Clockwise rotation (negative = clockwise in flipped coords)
             if self.spinningAngle <= -.pi * 2 {
@@ -1418,7 +1418,7 @@ private class IndicatorView: NSView {
         }
 
         hoverTimer?.invalidate()
-        hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { [weak self] _ in
+        hoverTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.hoverDelay, repeats: false) { [weak self] _ in
             self?.onHover?(true)
         }
 

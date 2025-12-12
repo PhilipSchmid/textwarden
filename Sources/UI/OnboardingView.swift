@@ -350,10 +350,10 @@ struct OnboardingView: View {
         isPolling = true
         elapsedTime = 0
 
-        // Poll every 1 second for permission changes
-        pollingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+        // Poll for permission changes
+        pollingTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.permissionPolling, repeats: true) { _ in
             Task { @MainActor in
-                elapsedTime += 1.0
+                elapsedTime += TimingConstants.permissionPolling
 
                 // Check if permission was granted
                 permissionManager.checkPermissionStatus()

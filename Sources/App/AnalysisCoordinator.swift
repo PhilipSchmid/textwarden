@@ -393,8 +393,8 @@ class AnalysisCoordinator: ObservableObject {
                 // Store pending hover info
                 self.pendingHoverError = (error: error, position: position, windowFrame: windowFrame)
 
-                // Schedule delayed switch (300ms)
-                self.hoverSwitchTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { [weak self] _ in
+                // Schedule delayed switch
+                self.hoverSwitchTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.hoverDelay, repeats: false) { [weak self] _ in
                     Task { @MainActor [weak self] in
                         guard let self = self,
                               let pending = self.pendingHoverError else { return }
@@ -655,9 +655,8 @@ class AnalysisCoordinator: ObservableObject {
     /// Start monitoring window position to detect movement
     private func startWindowPositionMonitoring() {
         Logger.debug("Window monitoring: Starting position monitoring", category: Logger.analysis)
-        // Poll window position every 50ms (20 times per second)
-        // This is frequent enough to catch window movement quickly
-        windowPositionTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+        // Poll window position frequently to catch window movement quickly
+        windowPositionTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.shortDelay, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.checkWindowPosition()
             }
@@ -696,8 +695,8 @@ class AnalysisCoordinator: ObservableObject {
     private func startTextValidationTimer() {
         guard textValidationTimer == nil else { return }
 
-        // Run at 500ms intervals - frequent enough to catch sent messages, but not too expensive
-        textValidationTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+        // Run frequently enough to catch sent messages, but not too expensive
+        textValidationTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.textValidationInterval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.validateCurrentText()
             }
@@ -1159,9 +1158,9 @@ class AnalysisCoordinator: ObservableObject {
 
         Logger.debug("Window monitoring: Movement stopped - scheduling re-show after 150ms", category: Logger.analysis)
 
-        // Wait 150ms after movement stops before re-showing overlays
+        // Wait after movement stops before re-showing overlays
         // This provides a snappy UX while avoiding flickering during multi-step drags
-        windowMovementDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: false) { [weak self] _ in
+        windowMovementDebounceTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.textSettleTime, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.reshowOverlaysAfterMovement()
             }
@@ -2345,7 +2344,7 @@ class AnalysisCoordinator: ObservableObject {
             electronLayoutTimer?.invalidate()
 
             // Delay showing underlines to let Electron's DOM stabilize
-            electronLayoutTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: false) { [weak self] _ in
+            electronLayoutTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.textSettleTime, repeats: false) { [weak self] _ in
                 Task { @MainActor [weak self] in
                     self?.showErrorUnderlinesInternal(errors, element: element)
                 }
