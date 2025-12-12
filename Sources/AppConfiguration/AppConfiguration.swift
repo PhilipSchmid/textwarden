@@ -30,6 +30,7 @@ enum ParserType {
     case terminal
     case teams
     case mail
+    case word
 }
 
 // MARK: - Strategy Type

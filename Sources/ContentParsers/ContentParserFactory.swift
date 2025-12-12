@@ -29,7 +29,8 @@ final class ContentParserFactory {
             .notion: NotionContentParser(bundleIdentifier: "notion"),
             .terminal: TerminalContentParser(bundleIdentifier: "terminal"),
             .teams: TeamsContentParser(),
-            .mail: MailContentParser()
+            .mail: MailContentParser(),
+            .word: WordContentParser()
         ]
 
         Logger.info("ContentParserFactory: Initialized with \(parsersByType.count) parser types")

@@ -66,6 +66,7 @@ final class AppRegistry {
         register(.mail)
         register(.messages)
         register(.telegram)
+        register(.word)
         // Note: .default is not registered, used as fallback
     }
 }
@@ -304,6 +305,38 @@ extension AppConfiguration {
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: false
+        )
+    )
+
+    // MARK: - Microsoft Word
+
+    static let word = AppConfiguration(
+        identifier: "word",
+        displayName: "Microsoft Word",
+        bundleIDs: ["com.microsoft.Word"],
+        category: .native,
+        parserType: .word,
+        fontConfig: FontConfig(
+            defaultSize: 12,
+            fontFamily: nil,
+            spacingMultiplier: 1.0
+        ),
+        horizontalPadding: 4,
+        // Word's mso99 framework crashes (EXC_BAD_INSTRUCTION) on any parameterized
+        // accessibility attribute query (AXBoundsForRange, AXStringForRange, etc.).
+        // Visual underlines disabled; floating error indicator still works for corrections.
+        // Word's AXTextArea doesn't support standard AX setValue for text replacement,
+        // so we use browser-style replacement (selection + keyboard paste).
+        preferredStrategies: [],
+        features: AppFeatures(
+            visualUnderlinesEnabled: false,  // Disabled due to Word crashing on parameterized AX APIs
+            textReplacementMethod: .browserStyle,  // Standard AX setValue doesn't work for Word
+            requiresTypingPause: false,
+            supportsFormattedText: true,
+            childElementTraversal: false,
+            delaysAXNotifications: false,
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: false  // Word AXValue updates reliably
         )
     )
 

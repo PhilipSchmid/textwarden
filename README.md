@@ -160,10 +160,11 @@ TextWarden uses the macOS Accessibility API and works with most applications. Vi
 | **Telegram** | Full | Full |
 | **WhatsApp** | Full | Full |
 | **Webex** | Full | Full |
+| **Microsoft Word** | Full | Indicator only* |
 | **Microsoft Teams** | Full | Indicator only* |
 | **Terminal apps** (iTerm2, Terminal.app, Warp) | Full | Indicator only* |
 
-*\*These apps use a floating indicator instead of inline underlines due to accessibility API limitations.*
+*\*These apps use a floating indicator instead of inline underlines due to accessibility API limitations. Microsoft Word crashes (EXC_BAD_INSTRUCTION in mso99) when applications query parameterized accessibility attributes like AXBoundsForRange, so visual underlines are disabled.*
 
 **Other applications**: TextWarden works with most apps that support standard text editing. Grammar checking and the floating error indicator work broadly; visual underlines may vary. [Request support](https://github.com/philipschmid/textwarden/discussions) for additional apps.
 

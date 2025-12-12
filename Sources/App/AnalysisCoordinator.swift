@@ -3216,32 +3216,162 @@ class AnalysisCoordinator: ObservableObject {
         // Mark that we're applying a suggestion - prevents typing callback and scroll handling from hiding overlays
         lastReplacementTime = Date()
 
-        // CRITICAL: Look up the CURRENT error position from currentErrors
-        // The popover may have stale positions if previous replacements shifted the text
-        // Match by message + lintId + category (should uniquely identify the error)
-        let currentError = currentErrors.first { err in
-            err.message == error.message && err.lintId == error.lintId && err.category == error.category
-        } ?? error  // Fallback to original if not found
+        let isWord = context.bundleIdentifier == "com.microsoft.Word"
 
-        Logger.debug("Browser replacement: Using positions \(currentError.start)-\(currentError.end) (original was \(error.start)-\(error.end))", category: Logger.analysis)
-
-        // Get the error text for selection using CURRENT positions
-        // Use lastAnalyzedText which is updated after each replacement to reflect the current text state
-        let cachedText = self.lastAnalyzedText.isEmpty ? (self.currentSegment?.content ?? self.previousText) : self.lastAnalyzedText
+        // For Word: Get the error text from the ORIGINAL error positions in lastAnalyzedText
+        // Then search for that text in the LIVE document to find current position
+        // This handles position shifts from previous replacements
         let errorText: String
-        if !cachedText.isEmpty && currentError.start < cachedText.count && currentError.end <= cachedText.count {
-            let startIdx = cachedText.index(cachedText.startIndex, offsetBy: currentError.start)
-            let endIdx = cachedText.index(cachedText.startIndex, offsetBy: currentError.end)
-            errorText = String(cachedText[startIdx..<endIdx])
-            Logger.debug("Browser replacement: Extracted error text '\(errorText)' from positions \(currentError.start)-\(currentError.end)", category: Logger.analysis)
+        let fallbackRange: CFRange?
+
+        // Define currentError at top level - for Word we use the original error,
+        // for other apps we look up from currentErrors to get adjusted positions
+        let currentError: GrammarErrorModel
+
+        if isWord {
+            // For Word, use the original error for statistics/tracking
+            // The actual replacement position is determined by searching the live document
+            currentError = error
+
+            // Word-specific replacement strategy:
+            // 1. Get live text from Word's AXValue (handles document state correctly)
+            // 2. For capitalization errors (tHis → This): find text with unusual mid-word caps
+            // 3. For spelling errors (brrief → brief): search for exact error text
+            // 4. Use UTF-16 offsets for position (Word's AX API uses UTF-16, handles emojis)
+
+            // Helper to convert String.Index to UTF-16 offset
+            func utf16Offset(of index: String.Index, in string: String) -> Int {
+                return string.utf16.distance(from: string.utf16.startIndex, to: index)
+            }
+
+            // Helper to detect unusual capitalization (mid-word capitals like "tHis")
+            func hasUnusualCapitalization(_ text: String) -> Bool {
+                let chars = Array(text)
+                for i in 1..<chars.count {
+                    // Capital letter after lowercase = unusual (e.g., "tHis")
+                    if chars[i-1].isLowercase && chars[i].isUppercase {
+                        return true
+                    }
+                }
+                return false
+            }
+
+            // Get live text from Word
+            var liveTextRef: CFTypeRef?
+            var liveText = ""
+            if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &liveTextRef) == .success,
+               let text = liveTextRef as? String {
+                liveText = text
+            }
+
+            if liveText.isEmpty {
+                Logger.warning("Word replacement: Could not get live text from Word", category: Logger.analysis)
+            }
+
+            Logger.debug("Word replacement: Live text has \(liveText.count) chars, suggestion is '\(suggestion)'", category: Logger.analysis)
+
+            var foundRange: CFRange? = nil
+            var foundText = ""
+
+            // Strategy 1: Find capitalization errors by case-insensitive search
+            // Collect all matches and prioritize ones with unusual capitalization
+            var allMatches: [(range: Range<String.Index>, text: String)] = []
+            var searchStart = liveText.startIndex
+            while searchStart < liveText.endIndex {
+                let searchRange = searchStart..<liveText.endIndex
+                if let range = liveText.range(of: suggestion, options: .caseInsensitive, range: searchRange) {
+                    allMatches.append((range: range, text: String(liveText[range])))
+                    searchStart = range.upperBound
+                } else {
+                    break
+                }
+            }
+
+            Logger.debug("Word replacement: Found \(allMatches.count) case-insensitive matches for '\(suggestion)'", category: Logger.analysis)
+
+            // Priority 1: Match with unusual capitalization (like "tHis")
+            for match in allMatches {
+                if hasUnusualCapitalization(match.text) {
+                    let start = utf16Offset(of: match.range.lowerBound, in: liveText)
+                    let length = match.text.utf16.count
+                    foundRange = CFRange(location: start, length: length)
+                    foundText = match.text
+                    Logger.debug("Word replacement: Found unusual-caps '\(match.text)' at UTF-16 position \(start)-\(start + length)", category: Logger.analysis)
+                    break
+                }
+            }
+
+            // Priority 2: Any match that differs from suggestion (wrong case)
+            if foundRange == nil {
+                for match in allMatches where match.text != suggestion {
+                    let start = utf16Offset(of: match.range.lowerBound, in: liveText)
+                    let length = match.text.utf16.count
+                    foundRange = CFRange(location: start, length: length)
+                    foundText = match.text
+                    Logger.debug("Word replacement: Found case-variant '\(match.text)' at UTF-16 position \(start)-\(start + length)", category: Logger.analysis)
+                    break
+                }
+            }
+
+            // Strategy 2: For spelling errors, extract error text and search exactly
+            if foundRange == nil {
+                let cachedText = self.lastAnalyzedText.isEmpty ? (self.currentSegment?.content ?? "") : self.lastAnalyzedText
+
+                // Extract original error text from cached analysis
+                var errorTextFromCache = ""
+                if !cachedText.isEmpty && error.start < cachedText.count && error.end <= cachedText.count {
+                    let startIdx = cachedText.index(cachedText.startIndex, offsetBy: error.start)
+                    let endIdx = cachedText.index(cachedText.startIndex, offsetBy: error.end)
+                    errorTextFromCache = String(cachedText[startIdx..<endIdx])
+                    Logger.debug("Word replacement: Extracted error text '\(errorTextFromCache)' from cached text", category: Logger.analysis)
+                }
+
+                // Search for exact error text in live document
+                if !errorTextFromCache.isEmpty, let exactRange = liveText.range(of: errorTextFromCache) {
+                    let start = utf16Offset(of: exactRange.lowerBound, in: liveText)
+                    let length = errorTextFromCache.utf16.count
+                    foundRange = CFRange(location: start, length: length)
+                    foundText = errorTextFromCache
+                    Logger.debug("Word replacement: Found exact error text '\(errorTextFromCache)' at UTF-16 position \(start)-\(start + length)", category: Logger.analysis)
+                }
+            }
+
+            // Final result
+            if let range = foundRange {
+                fallbackRange = range
+                errorText = foundText
+            } else {
+                // Last resort: use Harper's original positions (may be wrong with emojis)
+                Logger.warning("Word replacement: Could not find error text in live document, using original positions \(error.start)-\(error.end)", category: Logger.analysis)
+                fallbackRange = CFRange(location: error.start, length: error.end - error.start)
+                errorText = suggestion
+            }
         } else {
-            // Fallback: use error range directly (may not work for Notion)
-            errorText = ""
-            Logger.debug("Browser replacement: Could not extract error text, will use fallback", category: Logger.analysis)
+            // For other apps: use the existing lookup logic
+            currentError = currentErrors.first { err in
+                err.message == error.message && err.lintId == error.lintId && err.category == error.category
+            } ?? error
+
+            Logger.debug("Browser replacement: Using positions \(currentError.start)-\(currentError.end) (original was \(error.start)-\(error.end))", category: Logger.analysis)
+
+            let cachedText = self.lastAnalyzedText.isEmpty ? (self.currentSegment?.content ?? self.previousText) : self.lastAnalyzedText
+            if !cachedText.isEmpty && currentError.start < cachedText.count && currentError.end <= cachedText.count {
+                let startIdx = cachedText.index(cachedText.startIndex, offsetBy: currentError.start)
+                let endIdx = cachedText.index(cachedText.startIndex, offsetBy: currentError.end)
+                errorText = String(cachedText[startIdx..<endIdx])
+                Logger.debug("Browser replacement: Extracted error text '\(errorText)' from positions \(currentError.start)-\(currentError.end)", category: Logger.analysis)
+            } else {
+                errorText = ""
+                Logger.debug("Browser replacement: Could not extract error text, will use fallback", category: Logger.analysis)
+            }
+
+            if errorText.isEmpty {
+                fallbackRange = CFRange(location: currentError.start, length: currentError.end - currentError.start)
+            } else {
+                fallbackRange = nil
+            }
         }
 
-        // Select the text to replace (handles Notion child element traversal internally)
-        let fallbackRange = errorText.isEmpty ? CFRange(location: currentError.start, length: currentError.end - currentError.start) : nil
         let targetText = errorText.isEmpty ? suggestion : errorText
 
         _ = selectTextForReplacement(
@@ -3284,8 +3414,10 @@ class AnalysisCoordinator: ObservableObject {
 
             // Skip menu paste for Mac Catalyst apps - AXPressAction returns success but doesn't work
             // Mac Catalyst's AX bridge is incomplete and menu actions are unreliable
-            if context.isMacCatalystApp {
-                Logger.debug("Skipping menu paste for Mac Catalyst app \(context.applicationName) - using keyboard fallback", category: Logger.analysis)
+            // Also skip for Word - accessing Word's Edit menu causes document refresh/revert issues
+            let skipMenuPaste = context.isMacCatalystApp || isWord
+            if skipMenuPaste {
+                Logger.debug("Skipping menu paste for \(context.applicationName) - using keyboard fallback", category: Logger.analysis)
             } else if let app = targetApp {
                 // Try menu action paste for non-Catalyst apps (more reliable for browsers)
                 let appElement = AXUIElementCreateApplication(app.processIdentifier)
@@ -3381,13 +3513,22 @@ class AnalysisCoordinator: ObservableObject {
                 // Record statistics
                 UserStatistics.shared.recordSuggestionApplied(category: currentError.category)
 
-                // Invalidate cache - use currentError's CURRENT positions
-                self.invalidateCacheAfterReplacement(at: currentError.start..<currentError.end)
-
-                // Remove error from UI immediately
-                // Calculate length delta to adjust positions of remaining errors
+                // IMPORTANT: Call removeErrorAndUpdateUI FIRST
+                // This removes the fixed error, updates currentSegment, and adjusts positions of remaining errors
                 let lengthDelta = suggestion.count - (currentError.end - currentError.start)
                 self.removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
+
+                // For Word: DON'T trigger re-analysis after replacement
+                // removeErrorAndUpdateUI already adjusted positions correctly, and async re-analysis
+                // can produce wrong results due to timing issues (Harper might analyze stale AXValue)
+                // Just clear position cache so underlines are recalculated
+                let isWord = context.bundleIdentifier == "com.microsoft.Word"
+                if isWord {
+                    PositionResolver.shared.clearCache()
+                    Logger.debug("Word: Skipping re-analysis, just cleared position cache", category: Logger.analysis)
+                } else {
+                    self.invalidateCacheAfterReplacement(at: currentError.start..<currentError.end)
+                }
 
                 Logger.debug("Browser text replacement complete (waited \(completionDelay)s)", category: Logger.analysis)
 
@@ -3759,13 +3900,14 @@ class AnalysisCoordinator: ObservableObject {
             return
         }
 
-        // SPECIAL HANDLING FOR BROWSERS, SLACK, AND MAC CATALYST APPS
+        // SPECIAL HANDLING FOR BROWSERS, SLACK, WORD, AND MAC CATALYST APPS
         // These apps have contenteditable areas where AX API often silently fails
         // Use simplified approach: select via AX API, then paste via menu action or Cmd+V
         // Inspired by SelectedTextKit's menu action approach
         let isSlack = context.bundleIdentifier == "com.tinyspeck.slackmacgap"
         let isMessages = context.bundleIdentifier == "com.apple.MobileSMS"
-        if context.isBrowser || isSlack || isMessages || context.isMacCatalystApp {
+        let isWord = context.bundleIdentifier == "com.microsoft.Word"
+        if context.isBrowser || isSlack || isMessages || isWord || context.isMacCatalystApp {
             applyBrowserTextReplacement(for: error, with: suggestion, element: element, context: context, completion: completion)
             return
         }

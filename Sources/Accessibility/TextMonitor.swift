@@ -65,6 +65,9 @@ class TextMonitor: ObservableObject {
     /// Retry scheduler for accessibility API operations
     private let retryScheduler = RetryScheduler(config: .accessibilityAPI)
 
+    /// Tracked work item for retry cancellation
+    private var retryWorkItem: DispatchWorkItem?
+
     // MARK: - Monitoring Control
 
     /// Start monitoring an application
@@ -140,7 +143,7 @@ class TextMonitor: ObservableObject {
     /// Stop monitoring
     func stopMonitoring() {
         // Cancel any pending retry attempts
-        retryScheduler.cancel()
+        cancelPendingRetries()
 
         if let observer = observer {
             CFRunLoopRemoveSource(
@@ -188,8 +191,16 @@ class TextMonitor: ObservableObject {
 
         // CRITICAL FIX: AXFocusedUIElement might return the wrong element (e.g., sidebar in Slack)
         // If the focused element is not editable, search for editable text fields
-        if !isEditableElement(axElement) {
-            Logger.debug("TextMonitor: Focused element is not editable, searching for editable field...", category: Logger.accessibility)
+        var needsAlternativeElement = !isEditableElement(axElement)
+
+        // App-specific check: Some apps (like Word) may return toolbar elements as focused
+        // even though they pass isEditableElement. Check with the parser.
+        if !needsAlternativeElement, let bundleId = currentContext?.bundleIdentifier {
+            needsAlternativeElement = !isValidContentElement(axElement, bundleId: bundleId)
+        }
+
+        if needsAlternativeElement {
+            Logger.debug("TextMonitor: Focused element is not suitable, searching for content field...", category: Logger.accessibility)
 
             // Strategy 1: Search children of focused element
             if let editableChild = findEditableChild(in: axElement) {
@@ -207,7 +218,16 @@ class TextMonitor: ObservableObject {
                 return
             }
 
-            Logger.debug("TextMonitor: No editable field found, will monitor focused element anyway", category: Logger.accessibility)
+            // Strategy 3 (Word-specific): Use parser to find document element
+            if let bundleId = currentContext?.bundleIdentifier, bundleId == "com.microsoft.Word" {
+                if let documentElement = WordContentParser.findDocumentElement(from: axElement) {
+                    Logger.debug("TextMonitor: Found Word document element via parser!", category: Logger.accessibility)
+                    monitorElement(documentElement, retryAttempt: retryAttempt)
+                    return
+                }
+            }
+
+            Logger.debug("TextMonitor: No suitable field found, will monitor focused element anyway", category: Logger.accessibility)
         }
 
         monitorElement(axElement, retryAttempt: retryAttempt)
@@ -215,8 +235,10 @@ class TextMonitor: ObservableObject {
 
     /// Schedule a retry using RetryScheduler configuration
     private func scheduleRetry(attempt: Int, action: @escaping () -> Void) {
-        // Cancel any existing retry
+        // Cancel any existing retry (both the scheduler and our tracked work item)
         retryScheduler.cancel()
+        retryWorkItem?.cancel()
+        retryWorkItem = nil
 
         // Calculate delay using RetryConfig
         let config = RetryConfig.accessibilityAPI
@@ -224,7 +246,17 @@ class TextMonitor: ObservableObject {
 
         Logger.debug("TextMonitor: Scheduling retry \(attempt + 1) in \(String(format: "%.3f", delay))s", category: Logger.accessibility)
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: action)
+        // Create and track a cancellable work item
+        let workItem = DispatchWorkItem(block: action)
+        retryWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+
+    /// Cancel any pending retries
+    private func cancelPendingRetries() {
+        retryScheduler.cancel()
+        retryWorkItem?.cancel()
+        retryWorkItem = nil
     }
 
     /// Monitor a specific UI element for text changes
@@ -320,7 +352,7 @@ class TextMonitor: ObservableObject {
         }
 
         // Cancel any pending retries since we found an editable element
-        retryScheduler.cancel()
+        cancelPendingRetries()
 
         if let previousElement = monitoredElement {
             AXObserverRemoveNotification(
@@ -557,6 +589,13 @@ extension TextMonitor {
         // First pass: look for direct editable children
         for child in children {
             if isEditableElement(child) {
+                // Additional check: for Word, ensure element is valid content (not toolbar)
+                if let bundleId = currentContext?.bundleIdentifier {
+                    if !isValidContentElement(child, bundleId: bundleId) {
+                        Logger.debug("TextMonitor: Skipping element - not valid content for app", category: Logger.accessibility)
+                        continue
+                    }
+                }
                 return child
             }
         }
@@ -629,10 +668,36 @@ extension TextMonitor {
 
         // If we can check enabled status, ensure it's enabled
         if enabledResult == .success, let enabled = isEnabled as? Bool {
+            if !enabled {
+                // Word's AXTextArea reports AXEnabled=false even when editable
+                // Accept AXTextArea for Word since we've already validated it via WordContentParser
+                if roleString == kAXTextAreaRole as String,
+                   let bundleId = currentContext?.bundleIdentifier,
+                   bundleId == "com.microsoft.Word" {
+                    Logger.debug("TextMonitor: Word AXTextArea reports disabled, but accepting anyway", category: Logger.accessibility)
+                    return true
+                }
+            }
             return enabled
         }
 
         // If we can't check, assume editable (to avoid false negatives)
+        return true
+    }
+
+    /// Check if element is valid content for the specific app (not toolbar/UI element)
+    /// Some apps like Word return toolbar elements as focused even though they're technically editable
+    private func isValidContentElement(_ element: AXUIElement, bundleId: String) -> Bool {
+        // Word-specific check: filter out toolbar/ribbon elements
+        if bundleId == "com.microsoft.Word" {
+            let isDocument = WordContentParser.isDocumentElement(element)
+            if !isDocument {
+                Logger.debug("TextMonitor: Word element rejected by parser (likely toolbar)", category: Logger.accessibility)
+            }
+            return isDocument
+        }
+
+        // For other apps, assume the element is valid
         return true
     }
 
