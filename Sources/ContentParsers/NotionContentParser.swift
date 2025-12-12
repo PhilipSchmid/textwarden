@@ -87,8 +87,8 @@ class NotionContentParser: ContentParser {
         var removedChars = 0
 
         // Remove leading empty lines and UI elements
-        while !lines.isEmpty {
-            let line = lines.first!.trimmingCharacters(in: .whitespaces)
+        while let firstLine = lines.first {
+            let line = firstLine.trimmingCharacters(in: .whitespaces)
 
             // Check if this line is a known UI element
             let isUIElement = line.isEmpty ||
@@ -98,7 +98,7 @@ class NotionContentParser: ContentParser {
 
             if isUIElement {
                 // Count characters being removed (line + newline)
-                removedChars += lines.first!.count + 1
+                removedChars += firstLine.count + 1
                 lines.removeFirst()
             } else {
                 break
@@ -109,8 +109,8 @@ class NotionContentParser: ContentParser {
         self.uiElementOffset = removedChars
 
         // Also remove trailing UI elements (like placeholders at the end)
-        while !lines.isEmpty {
-            let line = lines.last!.trimmingCharacters(in: .whitespaces)
+        while let lastLine = lines.last {
+            let line = lastLine.trimmingCharacters(in: .whitespaces)
 
             // Check if this line is a known UI element
             let isUIElement = line.isEmpty ||
@@ -162,7 +162,9 @@ class NotionContentParser: ContentParser {
         // Also check parent elements for block type context
         var parentValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXParentAttribute as CFString, &parentValue) == .success,
-           let parent = parentValue as! AXUIElement? {
+           let pv = parentValue {
+            // AXUIElement is a typealias for AXUIElementRef which is an opaque CFTypeRef
+            let parent = pv as! AXUIElement
             var parentRoleDesc: CFTypeRef?
             if AXUIElementCopyAttributeValue(parent, kAXRoleDescriptionAttribute as CFString, &parentRoleDesc) == .success,
                let roleDesc = parentRoleDesc as? String {
@@ -323,13 +325,10 @@ class NotionContentParser: ContentParser {
             element,
             kAXSelectedTextRangeAttribute as CFString,
             &selectedRangeValue
-        ) == .success else {
+        ) == .success,
+              let rangeRef = selectedRangeValue,
+              let selectedRange = safeAXValueGetRange(rangeRef) else {
             Logger.debug("NotionContentParser: Failed to get AXSelectedTextRange", category: Logger.ui)
-            return nil
-        }
-
-        var selectedRange = CFRange(location: 0, length: 0)
-        guard AXValueGetValue(selectedRangeValue as! AXValue, .cfRange, &selectedRange) else {
             return nil
         }
 
@@ -350,16 +349,14 @@ class NotionContentParser: ContentParser {
         // First try: AXInsertionPointFrame - primary method for cursor position
         var insertionPointValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, "AXInsertionPointFrame" as CFString, &insertionPointValue) == .success,
-           let axValue = insertionPointValue {
-            var frame = CGRect.zero
-            if AXValueGetValue(axValue as! AXValue, .cgRect, &frame) {
-                // Validate frame - check for Chromium's invalid (0,0,0,0) or (0, screenHeight, 0, 0) bug
-                if frame.width > 0 || (frame.height > 0 && frame.height < 100) {
-                    cursorFrame = frame
-                    Logger.debug("NotionContentParser: Got cursor frame from AXInsertionPointFrame: \(frame)", category: Logger.ui)
-                } else {
-                    Logger.debug("NotionContentParser: AXInsertionPointFrame returned invalid frame: \(frame)", category: Logger.ui)
-                }
+           let axValue = insertionPointValue,
+           let frame = safeAXValueGetRect(axValue) {
+            // Validate frame - check for Chromium's invalid (0,0,0,0) or (0, screenHeight, 0, 0) bug
+            if frame.width > 0 || (frame.height > 0 && frame.height < 100) {
+                cursorFrame = frame
+                Logger.debug("NotionContentParser: Got cursor frame from AXInsertionPointFrame: \(frame)", category: Logger.ui)
+            } else {
+                Logger.debug("NotionContentParser: AXInsertionPointFrame returned invalid frame: \(frame)", category: Logger.ui)
             }
         }
 
@@ -375,24 +372,24 @@ class NotionContentParser: ContentParser {
         if cursorFrame == nil && cursorPosition > 0 {
             if let bounds = getBoundsForPosition(element: element, position: cursorPosition - 1, length: 1) {
                 // Adjust X to be at the end of the character
-                cursorFrame = NSRect(
+                let adjustedFrame = NSRect(
                     x: bounds.origin.x + bounds.width,
                     y: bounds.origin.y,
                     width: 1,
                     height: bounds.height
                 )
-                Logger.debug("NotionContentParser: Got cursor frame from prev char: \(cursorFrame!)", category: Logger.ui)
+                cursorFrame = adjustedFrame
+                Logger.debug("NotionContentParser: Got cursor frame from prev char: \(adjustedFrame)", category: Logger.ui)
             }
         }
 
         // Log visible character range for debugging
         if cursorFrame == nil {
             var visibleRangeValue: CFTypeRef?
-            if AXUIElementCopyAttributeValue(element, kAXVisibleCharacterRangeAttribute as CFString, &visibleRangeValue) == .success {
-                var visibleRange = CFRange()
-                if AXValueGetValue(visibleRangeValue as! AXValue, .cfRange, &visibleRange) {
-                    Logger.debug("NotionContentParser: Visible character range: \(visibleRange.location)-\(visibleRange.location + visibleRange.length)", category: Logger.ui)
-                }
+            if AXUIElementCopyAttributeValue(element, kAXVisibleCharacterRangeAttribute as CFString, &visibleRangeValue) == .success,
+               let rangeRef = visibleRangeValue,
+               let visibleRange = safeAXValueGetRange(rangeRef) {
+                Logger.debug("NotionContentParser: Visible character range: \(visibleRange.location)-\(visibleRange.location + visibleRange.length)", category: Logger.ui)
             }
         }
 
@@ -528,12 +525,9 @@ class NotionContentParser: ContentParser {
             &boundsValue
         )
 
-        guard result == .success, let bv = boundsValue else {
-            return nil
-        }
-
-        var bounds = CGRect.zero
-        guard AXValueGetValue(bv as! AXValue, .cgRect, &bounds) else {
+        guard result == .success,
+              let bv = boundsValue,
+              let bounds = safeAXValueGetRect(bv) else {
             return nil
         }
 
@@ -562,12 +556,9 @@ class NotionContentParser: ContentParser {
             &boundsValue
         )
 
-        guard result == .success, let bv = boundsValue else {
-            return nil
-        }
-
-        var bounds = CGRect.zero
-        guard AXValueGetValue(bv as! AXValue, .cgRect, &bounds) else {
+        guard result == .success,
+              let bv = boundsValue,
+              let bounds = safeAXValueGetRect(bv) else {
             return nil
         }
 
@@ -658,12 +649,10 @@ class NotionContentParser: ContentParser {
         var visibleRangeValue: CFTypeRef?
         var visibleRange: CFRange?
         if AXUIElementCopyAttributeValue(element, kAXVisibleCharacterRangeAttribute as CFString, &visibleRangeValue) == .success,
-           let rangeValue = visibleRangeValue {
-            var range = CFRange()
-            if AXValueGetValue(rangeValue as! AXValue, .cfRange, &range) {
-                visibleRange = range
-                Logger.debug("NotionContentParser: Visible character range: \(range.location)-\(range.location + range.length)", category: Logger.ui)
-            }
+           let rangeRef = visibleRangeValue,
+           let range = safeAXValueGetRange(rangeRef) {
+            visibleRange = range
+            Logger.debug("NotionContentParser: Visible character range: \(range.location)-\(range.location + range.length)", category: Logger.ui)
         }
 
         // IMPORTANT: errorRange is in PREPROCESSED text coordinates
@@ -850,15 +839,11 @@ class NotionContentParser: ContentParser {
         var sizeValue: CFTypeRef?
 
         guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
-              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success else {
-            return nil
-        }
-
-        var position = CGPoint.zero
-        var size = CGSize.zero
-
-        guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &position),
-              AXValueGetValue(sizeValue as! AXValue, .cgSize, &size) else {
+              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
+              let posValue = positionValue,
+              let szValue = sizeValue,
+              let position = safeAXValueGetPoint(posValue),
+              let size = safeAXValueGetSize(szValue) else {
             return nil
         }
 
