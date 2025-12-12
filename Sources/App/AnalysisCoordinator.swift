@@ -2120,7 +2120,8 @@ class AnalysisCoordinator: ObservableObject {
                 enableSentenceStartCapitalization: enableSentenceStartCapitalization
             )
 
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
                 self.updateErrorCache(for: segment, with: result.errors)
                 self.applyFilters(to: result.errors, sourceText: segmentContent, element: capturedElement)
 
