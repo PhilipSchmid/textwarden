@@ -131,11 +131,14 @@ class PositionCache {
     /// Get cache statistics for debugging
     func statistics() -> CacheStatistics {
         return queue.sync {
-            CacheStatistics(
+            // Calculate hit rate inline to avoid deadlock (hitRate() also uses queue.sync)
+            let total = hits + misses
+            let rate = total > 0 ? Double(hits) / Double(total) : 0.0
+            return CacheStatistics(
                 entries: cache.count,
                 hits: hits,
                 misses: misses,
-                hitRate: hitRate()
+                hitRate: rate
             )
         }
     }
