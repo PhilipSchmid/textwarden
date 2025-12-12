@@ -648,13 +648,9 @@ class ErrorOverlayWindow: NSPanel {
             let sizeResult = AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeValue)
 
             if positionResult == .success, sizeResult == .success,
-               let position = positionValue, let size = sizeValue {
-
-                var origin = CGPoint.zero
-                var windowSize = CGSize.zero
-
-                AXValueGetValue(position as! AXValue, .cgPoint, &origin)
-                AXValueGetValue(size as! AXValue, .cgSize, &windowSize)
+               let position = positionValue, let size = sizeValue,
+               let origin = safeAXValueGetPoint(position),
+               let windowSize = safeAXValueGetSize(size) {
 
                 // Convert from Quartz (top-left origin) to Cocoa (bottom-left origin)
                 if let screen = NSScreen.main {
@@ -705,16 +701,12 @@ class ErrorOverlayWindow: NSPanel {
 
         guard positionResult == .success,
               sizeResult == .success,
-              let positionValue = positionValue,
-              let sizeValue = sizeValue else {
+              let posValue = positionValue,
+              let szValue = sizeValue,
+              let position = safeAXValueGetPoint(posValue),
+              let size = safeAXValueGetSize(szValue) else {
             return nil
         }
-
-        var position = CGPoint.zero
-        var size = CGSize.zero
-
-        AXValueGetValue(positionValue as! AXValue, .cgPoint, &position)
-        AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
 
         Logger.debug("DEBUG getElementFrame: RAW AX data - Position: \(position), Size: \(size)", category: Logger.ui)
 
@@ -745,7 +737,9 @@ class ErrorOverlayWindow: NSPanel {
         let length = error.end - error.start
 
         var range = CFRange(location: location, length: max(1, length))
-        let rangeValue = AXValueCreate(.cfRange, &range)!
+        guard let rangeValue = AXValueCreate(.cfRange, &range) else {
+            return nil
+        }
 
         var boundsValue: CFTypeRef?
         let boundsError = AXUIElementCopyParameterizedAttributeValue(
@@ -757,23 +751,20 @@ class ErrorOverlayWindow: NSPanel {
 
         guard boundsError == .success,
               let axValue = boundsValue,
-              CFGetTypeID(axValue) == AXValueGetTypeID() else {
+              let rect = safeAXValueGetRect(axValue) else {
             return nil
         }
 
-        var rect = CGRect.zero
-        let success = AXValueGetValue(axValue as! AXValue, .cgRect, &rect)
-
-        guard success else { return nil }
+        var adjustedRect = rect
 
         // CRITICAL: AX API returns coordinates in top-left origin system (Quartz)
         // NSWindow uses bottom-left origin (AppKit)
         // Must flip Y coordinate using screen height
         if let screenHeight = NSScreen.main?.frame.height {
-            rect.origin.y = screenHeight - rect.origin.y - rect.height
+            adjustedRect.origin.y = screenHeight - adjustedRect.origin.y - adjustedRect.height
         }
 
-        return rect
+        return adjustedRect
     }
 
     /// Estimate error bounds when AX API fails (Electron apps fallback)
