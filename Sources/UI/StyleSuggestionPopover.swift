@@ -112,11 +112,13 @@ class StyleSuggestionPopover: ObservableObject {
 
         // Schedule hide after delay (gives user time to move mouse into popover)
         hideTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
-            guard let self = self else { return }
-            // Only hide if mouse is not over the popover
-            if let panel = self.popoverPanel,
-               !panel.frame.contains(NSEvent.mouseLocation) {
-                self.hide()
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                // Only hide if mouse is not over the popover
+                if let panel = self.popoverPanel,
+                   !panel.frame.contains(NSEvent.mouseLocation) {
+                    self.hide()
+                }
             }
         }
     }
@@ -135,16 +137,18 @@ class StyleSuggestionPopover: ObservableObject {
 
         // Use GLOBAL monitor to detect ALL clicks (including in other apps)
         clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in
-            guard let self = self else { return }
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
 
-            Logger.debug("StyleSuggestionPopover: Global click detected - hiding popover", category: Logger.ui)
+                Logger.debug("StyleSuggestionPopover: Global click detected - hiding popover", category: Logger.ui)
 
-            // Cancel any pending auto-hide timer
-            self.hideTimer?.invalidate()
-            self.hideTimer = nil
+                // Cancel any pending auto-hide timer
+                self.hideTimer?.invalidate()
+                self.hideTimer = nil
 
-            self.hide()
-            self.onDismiss?()
+                self.hide()
+                self.onDismiss?()
+            }
         }
     }
 

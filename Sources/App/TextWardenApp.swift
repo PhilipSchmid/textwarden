@@ -305,8 +305,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         // Style checking disabled - unload the model from memory
                         if modelManager.loadedModelId != nil {
                             Logger.info("Style checking disabled - unloading model from memory", category: Logger.llm)
-                            // Unload on background thread
-                            DispatchQueue.global(qos: .userInitiated).async {
+                            // Unload model (modelManager is @MainActor, so use Task)
+                            Task { @MainActor in
                                 modelManager.unloadModel()
                             }
                         }
@@ -399,11 +399,10 @@ extension AppDelegate: NSWindowDelegate {
 
     /// Setup global keyboard shortcuts using KeyboardShortcuts package
     private func setupKeyboardShortcuts() {
-        let preferences = UserPreferences.shared
-
         // Toggle grammar checking (Cmd+Shift+G by default)
         KeyboardShortcuts.onKeyUp(for: .toggleGrammarChecking) {
             Task { @MainActor in
+                let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
 
                 Logger.debug("Keyboard shortcut: Toggle grammar checking", category: Logger.ui)
@@ -422,6 +421,7 @@ extension AppDelegate: NSWindowDelegate {
         // Run style check on current text (Cmd+Shift+S by default)
         KeyboardShortcuts.onKeyUp(for: .runStyleCheck) {
             Task { @MainActor in
+                let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
 
                 Logger.debug("Keyboard shortcut: Run style check", category: Logger.ui)
@@ -434,6 +434,7 @@ extension AppDelegate: NSWindowDelegate {
         // Accept current suggestion (Tab by default)
         KeyboardShortcuts.onKeyUp(for: .acceptSuggestion) {
             Task { @MainActor in
+                let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
                 guard SuggestionPopover.shared.isVisible else { return }
                 guard let error = SuggestionPopover.shared.currentError else { return }
@@ -448,6 +449,7 @@ extension AppDelegate: NSWindowDelegate {
         // Dismiss suggestion popover (Escape by default)
         KeyboardShortcuts.onKeyUp(for: .dismissSuggestion) {
             Task { @MainActor in
+                let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
                 guard SuggestionPopover.shared.isVisible else { return }
 
@@ -460,6 +462,7 @@ extension AppDelegate: NSWindowDelegate {
         // Navigate to previous suggestion (Option + Left arrow by default)
         KeyboardShortcuts.onKeyUp(for: .previousSuggestion) {
             Task { @MainActor in
+                let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
                 guard SuggestionPopover.shared.isVisible else { return }
 
@@ -472,6 +475,7 @@ extension AppDelegate: NSWindowDelegate {
         // Navigate to next suggestion (Option + Right arrow by default)
         KeyboardShortcuts.onKeyUp(for: .nextSuggestion) {
             Task { @MainActor in
+                let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
                 guard SuggestionPopover.shared.isVisible else { return }
 
@@ -484,6 +488,7 @@ extension AppDelegate: NSWindowDelegate {
         // Quick apply shortcuts (Option+1, Option+2, Option+3)
         KeyboardShortcuts.onKeyUp(for: .applySuggestion1) {
             Task { @MainActor in
+                let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
                 guard SuggestionPopover.shared.isVisible else { return }
                 guard let error = SuggestionPopover.shared.currentError else { return }
@@ -498,6 +503,7 @@ extension AppDelegate: NSWindowDelegate {
 
         KeyboardShortcuts.onKeyUp(for: .applySuggestion2) {
             Task { @MainActor in
+                let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
                 guard SuggestionPopover.shared.isVisible else { return }
                 guard let error = SuggestionPopover.shared.currentError else { return }
@@ -512,6 +518,7 @@ extension AppDelegate: NSWindowDelegate {
 
         KeyboardShortcuts.onKeyUp(for: .applySuggestion3) {
             Task { @MainActor in
+                let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
                 guard SuggestionPopover.shared.isVisible else { return }
                 guard let error = SuggestionPopover.shared.currentError else { return }

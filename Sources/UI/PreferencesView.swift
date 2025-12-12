@@ -4063,28 +4063,26 @@ struct DiagnosticsView: View {
             // KeyboardShortcuts.Shortcut.description requires main thread access
             let shortcuts = SettingsDump.collectShortcuts()
 
-            // Generate and export ZIP package asynchronously
-            DispatchQueue.global(qos: .userInitiated).async {
+            // Generate and export ZIP package
+            Task { @MainActor in
                 let success = DiagnosticReport.exportAsZIP(
                     to: url,
                     preferences: self.preferences,
                     shortcuts: shortcuts
                 )
 
-                DispatchQueue.main.async {
-                    self.isExporting = false
+                self.isExporting = false
 
-                    if success {
-                        self.exportAlertMessage = "Diagnostic package exported successfully to:\n\(url.path)"
-                        self.showingExportAlert = true
+                if success {
+                    self.exportAlertMessage = "Diagnostic package exported successfully to:\n\(url.path)"
+                    self.showingExportAlert = true
 
-                        Logger.info("Diagnostic package exported to: \(url.path)", category: Logger.general)
-                    } else {
-                        self.exportAlertMessage = "Failed to export diagnostic package. Please check the logs for details."
-                        self.showingExportAlert = true
+                    Logger.info("Diagnostic package exported to: \(url.path)", category: Logger.general)
+                } else {
+                    self.exportAlertMessage = "Failed to export diagnostic package. Please check the logs for details."
+                    self.showingExportAlert = true
 
-                        Logger.error("Failed to export diagnostic package", category: Logger.general)
-                    }
+                    Logger.error("Failed to export diagnostic package", category: Logger.general)
                 }
             }
         }

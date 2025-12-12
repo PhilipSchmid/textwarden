@@ -88,16 +88,18 @@ class PermissionManager: ObservableObject {
         stopPolling()
 
         pollTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
 
-            let wasGranted = self.isPermissionGranted
-            let isGranted = self.checkPermission()
+                let wasGranted = self.isPermissionGranted
+                let isGranted = self.checkPermission()
 
-            // Stop polling once permission is granted
-            if !wasGranted && isGranted {
-                self.stopPolling()
-                // Start continuous monitoring for revocation (T113)
-                self.startRevocationMonitoring()
+                // Stop polling once permission is granted
+                if !wasGranted && isGranted {
+                    self.stopPolling()
+                    // Start continuous monitoring for revocation (T113)
+                    self.startRevocationMonitoring()
+                }
             }
         }
     }
@@ -117,7 +119,9 @@ class PermissionManager: ObservableObject {
         Logger.info("Starting permission revocation monitoring (every \(Int(interval))s)", category: Logger.permissions)
 
         revocationMonitorTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            self?.checkForRevocation()
+            Task { @MainActor [weak self] in
+                self?.checkForRevocation()
+            }
         }
     }
 

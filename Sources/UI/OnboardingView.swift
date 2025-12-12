@@ -352,21 +352,23 @@ struct OnboardingView: View {
 
         // Poll every 1 second for permission changes
         pollingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            elapsedTime += 1.0
+            Task { @MainActor in
+                elapsedTime += 1.0
 
-            // Check if permission was granted
-            permissionManager.checkPermissionStatus()
+                // Check if permission was granted
+                permissionManager.checkPermissionStatus()
 
-            if permissionManager.isPermissionGranted {
-                Logger.info("Onboarding: Permission granted! Advancing to verification", category: Logger.permissions)
-                currentStep = .verification
-                stopPolling()
-            } else if elapsedTime >= maxWaitTime {
-                Logger.warning("Onboarding: Timeout reached after \(elapsedTime) seconds", category: Logger.permissions)
-                showTimeoutWarning = true
-                stopPolling()
-            } else if Int(elapsedTime) % 10 == 0 {
-                Logger.debug("Onboarding: Still waiting... (\(Int(elapsedTime))s elapsed)", category: Logger.permissions)
+                if permissionManager.isPermissionGranted {
+                    Logger.info("Onboarding: Permission granted! Advancing to verification", category: Logger.permissions)
+                    currentStep = .verification
+                    stopPolling()
+                } else if elapsedTime >= maxWaitTime {
+                    Logger.warning("Onboarding: Timeout reached after \(elapsedTime) seconds", category: Logger.permissions)
+                    showTimeoutWarning = true
+                    stopPolling()
+                } else if Int(elapsedTime) % 10 == 0 {
+                    Logger.debug("Onboarding: Still waiting... (\(Int(elapsedTime))s elapsed)", category: Logger.permissions)
+                }
             }
         }
     }

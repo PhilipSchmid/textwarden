@@ -52,13 +52,14 @@ class AnalysisCoordinator: ObservableObject {
 
     /// AI rephrase suggestions cache - maps original sentence text to AI-generated rephrase
     /// This cache persists across app switches and re-analyses to avoid regenerating expensive LLM suggestions
-    private var aiRephraseCache: [String: String] = [:]
+    /// Note: nonisolated(unsafe) because cache access is synchronized via aiRephraseCacheQueue
+    nonisolated(unsafe) private var aiRephraseCache: [String: String] = [:]
 
     /// Serial queue to guard AI rephrase cache access off the main thread
-    private let aiRephraseCacheQueue = DispatchQueue(label: "com.textwarden.aiRephraseCache")
+    private nonisolated let aiRephraseCacheQueue = DispatchQueue(label: "com.textwarden.aiRephraseCache")
 
     /// Maximum entries in AI rephrase cache before LRU eviction
-    private let aiRephraseCacheMaxEntries = 50
+    private nonisolated let aiRephraseCacheMaxEntries = 50
 
     /// Previous text for incremental analysis
     var previousText: String = ""
@@ -394,21 +395,23 @@ class AnalysisCoordinator: ObservableObject {
 
                 // Schedule delayed switch (300ms)
                 self.hoverSwitchTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { [weak self] _ in
-                    guard let self = self,
-                          let pending = self.pendingHoverError else { return }
+                    Task { @MainActor [weak self] in
+                        guard let self = self,
+                              let pending = self.pendingHoverError else { return }
 
-                    Logger.debug("AnalysisCoordinator: Delayed switch timer fired - showing new popover", category: Logger.analysis)
+                        Logger.debug("AnalysisCoordinator: Delayed switch timer fired - showing new popover", category: Logger.analysis)
 
-                    self.suggestionPopover.show(
-                        error: pending.error,
-                        allErrors: self.currentErrors,
-                        at: pending.position,
-                        constrainToWindow: pending.windowFrame
-                    )
+                        self.suggestionPopover.show(
+                            error: pending.error,
+                            allErrors: self.currentErrors,
+                            at: pending.position,
+                            constrainToWindow: pending.windowFrame
+                        )
 
-                    // Clear timer and pending state
-                    self.hoverSwitchTimer = nil
-                    self.pendingHoverError = nil
+                        // Clear timer and pending state
+                        self.hoverSwitchTimer = nil
+                        self.pendingHoverError = nil
+                    }
                 }
             }
         }
@@ -655,7 +658,9 @@ class AnalysisCoordinator: ObservableObject {
         // Poll window position every 50ms (20 times per second)
         // This is frequent enough to catch window movement quickly
         windowPositionTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-            self?.checkWindowPosition()
+            Task { @MainActor [weak self] in
+                self?.checkWindowPosition()
+            }
         }
         RunLoop.main.add(windowPositionTimer!, forMode: .common)
         Logger.debug("Window monitoring: Timer scheduled on main RunLoop", category: Logger.analysis)
@@ -693,7 +698,9 @@ class AnalysisCoordinator: ObservableObject {
 
         // Run at 500ms intervals - frequent enough to catch sent messages, but not too expensive
         textValidationTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            self?.validateCurrentText()
+            Task { @MainActor [weak self] in
+                self?.validateCurrentText()
+            }
         }
         RunLoop.main.add(textValidationTimer!, forMode: .common)
         Logger.debug("Text validation: Timer started", category: Logger.analysis)
@@ -1050,7 +1057,9 @@ class AnalysisCoordinator: ObservableObject {
 
         // Start/restart debounce timer for restore (will fire when scrolling stops)
         scrollDebounceTimer = Timer.scheduledTimer(withTimeInterval: restoreDelay, repeats: false) { [weak self] _ in
-            self?.restoreUnderlinesAfterScroll()
+            Task { @MainActor [weak self] in
+                self?.restoreUnderlinesAfterScroll()
+            }
         }
     }
 
@@ -1153,7 +1162,9 @@ class AnalysisCoordinator: ObservableObject {
         // Wait 150ms after movement stops before re-showing overlays
         // This provides a snappy UX while avoiding flickering during multi-step drags
         windowMovementDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: false) { [weak self] _ in
-            self?.reshowOverlaysAfterMovement()
+            Task { @MainActor [weak self] in
+                self?.reshowOverlaysAfterMovement()
+            }
         }
     }
 
@@ -1880,21 +1891,23 @@ class AnalysisCoordinator: ObservableObject {
         // ========== GRAMMAR ANALYSIS (immediate) ==========
         // Grammar analysis runs independently and updates UI as soon as it completes
         // This ensures fast feedback (~10ms) without waiting for slow LLM analysis
+
+        // Capture UserPreferences values on main thread before async dispatch
+        let dialect = UserPreferences.shared.selectedDialect
+        let enableInternetAbbrev = UserPreferences.shared.enableInternetAbbreviations
+        let enableGenZSlang = UserPreferences.shared.enableGenZSlang
+        let enableITTerminology = UserPreferences.shared.enableITTerminology
+        let enableBrandNames = UserPreferences.shared.enableBrandNames
+        let enablePersonNames = UserPreferences.shared.enablePersonNames
+        let enableLastNames = UserPreferences.shared.enableLastNames
+        let enableLanguageDetection = UserPreferences.shared.enableLanguageDetection
+        let excludedLanguages = Array(UserPreferences.shared.excludedLanguages.map { UserPreferences.languageCode(for: $0) })
+        let enableSentenceStartCapitalization = UserPreferences.shared.enableSentenceStartCapitalization
+
         analysisQueue.async { [weak self] in
             guard let self = self else { return }
 
             Logger.debug("AnalysisCoordinator: Calling Harper grammar engine...", category: Logger.analysis)
-
-            let dialect = UserPreferences.shared.selectedDialect
-            let enableInternetAbbrev = UserPreferences.shared.enableInternetAbbreviations
-            let enableGenZSlang = UserPreferences.shared.enableGenZSlang
-            let enableITTerminology = UserPreferences.shared.enableITTerminology
-            let enableBrandNames = UserPreferences.shared.enableBrandNames
-            let enablePersonNames = UserPreferences.shared.enablePersonNames
-            let enableLastNames = UserPreferences.shared.enableLastNames
-            let enableLanguageDetection = UserPreferences.shared.enableLanguageDetection
-            let excludedLanguages = Array(UserPreferences.shared.excludedLanguages.map { UserPreferences.languageCode(for: $0) })
-            let enableSentenceStartCapitalization = UserPreferences.shared.enableSentenceStartCapitalization
 
             let grammarResult = GrammarEngine.shared.analyzeText(
                 segmentContent,
@@ -1996,75 +2009,72 @@ class AnalysisCoordinator: ObservableObject {
             Logger.debug("AnalysisCoordinator: Style analysis debounced - waiting \(styleDebounceDelay)s for typing to pause", category: Logger.llm)
 
             styleDebounceTimer = Timer.scheduledTimer(withTimeInterval: styleDebounceDelay, repeats: false) { [weak self] _ in
-                guard let self = self else { return }
-
-                // Check if text has changed since timer was set (generation mismatch)
-                guard currentGeneration == self.styleAnalysisGeneration else {
-                    Logger.debug("AnalysisCoordinator: Style debounce timer fired but generation mismatch (\(currentGeneration) != \(self.styleAnalysisGeneration)) - skipping", category: Logger.llm)
-                    return
-                }
-
-                Logger.info("AnalysisCoordinator: Style debounce complete - queuing LLM analysis (gen=\(currentGeneration))", category: Logger.llm)
-
-                self.styleAnalysisQueue.async { [weak self] in
+                Task { @MainActor [weak self] in
                     guard let self = self else { return }
 
-                    // Check generation AGAIN before starting expensive LLM call
-                    // Another text change might have happened while waiting in queue
+                    // Check if text has changed since timer was set (generation mismatch)
                     guard currentGeneration == self.styleAnalysisGeneration else {
-                        Logger.debug("AnalysisCoordinator: Skipping stale LLM call (gen=\(currentGeneration), current=\(self.styleAnalysisGeneration))", category: Logger.llm)
+                        Logger.debug("AnalysisCoordinator: Style debounce timer fired but generation mismatch (\(currentGeneration) != \(self.styleAnalysisGeneration)) - skipping", category: Logger.llm)
                         return
                     }
 
-                    Logger.info("AnalysisCoordinator: Starting LLM style analysis (gen=\(currentGeneration))...", category: Logger.llm)
+                    Logger.info("AnalysisCoordinator: Style debounce complete - queuing LLM analysis (gen=\(currentGeneration))", category: Logger.llm)
 
+                    // Capture preferences on main thread before async dispatch
                     let styleName = UserPreferences.shared.selectedWritingStyle
                     let style = WritingStyle.allCases.first { $0.displayName == styleName } ?? .default
+                    let confidenceThreshold = Float(UserPreferences.shared.styleConfidenceThreshold)
 
-                    let styleResult = LLMEngine.shared.analyzeStyle(segmentContent, style: style)
+                    self.styleAnalysisQueue.async { [weak self] in
+                        guard self != nil else { return }
 
-                    Logger.debug("AnalysisCoordinator: LLM returned \(styleResult.suggestions.count) suggestion(s)", category: Logger.analysis)
+                        Logger.info("AnalysisCoordinator: Starting LLM style analysis (gen=\(currentGeneration))...", category: Logger.llm)
 
-                    // Update UI with style results (independently of grammar)
-                    DispatchQueue.main.async { [weak self] in
-                        guard let self = self else { return }
+                        let styleResult = LLMEngine.shared.analyzeStyle(segmentContent, style: style)
 
-                        // Final staleness check before updating UI
-                        // If user typed more while LLM was processing, discard results
-                        guard currentGeneration == self.styleAnalysisGeneration else {
-                            Logger.debug("AnalysisCoordinator: Discarding stale LLM results (gen=\(currentGeneration), current=\(self.styleAnalysisGeneration))", category: Logger.llm)
-                            return
-                        }
+                        Logger.debug("AnalysisCoordinator: LLM returned \(styleResult.suggestions.count) suggestion(s)", category: Logger.analysis)
 
-                        if !styleResult.isError {
-                            let threshold = Float(UserPreferences.shared.styleConfidenceThreshold)
-                            let filteredSuggestions = styleResult.suggestions.filter { $0.confidence >= threshold }
-                            self.currentStyleSuggestions = filteredSuggestions
-                            self.styleAnalysisSourceText = segmentContent
+                        // Update UI with style results (independently of grammar)
+                        DispatchQueue.main.async { [weak self] in
+                            guard let self = self else { return }
 
-                            // Cache the results
-                            self.styleCache[cacheKey] = filteredSuggestions
-                            self.styleCacheMetadata[cacheKey] = StyleCacheMetadata(
-                                lastAccessed: Date(),
-                                style: styleName
-                            )
-                            self.evictStyleCacheIfNeeded()
-
-                            Logger.info("AnalysisCoordinator: \(filteredSuggestions.count) style suggestion(s) above threshold (gen=\(currentGeneration))", category: Logger.llm)
-
-                            // Update floating indicator to show style suggestions
-                            if !filteredSuggestions.isEmpty, let element = self.textMonitor.monitoredElement {
-                                self.floatingIndicator.update(
-                                    errors: self.currentErrors,
-                                    styleSuggestions: filteredSuggestions,
-                                    element: element,
-                                    context: self.monitoredContext,
-                                    sourceText: self.lastAnalyzedText
-                                )
+                            // Final staleness check before updating UI
+                            // If user typed more while LLM was processing, discard results
+                            guard currentGeneration == self.styleAnalysisGeneration else {
+                                Logger.debug("AnalysisCoordinator: Discarding stale LLM results (gen=\(currentGeneration), current=\(self.styleAnalysisGeneration))", category: Logger.llm)
+                                return
                             }
-                        } else {
-                            self.currentStyleSuggestions = []
-                            Logger.warning("AnalysisCoordinator: Style analysis returned error: \(styleResult.error ?? "unknown")", category: Logger.analysis)
+
+                            if !styleResult.isError {
+                                let threshold = confidenceThreshold
+                                let filteredSuggestions = styleResult.suggestions.filter { $0.confidence >= threshold }
+                                self.currentStyleSuggestions = filteredSuggestions
+                                self.styleAnalysisSourceText = segmentContent
+
+                                // Cache the results
+                                self.styleCache[cacheKey] = filteredSuggestions
+                                self.styleCacheMetadata[cacheKey] = StyleCacheMetadata(
+                                    lastAccessed: Date(),
+                                    style: styleName
+                                )
+                                self.evictStyleCacheIfNeeded()
+
+                                Logger.info("AnalysisCoordinator: \(filteredSuggestions.count) style suggestion(s) above threshold (gen=\(currentGeneration))", category: Logger.llm)
+
+                                // Update floating indicator to show style suggestions
+                                if !filteredSuggestions.isEmpty, let element = self.textMonitor.monitoredElement {
+                                    self.floatingIndicator.update(
+                                        errors: self.currentErrors,
+                                        styleSuggestions: filteredSuggestions,
+                                        element: element,
+                                        context: self.monitoredContext,
+                                        sourceText: self.lastAnalyzedText
+                                    )
+                                }
+                            } else {
+                                self.currentStyleSuggestions = []
+                                Logger.warning("AnalysisCoordinator: Style analysis returned error: \(styleResult.error ?? "unknown")", category: Logger.analysis)
+                            }
                         }
                     }
                 }
@@ -2084,21 +2094,23 @@ class AnalysisCoordinator: ObservableObject {
         let capturedElement = textMonitor.monitoredElement
         let segmentContent = segment.content
 
+        // Capture UserPreferences values on main thread before async dispatch
+        let dialect = UserPreferences.shared.selectedDialect
+        let enableInternetAbbrev = UserPreferences.shared.enableInternetAbbreviations
+        let enableGenZSlang = UserPreferences.shared.enableGenZSlang
+        let enableITTerminology = UserPreferences.shared.enableITTerminology
+        let enableBrandNames = UserPreferences.shared.enableBrandNames
+        let enablePersonNames = UserPreferences.shared.enablePersonNames
+        let enableLastNames = UserPreferences.shared.enableLastNames
+        let enableLanguageDetection = UserPreferences.shared.enableLanguageDetection
+        let excludedLanguages = Array(UserPreferences.shared.excludedLanguages.map { UserPreferences.languageCode(for: $0) })
+        let enableSentenceStartCapitalization = UserPreferences.shared.enableSentenceStartCapitalization
+
         // Simplified: For large docs, still analyze full text but async
         // Full incremental diff would require text diffing algorithm
         analysisQueue.async { [weak self] in
             guard let self = self else { return }
 
-            let dialect = UserPreferences.shared.selectedDialect
-            let enableInternetAbbrev = UserPreferences.shared.enableInternetAbbreviations
-            let enableGenZSlang = UserPreferences.shared.enableGenZSlang
-            let enableITTerminology = UserPreferences.shared.enableITTerminology
-            let enableBrandNames = UserPreferences.shared.enableBrandNames
-            let enablePersonNames = UserPreferences.shared.enablePersonNames
-            let enableLastNames = UserPreferences.shared.enableLastNames
-            let enableLanguageDetection = UserPreferences.shared.enableLanguageDetection
-            let excludedLanguages = Array(UserPreferences.shared.excludedLanguages.map { UserPreferences.languageCode(for: $0) })
-            let enableSentenceStartCapitalization = UserPreferences.shared.enableSentenceStartCapitalization
             let result = GrammarEngine.shared.analyzeText(
                 segmentContent,
                 dialect: dialect,
@@ -2341,7 +2353,9 @@ class AnalysisCoordinator: ObservableObject {
 
             // Delay showing underlines to let Electron's DOM stabilize
             electronLayoutTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: false) { [weak self] _ in
-                self?.showErrorUnderlinesInternal(errors, element: element)
+                Task { @MainActor [weak self] in
+                    self?.showErrorUnderlinesInternal(errors, element: element)
+                }
             }
             return
         }
@@ -4720,9 +4734,14 @@ extension AnalysisCoordinator {
         // Capture fullText for setting styleAnalysisSourceText when analysis completes
         let capturedFullText = fullText
 
+        // Capture UserPreferences values on main thread before async dispatch
+        let modelId = UserPreferences.shared.selectedModelId
+        let preset = UserPreferences.shared.styleInferencePreset
+        let confidenceThreshold = Float(UserPreferences.shared.styleConfidenceThreshold)
+
         // Run style analysis in background
         styleAnalysisQueue.async { [weak self] in
-            guard let self = self else { return }
+            guard self != nil else { return }
 
             let segmentContent = text
 
@@ -4734,21 +4753,21 @@ extension AnalysisCoordinator {
 
             Logger.info("AnalysisCoordinator: Manual style check completed in \(latencyMs)ms, \(styleResult.suggestions.count) suggestions", category: Logger.llm)
 
-            // Update statistics with model and preset context
-            let modelId = UserPreferences.shared.selectedModelId
-            let preset = UserPreferences.shared.styleInferencePreset
-            UserStatistics.shared.recordStyleSuggestions(
-                count: styleResult.suggestions.count,
-                latencyMs: Double(latencyMs),
-                modelId: modelId,
-                preset: preset
-            )
+            // Update statistics with model and preset context (dispatch to main since UserStatistics is @MainActor)
+            DispatchQueue.main.async {
+                UserStatistics.shared.recordStyleSuggestions(
+                    count: styleResult.suggestions.count,
+                    latencyMs: Double(latencyMs),
+                    modelId: modelId,
+                    preset: preset
+                )
+            }
 
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
 
                 if !styleResult.isError {
-                    let threshold = Float(UserPreferences.shared.styleConfidenceThreshold)
+                    let threshold = confidenceThreshold
                     let filteredSuggestions = styleResult.suggestions.filter { $0.confidence >= threshold }
                     self.currentStyleSuggestions = filteredSuggestions
                     self.styleAnalysisSourceText = capturedFullText
