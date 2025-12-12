@@ -71,6 +71,11 @@ class BrowserContentParser: ContentParser {
     /// Returns true for search fields, URL bars, find-in-page, etc.
     /// These should be skipped as they're not meaningful for grammar checking
     static func isBrowserUIElement(_ element: AXUIElement) -> Bool {
+        // Get element role
+        var roleValue: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue)
+        let role = (roleValue as? String) ?? ""
+
         // Get element description
         var descriptionValue: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute as CFString, &descriptionValue)
@@ -101,6 +106,14 @@ class BrowserContentParser: ContentParser {
         AXUIElementCopyAttributeValue(element, kAXRoleDescriptionAttribute as CFString, &roleDescValue)
         let roleDesc = (roleDescValue as? String)?.lowercased() ?? ""
 
+        // Get element value to check for URL patterns (helps detect address bars)
+        var elementValue: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &elementValue)
+        let value = (elementValue as? String) ?? ""
+
+        // Log attributes for debugging browser UI element detection
+        Logger.debug("BrowserContentParser: Checking element - role: \(role), subrole: \(subrole), desc: '\(description.prefix(30))', title: '\(title.prefix(30))', id: '\(identifier.prefix(30))', placeholder: '\(placeholder.prefix(30))', roleDesc: '\(roleDesc)'", category: Logger.accessibility)
+
         // Keywords that indicate browser UI elements (not web content)
         let browserUIKeywords = [
             "find in page",
@@ -121,14 +134,21 @@ class BrowserContentParser: ContentParser {
         let allText = "\(description) \(title) \(identifier) \(placeholder) \(roleDesc)"
         for keyword in browserUIKeywords {
             if allText.contains(keyword) {
-                Logger.debug("BrowserContentParser: Skipping browser UI element (matched '\(keyword)' in '\(allText.prefix(80))')", category: Logger.accessibility)
+                Logger.info("BrowserContentParser: Skipping browser UI element (matched '\(keyword)')", category: Logger.accessibility)
                 return true
             }
         }
 
         // AXSearchField subrole is a clear indicator of a search field
         if subrole == "AXSearchField" {
-            Logger.debug("BrowserContentParser: Skipping AXSearchField subrole", category: Logger.accessibility)
+            Logger.info("BrowserContentParser: Skipping AXSearchField subrole", category: Logger.accessibility)
+            return true
+        }
+
+        // Check if the value looks like a URL (address bar detection)
+        // This catches address bars that don't have identifying attributes
+        if looksLikeURL(value) {
+            Logger.info("BrowserContentParser: Skipping element with URL-like content", category: Logger.accessibility)
             return true
         }
 
@@ -173,6 +193,43 @@ class BrowserContentParser: ContentParser {
             }
 
             currentElement = parentElement
+        }
+
+        return false
+    }
+
+    /// Check if a string looks like a URL (for detecting address bar content)
+    /// Uses pattern matching rather than URL parsing to catch partial URLs
+    private static func looksLikeURL(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Empty or very short strings are not URLs
+        guard trimmed.count >= 4 else { return false }
+
+        // Check for common URL schemes
+        let urlSchemes = ["http://", "https://", "file://", "ftp://", "about:", "chrome://", "edge://"]
+        for scheme in urlSchemes {
+            if trimmed.lowercased().hasPrefix(scheme) {
+                return true
+            }
+        }
+
+        // Check for domain-like patterns (e.g., "github.com/path", "www.example.com")
+        // Look for: word.tld or word.tld/path patterns
+        let domainPattern = #"^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.[a-zA-Z]{2,}(/|$)"#
+        if let regex = try? NSRegularExpression(pattern: domainPattern),
+           regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)) != nil {
+            return true
+        }
+
+        // Check for www. prefix
+        if trimmed.lowercased().hasPrefix("www.") {
+            return true
+        }
+
+        // Check for localhost patterns
+        if trimmed.lowercased().hasPrefix("localhost") {
+            return true
         }
 
         return false

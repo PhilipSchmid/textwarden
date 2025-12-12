@@ -3696,12 +3696,10 @@ class AnalysisCoordinator: ObservableObject {
             // Standard browser / Mac Catalyst: try AX API selection directly
             // This may silently fail, but it's fast and works sometimes
             //
-            // Mac Catalyst apps (like Messages) require UTF-16 indices for AXSelectedTextRange,
-            // not grapheme cluster indices. We need to convert if there are emojis/multi-codepoint
-            // characters in the text before the error position.
-            let isCatalyst = context.isMacCatalystApp
+            // All apps using UTF-16 indices need conversion (Mac Catalyst, Chromium browsers, etc.)
+            // Emojis and other multi-codepoint characters cause offset issues without this.
 
-            // Get the current text content (needed for UTF-16 conversion on Mac Catalyst)
+            // Get the current text content (needed for UTF-16 conversion)
             var currentTextRef: CFTypeRef?
             let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
             let currentText = (textResult == .success) ? (currentTextRef as? String) : nil
@@ -3718,16 +3716,13 @@ class AnalysisCoordinator: ObservableObject {
                     return false
                 }
 
-                // For Mac Catalyst apps, convert grapheme indices to UTF-16 indices
+                // Convert grapheme indices to UTF-16 indices for AX selection
+                // Required for: Mac Catalyst apps, Chromium-based browsers (like Comet), and any app using UTF-16 offsets
+                // Emojis and other multi-codepoint characters cause offset issues without this conversion
                 let startIndex = currentText.distance(from: currentText.startIndex, to: textRange.lowerBound)
-                var calculatedRange: CFRange
-                if isCatalyst {
-                    let utf16Range = convertToUTF16Range(NSRange(location: startIndex, length: targetText.count), in: currentText)
-                    calculatedRange = CFRange(location: utf16Range.location, length: utf16Range.length)
-                    Logger.debug("Mac Catalyst: Converted selection range from grapheme [\(startIndex), \(targetText.count)] to UTF-16 [\(utf16Range.location), \(utf16Range.length)]", category: Logger.analysis)
-                } else {
-                    calculatedRange = CFRange(location: startIndex, length: targetText.count)
-                }
+                let utf16Range = convertToUTF16Range(NSRange(location: startIndex, length: targetText.count), in: currentText)
+                var calculatedRange = CFRange(location: utf16Range.location, length: utf16Range.length)
+                Logger.debug("Browser selection: Converted range from grapheme [\(startIndex), \(targetText.count)] to UTF-16 [\(utf16Range.location), \(utf16Range.length)]", category: Logger.analysis)
 
                 guard let rangeValue = AXValueCreate(.cfRange, &calculatedRange) else {
                     Logger.debug("Failed to create AXValue for range", category: Logger.analysis)
@@ -3748,12 +3743,13 @@ class AnalysisCoordinator: ObservableObject {
                 return true
             }
 
-            // For Mac Catalyst apps with a fallback range, convert to UTF-16 if we have the text
-            if isCatalyst, let text = currentText {
+            // Convert fallback range to UTF-16 if we have the text
+            // Required for browsers and Mac Catalyst apps that use UTF-16 offsets
+            if let text = currentText {
                 let graphemeRange = NSRange(location: range.location, length: range.length)
                 let utf16Range = convertToUTF16Range(graphemeRange, in: text)
                 range = CFRange(location: utf16Range.location, length: utf16Range.length)
-                Logger.debug("Mac Catalyst: Converted fallback range from grapheme [\(graphemeRange.location), \(graphemeRange.length)] to UTF-16 [\(utf16Range.location), \(utf16Range.length)]", category: Logger.analysis)
+                Logger.debug("Browser selection: Converted fallback range from grapheme [\(graphemeRange.location), \(graphemeRange.length)] to UTF-16 [\(utf16Range.location), \(utf16Range.length)]", category: Logger.analysis)
             }
 
             guard let rangeValue = AXValueCreate(.cfRange, &range) else {

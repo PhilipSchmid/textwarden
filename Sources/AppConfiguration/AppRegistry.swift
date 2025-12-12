@@ -181,7 +181,7 @@ extension AppConfiguration {
             "com.brave.Browser",
             "com.brave.Browser.beta",
             "com.vivaldi.Vivaldi",
-            "com.nickvision.comet"
+            "ai.perplexity.comet"  // Perplexity Comet browser
         ],
         category: .browser,
         parserType: .browser,

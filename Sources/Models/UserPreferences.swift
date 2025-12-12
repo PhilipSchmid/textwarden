@@ -169,6 +169,7 @@ class UserPreferences: ObservableObject {
         "com.apple.finder",  // Finder
         "com.apple.archiveutility",  // Archive Utility
         "com.apple.universalcontrol",  // Universal Control
+        "com.apple.UniversalAccessControl",  // Universal Access Control
         // Utility apps
         "com.TechSmith.Snagit",  // Snagit
         "com.TechSmith.SnagitHelper",  // Snagit Helper
@@ -182,6 +183,7 @@ class UserPreferences: ObservableObject {
         "com.spotify.client",  // Spotify
         // Security software (Intego)
         "com.intego.NetUpdate",  // Intego NetUpdate
+        "com.intego.netupdate.application.events.agent",  // Intego NetUpdate Agent
         "com.intego.app.netbarrier",  // Intego NetBarrier
         "com.intego.netbarrier.alert",  // Intego NetBarrier Alert
         "com.intego.virusbarrier.application",  // Intego VirusBarrier
@@ -200,6 +202,8 @@ class UserPreferences: ObservableObject {
         "com.grammarly.ProjectLlama",       // Grammarly
         "org.inkscape.Inkscape",            // Inkscape
         "com.microsoft.OneDrive",           // OneDrive
+        "com.microsoft.autoupdate2",        // Microsoft AutoUpdate
+        "com.microsoft.errorreporting",     // Microsoft Error Reporting
         "com.alienator88.Pearcleaner"       // Pearcleaner
     ]
 
