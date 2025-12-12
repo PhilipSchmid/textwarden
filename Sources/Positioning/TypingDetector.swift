@@ -34,7 +34,7 @@ final class TypingDetector {
 
     /// Minimum time text must be stable before showing underlines
     /// This matches the debounce interval in TextMonitor for Electron apps
-    private let typingPauseThreshold: TimeInterval = 1.0
+    private let typingPauseThreshold: TimeInterval = TimingConstants.typingPauseThreshold
 
     // MARK: - State
 

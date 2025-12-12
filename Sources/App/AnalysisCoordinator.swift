@@ -86,7 +86,7 @@ class AnalysisCoordinator: ObservableObject {
     private let maxCachedDocuments = 10
 
     /// Cache expiration time in seconds (T084)
-    private let cacheExpirationTime: TimeInterval = 300 // 5 minutes
+    private let cacheExpirationTime: TimeInterval = TimingConstants.analysisCacheExpiration
 
     // MARK: - Window Tracking State
 
@@ -146,13 +146,13 @@ class AnalysisCoordinator: ObservableObject {
     private let maxStyleCacheEntries = 20
 
     /// Style cache expiration time (longer than grammar since LLM is slower)
-    private let styleCacheExpirationTime: TimeInterval = 600 // 10 minutes
+    private let styleCacheExpirationTime: TimeInterval = TimingConstants.styleCacheExpiration
 
     /// Debounce timer for style analysis - prevents queue buildup during rapid typing
     private var styleDebounceTimer: Timer?
 
     /// Debounce delay for style analysis (seconds) - wait for typing to pause
-    private let styleDebounceDelay: TimeInterval = 2.0
+    private let styleDebounceDelay: TimeInterval = TimingConstants.styleDebounce
 
     /// Generation ID for style analysis - incremented on each text change
     /// Used to detect and skip stale analysis (when text changed during LLM inference)
@@ -182,7 +182,7 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Grace period after replacement to preserve popover in apps with focus bounce behavior.
     /// Focus typically settles within 300-500ms after paste operation completes.
-    let focusBounceGracePeriod: TimeInterval = 0.5
+    let focusBounceGracePeriod: TimeInterval = TimingConstants.focusBounceGrace
 
     /// Check if we're within the focus bounce grace period after replacement
     func isWithinFocusBounceGracePeriod() -> Bool {

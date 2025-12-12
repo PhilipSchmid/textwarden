@@ -32,12 +32,12 @@ class TextMonitor: ObservableObject {
     private var debounceTimer: Timer?
 
     /// Default debounce interval in seconds
-    private let defaultDebounceInterval: TimeInterval = 0.05  // 50ms for snappier UX
+    private let defaultDebounceInterval: TimeInterval = TimingConstants.defaultDebounce
 
     /// Extended debounce for Chromium apps that require delayed positioning
     /// Slack and other Chromium apps need cursor manipulation for accurate positioning,
     /// which can only happen after typing stops. Longer debounce = less cursor interference.
-    private let chromiumDebounceInterval: TimeInterval = 1.0  // 1s for Chromium/Electron apps
+    private let chromiumDebounceInterval: TimeInterval = TimingConstants.chromiumDebounce
 
     /// Get the appropriate debounce interval for the current app
     private var debounceInterval: TimeInterval {
