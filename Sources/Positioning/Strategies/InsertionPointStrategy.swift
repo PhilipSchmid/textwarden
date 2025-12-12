@@ -462,15 +462,9 @@ class InsertionPointStrategy: GeometryProvider {
         guard positionResult == .success,
               sizeResult == .success,
               let position = positionValue,
-              let size = sizeValue else {
-            return nil
-        }
-
-        var origin = CGPoint.zero
-        var rectSize = CGSize.zero
-
-        guard AXValueGetValue(position as! AXValue, .cgPoint, &origin),
-              AXValueGetValue(size as! AXValue, .cgSize, &rectSize) else {
+              let size = sizeValue,
+              let origin = safeAXValueGetPoint(position),
+              let rectSize = safeAXValueGetSize(size) else {
             return nil
         }
 
@@ -507,12 +501,9 @@ class InsertionPointStrategy: GeometryProvider {
             &value
         )
 
-        guard result == .success, let axValue = value else {
-            return nil
-        }
-
-        var range = CFRange()
-        guard AXValueGetValue(axValue as! AXValue, .cfRange, &range) else {
+        guard result == .success,
+              let axValue = value,
+              let range = safeAXValueGetRange(axValue) else {
             return nil
         }
 
@@ -562,8 +553,7 @@ class InsertionPointStrategy: GeometryProvider {
             return nil
         }
 
-        var axBounds = CGRect.zero
-        guard AXValueGetValue(bv as! AXValue, .cgRect, &axBounds) else {
+        guard let axBounds = safeAXValueGetRect(bv) else {
             Logger.debug("InsertionPointStrategy: Hybrid - failed to extract CGRect", category: Logger.ui)
             return nil
         }
@@ -710,10 +700,9 @@ class InsertionPointStrategy: GeometryProvider {
             &boundsValue
         )
 
-        guard result == .success, let bv = boundsValue else { return nil }
-
-        var bounds = CGRect.zero
-        guard AXValueGetValue(bv as! AXValue, .cgRect, &bounds) else { return nil }
+        guard result == .success,
+              let bv = boundsValue,
+              let bounds = safeAXValueGetRect(bv) else { return nil }
 
         // Validate we got something reasonable
         guard bounds.width > 0 && bounds.height > 0 else { return nil }
