@@ -26,31 +26,36 @@ class ChromiumStrategy: GeometryProvider {
     var tier: StrategyTier { .precise }
     var tierPriority: Int { 5 }
 
-    // MARK: - Cache State
+    // MARK: - Thread Safety
 
-    private static var boundsCache: [NSRange: CGRect] = [:]
-    private static var cachedText: String = ""
-    private static var cachedElementFrame: CGRect = .zero
-    private static var cachedAttributedStringHash: Int = 0
+    /// Serial queue to protect all static mutable state from concurrent access
+    private static let stateQueue = DispatchQueue(label: "com.textwarden.chromium-strategy", qos: .userInitiated)
 
-    // MARK: - Typing Detection State
+    // MARK: - Cache State (protected by stateQueue)
 
-    private static var lastTextChangeTime: Date = .distantPast
-    private static var textFirstSeenTime: Date = .distantPast
+    private static var _boundsCache: [NSRange: CGRect] = [:]
+    private static var _cachedText: String = ""
+    private static var _cachedElementFrame: CGRect = .zero
+    private static var _cachedAttributedStringHash: Int = 0
+
+    // MARK: - Typing Detection State (protected by stateQueue)
+
+    private static var _lastTextChangeTime: Date = .distantPast
+    private static var _textFirstSeenTime: Date = .distantPast
 
     /// Minimum time text must be stable before measuring (avoids cursor interference during typing)
     private static let typingPauseThreshold: TimeInterval = TimingConstants.typingPauseThreshold
 
-    // MARK: - Cursor Restoration State
+    // MARK: - Cursor Restoration State (protected by stateQueue)
 
-    private static var savedCursorPosition: CFRange?
-    private static var savedCursorElement: AXUIElement?
-    private static var measurementInProgress: Bool = false
+    private static var _savedCursorPosition: CFRange?
+    private static var _savedCursorElement: AXUIElement?
+    private static var _measurementInProgress: Bool = false
 
-    // MARK: - Stale Data Detection
+    // MARK: - Stale Data Detection (protected by stateQueue)
 
-    private static var lastMeasuredBounds: CGRect?
-    private static var consecutiveSameBoundsCount: Int = 0
+    private static var _lastMeasuredBounds: CGRect?
+    private static var _consecutiveSameBoundsCount: Int = 0
 
     /// Bundle IDs of Chromium-based apps that use this strategy
     private static let chromiumBundleIDs: Set<String> = [
@@ -72,11 +77,13 @@ class ChromiumStrategy: GeometryProvider {
 
     /// Called when text changes to track typing activity
     static func notifyTextChange() {
-        lastTextChangeTime = Date()
-        textFirstSeenTime = Date()
-        savedCursorPosition = nil
-        savedCursorElement = nil
-        measurementInProgress = false
+        stateQueue.sync {
+            _lastTextChangeTime = Date()
+            _textFirstSeenTime = Date()
+            _savedCursorPosition = nil
+            _savedCursorElement = nil
+            _measurementInProgress = false
+        }
 
         DispatchQueue.main.async {
             onTypingStarted?()
@@ -85,26 +92,34 @@ class ChromiumStrategy: GeometryProvider {
 
     /// Check if user is currently typing
     static var isCurrentlyTyping: Bool {
-        Date().timeIntervalSince(textFirstSeenTime) < typingPauseThreshold
+        stateQueue.sync {
+            Date().timeIntervalSince(_textFirstSeenTime) < typingPauseThreshold
+        }
     }
 
     /// Restore cursor position after measurements complete
     static func restoreCursorPosition() {
-        guard measurementInProgress,
-              let position = savedCursorPosition,
-              let element = savedCursorElement else {
-            return
+        let (shouldRestore, position, element) = stateQueue.sync { () -> (Bool, CFRange?, AXUIElement?) in
+            guard _measurementInProgress,
+                  let pos = _savedCursorPosition,
+                  let elem = _savedCursorElement else {
+                return (false, nil, nil)
+            }
+            return (true, pos, elem)
         }
 
-        var pos = position
+        guard shouldRestore, var pos = position, let element = element else { return }
+
         if let restoreValue = AXValueCreate(.cfRange, &pos) {
             AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, restoreValue)
             usleep(15000)  // 15ms for Chromium to process
         }
 
-        savedCursorPosition = nil
-        savedCursorElement = nil
-        measurementInProgress = false
+        stateQueue.sync {
+            _savedCursorPosition = nil
+            _savedCursorElement = nil
+            _measurementInProgress = false
+        }
     }
 
     // MARK: - Geometry Calculation
@@ -123,8 +138,8 @@ class ChromiumStrategy: GeometryProvider {
         // Check cache invalidation conditions
         invalidateCacheIfNeeded(element: element, text: text)
 
-        // Return cached bounds if available
-        if let cachedBounds = ChromiumStrategy.boundsCache[adjustedRange] {
+        // Return cached bounds if available (thread-safe access)
+        if let cachedBounds = ChromiumStrategy.stateQueue.sync(execute: { ChromiumStrategy._boundsCache[adjustedRange] }) {
             let cocoaBounds = convertQuartzToCocoa(cachedBounds)
             return GeometryResult(
                 bounds: cocoaBounds,
@@ -167,8 +182,8 @@ class ChromiumStrategy: GeometryProvider {
             Logger.debug("ChromiumStrategy: Estimated width \(estimatedWidth) for '\(errorText)'", category: Logger.analysis)
         }
 
-        // Cache and return
-        ChromiumStrategy.boundsCache[adjustedRange] = bounds
+        // Cache and return (thread-safe access)
+        ChromiumStrategy.stateQueue.sync { ChromiumStrategy._boundsCache[adjustedRange] = bounds }
         let cocoaBounds = convertQuartzToCocoa(bounds)
 
         guard CoordinateMapper.validateBounds(cocoaBounds) else {
@@ -187,51 +202,54 @@ class ChromiumStrategy: GeometryProvider {
 
     private func invalidateCacheIfNeeded(element: AXUIElement, text: String) {
         let currentFrame = AccessibilityBridge.getElementFrame(element) ?? .zero
-        let oldText = ChromiumStrategy.cachedText
+        let currentAttrHash = getAttributedStringHash(element: element)
 
-        let textChanged = text != oldText
-        let frameChanged = currentFrame != ChromiumStrategy.cachedElementFrame && ChromiumStrategy.cachedElementFrame != .zero
+        ChromiumStrategy.stateQueue.sync {
+            let oldText = ChromiumStrategy._cachedText
 
-        // Only check formatting if text didn't change (pure formatting change)
-        // When text changes, the attributed string hash will also change, so we use text prefix check instead
-        let formattingChanged: Bool
-        if !textChanged {
-            let currentAttrHash = getAttributedStringHash(element: element)
-            formattingChanged = currentAttrHash != ChromiumStrategy.cachedAttributedStringHash && ChromiumStrategy.cachedAttributedStringHash != 0
-            if formattingChanged || ChromiumStrategy.cachedAttributedStringHash == 0 {
-                ChromiumStrategy.cachedAttributedStringHash = currentAttrHash
-            }
-        } else {
-            formattingChanged = false
-        }
+            let textChanged = text != oldText
+            let frameChanged = currentFrame != ChromiumStrategy._cachedElementFrame && ChromiumStrategy._cachedElementFrame != .zero
 
-        if textChanged || frameChanged || formattingChanged {
-            // Smart cache preservation: if text was only appended (no changes to existing text),
-            // keep the cache for existing ranges since their positions haven't changed.
-            // BUT: if formatting changed, we must clear the cache because character widths may have changed.
-            let hasPrefix = text.hasPrefix(oldText)
-            let textAppended = !oldText.isEmpty && hasPrefix && !frameChanged && !formattingChanged
-
-            if textAppended {
-                // Text was appended at the end - preserve existing cache entries
-                ChromiumStrategy.cachedAttributedStringHash = getAttributedStringHash(element: element)
+            // Only check formatting if text didn't change (pure formatting change)
+            // When text changes, the attributed string hash will also change, so we use text prefix check instead
+            let formattingChanged: Bool
+            if !textChanged {
+                formattingChanged = currentAttrHash != ChromiumStrategy._cachedAttributedStringHash && ChromiumStrategy._cachedAttributedStringHash != 0
+                if formattingChanged || ChromiumStrategy._cachedAttributedStringHash == 0 {
+                    ChromiumStrategy._cachedAttributedStringHash = currentAttrHash
+                }
             } else {
-                // Text changed in a way that affects existing positions - clear cache
-                ChromiumStrategy.boundsCache.removeAll()
-                ChromiumStrategy.lastMeasuredBounds = nil
-                ChromiumStrategy.consecutiveSameBoundsCount = 0
-                ChromiumStrategy.cachedAttributedStringHash = getAttributedStringHash(element: element)
+                formattingChanged = false
             }
 
-            ChromiumStrategy.cachedText = text
-            ChromiumStrategy.cachedElementFrame = currentFrame
-        } else {
-            // Initialize tracking on first run
-            if ChromiumStrategy.cachedElementFrame == .zero {
-                ChromiumStrategy.cachedElementFrame = currentFrame
-            }
-            if ChromiumStrategy.cachedAttributedStringHash == 0 {
-                ChromiumStrategy.cachedAttributedStringHash = getAttributedStringHash(element: element)
+            if textChanged || frameChanged || formattingChanged {
+                // Smart cache preservation: if text was only appended (no changes to existing text),
+                // keep the cache for existing ranges since their positions haven't changed.
+                // BUT: if formatting changed, we must clear the cache because character widths may have changed.
+                let hasPrefix = text.hasPrefix(oldText)
+                let textAppended = !oldText.isEmpty && hasPrefix && !frameChanged && !formattingChanged
+
+                if textAppended {
+                    // Text was appended at the end - preserve existing cache entries
+                    ChromiumStrategy._cachedAttributedStringHash = currentAttrHash
+                } else {
+                    // Text changed in a way that affects existing positions - clear cache
+                    ChromiumStrategy._boundsCache.removeAll()
+                    ChromiumStrategy._lastMeasuredBounds = nil
+                    ChromiumStrategy._consecutiveSameBoundsCount = 0
+                    ChromiumStrategy._cachedAttributedStringHash = currentAttrHash
+                }
+
+                ChromiumStrategy._cachedText = text
+                ChromiumStrategy._cachedElementFrame = currentFrame
+            } else {
+                // Initialize tracking on first run
+                if ChromiumStrategy._cachedElementFrame == .zero {
+                    ChromiumStrategy._cachedElementFrame = currentFrame
+                }
+                if ChromiumStrategy._cachedAttributedStringHash == 0 {
+                    ChromiumStrategy._cachedAttributedStringHash = currentAttrHash
+                }
             }
         }
     }
@@ -239,16 +257,20 @@ class ChromiumStrategy: GeometryProvider {
     // MARK: - Selection-Based Measurement
 
     private func saveCursorPosition(element: AXUIElement) {
-        guard !ChromiumStrategy.measurementInProgress else { return }
+        // Check if measurement already in progress (thread-safe)
+        let alreadyInProgress = ChromiumStrategy.stateQueue.sync { ChromiumStrategy._measurementInProgress }
+        guard !alreadyInProgress else { return }
 
         var selValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &selValue) == .success,
               let sv = selValue,
               let range = safeAXValueGetRange(sv) else { return }
 
-        ChromiumStrategy.savedCursorPosition = CFRange(location: range.location, length: range.length)
-        ChromiumStrategy.savedCursorElement = element
-        ChromiumStrategy.measurementInProgress = true
+        ChromiumStrategy.stateQueue.sync {
+            ChromiumStrategy._savedCursorPosition = CFRange(location: range.location, length: range.length)
+            ChromiumStrategy._savedCursorElement = element
+            ChromiumStrategy._measurementInProgress = true
+        }
     }
 
     /// Measure bounds by setting selection and reading AXBoundsForTextMarkerRange
@@ -282,18 +304,23 @@ class ChromiumStrategy: GeometryProvider {
             }
 
             // Detect stale data (Chromium returning previous selection's bounds)
-            if let lastBounds = ChromiumStrategy.lastMeasuredBounds,
-               abs(bounds.origin.x - lastBounds.origin.x) < 1 &&
-               abs(bounds.origin.y - lastBounds.origin.y) < 1 &&
-               abs(bounds.width - lastBounds.width) < 1 {
-                ChromiumStrategy.consecutiveSameBoundsCount += 1
-                if attempt < 6 { continue }
-            } else {
-                ChromiumStrategy.consecutiveSameBoundsCount = 0
+            let isStaleData = ChromiumStrategy.stateQueue.sync { () -> Bool in
+                if let lastBounds = ChromiumStrategy._lastMeasuredBounds,
+                   abs(bounds.origin.x - lastBounds.origin.x) < 1 &&
+                   abs(bounds.origin.y - lastBounds.origin.y) < 1 &&
+                   abs(bounds.width - lastBounds.width) < 1 {
+                    ChromiumStrategy._consecutiveSameBoundsCount += 1
+                    return true
+                } else {
+                    ChromiumStrategy._consecutiveSameBoundsCount = 0
+                    return false
+                }
             }
 
+            if isStaleData && attempt < 6 { continue }
+
             Logger.debug("ChromiumStrategy: Got bounds \(bounds) on attempt \(attempt)", category: Logger.analysis)
-            ChromiumStrategy.lastMeasuredBounds = bounds
+            ChromiumStrategy.stateQueue.sync { ChromiumStrategy._lastMeasuredBounds = bounds }
             return bounds
         }
 
