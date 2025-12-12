@@ -511,7 +511,7 @@ class NotionContentParser: ContentParser {
     // MARK: - Helper Methods
 
     /// Get bounds for a specific position and length
-    private func getBoundsForPosition(element: AXUIElement, position: Int, length: Int) -> NSRect? {
+    private func getBoundsForPosition(element: AXUIElement, position: Int, length: Int) -> CGRect? {
         var boundsValue: CFTypeRef?
         var axRange = CFRange(location: position, length: length)
         guard let rangeValue = AXValueCreate(.cfRange, &axRange) else {

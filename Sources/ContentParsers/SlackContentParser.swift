@@ -299,7 +299,7 @@ class SlackContentParser: ContentParser {
 
     /// Get validated bounds with Slack-specific origin check
     /// Slack's Electron app sometimes returns negative coordinates
-    private func getSlackValidatedBounds(element: AXUIElement, range: NSRange) -> NSRect? {
+    private func getSlackValidatedBounds(element: AXUIElement, range: NSRange) -> CGRect? {
         guard let bounds = AccessibilityBridge.getBoundsForRange(range, in: element) else {
             return nil
         }
@@ -391,7 +391,7 @@ class SlackContentParser: ContentParser {
     // MARK: - Element Frame
 
     /// Get element frame with Slack-specific workaround for negative X values
-    private func getSlackElementFrame(element: AXUIElement) -> NSRect? {
+    private func getSlackElementFrame(element: AXUIElement) -> CGRect? {
         guard var frame = AccessibilityBridge.getElementFrame(element) else {
             return nil
         }
@@ -408,7 +408,7 @@ class SlackContentParser: ContentParser {
         return frame
     }
 
-    private func getSlackWindowFrame(element: AXUIElement, elementPosition: NSPoint) -> NSRect? {
+    private func getSlackWindowFrame(element: AXUIElement, elementPosition: CGPoint) -> CGRect? {
         var pid: pid_t = 0
         guard AXUIElementGetPid(element, &pid) == .success else {
             return nil
@@ -419,7 +419,7 @@ class SlackContentParser: ContentParser {
         }
 
         let elementY = elementPosition.y
-        var candidateWindows: [(NSRect, String)] = []
+        var candidateWindows: [(CGRect, String)] = []
 
         for windowInfo in windowList {
             guard let windowPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
@@ -432,7 +432,7 @@ class SlackContentParser: ContentParser {
                 continue
             }
 
-            let windowFrame = NSRect(x: x, y: y, width: width, height: height)
+            let windowFrame = CGRect(x: x, y: y, width: width, height: height)
             let windowName = (windowInfo[kCGWindowName as String] as? String) ?? "Unknown"
 
             candidateWindows.append((windowFrame, windowName))

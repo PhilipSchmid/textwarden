@@ -212,7 +212,7 @@ extension ContentParser {
     }
 
     /// Get AX bounds for a range if available
-    private func getAXBounds(element: AXUIElement, range: NSRange) -> NSRect? {
+    private func getAXBounds(element: AXUIElement, range: NSRange) -> CGRect? {
         var boundsValue: CFTypeRef?
         let location = range.location
         let length = range.length
