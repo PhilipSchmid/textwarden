@@ -156,15 +156,15 @@ enum CoordinateMapper {
     /// Catches common AX API bugs and invalid values
     static func validateBounds(_ rect: CGRect) -> Bool {
         // Check for positive dimensions
-        guard rect.width > 0 && rect.height > 0 else {
+        guard GeometryConstants.hasValidSize(rect) else {
             Logger.debug("Invalid bounds: zero or negative dimensions \(rect)")
             return false
         }
 
         // Check for unreasonably large dimensions
-        // Text bounds should never exceed 800px wide or 200px tall
         // Anything larger is likely a container bound, not character bounds
-        guard rect.width < 800 && rect.height < 200 else {
+        guard rect.width < GeometryConstants.maximumTextWidth &&
+              rect.height < GeometryConstants.maximumLineHeight else {
             Logger.debug("Invalid bounds: dimensions too large for text \(rect)")
             return false
         }
