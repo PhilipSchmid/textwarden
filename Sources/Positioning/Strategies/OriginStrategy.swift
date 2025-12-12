@@ -147,13 +147,10 @@ class OriginStrategy: GeometryProvider {
             &boundsValue
         )
 
-        guard result == .success, let bv = boundsValue else {
+        guard result == .success,
+              let bv = boundsValue,
+              let bounds = safeAXValueGetRect(bv) else {
             Logger.debug("OriginStrategy: AXBoundsForRange failed with error \(result.rawValue)")
-            return nil
-        }
-
-        var bounds = CGRect.zero
-        guard AXValueGetValue(bv as! AXValue, .cgRect, &bounds) else {
             return nil
         }
 
