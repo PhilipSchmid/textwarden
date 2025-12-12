@@ -822,22 +822,26 @@ class FloatingErrorIndicator: NSPanel {
         if AXUIElementCopyAttributeValue(element, kAXWindowAttribute as CFString, &windowValue) != .success {
             // If this element doesn't have a window attribute, try to get its parent window
             var parentValue: CFTypeRef?
-            guard AXUIElementCopyAttributeValue(element, kAXParentAttribute as CFString, &parentValue) == .success else {
+            guard AXUIElementCopyAttributeValue(element, kAXParentAttribute as CFString, &parentValue) == .success,
+                  let parent = parentValue,
+                  CFGetTypeID(parent) == AXUIElementGetTypeID() else {
                 return nil
             }
 
             // Try up to 10 levels to find a window
-            var current = parentValue as! AXUIElement
+            var current = parent as! AXUIElement
             for _ in 0..<10 {
                 if AXUIElementCopyAttributeValue(current, kAXWindowAttribute as CFString, &windowValue) == .success {
                     break
                 }
 
                 var nextParent: CFTypeRef?
-                guard AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &nextParent) == .success else {
+                guard AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &nextParent) == .success,
+                      let np = nextParent,
+                      CFGetTypeID(np) == AXUIElementGetTypeID() else {
                     return nil
                 }
-                current = nextParent as! AXUIElement
+                current = np as! AXUIElement
             }
 
             guard windowValue != nil else {
@@ -845,7 +849,10 @@ class FloatingErrorIndicator: NSPanel {
             }
         }
 
-        let window = windowValue as! AXUIElement
+        guard let wv = windowValue, CFGetTypeID(wv) == AXUIElementGetTypeID() else {
+            return nil
+        }
+        let window = wv as! AXUIElement
 
         var positionValue: CFTypeRef?
         var sizeValue: CFTypeRef?
