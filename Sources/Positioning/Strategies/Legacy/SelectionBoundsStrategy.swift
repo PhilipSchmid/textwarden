@@ -166,12 +166,7 @@ class SelectionBoundsStrategy: GeometryProvider {
             return nil
         }
 
-        guard CFGetTypeID(axValue) == AXValueGetTypeID() else {
-            return nil
-        }
-
-        var range = CFRange(location: 0, length: 0)
-        guard AXValueGetValue(axValue as! AXValue, .cfRange, &range) else {
+        guard let range = safeAXValueGetRange(axValue) else {
             return nil
         }
 
@@ -214,13 +209,7 @@ class SelectionBoundsStrategy: GeometryProvider {
             return nil
         }
 
-        guard CFGetTypeID(axValue) == AXValueGetTypeID() else {
-            Logger.debug("SelectionBoundsStrategy: AXInsertionPointFrame returned non-AXValue type")
-            return nil
-        }
-
-        var frame = CGRect.zero
-        guard AXValueGetValue(axValue as! AXValue, .cgRect, &frame) else {
+        guard let frame = safeAXValueGetRect(axValue) else {
             Logger.debug("SelectionBoundsStrategy: Could not extract CGRect from AXInsertionPointFrame")
             return nil
         }

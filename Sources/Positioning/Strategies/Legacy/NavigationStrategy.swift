@@ -144,12 +144,9 @@ class NavigationStrategy: GeometryProvider {
             &value
         )
 
-        guard result == .success, let axValue = value else {
-            return nil
-        }
-
-        var range = CFRange(location: 0, length: 0)
-        guard AXValueGetValue(axValue as! AXValue, .cfRange, &range) else {
+        guard result == .success,
+              let axValue = value,
+              let range = safeAXValueGetRange(axValue) else {
             return nil
         }
 
@@ -207,16 +204,13 @@ class NavigationStrategy: GeometryProvider {
         var insertionValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, "AXInsertionPointFrame" as CFString, &insertionValue) == .success,
            let axValue = insertionValue,
-           CFGetTypeID(axValue) == AXValueGetTypeID() {
-            var frame = CGRect.zero
-            if AXValueGetValue(axValue as! AXValue, .cgRect, &frame) {
-                // Validate the frame
-                if frame.height > 5 && frame.height < 100 && frame.origin.x > 0 {
-                    Logger.debug("NavigationStrategy: Got valid bounds from AXInsertionPointFrame: \(frame)")
-                    return frame
-                } else {
-                    Logger.debug("NavigationStrategy: AXInsertionPointFrame returned invalid frame: \(frame)")
-                }
+           let frame = safeAXValueGetRect(axValue) {
+            // Validate the frame
+            if frame.height > 5 && frame.height < 100 && frame.origin.x > 0 {
+                Logger.debug("NavigationStrategy: Got valid bounds from AXInsertionPointFrame: \(frame)")
+                return frame
+            } else {
+                Logger.debug("NavigationStrategy: AXInsertionPointFrame returned invalid frame: \(frame)")
             }
         }
 
@@ -235,16 +229,13 @@ class NavigationStrategy: GeometryProvider {
         )
 
         if result == .success, let bv = boundsValue,
-           CFGetTypeID(bv) == AXValueGetTypeID() {
-            var bounds = CGRect.zero
-            if AXValueGetValue(bv as! AXValue, .cgRect, &bounds) {
-                // Validate bounds - Chromium bug returns (0, y, 0, 0)
-                if bounds.width > 0 && bounds.height > 5 && bounds.origin.x > 0 {
-                    Logger.debug("NavigationStrategy: Got valid bounds from AXBoundsForRange: \(bounds)")
-                    return bounds
-                } else {
-                    Logger.debug("NavigationStrategy: AXBoundsForRange returned invalid bounds: \(bounds)")
-                }
+           let bounds = safeAXValueGetRect(bv) {
+            // Validate bounds - Chromium bug returns (0, y, 0, 0)
+            if bounds.width > 0 && bounds.height > 5 && bounds.origin.x > 0 {
+                Logger.debug("NavigationStrategy: Got valid bounds from AXBoundsForRange: \(bounds)")
+                return bounds
+            } else {
+                Logger.debug("NavigationStrategy: AXBoundsForRange returned invalid bounds: \(bounds)")
             }
         }
 
