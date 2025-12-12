@@ -218,13 +218,15 @@ extension ContentParser {
         let length = range.length
 
         var axRange = CFRange(location: location, length: length)
-        let rangeValue = AXValueCreate(.cfRange, &axRange)
+        guard let rangeValue = AXValueCreate(.cfRange, &axRange) else {
+            return nil
+        }
 
         // Try to get bounds for range
         let result = AXUIElementCopyParameterizedAttributeValue(
             element,
             kAXBoundsForRangeParameterizedAttribute as CFString,
-            rangeValue!,
+            rangeValue,
             &boundsValue
         )
 
@@ -232,8 +234,7 @@ extension ContentParser {
             return nil
         }
 
-        var bounds = CGRect.zero
-        guard AXValueGetValue(boundsValue as! AXValue, .cgRect, &bounds) else {
+        guard let bounds = safeAXValueGetRect(boundsValue) else {
             return nil
         }
 
@@ -258,11 +259,10 @@ extension ContentParser {
             return nil
         }
 
-        var position = CGPoint.zero
-        var size = CGSize.zero
-
-        guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &position),
-              AXValueGetValue(sizeValue as! AXValue, .cgSize, &size) else {
+        guard let posValue = positionValue,
+              let szValue = sizeValue,
+              let position = safeAXValueGetPoint(posValue),
+              let size = safeAXValueGetSize(szValue) else {
             return nil
         }
 
