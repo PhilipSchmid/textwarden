@@ -10,6 +10,7 @@ import ApplicationServices
 import Combine
 
 /// Monitors text changes in applications via Accessibility API
+@MainActor
 class TextMonitor: ObservableObject {
 
     // MARK: - Published State
@@ -565,14 +566,17 @@ private func axObserverCallback(
 
     let notificationName = notification as String
 
-    if notificationName == kAXValueChangedNotification as String {
-        Logger.debug("axObserverCallback: Value changed - extracting text", category: Logger.accessibility)
-        monitor.extractText(from: element)
-    } else if notificationName == kAXFocusedUIElementChangedNotification as String {
-        Logger.debug("axObserverCallback: Focus changed - monitoring new element", category: Logger.accessibility)
-        monitor.monitorElement(element)
-    } else {
-        Logger.debug("axObserverCallback: Unknown notification: \(notificationName)", category: Logger.accessibility)
+    // Dispatch to main actor since TextMonitor is @MainActor isolated
+    Task { @MainActor in
+        if notificationName == kAXValueChangedNotification as String {
+            Logger.debug("axObserverCallback: Value changed - extracting text", category: Logger.accessibility)
+            monitor.extractText(from: element)
+        } else if notificationName == kAXFocusedUIElementChangedNotification as String {
+            Logger.debug("axObserverCallback: Focus changed - monitoring new element", category: Logger.accessibility)
+            monitor.monitorElement(element)
+        } else {
+            Logger.debug("axObserverCallback: Unknown notification: \(notificationName)", category: Logger.accessibility)
+        }
     }
 }
 

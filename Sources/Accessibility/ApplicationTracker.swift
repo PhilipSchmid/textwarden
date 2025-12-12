@@ -10,6 +10,7 @@ import AppKit
 import Combine
 
 /// Tracks the currently active application and notifies observers
+@MainActor
 class ApplicationTracker: ObservableObject {
     static let shared = ApplicationTracker()
 

@@ -352,6 +352,7 @@ struct ApplicationState: Codable {
     let pausedApplications: [String: String] // bundleId: pauseDuration (includes "Paused Indefinitely")
     let pausedByDefaultApplications: [String: String] // bundleId: applicationName (terminals/hidden apps)
 
+    @MainActor
     static func current(preferences: UserPreferences) -> ApplicationState {
         let tracker = ApplicationTracker.shared
         let isPaused = preferences.pauseDuration != .active
