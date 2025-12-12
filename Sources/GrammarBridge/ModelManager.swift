@@ -53,11 +53,14 @@ public class ModelManager: ObservableObject {
 
     /// Models directory URL
     private lazy var modelsDirectoryURL: URL = {
-        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            Logger.critical("Application Support directory not available", category: Logger.general)
-            fatalError("Application Support directory not available")
+        let baseURL: URL
+        if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            baseURL = appSupport
+        } else {
+            Logger.critical("Application Support directory not available, using temp directory", category: Logger.general)
+            baseURL = FileManager.default.temporaryDirectory
         }
-        return appSupport.appendingPathComponent("TextWarden/Models", isDirectory: true)
+        return baseURL.appendingPathComponent("TextWarden/Models", isDirectory: true)
     }()
 
     private init() {
