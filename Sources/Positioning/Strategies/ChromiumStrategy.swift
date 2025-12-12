@@ -243,14 +243,12 @@ class ChromiumStrategy: GeometryProvider {
 
         var selValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &selValue) == .success,
-              let sv = selValue else { return }
+              let sv = selValue,
+              let range = safeAXValueGetRange(sv) else { return }
 
-        var range = CFRange(location: 0, length: 0)
-        if AXValueGetValue(sv as! AXValue, .cfRange, &range) {
-            ChromiumStrategy.savedCursorPosition = range
-            ChromiumStrategy.savedCursorElement = element
-            ChromiumStrategy.measurementInProgress = true
-        }
+        ChromiumStrategy.savedCursorPosition = CFRange(location: range.location, length: range.length)
+        ChromiumStrategy.savedCursorElement = element
+        ChromiumStrategy.measurementInProgress = true
     }
 
     /// Measure bounds by setting selection and reading AXBoundsForTextMarkerRange
@@ -318,12 +316,9 @@ class ChromiumStrategy: GeometryProvider {
             markerRange,
             &boundsRef
         )
-        guard boundsResult == .success, let bv = boundsRef else {
-            return nil
-        }
-
-        var rect = CGRect.zero
-        guard AXValueGetValue(bv as! AXValue, .cgRect, &rect) else {
+        guard boundsResult == .success,
+              let bv = boundsRef,
+              let rect = safeAXValueGetRect(bv) else {
             return nil
         }
 
@@ -353,15 +348,11 @@ class ChromiumStrategy: GeometryProvider {
         var sizeValue: CFTypeRef?
 
         guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &posValue) == .success,
-              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success else {
-            return nil
-        }
-
-        var pos = CGPoint.zero
-        var size = CGSize.zero
-
-        guard AXValueGetValue(posValue as! AXValue, .cgPoint, &pos),
-              AXValueGetValue(sizeValue as! AXValue, .cgSize, &size) else {
+              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
+              let pv = posValue,
+              let sv = sizeValue,
+              let pos = safeAXValueGetPoint(pv),
+              let size = safeAXValueGetSize(sv) else {
             return nil
         }
 
