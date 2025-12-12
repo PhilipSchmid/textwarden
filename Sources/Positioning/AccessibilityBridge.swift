@@ -827,6 +827,63 @@ enum AccessibilityBridge {
         return point
     }
 
+    /// Find the window element containing the given element
+    /// Walks up the AX hierarchy looking for kAXWindowAttribute or AXWindow role
+    /// - Parameter element: The element to find the window for
+    /// - Returns: The window AXUIElement, or nil if not found
+    static func findWindowElement(_ element: AXUIElement) -> AXUIElement? {
+        // First try direct window attribute
+        var windowValue: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXWindowAttribute as CFString, &windowValue) == .success,
+           let wv = windowValue,
+           CFGetTypeID(wv) == AXUIElementGetTypeID() {
+            return (wv as! AXUIElement)
+        }
+
+        // Walk up the parent hierarchy
+        var currentElement: AXUIElement? = element
+        for _ in 0..<10 {
+            guard let current = currentElement else { break }
+
+            // Check if current element has window attribute
+            if AXUIElementCopyAttributeValue(current, kAXWindowAttribute as CFString, &windowValue) == .success,
+               let wv = windowValue,
+               CFGetTypeID(wv) == AXUIElementGetTypeID() {
+                return (wv as! AXUIElement)
+            }
+
+            // Check if current element IS a window (by role)
+            var roleValue: CFTypeRef?
+            if AXUIElementCopyAttributeValue(current, kAXRoleAttribute as CFString, &roleValue) == .success,
+               let role = roleValue as? String,
+               role == "AXWindow" || role == kAXWindowRole as String {
+                return current
+            }
+
+            // Move to parent
+            var parentValue: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentValue) == .success,
+                  let parent = parentValue,
+                  CFGetTypeID(parent) == AXUIElementGetTypeID() else {
+                break
+            }
+            currentElement = (parent as! AXUIElement)
+        }
+
+        return nil
+    }
+
+    /// Get the frame of the window containing the given element
+    /// Returns frame in Quartz coordinates (top-left origin)
+    /// - Parameter element: The element whose window frame to get
+    /// - Returns: The window frame in Quartz coordinates, or nil if not found
+    static func getWindowFrame(_ element: AXUIElement) -> CGRect? {
+        guard let window = findWindowElement(element) else {
+            return nil
+        }
+        return getElementFrame(window)
+    }
+
     /// Get bounds for a text range using AXBoundsForRange API
     /// Returns nil if the API fails or returns invalid bounds (Chromium bugs)
     /// - Parameters:

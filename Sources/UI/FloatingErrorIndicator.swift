@@ -815,58 +815,9 @@ class FloatingErrorIndicator: NSPanel {
     }
 
     /// Get the window frame for the given element (may include scrollback for terminals)
+    /// Uses centralized AccessibilityBridge.getWindowFrame() helper
     private func getWindowFrame(for element: AXUIElement) -> CGRect? {
-        // Try to get the window that contains this element
-        var windowValue: CFTypeRef?
-
-        if AXUIElementCopyAttributeValue(element, kAXWindowAttribute as CFString, &windowValue) != .success {
-            // If this element doesn't have a window attribute, try to get its parent window
-            var parentValue: CFTypeRef?
-            guard AXUIElementCopyAttributeValue(element, kAXParentAttribute as CFString, &parentValue) == .success,
-                  let parent = parentValue,
-                  CFGetTypeID(parent) == AXUIElementGetTypeID() else {
-                return nil
-            }
-
-            // Try up to 10 levels to find a window
-            var current = parent as! AXUIElement
-            for _ in 0..<10 {
-                if AXUIElementCopyAttributeValue(current, kAXWindowAttribute as CFString, &windowValue) == .success {
-                    break
-                }
-
-                var nextParent: CFTypeRef?
-                guard AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &nextParent) == .success,
-                      let np = nextParent,
-                      CFGetTypeID(np) == AXUIElementGetTypeID() else {
-                    return nil
-                }
-                current = np as! AXUIElement
-            }
-
-            guard windowValue != nil else {
-                return nil
-            }
-        }
-
-        guard let wv = windowValue, CFGetTypeID(wv) == AXUIElementGetTypeID() else {
-            return nil
-        }
-        let window = wv as! AXUIElement
-
-        var positionValue: CFTypeRef?
-        var sizeValue: CFTypeRef?
-
-        guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &positionValue) == .success,
-              AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeValue) == .success,
-              let posValue = positionValue,
-              let szValue = sizeValue,
-              let position = safeAXValueGetPoint(posValue),
-              let size = safeAXValueGetSize(szValue) else {
-            return nil
-        }
-
-        return NSRect(origin: position, size: size)
+        return AccessibilityBridge.getWindowFrame(element)
     }
 
     // MARK: - Error Color Mapping

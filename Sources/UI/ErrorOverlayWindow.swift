@@ -599,84 +599,32 @@ class ErrorOverlayWindow: NSPanel {
             }
         }
 
-        // Try Method 2: Walk up AX hierarchy
+        // Try Method 2: Walk up AX hierarchy using centralized helper
         Logger.debug("ErrorOverlay: CGWindow API failed, trying AX hierarchy", category: Logger.ui)
 
-        var windowElement: AXUIElement?
-        var currentElement: AXUIElement? = element
+        if let quartzFrame = AccessibilityBridge.getWindowFrame(element) {
+            Logger.debug("ErrorOverlay: Found window via AX hierarchy, frame (Quartz): \(quartzFrame)", category: Logger.ui)
 
-        // Walk up the accessibility hierarchy to find the window
-        for level in 0..<10 { // Max 10 levels up
-            guard let current = currentElement else {
-                Logger.debug("ErrorOverlay: AX walk stopped at level \(level) - no current element", category: Logger.ui)
-                break
-            }
+            // Convert from Quartz (top-left origin) to Cocoa (bottom-left origin)
+            if let screen = NSScreen.main {
+                let screenHeight = screen.frame.height
+                let cocoaY = screenHeight - quartzFrame.origin.y - quartzFrame.height
 
-            var roleValue: CFTypeRef?
-            let roleResult = AXUIElementCopyAttributeValue(current, kAXRoleAttribute as CFString, &roleValue)
+                var frame = CGRect(x: quartzFrame.origin.x, y: cocoaY, width: quartzFrame.width, height: quartzFrame.height)
 
-            guard roleResult == .success, let role = roleValue as? String else {
-                Logger.debug("ErrorOverlay: AX walk stopped at level \(level) - could not get role (result: \(roleResult.rawValue))", category: Logger.ui)
-                break
-            }
+                // Account for window chrome (title bar, borders)
+                let chromeTop: CGFloat = 24    // Title bar
+                let chromeLeft: CGFloat = 2    // Left border
+                let chromeRight: CGFloat = 2   // Right border
+                let chromeBottom: CGFloat = 2  // Bottom border
 
-            Logger.debug("ErrorOverlay: AX walk level \(level) - role: \(role)", category: Logger.ui)
+                frame.origin.x += chromeLeft
+                frame.origin.y += chromeBottom
+                frame.size.width -= (chromeLeft + chromeRight)
+                frame.size.height -= (chromeTop + chromeBottom)
 
-            if role == "AXWindow" || role == kAXWindowRole as String {
-                windowElement = current
-                Logger.debug("ErrorOverlay: Found AXWindow at level \(level)", category: Logger.ui)
-                break
-            }
-
-            var parentValue: CFTypeRef?
-            let parentResult = AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentValue)
-            guard parentResult == .success,
-                  let parent = parentValue,
-                  CFGetTypeID(parent) == AXUIElementGetTypeID() else {
-                Logger.debug("ErrorOverlay: AX walk stopped at level \(level) - could not get parent (result: \(parentResult.rawValue))", category: Logger.ui)
-                break
-            }
-            currentElement = (parent as! AXUIElement)
-        }
-
-        // If we found a window element, get its frame
-        if let window = windowElement {
-            Logger.debug("ErrorOverlay: Extracting frame from AXWindow element", category: Logger.ui)
-
-            var positionValue: CFTypeRef?
-            var sizeValue: CFTypeRef?
-
-            let positionResult = AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &positionValue)
-            let sizeResult = AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeValue)
-
-            if positionResult == .success, sizeResult == .success,
-               let position = positionValue, let size = sizeValue,
-               let origin = safeAXValueGetPoint(position),
-               let windowSize = safeAXValueGetSize(size) {
-
-                // Convert from Quartz (top-left origin) to Cocoa (bottom-left origin)
-                if let screen = NSScreen.main {
-                    let screenHeight = screen.frame.height
-                    let cocoaY = screenHeight - origin.y - windowSize.height
-
-                    var frame = NSRect(x: origin.x, y: cocoaY, width: windowSize.width, height: windowSize.height)
-
-                    // Account for window chrome (title bar, borders)
-                    let chromeTop: CGFloat = 24    // Title bar
-                    let chromeLeft: CGFloat = 2    // Left border
-                    let chromeRight: CGFloat = 2   // Right border
-                    let chromeBottom: CGFloat = 2  // Bottom border
-
-                    frame.origin.x += chromeLeft
-                    frame.origin.y += chromeBottom
-                    frame.size.width -= (chromeLeft + chromeRight)
-                    frame.size.height -= (chromeTop + chromeBottom)
-
-                    Logger.debug("ErrorOverlay: Got window frame from AX hierarchy (with chrome margins): \(frame)", category: Logger.ui)
-                    return frame
-                }
-            } else {
-                Logger.debug("ErrorOverlay: Could not extract position/size from AXWindow (pos result: \(positionResult.rawValue), size result: \(sizeResult.rawValue))", category: Logger.ui)
+                Logger.debug("ErrorOverlay: Got window frame from AX hierarchy (with chrome margins): \(frame)", category: Logger.ui)
+                return frame
             }
         }
 
