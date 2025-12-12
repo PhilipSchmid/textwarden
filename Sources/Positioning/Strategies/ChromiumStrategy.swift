@@ -39,7 +39,7 @@ class ChromiumStrategy: GeometryProvider {
     private static var textFirstSeenTime: Date = .distantPast
 
     /// Minimum time text must be stable before measuring (avoids cursor interference during typing)
-    private static let typingPauseThreshold: TimeInterval = 1.0
+    private static let typingPauseThreshold: TimeInterval = TimingConstants.typingPauseThreshold
 
     // MARK: - Cursor Restoration State
 

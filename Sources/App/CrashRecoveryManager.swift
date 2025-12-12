@@ -12,10 +12,10 @@ import AppKit
 class CrashRecoveryManager {
     static let shared = CrashRecoveryManager()
 
-    private let heartbeatInterval: TimeInterval = 5.0
-    private let crashDetectionTimeout: TimeInterval = 10.0
+    private let heartbeatInterval: TimeInterval = TimingConstants.heartbeatInterval
+    private let crashDetectionTimeout: TimeInterval = TimingConstants.crashDetectionTimeout
     private let maxRestartAttempts = 3
-    private let restartCooldown: TimeInterval = 60.0
+    private let restartCooldown: TimeInterval = TimingConstants.restartCooldown
 
     private var heartbeatTimer: Timer?
     private var lastHeartbeat: Date?

@@ -1375,7 +1375,7 @@ class AnalysisCoordinator: ObservableObject {
         // For non-resize or non-Electron, just apply minimum settle time
         if let resizeTime = lastResizeTime {
             let timeSinceResize = Date().timeIntervalSince(resizeTime)
-            let requiredSettleTime: TimeInterval = 0.15
+            let requiredSettleTime: TimeInterval = TimingConstants.textSettleTime
 
             if timeSinceResize < requiredSettleTime {
                 let remainingTime = requiredSettleTime - timeSinceResize
@@ -4170,7 +4170,7 @@ class AnalysisCoordinator: ObservableObject {
         }
 
         let delay = context.keyboardOperationDelay
-        let activationDelay: TimeInterval = 0.2
+        let activationDelay: TimeInterval = TimingConstants.keyboardActivationDelay
         Logger.debug("Using \(delay)s keyboard delay + \(activationDelay)s activation delay for \(context.applicationName)", category: Logger.analysis)
 
         // Save suggestion to clipboard
@@ -4191,7 +4191,7 @@ class AnalysisCoordinator: ObservableObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 guard let self = self else { return }
                 // Step 2: Navigate to error start position using Right arrow
-                let navigationDelay: TimeInterval = 0.001
+                let navigationDelay: TimeInterval = TimingConstants.arrowKeyDelay
 
                 // Navigate to error start
                 self.sendArrowKeys(count: error.start, keyCode: 124, flags: [], delay: navigationDelay) { [weak self] in

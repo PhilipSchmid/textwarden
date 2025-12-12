@@ -64,7 +64,7 @@ class NotionContentParser: ContentParser {
 
     /// Cache for cursor position to avoid repeated AX calls
     private var cachedCursorInfo: (position: Int, frame: NSRect, timestamp: Date)?
-    private let cursorCacheTimeout: TimeInterval = 0.5  // 500ms cache
+    private let cursorCacheTimeout: TimeInterval = TimingConstants.cursorCacheTimeout
 
     // MARK: - Initialization
 

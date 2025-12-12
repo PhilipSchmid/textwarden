@@ -29,7 +29,7 @@ class PositionCache {
 
     private var cache: [CacheKey: CacheEntry] = [:]
     private let maxEntries = 100
-    private let maxAge: TimeInterval = 5.0  // 5 seconds
+    private let maxAge: TimeInterval = TimingConstants.positionCacheExpiration
     private let queue = DispatchQueue(label: "com.textwarden.position-cache", qos: .userInitiated)
 
     // Statistics
