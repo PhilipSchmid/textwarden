@@ -3426,7 +3426,8 @@ class AnalysisCoordinator: ObservableObject {
         // issues that occur with Delete+Paste approach.
         let delay = context.keyboardOperationDelay
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            guard let self = self else { return }
             var pasteSucceeded = false
 
             // Skip menu paste for Mac Catalyst apps - AXPressAction returns success but doesn't work
@@ -3476,7 +3477,8 @@ class AnalysisCoordinator: ObservableObject {
 
                 // Wait a bit for typing to complete, then finish up
                 let typingDelay = Double(suggestion.count) * 0.01 + 0.1  // ~10ms per char + buffer
-                DispatchQueue.main.asyncAfter(deadline: .now() + typingDelay) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + typingDelay) { [weak self] in
+                    guard let self = self else { return }
                     // Record statistics
                     UserStatistics.shared.recordSuggestionApplied(category: currentError.category)
 
@@ -3498,8 +3500,8 @@ class AnalysisCoordinator: ObservableObject {
             if !pasteSucceeded {
                 // Need to wait for keyboard fallback delay + paste execution time
                 pasteCompleteDelay = delay + 0.1
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                    self.pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                    self?.pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
                     Logger.debug("Pasted via keyboard shortcut (Cmd+V fallback)", category: Logger.analysis)
                 }
             } else {
@@ -3509,7 +3511,8 @@ class AnalysisCoordinator: ObservableObject {
 
             // Step 7: Wait for paste to complete, then restore pasteboard and signal completion
             let completionDelay = pasteCompleteDelay + 0.15
-            DispatchQueue.main.asyncAfter(deadline: .now() + completionDelay) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + completionDelay) { [weak self] in
+                guard let self = self else { return }
                 // Restore original pasteboard
                 if pasteboard.changeCount == originalChangeCount + 1 {
                     // Pasteboard only has our change - safe to restore
