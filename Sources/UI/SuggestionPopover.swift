@@ -140,6 +140,14 @@ class SuggestionPopover: NSObject, ObservableObject {
         super.init()
     }
 
+    deinit {
+        // Clean up event monitor to prevent memory leaks
+        if let monitor = clickOutsideMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+        hideTimer?.invalidate()
+    }
+
     /// Log to file for debugging (same as TextWardenApp)
     private func logToFile(_ message: String) {
         let logPath = "/tmp/textwarden-debug.log"
