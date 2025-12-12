@@ -4177,20 +4177,24 @@ class AnalysisCoordinator: ObservableObject {
 
         // Use keyboard navigation to select and replace text
         // Wait for app activation to complete before sending keyboard events
-        DispatchQueue.main.asyncAfter(deadline: .now() + activationDelay) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + activationDelay) { [weak self] in
+            guard let self = self else { return }
             // Step 1: Go to beginning of text field (Cmd+Left = Home)
             self.pressKey(key: 123, flags: .maskCommand)
 
             // Wait for navigation
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self = self else { return }
                 // Step 2: Navigate to error start position using Right arrow
                 let navigationDelay: TimeInterval = 0.001
 
                 // Navigate to error start
-                self.sendArrowKeys(count: error.start, keyCode: 124, flags: [], delay: navigationDelay) {
+                self.sendArrowKeys(count: error.start, keyCode: 124, flags: [], delay: navigationDelay) { [weak self] in
+                    guard let self = self else { return }
                     // Step 3: Select error text using Shift+Right arrow
                     let errorLength = error.end - error.start
-                    self.sendArrowKeys(count: errorLength, keyCode: 124, flags: .maskShift, delay: navigationDelay) {
+                    self.sendArrowKeys(count: errorLength, keyCode: 124, flags: .maskShift, delay: navigationDelay) { [weak self] in
+                        guard let self = self else { return }
                         // Step 4: Paste suggestion (Cmd+V)
                         self.pressKey(key: 9, flags: .maskCommand) // Cmd+V
 
@@ -4279,13 +4283,16 @@ class AnalysisCoordinator: ObservableObject {
         }
 
         var remaining = count
+        // Use weak self to avoid retain cycle in recursive closure
+        weak var weakSelf = self
         func sendNext() {
+            guard let strongSelf = weakSelf else { return }
             guard remaining > 0 else {
                 completion()
                 return
             }
 
-            self.pressKey(key: keyCode, flags: flags)
+            strongSelf.pressKey(key: keyCode, flags: flags)
             remaining -= 1
 
             if remaining > 0 {
