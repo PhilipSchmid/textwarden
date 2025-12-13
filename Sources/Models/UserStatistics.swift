@@ -515,8 +515,8 @@ class UserStatistics: ObservableObject {
     func appUsageBreakdown(in timeRange: TimeRange) -> [String: Int] {
         var breakdown: [String: Int] = [:]
         for session in filteredSessions(for: timeRange) {
-            if let bundleId = session.bundleIdentifier, session.errorsFound > 0 {
-                breakdown[bundleId, default: 0] += session.errorsFound
+            if let bundleID = session.bundleIdentifier, session.errorsFound > 0 {
+                breakdown[bundleID, default: 0] += session.errorsFound
             }
         }
         return breakdown
@@ -1111,7 +1111,7 @@ class UserStatistics: ObservableObject {
     }
 
     /// Convert bundle ID to friendly app name
-    func friendlyAppName(from bundleId: String) -> String {
+    func friendlyAppName(from bundleID: String) -> String {
         // Map common bundle IDs to friendly names
         let knownApps: [String: String] = [
             "com.tinyspeck.slackmacgap": "Slack",
@@ -1130,7 +1130,7 @@ class UserStatistics: ObservableObject {
             "com.microsoft.Word": "Word",
         ]
 
-        return knownApps[bundleId] ?? bundleId.components(separatedBy: ".").last?.capitalized ?? bundleId
+        return knownApps[bundleID] ?? bundleID.components(separatedBy: ".").last?.capitalized ?? bundleID
     }
 
     // MARK: - LLM Style Checking Recording

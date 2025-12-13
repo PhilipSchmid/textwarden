@@ -159,10 +159,10 @@ final class ApplicationConfigurationTests: XCTestCase {
             "com.brave.Browser"
         ]
 
-        for bundleId in browsers {
-            let delay = ApplicationConfiguration.keyboardOperationDelay(for: bundleId)
-            XCTAssertGreaterThanOrEqual(delay, 0.05, "\(bundleId) should have reasonable delay")
-            XCTAssertLessThanOrEqual(delay, 0.15, "\(bundleId) delay should not be excessive")
+        for bundleID in browsers {
+            let delay = ApplicationConfiguration.keyboardOperationDelay(for: bundleID)
+            XCTAssertGreaterThanOrEqual(delay, 0.05, "\(bundleID) should have reasonable delay")
+            XCTAssertLessThanOrEqual(delay, 0.15, "\(bundleID) delay should not be excessive")
         }
     }
 
@@ -175,9 +175,9 @@ final class ApplicationConfigurationTests: XCTestCase {
             "com.electron.app"
         ]
 
-        for bundleId in electronApps {
-            let supports = ApplicationConfiguration.supportsFormatPreservation(for: bundleId)
-            XCTAssertFalse(supports, "\(bundleId) should not support format preservation (Electron app)")
+        for bundleID in electronApps {
+            let supports = ApplicationConfiguration.supportsFormatPreservation(for: bundleID)
+            XCTAssertFalse(supports, "\(bundleID) should not support format preservation (Electron app)")
         }
     }
 }

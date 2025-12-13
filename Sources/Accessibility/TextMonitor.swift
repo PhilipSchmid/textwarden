@@ -200,8 +200,8 @@ class TextMonitor: ObservableObject {
 
         // App-specific check: Some apps (like Word) may return toolbar elements as focused
         // even though they pass isEditableElement. Check with the parser.
-        if !needsAlternativeElement, let bundleId = currentContext?.bundleIdentifier {
-            needsAlternativeElement = !isValidContentElement(axElement, bundleId: bundleId)
+        if !needsAlternativeElement, let bundleID = currentContext?.bundleIdentifier {
+            needsAlternativeElement = !isValidContentElement(axElement, bundleID: bundleID)
         }
 
         if needsAlternativeElement {
@@ -224,7 +224,7 @@ class TextMonitor: ObservableObject {
             }
 
             // Strategy 3 (Word-specific): Use parser to find document element
-            if let bundleId = currentContext?.bundleIdentifier, bundleId == "com.microsoft.Word" {
+            if let bundleID = currentContext?.bundleIdentifier, bundleID == "com.microsoft.Word" {
                 if let documentElement = WordContentParser.findDocumentElement(from: axElement) {
                     Logger.debug("TextMonitor: Found Word document element via parser!", category: Logger.accessibility)
                     monitorElement(documentElement, retryAttempt: retryAttempt)
@@ -279,8 +279,8 @@ class TextMonitor: ObservableObject {
 
         // For browsers, skip UI elements like search fields, URL bars, find-in-page
         // These are not meaningful for grammar checking - we want actual web content
-        if let bundleId = currentContext?.bundleIdentifier,
-           AppRegistry.shared.configuration(for: bundleId).parserType == .browser {
+        if let bundleID = currentContext?.bundleIdentifier,
+           AppRegistry.shared.configuration(for: bundleID).parserType == .browser {
             if BrowserContentParser.isBrowserUIElement(element) {
                 Logger.debug("TextMonitor: Skipping browser UI element (not web content)", category: Logger.accessibility)
                 // Clear any existing monitoring and notify to hide overlays
@@ -299,8 +299,8 @@ class TextMonitor: ObservableObject {
 
         // For Apple Mail, skip non-composition elements (sidebar folders, message list, search)
         // Only check text in actual email composition areas (new mail, reply, forward)
-        if let bundleId = currentContext?.bundleIdentifier,
-           AppRegistry.shared.configuration(for: bundleId).parserType == .mail {
+        if let bundleID = currentContext?.bundleIdentifier,
+           AppRegistry.shared.configuration(for: bundleID).parserType == .mail {
             if !MailContentParser.isMailCompositionElement(element) {
                 Logger.debug("TextMonitor: Skipping non-composition Mail element (sidebar/list/search)", category: Logger.accessibility)
                 // Clear any existing monitoring and notify to hide overlays
@@ -321,8 +321,8 @@ class TextMonitor: ObservableObject {
         // PowerPoint only exposes the Notes section via accessibility API (slide text boxes are not accessible).
         // If we already have a valid monitored Notes element (AXTextArea), preserve it when focus
         // bounces to non-editable elements (AXGroup, AXUnknown, AXScrollArea, etc.).
-        if let bundleId = currentContext?.bundleIdentifier,
-           bundleId == "com.microsoft.Powerpoint",
+        if let bundleID = currentContext?.bundleIdentifier,
+           bundleID == "com.microsoft.Powerpoint",
            let existingElement = monitoredElement {
 
             // Check if new element is the Notes AXTextArea
@@ -445,8 +445,8 @@ class TextMonitor: ObservableObject {
 
         // First, try app-specific extraction via ContentParser
         // This allows apps like Apple Mail to use custom extraction logic
-        if let bundleId = currentContext?.bundleIdentifier {
-            let parser = ContentParserFactory.shared.parser(for: bundleId)
+        if let bundleID = currentContext?.bundleIdentifier {
+            let parser = ContentParserFactory.shared.parser(for: bundleID)
             if let parserText = parser.extractText(from: element) {
                 Logger.debug("TextMonitor: Got text from parser (\(parserText.count) chars)", category: Logger.accessibility)
                 extractedText = parserText
@@ -644,8 +644,8 @@ extension TextMonitor {
         for child in children {
             if isEditableElement(child) {
                 // Additional check: for Word, ensure element is valid content (not toolbar)
-                if let bundleId = currentContext?.bundleIdentifier {
-                    if !isValidContentElement(child, bundleId: bundleId) {
+                if let bundleID = currentContext?.bundleIdentifier {
+                    if !isValidContentElement(child, bundleID: bundleID) {
                         Logger.debug("TextMonitor: Skipping element - not valid content for app", category: Logger.accessibility)
                         continue
                     }
@@ -692,8 +692,8 @@ extension TextMonitor {
 
         // AXLayoutArea is usually read-only, but PowerPoint uses it for editable text boxes
         if roleString == "AXLayoutArea" {
-            if let bundleId = currentContext?.bundleIdentifier,
-               bundleId == "com.microsoft.Powerpoint" {
+            if let bundleID = currentContext?.bundleIdentifier,
+               bundleID == "com.microsoft.Powerpoint" {
                 // PowerPoint uses AXLayoutArea for slide text boxes - check if it has content
                 var valueRef: CFTypeRef?
                 if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success {
@@ -735,8 +735,8 @@ extension TextMonitor {
         )
 
         // If we can check enabled status, ensure it's enabled
-        let bundleId = currentContext?.bundleIdentifier ?? "unknown"
-        Logger.debug("TextMonitor: Enabled check result=\(enabledResult.rawValue), bundleId=\(bundleId)", category: Logger.accessibility)
+        let bundleID = currentContext?.bundleIdentifier ?? "unknown"
+        Logger.debug("TextMonitor: Enabled check result=\(enabledResult.rawValue), bundleID=\(bundleID)", category: Logger.accessibility)
 
         if enabledResult == .success, let enabled = isEnabled as? Bool {
             Logger.debug("TextMonitor: AXEnabled=\(enabled) for role \(roleString)", category: Logger.accessibility)
@@ -744,7 +744,7 @@ extension TextMonitor {
                 // Microsoft Office AXTextArea reports AXEnabled=false even when editable
                 // Accept AXTextArea for Word/PowerPoint since we've validated via content parser
                 if roleString == kAXTextAreaRole as String,
-                   (bundleId == "com.microsoft.Word" || bundleId == "com.microsoft.Powerpoint") {
+                   (bundleID == "com.microsoft.Word" || bundleID == "com.microsoft.Powerpoint") {
                     Logger.debug("TextMonitor: Office AXTextArea reports disabled, but accepting anyway", category: Logger.accessibility)
                     return true
                 }
@@ -759,9 +759,9 @@ extension TextMonitor {
 
     /// Check if element is valid content for the specific app (not toolbar/UI element)
     /// Some apps like Word return toolbar elements as focused even though they're technically editable
-    private func isValidContentElement(_ element: AXUIElement, bundleId: String) -> Bool {
+    private func isValidContentElement(_ element: AXUIElement, bundleID: String) -> Bool {
         // Word-specific check: filter out toolbar/ribbon elements
-        if bundleId == "com.microsoft.Word" {
+        if bundleID == "com.microsoft.Word" {
             let isDocument = WordContentParser.isDocumentElement(element)
             if !isDocument {
                 Logger.debug("TextMonitor: Word element rejected by parser (likely toolbar)", category: Logger.accessibility)
@@ -770,7 +770,7 @@ extension TextMonitor {
         }
 
         // PowerPoint-specific check: filter out toolbar/ribbon elements
-        if bundleId == "com.microsoft.Powerpoint" {
+        if bundleID == "com.microsoft.Powerpoint" {
             let isSlide = PowerPointContentParser.isSlideElement(element)
             if !isSlide {
                 Logger.debug("TextMonitor: PowerPoint element rejected by parser (likely toolbar)", category: Logger.accessibility)

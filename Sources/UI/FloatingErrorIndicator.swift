@@ -332,10 +332,10 @@ class FloatingErrorIndicator: NSPanel {
 
         // Check for per-app stored position first
         var percentagePos: IndicatorPositionStore.PercentagePosition?
-        if let bundleId = context?.bundleIdentifier {
-            percentagePos = IndicatorPositionStore.shared.getPosition(for: bundleId)
+        if let bundleID = context?.bundleIdentifier {
+            percentagePos = IndicatorPositionStore.shared.getPosition(for: bundleID)
             if percentagePos != nil {
-                Logger.debug("FloatingErrorIndicator: Using stored position for \(bundleId)", category: Logger.ui)
+                Logger.debug("FloatingErrorIndicator: Using stored position for \(bundleID)", category: Logger.ui)
             }
         }
 
@@ -512,7 +512,7 @@ class FloatingErrorIndicator: NSPanel {
     private func handleDragEnd(at finalPosition: CGPoint) {
         guard let element = monitoredElement,
               let windowFrame = getVisibleWindowFrame(for: element),
-              let bundleId = context?.bundleIdentifier else {
+              let bundleID = context?.bundleIdentifier else {
             Logger.debug("FloatingErrorIndicator: handleDragEnd - no window frame or bundle ID available", category: Logger.ui)
             return
         }
@@ -541,9 +541,9 @@ class FloatingErrorIndicator: NSPanel {
         )
 
         // Save position for this application
-        IndicatorPositionStore.shared.savePosition(percentagePos, for: bundleId)
+        IndicatorPositionStore.shared.savePosition(percentagePos, for: bundleID)
 
-        Logger.debug("FloatingErrorIndicator: Saved position for \(bundleId) at x=\(percentagePos.xPercent), y=\(percentagePos.yPercent)", category: Logger.ui)
+        Logger.debug("FloatingErrorIndicator: Saved position for \(bundleID) at x=\(percentagePos.xPercent), y=\(percentagePos.yPercent)", category: Logger.ui)
     }
 
     /// Snap a position to the valid border area (1.5cm band around window edge)
@@ -608,10 +608,10 @@ class FloatingErrorIndicator: NSPanel {
 
         // Check for per-app stored position first
         var percentagePos: IndicatorPositionStore.PercentagePosition?
-        if let bundleId = context?.bundleIdentifier {
-            percentagePos = IndicatorPositionStore.shared.getPosition(for: bundleId)
+        if let bundleID = context?.bundleIdentifier {
+            percentagePos = IndicatorPositionStore.shared.getPosition(for: bundleID)
             if percentagePos != nil {
-                Logger.debug("FloatingErrorIndicator: Using stored position for \(bundleId)", category: Logger.ui)
+                Logger.debug("FloatingErrorIndicator: Using stored position for \(bundleID)", category: Logger.ui)
             }
         }
 

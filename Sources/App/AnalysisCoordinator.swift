@@ -832,8 +832,8 @@ class AnalysisCoordinator: ObservableObject {
     /// Used by text validation timer to check if content has changed
     private func extractTextSynchronously(from element: AXUIElement) -> String? {
         // First, try app-specific extraction via ContentParser
-        if let bundleId = textMonitor.currentContext?.bundleIdentifier {
-            let parser = ContentParserFactory.shared.parser(for: bundleId)
+        if let bundleID = textMonitor.currentContext?.bundleIdentifier {
+            let parser = ContentParserFactory.shared.parser(for: bundleID)
             if let parserText = parser.extractText(from: element) {
                 return parserText
             }
