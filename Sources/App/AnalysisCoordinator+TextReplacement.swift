@@ -1693,6 +1693,316 @@ extension AnalysisCoordinator {
         }
     }
 
+    /// Apply text replacement using keyboard simulation (async version)
+    /// Flattened async/await implementation for better readability
+    @MainActor
+    func applyTextReplacementViaKeyboardAsync(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement) async {
+        guard let context = self.monitoredContext else {
+            Logger.debug("No context available for keyboard replacement", category: Logger.analysis)
+            return
+        }
+
+        Logger.debug("Using keyboard simulation for text replacement (app: \(context.applicationName), isTerminal: \(context.isTerminalApp), isBrowser: \(context.isBrowser))", category: Logger.analysis)
+
+        // SPECIAL HANDLING FOR APPLE MAIL
+        if context.bundleIdentifier == "com.apple.mail" {
+            await applyMailTextReplacementAsync(for: error, with: suggestion, element: element)
+            return
+        }
+
+        // SPECIAL HANDLING FOR BROWSERS, SLACK, MICROSOFT OFFICE, AND MAC CATALYST APPS
+        let isSlack = context.bundleIdentifier == "com.tinyspeck.slackmacgap"
+        let isMessages = context.bundleIdentifier == "com.apple.MobileSMS"
+        let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
+                                context.bundleIdentifier == "com.microsoft.Powerpoint"
+        if context.isBrowser || isSlack || isMessages || isMicrosoftOffice || context.isMacCatalystApp {
+            await applyBrowserTextReplacementAsync(for: error, with: suggestion, element: element, context: context)
+            return
+        }
+
+        // SPECIAL HANDLING FOR TERMINALS
+        if context.isTerminalApp {
+            await applyTerminalTextReplacementAsync(for: error, with: suggestion, element: element, context: context)
+            return
+        }
+
+        // For non-terminal apps, use standard keyboard navigation
+        await applyStandardKeyboardReplacementAsync(for: error, with: suggestion, element: element, context: context)
+    }
+
+    /// Terminal-specific text replacement (async version)
+    @MainActor
+    private func applyTerminalTextReplacementAsync(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement, context: ApplicationContext) async {
+        // Get original cursor position
+        var selectedRangeValue: CFTypeRef?
+        let rangeResult = AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &selectedRangeValue)
+
+        var originalCursorPosition: Int?
+        if rangeResult == .success, let rangeValue = selectedRangeValue, let cfRange = safeAXValueGetRange(rangeValue) {
+            originalCursorPosition = cfRange.location
+            Logger.debug("Terminal: Original cursor position: \(cfRange.location)", category: Logger.analysis)
+        }
+
+        // Get current text
+        var currentTextValue: CFTypeRef?
+        let getTextResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextValue)
+        guard getTextResult == .success, let fullText = currentTextValue as? String else {
+            Logger.debug("Failed to get current text for Terminal replacement", category: Logger.analysis)
+            return
+        }
+
+        // Preprocess to get command line text
+        let parser = ContentParserFactory.shared.parser(for: context.bundleIdentifier)
+        guard let commandLineText = parser.preprocessText(fullText) else {
+            Logger.debug("Failed to preprocess text for Terminal", category: Logger.analysis)
+            return
+        }
+
+        // Apply correction
+        guard let startIndex = scalarIndexToStringIndex(error.start, in: commandLineText),
+              let endIndex = scalarIndexToStringIndex(error.end, in: commandLineText) else {
+            Logger.warning("Terminal: Failed to convert scalar indices", category: Logger.analysis)
+            return
+        }
+        var correctedText = commandLineText
+        correctedText.replaceSubrange(startIndex..<endIndex, with: suggestion)
+
+        Logger.debug("Terminal: Corrected command: '\(correctedText)'", category: Logger.analysis)
+
+        // Calculate target cursor position
+        var targetCursorPosition: Int?
+        if let axCursorPos = originalCursorPosition {
+            let commandRange = (fullText as NSString).range(of: commandLineText)
+            if commandRange.location != NSNotFound {
+                let promptOffset = commandRange.location
+                let cursorInCommandLine = axCursorPos - promptOffset
+                let errorLength = error.end - error.start
+                let lengthDelta = suggestion.count - errorLength
+
+                if cursorInCommandLine < error.start {
+                    targetCursorPosition = cursorInCommandLine
+                } else if cursorInCommandLine >= error.end {
+                    targetCursorPosition = cursorInCommandLine + lengthDelta
+                } else {
+                    targetCursorPosition = error.start + suggestion.count
+                }
+            }
+        }
+
+        // Copy corrected text to clipboard
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(correctedText, forType: .string)
+
+        // Activate Terminal
+        if let targetApp = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier).first {
+            targetApp.activate()
+        }
+
+        // Wait for activation
+        try? await Task.sleep(nanoseconds: UInt64(TimingConstants.longDelay * 1_000_000_000))
+
+        // Step 1: Ctrl+A to go to beginning
+        pressKey(key: VirtualKeyCode.a, flags: .maskControl)
+        Logger.debug("Sent Ctrl+A", category: Logger.analysis)
+
+        try? await Task.sleep(nanoseconds: UInt64(TimingConstants.shortDelay * 1_000_000_000))
+
+        // Step 2: Ctrl+K to kill to end of line
+        pressKey(key: VirtualKeyCode.k, flags: .maskControl)
+        Logger.debug("Sent Ctrl+K", category: Logger.analysis)
+
+        try? await Task.sleep(nanoseconds: UInt64(TimingConstants.shortDelay * 1_000_000_000))
+
+        // Step 3: Paste the corrected text
+        pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
+        Logger.debug("Sent Cmd+V", category: Logger.analysis)
+
+        try? await Task.sleep(nanoseconds: UInt64(TimingConstants.shortDelay * 1_000_000_000))
+
+        // Step 4: Position cursor
+        if let targetPos = targetCursorPosition {
+            pressKey(key: VirtualKeyCode.a, flags: .maskControl)
+            try? await Task.sleep(nanoseconds: UInt64(TimingConstants.tinyDelay * 1_000_000_000))
+
+            for _ in 0..<targetPos {
+                pressKey(key: VirtualKeyCode.rightArrow, flags: [], withDelay: false)
+            }
+            Logger.debug("Terminal replacement complete (cursor at position \(targetPos))", category: Logger.analysis)
+        } else {
+            pressKey(key: VirtualKeyCode.e, flags: .maskControl)
+            Logger.debug("Terminal replacement complete (cursor at end)", category: Logger.analysis)
+        }
+
+        // Record statistics and update UI
+        UserStatistics.shared.recordSuggestionApplied(category: error.category)
+        invalidateCacheAfterReplacement(at: error.start..<error.end)
+        let lengthDelta = suggestion.count - (error.end - error.start)
+        removeErrorAndUpdateUI(error, suggestion: suggestion, lengthDelta: lengthDelta)
+    }
+
+    /// Apply text replacement for Apple Mail (async version)
+    @MainActor
+    func applyMailTextReplacementAsync(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement) async {
+        Logger.debug("Mail text replacement using AXReplaceRangeWithText (async)", category: Logger.analysis)
+
+        lastReplacementTime = Date()
+
+        let currentError = currentErrors.first { err in
+            err.message == error.message && err.lintId == error.lintId && err.category == error.category
+        } ?? error
+
+        let range = NSRange(location: currentError.start, length: currentError.end - currentError.start)
+        let lengthDelta = suggestion.count - (currentError.end - currentError.start)
+
+        // Try the proper WebKit API first
+        if MailContentParser.replaceText(range: range, with: suggestion, in: element) {
+            Logger.info("Mail: AXReplaceRangeWithText succeeded", category: Logger.analysis)
+            UserStatistics.shared.recordSuggestionApplied(category: currentError.category)
+            invalidateCacheAfterReplacement(at: currentError.start..<currentError.end)
+            removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
+            return
+        }
+
+        // Fallback: selection + paste
+        Logger.debug("Mail: AXReplaceRangeWithText failed, falling back to selection + paste", category: Logger.analysis)
+        let _ = MailContentParser.selectTextForReplacement(range: range, in: element)
+
+        let pasteboard = NSPasteboard.general
+        let originalString = pasteboard.string(forType: .string)
+        pasteboard.clearContents()
+        pasteboard.setString(suggestion, forType: .string)
+
+        // Activate Mail
+        if let mailApp = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.mail").first {
+            mailApp.activate()
+        }
+
+        try? await Task.sleep(nanoseconds: UInt64(TimingConstants.shortDelay * 1_000_000_000))
+
+        pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
+        UserStatistics.shared.recordSuggestionApplied(category: currentError.category)
+        removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
+        invalidateCacheAfterReplacementForWebKit(at: currentError.start..<currentError.end)
+
+        try? await Task.sleep(nanoseconds: UInt64(TimingConstants.shortDelay * 1_000_000_000))
+
+        if let original = originalString {
+            pasteboard.clearContents()
+            pasteboard.setString(original, forType: .string)
+        }
+        replacementCompletedAt = Date()
+        scheduleDelayedReanalysis(startTime: Date())
+    }
+
+    /// Apply text replacement for browsers and similar apps (async version)
+    /// Uses keyboard navigation approach for simplicity
+    @MainActor
+    func applyBrowserTextReplacementAsync(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement, context: ApplicationContext) async {
+        Logger.debug("Browser text replacement (async) for \(context.applicationName)", category: Logger.analysis)
+
+        lastReplacementTime = Date()
+
+        let currentError = currentErrors.first { err in
+            err.message == error.message && err.lintId == error.lintId && err.category == error.category
+        } ?? error
+
+        let lengthDelta = suggestion.count - (currentError.end - currentError.start)
+
+        // Save clipboard
+        let pasteboard = NSPasteboard.general
+        let originalString = pasteboard.string(forType: .string)
+        pasteboard.clearContents()
+        pasteboard.setString(suggestion, forType: .string)
+
+        // Activate app
+        if let targetApp = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier).first {
+            targetApp.activate()
+        }
+
+        let delay = context.keyboardOperationDelay
+
+        // Use keyboard navigation approach
+        try? await Task.sleep(nanoseconds: UInt64(TimingConstants.keyboardActivationDelay * 1_000_000_000))
+
+        // Go to beginning (Cmd+Left)
+        pressKey(key: 123, flags: .maskCommand)
+
+        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+
+        // Navigate to error start
+        let navigationDelay = TimingConstants.arrowKeyDelay
+        await sendArrowKeysAsync(count: currentError.start, keyCode: 124, flags: [], delay: navigationDelay)
+
+        // Select error text
+        let errorLength = currentError.end - currentError.start
+        await sendArrowKeysAsync(count: errorLength, keyCode: 124, flags: .maskShift, delay: navigationDelay)
+
+        // Paste
+        try? await Task.sleep(nanoseconds: UInt64(TimingConstants.shortDelay * 1_000_000_000))
+        pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
+
+        Logger.debug("Browser paste complete", category: Logger.analysis)
+
+        UserStatistics.shared.recordSuggestionApplied(category: currentError.category)
+        removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
+        invalidateCacheAfterReplacementForWebKit(at: currentError.start..<currentError.end)
+
+        // Restore clipboard
+        try? await Task.sleep(nanoseconds: UInt64(TimingConstants.clipboardRestoreDelay * 1_000_000_000))
+        if let original = originalString {
+            pasteboard.clearContents()
+            pasteboard.setString(original, forType: .string)
+        }
+        replacementCompletedAt = Date()
+        scheduleDelayedReanalysis(startTime: Date())
+    }
+
+    /// Standard keyboard-based text replacement (async version)
+    @MainActor
+    private func applyStandardKeyboardReplacementAsync(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement, context: ApplicationContext) async {
+        // Activate target application
+        if let targetApp = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier).first {
+            Logger.debug("Activating \(context.applicationName) to make it frontmost", category: Logger.analysis)
+            targetApp.activate()
+        }
+
+        let delay = context.keyboardOperationDelay
+        Logger.debug("Using \(delay)s keyboard delay for \(context.applicationName)", category: Logger.analysis)
+
+        // Save suggestion to clipboard
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(suggestion, forType: .string)
+
+        // Wait for activation
+        try? await Task.sleep(nanoseconds: UInt64(TimingConstants.keyboardActivationDelay * 1_000_000_000))
+
+        // Step 1: Go to beginning (Cmd+Left)
+        pressKey(key: 123, flags: .maskCommand)
+
+        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+
+        // Step 2: Navigate to error start
+        let navigationDelay = TimingConstants.arrowKeyDelay
+        await sendArrowKeysAsync(count: error.start, keyCode: 124, flags: [], delay: navigationDelay)
+
+        // Step 3: Select error text (Shift+Right)
+        let errorLength = error.end - error.start
+        await sendArrowKeysAsync(count: errorLength, keyCode: 124, flags: .maskShift, delay: navigationDelay)
+
+        // Step 4: Paste (Cmd+V)
+        pressKey(key: 9, flags: .maskCommand)
+
+        Logger.debug("Keyboard-based text replacement complete", category: Logger.analysis)
+
+        // Record statistics and update UI
+        UserStatistics.shared.recordSuggestionApplied(category: error.category)
+        invalidateCacheAfterReplacement(at: error.start..<error.end)
+        let lengthDelta = suggestion.count - (error.end - error.start)
+        removeErrorAndUpdateUI(error, suggestion: suggestion, lengthDelta: lengthDelta)
+    }
+
     /// Try to replace text using AX API selection (for Terminal)
     /// Returns true if successful, false if needs to fall back to keyboard simulation
     func tryAXSelectionReplacement(element: AXUIElement, start: Int, end: Int, suggestion: String, error: GrammarErrorModel) -> Bool {
