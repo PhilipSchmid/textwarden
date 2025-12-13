@@ -164,6 +164,7 @@ class NotionContentParser: ContentParser {
         if AXUIElementCopyAttributeValue(element, kAXParentAttribute as CFString, &parentValue) == .success,
            let pv = parentValue,
            CFGetTypeID(pv) == AXUIElementGetTypeID() {
+            // Safe: type verified by CFGetTypeID check above
             let parent = pv as! AXUIElement
             var parentRoleDesc: CFTypeRef?
             if AXUIElementCopyAttributeValue(parent, kAXRoleDescriptionAttribute as CFString, &parentRoleDesc) == .success,

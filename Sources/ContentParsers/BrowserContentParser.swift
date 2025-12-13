@@ -163,7 +163,7 @@ class BrowserContentParser: ContentParser {
                   CFGetTypeID(parent) == AXUIElementGetTypeID() else {
                 break
             }
-
+            // Safe: type verified by CFGetTypeID check above
             let parentElement = parent as! AXUIElement
 
             // Check parent role

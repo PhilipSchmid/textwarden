@@ -193,6 +193,7 @@ class PowerPointContentParser: ContentParser {
             if AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentRef) == .success,
                let parent = parentRef,
                CFGetTypeID(parent) == AXUIElementGetTypeID() {
+                // Safe: type verified by CFGetTypeID check above
                 let parentElement = parent as! AXUIElement
 
                 // Check parent's role

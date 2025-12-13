@@ -202,6 +202,7 @@ class WordContentParser: ContentParser {
             if AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentRef) == .success,
                let parent = parentRef,
                CFGetTypeID(parent) == AXUIElementGetTypeID() {
+                // Safe: type verified by CFGetTypeID check above
                 let parentElement = parent as! AXUIElement
 
                 // Check parent's role
@@ -245,6 +246,7 @@ class WordContentParser: ContentParser {
 
         // Walk up to find the window
         var windowElement: AXUIElement?
+        // Safe: type verified by CFGetTypeID check above
         var current = app as! AXUIElement
         for _ in 0..<20 {
             var roleRef: CFTypeRef?
@@ -260,6 +262,7 @@ class WordContentParser: ContentParser {
             if AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentRef) == .success,
                let parent = parentRef,
                CFGetTypeID(parent) == AXUIElementGetTypeID() {
+                // Safe: type verified by CFGetTypeID check above
                 current = parent as! AXUIElement
             } else {
                 break
