@@ -481,9 +481,6 @@ make ci-check  # Runs formatting, linting, tests, build
 
 ## Known Technical Debt
 
-1. **Large files**: `PreferencesView.swift` (4900+ lines) should be split into smaller view components
-2. **Duplicated helpers**: `getElementFrame()` exists in multiple files, should be consolidated to `AccessibilityBridge`
-3. **Mixed async patterns**: Some APIs use completion handlers, others use async/await - migration in progress
-4. **Magic numbers**: Some positioning code still has hardcoded values that should move to constants
+1. **Mixed async patterns**: Some APIs use completion handlers, others use async/await - migration in progress
 
 See the plan file for ongoing refactoring work.
