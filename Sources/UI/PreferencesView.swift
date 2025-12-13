@@ -175,7 +175,7 @@ struct PreferencesView: View {
     }
 }
 
-// MARK: - Application Settings (T066-T075)
+// MARK: - Application Settings
 
 struct ApplicationSettingsView: View {
     @ObservedObject var preferences: UserPreferences
@@ -186,7 +186,7 @@ struct ApplicationSettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Search field (T074)
+            // Search field
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
@@ -205,7 +205,7 @@ struct ApplicationSettingsView: View {
             .cornerRadius(6)
             .padding()
 
-            // Application list (T067-T069)
+            // Application list
             List {
                 Section {
                     ForEach(filteredApps, id: \.bundleIdentifier) { app in
@@ -243,7 +243,7 @@ struct ApplicationSettingsView: View {
 
                                 Spacer()
 
-                                // Pause duration picker (T069, T073)
+                                // Pause duration picker
                                 Picker("", selection: Binding(
                                     get: {
                                         preferences.getPauseDuration(for: app.bundleIdentifier)
@@ -393,7 +393,7 @@ struct ApplicationSettingsView: View {
             loadHiddenApplications()
         }
         .onChange(of: preferences.disabledApplications) {
-            // Reload to reflect changes (T072, T073)
+            // Reload to reflect changes
             loadDiscoveredApplications()
         }
         .onChange(of: preferences.appPauseDurations) {
@@ -406,7 +406,7 @@ struct ApplicationSettingsView: View {
         }
     }
 
-    /// Get filtered applications based on search text (T074)
+    /// Get filtered applications based on search text
     private var filteredApps: [ApplicationInfo] {
         if searchText.isEmpty {
             return discoveredApps
@@ -423,7 +423,7 @@ struct ApplicationSettingsView: View {
         return preferences.hiddenApplications.contains(bundleID)
     }
 
-    /// Load discovered applications (T071)
+    /// Load discovered applications
     private func loadDiscoveredApplications() {
         var bundleIDs = Set<String>()
 
@@ -2290,7 +2290,7 @@ struct FilteringPreferencesView: View {
     }
 }
 
-// MARK: - Custom Vocabulary View (T102)
+// MARK: - Custom Vocabulary View
 
 struct CustomVocabularyView: View {
     @ObservedObject private var vocabulary = CustomVocabulary.shared

@@ -2,7 +2,7 @@
 //  LargeDocumentPerformanceTests.swift
 //  TextWarden Tests
 //
-//  Performance tests for 10,000-word document analysis (T076)
+//  Performance tests for 10,000-word document analysis
 //
 
 import XCTest
@@ -16,7 +16,7 @@ final class LargeDocumentPerformanceTests: XCTestCase {
         grammarEngine = GrammarEngine.shared
     }
 
-    // MARK: - Large Document Tests (T076)
+    // MARK: - Large Document Tests
 
     func testAnalyze10KWordDocumentUnder500ms() {
         // Generate a 10,000-word document

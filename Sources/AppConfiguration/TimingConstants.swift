@@ -52,6 +52,9 @@ enum TimingConstants {
 
     // MARK: - UI Delays
 
+    /// Tiny delay for rapid sequential operations
+    static let tinyDelay: TimeInterval = 0.02
+
     /// Short delay for UI operations
     static let shortDelay: TimeInterval = 0.05
 
@@ -69,6 +72,9 @@ enum TimingConstants {
 
     /// Popover auto-hide delay
     static let popoverAutoHide: TimeInterval = 2.0
+
+    /// Feedback display duration (e.g., "Copied!" message)
+    static let feedbackDisplayDuration: TimeInterval = 1.5
 
     /// Hover detection delay before showing UI
     static let hoverDelay: TimeInterval = 0.3
@@ -102,6 +108,22 @@ enum TimingConstants {
 
     /// Cooldown between restart attempts
     static let restartCooldown: TimeInterval = 60.0
+
+    /// Initial wait time before checking crash recovery state
+    static let crashRecoveryInitialWait: TimeInterval = 3.0
+
+    // MARK: - AI/LLM Operations
+
+    /// Retry delay for AI inference operations
+    static let aiInferenceRetryDelay: TimeInterval = 6.0
+
+    // MARK: - Clipboard Operations
+
+    /// Delay before restoring clipboard contents
+    static let clipboardRestoreDelay: TimeInterval = 0.7
+
+    /// Delay for Electron/WhatsApp clipboard operations
+    static let electronClipboardDelay: TimeInterval = 0.5
 
     // MARK: - Onboarding
 

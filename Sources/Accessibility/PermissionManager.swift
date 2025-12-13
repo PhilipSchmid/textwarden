@@ -21,13 +21,13 @@ class PermissionManager: ObservableObject {
     /// Callback when permission is granted
     var onPermissionGranted: (() -> Void)?
 
-    /// Callback when permission is revoked (T113)
+    /// Callback when permission is revoked
     var onPermissionRevoked: (() -> Void)?
 
     /// Timer for polling permission status
     private var pollTimer: Timer?
 
-    /// Timer for continuous permission monitoring (T113)
+    /// Timer for continuous permission monitoring
     private var revocationMonitorTimer: Timer?
 
     private init() {
@@ -35,7 +35,7 @@ class PermissionManager: ObservableObject {
         isPermissionGranted = AXIsProcessTrusted()
         Logger.logPermissionChange(granted: isPermissionGranted)
 
-        // Start continuous monitoring for revocation (T113)
+        // Start continuous monitoring for revocation
         if isPermissionGranted {
             startRevocationMonitoring()
         }
@@ -97,7 +97,7 @@ class PermissionManager: ObservableObject {
                 // Stop polling once permission is granted
                 if !wasGranted && isGranted {
                     self.stopPolling()
-                    // Start continuous monitoring for revocation (T113)
+                    // Start continuous monitoring for revocation
                     self.startRevocationMonitoring()
                 }
             }
@@ -110,7 +110,7 @@ class PermissionManager: ObservableObject {
         pollTimer = nil
     }
 
-    // MARK: - Permission Revocation Monitoring (T113)
+    // MARK: - Permission Revocation Monitoring
 
     /// Start continuous monitoring for permission revocation
     private func startRevocationMonitoring(interval: TimeInterval = TimingConstants.revocationMonitoring) {

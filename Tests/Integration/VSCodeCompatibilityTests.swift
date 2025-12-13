@@ -2,7 +2,7 @@
 //  VSCodeCompatibilityTests.swift
 //  TextWarden Tests
 //
-//  Integration tests for VS Code compatibility (T090)
+//  Integration tests for VS Code compatibility
 //
 
 import XCTest
@@ -21,7 +21,7 @@ final class VSCodeCompatibilityTests: XCTestCase {
         super.tearDown()
     }
 
-    // MARK: - VS Code Compatibility Tests (T090)
+    // MARK: - VS Code Compatibility Tests
 
     func testVSCodeTextExtraction() {
         // Test that VS Code commit message fields are accessible

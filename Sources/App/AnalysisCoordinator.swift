@@ -47,7 +47,7 @@ class AnalysisCoordinator: ObservableObject {
     /// Error cache mapping text segments to detected errors
     var errorCache: [String: [GrammarErrorModel]] = [:]
 
-    /// Cache metadata for LRU eviction (T085)
+    /// Cache metadata for LRU eviction
     var cacheMetadata: [String: CacheMetadata] = [:]
 
     /// AI rephrase suggestions cache - maps original sentence text to AI-generated rephrase
@@ -84,10 +84,10 @@ class AnalysisCoordinator: ObservableObject {
     /// Cancellables for Combine subscriptions
     private var cancellables = Set<AnyCancellable>()
 
-    /// Maximum number of cached documents (T085)
+    /// Maximum number of cached documents
     let maxCachedDocuments = 10
 
-    /// Cache expiration time in seconds (T084)
+    /// Cache expiration time in seconds
     let cacheExpirationTime: TimeInterval = TimingConstants.analysisCacheExpiration
 
     // MARK: - Window Tracking State (internal for cross-file extension access)
@@ -300,7 +300,7 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Setup popover callbacks
     private func setupPopoverCallbacks() {
-        // Handle apply suggestion (T044, T044a)
+        // Handle apply suggestion
         suggestionPopover.onApplySuggestion = { [weak self] error, suggestion, completion in
             guard let self = self else {
                 completion()
@@ -309,13 +309,13 @@ class AnalysisCoordinator: ObservableObject {
             self.applyTextReplacement(for: error, with: suggestion, completion: completion)
         }
 
-        // Handle dismiss error (T045, T048)
+        // Handle dismiss error
         suggestionPopover.onDismissError = { [weak self] error in
             guard let self = self else { return }
             self.dismissError(error)
         }
 
-        // Handle ignore rule (T046, T050)
+        // Handle ignore rule
         suggestionPopover.onIgnoreRule = { [weak self] ruleId in
             guard let self = self else { return }
             self.ignoreRulePermanently(ruleId)
@@ -444,7 +444,7 @@ class AnalysisCoordinator: ObservableObject {
 
     // MARK: - Monitoring Control
 
-    /// Setup text monitoring and application tracking (T037)
+    /// Setup text monitoring and application tracking
     private func setupMonitoring() {
         // Monitor application changes
         applicationTracker.onApplicationChange = { [weak self] context in
@@ -515,7 +515,7 @@ class AnalysisCoordinator: ObservableObject {
                     }
 
                     // Retry after short delays to catch cases where element wasn't ready immediately
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                    DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.mediumDelay) { [weak self] in
                         guard let self = self else { return }
                         if let element = self.textMonitor.monitoredElement {
                             Logger.debug("AnalysisCoordinator: Retry 1 - extracting text", category: Logger.analysis)
@@ -523,7 +523,7 @@ class AnalysisCoordinator: ObservableObject {
                         }
                     }
 
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                    DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.hoverDelay) { [weak self] in
                         guard let self = self else { return }
                         if let element = self.textMonitor.monitoredElement {
                             Logger.debug("AnalysisCoordinator: Retry 2 - extracting text", category: Logger.analysis)
@@ -538,7 +538,7 @@ class AnalysisCoordinator: ObservableObject {
             }
         }
 
-        // Monitor text changes (T038)
+        // Monitor text changes
         textMonitor.onTextChange = { [weak self] text, context in
             guard let self = self else { return }
             self.handleTextChange(text, in: context)
@@ -773,7 +773,7 @@ class AnalysisCoordinator: ObservableObject {
 
     // MARK: - Text Analysis
 
-    /// Handle text change and trigger analysis (T038)
+    /// Handle text change and trigger analysis
     func handleTextChange(_ text: String, in context: ApplicationContext) {
         Logger.debug("AnalysisCoordinator: Text changed in \(context.applicationName) (\(text.count) chars)", category: Logger.analysis)
 
@@ -984,7 +984,7 @@ class AnalysisCoordinator: ObservableObject {
         }
     }
 
-    /// Analyze text with incremental support (T039) - internal for extension access
+    /// Analyze text with incremental support - internal for extension access
     func analyzeText(_ segment: TextSegment) {
         // Skip analysis if we're actively applying a replacement
         // The text will be re-analyzed after the replacement completes
@@ -1238,7 +1238,7 @@ class AnalysisCoordinator: ObservableObject {
         }
     }
 
-    /// Analyze only changed portion (T039)
+    /// Analyze only changed portion
     private func analyzeChangedPortion(_ segment: TextSegment) {
         // CRITICAL: Capture the monitored element BEFORE async operation
         let capturedElement = textMonitor.monitoredElement
@@ -1374,7 +1374,7 @@ class AnalysisCoordinator: ObservableObject {
         return deduplicated
     }
 
-    /// Apply filters based on user preferences (T049, T050, T103) - internal for extension access
+    /// Apply filters based on user preferences - internal for extension access
     func applyFilters(to errors: [GrammarErrorModel], sourceText: String, element: AXUIElement?) {
         Logger.debug("AnalysisCoordinator: applyFilters called with \(errors.count) errors", category: Logger.analysis)
 
@@ -1405,13 +1405,13 @@ class AnalysisCoordinator: ObservableObject {
 
         Logger.debug("  After deduplication: \(filteredErrors.count) errors", category: Logger.analysis)
 
-        // Filter by dismissed rules (T050)
+        // Filter by dismissed rules
         let dismissedRules = UserPreferences.shared.ignoredRules
         filteredErrors = filteredErrors.filter { error in
             !dismissedRules.contains(error.lintId)
         }
 
-        // Filter by custom vocabulary (T103)
+        // Filter by custom vocabulary
         // Skip errors that contain words from the user's custom dictionary
         // Note: error.start/end are Unicode scalar indices from Harper
         let vocabulary = CustomVocabulary.shared
@@ -1618,7 +1618,7 @@ class AnalysisCoordinator: ObservableObject {
         monitoredContext?.isBrowser ?? false
     }
 
-    /// Dismiss error for current session (T048)
+    /// Dismiss error for current session
     func dismissError(_ error: GrammarErrorModel) {
         // Record statistics
         UserStatistics.shared.recordSuggestionDismissed()
@@ -1648,7 +1648,7 @@ class AnalysisCoordinator: ObservableObject {
         applyFilters(to: currentErrors, sourceText: sourceText, element: textMonitor.monitoredElement)
     }
 
-    /// Ignore rule permanently (T050)
+    /// Ignore rule permanently
     func ignoreRulePermanently(_ ruleId: String) {
         UserPreferences.shared.ignoreRule(ruleId)
 
@@ -1702,7 +1702,7 @@ class AnalysisCoordinator: ObservableObject {
 // MARK: - Error Handling
 
 extension AnalysisCoordinator {
-    /// Handle overlapping errors (T043a)
+    /// Handle overlapping errors
     func getPriorityError(for range: Range<Int>) -> GrammarErrorModel? {
         let overlappingErrors = currentErrors.filter { error in
             let errorRange = error.start..<error.end

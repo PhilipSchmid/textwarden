@@ -2,7 +2,7 @@
 //  TerminalCompatibilityTests.swift
 //  TextWarden Tests
 //
-//  Integration tests for Terminal compatibility (T091)
+//  Integration tests for Terminal compatibility
 //
 
 import XCTest
@@ -21,7 +21,7 @@ final class TerminalCompatibilityTests: XCTestCase {
         super.tearDown()
     }
 
-    // MARK: - Terminal Compatibility Tests (T091)
+    // MARK: - Terminal Compatibility Tests
 
     func testTerminalTextExtraction() {
         // Test that Terminal app text input is accessible

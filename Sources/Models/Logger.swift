@@ -2,7 +2,7 @@
 //  Logger.swift
 //  TextWarden
 //
-//  Structured logging system using os_log (T117, T118)
+//  Structured logging system using os_log
 //  Enhanced with configurable log levels and file output (Issue #20)
 //
 
@@ -139,7 +139,7 @@ struct Logger {
         }
     }
 
-    // MARK: - Log Categories (T117)
+    // MARK: - Log Categories
 
     static let general = OSLog(subsystem: subsystem, category: "general")
     static let permissions = OSLog(subsystem: subsystem, category: "permissions")
@@ -318,7 +318,7 @@ struct Logger {
         log(.trace, message, category: category)
     }
 
-    /// Log errors (T118)
+    /// Log errors
     static func error(_ message: String, error: Error? = nil, category: OSLog = errors) {
         let fullMessage = if let error = error {
             "\(message): \(error.localizedDescription)"
@@ -333,12 +333,12 @@ struct Logger {
         log(.warning, message, category: category)
     }
 
-    /// Log critical events (T118)
+    /// Log critical events
     static func critical(_ message: String, category: OSLog = errors) {
         log(.critical, message, category: category)
     }
 
-    // MARK: - Structured Event Logging (T118)
+    // MARK: - Structured Event Logging
 
     /// Log permission status change
     static func logPermissionChange(granted: Bool) {

@@ -155,7 +155,7 @@ extension AnalysisCoordinator {
                     PositionResolver.shared.clearCache()
 
                     // Trigger fresh analysis
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                    DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.mediumDelay) { [weak self] in
                         guard let self = self,
                               let context = self.textMonitor.currentContext,
                               !currentText.isEmpty else { return }
@@ -180,7 +180,7 @@ extension AnalysisCoordinator {
                     PositionResolver.shared.clearCache()
 
                     // Trigger fresh analysis after a short delay
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+                    DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.longDelay) { [weak self] in
                         guard let self = self,
                               let context = self.textMonitor.currentContext,
                               !currentText.isEmpty else { return }
@@ -654,7 +654,7 @@ extension AnalysisCoordinator {
             positionSyncRetryCount += 1
             Logger.debug("Window monitoring: Position not stable - retry \(positionSyncRetryCount)/\(maxPositionSyncRetries) in 50ms", category: Logger.analysis)
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.shortDelay) { [weak self] in
                 guard let self = self else { return }
                 if self.overlaysHiddenDueToMovement {
                     self.reshowOverlaysAfterMovement()
@@ -669,7 +669,7 @@ extension AnalysisCoordinator {
             // Positions just became stable - add a settling delay for Electron apps
             // which can have extra latency in propagating position changes
             Logger.debug("Window monitoring: Position stable - adding 100ms settling delay", category: Logger.analysis)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.mediumDelay) { [weak self] in
                 guard let self = self else { return }
                 if self.overlaysHiddenDueToMovement {
                     self.finalizeOverlayReshow()
@@ -729,7 +729,7 @@ extension AnalysisCoordinator {
             lastCharacterBounds = currentCharBounds
 
             // Schedule another stability check with 100ms interval
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.mediumDelay) { [weak self] in
                 guard let self = self, self.overlaysHiddenDueToMovement else { return }
                 self.finalizeOverlayReshow()
             }

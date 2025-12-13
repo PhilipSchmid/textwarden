@@ -2,7 +2,7 @@
 //  CrashRecoveryManager.swift
 //  TextWarden
 //
-//  Automatic crash recovery and restart management (T111, T112)
+//  Automatic crash recovery and restart management
 //
 
 import Foundation
@@ -32,7 +32,7 @@ class CrashRecoveryManager {
         startHeartbeat()
     }
 
-    // MARK: - Crash Detection (T111)
+    // MARK: - Crash Detection
 
     /// Check if the app crashed previously
     private func checkForPreviousCrash() {
@@ -77,14 +77,14 @@ class CrashRecoveryManager {
         }
     }
 
-    /// Show restart indicator (T112)
+    /// Show restart indicator
     private func showRestartIndicator() {
         DispatchQueue.main.async {
             if let menuBarController = MenuBarController.shared {
                 menuBarController.showRestartIndicator()
             }
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.crashRecoveryInitialWait) {
                 if let menuBarController = MenuBarController.shared {
                     menuBarController.hideRestartIndicator()
                 }

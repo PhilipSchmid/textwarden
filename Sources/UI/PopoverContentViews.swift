@@ -378,7 +378,7 @@ struct UnifiedPopoverContentView: View {
     }
 }
 
-/// SwiftUI content view for popover (T043)
+/// SwiftUI content view for popover
 struct PopoverContentView: View {
     @ObservedObject var popover: SuggestionPopover
     @ObservedObject var preferences = UserPreferences.shared
@@ -781,7 +781,7 @@ struct PopoverContentView: View {
         .accessibilityElement(children: .contain)
     }
 
-    /// Severity indicator with color (T043)
+    /// Severity indicator with color
     @ViewBuilder
     private func severityIndicator(for severity: GrammarErrorSeverity) -> some View {
         let (color, icon) = severityStyle(for: severity)
@@ -803,7 +803,7 @@ struct PopoverContentView: View {
         }
     }
 
-    /// Get severity color only (T129: Color-blind friendly)
+    /// Get severity color only
     private func severityColor(for severity: GrammarErrorSeverity) -> Color {
         switch severity {
         case .error:
@@ -816,7 +816,7 @@ struct PopoverContentView: View {
     }
 
 
-    /// Get severity color for high contrast mode (T128)
+    /// Get severity color for high contrast mode
     @ViewBuilder
     private func severityColorForContrast(for severity: GrammarErrorSeverity) -> some View {
         let baseColor = severityColor(for: severity)
@@ -829,7 +829,7 @@ struct PopoverContentView: View {
         }
     }
 
-    /// Accessibility label for severity (T130)
+    /// Accessibility label for severity
     private func severityAccessibilityLabel(for severity: GrammarErrorSeverity) -> String {
         switch severity {
         case .error:

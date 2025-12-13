@@ -2,7 +2,7 @@
 //  TextPreprocessor.swift
 //  TextWarden
 //
-//  Text preprocessing for code editors and terminals (T094, T095)
+//  Text preprocessing for code editors and terminals
 //
 
 import Foundation
@@ -10,7 +10,7 @@ import Foundation
 /// Preprocesses text to exclude patterns that shouldn't be grammar checked
 struct TextPreprocessor {
 
-    // MARK: - Code Block Exclusion (T094)
+    // MARK: - Code Block Exclusion
 
     /// Exclude code blocks from grammar checking
     static func excludeCodeBlocks(from text: String) -> String {
@@ -31,7 +31,7 @@ struct TextPreprocessor {
         return replacePattern(pattern, in: text, with: "")
     }
 
-    // MARK: - URL Exclusion (T095)
+    // MARK: - URL Exclusion
 
     /// Exclude URLs from grammar checking
     static func excludeURLs(from text: String) -> [ExclusionRange] {
@@ -95,7 +95,7 @@ struct TextPreprocessor {
 
     // MARK: - Combined Preprocessing
 
-    /// Preprocess text for code editors (T094, T095)
+    /// Preprocess text for code editors
     static func preprocessForCodeEditor(_ text: String) -> PreprocessedText {
         var cleanedText = text
 

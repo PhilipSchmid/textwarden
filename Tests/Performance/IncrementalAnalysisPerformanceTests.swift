@@ -2,7 +2,7 @@
 //  IncrementalAnalysisPerformanceTests.swift
 //  TextWarden Tests
 //
-//  Performance tests for incremental re-analysis (T077)
+//  Performance tests for incremental re-analysis
 //
 
 import XCTest
@@ -21,7 +21,7 @@ final class IncrementalAnalysisPerformanceTests: XCTestCase {
         super.tearDown()
     }
 
-    // MARK: - Incremental Analysis Tests (T077)
+    // MARK: - Incremental Analysis Tests
 
     func testIncrementalEditUnder20ms() {
         // Create initial large document

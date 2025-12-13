@@ -439,7 +439,7 @@ class TextMonitor: ObservableObject {
     /// Maximum text length to analyze (prevent analyzing huge terminal buffers)
     private let maxTextLength = 100_000
 
-    /// Extract text from UI element (T035)
+    /// Extract text from UI element
     func extractText(from element: AXUIElement) {
         Logger.debug("TextMonitor: extractText called", category: Logger.accessibility)
 
@@ -519,7 +519,7 @@ class TextMonitor: ObservableObject {
         }
     }
 
-    /// Handle text change with debouncing (T036)
+    /// Handle text change with debouncing
     private func handleTextChange(_ text: String) {
         guard let context = currentContext else { return }
 

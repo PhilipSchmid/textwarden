@@ -39,7 +39,7 @@ struct AboutView: View {
         pasteboard.clearContents()
         pasteboard.setString(BuildInfo.appVersion, forType: .string)
         showCopiedFeedback = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.feedbackDisplayDuration) {
             showCopiedFeedback = false
         }
     }

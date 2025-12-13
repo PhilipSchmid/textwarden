@@ -2,7 +2,7 @@
 //  UserPreferencesTests.swift
 //  TextWarden Tests
 //
-//  Unit tests for per-app settings (T064)
+//  Unit tests for per-app settings
 //
 
 import XCTest

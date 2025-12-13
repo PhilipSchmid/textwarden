@@ -80,7 +80,7 @@ extension AnalysisCoordinator {
         Logger.debug("removeErrorAndUpdateUI: UI updated, remaining errors: \(currentErrors.count)", category: Logger.analysis)
     }
 
-    /// Apply text replacement for error (T044)
+    /// Apply text replacement for error
     /// Completion is called when the replacement is done (synchronously for AX API, async for keyboard)
     func applyTextReplacement(for error: GrammarErrorModel, with suggestion: String, completion: @escaping () -> Void) {
         Logger.debug("applyTextReplacement called - error: '\(error.message)', suggestion: '\(suggestion)'", category: Logger.analysis)
@@ -190,7 +190,7 @@ extension AnalysisCoordinator {
             // Record statistics
             UserStatistics.shared.recordSuggestionApplied(category: error.category)
 
-            // Invalidate cache (T044a)
+            // Invalidate cache
             invalidateCacheAfterReplacement(at: error.start..<error.end)
 
             // Step 4: Restore original selection (optional, move cursor after replacement)
@@ -401,7 +401,7 @@ extension AnalysisCoordinator {
             self?.pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
 
             // Restore original clipboard after a short delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.hoverDelay) {
                 if let original = originalString {
                     pasteboard.clearContents()
                     pasteboard.setString(original, forType: .string)
@@ -446,7 +446,7 @@ extension AnalysisCoordinator {
         }
 
         // Step 4: Try paste via menu action or keyboard
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.longDelay) { [weak self] in
             var pasteSucceeded = false
 
             // Try menu action first
@@ -468,7 +468,7 @@ extension AnalysisCoordinator {
             }
 
             // Restore original clipboard
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.hoverDelay) {
                 if let original = originalString {
                     pasteboard.clearContents()
                     pasteboard.setString(original, forType: .string)
@@ -567,7 +567,7 @@ extension AnalysisCoordinator {
         }
 
         // Wait then paste - use shorter delays for native apps (50ms is enough)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.shortDelay) { [weak self] in
             guard let self = self else { return }
 
             let startTime = Date()
@@ -589,7 +589,7 @@ extension AnalysisCoordinator {
             Logger.trace("WebKit paste: T=\(Int(Date().timeIntervalSince(startTime) * 1000))ms cache invalidated", category: Logger.analysis)
 
             // Restore clipboard and complete
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.shortDelay) { [weak self] in
                 if let original = originalString {
                     pasteboard.clearContents()
                     pasteboard.setString(original, forType: .string)
@@ -619,7 +619,7 @@ extension AnalysisCoordinator {
         Logger.trace("Focus bounce reanalysis: T=\(Int(Date().timeIntervalSince(startTime) * 1000))ms scheduling", category: Logger.analysis)
 
         // Wait 300ms for focus to settle after focus bounce
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.hoverDelay) { [weak self] in
             guard let self = self else { return }
             guard let context = self.monitoredContext else { return }
 
@@ -651,7 +651,7 @@ extension AnalysisCoordinator {
             )
 
             // After monitoring restarts, extract text to trigger analysis
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.mediumDelay) { [weak self] in
                 guard let self = self else { return }
                 Logger.trace("Focus bounce reanalysis: T=\(Int(Date().timeIntervalSince(startTime) * 1000))ms extracting text", category: Logger.analysis)
 
@@ -898,7 +898,7 @@ extension AnalysisCoordinator {
         // issues that occur with Delete+Paste approach.
         let delay = context.keyboardOperationDelay
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.longDelay) { [weak self] in
             guard let self = self else { return }
             var pasteSucceeded = false
 
@@ -1537,14 +1537,14 @@ extension AnalysisCoordinator {
             }
 
             // Wait for activation, then clear line and paste
-            // Terminal replacement strategy (T044-Terminal):
+            // Terminal replacement strategy:
             // 1. Query AXSelectedTextRange to get original cursor position
             // 2. Ctrl+A: Move cursor to beginning of line
             // 3. Ctrl+K: Kill (delete) from cursor to end of line
             // 4. Cmd+V: Paste corrected text from clipboard
             // 5. Ctrl+A: Move back to beginning
             // 6. Send N right arrows to restore cursor position (calculated based on replacement)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.longDelay) { [weak self] in
                 guard let self = self else { return }
                 // Step 1: Ctrl+A to go to beginning of line
                 self.pressKey(key: VirtualKeyCode.a, flags: .maskControl)
@@ -1552,7 +1552,7 @@ extension AnalysisCoordinator {
                 Logger.debug("Sent Ctrl+A", category: Logger.analysis)
 
                 // Small delay before Ctrl+K
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.shortDelay) { [weak self] in
                     guard let self = self else { return }
                     // Step 2: Ctrl+K to kill (delete) to end of line
                     self.pressKey(key: VirtualKeyCode.k, flags: .maskControl)
@@ -1560,7 +1560,7 @@ extension AnalysisCoordinator {
                     Logger.debug("Sent Ctrl+K", category: Logger.analysis)
 
                     // Small delay before paste
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                    DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.shortDelay) { [weak self] in
                         guard let self = self else { return }
                         // Step 3: Paste the corrected text
                         self.pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
@@ -1568,7 +1568,7 @@ extension AnalysisCoordinator {
                         Logger.debug("Sent Cmd+V", category: Logger.analysis)
 
                         // Step 4: Position cursor at target location
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                        DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.shortDelay) { [weak self] in
                             guard let self = self else { return }
                             if let targetPos = targetCursorPosition {
                                 // Navigate to target cursor position
@@ -1578,7 +1578,7 @@ extension AnalysisCoordinator {
                                 Logger.debug("Sent Ctrl+A to move to beginning before cursor positioning", category: Logger.analysis)
 
                                 // Small delay, then send right arrows to reach target position
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { [weak self] in
+                                DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.tinyDelay) { [weak self] in
                                     guard let self = self else { return }
                                     // Send all right arrow keys rapidly (no delays between them to avoid animation)
                                     for _ in 0..<targetPos {
@@ -1826,7 +1826,7 @@ extension AnalysisCoordinator {
         }
     }
 
-    /// Invalidate cache after text replacement (T044a)
+    /// Invalidate cache after text replacement
     func invalidateCacheAfterReplacement(at range: Range<Int>) {
         // Clear position cache - geometry is now stale since text positions shifted
         PositionResolver.shared.clearCache()

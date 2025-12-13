@@ -2,7 +2,7 @@
 //  MemoryFootprintTests.swift
 //  TextWarden Tests
 //
-//  Memory footprint tests for <100MB target (T078)
+//  Memory footprint tests for <100MB target
 //
 
 import XCTest
@@ -21,7 +21,7 @@ final class MemoryFootprintTests: XCTestCase {
         super.tearDown()
     }
 
-    // MARK: - Memory Footprint Tests (T078)
+    // MARK: - Memory Footprint Tests
 
     func testMemoryFootprintUnder100MB() {
         // Note: This test should be run with Instruments Allocations

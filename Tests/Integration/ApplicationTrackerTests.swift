@@ -2,7 +2,7 @@
 //  ApplicationTrackerTests.swift
 //  TextWarden Tests
 //
-//  Integration tests for per-app filtering (T065)
+//  Integration tests for per-app filtering
 //
 
 import XCTest

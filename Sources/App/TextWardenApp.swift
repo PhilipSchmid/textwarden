@@ -79,7 +79,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Calling activate() manually kick-starts the event loop, but it must be delayed
         // until after the app infrastructure is fully initialized (research shows calling it
         // too early can cause it to fail silently).
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.shortDelay) {
             Logger.debug("Calling NSApp.activate() to kick-start event loop", category: Logger.lifecycle)
             NSApp.activate(ignoringOtherApps: false)
             Logger.debug("NSApp.activate() completed", category: Logger.lifecycle)
@@ -97,7 +97,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         updaterViewModel.checkForUpdatesInBackground()
         Logger.info("Background update check initiated", category: Logger.lifecycle)
 
-        // Check permissions on launch (T055)
+        // Check permissions on launch
         let permissionManager = PermissionManager.shared
         let hasPermission = permissionManager.isPermissionGranted
         Logger.info("Accessibility permission check: \(hasPermission ? "Granted" : "Not granted")", category: Logger.permissions)
@@ -120,12 +120,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Check if user wants to open settings window in foreground
             if UserPreferences.shared.openInForeground {
                 Logger.info("Opening settings window in foreground (user preference)", category: Logger.ui)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.hoverDelay) {
                     self.openSettingsWindow()
                 }
             }
         } else {
-            // No permission - show onboarding to request it (T056)
+            // No permission - show onboarding to request it
             Logger.warning("Accessibility permission not granted - showing onboarding", category: Logger.permissions)
 
             permissionManager.onPermissionGranted = { [weak self] in
@@ -138,14 +138,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.setupStyleCheckingModelManagement()
 
                 // Return to accessory mode after onboarding completes
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.focusBounceGrace) {
                     NSApp.setActivationPolicy(.accessory)
                     Logger.info("Returned to menu bar only mode", category: Logger.lifecycle)
                 }
             }
 
             // Open onboarding window
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.longDelay) {
                 self.openOnboardingWindow()
             }
         }
@@ -245,7 +245,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             modelManager.refreshModels()
 
             // Wait briefly to allow the refresh to complete before checking models
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.mediumDelay) {
                 Logger.debug("Available models: \(modelManager.models.count), downloaded: \(modelManager.downloadedModels.count)", category: Logger.llm)
 
                 // Auto-load model on launch if style checking is enabled

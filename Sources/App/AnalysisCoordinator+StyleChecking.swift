@@ -13,7 +13,7 @@ import AppKit
 // MARK: - Performance Optimizations (User Story 4)
 
 extension AnalysisCoordinator {
-    /// Find changed region using text diffing (T079)
+    /// Find changed region using text diffing
     func findChangedRegion(oldText: String, newText: String) -> Range<String.Index>? {
         guard oldText != newText else { return nil }
 
@@ -47,7 +47,7 @@ extension AnalysisCoordinator {
         return changeStart..<changeEnd
     }
 
-    /// Detect sentence boundaries for context-aware analysis (T080)
+    /// Detect sentence boundaries for context-aware analysis
     func detectSentenceBoundaries(in text: String, around range: Range<String.Index>) -> Range<String.Index> {
         let sentenceTerminators = CharacterSet(charactersIn: ".!?")
 
@@ -90,7 +90,7 @@ extension AnalysisCoordinator {
         return sentenceStart..<sentenceEnd
     }
 
-    /// Merge new analysis results with cached results (T082)
+    /// Merge new analysis results with cached results
     func mergeResults(new: [GrammarErrorModel], cached: [GrammarErrorModel], changedRange: Range<Int>) -> [GrammarErrorModel] {
         var merged: [GrammarErrorModel] = []
 
@@ -108,7 +108,7 @@ extension AnalysisCoordinator {
         return merged.sorted { $0.start < $1.start }
     }
 
-    /// Check if edit is large enough to invalidate cache (T083)
+    /// Check if edit is large enough to invalidate cache
     func isLargeEdit(oldText: String, newText: String) -> Bool {
         let diff = abs(newText.count - oldText.count)
 
@@ -116,7 +116,7 @@ extension AnalysisCoordinator {
         return diff > 1000
     }
 
-    /// Purge expired cache entries (T084)
+    /// Purge expired cache entries
     func purgeExpiredCache() {
         let now = Date()
         var expiredKeys: [String] = []
@@ -137,7 +137,7 @@ extension AnalysisCoordinator {
         }
     }
 
-    /// Evict least recently used cache entries (T085)
+    /// Evict least recently used cache entries
     func evictLRUCacheIfNeeded() {
         guard cacheMetadata.count > maxCachedDocuments else { return }
 
@@ -291,7 +291,7 @@ extension AnalysisCoordinator {
             )
 
             // Clear the flag after the checkmark display period
-            DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.aiInferenceRetryDelay) { [weak self] in
                 self?.isManualStyleCheckActive = false
             }
 
@@ -365,8 +365,8 @@ extension AnalysisCoordinator {
                         styleSuggestions: filteredSuggestions
                     )
 
-                    // Clear the flag after the checkmark display period (6 seconds to be safe)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) { [weak self] in
+                    // Clear the flag after the checkmark display period
+                    DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.aiInferenceRetryDelay) { [weak self] in
                         self?.isManualStyleCheckActive = false
                     }
 
@@ -381,8 +381,8 @@ extension AnalysisCoordinator {
                         styleSuggestions: []
                     )
 
-                    // Clear the flag after the checkmark display period (6 seconds to be safe)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) { [weak self] in
+                    // Clear the flag after the checkmark display period
+                    DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.aiInferenceRetryDelay) { [weak self] in
                         self?.isManualStyleCheckActive = false
                     }
 

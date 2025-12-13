@@ -422,13 +422,13 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
     }
 
-    /// Show restart indicator briefly (T112)
+    /// Show restart indicator briefly
     func showRestartIndicator() {
         Logger.info("Showing restart indicator", category: Logger.ui)
         setIconState(.restarting)
     }
 
-    /// Hide restart indicator and restore previous state (T112)
+    /// Hide restart indicator and restore previous state
     func hideRestartIndicator() {
         Logger.info("Hiding restart indicator", category: Logger.ui)
         setIconState(previousIconState)

@@ -2,7 +2,7 @@
 //  CustomVocabulary.swift
 //  TextWarden
 //
-//  Custom vocabulary management with JSON persistence (T100, T107)
+//  Custom vocabulary management with JSON persistence
 //
 
 import Foundation
@@ -43,7 +43,7 @@ class CustomVocabulary: ObservableObject {
 
     // MARK: - Public Methods
 
-    /// Add a word to the custom vocabulary (T110)
+    /// Add a word to the custom vocabulary
     /// Case-sensitive: "Today" and "today" are treated as different words
     func addWord(_ word: String) throws {
         guard words.count < maxWords else {
@@ -78,7 +78,7 @@ class CustomVocabulary: ObservableObject {
         try save()
     }
 
-    /// Check if any text contains words from custom vocabulary (T103)
+    /// Check if any text contains words from custom vocabulary
     /// Used to filter out grammar errors that involve custom words
     /// Case-sensitive: only exact matches (including capitalization) are filtered
     func containsAnyWord(in text: String) -> Bool {
@@ -91,7 +91,7 @@ class CustomVocabulary: ObservableObject {
         }
     }
 
-    // MARK: - Persistence (T107)
+    // MARK: - Persistence
 
     /// Save vocabulary to JSON file
     private func save() throws {

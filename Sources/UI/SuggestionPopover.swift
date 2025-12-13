@@ -269,7 +269,7 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         // CRITICAL: Resize panel after SwiftUI has had time to layout the new content
         // This fixes border/corner issues when message text causes size changes
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.shortDelay) { [weak self] in
             self?.rebuildContentView()
         }
     }
@@ -434,7 +434,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         panel?.standardWindowButton(.closeButton)?.action = #selector(handleClose)
     }
 
-    /// Position panel near cursor (T042)
+    /// Position panel near cursor
     /// - Parameters:
     ///   - cursorPosition: The screen position for the popover
     ///   - constrainToWindow: Optional window frame to constrain positioning (keeps popover inside app window)
@@ -558,7 +558,7 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     // MARK: - Navigation
 
-    /// Navigate to next error (T047)
+    /// Navigate to next error
     func nextError() {
         guard !allErrors.isEmpty else { return }
         currentIndex = (currentIndex + 1) % allErrors.count
@@ -568,7 +568,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         rebuildContentView()
     }
 
-    /// Navigate to previous error (T047)
+    /// Navigate to previous error
     func previousError() {
         guard !allErrors.isEmpty else { return }
         currentIndex = (currentIndex - 1 + allErrors.count) % allErrors.count
@@ -666,7 +666,7 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     // MARK: - Grammar Error Actions
 
-    /// Apply suggestion (T044)
+    /// Apply suggestion
     func applySuggestion(_ suggestion: String) {
         guard let error = currentError else { return }
 
@@ -737,7 +737,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         }
     }
 
-    /// Dismiss error for session (T045, T048)
+    /// Dismiss error for session
     func dismissError() {
         guard let error = currentError else { return }
         onDismissError?(error)
@@ -754,7 +754,7 @@ class SuggestionPopover: NSObject, ObservableObject {
                 hide()
             } else {
                 // Resize panel after slight delay to let SwiftUI update
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.shortDelay) { [weak self] in
                     self?.rebuildContentView()
                 }
             }
@@ -763,7 +763,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         }
     }
 
-    /// Ignore rule permanently (T046, T050)
+    /// Ignore rule permanently
     func ignoreRule() {
         guard let error = currentError else { return }
         onIgnoreRule?(error.lintId)
@@ -780,7 +780,7 @@ class SuggestionPopover: NSObject, ObservableObject {
                 hide()
             } else {
                 // Resize panel after slight delay to let SwiftUI update
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.shortDelay) { [weak self] in
                     self?.rebuildContentView()
                 }
             }
@@ -806,7 +806,7 @@ class SuggestionPopover: NSObject, ObservableObject {
                 hide()
             } else {
                 // Resize panel after slight delay to let SwiftUI update
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.shortDelay) { [weak self] in
                     self?.rebuildContentView()
                 }
             }
@@ -1058,7 +1058,7 @@ extension SuggestionPopover {
         return CGPoint(x: rect.origin.x, y: rect.origin.y)
     }
 
-    /// Get cursor position from AX element (T042)
+    /// Get cursor position from AX element
     static func getCursorPosition(in element: AXUIElement) -> CGPoint? {
         // Try to get selected text range
         var rangeValue: CFTypeRef?

@@ -11,7 +11,7 @@ import SwiftUI
 
 final class OnboardingViewTests: XCTestCase {
 
-    // MARK: - Onboarding Flow Tests (T053)
+    // MARK: - Onboarding Flow Tests
 
     func testOnboardingViewInitialization() {
         // Given: User launches app for first time without permissions

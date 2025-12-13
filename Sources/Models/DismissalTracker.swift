@@ -2,7 +2,7 @@
 //  DismissalTracker.swift
 //  TextWarden
 //
-//  Tracks dismissed grammar rule patterns (T101, T108)
+//  Tracks dismissed grammar rule patterns
 //
 
 import Foundation
@@ -87,7 +87,7 @@ class DismissalTracker {
         try? save()
     }
 
-    // MARK: - Persistence (T108)
+    // MARK: - Persistence
 
     /// Save patterns to JSON file
     private func save() throws {

@@ -3,7 +3,7 @@
 //  TextWarden
 //
 //  Regression tests for virtual key codes to prevent accidental changes
-//  that could break Terminal text replacement (T044-Terminal)
+//  that could break Terminal text replacement
 //
 
 import XCTest

@@ -23,7 +23,7 @@ final class PermissionManagerTests: XCTestCase {
         super.tearDown()
     }
 
-    // MARK: - Permission Detection Tests (T052)
+    // MARK: - Permission Detection Tests
 
     func testPermissionGrantedDetection() {
         // Given: System has granted Accessibility permissions
