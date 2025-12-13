@@ -540,7 +540,8 @@ class TextMonitor: ObservableObject {
         debounceTimer = Timer.scheduledTimer(withTimeInterval: debounceInterval, repeats: false) { [weak self] _ in
             guard let self = self else { return }
 
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
                 self.currentText = text
                 self.onTextChange?(text, context)
             }

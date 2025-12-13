@@ -687,7 +687,8 @@ class SuggestionPopover: NSObject, ObservableObject {
         onApplySuggestion?(error, suggestion) { [weak self] in
             guard let self = self else { return }
 
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
                 // Update sourceText to reflect the applied correction
                 if !self.sourceText.isEmpty,
                    error.start < self.sourceText.count,

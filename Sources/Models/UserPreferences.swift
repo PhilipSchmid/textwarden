@@ -68,9 +68,9 @@ class UserPreferences: ObservableObject {
             } else {
                 // Pause expired - auto-resume
                 if pauseDuration != .active {
-                    DispatchQueue.main.async {
-                        self.pauseDuration = .active
-                        self.pausedUntil = nil
+                    DispatchQueue.main.async { [weak self] in
+                        self?.pauseDuration = .active
+                        self?.pausedUntil = nil
                     }
                 }
                 return true
@@ -874,9 +874,9 @@ class UserPreferences: ObservableObject {
         let timeInterval = until.timeIntervalSinceNow
         guard timeInterval > 0 else {
             // Already expired - resume immediately
-            DispatchQueue.main.async {
-                self.pauseDuration = .active
-                self.pausedUntil = nil
+            DispatchQueue.main.async { [weak self] in
+                self?.pauseDuration = .active
+                self?.pausedUntil = nil
             }
             return
         }

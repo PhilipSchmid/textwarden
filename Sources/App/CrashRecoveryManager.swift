@@ -94,7 +94,8 @@ class CrashRecoveryManager {
 
     /// Show crash dialog for excessive restarts
     private func showCrashDialog() {
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
             let alert = NSAlert()
             alert.messageText = "TextWarden encountered repeated crashes"
             alert.informativeText = """

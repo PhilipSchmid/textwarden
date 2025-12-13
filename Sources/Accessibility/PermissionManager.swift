@@ -141,8 +141,8 @@ class PermissionManager: ObservableObject {
             Logger.critical("Accessibility permission was revoked!", category: Logger.permissions)
             Logger.logPermissionChange(granted: false)
 
-            DispatchQueue.main.async {
-                self.onPermissionRevoked?()
+            DispatchQueue.main.async { [weak self] in
+                self?.onPermissionRevoked?()
             }
         }
     }

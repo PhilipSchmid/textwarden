@@ -166,8 +166,8 @@ final class TypingDetector {
             Logger.debug("TypingDetector: Typing stopped - triggering text extraction", category: Logger.ui)
             self.typingDetectedViaKeyboard = false
 
-            DispatchQueue.main.async {
-                self.onTypingStopped?()
+            DispatchQueue.main.async { [weak self] in
+                self?.onTypingStopped?()
             }
         }
     }
