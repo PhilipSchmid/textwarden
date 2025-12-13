@@ -42,6 +42,73 @@ enum GeometryConstants {
     /// Minimum confidence for geometry result to be usable
     static let minimumUsableConfidence: Double = 0.5
 
+    /// High confidence when using real AX positioning data
+    static let highConfidence: Double = 0.95
+
+    /// Reliable confidence when using real AX data with minor estimation
+    static let reliableConfidence: Double = 0.90
+
+    /// Good confidence when using cursor/insertion point info
+    static let goodConfidence: Double = 0.85
+
+    /// Medium confidence for estimated or fallback positioning
+    static let mediumConfidence: Double = 0.75
+
+    /// Lower confidence for heuristic-based positioning
+    static let lowerConfidence: Double = 0.65
+
+    /// Low confidence for multi-line or cross-line estimation
+    static let lowConfidence: Double = 0.60
+
+    // MARK: - Line Height Estimation
+
+    /// Default line height fallback when detection fails
+    static let defaultLineHeight: CGFloat = 20.0
+
+    /// Minimum line height for any text
+    static let minimumLineHeight: CGFloat = 12.0
+
+    /// Line height multiplier for font size estimation (fontSize * 1.3)
+    static let lineHeightMultiplier: CGFloat = 1.3
+
+    /// Larger line height multiplier for expected heights (fontSize * 1.5)
+    static let largerLineHeightMultiplier: CGFloat = 1.5
+
+    /// Even larger multiplier for cursor-based calculations (fontSize * 1.6)
+    static let cursorLineHeightMultiplier: CGFloat = 1.6
+
+    /// Multiplier for detecting suspiciously tall lines (normalHeight * 1.5)
+    static let suspiciousHeightMultiplier: CGFloat = 1.5
+
+    /// Estimated last line width as percentage of full width
+    static let lastLineWidthRatio: CGFloat = 0.7
+
+    /// Normal line height for typical text (16px)
+    static let normalLineHeight: CGFloat = 16.0
+
+    /// Minimum line height for constrained layouts (Messages)
+    static let constrainedMinLineHeight: CGFloat = 18.0
+
+    /// Maximum line height for constrained layouts (Messages)
+    static let constrainedMaxLineHeight: CGFloat = 26.0
+
+    /// Maximum single line height before using normalLineHeight fallback
+    static let maxSingleLineHeight: CGFloat = 30.0
+
+    // MARK: - Chromium/Electron Delays (microseconds for usleep)
+
+    /// Short delay for Chromium AX processing (15ms)
+    static let chromiumShortDelay: UInt32 = 15_000
+
+    /// Medium delay for Chromium operations (20ms)
+    static let chromiumMediumDelay: UInt32 = 20_000
+
+    /// Delay between key presses (1ms)
+    static let keyPressDelay: UInt32 = 1_000
+
+    /// Short UI update delay (5ms)
+    static let shortUIDelay: UInt32 = 5_000
+
     // MARK: - Validation Helpers
 
     /// Check if bounds represent a valid single-line text region

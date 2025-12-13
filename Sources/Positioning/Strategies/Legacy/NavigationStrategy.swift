@@ -68,7 +68,7 @@ class NavigationStrategy: GeometryProvider {
             return nil
         }
 
-        usleep(20000)  // 20ms for UI update
+        usleep(GeometryConstants.chromiumMediumDelay)
 
         // Step 4: Get cursor bounds at new position
         let cursorBounds = getCursorBounds(element: element, position: targetPosition)
@@ -175,7 +175,7 @@ class NavigationStrategy: GeometryProvider {
             if !pressKey(keyCode: keyCode) {
                 return false
             }
-            usleep(1000)  // 1ms between presses
+            usleep(GeometryConstants.keyPressDelay)
         }
 
         return true

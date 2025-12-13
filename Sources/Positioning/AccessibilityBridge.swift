@@ -535,15 +535,15 @@ enum AccessibilityBridge {
         }
 
         // Estimate typical line height by getting bounds for a single character
-        var typicalLineHeight: CGFloat = 20.0  // Default fallback
+        var typicalLineHeight: CGFloat = GeometryConstants.defaultLineHeight
         let singleCharRange = CFRange(location: range.location, length: 1)
         if let charBounds = resolveBoundsUsingRange(singleCharRange, in: element) {
-            typicalLineHeight = max(charBounds.height, 12.0)  // At least 12px
+            typicalLineHeight = max(charBounds.height, GeometryConstants.minimumLineHeight)
         }
 
         // Check if bounds suggest multi-line (height > 1.5x typical line height)
         let estimatedLineCount = Int(ceil(overallBounds.height / typicalLineHeight))
-        let likelyMultiLine = overallBounds.height > typicalLineHeight * 1.5
+        let likelyMultiLine = overallBounds.height > typicalLineHeight * GeometryConstants.suspiciousHeightMultiplier
 
         Logger.debug("AccessibilityBridge: Range \(range) overall bounds: \(overallBounds), lineHeight: \(typicalLineHeight), estimatedLines: \(estimatedLineCount), likelyMultiLine: \(likelyMultiLine)")
 
@@ -694,7 +694,7 @@ enum AccessibilityBridge {
             } else if lineIndex == estimatedLineCount - 1 {
                 // Last line - may not span full width
                 // Estimate based on proportional text
-                let lastLineWidth = min(overallBounds.width, overallBounds.width * 0.7)  // Estimate 70% for last line
+                let lastLineWidth = min(overallBounds.width, overallBounds.width * GeometryConstants.lastLineWidthRatio)
                 lineRect = CGRect(
                     x: overallBounds.origin.x,
                     y: lineY,

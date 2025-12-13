@@ -106,9 +106,9 @@ class InsertionPointStrategy: GeometryProvider {
         // === LINE HEIGHT CALCULATION ===
         // Messages uses approximately 20-22pt line height for 13pt font
         // Estimate line height based on font size, then derive line count from element height
-        let expectedLineHeight: CGFloat = fontSize * 1.6  // ~20.8 for 13pt font
-        let minLineHeight: CGFloat = 18.0
-        let maxLineHeight: CGFloat = 26.0
+        let expectedLineHeight: CGFloat = fontSize * GeometryConstants.cursorLineHeightMultiplier
+        let minLineHeight: CGFloat = GeometryConstants.constrainedMinLineHeight
+        let maxLineHeight: CGFloat = GeometryConstants.constrainedMaxLineHeight
 
         // Calculate available width for text (element width minus padding)
         // Messages has minimal internal padding - the element frame is close to the text bounds
@@ -125,7 +125,7 @@ class InsertionPointStrategy: GeometryProvider {
             // Clamp to reasonable range
             lineHeight = min(max(lineHeight, minLineHeight), maxLineHeight)
         } else {
-            lineHeight = fontSize * 1.5  // Single line default
+            lineHeight = fontSize * GeometryConstants.largerLineHeightMultiplier
         }
 
         // Width estimation multiplier for wrap detection
@@ -254,9 +254,9 @@ class InsertionPointStrategy: GeometryProvider {
         // Confidence based on whether we have cursor info
         let confidence: Double
         if insertionPoint != nil || selectedRange != nil {
-            confidence = 0.75  // Higher confidence with cursor info
+            confidence = GeometryConstants.mediumConfidence
         } else {
-            confidence = 0.65  // Still reasonable with just element frame
+            confidence = GeometryConstants.lowerConfidence
         }
 
         Logger.debug("InsertionPointStrategy: SUCCESS - bounds: \(cocoaBounds), confidence: \(confidence)", category: Logger.ui)
@@ -578,8 +578,8 @@ class InsertionPointStrategy: GeometryProvider {
         // it means the bounds span multiple lines - this happens for text at the start
         // of a line after a hard newline. The AX bounds span from the wrong line to the
         // correct line. Solution: use the BOTTOM of the AX bounds minus one line height.
-        let normalLineHeight: CGFloat = 16.0
-        let suspiciousHeightThreshold: CGFloat = normalLineHeight * 1.5  // 24px
+        let normalLineHeight = GeometryConstants.normalLineHeight
+        let suspiciousHeightThreshold = normalLineHeight * GeometryConstants.suspiciousHeightMultiplier
 
         let errorY: CGFloat
         if axBounds.height > suspiciousHeightThreshold {
@@ -607,7 +607,7 @@ class InsertionPointStrategy: GeometryProvider {
         let lineHeight: CGFloat
         if axBounds.height > suspiciousHeightThreshold {
             lineHeight = normalLineHeight
-        } else if axBounds.height > GeometryConstants.minimumBoundsSize && axBounds.height <= 30 {
+        } else if axBounds.height > GeometryConstants.minimumBoundsSize && axBounds.height <= GeometryConstants.maxSingleLineHeight {
             lineHeight = axBounds.height
         } else {
             lineHeight = normalLineHeight
@@ -640,7 +640,7 @@ class InsertionPointStrategy: GeometryProvider {
 
         return GeometryResult(
             bounds: cocoaBounds,
-            confidence: 0.85,  // Higher confidence since we use real AX Y data
+            confidence: GeometryConstants.goodConfidence,
             strategy: strategyName,
             metadata: [
                 "api": "hybrid-ax-y-font-x",

@@ -197,7 +197,7 @@ class LineIndexStrategy: GeometryProvider {
 
         return GeometryResult(
             bounds: cocoaBounds,
-            confidence: usingEstimatedBounds ? 0.75 : 0.90,
+            confidence: usingEstimatedBounds ? GeometryConstants.mediumConfidence : GeometryConstants.reliableConfidence,
             strategy: strategyName,
             metadata: [
                 "api": usingEstimatedBounds ? "line-index-estimated" : "line-index",
@@ -355,7 +355,7 @@ class LineIndexStrategy: GeometryProvider {
 
         // Get font info for line height calculation
         let font = detectFont(from: element, parser: parser)
-        let lineHeight = font.pointSize * 1.3  // Approximate line height (font size * 1.3)
+        let lineHeight = font.pointSize * GeometryConstants.lineHeightMultiplier
 
         // Calculate Y position for this line
         // In Quartz coordinates, Y increases downward from top-left

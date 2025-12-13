@@ -58,7 +58,7 @@ class SelectionBoundsStrategy: GeometryProvider {
             return nil
         }
 
-        usleep(5000)  // 5ms for UI update
+        usleep(GeometryConstants.shortUIDelay)
 
         // Step 4: Get insertion point frame at START of error
         guard let startFrame = getInsertionPointFrame(element: element) else {
@@ -76,7 +76,7 @@ class SelectionBoundsStrategy: GeometryProvider {
             return nil
         }
 
-        usleep(5000)  // 5ms for UI update
+        usleep(GeometryConstants.shortUIDelay)
 
         // Step 6: Get insertion point frame at END of error
         guard let endFrame = getInsertionPointFrame(element: element) else {
@@ -141,7 +141,7 @@ class SelectionBoundsStrategy: GeometryProvider {
 
         return GeometryResult(
             bounds: cocoaBounds,
-            confidence: 0.90,  // High confidence - this is direct cursor position data
+            confidence: GeometryConstants.reliableConfidence,
             strategy: strategyName,
             metadata: [
                 "api": "insertion-point-frame",

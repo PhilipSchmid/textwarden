@@ -111,7 +111,7 @@ class ChromiumStrategy: GeometryProvider {
 
         if let restoreValue = AXValueCreate(.cfRange, &pos) {
             AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, restoreValue)
-            usleep(15000)  // 15ms for Chromium to process
+            usleep(GeometryConstants.chromiumShortDelay)
         }
 
         stateQueue.sync {
@@ -191,7 +191,7 @@ class ChromiumStrategy: GeometryProvider {
 
         return GeometryResult(
             bounds: cocoaBounds,
-            confidence: bounds.width > 0 ? 0.95 : 0.85,  // Slightly lower confidence for estimated width
+            confidence: bounds.width > 0 ? GeometryConstants.highConfidence : GeometryConstants.goodConfidence,
             strategy: strategyName,
             metadata: ["api": "selection-marker-range", "skip_conversion": true, "skip_resolver_cache": true]
         )
@@ -287,12 +287,12 @@ class ChromiumStrategy: GeometryProvider {
         }
 
         // Wait for Chromium to process selection change
-        usleep(20000)  // 20ms
+        usleep(GeometryConstants.chromiumMediumDelay)
 
         // Poll for valid bounds with stale data detection
         for attempt in 0..<8 {
             if attempt > 0 {
-                usleep(15000)  // 15ms between retries
+                usleep(GeometryConstants.chromiumShortDelay)
             }
 
             guard let bounds = readSelectedTextBounds(element: element) else {

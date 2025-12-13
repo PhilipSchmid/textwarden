@@ -156,11 +156,11 @@ class AnchorSearchStrategy: GeometryProvider {
         // Confidence depends on distance from anchor and whether same line
         let confidence: Double
         if newlineCount == 0 && abs(offsetUTF16) < 20 {
-            confidence = 0.85
+            confidence = GeometryConstants.goodConfidence
         } else if newlineCount == 0 {
-            confidence = 0.75
+            confidence = GeometryConstants.mediumConfidence
         } else {
-            confidence = 0.60
+            confidence = GeometryConstants.lowConfidence
         }
 
         Logger.debug("AnchorSearchStrategy: SUCCESS - bounds: \(cocoaBounds), confidence: \(confidence)", category: Logger.ui)
