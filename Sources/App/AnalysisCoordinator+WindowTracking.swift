@@ -829,6 +829,7 @@ extension AnalysisCoordinator {
             guard parentResult == .success,
                   let parent = parentValue,
                   CFGetTypeID(parent) == AXUIElementGetTypeID() else { break }
+            // Safe: type verified by CFGetTypeID check above
             currentElement = (parent as! AXUIElement)
         }
 
