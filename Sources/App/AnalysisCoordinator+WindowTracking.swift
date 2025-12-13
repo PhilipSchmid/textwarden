@@ -835,19 +835,8 @@ extension AnalysisCoordinator {
 
         guard let window = windowElement else { return nil }
 
-        // Get position from AX window
-        var positionValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &positionValue) == .success,
-              let positionValue = positionValue else {
-            return nil
-        }
-
-        guard let position = safeAXValueGetPoint(positionValue) else {
-            return nil
-        }
-
         // Return in Quartz coordinates (AX API already returns Quartz coords)
-        return position
+        return AccessibilityBridge.getElementPosition(window)
     }
 
     /// Get AX element position directly (for stability checking)
