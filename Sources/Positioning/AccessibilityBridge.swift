@@ -109,6 +109,18 @@ enum AccessibilityBridge {
             return true
         }
 
+        // Sanity check: validate against actual text length to catch smaller invalid values
+        var textLengthRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &textLengthRef) == .success,
+           let textLength = textLengthRef as? Int,
+           textLength > 0 {
+            // Visible range should not exceed text length
+            if visibleRange.location > textLength || visibleRange.location + visibleRange.length > textLength {
+                Logger.debug("AccessibilityBridge: Visible range \(visibleRange) exceeds text length \(textLength), assuming visible")
+                return true
+            }
+        }
+
         // Sanity check: if visible range has zero length, the app doesn't properly support this API
         // This happens with Mac Catalyst apps like Messages which return {0, 0}
         if visibleRange.length == 0 {
