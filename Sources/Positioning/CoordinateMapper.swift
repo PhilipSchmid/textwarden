@@ -44,14 +44,20 @@ struct ScreenPosition {
     /// Convert to Cocoa coordinate system
     func toCocoa(screenHeight: CGFloat? = nil) -> ScreenPosition {
         guard system == .quartz else { return self }
-        let height = screenHeight ?? NSScreen.main?.frame.height ?? 0
+        guard let height = screenHeight ?? NSScreen.main?.frame.height else {
+            Logger.warning("CoordinateMapper: Screen height unavailable for conversion", category: Logger.analysis)
+            return self  // Return unchanged to avoid corrupting coordinates
+        }
         return ScreenPosition(x: x, y: height - y, system: .cocoa)
     }
 
     /// Convert to Quartz coordinate system
     func toQuartz(screenHeight: CGFloat? = nil) -> ScreenPosition {
         guard system == .cocoa else { return self }
-        let height = screenHeight ?? NSScreen.main?.frame.height ?? 0
+        guard let height = screenHeight ?? NSScreen.main?.frame.height else {
+            Logger.warning("CoordinateMapper: Screen height unavailable for conversion", category: Logger.analysis)
+            return self  // Return unchanged to avoid corrupting coordinates
+        }
         return ScreenPosition(x: x, y: height - y, system: .quartz)
     }
 }
