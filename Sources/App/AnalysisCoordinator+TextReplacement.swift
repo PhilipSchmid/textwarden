@@ -1750,33 +1750,26 @@ extension AnalysisCoordinator {
         return true  // Success - selection is set, caller will paste
     }
 
-    /// Send multiple arrow keys with delay between each
-    func sendArrowKeys(count: Int, keyCode: CGKeyCode, flags: CGEventFlags, delay: TimeInterval, completion: @escaping () -> Void) {
-        guard count > 0 else {
-            completion()
-            return
-        }
+    /// Send multiple arrow keys with delay between each (async version)
+    func sendArrowKeysAsync(count: Int, keyCode: CGKeyCode, flags: CGEventFlags, delay: TimeInterval) async {
+        guard count > 0 else { return }
 
-        var remaining = count
-        func sendNext() {
-            guard remaining > 0 else {
-                completion()
-                return
-            }
-
+        for i in 0..<count {
             self.pressKey(key: keyCode, flags: flags)
-            remaining -= 1
 
-            if remaining > 0 {
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                    sendNext()
-                }
-            } else {
-                completion()
+            // Add delay between keys (except after the last one)
+            if i < count - 1 {
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             }
         }
+    }
 
-        sendNext()
+    /// Send multiple arrow keys with delay between each (legacy completion handler)
+    func sendArrowKeys(count: Int, keyCode: CGKeyCode, flags: CGEventFlags, delay: TimeInterval, completion: @escaping () -> Void) {
+        Task { @MainActor in
+            await self.sendArrowKeysAsync(count: count, keyCode: keyCode, flags: flags, delay: delay)
+            completion()
+        }
     }
 
     /// Simulate a key press event via CGEventPost

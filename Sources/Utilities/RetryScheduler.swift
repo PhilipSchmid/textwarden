@@ -40,9 +40,10 @@ enum RetryResult<T> {
 
 /// Reusable retry scheduler with exponential backoff
 /// Handles automatic retry logic with configurable delays and max attempts
-class RetryScheduler {
-    private var workItem: DispatchWorkItem?
+final class RetryScheduler: @unchecked Sendable {
+    private var currentTask: Task<Void, Never>?
     private let config: RetryConfig
+    private let lock = NSLock()
 
     /// Initialize with custom configuration
     init(config: RetryConfig = .accessibilityAPI) {
@@ -51,11 +52,54 @@ class RetryScheduler {
 
     /// Cancel any pending retry
     func cancel() {
-        workItem?.cancel()
-        workItem = nil
+        lock.lock()
+        defer { lock.unlock() }
+        currentTask?.cancel()
+        currentTask = nil
     }
 
-    /// Execute operation with automatic retry logic
+    /// Execute operation with automatic retry logic using async/await
+    /// - Parameters:
+    ///   - operation: Closure that returns RetryResult
+    /// - Returns: The successful result value
+    /// - Throws: RetryError if max attempts exceeded or permanent failure
+    func execute<T>(
+        operation: @escaping () -> RetryResult<T>
+    ) async throws -> T {
+        var attempt = 0
+
+        while attempt <= config.maxAttempts {
+            // Check for cancellation
+            try Task.checkCancellation()
+
+            // Execute the operation
+            let result = operation()
+
+            switch result {
+            case .success(let value):
+                return value
+
+            case .retry(let error):
+                if attempt < config.maxAttempts {
+                    // Calculate delay and sleep
+                    let delay = config.delay(for: attempt)
+                    Logger.debug("RetryScheduler: Scheduling retry \(attempt + 1)/\(config.maxAttempts) in \(String(format: "%.3f", delay))s", category: Logger.general)
+
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    attempt += 1
+                } else {
+                    throw RetryError.maxAttemptsExceeded(config.maxAttempts, lastError: error)
+                }
+
+            case .failure(let error):
+                throw error
+            }
+        }
+
+        throw RetryError.maxAttemptsExceeded(config.maxAttempts)
+    }
+
+    /// Execute operation with completion handler (legacy compatibility)
     /// - Parameters:
     ///   - attempt: Current attempt number (starts at 0)
     ///   - operation: Closure that returns RetryResult
@@ -65,53 +109,18 @@ class RetryScheduler {
         operation: @escaping () -> RetryResult<T>,
         completion: @escaping (Result<T, Error>) -> Void
     ) {
-        // Check if we've exceeded max attempts
-        guard attempt <= config.maxAttempts else {
-            completion(.failure(RetryError.maxAttemptsExceeded(config.maxAttempts)))
-            return
-        }
-
-        // Execute the operation
-        let result = operation()
-
-        switch result {
-        case .success(let value):
-            // Success - cancel any pending retries and complete
-            cancel()
-            completion(.success(value))
-
-        case .retry(let error):
-            // Retry requested
-            if attempt < config.maxAttempts {
-                scheduleRetry(attempt: attempt) { [weak self] in
-                    self?.execute(attempt: attempt + 1, operation: operation, completion: completion)
+        Task {
+            do {
+                let result = try await self.execute(operation: operation)
+                await MainActor.run {
+                    completion(.success(result))
                 }
-            } else {
-                // Max attempts reached
-                completion(.failure(RetryError.maxAttemptsExceeded(config.maxAttempts, lastError: error)))
+            } catch {
+                await MainActor.run {
+                    completion(.failure(error))
+                }
             }
-
-        case .failure(let error):
-            // Permanent failure - don't retry
-            cancel()
-            completion(.failure(error))
         }
-    }
-
-    /// Schedule a retry with exponential backoff
-    private func scheduleRetry(attempt: Int, action: @escaping () -> Void) {
-        // Cancel any existing retry
-        cancel()
-
-        // Calculate delay
-        let delay = config.delay(for: attempt)
-
-        Logger.debug("RetryScheduler: Scheduling retry \(attempt + 1)/\(config.maxAttempts) in \(String(format: "%.3f", delay))s", category: Logger.general)
-
-        // Schedule retry
-        let item = DispatchWorkItem(block: action)
-        workItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
     }
 }
 
