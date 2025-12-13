@@ -56,6 +56,14 @@ struct Logger {
     private static var cachedFileHandle: FileHandle?
     private static var cachedLogPath: String?
 
+    // MARK: - Stderr Fallback
+
+    /// Log to stderr when file logging fails (avoids infinite recursion)
+    private static func logToStderr(_ message: String) {
+        let timestamp = dateFormatter.string(from: Date())
+        fputs("[\(timestamp)] [Logger] \(message)\n", stderr)
+    }
+
     // MARK: - Configuration
 
     /// Default log directory following macOS best practices
@@ -119,11 +127,15 @@ struct Logger {
         let directory = (logPath as NSString).deletingLastPathComponent
 
         if !FileManager.default.fileExists(atPath: directory) {
-            try? FileManager.default.createDirectory(
-                atPath: directory,
-                withIntermediateDirectories: true,
-                attributes: nil
-            )
+            do {
+                try FileManager.default.createDirectory(
+                    atPath: directory,
+                    withIntermediateDirectories: true,
+                    attributes: nil
+                )
+            } catch {
+                logToStderr("Failed to create log directory '\(directory)': \(error.localizedDescription)")
+            }
         }
     }
 
@@ -229,14 +241,22 @@ struct Logger {
         if cachedFileHandle == nil {
             let fileURL = URL(fileURLWithPath: logPath)
             if FileManager.default.fileExists(atPath: logPath) {
-                cachedFileHandle = try? FileHandle(forWritingTo: fileURL)
-                cachedFileHandle?.seekToEndOfFile()
+                do {
+                    cachedFileHandle = try FileHandle(forWritingTo: fileURL)
+                    cachedFileHandle?.seekToEndOfFile()
+                } catch {
+                    logToStderr("Failed to open log file for writing: \(error.localizedDescription)")
+                }
             } else {
                 // Create the file
-                try? data.write(to: fileURL)
-                cachedFileHandle = try? FileHandle(forWritingTo: fileURL)
-                cachedFileHandle?.seekToEndOfFile()
-                return  // Already wrote the data
+                do {
+                    try data.write(to: fileURL)
+                    cachedFileHandle = try FileHandle(forWritingTo: fileURL)
+                    cachedFileHandle?.seekToEndOfFile()
+                    return  // Already wrote the data
+                } catch {
+                    logToStderr("Failed to create log file '\(logPath)': \(error.localizedDescription)")
+                }
             }
         }
 
@@ -249,20 +269,35 @@ struct Logger {
 
         // Delete oldest log file
         let oldestLog = "\(basePath).\(maxLogFiles - 1)"
-        try? FileManager.default.removeItem(atPath: oldestLog)
+        do {
+            try FileManager.default.removeItem(atPath: oldestLog)
+        } catch {
+            // File may not exist, only log if it's not a "file not found" error
+            if (error as NSError).code != NSFileNoSuchFileError {
+                logToStderr("Failed to remove old log '\(oldestLog)': \(error.localizedDescription)")
+            }
+        }
 
         // Rotate existing logs
         for i in (1..<maxLogFiles - 1).reversed() {
             let currentLog = "\(basePath).\(i)"
             let nextLog = "\(basePath).\(i + 1)"
             if FileManager.default.fileExists(atPath: currentLog) {
-                try? FileManager.default.moveItem(atPath: currentLog, toPath: nextLog)
+                do {
+                    try FileManager.default.moveItem(atPath: currentLog, toPath: nextLog)
+                } catch {
+                    logToStderr("Failed to rotate log '\(currentLog)': \(error.localizedDescription)")
+                }
             }
         }
 
         // Move current log to .1
         if FileManager.default.fileExists(atPath: basePath) {
-            try? FileManager.default.moveItem(atPath: basePath, toPath: "\(basePath).1")
+            do {
+                try FileManager.default.moveItem(atPath: basePath, toPath: "\(basePath).1")
+            } catch {
+                logToStderr("Failed to rotate current log: \(error.localizedDescription)")
+            }
         }
     }
 
