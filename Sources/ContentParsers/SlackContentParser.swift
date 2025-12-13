@@ -230,7 +230,7 @@ class SlackContentParser: ContentParser {
         if AXUIElementCopyAttributeValue(element, "AXInsertionPointFrame" as CFString, &insertionPointValue) == .success,
            let axValue = insertionPointValue,
            let frame = safeAXValueGetRect(axValue) {
-            if frame.width >= 0 && frame.height > 5 && frame.height < 100 {
+            if frame.width >= 0 && frame.height > GeometryConstants.minimumBoundsSize && frame.height < GeometryConstants.conservativeMaxLineHeight {
                 cursorBounds = frame
                 Logger.debug("Slack: Got cursor bounds from AXInsertionPointFrame: \(frame)", category: Logger.ui)
             }

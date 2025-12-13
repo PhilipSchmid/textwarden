@@ -124,7 +124,7 @@ class SelectionBoundsStrategy: GeometryProvider {
         }
 
         // Validate bounds
-        guard quartzBounds.width > 0 && quartzBounds.height > 0 && quartzBounds.height < 200 else {
+        guard quartzBounds.width > 0 && quartzBounds.height > 0 && quartzBounds.height < GeometryConstants.maximumLineHeight else {
             Logger.debug("SelectionBoundsStrategy: Invalid bounds \(quartzBounds)")
             return nil
         }
@@ -215,7 +215,7 @@ class SelectionBoundsStrategy: GeometryProvider {
         }
 
         // Validate frame - Chromium bug may return zero dimensions or negative coordinates
-        guard frame.height > 5 && frame.height < 100 else {
+        guard frame.height > GeometryConstants.minimumBoundsSize && frame.height < GeometryConstants.conservativeMaxLineHeight else {
             Logger.debug("SelectionBoundsStrategy: Invalid frame height: \(frame)")
             return nil
         }

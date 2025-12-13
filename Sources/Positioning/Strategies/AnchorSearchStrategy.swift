@@ -197,7 +197,7 @@ class AnchorSearchStrategy: GeometryProvider {
             guard probeIndex >= 0 && probeIndex < textLength else { continue }
 
             if let bounds = getBoundsForSingleChar(at: probeIndex, in: element) {
-                if bounds.width > 0 && bounds.height > 0 && bounds.height < 200 && bounds.width < 100 {
+                if bounds.width > 0 && bounds.height > 0 && bounds.height < GeometryConstants.maximumLineHeight && bounds.width < GeometryConstants.maximumCharacterWidth {
                     return Anchor(index: probeIndex, bounds: bounds)
                 }
             }

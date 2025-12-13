@@ -607,7 +607,7 @@ class InsertionPointStrategy: GeometryProvider {
         let lineHeight: CGFloat
         if axBounds.height > suspiciousHeightThreshold {
             lineHeight = normalLineHeight
-        } else if axBounds.height > 5 && axBounds.height <= 30 {
+        } else if axBounds.height > GeometryConstants.minimumBoundsSize && axBounds.height <= 30 {
             lineHeight = axBounds.height
         } else {
             lineHeight = normalLineHeight

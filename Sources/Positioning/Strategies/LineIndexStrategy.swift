@@ -86,7 +86,7 @@ class LineIndexStrategy: GeometryProvider {
         }
 
         // Validate line bounds
-        guard lineBounds.width > 0 && lineBounds.height > 0 && lineBounds.height < 200 else {
+        guard lineBounds.width > 0 && lineBounds.height > 0 && lineBounds.height < GeometryConstants.maximumLineHeight else {
             Logger.debug("LineIndexStrategy: Invalid line bounds: \(lineBounds)")
             return nil
         }

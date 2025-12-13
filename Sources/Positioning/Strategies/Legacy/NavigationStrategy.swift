@@ -206,7 +206,7 @@ class NavigationStrategy: GeometryProvider {
            let axValue = insertionValue,
            let frame = safeAXValueGetRect(axValue) {
             // Validate the frame
-            if frame.height > 5 && frame.height < 100 && frame.origin.x > 0 {
+            if frame.height > GeometryConstants.minimumBoundsSize && frame.height < GeometryConstants.conservativeMaxLineHeight && frame.origin.x > 0 {
                 Logger.debug("NavigationStrategy: Got valid bounds from AXInsertionPointFrame: \(frame)")
                 return frame
             } else {
@@ -231,7 +231,7 @@ class NavigationStrategy: GeometryProvider {
         if result == .success, let bv = boundsValue,
            let bounds = safeAXValueGetRect(bv) {
             // Validate bounds - Chromium bug returns (0, y, 0, 0)
-            if bounds.width > 0 && bounds.height > 5 && bounds.origin.x > 0 {
+            if bounds.width > 0 && bounds.height > GeometryConstants.minimumBoundsSize && bounds.origin.x > 0 {
                 Logger.debug("NavigationStrategy: Got valid bounds from AXBoundsForRange: \(bounds)")
                 return bounds
             } else {
