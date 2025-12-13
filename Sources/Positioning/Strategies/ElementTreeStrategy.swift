@@ -25,17 +25,17 @@ struct ElementScore {
         var score = ElementScore(sizeScore: 0, roleScore: 0, widthScore: 0)
 
         // Height scoring: prefer elements with typical text line height (15-50px)
-        if height > 0 && height < 50 {
+        if height > 0 && height < GeometryConstants.typicalLineHeightRange.upperBound {
             score.sizeScore = 100
-        } else if height >= 50 && height < 100 {
+        } else if height >= GeometryConstants.typicalLineHeightRange.upperBound && height < GeometryConstants.conservativeMaxLineHeight {
             score.sizeScore = 50
-        } else if height >= 100 && height < 200 {
+        } else if height >= GeometryConstants.conservativeMaxLineHeight && height < GeometryConstants.maximumLineHeight {
             score.sizeScore = 10
         }
-        // Height >= 200 gets 0 (container elements)
+        // Height >= maximumLineHeight gets 0 (container elements)
 
         // Width scoring
-        if width > 20 && width < 800 {
+        if width > 20 && width < GeometryConstants.maximumTextWidth {
             score.widthScore = 20
         }
 

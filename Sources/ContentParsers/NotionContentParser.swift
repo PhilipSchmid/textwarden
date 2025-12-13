@@ -353,7 +353,7 @@ class NotionContentParser: ContentParser {
            let axValue = insertionPointValue,
            let frame = safeAXValueGetRect(axValue) {
             // Validate frame - check for Chromium's invalid (0,0,0,0) or (0, screenHeight, 0, 0) bug
-            if frame.width > 0 || (frame.height > 0 && frame.height < 100) {
+            if frame.width > 0 || (frame.height > 0 && frame.height < GeometryConstants.conservativeMaxLineHeight) {
                 cursorFrame = frame
                 Logger.debug("NotionContentParser: Got cursor frame from AXInsertionPointFrame: \(frame)", category: Logger.ui)
             } else {

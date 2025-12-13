@@ -1385,7 +1385,7 @@ extension AnalysisCoordinator {
             }
 
             // Prefer smaller elements (paragraph-level, not document-level)
-            if height > 0 && height < 200 {
+            if height > 0 && height < GeometryConstants.maximumLineHeight {
                 candidates.append((element: element, text: text, offset: 0))
                 Logger.debug("Candidate element height=\(height), text length=\(text.count)", category: Logger.analysis)
             }

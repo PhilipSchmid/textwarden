@@ -1246,7 +1246,7 @@ enum AccessibilityBridge {
             let role = roleValue as? String ?? "unknown"
 
             // Get child's frame
-            if let frame = getElementFrame(child), frame.width > 0 && frame.height > 0 && frame.height < 200 {
+            if let frame = getElementFrame(child), frame.width > 0 && frame.height > 0 && frame.height < GeometryConstants.maximumLineHeight {
                 // Get text if available
                 var textValue: CFTypeRef?
                 AXUIElementCopyAttributeValue(child, kAXValueAttribute as CFString, &textValue)
