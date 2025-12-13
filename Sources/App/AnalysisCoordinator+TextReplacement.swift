@@ -1041,7 +1041,7 @@ extension AnalysisCoordinator {
               CFGetTypeID(menuBarRef) == AXUIElementGetTypeID() else {
             return nil
         }
-
+        // Safe: type verified by CFGetTypeID check above
         let menuBar = menuBarRef as! AXUIElement
 
         // Try to find "Edit" menu
