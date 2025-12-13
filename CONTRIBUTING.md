@@ -83,6 +83,8 @@ textwarden/
 └── Tests/                # Test suites
 ```
 
+For a comprehensive understanding of the codebase architecture, design patterns, threading model, and coding principles, see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
+
 ## Development Workflow
 
 ### Making Changes
@@ -286,6 +288,9 @@ See the [mistral.rs documentation](https://github.com/EricLBuehler/mistral.rs#su
 - **Rust**: Run `cargo fmt` and `cargo clippy`
 - **Comments**: Explain "why", not "what"
 - **No force unwraps** (`!`) on external data
+- **Use centralized constants**: `TimingConstants` for delays, `GeometryConstants` for bounds
+
+For detailed coding principles, threading guidelines, and common pitfalls, see **[ARCHITECTURE.md](ARCHITECTURE.md#design-principles)**.
 
 ## Submitting Changes
 
