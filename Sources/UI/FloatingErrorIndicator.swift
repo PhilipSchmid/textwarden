@@ -989,6 +989,8 @@ private class IndicatorView: NSView {
 
     deinit {
         spinningTimer?.invalidate()
+        hoverTimer?.invalidate()
+        themeObserver = nil
     }
 
     // MARK: - Animation
