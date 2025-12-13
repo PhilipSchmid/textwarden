@@ -850,7 +850,7 @@ enum AccessibilityBridge {
            let wv = windowValue,
            CFGetTypeID(wv) == AXUIElementGetTypeID() {
             // Safe: type verified by CFGetTypeID check above
-            return (wv as! AXUIElement)
+            return unsafeBitCast(wv, to: AXUIElement.self)
         }
 
         // Walk up the parent hierarchy
@@ -863,7 +863,7 @@ enum AccessibilityBridge {
                let wv = windowValue,
                CFGetTypeID(wv) == AXUIElementGetTypeID() {
                 // Safe: type verified by CFGetTypeID check above
-                return (wv as! AXUIElement)
+                return unsafeBitCast(wv, to: AXUIElement.self)
             }
 
             // Check if current element IS a window (by role)
@@ -882,7 +882,7 @@ enum AccessibilityBridge {
                 break
             }
             // Safe: type verified by CFGetTypeID check above
-            currentElement = (parent as! AXUIElement)
+            currentElement = unsafeBitCast(parent, to: AXUIElement.self)
         }
 
         return nil

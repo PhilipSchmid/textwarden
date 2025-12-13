@@ -193,8 +193,8 @@ class TextMonitor: ObservableObject {
             Logger.warning("TextMonitor: Focused element is not AXUIElement type", category: Logger.accessibility)
             return
         }
-        // Safe: type verified above
-        let axElement = element as! AXUIElement
+        // Safe: type verified by CFGetTypeID check above
+        let axElement = unsafeBitCast(element, to: AXUIElement.self)
 
         // CRITICAL FIX: AXFocusedUIElement might return the wrong element (e.g., sidebar in Slack)
         // If the focused element is not editable, search for editable text fields
@@ -615,8 +615,8 @@ extension TextMonitor {
             Logger.warning("TextMonitor: Window is not AXUIElement type", category: Logger.accessibility)
             return nil
         }
-        // Safe: type verified above
-        let windowElement = window as! AXUIElement
+        // Safe: type verified by CFGetTypeID check above
+        let windowElement = unsafeBitCast(window, to: AXUIElement.self)
 
         Logger.debug("TextMonitor: Searching main window for editable field...", category: Logger.accessibility)
 

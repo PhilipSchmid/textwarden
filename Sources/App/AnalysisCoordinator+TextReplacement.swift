@@ -1042,7 +1042,7 @@ extension AnalysisCoordinator {
             return nil
         }
         // Safe: type verified by CFGetTypeID check above
-        let menuBar = menuBarRef as! AXUIElement
+        let menuBar = unsafeBitCast(menuBarRef, to: AXUIElement.self)
 
         // Try to find "Edit" menu
         var childrenValue: CFTypeRef?

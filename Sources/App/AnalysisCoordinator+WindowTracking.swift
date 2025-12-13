@@ -830,7 +830,7 @@ extension AnalysisCoordinator {
                   let parent = parentValue,
                   CFGetTypeID(parent) == AXUIElementGetTypeID() else { break }
             // Safe: type verified by CFGetTypeID check above
-            currentElement = (parent as! AXUIElement)
+            currentElement = unsafeBitCast(parent, to: AXUIElement.self)
         }
 
         guard let window = windowElement else { return nil }

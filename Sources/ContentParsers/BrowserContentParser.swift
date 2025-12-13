@@ -164,7 +164,7 @@ class BrowserContentParser: ContentParser {
                 break
             }
             // Safe: type verified by CFGetTypeID check above
-            let parentElement = parent as! AXUIElement
+            let parentElement = unsafeBitCast(parent, to: AXUIElement.self)
 
             // Check parent role
             var parentRole: CFTypeRef?

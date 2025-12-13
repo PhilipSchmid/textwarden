@@ -630,7 +630,7 @@ class MailContentParser: ContentParser {
                 break
             }
             // Safe: type verified by CFGetTypeID check above
-            let parentElement = parent as! AXUIElement
+            let parentElement = unsafeBitCast(parent, to: AXUIElement.self)
 
             // Get parent's role
             var parentRole: CFTypeRef?
