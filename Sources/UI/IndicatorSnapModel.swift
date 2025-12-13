@@ -78,9 +78,13 @@ class IndicatorSnapModel {
              IndicatorSnapPosition(edge: .bottom, alignment: .end))
         ]
 
-        let closest = positions.min { pos1, pos2 in
+        // Array is always non-empty, but guard against nil for safety
+        guard let closest = positions.min(by: { pos1, pos2 in
             distance(currentPoint, pos1.0) < distance(currentPoint, pos2.0)
-        }!
+        }) else {
+            // Fallback to first position if somehow empty
+            return positions[0]
+        }
 
         return closest
     }

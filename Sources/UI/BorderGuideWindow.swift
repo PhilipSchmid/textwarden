@@ -138,9 +138,10 @@ private class GradientBorderView: NSView {
             context.clip(using: .evenOdd)
 
             // Fill with current alpha
-            let fillColor = CGColor(colorSpace: CGColorSpaceCreateDeviceRGB(),
-                                    components: [red, green, blue, currentAlpha])!
-            context.setFillColor(fillColor)
+            if let fillColor = CGColor(colorSpace: CGColorSpaceCreateDeviceRGB(),
+                                       components: [red, green, blue, currentAlpha]) {
+                context.setFillColor(fillColor)
+            }
             context.fill(bounds)
 
             context.restoreGState()

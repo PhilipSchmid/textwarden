@@ -365,7 +365,10 @@ class UserStatistics: ObservableObject {
         for day in sortedDays {
             if calendar.isDate(day, inSameDayAs: checkDate) {
                 streak += 1
-                checkDate = calendar.date(byAdding: .day, value: -1, to: checkDate)!
+                guard let previousDay = calendar.date(byAdding: .day, value: -1, to: checkDate) else {
+                    break
+                }
+                checkDate = previousDay
             } else if day < checkDate {
                 break
             }
