@@ -849,6 +849,7 @@ enum AccessibilityBridge {
         if AXUIElementCopyAttributeValue(element, kAXWindowAttribute as CFString, &windowValue) == .success,
            let wv = windowValue,
            CFGetTypeID(wv) == AXUIElementGetTypeID() {
+            // Safe: type verified by CFGetTypeID check above
             return (wv as! AXUIElement)
         }
 
@@ -861,6 +862,7 @@ enum AccessibilityBridge {
             if AXUIElementCopyAttributeValue(current, kAXWindowAttribute as CFString, &windowValue) == .success,
                let wv = windowValue,
                CFGetTypeID(wv) == AXUIElementGetTypeID() {
+                // Safe: type verified by CFGetTypeID check above
                 return (wv as! AXUIElement)
             }
 
@@ -879,6 +881,7 @@ enum AccessibilityBridge {
                   CFGetTypeID(parent) == AXUIElementGetTypeID() else {
                 break
             }
+            // Safe: type verified by CFGetTypeID check above
             currentElement = (parent as! AXUIElement)
         }
 
