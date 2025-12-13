@@ -479,8 +479,14 @@ Before committing:
 make ci-check  # Runs formatting, linting, tests, build
 ```
 
-## Known Technical Debt
+## Async/Await Migration
 
-1. **Mixed async patterns**: Some APIs use completion handlers, others use async/await - migration in progress
+The codebase is migrating from completion handlers to async/await. The pattern used:
 
-See the plan file for ongoing refactoring work.
+1. Add async version of function (e.g., `sendArrowKeysAsync`)
+2. Update legacy completion handler to wrap the async version
+3. Gradually update callers to use async version directly
+
+Examples of migrated functions:
+- `RetryScheduler.execute()` - async with Task.sleep for delays
+- `sendArrowKeysAsync()` - async keyboard simulation
