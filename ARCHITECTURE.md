@@ -481,39 +481,43 @@ make ci-check  # Runs formatting, linting, tests, build
 
 ## Async/Await Pattern
 
-Text replacement functions use async/await with `Task.sleep` instead of nested `DispatchQueue.main.asyncAfter` callbacks. Legacy completion handler APIs wrap the async versions:
+Text replacement uses async/await internally. The public entry point has a completion handler wrapper for the popover callback:
 
 ```swift
-// Async implementation (source of truth)
-@MainActor
-func applyMailTextReplacementAsync(...) async {
-    try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-    // ... sequential async code
-}
-
-// Legacy wrapper for callers that need completion handlers
-func applyMailTextReplacement(..., completion: @escaping () -> Void) {
+// Public API (wrapper for popover callback)
+func applyTextReplacement(for error: ..., completion: @escaping () -> Void) {
     Task { @MainActor in
-        await self.applyMailTextReplacementAsync(...)
+        await self.applyTextReplacementAsync(for: error, ...)
         completion()
     }
 }
+
+// Internal async implementation (source of truth)
+@MainActor
+func applyTextReplacementAsync(for error: ...) async {
+    // Routes to: applyTextReplacementViaKeyboardAsync, applyMailTextReplacementAsync, etc.
+}
 ```
 
-For complex functions where the async version is incomplete, use `withCheckedContinuation` to bridge:
+Async functions use `Task.sleep` for delays instead of nested `DispatchQueue.main.asyncAfter`:
+
+```swift
+try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+```
+
+For browser/Office/Catalyst apps, `withCheckedContinuation` bridges the full-featured completion handler:
 
 ```swift
 await withCheckedContinuation { continuation in
-    self.applyBrowserTextReplacement(...) {
-        continuation.resume()
-    }
+    self.applyBrowserTextReplacement(...) { continuation.resume() }
 }
 ```
 
 Async functions:
-- `RetryScheduler.execute()` - retry logic with exponential backoff
-- `sendArrowKeysAsync()` - keyboard simulation
-- `applyTextReplacementViaKeyboardAsync()` - routes to app-specific handler
+- `applyTextReplacementAsync()` - main entry point, routes by app type
+- `applyTextReplacementViaKeyboardAsync()` - keyboard-based replacement router
 - `applyTerminalTextReplacementAsync()` - terminal Ctrl+A/K replacement
-- `applyMailTextReplacementAsync()` - Apple Mail replacement
+- `applyMailTextReplacementAsync()` - Apple Mail AXReplaceRangeWithText
 - `applyStandardKeyboardReplacementAsync()` - standard keyboard navigation
+- `sendArrowKeysAsync()` - keyboard simulation
+- `RetryScheduler.execute()` - retry logic with exponential backoff

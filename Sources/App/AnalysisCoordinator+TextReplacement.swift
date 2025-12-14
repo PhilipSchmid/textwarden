@@ -80,69 +80,41 @@ extension AnalysisCoordinator {
         Logger.debug("removeErrorAndUpdateUI: UI updated, remaining errors: \(currentErrors.count)", category: Logger.analysis)
     }
 
-    /// Apply text replacement for error
-    /// Completion is called when the replacement is done (synchronously for AX API, async for keyboard)
-    func applyTextReplacement(for error: GrammarErrorModel, with suggestion: String, completion: @escaping () -> Void) {
-        Logger.debug("applyTextReplacement called - error: '\(error.message)', suggestion: '\(suggestion)'", category: Logger.analysis)
+    /// Apply text replacement for error (async version)
+    @MainActor
+    func applyTextReplacementAsync(for error: GrammarErrorModel, with suggestion: String) async {
+        Logger.debug("applyTextReplacementAsync called - error: '\(error.message)', suggestion: '\(suggestion)'", category: Logger.analysis)
 
         guard let element = textMonitor.monitoredElement else {
             Logger.debug("No monitored element for text replacement", category: Logger.analysis)
-            completion()
             return
         }
 
         Logger.debug("Have monitored element, context: \(monitoredContext?.applicationName ?? "nil")", category: Logger.analysis)
 
-        // Mark replacement start time - used by grace period checks to prevent
-        // scroll handling, text validation, and text change handlers from hiding the popover
-        // during and shortly after the replacement. This is set here (at the top level)
-        // to ensure ALL replacement paths (AX API, keyboard, browser) get the protection.
         lastReplacementTime = Date()
-
-        // Set flag to prevent text-change handler from clearing errors during replacement
         isApplyingReplacement = true
-
-        // Wrap the completion to reset the flag
-        let wrappedCompletion: () -> Void = { [weak self] in
-            self?.isApplyingReplacement = false
-            completion()
-        }
+        defer { isApplyingReplacement = false }
 
         // Use keyboard automation directly for known Electron apps
-        // This avoids trying the AX API which is known to fail on Electron
         if let context = monitoredContext, context.requiresKeyboardReplacement {
             Logger.debug("Detected Electron app (\(context.applicationName)) - using keyboard automation directly", category: Logger.analysis)
-
-            applyTextReplacementViaKeyboard(for: error, with: suggestion, element: element, completion: wrappedCompletion)
+            await applyTextReplacementViaKeyboardAsync(for: error, with: suggestion, element: element)
             return
         }
 
         // Apple Mail: use WebKit-specific AXReplaceRangeWithText API
-        // Standard AX selection + kAXSelectedTextAttribute doesn't work for Mail's WebKit
         if let context = monitoredContext, context.bundleIdentifier == "com.apple.mail" {
             Logger.debug("Detected Apple Mail - using WebKit-specific text replacement", category: Logger.analysis)
-            applyMailTextReplacement(for: error, with: suggestion, element: element, completion: wrappedCompletion)
+            await applyMailTextReplacementAsync(for: error, with: suggestion, element: element)
             return
         }
 
         // For native macOS apps, try AX API first (it's faster and preserves formatting)
-        // Use selection-based replacement to preserve formatting (bold, links, code, etc.)
-        // Step 1: Save current selection
-        var originalSelection: CFTypeRef?
-        let _ = AXUIElementCopyAttributeValue(
-            element,
-            kAXSelectedTextRangeAttribute as CFString,
-            &originalSelection
-        )
-
-        // Step 2: Get current text to convert grapheme indices to UTF-16
-        // Harper provides error positions in grapheme clusters, but macOS AX APIs use UTF-16 code units
-        // This matters for text with emojis: 😉 = 1 grapheme but 2 UTF-16 code units
         var textRef: CFTypeRef?
         let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef)
         let currentText = (textResult == .success) ? (textRef as? String) : nil
 
-        // Convert grapheme cluster indices to UTF-16 for the AX API
         let utf16Location: Int
         let utf16Length: Int
         if let text = currentText {
@@ -150,73 +122,48 @@ extension AnalysisCoordinator {
             utf16Location = utf16Range.location
             utf16Length = utf16Range.length
         } else {
-            // Fallback to grapheme indices if text retrieval fails (may be inaccurate for emoji text)
             utf16Location = error.start
             utf16Length = error.end - error.start
         }
 
-        // Step 3: Set selection to error range (using UTF-16 indices)
         var errorRange = CFRange(location: utf16Location, length: utf16Length)
         guard let rangeValue = AXValueCreate(.cfRange, &errorRange) else {
             Logger.debug("AXValueCreate failed, using keyboard fallback", category: Logger.analysis)
-            applyTextReplacementViaKeyboard(for: error, with: suggestion, element: element, completion: completion)
+            await applyTextReplacementViaKeyboardAsync(for: error, with: suggestion, element: element)
             return
         }
 
-        let selectError = AXUIElementSetAttributeValue(
-            element,
-            kAXSelectedTextRangeAttribute as CFString,
-            rangeValue
-        )
-
+        let selectError = AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, rangeValue)
         if selectError != .success {
-            // AX API failed
-            // Fallback: Use clipboard + keyboard simulation
             Logger.debug("AX API selection failed (\(selectError.rawValue)), using keyboard fallback", category: Logger.analysis)
-
-            applyTextReplacementViaKeyboard(for: error, with: suggestion, element: element, completion: completion)
+            await applyTextReplacementViaKeyboardAsync(for: error, with: suggestion, element: element)
             return
         }
 
-        // Step 3: Replace selected text with suggestion
-        // Using kAXSelectedTextAttribute preserves formatting of the surrounding text
-        let replaceError = AXUIElementSetAttributeValue(
-            element,
-            kAXSelectedTextAttribute as CFString,
-            suggestion as CFTypeRef
-        )
-
+        let replaceError = AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, suggestion as CFTypeRef)
         if replaceError == .success {
-            // Record statistics
             UserStatistics.shared.recordSuggestionApplied(category: error.category)
-
-            // Invalidate cache
             invalidateCacheAfterReplacement(at: error.start..<error.end)
 
-            // Step 4: Restore original selection (optional, move cursor after replacement)
-            // Most apps expect cursor to be after the replacement
             var newPosition = CFRange(location: error.start + suggestion.count, length: 0)
             if let newRangeValue = AXValueCreate(.cfRange, &newPosition) {
-                let _ = AXUIElementSetAttributeValue(
-                    element,
-                    kAXSelectedTextRangeAttribute as CFString,
-                    newRangeValue
-                )
+                let _ = AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, newRangeValue)
             }
 
-            // Step 5: Remove error from UI immediately
-            // Calculate length delta to adjust positions of remaining errors
             let lengthDelta = suggestion.count - (error.end - error.start)
             removeErrorAndUpdateUI(error, suggestion: suggestion, lengthDelta: lengthDelta)
-
-            // AX API is synchronous - call completion immediately
-            wrappedCompletion()
         } else {
-            // AX API replacement failed
             Logger.debug("AX API replacement failed (\(replaceError.rawValue)), trying keyboard fallback", category: Logger.analysis)
+            await applyTextReplacementViaKeyboardAsync(for: error, with: suggestion, element: element)
+        }
+    }
 
-            // Try keyboard fallback
-            applyTextReplacementViaKeyboard(for: error, with: suggestion, element: element, completion: wrappedCompletion)
+    /// Apply text replacement for error
+    /// Legacy completion handler wrapper - delegates to async version
+    func applyTextReplacement(for error: GrammarErrorModel, with suggestion: String, completion: @escaping () -> Void) {
+        Task { @MainActor in
+            await self.applyTextReplacementAsync(for: error, with: suggestion)
+            completion()
         }
     }
 
@@ -510,16 +457,6 @@ extension AnalysisCoordinator {
                     sourceText: lastAnalyzedText
                 )
             }
-        }
-    }
-
-    /// Apply text replacement for Apple Mail using AXReplaceRangeWithText
-    /// Mail's WebKit composition area supports this proper API, which preserves formatting
-    /// Legacy completion handler wrapper - delegates to async version
-    func applyMailTextReplacement(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement, completion: @escaping () -> Void) {
-        Task { @MainActor in
-            await self.applyMailTextReplacementAsync(for: error, with: suggestion, element: element)
-            completion()
         }
     }
 
@@ -1316,16 +1253,6 @@ extension AnalysisCoordinator {
     }
 
     /// Apply text replacement using keyboard simulation (for Electron apps and Terminals)
-    /// Uses hybrid replacement approach: try AX API first, fall back to keyboard
-    /// Legacy completion handler wrapper - delegates to async version
-    func applyTextReplacementViaKeyboard(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement, completion: @escaping () -> Void) {
-        Task { @MainActor in
-            await self.applyTextReplacementViaKeyboardAsync(for: error, with: suggestion, element: element)
-            completion()
-        }
-    }
-
-    /// Apply text replacement using keyboard simulation (async version)
     /// Flattened async/await implementation for better readability
     @MainActor
     func applyTextReplacementViaKeyboardAsync(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement) async {
