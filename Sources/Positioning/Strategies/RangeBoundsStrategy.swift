@@ -179,12 +179,19 @@ class RangeBoundsStrategy: GeometryProvider {
         }
 
         // Calculate combined bounds from start of first char to end of last char
-        // Bounds are expected to be in Quartz screen coordinates (top-left origin)
+        // Bounds are expected to be in Quartz screen coordinates (top-left origin, y increases downward)
+        // For multi-line text, compute the full bounding box covering all characters
+        let minY = min(startCharBounds.origin.y, endCharBounds.origin.y)
+        let maxY = max(startCharBounds.origin.y + startCharBounds.height,
+                       endCharBounds.origin.y + endCharBounds.height)
+        let minX = min(startCharBounds.origin.x, endCharBounds.origin.x)
+        let maxX = max(startCharBounds.origin.x + startCharBounds.width,
+                       endCharBounds.origin.x + endCharBounds.width)
         let quartzBounds = CGRect(
-            x: startCharBounds.origin.x,
-            y: startCharBounds.origin.y,
-            width: (endCharBounds.origin.x + endCharBounds.width) - startCharBounds.origin.x,
-            height: startCharBounds.height
+            x: minX,
+            y: minY,
+            width: maxX - minX,
+            height: maxY - minY
         )
 
         // Convert from Quartz screen → Cocoa screen
