@@ -492,9 +492,9 @@ extension AppDelegate: NSWindowDelegate {
                 guard preferences.keyboardShortcutsEnabled else { return }
                 guard SuggestionPopover.shared.isVisible else { return }
                 guard let error = SuggestionPopover.shared.currentError else { return }
-                guard error.suggestions.count >= 1 else { return }
+                // Use .first for safe array access
+                guard let suggestion = error.suggestions.first else { return }
 
-                let suggestion = error.suggestions[0]
                 Logger.debug("Keyboard shortcut: Apply suggestion 1 - \(suggestion)", category: Logger.ui)
 
                 SuggestionPopover.shared.applySuggestion(suggestion)
@@ -507,9 +507,10 @@ extension AppDelegate: NSWindowDelegate {
                 guard preferences.keyboardShortcutsEnabled else { return }
                 guard SuggestionPopover.shared.isVisible else { return }
                 guard let error = SuggestionPopover.shared.currentError else { return }
-                guard error.suggestions.count >= 2 else { return }
-
+                // Bounds-checked access for index 1
+                guard error.suggestions.indices.contains(1) else { return }
                 let suggestion = error.suggestions[1]
+
                 Logger.debug("Keyboard shortcut: Apply suggestion 2 - \(suggestion)", category: Logger.ui)
 
                 SuggestionPopover.shared.applySuggestion(suggestion)
@@ -522,9 +523,10 @@ extension AppDelegate: NSWindowDelegate {
                 guard preferences.keyboardShortcutsEnabled else { return }
                 guard SuggestionPopover.shared.isVisible else { return }
                 guard let error = SuggestionPopover.shared.currentError else { return }
-                guard error.suggestions.count >= 3 else { return }
-
+                // Bounds-checked access for index 2
+                guard error.suggestions.indices.contains(2) else { return }
                 let suggestion = error.suggestions[2]
+
                 Logger.debug("Keyboard shortcut: Apply suggestion 3 - \(suggestion)", category: Logger.ui)
 
                 SuggestionPopover.shared.applySuggestion(suggestion)
