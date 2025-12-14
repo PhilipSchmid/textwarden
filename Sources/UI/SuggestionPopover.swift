@@ -9,6 +9,7 @@ import SwiftUI
 import AppKit
 import Combine
 import ApplicationServices
+import KeyboardShortcuts
 
 /// Custom NSPanel subclass that prevents becoming key window
 /// This is CRITICAL to prevent TextWarden from stealing focus from other apps
@@ -264,6 +265,10 @@ class SuggestionPopover: NSObject, ObservableObject {
         // DEBUG: Log activation policy AFTER showing
         Logger.debug("SuggestionPopover.showPanelAtPosition() - AFTER order(.above) - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
 
+        // Enable popover keyboard shortcuts (Tab to accept, etc.)
+        // These are disabled globally and only active when popover is visible
+        KeyboardShortcuts.Name.enablePopoverShortcuts()
+
         setupClickOutsideMonitor()
 
         // CRITICAL: Resize panel after SwiftUI has had time to layout the new content
@@ -297,6 +302,10 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Perform immediate hide
     private func performHide() {
         Logger.trace("SuggestionPopover.performHide() - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
+
+        // Disable popover keyboard shortcuts so they don't intercept keypresses globally
+        // (Tab should work normally in other apps when popover is hidden)
+        KeyboardShortcuts.Name.disablePopoverShortcuts()
 
         if let monitor = clickOutsideMonitor {
             NSEvent.removeMonitor(monitor)

@@ -91,7 +91,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Setup keyboard shortcuts
         setupKeyboardShortcuts()
-        Logger.info("Keyboard shortcuts initialized", category: Logger.lifecycle)
+
+        // CRITICAL: Disable popover-specific shortcuts at startup
+        // These shortcuts (Tab, Option+Escape, etc.) must only be active when the popover is visible
+        // Otherwise they intercept keypresses globally and break normal app behavior
+        KeyboardShortcuts.Name.disablePopoverShortcuts()
+        Logger.info("Keyboard shortcuts initialized (popover shortcuts disabled until needed)", category: Logger.lifecycle)
 
         // Check for updates silently in background
         updaterViewModel.checkForUpdatesInBackground()
