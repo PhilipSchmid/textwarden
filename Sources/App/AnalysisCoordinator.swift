@@ -779,7 +779,6 @@ class AnalysisCoordinator: ObservableObject {
         Logger.debug("AnalysisCoordinator: Text changed in \(context.applicationName) (\(text.count) chars)", category: Logger.analysis)
 
         // Don't process text changes during a conversation switch in Mac Catalyst apps
-        // Let handleConversationSwitchInChatApp() handle the re-analysis after the delay
         if let switchTime = lastConversationSwitchTime,
            Date().timeIntervalSince(switchTime) < 0.6 {
             Logger.debug("AnalysisCoordinator: Ignoring text change - conversation switch in progress", category: Logger.analysis)
@@ -788,201 +787,222 @@ class AnalysisCoordinator: ObservableObject {
 
         let appConfig = AppRegistry.shared.configuration(for: context.bundleIdentifier)
 
-        // If no element is being monitored (e.g., browser UI element was detected),
-        // immediately hide overlays without waiting for async analysis
-        // This ensures overlays disappear immediately when user clicks on browser
-        // search fields, URL bars, find-in-page, etc.
-        //
-        // EXCEPTION: Some apps (like Mail's WebKit) fire multiple AXFocusedUIElementChanged
-        // notifications during paste, causing the monitored element to temporarily become nil.
-        // For these apps, we preserve the popover during the grace period after replacement.
+        // Handle case when no element is being monitored (e.g., browser UI element)
         if textMonitor.monitoredElement == nil {
-            // Check if this app has focus bounce behavior and we're in replacement or grace period
-            let hasFocusBounce = appConfig.features.focusBouncesDuringPaste
-            let isActiveReplacement = isApplyingReplacement && hasFocusBounce
-            let isInGracePeriod = hasFocusBounce && isWithinFocusBounceGracePeriod()
-
-            if isActiveReplacement || isInGracePeriod {
-                Logger.debug("AnalysisCoordinator: Focus bounce app - preserving popover during replacement/grace period", category: Logger.analysis)
-                // Still hide overlay and clear previousText, but preserve popover
-                errorOverlay.hide()
-                previousText = ""
+            if handleNoMonitoredElement(appConfig: appConfig) {
                 return
             }
-
-            Logger.debug("AnalysisCoordinator: No monitored element - hiding overlays immediately", category: Logger.analysis)
-            errorOverlay.hide()
-            // Don't hide indicator during manual style check (showing checkmark/results)
-            if !isManualStyleCheckActive {
-                floatingIndicator.hide()
-            }
-            suggestionPopover.hide()
-            DebugBorderWindow.clearAll()
-            // DON'T clear currentErrors and currentSegment - keep them cached so we can
-            // immediately restore overlays when user focuses back on the original text field
-            // Clear previousText so that when user focuses back on a real text field,
-            // analysis will run even if the text content is the same
-            previousText = ""
-            return
         }
 
-        // We have a valid monitored element - immediately show debug borders
-        // This ensures borders appear right away when focus returns from browser UI elements
-        // (like Cmd+F search) to real content, without waiting for async analysis
+        // We have a valid monitored element - show debug borders immediately
         updateDebugBorders()
 
-        // CRITICAL: If text has changed, handle cache invalidation appropriately
-        // BUT: Skip this if we're actively applying a replacement - we handle that separately
-        // Also check lastReplacementTime for delayed AX notifications that arrive after replacement completes
+        // Handle cache invalidation based on text changes
         let isInReplacementGracePeriod = lastReplacementTime.map { Date().timeIntervalSince($0) < 1.5 } ?? false
-        if text != previousText && !isApplyingReplacement && !isInReplacementGracePeriod {
-            // Determine if this is normal typing (small change) vs significant change (e.g., switching chats)
-            // For typing, we keep overlays visible to avoid flickering - they'll update after re-analysis
-            // For significant changes, we hide everything immediately
-            let lengthDelta = abs(text.count - previousText.count)
-            let isTyping = lengthDelta <= 5 && (text.hasPrefix(previousText.prefix(max(0, previousText.count - 5))) ||
-                                                  previousText.hasPrefix(text.prefix(max(0, text.count - 5))) ||
-                                                  text.hasSuffix(previousText.suffix(max(0, previousText.count - 5))) ||
-                                                  previousText.hasSuffix(text.suffix(max(0, text.count - 5))))
+        invalidateCachesForTextChange(
+            text: text,
+            context: context,
+            appConfig: appConfig,
+            isInReplacementGracePeriod: isInReplacementGracePeriod
+        )
 
-            // When text becomes empty (e.g., message sent in chat app), clear everything
-            // This handles the case where user sends a message and the text field clears
-            if text.isEmpty {
-                Logger.debug("AnalysisCoordinator: Text is now empty - clearing all errors and indicator", category: Logger.analysis)
-                errorOverlay.hide()
-                if !isManualStyleCheckActive {
-                    floatingIndicator.hide()
-                }
-                currentErrors.removeAll()
-                PositionResolver.shared.clearCache()
-            } else if !isTyping {
-                // Text changed significantly (e.g., switching chats) - cached errors are invalid
-                // Hide overlays immediately since they don't apply to the new text
-                Logger.debug("AnalysisCoordinator: Text changed significantly - hiding overlays for re-analysis", category: Logger.analysis)
-                errorOverlay.hide()
-                if !isManualStyleCheckActive {
-                    floatingIndicator.hide()
-                }
-                PositionResolver.shared.clearCache()
-            } else {
-                // Normal typing - keep overlays visible to avoid flickering
-                // Just clear the position cache so underlines update correctly after re-analysis
-                Logger.debug("AnalysisCoordinator: Typing detected - keeping overlays visible, clearing position cache", category: Logger.analysis)
-                PositionResolver.shared.clearCache()
-            }
+        // Restore cached content if applicable
+        restoreCachedContent(text: text)
 
-            // For Electron apps: Clear ALL caches when text changes significantly
-            // Electron apps have fragile positioning - byte offsets become invalid when text shifts
-            let appConfig = AppRegistry.shared.configuration(for: context.bundleIdentifier)
-            if (appConfig.category == .electron || appConfig.category == .browser) && !isTyping {
-                Logger.debug("AnalysisCoordinator: Electron app significant change - clearing errors", category: Logger.analysis)
-                currentErrors.removeAll()
-            }
-        } else if text != previousText && isApplyingReplacement {
-            Logger.debug("AnalysisCoordinator: Text changed during replacement - skipping cache clear (positions already adjusted)", category: Logger.analysis)
-        }
-
-        // Clear style suggestions if the full text has changed from when they were generated
-        // This handles the case where user selects text, runs style check, then edits elsewhere
-        // The suggestions are only valid for the exact text state they were analyzed against
-        if !currentStyleSuggestions.isEmpty && text != styleAnalysisSourceText && !isApplyingReplacement && !isInReplacementGracePeriod {
-            Logger.debug("AnalysisCoordinator: Clearing style suggestions - source text changed", category: Logger.analysis)
-            currentStyleSuggestions.removeAll()
-            styleAnalysisSourceText = ""
-            floatingIndicator.hide()
-        }
-
-        // If we have cached errors for this exact text, show them immediately
-        // This provides instant feedback when returning from browser UI elements (like Cmd+F)
-        // A fresh analysis will still run to catch any changes
-        // NOTE: For Electron apps, currentErrors was cleared above, so this won't trigger
-        if let cachedSegment = currentSegment,
-           cachedSegment.content == text,
-           !currentErrors.isEmpty,
-           let element = textMonitor.monitoredElement {
-            Logger.debug("AnalysisCoordinator: Restoring cached errors immediately (\(currentErrors.count) errors)", category: Logger.analysis)
-            showErrorUnderlines(currentErrors, element: element)
-        }
-
-        // Restore cached style suggestions if available for this text
-        // This provides instant feedback when returning to the app after switching away
-        // Only restore if the full text matches what was analyzed (styleAnalysisSourceText)
-        if currentStyleSuggestions.isEmpty && (styleAnalysisSourceText.isEmpty || text == styleAnalysisSourceText) {
-            let styleCacheKey = computeStyleCacheKey(text: text)
-            if let cachedStyleSuggestions = styleCache[styleCacheKey], !cachedStyleSuggestions.isEmpty {
-                Logger.debug("AnalysisCoordinator: Restoring cached style suggestions (\(cachedStyleSuggestions.count) suggestions)", category: Logger.analysis)
-                currentStyleSuggestions = cachedStyleSuggestions
-                styleAnalysisSourceText = text
-
-                // Update cache access time
-                let styleName = UserPreferences.shared.selectedWritingStyle
-                styleCacheMetadata[styleCacheKey] = StyleCacheMetadata(
-                    lastAccessed: Date(),
-                    style: styleName
-                )
-
-                // Update the floating indicator to show the restored style suggestions
-                if let element = textMonitor.monitoredElement {
-                    floatingIndicator.update(
-                        errors: currentErrors,
-                        styleSuggestions: currentStyleSuggestions,
-                        element: element,
-                        context: monitoredContext,
-                        sourceText: text
-                    )
-                }
-            }
-        }
-
+        // Create segment for analysis
         let segment = TextSegment(
             content: text,
             startIndex: 0,
             endIndex: text.count,
             context: context
         )
-
         currentSegment = segment
 
-        // Perform analysis
-        let isEnabled = UserPreferences.shared.isEnabled
-        Logger.debug("AnalysisCoordinator: Grammar checking enabled: \(isEnabled)", category: Logger.analysis)
-
-        if isEnabled {
-            // Check if we're in a browser and the current website is disabled
-            if context.isBrowser {
-                // Extract current URL from browser
-                currentBrowserURL = BrowserURLExtractor.shared.extractURL(
-                    processID: context.processID,
-                    bundleIdentifier: context.bundleIdentifier
-                )
-
-                if let url = currentBrowserURL {
-                    Logger.debug("AnalysisCoordinator: Browser URL detected: \(url)", category: Logger.analysis)
-
-                    // Check if this website is disabled
-                    if !UserPreferences.shared.isEnabled(forURL: url) {
-                        Logger.debug("AnalysisCoordinator: Website \(url.host ?? "unknown") is disabled - skipping analysis", category: Logger.analysis)
-                        // Hide any existing overlays for disabled websites
-                        errorOverlay.hide()
-                        // Don't hide indicator during manual style check (showing checkmark/results)
-                        if !isManualStyleCheckActive {
-                            floatingIndicator.hide()
-                        }
-                        currentErrors = []
-                        return
-                    }
-                } else {
-                    Logger.debug("AnalysisCoordinator: Could not extract URL from browser", category: Logger.analysis)
-                }
-            } else {
-                currentBrowserURL = nil
-            }
-
-            Logger.debug("AnalysisCoordinator: Calling analyzeText()", category: Logger.analysis)
-            analyzeText(segment)
-        } else {
+        // Perform analysis if enabled
+        guard UserPreferences.shared.isEnabled else {
             Logger.debug("AnalysisCoordinator: Analysis disabled in preferences", category: Logger.analysis)
+            return
         }
+
+        // Check browser URL and skip if website is disabled
+        if shouldSkipAnalysisForDisabledWebsite(context: context) {
+            return
+        }
+
+        Logger.debug("AnalysisCoordinator: Calling analyzeText()", category: Logger.analysis)
+        analyzeText(segment)
+    }
+
+    // MARK: - handleTextChange Helpers
+
+    /// Handle case when no monitored element exists (browser UI, etc.)
+    /// Returns true if the caller should return early
+    private func handleNoMonitoredElement(appConfig: AppConfiguration) -> Bool {
+        // Check if this app has focus bounce behavior and we're in replacement or grace period
+        let hasFocusBounce = appConfig.features.focusBouncesDuringPaste
+        let isActiveReplacement = isApplyingReplacement && hasFocusBounce
+        let isInGracePeriod = hasFocusBounce && isWithinFocusBounceGracePeriod()
+
+        if isActiveReplacement || isInGracePeriod {
+            Logger.debug("AnalysisCoordinator: Focus bounce app - preserving popover during replacement/grace period", category: Logger.analysis)
+            errorOverlay.hide()
+            previousText = ""
+            return true
+        }
+
+        Logger.debug("AnalysisCoordinator: No monitored element - hiding overlays immediately", category: Logger.analysis)
+        errorOverlay.hide()
+        if !isManualStyleCheckActive {
+            floatingIndicator.hide()
+        }
+        suggestionPopover.hide()
+        DebugBorderWindow.clearAll()
+        previousText = ""
+        return true
+    }
+
+    /// Invalidate caches based on text changes
+    private func invalidateCachesForTextChange(
+        text: String,
+        context: ApplicationContext,
+        appConfig: AppConfiguration,
+        isInReplacementGracePeriod: Bool
+    ) {
+        // Skip during active replacement
+        if text != previousText && isApplyingReplacement {
+            Logger.debug("AnalysisCoordinator: Text changed during replacement - skipping cache clear", category: Logger.analysis)
+            return
+        }
+
+        guard text != previousText && !isApplyingReplacement && !isInReplacementGracePeriod else {
+            return
+        }
+
+        let isTyping = detectTypingChange(newText: text, oldText: previousText)
+
+        if text.isEmpty {
+            // Text cleared (e.g., message sent)
+            Logger.debug("AnalysisCoordinator: Text is now empty - clearing all errors", category: Logger.analysis)
+            errorOverlay.hide()
+            if !isManualStyleCheckActive { floatingIndicator.hide() }
+            currentErrors.removeAll()
+            PositionResolver.shared.clearCache()
+        } else if !isTyping {
+            // Significant change (e.g., switching chats)
+            Logger.debug("AnalysisCoordinator: Text changed significantly - hiding overlays", category: Logger.analysis)
+            errorOverlay.hide()
+            if !isManualStyleCheckActive { floatingIndicator.hide() }
+            PositionResolver.shared.clearCache()
+        } else {
+            // Normal typing - just clear position cache
+            Logger.debug("AnalysisCoordinator: Typing detected - clearing position cache", category: Logger.analysis)
+            PositionResolver.shared.clearCache()
+        }
+
+        // Electron/browser apps need full cache clear on significant changes
+        if (appConfig.category == .electron || appConfig.category == .browser) && !isTyping {
+            Logger.debug("AnalysisCoordinator: Electron/browser significant change - clearing errors", category: Logger.analysis)
+            currentErrors.removeAll()
+        }
+
+        // Clear style suggestions if source text changed
+        if !currentStyleSuggestions.isEmpty && text != styleAnalysisSourceText {
+            Logger.debug("AnalysisCoordinator: Clearing style suggestions - source text changed", category: Logger.analysis)
+            currentStyleSuggestions.removeAll()
+            styleAnalysisSourceText = ""
+            floatingIndicator.hide()
+        }
+    }
+
+    /// Detect if text change is normal typing vs significant change
+    private func detectTypingChange(newText: String, oldText: String) -> Bool {
+        let lengthDelta = abs(newText.count - oldText.count)
+        guard lengthDelta <= 5 else { return false }
+
+        let oldPrefix = oldText.prefix(max(0, oldText.count - 5))
+        let newPrefix = newText.prefix(max(0, newText.count - 5))
+        let oldSuffix = oldText.suffix(max(0, oldText.count - 5))
+        let newSuffix = newText.suffix(max(0, newText.count - 5))
+
+        return newText.hasPrefix(oldPrefix) ||
+               oldText.hasPrefix(newPrefix) ||
+               newText.hasSuffix(oldSuffix) ||
+               oldText.hasSuffix(newSuffix)
+    }
+
+    /// Restore cached errors and style suggestions
+    private func restoreCachedContent(text: String) {
+        // Restore cached errors
+        if let cachedSegment = currentSegment,
+           cachedSegment.content == text,
+           !currentErrors.isEmpty,
+           let element = textMonitor.monitoredElement {
+            Logger.debug("AnalysisCoordinator: Restoring cached errors (\(currentErrors.count) errors)", category: Logger.analysis)
+            showErrorUnderlines(currentErrors, element: element)
+        }
+
+        // Restore cached style suggestions
+        guard currentStyleSuggestions.isEmpty,
+              styleAnalysisSourceText.isEmpty || text == styleAnalysisSourceText else {
+            return
+        }
+
+        let styleCacheKey = computeStyleCacheKey(text: text)
+        guard let cachedStyleSuggestions = styleCache[styleCacheKey],
+              !cachedStyleSuggestions.isEmpty else {
+            return
+        }
+
+        Logger.debug("AnalysisCoordinator: Restoring cached style suggestions (\(cachedStyleSuggestions.count))", category: Logger.analysis)
+        currentStyleSuggestions = cachedStyleSuggestions
+        styleAnalysisSourceText = text
+
+        let styleName = UserPreferences.shared.selectedWritingStyle
+        styleCacheMetadata[styleCacheKey] = StyleCacheMetadata(
+            lastAccessed: Date(),
+            style: styleName
+        )
+
+        if let element = textMonitor.monitoredElement {
+            floatingIndicator.update(
+                errors: currentErrors,
+                styleSuggestions: currentStyleSuggestions,
+                element: element,
+                context: monitoredContext,
+                sourceText: text
+            )
+        }
+    }
+
+    /// Check if analysis should be skipped for disabled website
+    /// Returns true if analysis should be skipped
+    private func shouldSkipAnalysisForDisabledWebsite(context: ApplicationContext) -> Bool {
+        guard context.isBrowser else {
+            currentBrowserURL = nil
+            return false
+        }
+
+        currentBrowserURL = BrowserURLExtractor.shared.extractURL(
+            processID: context.processID,
+            bundleIdentifier: context.bundleIdentifier
+        )
+
+        guard let url = currentBrowserURL else {
+            Logger.debug("AnalysisCoordinator: Could not extract URL from browser", category: Logger.analysis)
+            return false
+        }
+
+        Logger.debug("AnalysisCoordinator: Browser URL detected: \(url)", category: Logger.analysis)
+
+        guard !UserPreferences.shared.isEnabled(forURL: url) else {
+            return false
+        }
+
+        Logger.debug("AnalysisCoordinator: Website \(url.host ?? "unknown") is disabled - skipping", category: Logger.analysis)
+        errorOverlay.hide()
+        if !isManualStyleCheckActive { floatingIndicator.hide() }
+        currentErrors = []
+        return true
     }
 
     /// Analyze text with incremental support - internal for extension access
