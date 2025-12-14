@@ -27,8 +27,15 @@ import Foundation
     }
 }
 
-/// A grammar error detected in text
-/// Note: @unchecked Sendable because all properties are immutable (let)
+/// Represents a grammar error detected in text by the Rust grammar engine.
+///
+/// `GrammarErrorModel` provides:
+/// - Character range (`start`/`end`) for highlighting
+/// - Human-readable `message` explaining the error
+/// - `suggestions` array with possible corrections
+/// - `category` and `lintId` for filtering and learning
+///
+/// Thread-safe: All properties are immutable (`@unchecked Sendable`).
 @objc public class GrammarErrorModel: NSObject, @unchecked Sendable {
     /// Zero-based character offset where error starts
     @objc public let start: Int
@@ -87,7 +94,13 @@ import Foundation
     }
 }
 
-/// Result of analyzing text for grammar errors
+/// Result of analyzing text for grammar errors.
+///
+/// Returned by `GrammarEngine.analyzeText()` methods. Contains:
+/// - `errors`: Array of detected grammar issues
+/// - `wordCount`: Number of words analyzed (for statistics)
+/// - `analysisTimeMs`: Performance timing for profiling
+/// - Memory metrics for resource monitoring
 @objc public class GrammarAnalysisResult: NSObject {
     /// List of detected grammar errors
     @objc public let errors: [GrammarErrorModel]
