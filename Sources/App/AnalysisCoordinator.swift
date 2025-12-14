@@ -351,6 +351,9 @@ class AnalysisCoordinator: ObservableObject {
         electronLayoutTimer?.invalidate()
         electronLayoutTimer = nil
 
+        // Clear pending state
+        pendingHoverError = nil
+
         Logger.info("AnalysisCoordinator cleanup complete", category: Logger.lifecycle)
     }
 

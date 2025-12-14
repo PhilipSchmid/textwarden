@@ -93,42 +93,53 @@ final class TypingDetector {
         }
     }
 
-    /// Handle key down events
+    /// Handle key down events.
+    /// NOTE: Global keyboard monitor callbacks run on a non-main thread,
+    /// so we must dispatch to main thread before accessing shared state.
     private func handleKeyDown(_ event: NSEvent) {
-        // Only trigger for apps that delay AX notifications (like Notion)
-        // Apps like Slack send notifications immediately and don't need keyboard detection
-        guard let bundleID = currentBundleID else { return }
-        let appConfig = AppRegistry.shared.configuration(for: bundleID)
-        guard appConfig.features.delaysAXNotifications else { return }
+        // Capture event properties before dispatching (NSEvent is not thread-safe)
+        let keyCode = event.keyCode
+        let modifierFlags = event.modifierFlags
 
-        // Ignore modifier-only keys (shift, ctrl, cmd, etc.)
-        // These don't typically indicate typing
-        let modifierOnlyFlags: NSEvent.ModifierFlags = [.command, .control, .option]
-        if event.modifierFlags.intersection(modifierOnlyFlags).isEmpty == false {
-            // If a modifier is held, check if it's just a modifier key press
-            // Allow typing characters with shift (uppercase, symbols)
-            if event.modifierFlags.intersection([.command, .control, .option]).isEmpty == false {
+        // Dispatch to main thread for thread-safe access to shared state
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+
+            // Only trigger for apps that delay AX notifications (like Notion)
+            // Apps like Slack send notifications immediately and don't need keyboard detection
+            guard let bundleID = self.currentBundleID else { return }
+            let appConfig = AppRegistry.shared.configuration(for: bundleID)
+            guard appConfig.features.delaysAXNotifications else { return }
+
+            // Ignore modifier-only keys (shift, ctrl, cmd, etc.)
+            // These don't typically indicate typing
+            let modifierOnlyFlags: NSEvent.ModifierFlags = [.command, .control, .option]
+            if modifierFlags.intersection(modifierOnlyFlags).isEmpty == false {
+                // If a modifier is held, check if it's just a modifier key press
+                // Allow typing characters with shift (uppercase, symbols)
+                if modifierFlags.intersection([.command, .control, .option]).isEmpty == false {
+                    return
+                }
+            }
+
+            // Check for function keys and navigation keys - don't hide on these
+            // NOTE: Backspace (51) and Forward Delete (117) are NOT ignored because they change text
+            let ignoredKeyCodes: Set<UInt16> = [
+                53,  // Escape
+                48,  // Tab (usually changes focus, not text)
+                123, 124, 125, 126,  // Arrow keys
+                115, 116, 119, 121,  // Home, Page Up, End, Page Down
+                122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111  // F1-F12
+            ]
+
+            if ignoredKeyCodes.contains(keyCode) {
                 return
             }
+
+            // This is likely a typing character - notify immediately
+            Logger.debug("TypingDetector: Keyboard event detected in \(appConfig.displayName) - hiding underlines", category: Logger.ui)
+            self.notifyTypingEvent(viaKeyboard: true)
         }
-
-        // Check for function keys and navigation keys - don't hide on these
-        // NOTE: Backspace (51) and Forward Delete (117) are NOT ignored because they change text
-        let ignoredKeyCodes: Set<UInt16> = [
-            53,  // Escape
-            48,  // Tab (usually changes focus, not text)
-            123, 124, 125, 126,  // Arrow keys
-            115, 116, 119, 121,  // Home, Page Up, End, Page Down
-            122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111  // F1-F12
-        ]
-
-        if ignoredKeyCodes.contains(event.keyCode) {
-            return
-        }
-
-        // This is likely a typing character - notify immediately
-        Logger.debug("TypingDetector: Keyboard event detected in \(appConfig.displayName) - hiding underlines", category: Logger.ui)
-        notifyTypingEvent(viaKeyboard: true)
     }
 
     // MARK: - Public API
