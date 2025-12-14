@@ -55,6 +55,14 @@ final class AIRephraseCache: @unchecked Sendable {
 }
 
 /// Coordinates grammar analysis workflow: monitoring → analysis → UI
+///
+/// Dependencies are currently accessed via singletons (.shared). To enable testing,
+/// these could be made injectable via init parameters with protocol abstractions:
+/// ```
+/// protocol TextMonitoring { ... }
+/// init(textMonitor: TextMonitoring = TextMonitor(),
+///      permissionManager: PermissionManaging = PermissionManager.shared) { ... }
+/// ```
 @MainActor
 class AnalysisCoordinator: ObservableObject {
 
@@ -63,6 +71,7 @@ class AnalysisCoordinator: ObservableObject {
     static let shared = AnalysisCoordinator()
 
     // MARK: - Dependencies
+    // Note: These use singletons directly. For testability, consider protocol-based DI.
 
     /// Text monitor for accessibility
     let textMonitor = TextMonitor()
