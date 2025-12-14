@@ -280,9 +280,8 @@ class SuggestionPopover: NSObject, ObservableObject {
         // Cancel any existing timer
         hideTimer?.invalidate()
 
-        // Schedule hide after 2 seconds delay (gives user time to move mouse into popover)
-        // Increased from 1s to 2s for better UX - some apps have less stable mouse tracking
-        hideTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+        // Schedule hide after delay (gives user time to move mouse into popover)
+        hideTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.popoverAutoHide, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.performHide()
             }
