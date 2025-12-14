@@ -490,3 +490,8 @@ The codebase is migrating from completion handlers to async/await. The pattern u
 Examples of migrated functions:
 - `RetryScheduler.execute()` - async with Task.sleep for delays
 - `sendArrowKeysAsync()` - async keyboard simulation
+- `applyTextReplacementViaKeyboardAsync()` - routes to app-specific async handler
+- `applyTerminalTextReplacementAsync()` - terminal text replacement with Ctrl+A/K
+- `applyMailTextReplacementAsync()` - Apple Mail replacement via selection
+- `applyBrowserTextReplacementAsync()` - browser/Electron clipboard-based replacement
+- `applyStandardKeyboardReplacementAsync()` - standard keyboard navigation replacement
