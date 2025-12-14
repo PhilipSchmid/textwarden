@@ -69,10 +69,18 @@ final class TypingDetector {
     }
 
     deinit {
+        cleanup()
+    }
+
+    /// Clean up resources (keyboard monitor, timers)
+    /// Called during app termination for explicit cleanup since deinit won't be called for singletons
+    func cleanup() {
         if let monitor = keyboardMonitor {
             NSEvent.removeMonitor(monitor)
+            keyboardMonitor = nil
         }
         typingStoppedTimer?.invalidate()
+        typingStoppedTimer = nil
     }
 
     // MARK: - Keyboard Event Monitoring

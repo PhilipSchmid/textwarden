@@ -303,20 +303,37 @@ class AnalysisCoordinator: ObservableObject {
         }
     }
 
-    deinit {
+    nonisolated deinit {
+        // Note: Timer invalidation and event monitor removal are safe from deinit
+        // because they don't access MainActor-isolated state
+    }
+
+    /// Clean up resources (timers, event monitors)
+    /// Called during app termination for explicit cleanup since deinit won't be called for singletons
+    func cleanup() {
         // Clean up event monitor
         if let monitor = scrollWheelMonitor {
             NSEvent.removeMonitor(monitor)
+            scrollWheelMonitor = nil
         }
 
         // Invalidate all timers to prevent memory leaks
         windowPositionTimer?.invalidate()
+        windowPositionTimer = nil
         windowMovementDebounceTimer?.invalidate()
+        windowMovementDebounceTimer = nil
         scrollDebounceTimer?.invalidate()
+        scrollDebounceTimer = nil
         hoverSwitchTimer?.invalidate()
+        hoverSwitchTimer = nil
         textValidationTimer?.invalidate()
+        textValidationTimer = nil
         styleDebounceTimer?.invalidate()
+        styleDebounceTimer = nil
         electronLayoutTimer?.invalidate()
+        electronLayoutTimer = nil
+
+        Logger.info("AnalysisCoordinator cleanup complete", category: Logger.lifecycle)
     }
 
     /// Setup global scroll wheel event monitor for detecting scroll events

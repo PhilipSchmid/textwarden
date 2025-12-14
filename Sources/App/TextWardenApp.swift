@@ -178,6 +178,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return false
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        Logger.info("Application will terminate - cleaning up", category: Logger.lifecycle)
+
+        // Stop crash recovery heartbeat for clean shutdown detection
+        CrashRecoveryManager.shared.stopHeartbeat()
+
+        // Stop resource monitoring
+        ResourceMonitor.shared.stopMonitoring()
+
+        // Clean up AnalysisCoordinator (timers, event monitors)
+        analysisCoordinator?.cleanup()
+
+        // Clean up TypingDetector (keyboard monitor, timers)
+        TypingDetector.shared.cleanup()
+
+        Logger.info("Cleanup complete", category: Logger.lifecycle)
+    }
+
     /// Setup style checking model management:
     /// - Initialize LLM engine (on background thread)
     /// - Auto-load model on launch if enabled
