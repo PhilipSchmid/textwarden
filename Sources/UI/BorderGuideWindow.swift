@@ -45,8 +45,10 @@ class BorderGuideWindow: NSPanel {
 
         Logger.debug("BorderGuideWindow.showBorder: After setFrame, self.frame = \(self.frame)", category: Logger.ui)
 
-        borderView?.setNeedsDisplay(borderView!.bounds)
-        borderView?.display()
+        if let view = borderView {
+            view.setNeedsDisplay(view.bounds)
+            view.display()
+        }
         orderFront(nil)
 
         Logger.debug("BorderGuideWindow: Window ordered front, isVisible=\(isVisible), level=\(level.rawValue)", category: Logger.ui)
