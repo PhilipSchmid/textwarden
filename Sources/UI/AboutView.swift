@@ -7,6 +7,16 @@
 
 import SwiftUI
 
+// MARK: - App URLs
+
+/// Static URLs for external links - centralized for easy review
+/// Force unwraps are safe here as these are hardcoded, syntactically valid URLs
+private enum AppURLs {
+    static let github = URL(string: "https://github.com/philipschmid/textwarden")!
+    static let license = URL(string: "https://github.com/philipschmid/textwarden/blob/main/LICENSE")!
+    static let issues = URL(string: "https://github.com/philipschmid/textwarden/issues")!
+}
+
 // MARK: - About View
 
 struct AboutView: View {
@@ -171,7 +181,7 @@ struct AboutView: View {
 
             // MARK: - Resources (new main group)
             Section {
-                Link(destination: URL(string: "https://github.com/philipschmid/textwarden")!) {
+                Link(destination: AppURLs.github) {
                     HStack {
                         Label("View on GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
                         Spacer()
@@ -181,7 +191,7 @@ struct AboutView: View {
                     }
                 }
 
-                Link(destination: URL(string: "https://github.com/philipschmid/textwarden/blob/main/LICENSE")!) {
+                Link(destination: AppURLs.license) {
                     HStack {
                         Label("View License", systemImage: "doc.text")
                         Spacer()
@@ -191,7 +201,7 @@ struct AboutView: View {
                     }
                 }
 
-                Link(destination: URL(string: "https://github.com/philipschmid/textwarden/issues")!) {
+                Link(destination: AppURLs.issues) {
                     HStack {
                         Label("Report an Issue", systemImage: "exclamationmark.bubble")
                         Spacer()
