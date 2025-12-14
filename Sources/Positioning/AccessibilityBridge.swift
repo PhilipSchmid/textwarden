@@ -17,8 +17,10 @@ func safeAXValueGetRect(_ value: CFTypeRef) -> CGRect? {
     guard CFGetTypeID(value) == AXValueGetTypeID() else {
         return nil
     }
+    // Safe: type verified by CFGetTypeID check above
+    let axValue = unsafeBitCast(value, to: AXValue.self)
     var rect = CGRect.zero
-    guard AXValueGetValue(value as! AXValue, .cgRect, &rect) else {
+    guard AXValueGetValue(axValue, .cgRect, &rect) else {
         return nil
     }
     return rect
@@ -30,8 +32,10 @@ func safeAXValueGetPoint(_ value: CFTypeRef) -> CGPoint? {
     guard CFGetTypeID(value) == AXValueGetTypeID() else {
         return nil
     }
+    // Safe: type verified by CFGetTypeID check above
+    let axValue = unsafeBitCast(value, to: AXValue.self)
     var point = CGPoint.zero
-    guard AXValueGetValue(value as! AXValue, .cgPoint, &point) else {
+    guard AXValueGetValue(axValue, .cgPoint, &point) else {
         return nil
     }
     return point
@@ -43,8 +47,10 @@ func safeAXValueGetSize(_ value: CFTypeRef) -> CGSize? {
     guard CFGetTypeID(value) == AXValueGetTypeID() else {
         return nil
     }
+    // Safe: type verified by CFGetTypeID check above
+    let axValue = unsafeBitCast(value, to: AXValue.self)
     var size = CGSize.zero
-    guard AXValueGetValue(value as! AXValue, .cgSize, &size) else {
+    guard AXValueGetValue(axValue, .cgSize, &size) else {
         return nil
     }
     return size
@@ -56,8 +62,10 @@ func safeAXValueGetRange(_ value: CFTypeRef) -> CFRange? {
     guard CFGetTypeID(value) == AXValueGetTypeID() else {
         return nil
     }
+    // Safe: type verified by CFGetTypeID check above
+    let axValue = unsafeBitCast(value, to: AXValue.self)
     var range = CFRange(location: 0, length: 0)
-    guard AXValueGetValue(value as! AXValue, .cfRange, &range) else {
+    guard AXValueGetValue(axValue, .cfRange, &range) else {
         return nil
     }
     return range
