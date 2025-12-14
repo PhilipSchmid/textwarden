@@ -501,6 +501,8 @@ struct DependencyContainer {
     let browserURLExtractor: BrowserURLExtracting
     let positionResolver: PositionResolving
     let statistics: StatisticsTracking
+    let contentParserFactory: ContentParserProviding
+    let typingDetector: TypingDetecting
     let suggestionPopover: SuggestionPopover
     let floatingIndicator: FloatingErrorIndicator
 
@@ -560,6 +562,8 @@ let mockContainer = DependencyContainer(
     browserURLExtractor: BrowserURLExtractor.shared,
     positionResolver: PositionResolver.shared,
     statistics: UserStatistics.shared,
+    contentParserFactory: ContentParserFactory.shared,
+    typingDetector: TypingDetector.shared,
     suggestionPopover: .shared,
     floatingIndicator: .shared
 )
