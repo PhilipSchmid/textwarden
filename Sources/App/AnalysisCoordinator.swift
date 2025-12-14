@@ -21,12 +21,18 @@ import Combine
 
 /// Coordinates grammar analysis workflow: monitoring → analysis → UI
 ///
-/// Dependencies are currently accessed via singletons (.shared). To enable testing,
-/// these could be made injectable via init parameters with protocol abstractions:
-/// ```
-/// protocol TextMonitoring { ... }
-/// init(textMonitor: TextMonitoring = TextMonitor(),
-///      permissionManager: PermissionManaging = PermissionManager.shared) { ... }
+/// # Testability
+/// This class supports dependency injection for testing. While production code uses the
+/// `shared` singleton, tests can create instances with custom dependencies via `init(...)`.
+///
+/// Example test setup:
+/// ```swift
+/// let mockTextMonitor = MockTextMonitor()
+/// let coordinator = AnalysisCoordinator(
+///     textMonitor: mockTextMonitor,
+///     applicationTracker: ApplicationTracker.shared,
+///     permissionManager: PermissionManager.shared
+/// )
 /// ```
 @MainActor
 class AnalysisCoordinator: ObservableObject {
@@ -35,17 +41,16 @@ class AnalysisCoordinator: ObservableObject {
 
     static let shared = AnalysisCoordinator()
 
-    // MARK: - Dependencies
-    // Note: These use singletons directly. For testability, consider protocol-based DI.
+    // MARK: - Dependencies (injectable for testing)
 
     /// Text monitor for accessibility
-    let textMonitor = TextMonitor()
+    let textMonitor: TextMonitor
 
     /// Application tracker
-    private let applicationTracker = ApplicationTracker.shared
+    private let applicationTracker: ApplicationTracker
 
     /// Permission manager
-    private let permissionManager = PermissionManager.shared
+    private let permissionManager: PermissionManager
 
     /// Suggestion popover
     let suggestionPopover = SuggestionPopover.shared
@@ -209,7 +214,29 @@ class AnalysisCoordinator: ObservableObject {
 
     // MARK: - Initialization
 
-    private init() {
+    /// Initialize with default production dependencies
+    private convenience init() {
+        self.init(
+            textMonitor: TextMonitor(),
+            applicationTracker: .shared,
+            permissionManager: .shared
+        )
+    }
+
+    /// Initialize with custom dependencies (for testing)
+    /// - Parameters:
+    ///   - textMonitor: Text monitor instance
+    ///   - applicationTracker: Application tracker
+    ///   - permissionManager: Permission manager
+    init(
+        textMonitor: TextMonitor,
+        applicationTracker: ApplicationTracker,
+        permissionManager: PermissionManager
+    ) {
+        self.textMonitor = textMonitor
+        self.applicationTracker = applicationTracker
+        self.permissionManager = permissionManager
+
         setupMonitoring()
         setupPopoverCallbacks()
         setupOverlayCallbacks()
