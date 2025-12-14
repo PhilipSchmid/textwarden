@@ -230,7 +230,7 @@ extension AnalysisCoordinator {
             return
         }
 
-        guard let currentFrame = getWindowFrame(for: element) else {
+        guard let currentFrame = windowFrame(for: element) else {
             // Window is not on screen (minimized, hidden, or closed)
             Logger.debug("Window monitoring: Window not on screen - hiding all overlays", category: Logger.analysis)
             handleWindowOffScreen()
@@ -445,8 +445,8 @@ extension AnalysisCoordinator {
         }
     }
 
-    /// Get window position for the given element
-    func getWindowFrame(for element: AXUIElement) -> CGRect? {
+    /// Window frame for the given element
+    func windowFrame(for element: AXUIElement) -> CGRect? {
         var pid: pid_t = 0
         guard AXUIElementGetPid(element, &pid) == .success else { return nil }
 
@@ -473,8 +473,8 @@ extension AnalysisCoordinator {
     }
 
     /// Legacy method for compatibility - returns just the position
-    func getWindowPosition(for element: AXUIElement) -> CGPoint? {
-        return getWindowFrame(for: element)?.origin
+    func windowPosition(for element: AXUIElement) -> CGPoint? {
+        return windowFrame(for: element)?.origin
     }
 
     /// Handle message sent in a Mac Catalyst chat app (text field shrunk)
@@ -613,7 +613,7 @@ extension AnalysisCoordinator {
         }
 
         // Get CGWindow position (source of truth - updates immediately)
-        guard let cgWindowPosition = getWindowPosition(for: element) else {
+        guard let cgWindowPosition = windowPosition(for: element) else {
             Logger.debug("Window monitoring: Cannot get CGWindow position - showing overlays anyway", category: Logger.analysis)
             overlaysHiddenDueToMovement = false
             positionSyncRetryCount = 0
@@ -629,18 +629,18 @@ extension AnalysisCoordinator {
 
         // Check 1: Verify window position sync between AX and CGWindow
         var needsRetry = false
-        if let axWindowPosition = getAXWindowPosition(for: element) {
-            let windowDelta = hypot(cgWindowPosition.x - axWindowPosition.x, cgWindowPosition.y - axWindowPosition.y)
+        if let axWindowPos = axWindowPosition(for: element) {
+            let windowDelta = hypot(cgWindowPosition.x - axWindowPos.x, cgWindowPosition.y - axWindowPos.y)
             let toleranceThreshold: CGFloat = 5.0  // Tighter tolerance for window position
 
             if windowDelta > toleranceThreshold {
-                Logger.debug("Window monitoring: Window position mismatch - AX: \(axWindowPosition), CG: \(cgWindowPosition), delta: \(windowDelta)px", category: Logger.analysis)
+                Logger.debug("Window monitoring: Window position mismatch - AX: \(axWindowPos), CG: \(cgWindowPosition), delta: \(windowDelta)px", category: Logger.analysis)
                 needsRetry = true
             }
         }
 
         // Check 2: Verify element position is stable (not still updating)
-        if let currentElementPos = getAXElementPosition(for: element) {
+        if let currentElementPos = axElementPosition(for: element) {
             if let lastPos = lastElementPosition {
                 let elementDelta = hypot(currentElementPos.x - lastPos.x, currentElementPos.y - lastPos.y)
                 let elementTolerance: CGFloat = 3.0  // Very tight tolerance for element stability
@@ -703,7 +703,7 @@ extension AnalysisCoordinator {
 
             // Get character bounds for a character near the start of text
             // This detects content block repositioning that element position misses
-            let currentCharBounds = getFirstCharacterBounds(for: element)
+            let currentCharBounds = firstCharacterBounds(for: element)
 
             if let lastBounds = lastCharacterBounds, let currBounds = currentCharBounds {
                 // Check both position AND size changes (text reflow can affect both)
@@ -758,9 +758,9 @@ extension AnalysisCoordinator {
         completeOverlayReshow()
     }
 
-    /// Get bounds of the first character in the text element
+    /// Bounds of the first character in the text element
     /// This tracks actual content position, not just the element container
-    func getFirstCharacterBounds(for element: AXUIElement) -> CGRect? {
+    func firstCharacterBounds(for element: AXUIElement) -> CGRect? {
         // Try to get bounds for character at index 0
         var boundsValue: CFTypeRef?
         var mutableRange = CFRangeMake(0, 1)
@@ -808,9 +808,9 @@ extension AnalysisCoordinator {
         updateDebugBorders()
     }
 
-    /// Get AX window position for the given element (walks up to find window)
+    /// AX window position for the given element (walks up to find window)
     /// Returns position in Quartz coordinates (top-left origin) for comparison with CGWindow
-    func getAXWindowPosition(for element: AXUIElement) -> CGPoint? {
+    func axWindowPosition(for element: AXUIElement) -> CGPoint? {
         // Walk up to find the window element
         var windowElement: AXUIElement?
         var currentElement: AXUIElement? = element
@@ -843,9 +843,9 @@ extension AnalysisCoordinator {
         return AccessibilityBridge.getElementPosition(window)
     }
 
-    /// Get AX element position directly (for stability checking)
+    /// AX element position directly (for stability checking)
     /// Returns position in Quartz coordinates (top-left origin)
-    func getAXElementPosition(for element: AXUIElement) -> CGPoint? {
+    func axElementPosition(for element: AXUIElement) -> CGPoint? {
         return AccessibilityBridge.getElementPosition(element)
     }
 
