@@ -730,8 +730,17 @@ class ErrorOverlayWindow: NSPanel {
         }
 
         // Extract only the text on the current line before the error
-        let textBeforeError = String(fullText[fullText.index(fullText.startIndex, offsetBy: lineStart)..<fullText.index(fullText.startIndex, offsetBy: safeStart)])
-        let errorText = String(fullText[fullText.index(fullText.startIndex, offsetBy: safeStart)..<fullText.index(fullText.startIndex, offsetBy: safeEnd)])
+        // Use safe index operations with limitedBy to prevent crashes on out-of-bounds access
+        guard let lineStartIndex = fullText.index(fullText.startIndex, offsetBy: lineStart, limitedBy: fullText.endIndex),
+              let errorStartIndex = fullText.index(fullText.startIndex, offsetBy: safeStart, limitedBy: fullText.endIndex),
+              let errorEndIndex = fullText.index(fullText.startIndex, offsetBy: safeEnd, limitedBy: fullText.endIndex),
+              lineStartIndex <= errorStartIndex,
+              errorStartIndex <= errorEndIndex else {
+            Logger.debug("ErrorOverlay: String index bounds check failed, using simple fallback", category: Logger.ui)
+            return simpleFallbackBounds(for: error, elementFrame: elementFrame, context: context)
+        }
+        let textBeforeError = String(fullText[lineStartIndex..<errorStartIndex])
+        let errorText = String(fullText[errorStartIndex..<errorEndIndex])
 
         Logger.debug("ErrorOverlay: Multiline handling - lineStart: \(lineStart), textOnLine: '\(textBeforeError)', error: '\(errorText)'", category: Logger.ui)
 

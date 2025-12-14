@@ -248,12 +248,14 @@ class NotionContentParser: ContentParser {
 
         // CRITICAL FIX: Extract errorText using ORIGINAL position from RAW text
         // The passed errorText is wrong - it was extracted using preprocessed position from raw text
+        // Use safe index operations to prevent crashes on out-of-bounds access
         let correctedErrorText: String
         let originalStart = originalRange.location
         let originalEnd = originalRange.location + originalRange.length
-        if originalStart >= 0 && originalEnd <= fullText.count {
-            let startIdx = fullText.index(fullText.startIndex, offsetBy: originalStart)
-            let endIdx = fullText.index(fullText.startIndex, offsetBy: originalEnd)
+        if originalStart >= 0, originalStart < originalEnd,
+           let startIdx = fullText.index(fullText.startIndex, offsetBy: originalStart, limitedBy: fullText.endIndex),
+           let endIdx = fullText.index(fullText.startIndex, offsetBy: originalEnd, limitedBy: fullText.endIndex),
+           startIdx <= endIdx {
             correctedErrorText = String(fullText[startIdx..<endIdx])
         } else {
             correctedErrorText = errorText // Fallback to passed value

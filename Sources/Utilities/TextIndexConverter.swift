@@ -74,13 +74,12 @@ enum TextIndexConverter {
     /// - Returns: NSRange in UTF-16 code unit indices
     static func graphemeToUTF16Range(_ range: NSRange, in text: String) -> NSRange {
         let endPosition = range.location + range.length
-        guard range.location >= 0, endPosition <= text.count else {
+        // Use safe index operations to prevent crashes on out-of-bounds access
+        guard range.location >= 0, range.location <= endPosition,
+              let startIndex = text.index(text.startIndex, offsetBy: range.location, limitedBy: text.endIndex),
+              let endIndex = text.index(text.startIndex, offsetBy: endPosition, limitedBy: text.endIndex) else {
             return range // Out of bounds, return original
         }
-
-        // Get String.Index for the grapheme cluster positions
-        let startIndex = text.index(text.startIndex, offsetBy: range.location)
-        let endIndex = text.index(text.startIndex, offsetBy: endPosition)
 
         // Use prefix strings and NSString.length for UTF-16 conversion
         let prefixToStart = String(text[..<startIndex])

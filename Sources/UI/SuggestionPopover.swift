@@ -690,11 +690,12 @@ class SuggestionPopover: NSObject, ObservableObject {
             await self.onApplySuggestion?(error, suggestion)
 
             // Update sourceText to reflect the applied correction
+            // Use safe index operations with limitedBy to prevent crashes on out-of-bounds access
             if !self.sourceText.isEmpty,
-               error.start < self.sourceText.count,
-               error.end <= self.sourceText.count {
-                let startIndex = self.sourceText.index(self.sourceText.startIndex, offsetBy: error.start)
-                let endIndex = self.sourceText.index(self.sourceText.startIndex, offsetBy: error.end)
+               error.start <= error.end,
+               let startIndex = self.sourceText.index(self.sourceText.startIndex, offsetBy: error.start, limitedBy: self.sourceText.endIndex),
+               let endIndex = self.sourceText.index(self.sourceText.startIndex, offsetBy: error.end, limitedBy: self.sourceText.endIndex),
+               startIndex <= endIndex {
                 self.sourceText.replaceSubrange(startIndex..<endIndex, with: suggestion)
             }
 

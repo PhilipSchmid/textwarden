@@ -38,11 +38,12 @@ extension AnalysisCoordinator {
             suffixLength += 1
         }
 
-        // Calculate changed region
-        let changeStart = newText.index(newText.startIndex, offsetBy: prefixLength)
-        let changeEnd = newText.index(newText.endIndex, offsetBy: -suffixLength)
-
-        guard changeStart <= changeEnd else { return nil }
+        // Calculate changed region using safe index operations
+        guard let changeStart = newText.index(newText.startIndex, offsetBy: prefixLength, limitedBy: newText.endIndex),
+              let changeEnd = newText.index(newText.endIndex, offsetBy: -suffixLength, limitedBy: newText.startIndex),
+              changeStart <= changeEnd else {
+            return nil
+        }
 
         return changeStart..<changeEnd
     }
@@ -452,16 +453,17 @@ extension AnalysisCoordinator {
                 continue
             }
 
-            // Extract the sentence text
+            // Extract the sentence text using safe index operations
             let start = error.start
             let end = error.end
 
-            guard start >= 0, end <= sourceText.count, start < end else {
+            guard start >= 0, start < end,
+                  let startIndex = sourceText.index(sourceText.startIndex, offsetBy: start, limitedBy: sourceText.endIndex),
+                  let endIndex = sourceText.index(sourceText.startIndex, offsetBy: end, limitedBy: sourceText.endIndex),
+                  startIndex <= endIndex else {
                 continue
             }
 
-            let startIndex = sourceText.index(sourceText.startIndex, offsetBy: start)
-            let endIndex = sourceText.index(sourceText.startIndex, offsetBy: end)
             let sentence = String(sourceText[startIndex..<endIndex])
 
             // Check if we have a cached AI suggestion (thread-safe access)
@@ -534,17 +536,18 @@ extension AnalysisCoordinator {
             var enhancedErrors: [GrammarErrorModel] = []
 
             for error in readabilityErrorsWithoutSuggestions {
-                // Extract the problematic sentence from source text
+                // Extract the problematic sentence from source text using safe index operations
                 let start = error.start
                 let end = error.end
 
-                guard start >= 0, end <= sourceText.count, start < end else {
+                guard start >= 0, start < end,
+                      let startIndex = sourceText.index(sourceText.startIndex, offsetBy: start, limitedBy: sourceText.endIndex),
+                      let endIndex = sourceText.index(sourceText.startIndex, offsetBy: end, limitedBy: sourceText.endIndex),
+                      startIndex <= endIndex else {
                     Logger.warning("AnalysisCoordinator: Invalid error range for AI enhancement", category: Logger.llm)
                     continue
                 }
 
-                let startIndex = sourceText.index(sourceText.startIndex, offsetBy: start)
-                let endIndex = sourceText.index(sourceText.startIndex, offsetBy: end)
                 let sentence = String(sourceText[startIndex..<endIndex])
 
                 // Check AI rephrase cache first
