@@ -247,13 +247,14 @@ class SlackContentParser: ContentParser {
         // Method 3: Bounds for character before cursor
         if cursorBounds == nil && cursorPosition > 0 {
             if let bounds = getSlackValidatedBounds(element: element, range: NSRange(location: cursorPosition - 1, length: 1)) {
-                cursorBounds = CGRect(
+                let cursor = CGRect(
                     x: bounds.origin.x + bounds.width,
                     y: bounds.origin.y,
                     width: 1,
                     height: bounds.height
                 )
-                Logger.debug("Slack: Got cursor bounds from prev char: \(cursorBounds!)", category: Logger.ui)
+                cursorBounds = cursor
+                Logger.debug("Slack: Got cursor bounds from prev char: \(cursor)", category: Logger.ui)
             }
         }
 
