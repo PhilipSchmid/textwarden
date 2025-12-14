@@ -522,6 +522,8 @@ Key services are abstracted behind protocols:
 | `BrowserURLExtracting` | `BrowserURLExtractor` | Browser URL extraction |
 | `PositionResolving` | `PositionResolver` | Error position calculation |
 | `StatisticsTracking` | `UserStatistics` | Usage metrics |
+| `ContentParserProviding` | `ContentParserFactory` | App-specific content parsing |
+| `TypingDetecting` | `TypingDetector` | Keyboard/typing event detection |
 
 ### Usage in Production
 

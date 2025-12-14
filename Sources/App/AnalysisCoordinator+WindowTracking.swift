@@ -200,7 +200,7 @@ extension AnalysisCoordinator {
     func extractTextSynchronously(from element: AXUIElement) -> String? {
         // First, try app-specific extraction via ContentParser
         if let bundleID = textMonitor.currentContext?.bundleIdentifier {
-            let parser = ContentParserFactory.shared.parser(for: bundleID)
+            let parser = contentParserFactory.parser(for: bundleID)
             if let parserText = parser.extractText(from: element) {
                 return parserText
             }

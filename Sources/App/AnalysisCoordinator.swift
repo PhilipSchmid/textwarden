@@ -77,6 +77,12 @@ class AnalysisCoordinator: ObservableObject {
     /// Statistics tracker
     let statistics: StatisticsTracking
 
+    /// Content parser factory
+    let contentParserFactory: ContentParserProviding
+
+    /// Typing detector
+    let typingDetector: TypingDetecting
+
     /// Suggestion popover
     let suggestionPopover: SuggestionPopover
 
@@ -258,6 +264,8 @@ class AnalysisCoordinator: ObservableObject {
         self.browserURLExtractor = dependencies.browserURLExtractor
         self.positionResolver = dependencies.positionResolver
         self.statistics = dependencies.statistics
+        self.contentParserFactory = dependencies.contentParserFactory
+        self.typingDetector = dependencies.typingDetector
         self.suggestionPopover = dependencies.suggestionPopover
         self.floatingIndicator = dependencies.floatingIndicator
 
@@ -274,7 +282,7 @@ class AnalysisCoordinator: ObservableObject {
     /// Setup callback to hide underlines immediately when typing starts
     /// TypingDetector is notified for ALL apps, so this works for Slack, Notion, and other Electron apps
     private func setupTypingCallback() {
-        TypingDetector.shared.onTypingStarted = { [weak self] in
+        typingDetector.onTypingStarted = { [weak self] in
             guard let self = self else { return }
 
             // Check if we're monitoring an app that requires typing pause
@@ -302,7 +310,7 @@ class AnalysisCoordinator: ObservableObject {
 
         // Setup callback for when typing stops
         // This is critical for apps like Notion that don't send timely AX notifications
-        TypingDetector.shared.onTypingStopped = { [weak self] in
+        typingDetector.onTypingStopped = { [weak self] in
             guard let self = self else { return }
             guard let element = self.textMonitor.monitoredElement else { return }
 
@@ -678,7 +686,7 @@ class AnalysisCoordinator: ObservableObject {
         }
 
         // Update TypingDetector with current bundle ID for keyboard event filtering
-        TypingDetector.shared.currentBundleID = context.bundleIdentifier
+        typingDetector.currentBundleID = context.bundleIdentifier
 
         Logger.debug("AnalysisCoordinator: Permission granted, calling textMonitor.startMonitoring", category: Logger.analysis)
         textMonitor.startMonitoring(
@@ -700,8 +708,8 @@ class AnalysisCoordinator: ObservableObject {
         previousText = ""  // Clear previous text so analysis runs when we return
 
         // Clear typing detector state
-        TypingDetector.shared.currentBundleID = nil
-        TypingDetector.shared.reset()
+        typingDetector.currentBundleID = nil
+        typingDetector.reset()
 
         // Only clear style state if not in a manual style check
         // During manual style check, preserve results so user sees them when returning

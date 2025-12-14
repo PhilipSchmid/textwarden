@@ -846,7 +846,7 @@ extension AnalysisCoordinator {
         }
 
         // For Mail/WebKit: use MailContentParser's extraction
-        if let parser = ContentParserFactory.shared.parser(for: "com.apple.mail") as? MailContentParser {
+        if let parser = contentParserFactory.parser(for: "com.apple.mail") as? MailContentParser {
             return parser.extractText(from: element)
         }
 
@@ -967,7 +967,7 @@ extension AnalysisCoordinator {
         }
 
         // Preprocess to get command line text
-        let parser = ContentParserFactory.shared.parser(for: context.bundleIdentifier)
+        let parser = contentParserFactory.parser(for: context.bundleIdentifier)
         guard let commandLineText = parser.preprocessText(fullText) else {
             Logger.debug("Failed to preprocess text for Terminal", category: Logger.analysis)
             return

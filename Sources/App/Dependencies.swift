@@ -149,6 +149,24 @@ protocol StatisticsTracking {
     func recordStyleSuggestions(count: Int, latencyMs: Double, modelId: String, preset: String)
 }
 
+/// Protocol for content parser factory
+@MainActor
+protocol ContentParserProviding {
+    func parser(for bundleID: String) -> ContentParser
+}
+
+/// Protocol for typing detection
+@MainActor
+protocol TypingDetecting: AnyObject {
+    var onTypingStarted: (() -> Void)? { get set }
+    var onTypingStopped: (() -> Void)? { get set }
+    var currentBundleID: String? { get set }
+    var isCurrentlyTyping: Bool { get }
+    func notifyTextChange()
+    func reset()
+    func cleanup()
+}
+
 // MARK: - Protocol Conformance
 
 extension GrammarEngine: GrammarAnalyzing {}
@@ -158,6 +176,8 @@ extension AppRegistry: AppConfigurationProviding {}
 extension BrowserURLExtractor: BrowserURLExtracting {}
 extension PositionResolver: PositionResolving {}
 extension UserStatistics: StatisticsTracking {}
+extension ContentParserFactory: ContentParserProviding {}
+extension TypingDetector: TypingDetecting {}
 
 // UserPreferences conformance (needs explicit declaration due to static method)
 extension UserPreferences: UserPreferencesProviding {}
@@ -187,6 +207,8 @@ struct DependencyContainer {
     let browserURLExtractor: BrowserURLExtracting
     let positionResolver: PositionResolving
     let statistics: StatisticsTracking
+    let contentParserFactory: ContentParserProviding
+    let typingDetector: TypingDetecting
 
     // UI components (concrete types - less commonly mocked)
     let suggestionPopover: SuggestionPopover
@@ -205,6 +227,8 @@ struct DependencyContainer {
         browserURLExtractor: BrowserURLExtractor.shared,
         positionResolver: PositionResolver.shared,
         statistics: UserStatistics.shared,
+        contentParserFactory: ContentParserFactory.shared,
+        typingDetector: TypingDetector.shared,
         suggestionPopover: .shared,
         floatingIndicator: .shared
     )
@@ -221,6 +245,8 @@ struct DependencyContainer {
         browserURLExtractor: BrowserURLExtracting,
         positionResolver: PositionResolving,
         statistics: StatisticsTracking,
+        contentParserFactory: ContentParserProviding,
+        typingDetector: TypingDetecting,
         suggestionPopover: SuggestionPopover,
         floatingIndicator: FloatingErrorIndicator
     ) {
@@ -235,6 +261,8 @@ struct DependencyContainer {
         self.browserURLExtractor = browserURLExtractor
         self.positionResolver = positionResolver
         self.statistics = statistics
+        self.contentParserFactory = contentParserFactory
+        self.typingDetector = typingDetector
         self.suggestionPopover = suggestionPopover
         self.floatingIndicator = floatingIndicator
     }
