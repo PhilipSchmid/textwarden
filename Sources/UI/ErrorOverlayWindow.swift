@@ -446,7 +446,11 @@ class ErrorOverlayWindow: NSPanel {
             Logger.debug("ErrorOverlay: Multi-line error with \(allLocalBounds.count) lines, expanded bounds: \(expandedBounds)", category: Logger.ui)
 
             // Use the last line's bounds as the primary drawing bounds (for popup anchor)
-            let primaryDrawingBounds = allLocalBounds.last ?? allLocalBounds[0]
+            // allLocalBounds is guaranteed non-empty here due to guard at line 428
+            guard let primaryDrawingBounds = allLocalBounds.last else {
+                Logger.error("ErrorOverlay: Unexpected empty allLocalBounds after guard")
+                return nil
+            }
 
             return ErrorUnderline(
                 bounds: expandedBounds,
