@@ -754,7 +754,11 @@ class AnalysisCoordinator: ObservableObject {
                 let cocoaFrame = CGRect(x: x, y: cocoaY, width: width, height: height)
 
                 // Keep track of the largest window
-                if bestWindow == nil || area > bestWindow!.area {
+                if let best = bestWindow {
+                    if area > best.area {
+                        bestWindow = (cgFrame: cgFrame, cocoaFrame: cocoaFrame, area: area)
+                    }
+                } else {
                     bestWindow = (cgFrame: cgFrame, cocoaFrame: cocoaFrame, area: area)
                 }
             }
