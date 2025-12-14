@@ -120,8 +120,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Check if user wants to open settings window in foreground
             if UserPreferences.shared.openInForeground {
                 Logger.info("Opening settings window in foreground (user preference)", category: Logger.ui)
-                DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.hoverDelay) {
-                    self.openSettingsWindow()
+                DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.hoverDelay) { [weak self] in
+                    self?.openSettingsWindow()
                 }
             }
         } else {
@@ -145,8 +145,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
             // Open onboarding window
-            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.longDelay) {
-                self.openOnboardingWindow()
+            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.longDelay) { [weak self] in
+                self?.openOnboardingWindow()
             }
         }
     }
