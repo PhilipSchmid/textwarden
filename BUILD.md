@@ -165,10 +165,10 @@ cargo test
 
 ## What's Next?
 
-Once the project builds successfully, you're ready for:
+Once the project builds successfully:
 
-1. **Phase 2**: Implement Rust FFI layer (Harper integration)
-2. **Phase 3**: Implement Swift UI and Accessibility integration
-3. **Testing**: Unit, integration, and performance tests
+1. Run `make run` to build and launch the app
+2. Grant Accessibility permissions when prompted
+3. Start typing in any app - TextWarden monitors text automatically
 
-The project structure is ready for development!
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development workflow and [ARCHITECTURE.md](ARCHITECTURE.md) for codebase documentation.

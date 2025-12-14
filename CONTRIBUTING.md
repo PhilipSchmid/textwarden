@@ -107,7 +107,7 @@ For a comprehensive understanding of the codebase architecture, design patterns,
    - Validation will reject models if the checksum file is present and does not match.
    - Most hosting pages (e.g., Hugging Face) publish SHA256 digests next to the download URL; copy that value verbatim.
 
-3. **Before committing**:
+4. **Before committing**:
    ```bash
    make ci-check  # Runs formatting, linting, tests, and build
    ```
