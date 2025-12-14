@@ -369,10 +369,10 @@ class ElementTreeStrategy: GeometryProvider {
         let width = frame.width
 
         guard height > 0 && width > 0 else {
-            return 16.0
+            return GeometryConstants.normalLineHeight
         }
 
-        if height < 35.0 {
+        if height < GeometryConstants.multiLineThresholdHeight {
             let estimatedSize = height / 1.35
             return max(12.0, min(22.0, estimatedSize))
         }
@@ -380,7 +380,7 @@ class ElementTreeStrategy: GeometryProvider {
         let avgCharWidth: CGFloat = 8.0
         let expectedSingleLineWidth = CGFloat(text.count) * avgCharWidth
 
-        if expectedSingleLineWidth < width * 0.7 && height > 35.0 && height < 55.0 {
+        if expectedSingleLineWidth < width * 0.7 && height > GeometryConstants.multiLineThresholdHeight && height < 55.0 {
             return 30.0
         }
 
