@@ -481,31 +481,29 @@ make ci-check  # Runs formatting, linting, tests, build
 
 ## Async/Await Pattern
 
-Text replacement uses async/await internally. The public entry point has a completion handler wrapper for the popover callback:
+Text replacement uses async/await throughout. The popover callback is async:
 
 ```swift
-// Public API (wrapper for popover callback)
-func applyTextReplacement(for error: ..., completion: @escaping () -> Void) {
-    Task { @MainActor in
-        await self.applyTextReplacementAsync(for: error, ...)
-        completion()
-    }
+// Async callback from popover
+suggestionPopover.onApplySuggestion = { [weak self] error, suggestion in
+    guard let self = self else { return }
+    await self.applyTextReplacementAsync(for: error, with: suggestion)
 }
 
-// Internal async implementation (source of truth)
+// Async implementation
 @MainActor
 func applyTextReplacementAsync(for error: ...) async {
-    // Routes to: applyTextReplacementViaKeyboardAsync, applyMailTextReplacementAsync, etc.
+    // Routes to app-specific async handlers
 }
 ```
 
-Async functions use `Task.sleep` for delays instead of nested `DispatchQueue.main.asyncAfter`:
+Delays use `Task.sleep` instead of `DispatchQueue.main.asyncAfter`:
 
 ```swift
 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
 ```
 
-For browser/Office/Catalyst apps, `withCheckedContinuation` bridges the full-featured completion handler:
+For browser/Office/Catalyst apps, `withCheckedContinuation` bridges the full-featured handler:
 
 ```swift
 await withCheckedContinuation { continuation in

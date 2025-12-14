@@ -158,15 +158,6 @@ extension AnalysisCoordinator {
         }
     }
 
-    /// Apply text replacement for error
-    /// Legacy completion handler wrapper - delegates to async version
-    func applyTextReplacement(for error: GrammarErrorModel, with suggestion: String, completion: @escaping () -> Void) {
-        Task { @MainActor in
-            await self.applyTextReplacementAsync(for: error, with: suggestion)
-            completion()
-        }
-    }
-
     /// Apply text replacement for a style suggestion
     /// Similar to applyTextReplacement but uses StyleSuggestionModel's positions and suggested text
     func applyStyleTextReplacement(for suggestion: StyleSuggestionModel) {

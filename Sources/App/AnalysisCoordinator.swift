@@ -301,12 +301,9 @@ class AnalysisCoordinator: ObservableObject {
     /// Setup popover callbacks
     private func setupPopoverCallbacks() {
         // Handle apply suggestion
-        suggestionPopover.onApplySuggestion = { [weak self] error, suggestion, completion in
-            guard let self = self else {
-                completion()
-                return
-            }
-            self.applyTextReplacement(for: error, with: suggestion, completion: completion)
+        suggestionPopover.onApplySuggestion = { [weak self] error, suggestion in
+            guard let self = self else { return }
+            await self.applyTextReplacementAsync(for: error, with: suggestion)
         }
 
         // Handle dismiss error

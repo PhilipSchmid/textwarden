@@ -109,8 +109,7 @@ class SuggestionPopover: NSObject, ObservableObject {
     }
 
     /// Callback for applying suggestion (grammar mode)
-    /// The completion handler should be called when the replacement is done
-    var onApplySuggestion: ((GrammarErrorModel, String, @escaping () -> Void) -> Void)?
+    var onApplySuggestion: ((GrammarErrorModel, String) async -> Void)?
 
     /// Callback for accepting style suggestion (style mode)
     var onAcceptStyleSuggestion: ((StyleSuggestionModel) -> Void)?
@@ -683,58 +682,57 @@ class SuggestionPopover: NSObject, ObservableObject {
         let newLength = suggestion.count
         let lengthDelta = newLength - originalLength
 
-        // Call the replacement with completion handler
-        onApplySuggestion?(error, suggestion) { [weak self] in
+        // Call the replacement asynchronously
+        Task { @MainActor [weak self] in
             guard let self = self else { return }
 
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                // Update sourceText to reflect the applied correction
-                if !self.sourceText.isEmpty,
-                   error.start < self.sourceText.count,
-                   error.end <= self.sourceText.count {
-                    let startIndex = self.sourceText.index(self.sourceText.startIndex, offsetBy: error.start)
-                    let endIndex = self.sourceText.index(self.sourceText.startIndex, offsetBy: error.end)
-                    self.sourceText.replaceSubrange(startIndex..<endIndex, with: suggestion)
-                }
+            await self.onApplySuggestion?(error, suggestion)
 
-                // Move to next error or hide
-                if self.allErrors.count > 1 {
-                    // Remove the current error
-                    self.allErrors.removeAll { $0.start == error.start && $0.end == error.end }
-
-                    // Adjust positions of subsequent errors
-                    self.allErrors = self.allErrors.map { err in
-                        if err.start >= error.end {
-                            return GrammarErrorModel(
-                                start: err.start + lengthDelta,
-                                end: err.end + lengthDelta,
-                                message: err.message,
-                                severity: err.severity,
-                                category: err.category,
-                                lintId: err.lintId,
-                                suggestions: err.suggestions
-                            )
-                        }
-                        return err
-                    }
-
-                    if self.currentIndex >= self.allErrors.count {
-                        self.currentIndex = 0
-                    }
-                    self.currentError = self.allErrors.isEmpty ? nil : self.allErrors[self.currentIndex]
-
-                    if self.currentError == nil {
-                        self.hide()
-                    } else {
-                        self.rebuildContentView()
-                    }
-                } else {
-                    self.hide()
-                }
-
-                self.isProcessing = false
+            // Update sourceText to reflect the applied correction
+            if !self.sourceText.isEmpty,
+               error.start < self.sourceText.count,
+               error.end <= self.sourceText.count {
+                let startIndex = self.sourceText.index(self.sourceText.startIndex, offsetBy: error.start)
+                let endIndex = self.sourceText.index(self.sourceText.startIndex, offsetBy: error.end)
+                self.sourceText.replaceSubrange(startIndex..<endIndex, with: suggestion)
             }
+
+            // Move to next error or hide
+            if self.allErrors.count > 1 {
+                // Remove the current error
+                self.allErrors.removeAll { $0.start == error.start && $0.end == error.end }
+
+                // Adjust positions of subsequent errors
+                self.allErrors = self.allErrors.map { err in
+                    if err.start >= error.end {
+                        return GrammarErrorModel(
+                            start: err.start + lengthDelta,
+                            end: err.end + lengthDelta,
+                            message: err.message,
+                            severity: err.severity,
+                            category: err.category,
+                            lintId: err.lintId,
+                            suggestions: err.suggestions
+                        )
+                    }
+                    return err
+                }
+
+                if self.currentIndex >= self.allErrors.count {
+                    self.currentIndex = 0
+                }
+                self.currentError = self.allErrors.isEmpty ? nil : self.allErrors[self.currentIndex]
+
+                if self.currentError == nil {
+                    self.hide()
+                } else {
+                    self.rebuildContentView()
+                }
+            } else {
+                self.hide()
+            }
+
+            self.isProcessing = false
         }
     }
 
