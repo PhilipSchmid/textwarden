@@ -19,10 +19,33 @@ Logger.error("Failed", category: Logger.analysis)
 Categories: `permissions`, `ui`, `analysis`, `general`, `performance`, `accessibility`
 Levels: `trace` (high-frequency) → `debug` → `info` → `warning` → `error` → `critical`
 
-### Safety
+### Safety & Error Handling
 - No force unwraps (`!`) on AXValue or external data
 - Use `guard let` / `if let` for optionals
 - Handle all error cases explicitly
+
+**Error Handling Patterns:**
+```swift
+// Array access - use .first, .last, or indices.contains()
+guard let first = array.first else { return }
+guard array.indices.contains(index) else { return }
+
+// String indices - use limitedBy: parameter
+guard let endIdx = str.index(str.startIndex, offsetBy: offset, limitedBy: str.endIndex) else { return }
+
+// AXValue types - use safe helper functions (AccessibilityBridge)
+guard let frame = AccessibilityBridge.getElementFrame(element) else { return }
+
+// Optional chaining for nullable properties
+element?.attribute(forKey: key)
+```
+
+**Logging Errors:**
+- Log at appropriate level before returning nil/early
+- Include context: what failed and any relevant identifiers
+```swift
+Logger.warning("Failed to get bounds for element: \(elementRole)", category: Logger.accessibility)
+```
 
 ### Thread Safety
 - UI updates on main thread: `DispatchQueue.main.async`
