@@ -497,23 +497,10 @@ func applyTextReplacementAsync(for error: ...) async {
 }
 ```
 
-Delays use `Task.sleep` instead of `DispatchQueue.main.asyncAfter`:
-
-```swift
-try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-```
-
-For browser/Office/Catalyst apps, `withCheckedContinuation` bridges the full-featured handler:
-
-```swift
-await withCheckedContinuation { continuation in
-    self.applyBrowserTextReplacement(...) { continuation.resume() }
-}
-```
-
 Async functions:
 - `applyTextReplacementAsync()` - main entry point, routes by app type
 - `applyTextReplacementViaKeyboardAsync()` - keyboard-based replacement router
+- `applyBrowserTextReplacementAsync()` - browser/Office/Catalyst clipboard+paste
 - `applyTerminalTextReplacementAsync()` - terminal Ctrl+A/K replacement
 - `applyMailTextReplacementAsync()` - Apple Mail AXReplaceRangeWithText
 - `applyStandardKeyboardReplacementAsync()` - standard keyboard navigation

@@ -531,349 +531,6 @@ extension AnalysisCoordinator {
         }
     }
 
-    /// Apply text replacement for browsers using menu action with keyboard fallback
-    /// Browsers often have silently failing AX APIs, so we use SelectedTextKit's approach:
-    /// 1. Try to select text range via AX API (even if it silently fails)
-    /// 2. Copy suggestion to clipboard
-    /// 3. Try paste via menu action (more reliable)
-    /// 4. Fallback to Cmd+V if menu fails
-    func applyBrowserTextReplacement(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement, context: ApplicationContext, completion: @escaping () -> Void) {
-        Logger.debug("Browser text replacement for \(context.applicationName)", category: Logger.analysis)
-
-        // Mark that we're applying a suggestion - prevents typing callback and scroll handling from hiding overlays
-        lastReplacementTime = Date()
-
-        let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
-                                context.bundleIdentifier == "com.microsoft.Powerpoint"
-
-        // For Microsoft Office: Get the error text from the ORIGINAL error positions in lastAnalyzedText
-        // Then search for that text in the LIVE document to find current position
-        // This handles position shifts from previous replacements
-        let errorText: String
-        let fallbackRange: CFRange?
-
-        // Define currentError at top level - for Microsoft Office we use the original error,
-        // for other apps we look up from currentErrors to get adjusted positions
-        let currentError: GrammarErrorModel
-
-        if isMicrosoftOffice {
-            // For Microsoft Office, use the original error for statistics/tracking
-            // The actual replacement position is determined by searching the live document
-            currentError = error
-
-            // Microsoft Office replacement strategy:
-            // 1. Get live text from AXValue (handles document state correctly)
-            // 2. For capitalization errors (tHis → This): find text with unusual mid-word caps
-            // 3. For spelling errors (brrief → brief): search for exact error text
-            // 4. Use UTF-16 offsets for position (Office AX API uses UTF-16, handles emojis)
-
-            // Helper to convert String.Index to UTF-16 offset
-            func utf16Offset(of index: String.Index, in string: String) -> Int {
-                return string.utf16.distance(from: string.utf16.startIndex, to: index)
-            }
-
-            // Helper to detect unusual capitalization (mid-word capitals like "tHis")
-            func hasUnusualCapitalization(_ text: String) -> Bool {
-                let chars = Array(text)
-                for i in 1..<chars.count {
-                    // Capital letter after lowercase = unusual (e.g., "tHis")
-                    if chars[i-1].isLowercase && chars[i].isUppercase {
-                        return true
-                    }
-                }
-                return false
-            }
-
-            // Get live text from document
-            var liveTextRef: CFTypeRef?
-            var liveText = ""
-            if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &liveTextRef) == .success,
-               let text = liveTextRef as? String {
-                liveText = text
-            }
-
-            if liveText.isEmpty {
-                Logger.warning("Office replacement: Could not get live text", category: Logger.analysis)
-            }
-
-            Logger.debug("Office replacement: Live text has \(liveText.count) chars, suggestion is '\(suggestion)'", category: Logger.analysis)
-
-            var foundRange: CFRange? = nil
-            var foundText = ""
-
-            // Strategy 1: Find capitalization errors by case-insensitive search
-            // Collect all matches and prioritize ones with unusual capitalization
-            var allMatches: [(range: Range<String.Index>, text: String)] = []
-            var searchStart = liveText.startIndex
-            while searchStart < liveText.endIndex {
-                let searchRange = searchStart..<liveText.endIndex
-                if let range = liveText.range(of: suggestion, options: .caseInsensitive, range: searchRange) {
-                    allMatches.append((range: range, text: String(liveText[range])))
-                    searchStart = range.upperBound
-                } else {
-                    break
-                }
-            }
-
-            Logger.debug("Office replacement: Found \(allMatches.count) case-insensitive matches for '\(suggestion)'", category: Logger.analysis)
-
-            // Priority 1: Match with unusual capitalization (like "tHis")
-            for match in allMatches {
-                if hasUnusualCapitalization(match.text) {
-                    let start = utf16Offset(of: match.range.lowerBound, in: liveText)
-                    let length = match.text.utf16.count
-                    foundRange = CFRange(location: start, length: length)
-                    foundText = match.text
-                    Logger.debug("Office replacement: Found unusual-caps '\(match.text)' at UTF-16 position \(start)-\(start + length)", category: Logger.analysis)
-                    break
-                }
-            }
-
-            // Priority 2: Any match that differs from suggestion (wrong case)
-            if foundRange == nil {
-                for match in allMatches where match.text != suggestion {
-                    let start = utf16Offset(of: match.range.lowerBound, in: liveText)
-                    let length = match.text.utf16.count
-                    foundRange = CFRange(location: start, length: length)
-                    foundText = match.text
-                    Logger.debug("Office replacement: Found case-variant '\(match.text)' at UTF-16 position \(start)-\(start + length)", category: Logger.analysis)
-                    break
-                }
-            }
-
-            // Strategy 2: For spelling errors, extract error text and search exactly
-            if foundRange == nil {
-                let cachedText = self.lastAnalyzedText.isEmpty ? (self.currentSegment?.content ?? "") : self.lastAnalyzedText
-
-                // Extract original error text from cached analysis
-                // Note: error.start/end are Unicode scalar indices from Harper, need conversion
-                var errorTextFromCache = ""
-                let scalarCount = cachedText.unicodeScalars.count
-                if !cachedText.isEmpty && error.start < scalarCount && error.end <= scalarCount,
-                   let startIdx = scalarIndexToStringIndex(error.start, in: cachedText),
-                   let endIdx = scalarIndexToStringIndex(error.end, in: cachedText) {
-                    errorTextFromCache = String(cachedText[startIdx..<endIdx])
-                    Logger.debug("Office replacement: Extracted error text '\(errorTextFromCache)' from cached text (scalar indices \(error.start)-\(error.end))", category: Logger.analysis)
-                }
-
-                // Search for exact error text in live document
-                if !errorTextFromCache.isEmpty, let exactRange = liveText.range(of: errorTextFromCache) {
-                    let start = utf16Offset(of: exactRange.lowerBound, in: liveText)
-                    let length = errorTextFromCache.utf16.count
-                    foundRange = CFRange(location: start, length: length)
-                    foundText = errorTextFromCache
-                    Logger.debug("Office replacement: Found exact error text '\(errorTextFromCache)' at UTF-16 position \(start)-\(start + length)", category: Logger.analysis)
-                }
-            }
-
-            // Final result
-            if let range = foundRange {
-                fallbackRange = range
-                errorText = foundText
-            } else {
-                // Last resort: use Harper's original positions (may be wrong with emojis)
-                Logger.warning("Office replacement: Could not find error text in live document, using original positions \(error.start)-\(error.end)", category: Logger.analysis)
-                fallbackRange = CFRange(location: error.start, length: error.end - error.start)
-                errorText = suggestion
-            }
-        } else {
-            // For other apps: use the existing lookup logic
-            currentError = currentErrors.first { err in
-                err.message == error.message && err.lintId == error.lintId && err.category == error.category
-            } ?? error
-
-            Logger.debug("Browser replacement: Using positions \(currentError.start)-\(currentError.end) (original was \(error.start)-\(error.end))", category: Logger.analysis)
-
-            // Note: currentError.start/end are Unicode scalar indices from Harper, need conversion
-            let cachedText = self.lastAnalyzedText.isEmpty ? (self.currentSegment?.content ?? self.previousText) : self.lastAnalyzedText
-            let scalarCount = cachedText.unicodeScalars.count
-            if !cachedText.isEmpty && currentError.start < scalarCount && currentError.end <= scalarCount,
-               let startIdx = scalarIndexToStringIndex(currentError.start, in: cachedText),
-               let endIdx = scalarIndexToStringIndex(currentError.end, in: cachedText) {
-                errorText = String(cachedText[startIdx..<endIdx])
-                Logger.debug("Browser replacement: Extracted error text '\(errorText)' from scalar positions \(currentError.start)-\(currentError.end)", category: Logger.analysis)
-            } else {
-                errorText = ""
-                Logger.debug("Browser replacement: Could not extract error text, will use fallback", category: Logger.analysis)
-            }
-
-            if errorText.isEmpty {
-                fallbackRange = CFRange(location: currentError.start, length: currentError.end - currentError.start)
-            } else {
-                fallbackRange = nil
-            }
-        }
-
-        let targetText = errorText.isEmpty ? suggestion : errorText
-
-        _ = selectTextForReplacement(
-            targetText: targetText,
-            fallbackRange: fallbackRange,
-            element: element,
-            context: context
-        )
-
-        // Save original pasteboard content
-        // Note: We save the string content, not the items themselves
-        // NSPasteboardItem objects are bound to their original pasteboard
-        let pasteboard = NSPasteboard.general
-        let originalString = pasteboard.string(forType: .string)
-        let originalChangeCount = pasteboard.changeCount
-
-        // Step 3: Copy suggestion to clipboard
-        pasteboard.clearContents()
-        pasteboard.setString(suggestion, forType: .string)
-
-        Logger.debug("Copied suggestion to clipboard: '\(suggestion)'", category: Logger.analysis)
-
-        // Step 4: Activate the target app and capture reference for later
-        // Capture reference BEFORE async block to ensure we paste into correct app
-        let apps = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier)
-        let targetApp = apps.first
-        if let app = targetApp {
-            app.activate()
-            Logger.debug("Activated \(context.applicationName) (pid: \(app.processIdentifier))", category: Logger.analysis)
-        }
-
-        // Step 5: Wait for activation, then paste (replaces selected text)
-        // NOTE: We use direct paste-over-selection. While this doesn't create separate undo
-        // operations in Mac Catalyst apps (undo may not work correctly), it avoids spacing
-        // issues that occur with Delete+Paste approach.
-        let delay = context.keyboardOperationDelay
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.longDelay) { [weak self] in
-            guard let self = self else { return }
-            var pasteSucceeded = false
-
-            // Skip menu paste for Mac Catalyst apps - AXPressAction returns success but doesn't work
-            // Mac Catalyst's AX bridge is incomplete and menu actions are unreliable
-            // Also skip for Microsoft Office - accessing Edit menu causes document refresh/revert issues
-            let skipMenuPaste = context.isMacCatalystApp || isMicrosoftOffice
-            if skipMenuPaste {
-                Logger.debug("Skipping menu paste for \(context.applicationName) - using keyboard fallback", category: Logger.analysis)
-            } else if let app = targetApp {
-                // Try menu action paste for non-Catalyst apps (more reliable for browsers)
-                let appElement = AXUIElementCreateApplication(app.processIdentifier)
-                Logger.debug("Targeting app for paste: \(app.localizedName ?? "unknown") (pid: \(app.processIdentifier))", category: Logger.analysis)
-
-                // Try to find Edit > Paste menu
-                if let pasteMenuItem = self.findPasteMenuItem(in: appElement) {
-                    let pressResult = AXUIElementPerformAction(pasteMenuItem, kAXPressAction as CFString)
-                    if pressResult == .success {
-                        pasteSucceeded = true
-                        Logger.debug("Pasted via menu action", category: Logger.analysis)
-                    } else {
-                        Logger.debug("Menu action press failed: \(pressResult.rawValue)", category: Logger.analysis)
-                    }
-                } else {
-                    Logger.debug("Could not find Paste menu item in \(app.localizedName ?? "app")", category: Logger.analysis)
-                }
-            } else {
-                Logger.debug("No target app found for bundle: \(context.bundleIdentifier)", category: Logger.analysis)
-            }
-
-            // Step 6: For Mac Catalyst apps, use direct keyboard typing instead of paste
-            // This bypasses clipboard issues entirely by simulating keystrokes with Unicode strings
-            // Based on the Force-Paste approach: https://github.com/EugeneDae/Force-Paste
-            if context.isMacCatalystApp {
-                Logger.debug("Mac Catalyst app: Using direct keyboard typing instead of paste", category: Logger.analysis)
-
-                // Type the suggestion character by character using CGEvent
-                self.typeTextDirectly(suggestion)
-
-                // Restore pasteboard immediately since we didn't use it
-                if let originalContent = originalString {
-                    pasteboard.clearContents()
-                    pasteboard.setString(originalContent, forType: .string)
-                    Logger.debug("Restored original pasteboard content", category: Logger.analysis)
-                } else {
-                    pasteboard.clearContents()
-                }
-
-                // Wait a bit for typing to complete, then finish up
-                let typingDelay = Double(suggestion.count) * 0.01 + 0.1  // ~10ms per char + buffer
-                DispatchQueue.main.asyncAfter(deadline: .now() + typingDelay) { [weak self] in
-                    guard let self = self else { return }
-                    // Record statistics
-                    UserStatistics.shared.recordSuggestionApplied(category: currentError.category)
-
-                    // Invalidate cache
-                    self.invalidateCacheAfterReplacement(at: currentError.start..<currentError.end)
-
-                    // Remove error from UI
-                    let lengthDelta = suggestion.count - (currentError.end - currentError.start)
-                    self.removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
-
-                    Logger.debug("Mac Catalyst text replacement complete via direct typing", category: Logger.analysis)
-                    completion()
-                }
-                return
-            }
-
-            // Step 6b: For non-Catalyst apps, use keyboard shortcut fallback if menu failed
-            let pasteCompleteDelay: TimeInterval
-            if !pasteSucceeded {
-                // Need to wait for keyboard fallback delay + paste execution time
-                pasteCompleteDelay = delay + 0.1
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                    self?.pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
-                    Logger.debug("Pasted via keyboard shortcut (Cmd+V fallback)", category: Logger.analysis)
-                }
-            } else {
-                // Menu paste is faster
-                pasteCompleteDelay = 0.1
-            }
-
-            // Step 7: Wait for paste to complete, then restore pasteboard and signal completion
-            let completionDelay = pasteCompleteDelay + 0.15
-            DispatchQueue.main.asyncAfter(deadline: .now() + completionDelay) { [weak self] in
-                guard let self = self else { return }
-                // Restore original pasteboard
-                if pasteboard.changeCount == originalChangeCount + 1 {
-                    // Pasteboard only has our change - safe to restore
-                    if let originalContent = originalString {
-                        pasteboard.clearContents()
-                        pasteboard.setString(originalContent, forType: .string)
-                        Logger.debug("Restored original pasteboard content: '\(originalContent.prefix(50))...'", category: Logger.analysis)
-                    } else {
-                        // Original clipboard was empty - just clear it
-                        pasteboard.clearContents()
-                        Logger.debug("Cleared pasteboard (original was empty)", category: Logger.analysis)
-                    }
-                } else {
-                    // Clipboard was changed by user or another app - don't restore
-                    Logger.debug("Skipped pasteboard restore (user modified clipboard)", category: Logger.analysis)
-                }
-
-                // Record statistics
-                UserStatistics.shared.recordSuggestionApplied(category: currentError.category)
-
-                // IMPORTANT: Call removeErrorAndUpdateUI FIRST
-                // This removes the fixed error, updates currentSegment, and adjusts positions of remaining errors
-                let lengthDelta = suggestion.count - (currentError.end - currentError.start)
-                self.removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
-
-                // For Microsoft Office: DON'T trigger re-analysis after replacement
-                // removeErrorAndUpdateUI already adjusted positions correctly, and async re-analysis
-                // can produce wrong results due to timing issues (Harper might analyze stale AXValue)
-                // Just clear position cache so underlines are recalculated
-                let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
-                                        context.bundleIdentifier == "com.microsoft.Powerpoint"
-                if isMicrosoftOffice {
-                    PositionResolver.shared.clearCache()
-                    Logger.debug("Office: Skipping re-analysis, just cleared position cache", category: Logger.analysis)
-                } else {
-                    self.invalidateCacheAfterReplacement(at: currentError.start..<currentError.end)
-                }
-
-                Logger.debug("Browser text replacement complete (waited \(completionDelay)s)", category: Logger.analysis)
-
-                // Signal completion to the popover - safe to advance to next error now
-                completion()
-            }
-        }
-    }
-
     /// Find the Paste menu item in the application's menu bar
     /// Returns the AXUIElement for the Paste menu item, or nil if not found
     func findPasteMenuItem(in appElement: AXUIElement) -> AXUIElement? {
@@ -1261,18 +918,12 @@ extension AnalysisCoordinator {
         }
 
         // SPECIAL HANDLING FOR BROWSERS, SLACK, MICROSOFT OFFICE, AND MAC CATALYST APPS
-        // Use the full-featured completion-handler version via continuation
-        // (The async version is simplified and missing Office/Catalyst special handling)
         let isSlack = context.bundleIdentifier == "com.tinyspeck.slackmacgap"
         let isMessages = context.bundleIdentifier == "com.apple.MobileSMS"
         let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
                                 context.bundleIdentifier == "com.microsoft.Powerpoint"
         if context.isBrowser || isSlack || isMessages || isMicrosoftOffice || context.isMacCatalystApp {
-            await withCheckedContinuation { continuation in
-                self.applyBrowserTextReplacement(for: error, with: suggestion, element: element, context: context) {
-                    continuation.resume()
-                }
-            }
+            await applyBrowserTextReplacementAsync(for: error, with: suggestion, element: element, context: context)
             return
         }
 
@@ -1451,67 +1102,206 @@ extension AnalysisCoordinator {
         scheduleDelayedReanalysis(startTime: Date())
     }
 
-    /// Apply text replacement for browsers and similar apps (async version)
-    /// Uses keyboard navigation approach for simplicity
+    /// Apply text replacement for browsers, Office, and Catalyst apps (async version)
+    /// Full-featured implementation with menu paste, direct typing, and Office UTF-16 handling
     @MainActor
     func applyBrowserTextReplacementAsync(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement, context: ApplicationContext) async {
         Logger.debug("Browser text replacement (async) for \(context.applicationName)", category: Logger.analysis)
 
         lastReplacementTime = Date()
 
-        let currentError = currentErrors.first { err in
-            err.message == error.message && err.lintId == error.lintId && err.category == error.category
-        } ?? error
+        let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
+                                context.bundleIdentifier == "com.microsoft.Powerpoint"
 
-        let lengthDelta = suggestion.count - (currentError.end - currentError.start)
+        // Determine error text and position
+        let errorText: String
+        let fallbackRange: CFRange?
+        let currentError: GrammarErrorModel
 
-        // Save clipboard
+        if isMicrosoftOffice {
+            currentError = error
+
+            // Helper functions for Office UTF-16 handling
+            func utf16Offset(of index: String.Index, in string: String) -> Int {
+                return string.utf16.distance(from: string.utf16.startIndex, to: index)
+            }
+
+            func hasUnusualCapitalization(_ text: String) -> Bool {
+                let chars = Array(text)
+                for i in 1..<chars.count {
+                    if chars[i-1].isLowercase && chars[i].isUppercase { return true }
+                }
+                return false
+            }
+
+            // Get live text from document
+            var liveTextRef: CFTypeRef?
+            var liveText = ""
+            if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &liveTextRef) == .success,
+               let text = liveTextRef as? String {
+                liveText = text
+            }
+
+            var foundRange: CFRange? = nil
+            var foundText = ""
+
+            // Strategy 1: Find by case-insensitive search, prioritize unusual caps
+            var allMatches: [(range: Range<String.Index>, text: String)] = []
+            var searchStart = liveText.startIndex
+            while searchStart < liveText.endIndex {
+                let searchRange = searchStart..<liveText.endIndex
+                if let range = liveText.range(of: suggestion, options: .caseInsensitive, range: searchRange) {
+                    allMatches.append((range: range, text: String(liveText[range])))
+                    searchStart = range.upperBound
+                } else { break }
+            }
+
+            for match in allMatches where hasUnusualCapitalization(match.text) {
+                let start = utf16Offset(of: match.range.lowerBound, in: liveText)
+                foundRange = CFRange(location: start, length: match.text.utf16.count)
+                foundText = match.text
+                break
+            }
+
+            if foundRange == nil {
+                for match in allMatches where match.text != suggestion {
+                    let start = utf16Offset(of: match.range.lowerBound, in: liveText)
+                    foundRange = CFRange(location: start, length: match.text.utf16.count)
+                    foundText = match.text
+                    break
+                }
+            }
+
+            // Strategy 2: Search for exact error text from cache
+            if foundRange == nil {
+                let cachedText = self.lastAnalyzedText.isEmpty ? (self.currentSegment?.content ?? "") : self.lastAnalyzedText
+                let scalarCount = cachedText.unicodeScalars.count
+                if !cachedText.isEmpty && error.start < scalarCount && error.end <= scalarCount,
+                   let startIdx = scalarIndexToStringIndex(error.start, in: cachedText),
+                   let endIdx = scalarIndexToStringIndex(error.end, in: cachedText) {
+                    let errorTextFromCache = String(cachedText[startIdx..<endIdx])
+                    if let exactRange = liveText.range(of: errorTextFromCache) {
+                        let start = utf16Offset(of: exactRange.lowerBound, in: liveText)
+                        foundRange = CFRange(location: start, length: errorTextFromCache.utf16.count)
+                        foundText = errorTextFromCache
+                    }
+                }
+            }
+
+            if let range = foundRange {
+                fallbackRange = range
+                errorText = foundText
+            } else {
+                fallbackRange = CFRange(location: error.start, length: error.end - error.start)
+                errorText = suggestion
+            }
+        } else {
+            currentError = currentErrors.first { err in
+                err.message == error.message && err.lintId == error.lintId && err.category == error.category
+            } ?? error
+
+            let cachedText = self.lastAnalyzedText.isEmpty ? (self.currentSegment?.content ?? self.previousText) : self.lastAnalyzedText
+            let scalarCount = cachedText.unicodeScalars.count
+            if !cachedText.isEmpty && currentError.start < scalarCount && currentError.end <= scalarCount,
+               let startIdx = scalarIndexToStringIndex(currentError.start, in: cachedText),
+               let endIdx = scalarIndexToStringIndex(currentError.end, in: cachedText) {
+                errorText = String(cachedText[startIdx..<endIdx])
+            } else {
+                errorText = ""
+            }
+            fallbackRange = errorText.isEmpty ? CFRange(location: currentError.start, length: currentError.end - currentError.start) : nil
+        }
+
+        let targetText = errorText.isEmpty ? suggestion : errorText
+        _ = selectTextForReplacement(targetText: targetText, fallbackRange: fallbackRange, element: element, context: context)
+
+        // Save and set clipboard
         let pasteboard = NSPasteboard.general
         let originalString = pasteboard.string(forType: .string)
+        let originalChangeCount = pasteboard.changeCount
         pasteboard.clearContents()
         pasteboard.setString(suggestion, forType: .string)
 
-        // Activate app
-        if let targetApp = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier).first {
-            targetApp.activate()
-        }
+        // Activate target app
+        let apps = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier)
+        let targetApp = apps.first
+        targetApp?.activate()
 
         let delay = context.keyboardOperationDelay
 
-        // Use keyboard navigation approach
-        try? await Task.sleep(nanoseconds: UInt64(TimingConstants.keyboardActivationDelay * 1_000_000_000))
+        // Wait for activation
+        try? await Task.sleep(nanoseconds: UInt64(TimingConstants.longDelay * 1_000_000_000))
 
-        // Go to beginning (Cmd+Left)
-        pressKey(key: 123, flags: .maskCommand)
+        var pasteSucceeded = false
+        let skipMenuPaste = context.isMacCatalystApp || isMicrosoftOffice
 
-        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+        if !skipMenuPaste, let app = targetApp {
+            let appElement = AXUIElementCreateApplication(app.processIdentifier)
+            if let pasteMenuItem = findPasteMenuItem(in: appElement) {
+                if AXUIElementPerformAction(pasteMenuItem, kAXPressAction as CFString) == .success {
+                    pasteSucceeded = true
+                    Logger.debug("Pasted via menu action", category: Logger.analysis)
+                }
+            }
+        }
 
-        // Navigate to error start
-        let navigationDelay = TimingConstants.arrowKeyDelay
-        await sendArrowKeysAsync(count: currentError.start, keyCode: 124, flags: [], delay: navigationDelay)
+        // Mac Catalyst: use direct keyboard typing
+        if context.isMacCatalystApp {
+            Logger.debug("Mac Catalyst: Using direct keyboard typing", category: Logger.analysis)
+            typeTextDirectly(suggestion)
 
-        // Select error text
-        let errorLength = currentError.end - currentError.start
-        await sendArrowKeysAsync(count: errorLength, keyCode: 124, flags: .maskShift, delay: navigationDelay)
+            if let original = originalString {
+                pasteboard.clearContents()
+                pasteboard.setString(original, forType: .string)
+            } else {
+                pasteboard.clearContents()
+            }
 
-        // Paste
-        try? await Task.sleep(nanoseconds: UInt64(TimingConstants.shortDelay * 1_000_000_000))
-        pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
+            let typingDelay = Double(suggestion.count) * 0.01 + 0.1
+            try? await Task.sleep(nanoseconds: UInt64(typingDelay * 1_000_000_000))
 
-        Logger.debug("Browser paste complete", category: Logger.analysis)
+            UserStatistics.shared.recordSuggestionApplied(category: currentError.category)
+            invalidateCacheAfterReplacement(at: currentError.start..<currentError.end)
+            let lengthDelta = suggestion.count - (currentError.end - currentError.start)
+            removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
+            return
+        }
+
+        // Non-Catalyst: keyboard fallback if menu failed
+        let pasteCompleteDelay: TimeInterval
+        if !pasteSucceeded {
+            pasteCompleteDelay = delay + 0.1
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
+            Logger.debug("Pasted via Cmd+V fallback", category: Logger.analysis)
+        } else {
+            pasteCompleteDelay = 0.1
+        }
+
+        // Wait for paste to complete
+        try? await Task.sleep(nanoseconds: UInt64((pasteCompleteDelay + 0.15) * 1_000_000_000))
+
+        // Restore clipboard if unchanged
+        if pasteboard.changeCount == originalChangeCount + 1 {
+            if let original = originalString {
+                pasteboard.clearContents()
+                pasteboard.setString(original, forType: .string)
+            } else {
+                pasteboard.clearContents()
+            }
+        }
 
         UserStatistics.shared.recordSuggestionApplied(category: currentError.category)
+        let lengthDelta = suggestion.count - (currentError.end - currentError.start)
         removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
-        invalidateCacheAfterReplacementForWebKit(at: currentError.start..<currentError.end)
 
-        // Restore clipboard
-        try? await Task.sleep(nanoseconds: UInt64(TimingConstants.clipboardRestoreDelay * 1_000_000_000))
-        if let original = originalString {
-            pasteboard.clearContents()
-            pasteboard.setString(original, forType: .string)
+        if isMicrosoftOffice {
+            PositionResolver.shared.clearCache()
+        } else {
+            invalidateCacheAfterReplacement(at: currentError.start..<currentError.end)
         }
-        replacementCompletedAt = Date()
-        scheduleDelayedReanalysis(startTime: Date())
+
+        Logger.debug("Browser text replacement complete", category: Logger.analysis)
     }
 
     /// Standard keyboard-based text replacement (async version)
