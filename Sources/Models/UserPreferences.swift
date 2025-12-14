@@ -835,6 +835,11 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    deinit {
+        resumeTimer?.invalidate()
+        cleanupTimer?.invalidate()
+    }
+
     /// Handle pause duration changes
     private func handlePauseChange() {
         // Cancel existing timer
