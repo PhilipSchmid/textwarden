@@ -4,6 +4,15 @@
 //
 //  Orchestrates text monitoring, grammar analysis, and UI presentation
 //
+//  TECH DEBT: This class is a "God Object" (~1800 lines) that should be split.
+//  Recommended refactoring plan:
+//  1. AnalysisEngine - Grammar/style analysis logic (analyzeText, processChangedPortion)
+//  2. ErrorManager - Error caching, display, and overlay coordination
+//  3. AppMonitor - Application switching, browser URL detection, focus tracking
+//  4. ReplacementHandler - Text replacement strategies (keyboard, clipboard, etc.)
+//  The current extension-based split (WindowTracking, TextReplacement, StyleChecking)
+//  is a good start but these could become fully independent components.
+//
 
 import Foundation
 import AppKit
