@@ -24,7 +24,9 @@ extension AnalysisCoordinator {
                 self?.checkWindowPosition()
             }
         }
-        RunLoop.main.add(windowPositionTimer!, forMode: .common)
+        if let timer = windowPositionTimer {
+            RunLoop.main.add(timer, forMode: .common)
+        }
         Logger.debug("Window monitoring: Timer scheduled on main RunLoop", category: Logger.analysis)
 
         // Also start text validation timer for Mac Catalyst apps
@@ -64,7 +66,9 @@ extension AnalysisCoordinator {
                 self?.validateCurrentText()
             }
         }
-        RunLoop.main.add(textValidationTimer!, forMode: .common)
+        if let timer = textValidationTimer {
+            RunLoop.main.add(timer, forMode: .common)
+        }
         Logger.debug("Text validation: Timer started", category: Logger.analysis)
     }
 
