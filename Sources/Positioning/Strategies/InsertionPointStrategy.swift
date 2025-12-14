@@ -39,7 +39,7 @@ class InsertionPointStrategy: GeometryProvider {
         // Get element frame - this is our baseline for positioning
         guard let elementFrame = AccessibilityBridge.getElementFrame(element),
               elementFrame.width > 0, elementFrame.height > 0 else {
-            Logger.debug("InsertionPointStrategy: Could not get element frame")
+            Logger.debug("InsertionPointStrategy: Could not get element frame", category: Logger.accessibility)
             return nil
         }
 
@@ -82,13 +82,13 @@ class InsertionPointStrategy: GeometryProvider {
 
         // Get text before error
         guard originalErrorLocation >= 0 && originalErrorLocation <= text.count else {
-            Logger.debug("InsertionPointStrategy: Error location \(originalErrorLocation) out of bounds")
+            Logger.debug("InsertionPointStrategy: Error location \(originalErrorLocation) out of bounds", category: Logger.accessibility)
             return nil
         }
 
         // Safe string extraction
         guard let errorStartIdx = text.index(text.startIndex, offsetBy: originalErrorLocation, limitedBy: text.endIndex) else {
-            Logger.debug("InsertionPointStrategy: Could not get error start index")
+            Logger.debug("InsertionPointStrategy: Could not get error start index", category: Logger.accessibility)
             return nil
         }
 
@@ -98,7 +98,7 @@ class InsertionPointStrategy: GeometryProvider {
         let errorEndLocation = min(originalErrorLocation + errorRange.length, text.count)
         guard let errorEndIdx = text.index(text.startIndex, offsetBy: errorEndLocation, limitedBy: text.endIndex),
               errorStartIdx <= errorEndIdx else {
-            Logger.debug("InsertionPointStrategy: Could not get error end index")
+            Logger.debug("InsertionPointStrategy: Could not get error end index", category: Logger.accessibility)
             return nil
         }
         let errorText = String(text[errorStartIdx..<errorEndIdx])
@@ -222,21 +222,21 @@ class InsertionPointStrategy: GeometryProvider {
 
         // Validate bounds are reasonable
         guard quartzBounds.width > 0 && quartzBounds.height > 0 else {
-            Logger.debug("InsertionPointStrategy: Invalid bounds dimensions")
+            Logger.debug("InsertionPointStrategy: Invalid bounds dimensions", category: Logger.accessibility)
             return nil
         }
 
         // Ensure X position is within element bounds (with some tolerance)
         let maxX = elementFrame.origin.x + elementFrame.width + 50
         guard errorX < maxX else {
-            Logger.debug("InsertionPointStrategy: X position \(errorX) exceeds element width")
+            Logger.debug("InsertionPointStrategy: X position \(errorX) exceeds element width", category: Logger.accessibility)
             return nil
         }
 
         // Ensure Y position is within element bounds
         let maxY = elementFrame.origin.y + elementFrame.height
         guard errorY < maxY else {
-            Logger.debug("InsertionPointStrategy: Y position \(errorY) exceeds element height (max \(maxY))")
+            Logger.debug("InsertionPointStrategy: Y position \(errorY) exceeds element height (max \(maxY))", category: Logger.accessibility)
             return nil
         }
 
@@ -247,7 +247,7 @@ class InsertionPointStrategy: GeometryProvider {
 
         // Validate final bounds
         guard CoordinateMapper.validateBounds(cocoaBounds) else {
-            Logger.debug("InsertionPointStrategy: Final bounds validation failed")
+            Logger.debug("InsertionPointStrategy: Final bounds validation failed", category: Logger.accessibility)
             return nil
         }
 

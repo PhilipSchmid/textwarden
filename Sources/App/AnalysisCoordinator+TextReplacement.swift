@@ -38,7 +38,7 @@ extension AnalysisCoordinator {
             guard let startIdx = TextIndexConverter.scalarIndexToStringIndex(error.start, in: newContent),
                   let endIdx = TextIndexConverter.scalarIndexToStringIndex(error.end, in: newContent),
                   startIdx < endIdx else {
-                Logger.warning("removeErrorAndUpdateUI: Invalid range for string replacement (error: \(error.start)-\(error.end), scalar count: \(newContent.unicodeScalars.count))")
+                Logger.warning("removeErrorAndUpdateUI: Invalid range for string replacement (error: \(error.start)-\(error.end), scalar count: \(newContent.unicodeScalars.count))", category: Logger.analysis)
                 return
             }
             newContent.replaceSubrange(startIdx..<endIdx, with: suggestion)

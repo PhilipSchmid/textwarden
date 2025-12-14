@@ -69,7 +69,7 @@ class TerminalContentParser: ContentParser {
     ) -> AdjustedBounds? {
         // Return nil to disable visual underlines for terminals
         // The suggestion popover will still work via keyboard shortcuts
-        Logger.debug("TerminalContentParser: Skipping visual underline (terminal apps use popover only)")
+        Logger.debug("TerminalContentParser: Skipping visual underline (terminal apps use popover only)", category: Logger.analysis)
         return nil
     }
 
@@ -83,7 +83,7 @@ class TerminalContentParser: ContentParser {
         // Aggressive length limit for terminals (they can have 100k+ chars of scrollback)
         let maxTerminalLength = 5000
         if text.count > maxTerminalLength {
-            Logger.info("TerminalContentParser: Text too long (\(text.count) chars), extracting last portion")
+            Logger.info("TerminalContentParser: Text too long (\(text.count) chars), extracting last portion", category: Logger.analysis)
             // Take only the last N characters (most recent output + current prompt)
             let truncated = String(text.suffix(maxTerminalLength))
             return extractUserInput(from: truncated)
@@ -191,7 +191,7 @@ class TerminalContentParser: ContentParser {
         // For terminals, we should ONLY analyze text when we can reliably identify
         // the prompt and extract user input. Without a prompt, we cannot distinguish
         // between user input and command output, so it's safer to skip.
-        Logger.debug("TerminalContentParser: No prompt found - skipping analysis to avoid false positives from command output")
+        Logger.debug("TerminalContentParser: No prompt found - skipping analysis to avoid false positives from command output", category: Logger.analysis)
         return nil
     }
 }

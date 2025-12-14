@@ -64,14 +64,14 @@ class RangeBoundsStrategy: GeometryProvider {
             // Validate all line bounds
             let validLineBounds = cocoaLineBounds.filter { CoordinateMapper.validateBounds($0) }
             guard !validLineBounds.isEmpty else {
-                Logger.debug("RangeBoundsStrategy: All line bounds failed validation")
+                Logger.debug("RangeBoundsStrategy: All line bounds failed validation", category: Logger.accessibility)
                 return nil
             }
 
             // Calculate overall bounding box from all lines
             let overallBounds = calculateOverallBounds(from: validLineBounds)
 
-            Logger.debug("RangeBoundsStrategy: Multi-line error with \(validLineBounds.count) lines, overall bounds: \(overallBounds)")
+            Logger.debug("RangeBoundsStrategy: Multi-line error with \(validLineBounds.count) lines, overall bounds: \(overallBounds)", category: Logger.accessibility)
 
             return GeometryResult(
                 bounds: overallBounds,
@@ -102,16 +102,16 @@ class RangeBoundsStrategy: GeometryProvider {
 
         // Validate converted bounds
         guard CoordinateMapper.validateBounds(cocoaBounds) else {
-            Logger.debug("RangeBoundsStrategy: Converted bounds failed validation: \(cocoaBounds)")
+            Logger.debug("RangeBoundsStrategy: Converted bounds failed validation: \(cocoaBounds)", category: Logger.accessibility)
             return nil
         }
 
         // Check for suspiciously small bounds
         if cocoaBounds.width < GeometryConstants.minimumBoundsSize {
-            Logger.warning("RangeBoundsStrategy: Bounds width suspiciously small: \(cocoaBounds.width)px")
+            Logger.warning("RangeBoundsStrategy: Bounds width suspiciously small: \(cocoaBounds.width)px", category: Logger.accessibility)
         }
 
-        Logger.debug("RangeBoundsStrategy: Successfully calculated bounds: \(cocoaBounds)")
+        Logger.debug("RangeBoundsStrategy: Successfully calculated bounds: \(cocoaBounds)", category: Logger.accessibility)
 
         return GeometryResult(
             bounds: cocoaBounds,
@@ -199,7 +199,7 @@ class RangeBoundsStrategy: GeometryProvider {
 
         // Validate converted bounds
         guard CoordinateMapper.validateBounds(cocoaBounds) else {
-            Logger.debug("RangeBoundsStrategy: Custom parser bounds failed validation: \(cocoaBounds)")
+            Logger.debug("RangeBoundsStrategy: Custom parser bounds failed validation: \(cocoaBounds)", category: Logger.accessibility)
             return nil
         }
 

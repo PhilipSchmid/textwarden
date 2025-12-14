@@ -189,7 +189,7 @@ enum CoordinateMapper {
     static func validateBounds(_ rect: CGRect) -> Bool {
         // Check for positive dimensions
         guard GeometryConstants.hasValidSize(rect) else {
-            Logger.debug("CoordinateMapper: Invalid bounds: zero or negative dimensions \(rect)")
+            Logger.debug("CoordinateMapper: Invalid bounds: zero or negative dimensions \(rect)", category: Logger.accessibility)
             return false
         }
 
@@ -197,34 +197,34 @@ enum CoordinateMapper {
         // Anything larger is likely a container bound, not character bounds
         guard rect.width < GeometryConstants.maximumTextWidth &&
               rect.height < GeometryConstants.maximumLineHeight else {
-            Logger.debug("CoordinateMapper: Invalid bounds: dimensions too large for text \(rect)")
+            Logger.debug("CoordinateMapper: Invalid bounds: dimensions too large for text \(rect)", category: Logger.accessibility)
             return false
         }
 
         // Check for NaN values
         guard !rect.origin.x.isNaN && !rect.origin.y.isNaN &&
               !rect.width.isNaN && !rect.height.isNaN else {
-            Logger.debug("CoordinateMapper: Invalid bounds: contains NaN values \(rect)")
+            Logger.debug("CoordinateMapper: Invalid bounds: contains NaN values \(rect)", category: Logger.accessibility)
             return false
         }
 
         // Check for infinite values
         guard !rect.origin.x.isInfinite && !rect.origin.y.isInfinite &&
               !rect.width.isInfinite && !rect.height.isInfinite else {
-            Logger.debug("CoordinateMapper: Invalid bounds: contains infinite values \(rect)")
+            Logger.debug("CoordinateMapper: Invalid bounds: contains infinite values \(rect)", category: Logger.accessibility)
             return false
         }
 
         // Check for extremely small dimensions (< 1px suggests error)
         guard rect.width >= 1.0 && rect.height >= 1.0 else {
-            Logger.debug("CoordinateMapper: Invalid bounds: dimensions too small \(rect)")
+            Logger.debug("CoordinateMapper: Invalid bounds: dimensions too small \(rect)", category: Logger.accessibility)
             return false
         }
 
         // Check for negative coordinates (often indicates stale values)
         // Note: Negative Y is valid in Quartz coords for multi-monitor, so only check extremely negative
         guard rect.origin.x >= -10000 && rect.origin.y >= -10000 else {
-            Logger.debug("CoordinateMapper: Invalid bounds: extremely negative coordinates \(rect)")
+            Logger.debug("CoordinateMapper: Invalid bounds: extremely negative coordinates \(rect)", category: Logger.accessibility)
             return false
         }
 
@@ -241,7 +241,7 @@ enum CoordinateMapper {
 
         // Check if bounds are on any screen
         guard isVisibleOnScreen(rect) else {
-            Logger.debug("CoordinateMapper: Invalid bounds: not visible on any screen \(rect)")
+            Logger.debug("CoordinateMapper: Invalid bounds: not visible on any screen \(rect)", category: Logger.accessibility)
             return false
         }
 
@@ -264,7 +264,7 @@ enum CoordinateMapper {
         let expandedEditArea = editArea.insetBy(dx: -tolerance, dy: -tolerance)
 
         guard expandedEditArea.contains(rect.origin) else {
-            Logger.debug("CoordinateMapper: Invalid bounds: origin \(rect.origin) outside edit area \(editArea)")
+            Logger.debug("CoordinateMapper: Invalid bounds: origin \(rect.origin) outside edit area \(editArea)", category: Logger.accessibility)
             return false
         }
 

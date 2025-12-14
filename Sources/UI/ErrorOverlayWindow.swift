@@ -210,7 +210,7 @@ class ErrorOverlayWindow: NSPanel {
 
         // Check global underlines toggle first
         if !UserPreferences.shared.showUnderlines {
-            Logger.info("ErrorOverlay: Underlines globally disabled in preferences - skipping")
+            Logger.info("ErrorOverlay: Underlines globally disabled in preferences - skipping", category: Logger.ui)
             hide()
             return 0
         }
@@ -218,24 +218,24 @@ class ErrorOverlayWindow: NSPanel {
         // Check error count threshold - hide underlines when there are too many errors
         let maxErrors = UserPreferences.shared.maxErrorsForUnderlines
         if errors.count > maxErrors {
-            Logger.info("ErrorOverlay: Error count (\(errors.count)) exceeds threshold (\(maxErrors)) - hiding underlines")
+            Logger.info("ErrorOverlay: Error count (\(errors.count)) exceeds threshold (\(maxErrors)) - hiding underlines", category: Logger.ui)
             hide()
             return 0
         }
 
         // Check user's per-app underlines preference (user can override the default)
         if !UserPreferences.shared.areUnderlinesEnabled(for: bundleID) {
-            Logger.info("ErrorOverlay: Underlines disabled by user for '\(bundleID)' - skipping")
+            Logger.info("ErrorOverlay: Underlines disabled by user for '\(bundleID)' - skipping", category: Logger.ui)
             hide()
             return 0
         }
 
         // Check per-app underlines setting from AppRegistry (technical limitations)
         let underlinesDisabled = !appConfig.features.visualUnderlinesEnabled
-        Logger.info("ErrorOverlay: Using parser '\(parser.parserName)' for bundleID '\(bundleID)', underlinesDisabled=\(underlinesDisabled)")
+        Logger.info("ErrorOverlay: Using parser '\(parser.parserName)' for bundleID '\(bundleID)', underlinesDisabled=\(underlinesDisabled)", category: Logger.ui)
 
         if underlinesDisabled {
-            Logger.info("ErrorOverlay: Visual underlines disabled for '\(appConfig.displayName)' - skipping")
+            Logger.info("ErrorOverlay: Visual underlines disabled for '\(appConfig.displayName)' - skipping", category: Logger.ui)
             hide()
             return 0
         }
@@ -410,7 +410,7 @@ class ErrorOverlayWindow: NSPanel {
                 // Invalid bounds cause hover detection to fail
                 let maxValidHeight: CGFloat = UIConstants.maximumTextLineHeight
                 if localBounds.origin.y < -10 || localBounds.height > maxValidHeight {
-                    Logger.warning("ErrorOverlay: Skipping invalid line bounds (y=\(localBounds.origin.y), h=\(localBounds.height))")
+                    Logger.warning("ErrorOverlay: Skipping invalid line bounds (y=\(localBounds.origin.y), h=\(localBounds.height))", category: Logger.ui)
                     continue
                 }
 
@@ -426,7 +426,7 @@ class ErrorOverlayWindow: NSPanel {
 
             // If no valid bounds remain, skip this error
             guard !allLocalBounds.isEmpty else {
-                Logger.warning("ErrorOverlay: All line bounds invalid for error at \(error.start)-\(error.end)")
+                Logger.warning("ErrorOverlay: All line bounds invalid for error at \(error.start)-\(error.end)", category: Logger.ui)
                 skippedCount += 1
                 return nil
             }
@@ -448,7 +448,7 @@ class ErrorOverlayWindow: NSPanel {
             // Use the last line's bounds as the primary drawing bounds (for popup anchor)
             // allLocalBounds is guaranteed non-empty here due to guard at line 428
             guard let primaryDrawingBounds = allLocalBounds.last else {
-                Logger.error("ErrorOverlay: Unexpected empty allLocalBounds after guard")
+                Logger.error("ErrorOverlay: Unexpected empty allLocalBounds after guard", category: Logger.ui)
                 return nil
             }
 
@@ -465,15 +465,15 @@ class ErrorOverlayWindow: NSPanel {
         // This must be called AFTER all positioning calculations are done
         ChromiumStrategy.restoreCursorPosition()
 
-        Logger.info("ErrorOverlay: Created \(underlines.count) underlines from \(errors.count) errors (skipped \(skippedCount) positioning, \(skippedDueToVisibility) not visible)")
+        Logger.info("ErrorOverlay: Created \(underlines.count) underlines from \(errors.count) errors (skipped \(skippedCount) positioning, \(skippedDueToVisibility) not visible)", category: Logger.ui)
 
         // Extra debug for Notion
         if bundleID.contains("notion") {
-            Logger.info("NOTION UNDERLINES: \(underlines.count) underlines created")
+            Logger.info("NOTION UNDERLINES: \(underlines.count) underlines created", category: Logger.ui)
             for (i, ul) in underlines.enumerated() {
-                Logger.info("  Underline \(i): bounds=\(ul.bounds), drawingBounds=\(ul.drawingBounds), allDrawingBounds.count=\(ul.allDrawingBounds.count)")
+                Logger.info("  Underline \(i): bounds=\(ul.bounds), drawingBounds=\(ul.drawingBounds), allDrawingBounds.count=\(ul.allDrawingBounds.count)", category: Logger.ui)
                 for (j, lineBounds) in ul.allDrawingBounds.enumerated() {
-                    Logger.info("    Line \(j): \(lineBounds)")
+                    Logger.info("    Line \(j): \(lineBounds)", category: Logger.ui)
                 }
             }
         }
@@ -484,7 +484,7 @@ class ErrorOverlayWindow: NSPanel {
         if !underlines.isEmpty {
             // Only order window if not already visible to avoid window ordering spam
             if !isCurrentlyVisible {
-                Logger.info("ErrorOverlay: Showing overlay window (first time) with \(underlines.count) underlines")
+                Logger.info("ErrorOverlay: Showing overlay window (first time) with \(underlines.count) underlines", category: Logger.ui)
                 // Use order(.above) instead of orderFrontRegardless() to avoid activating the app
                 order(.above, relativeTo: 0)
                 isCurrentlyVisible = true
@@ -492,7 +492,7 @@ class ErrorOverlayWindow: NSPanel {
                 Logger.debug("ErrorOverlay: Updating overlay (already visible, not reordering)", category: Logger.ui)
             }
         } else {
-            Logger.info("ErrorOverlay: No underlines created - hiding overlay")
+            Logger.info("ErrorOverlay: No underlines created - hiding overlay", category: Logger.ui)
             hide()
         }
 
@@ -809,7 +809,7 @@ class ErrorOverlayWindow: NSPanel {
 
         // Parser explicitly returned nil - this means the parser wants to disable visual underlines
         // (e.g., for terminals where positioning is unreliable)
-        Logger.debug("ContentParser returned nil for \(bundleID) - disabling visual underline")
+        Logger.debug("ContentParser returned nil for \(bundleID) - disabling visual underline", category: Logger.ui)
         return nil
     }
 

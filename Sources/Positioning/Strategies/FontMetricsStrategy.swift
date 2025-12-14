@@ -36,7 +36,7 @@ class FontMetricsStrategy: GeometryProvider {
 
         // Safe string extraction with bounds checking
         guard startIndex >= 0 && endIndex <= text.count else {
-            Logger.warning("FontMetricsStrategy: Invalid range \(errorRange) for text length \(text.count)")
+            Logger.warning("FontMetricsStrategy: Invalid range \(errorRange) for text length \(text.count)", category: Logger.accessibility)
             return nil
         }
 
@@ -44,7 +44,7 @@ class FontMetricsStrategy: GeometryProvider {
         guard let errorStartIdx = text.index(text.startIndex, offsetBy: startIndex, limitedBy: text.endIndex),
               let errorEndIdx = text.index(text.startIndex, offsetBy: endIndex, limitedBy: text.endIndex),
               errorStartIdx <= errorEndIdx else {
-            Logger.warning("FontMetricsStrategy: String index out of bounds")
+            Logger.warning("FontMetricsStrategy: String index out of bounds", category: Logger.accessibility)
             return nil
         }
         let errorText = String(text[errorStartIdx..<errorEndIdx])
@@ -57,7 +57,7 @@ class FontMetricsStrategy: GeometryProvider {
             errorText: errorText,
             fullText: text
         ) else {
-            Logger.debug("FontMetricsStrategy: Parser returned nil for bounds")
+            Logger.debug("FontMetricsStrategy: Parser returned nil for bounds", category: Logger.accessibility)
             return nil
         }
 
@@ -83,11 +83,11 @@ class FontMetricsStrategy: GeometryProvider {
 
         // Validate converted bounds
         guard CoordinateMapper.validateBounds(bounds) else {
-            Logger.debug("FontMetricsStrategy: Converted bounds failed validation: \(bounds)")
+            Logger.debug("FontMetricsStrategy: Converted bounds failed validation: \(bounds)", category: Logger.accessibility)
             return nil
         }
 
-        Logger.debug("FontMetricsStrategy: Successfully estimated bounds: \(bounds)")
+        Logger.debug("FontMetricsStrategy: Successfully estimated bounds: \(bounds)", category: Logger.accessibility)
 
         return GeometryResult(
             bounds: bounds,

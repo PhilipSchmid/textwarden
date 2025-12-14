@@ -43,12 +43,12 @@ class NavigationStrategy: GeometryProvider {
 
         // Step 1: Get current cursor position
         guard let originalSelection = getCurrentSelection(element: element) else {
-            Logger.debug("NavigationStrategy: Could not get current selection")
+            Logger.debug("NavigationStrategy: Could not get current selection", category: Logger.accessibility)
             return nil
         }
 
         let originalPosition = originalSelection.location
-        Logger.debug("NavigationStrategy: Original cursor at \(originalPosition)")
+        Logger.debug("NavigationStrategy: Original cursor at \(originalPosition)", category: Logger.accessibility)
 
         // Adjust for UI element offset if needed
         var targetPosition = errorRange.location
@@ -56,7 +56,7 @@ class NavigationStrategy: GeometryProvider {
             targetPosition = errorRange.location + notionParser.textReplacementOffset
         }
 
-        Logger.debug("NavigationStrategy: Target position is \(targetPosition)")
+        Logger.debug("NavigationStrategy: Target position is \(targetPosition)", category: Logger.accessibility)
 
         // Step 2: Calculate how many arrow keys to press
         let delta = targetPosition - originalPosition
@@ -64,7 +64,7 @@ class NavigationStrategy: GeometryProvider {
         // Step 3: Move cursor using arrow keys
         let moved = moveCursorByArrowKeys(delta: delta, element: element)
         if !moved {
-            Logger.debug("NavigationStrategy: Failed to move cursor")
+            Logger.debug("NavigationStrategy: Failed to move cursor", category: Logger.accessibility)
             return nil
         }
 
@@ -78,13 +78,13 @@ class NavigationStrategy: GeometryProvider {
         let _ = moveCursorByArrowKeys(delta: restoreDelta, element: element)
 
         guard let bounds = cursorBounds else {
-            Logger.debug("NavigationStrategy: Could not get cursor bounds at target")
+            Logger.debug("NavigationStrategy: Could not get cursor bounds at target", category: Logger.accessibility)
             return nil
         }
 
         // Validate bounds
         guard bounds.width >= 0 && bounds.height > 0 && bounds.height < GeometryConstants.conservativeMaxLineHeight else {
-            Logger.debug("NavigationStrategy: Invalid bounds \(bounds)")
+            Logger.debug("NavigationStrategy: Invalid bounds \(bounds)", category: Logger.accessibility)
             return nil
         }
 
@@ -99,7 +99,7 @@ class NavigationStrategy: GeometryProvider {
         guard let errorStartIdx = text.index(text.startIndex, offsetBy: errorStart, limitedBy: text.endIndex),
               let errorEndIdx = text.index(text.startIndex, offsetBy: errorEnd, limitedBy: text.endIndex),
               errorStartIdx <= errorEndIdx else {
-            Logger.debug("NavigationStrategy: String index out of bounds for error text")
+            Logger.debug("NavigationStrategy: String index out of bounds for error text", category: Logger.accessibility)
             return nil
         }
         let errorText = String(text[errorStartIdx..<errorEndIdx])
@@ -116,11 +116,11 @@ class NavigationStrategy: GeometryProvider {
         let cocoaBounds = CoordinateMapper.toCocoaCoordinates(finalBounds)
 
         guard CoordinateMapper.validateBounds(cocoaBounds) else {
-            Logger.debug("NavigationStrategy: Converted bounds failed validation")
+            Logger.debug("NavigationStrategy: Converted bounds failed validation", category: Logger.accessibility)
             return nil
         }
 
-        Logger.debug("NavigationStrategy: Success! Bounds: \(cocoaBounds)")
+        Logger.debug("NavigationStrategy: Success! Bounds: \(cocoaBounds)", category: Logger.accessibility)
 
         return GeometryResult(
             bounds: cocoaBounds,
@@ -165,11 +165,11 @@ class NavigationStrategy: GeometryProvider {
 
         // Limit steps to avoid long waits
         guard steps < 500 else {
-            Logger.debug("NavigationStrategy: Delta \(delta) too large, skipping")
+            Logger.debug("NavigationStrategy: Delta \(delta) too large, skipping", category: Logger.accessibility)
             return false
         }
 
-        Logger.debug("NavigationStrategy: Moving cursor by \(delta) chars (\(steps) key presses)")
+        Logger.debug("NavigationStrategy: Moving cursor by \(delta) chars (\(steps) key presses)", category: Logger.accessibility)
 
         for _ in 0..<steps {
             if !pressKey(keyCode: keyCode) {
@@ -207,10 +207,10 @@ class NavigationStrategy: GeometryProvider {
            let frame = safeAXValueGetRect(axValue) {
             // Validate the frame
             if frame.height > GeometryConstants.minimumBoundsSize && frame.height < GeometryConstants.conservativeMaxLineHeight && frame.origin.x > 0 {
-                Logger.debug("NavigationStrategy: Got valid bounds from AXInsertionPointFrame: \(frame)")
+                Logger.debug("NavigationStrategy: Got valid bounds from AXInsertionPointFrame: \(frame)", category: Logger.accessibility)
                 return frame
             } else {
-                Logger.debug("NavigationStrategy: AXInsertionPointFrame returned invalid frame: \(frame)")
+                Logger.debug("NavigationStrategy: AXInsertionPointFrame returned invalid frame: \(frame)", category: Logger.accessibility)
             }
         }
 
@@ -232,14 +232,14 @@ class NavigationStrategy: GeometryProvider {
            let bounds = safeAXValueGetRect(bv) {
             // Validate bounds - Chromium bug returns (0, y, 0, 0)
             if bounds.width > 0 && bounds.height > GeometryConstants.minimumBoundsSize && bounds.origin.x > 0 {
-                Logger.debug("NavigationStrategy: Got valid bounds from AXBoundsForRange: \(bounds)")
+                Logger.debug("NavigationStrategy: Got valid bounds from AXBoundsForRange: \(bounds)", category: Logger.accessibility)
                 return bounds
             } else {
-                Logger.debug("NavigationStrategy: AXBoundsForRange returned invalid bounds: \(bounds)")
+                Logger.debug("NavigationStrategy: AXBoundsForRange returned invalid bounds: \(bounds)", category: Logger.accessibility)
             }
         }
 
-        Logger.debug("NavigationStrategy: Could not get valid cursor bounds at position \(position)")
+        Logger.debug("NavigationStrategy: Could not get valid cursor bounds at position \(position)", category: Logger.accessibility)
         return nil
     }
 }

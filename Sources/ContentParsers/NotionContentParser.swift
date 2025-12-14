@@ -231,12 +231,12 @@ class NotionContentParser: ContentParser {
             Self.diagnosticResult = AccessibilityBridge.runNotionDiagnostic(element)
 
             if let result = Self.diagnosticResult {
-                Logger.info("NOTION DIAGNOSTIC SUMMARY:")
-                Logger.info("  Best method: \(result.bestMethodDescription)")
-                Logger.info("  Has working method: \(result.hasWorkingMethod)")
-                Logger.info("  Working range bounds: \(result.workingRangeBounds.count)")
-                Logger.info("  Line bounds: \(result.lineBounds.count)")
-                Logger.info("  Children with bounds: \(result.childrenWithBounds.count)")
+                Logger.info("NOTION DIAGNOSTIC SUMMARY:", category: Logger.analysis)
+                Logger.info("  Best method: \(result.bestMethodDescription)", category: Logger.analysis)
+                Logger.info("  Has working method: \(result.hasWorkingMethod)", category: Logger.analysis)
+                Logger.info("  Working range bounds: \(result.workingRangeBounds.count)", category: Logger.analysis)
+                Logger.info("  Line bounds: \(result.lineBounds.count)", category: Logger.analysis)
+                Logger.info("  Children with bounds: \(result.childrenWithBounds.count)", category: Logger.analysis)
             }
         }
 

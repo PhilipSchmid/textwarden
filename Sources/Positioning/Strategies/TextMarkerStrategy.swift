@@ -145,17 +145,17 @@ class TextMarkerStrategy: GeometryProvider {
 
         // Validate converted bounds
         guard CoordinateMapper.validateBounds(cocoaBounds) else {
-            Logger.debug("TextMarkerStrategy: Converted bounds failed validation: \(cocoaBounds)")
+            Logger.debug("TextMarkerStrategy: Converted bounds failed validation: \(cocoaBounds)", category: Logger.accessibility)
             return nil
         }
 
         // Verify bounds are on-screen
         if !CoordinateMapper.isVisibleOnScreen(cocoaBounds) {
-            Logger.warning("TextMarkerStrategy: Bounds are off-screen: \(cocoaBounds)")
+            Logger.warning("TextMarkerStrategy: Bounds are off-screen: \(cocoaBounds)", category: Logger.accessibility)
             // Continue anyway - might be on external monitor
         }
 
-        Logger.debug("TextMarkerStrategy: Successfully calculated bounds: \(cocoaBounds)")
+        Logger.debug("TextMarkerStrategy: Successfully calculated bounds: \(cocoaBounds)", category: Logger.accessibility)
 
         let usedLayoutConversion = AccessibilityBridge.supportsLayoutToScreenConversion(element)
         return GeometryResult.highConfidence(

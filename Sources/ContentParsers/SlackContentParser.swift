@@ -126,9 +126,9 @@ class SlackContentParser: ContentParser {
             Self.diagnosticResult = AccessibilityBridge.runNotionDiagnostic(element)
 
             if let result = Self.diagnosticResult {
-                Logger.info("SLACK DIAGNOSTIC SUMMARY:")
-                Logger.info("  Best method: \(result.bestMethodDescription)")
-                Logger.info("  Has working method: \(result.hasWorkingMethod)")
+                Logger.info("SLACK DIAGNOSTIC SUMMARY:", category: Logger.analysis)
+                Logger.info("  Best method: \(result.bestMethodDescription)", category: Logger.analysis)
+                Logger.info("  Has working method: \(result.hasWorkingMethod)", category: Logger.analysis)
                 Logger.info("  Supported param attrs: \(result.supportedParamAttributes.joined(separator: ", "))")
             }
         }
@@ -324,7 +324,7 @@ class SlackContentParser: ContentParser {
         fontSize: CGFloat
     ) -> AdjustedBounds? {
         guard let elementFrame = getSlackElementFrame(element: element) else {
-            Logger.warning("Slack: Failed to get element frame for text measurement fallback")
+            Logger.warning("Slack: Failed to get element frame for text measurement fallback", category: Logger.analysis)
             return nil
         }
 

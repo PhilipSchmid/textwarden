@@ -49,7 +49,7 @@ class OriginStrategy: GeometryProvider {
 
         // Get raw bounds without validation (using original coordinates)
         guard let rawBounds = getRawBoundsForRange(originalRange, in: element) else {
-            Logger.debug("OriginStrategy: Could not get raw bounds")
+            Logger.debug("OriginStrategy: Could not get raw bounds", category: Logger.accessibility)
             return nil
         }
 
@@ -62,7 +62,7 @@ class OriginStrategy: GeometryProvider {
                                !rawBounds.origin.y.isNaN
 
         guard hasValidPosition else {
-            Logger.debug("OriginStrategy: Position not valid - x=\(rawBounds.origin.x), y=\(rawBounds.origin.y)")
+            Logger.debug("OriginStrategy: Position not valid - x=\(rawBounds.origin.x), y=\(rawBounds.origin.y)", category: Logger.accessibility)
             return nil
         }
 
@@ -78,7 +78,7 @@ class OriginStrategy: GeometryProvider {
         let errorEndIndex = min(originalRange.location + originalRange.length, text.count)
         let errorStartIndex = min(originalRange.location, text.count)
         guard errorStartIndex < errorEndIndex else {
-            Logger.debug("OriginStrategy: Invalid error indices")
+            Logger.debug("OriginStrategy: Invalid error indices", category: Logger.accessibility)
             return nil
         }
 
@@ -86,7 +86,7 @@ class OriginStrategy: GeometryProvider {
         guard let errorStartIdx = text.index(text.startIndex, offsetBy: errorStartIndex, limitedBy: text.endIndex),
               let errorEndIdx = text.index(text.startIndex, offsetBy: errorEndIndex, limitedBy: text.endIndex),
               errorStartIdx <= errorEndIdx else {
-            Logger.debug("OriginStrategy: String index out of bounds for error text")
+            Logger.debug("OriginStrategy: String index out of bounds for error text", category: Logger.accessibility)
             return nil
         }
         let errorText = String(text[errorStartIdx..<errorEndIdx])
@@ -112,7 +112,7 @@ class OriginStrategy: GeometryProvider {
 
         // Validate final bounds
         guard CoordinateMapper.validateBounds(cocoaBounds) else {
-            Logger.debug("OriginStrategy: Final bounds validation failed: \(cocoaBounds)")
+            Logger.debug("OriginStrategy: Final bounds validation failed: \(cocoaBounds)", category: Logger.accessibility)
             return nil
         }
 
@@ -150,7 +150,7 @@ class OriginStrategy: GeometryProvider {
         guard result == .success,
               let bv = boundsValue,
               let bounds = safeAXValueGetRect(bv) else {
-            Logger.debug("OriginStrategy: AXBoundsForRange failed with error \(result.rawValue)")
+            Logger.debug("OriginStrategy: AXBoundsForRange failed with error \(result.rawValue)", category: Logger.accessibility)
             return nil
         }
 

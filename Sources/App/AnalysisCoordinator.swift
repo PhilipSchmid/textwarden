@@ -917,15 +917,18 @@ class AnalysisCoordinator: ObservableObject {
 
     // MARK: - handleTextChange Helpers
 
+    /// Check if we should preserve popover during focus bounces.
+    /// Some apps (like Messages via Mac Catalyst) briefly lose focus during paste operations,
+    /// which would otherwise cause the popover to hide incorrectly.
+    private func shouldPreservePopoverDuringFocusBounce(appConfig: AppConfiguration) -> Bool {
+        guard appConfig.features.focusBouncesDuringPaste else { return false }
+        return isApplyingReplacement || isWithinFocusBounceGracePeriod()
+    }
+
     /// Handle case when no monitored element exists (browser UI, etc.)
     /// Returns true if the caller should return early
     private func handleNoMonitoredElement(appConfig: AppConfiguration) -> Bool {
-        // Check if this app has focus bounce behavior and we're in replacement or grace period
-        let hasFocusBounce = appConfig.features.focusBouncesDuringPaste
-        let isActiveReplacement = isApplyingReplacement && hasFocusBounce
-        let isInGracePeriod = hasFocusBounce && isWithinFocusBounceGracePeriod()
-
-        if isActiveReplacement || isInGracePeriod {
+        if shouldPreservePopoverDuringFocusBounce(appConfig: appConfig) {
             Logger.debug("AnalysisCoordinator: Focus bounce app - preserving popover during replacement/grace period", category: Logger.analysis)
             errorOverlay.hide()
             previousText = ""

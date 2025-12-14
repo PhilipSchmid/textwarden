@@ -51,7 +51,7 @@ class AnchorSearchStrategy: GeometryProvider {
 
         // Step 1: Probe to find a character with valid bounds near the error (using UTF-16 indices)
         guard let anchor = findValidAnchor(near: originalLocationUTF16, in: element, textLength: textLengthUTF16) else {
-            Logger.debug("AnchorSearchStrategy: Could not find valid anchor")
+            Logger.debug("AnchorSearchStrategy: Could not find valid anchor", category: Logger.accessibility)
             return nil
         }
 
@@ -77,7 +77,7 @@ class AnchorSearchStrategy: GeometryProvider {
             let startUTF16 = anchor.index
             let endUTF16 = min(originalLocationUTF16, textLengthUTF16)
             guard startUTF16 <= endUTF16, endUTF16 <= textLengthUTF16 else {
-                Logger.debug("AnchorSearchStrategy: UTF-16 range out of bounds (positive offset)")
+                Logger.debug("AnchorSearchStrategy: UTF-16 range out of bounds (positive offset)", category: Logger.accessibility)
                 return nil
             }
             textBetween = nsText.substring(with: NSRange(location: startUTF16, length: endUTF16 - startUTF16))
@@ -86,7 +86,7 @@ class AnchorSearchStrategy: GeometryProvider {
             let startUTF16 = originalLocationUTF16
             let endUTF16 = min(anchor.index, textLengthUTF16)
             guard startUTF16 <= endUTF16, endUTF16 <= textLengthUTF16 else {
-                Logger.debug("AnchorSearchStrategy: UTF-16 range out of bounds (negative offset)")
+                Logger.debug("AnchorSearchStrategy: UTF-16 range out of bounds (negative offset)", category: Logger.accessibility)
                 return nil
             }
             textBetween = nsText.substring(with: NSRange(location: startUTF16, length: endUTF16 - startUTF16))
@@ -98,7 +98,7 @@ class AnchorSearchStrategy: GeometryProvider {
         let errorLengthUTF16 = graphemeToUTF16(originalLocationGrapheme + errorRange.length, in: text) - originalLocationUTF16
         let errorEndUTF16 = min(originalLocationUTF16 + errorLengthUTF16, textLengthUTF16)
         guard originalLocationUTF16 <= errorEndUTF16, errorEndUTF16 <= textLengthUTF16 else {
-            Logger.debug("AnchorSearchStrategy: UTF-16 range out of bounds for error text")
+            Logger.debug("AnchorSearchStrategy: UTF-16 range out of bounds for error text", category: Logger.accessibility)
             return nil
         }
         let errorText = nsText.substring(with: NSRange(location: originalLocationUTF16, length: errorEndUTF16 - originalLocationUTF16))
@@ -149,7 +149,7 @@ class AnchorSearchStrategy: GeometryProvider {
 
         // Validate
         guard CoordinateMapper.validateBounds(cocoaBounds) else {
-            Logger.debug("AnchorSearchStrategy: Final bounds validation failed")
+            Logger.debug("AnchorSearchStrategy: Final bounds validation failed", category: Logger.accessibility)
             return nil
         }
 

@@ -47,7 +47,7 @@ class LineIndexStrategy: GeometryProvider {
 
         // Step 1: Get the line number for the error position (using UTF-16 index)
         guard let lineNumber = getLineForIndex(originalLocationUTF16, in: element) else {
-            Logger.debug("LineIndexStrategy: AXLineForIndex failed for index \(originalLocationUTF16)")
+            Logger.debug("LineIndexStrategy: AXLineForIndex failed for index \(originalLocationUTF16)", category: Logger.accessibility)
             return nil
         }
 
@@ -55,7 +55,7 @@ class LineIndexStrategy: GeometryProvider {
 
         // Step 2: Get the character range for this line
         guard let lineRange = getRangeForLine(lineNumber, in: element) else {
-            Logger.debug("LineIndexStrategy: AXRangeForLine failed for line \(lineNumber)")
+            Logger.debug("LineIndexStrategy: AXRangeForLine failed for line \(lineNumber)", category: Logger.accessibility)
             return nil
         }
 
@@ -77,7 +77,7 @@ class LineIndexStrategy: GeometryProvider {
                 element: element,
                 parser: parser
             ) else {
-                Logger.debug("LineIndexStrategy: Both AXBoundsForRange and estimation failed for line \(lineNumber)")
+                Logger.debug("LineIndexStrategy: Both AXBoundsForRange and estimation failed for line \(lineNumber)", category: Logger.accessibility)
                 return nil
             }
             lineBounds = estimatedBounds
@@ -87,7 +87,7 @@ class LineIndexStrategy: GeometryProvider {
 
         // Validate line bounds
         guard lineBounds.width > 0 && lineBounds.height > 0 && lineBounds.height < GeometryConstants.maximumLineHeight else {
-            Logger.debug("LineIndexStrategy: Invalid line bounds: \(lineBounds)")
+            Logger.debug("LineIndexStrategy: Invalid line bounds: \(lineBounds)", category: Logger.accessibility)
             return nil
         }
 
@@ -101,7 +101,7 @@ class LineIndexStrategy: GeometryProvider {
         guard let lineStartIdx = stringIndex(forUTF16Offset: lineStartUTF16, in: text),
               let lineEndIdx = stringIndex(forUTF16Offset: lineEndUTF16, in: text),
               lineStartIdx <= lineEndIdx else {
-            Logger.debug("LineIndexStrategy: Failed to convert UTF-16 indices to string indices")
+            Logger.debug("LineIndexStrategy: Failed to convert UTF-16 indices to string indices", category: Logger.accessibility)
             return nil
         }
         let lineText = String(text[lineStartIdx..<lineEndIdx])
@@ -140,7 +140,7 @@ class LineIndexStrategy: GeometryProvider {
            errorStartIdx <= errorEndIdx {
             errorText = String(text[errorStartIdx..<errorEndIdx])
         } else {
-            Logger.debug("LineIndexStrategy: String index out of bounds for error text")
+            Logger.debug("LineIndexStrategy: String index out of bounds for error text", category: Logger.accessibility)
             return nil
         }
 
@@ -189,7 +189,7 @@ class LineIndexStrategy: GeometryProvider {
 
         // Validate final bounds
         guard CoordinateMapper.validateBounds(cocoaBounds) else {
-            Logger.debug("LineIndexStrategy: Final bounds validation failed: \(cocoaBounds)")
+            Logger.debug("LineIndexStrategy: Final bounds validation failed: \(cocoaBounds)", category: Logger.accessibility)
             return nil
         }
 
@@ -349,7 +349,7 @@ class LineIndexStrategy: GeometryProvider {
     ) -> CGRect? {
         // Get element frame (position + size)
         guard let elementFrame = AccessibilityBridge.getElementFrame(element) else {
-            Logger.debug("LineIndexStrategy: Failed to get element frame for estimation")
+            Logger.debug("LineIndexStrategy: Failed to get element frame for estimation", category: Logger.accessibility)
             return nil
         }
 
@@ -366,7 +366,7 @@ class LineIndexStrategy: GeometryProvider {
         let lineX = elementFrame.origin.x
         let lineWidth = elementFrame.size.width
 
-        Logger.debug("LineIndexStrategy: Estimated line \(lineNumber) at Y=\(lineY), lineHeight=\(lineHeight)")
+        Logger.debug("LineIndexStrategy: Estimated line \(lineNumber) at Y=\(lineY), lineHeight=\(lineHeight)", category: Logger.accessibility)
 
         return CGRect(
             x: lineX,

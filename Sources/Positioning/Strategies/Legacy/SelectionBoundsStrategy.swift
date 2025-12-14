@@ -40,11 +40,11 @@ class SelectionBoundsStrategy: GeometryProvider {
 
         // Step 1: Save current selection
         guard let originalSelection = getCurrentSelection(element: element) else {
-            Logger.debug("SelectionBoundsStrategy: Could not get current selection")
+            Logger.debug("SelectionBoundsStrategy: Could not get current selection", category: Logger.accessibility)
             return nil
         }
 
-        Logger.debug("SelectionBoundsStrategy: Saved original selection at \(originalSelection.location), length \(originalSelection.length)")
+        Logger.debug("SelectionBoundsStrategy: Saved original selection at \(originalSelection.location), length \(originalSelection.length)", category: Logger.accessibility)
 
         // Step 2: Calculate adjusted range (for offset like in Notion)
         let offset = parser.textReplacementOffset
@@ -53,7 +53,7 @@ class SelectionBoundsStrategy: GeometryProvider {
 
         // Step 3: Set cursor to START of error (zero-length selection)
         guard setSelection(element: element, range: NSRange(location: adjustedStart, length: 0)) else {
-            Logger.debug("SelectionBoundsStrategy: Could not set cursor to error start")
+            Logger.debug("SelectionBoundsStrategy: Could not set cursor to error start", category: Logger.accessibility)
             restoreSelection(element: element, originalSelection: originalSelection)
             return nil
         }
@@ -62,16 +62,16 @@ class SelectionBoundsStrategy: GeometryProvider {
 
         // Step 4: Get insertion point frame at START of error
         guard let startFrame = getInsertionPointFrame(element: element) else {
-            Logger.debug("SelectionBoundsStrategy: Could not get insertion point frame at start")
+            Logger.debug("SelectionBoundsStrategy: Could not get insertion point frame at start", category: Logger.accessibility)
             restoreSelection(element: element, originalSelection: originalSelection)
             return nil
         }
 
-        Logger.debug("SelectionBoundsStrategy: Start frame at \(adjustedStart): \(startFrame)")
+        Logger.debug("SelectionBoundsStrategy: Start frame at \(adjustedStart): \(startFrame)", category: Logger.accessibility)
 
         // Step 5: Set cursor to END of error
         guard setSelection(element: element, range: NSRange(location: adjustedEnd, length: 0)) else {
-            Logger.debug("SelectionBoundsStrategy: Could not set cursor to error end")
+            Logger.debug("SelectionBoundsStrategy: Could not set cursor to error end", category: Logger.accessibility)
             restoreSelection(element: element, originalSelection: originalSelection)
             return nil
         }
@@ -80,12 +80,12 @@ class SelectionBoundsStrategy: GeometryProvider {
 
         // Step 6: Get insertion point frame at END of error
         guard let endFrame = getInsertionPointFrame(element: element) else {
-            Logger.debug("SelectionBoundsStrategy: Could not get insertion point frame at end")
+            Logger.debug("SelectionBoundsStrategy: Could not get insertion point frame at end", category: Logger.accessibility)
             restoreSelection(element: element, originalSelection: originalSelection)
             return nil
         }
 
-        Logger.debug("SelectionBoundsStrategy: End frame at \(adjustedEnd): \(endFrame)")
+        Logger.debug("SelectionBoundsStrategy: End frame at \(adjustedEnd): \(endFrame)", category: Logger.accessibility)
 
         // Step 7: Restore original selection (always do this)
         restoreSelection(element: element, originalSelection: originalSelection)
@@ -106,7 +106,7 @@ class SelectionBoundsStrategy: GeometryProvider {
                 width: width,
                 height: startFrame.height
             )
-            Logger.debug("SelectionBoundsStrategy: Single line bounds: \(quartzBounds)")
+            Logger.debug("SelectionBoundsStrategy: Single line bounds: \(quartzBounds)", category: Logger.accessibility)
         } else {
             // Multi-line: use start position, estimate width from error text
             let errorText = String(text.dropFirst(errorRange.location).prefix(errorRange.length))
@@ -120,12 +120,12 @@ class SelectionBoundsStrategy: GeometryProvider {
                 width: max(adjustedWidth, 10.0),
                 height: startFrame.height
             )
-            Logger.debug("SelectionBoundsStrategy: Multi-line, using estimated width: \(quartzBounds)")
+            Logger.debug("SelectionBoundsStrategy: Multi-line, using estimated width: \(quartzBounds)", category: Logger.accessibility)
         }
 
         // Validate bounds
         guard quartzBounds.width > 0 && quartzBounds.height > 0 && quartzBounds.height < GeometryConstants.maximumLineHeight else {
-            Logger.debug("SelectionBoundsStrategy: Invalid bounds \(quartzBounds)")
+            Logger.debug("SelectionBoundsStrategy: Invalid bounds \(quartzBounds)", category: Logger.accessibility)
             return nil
         }
 
@@ -133,11 +133,11 @@ class SelectionBoundsStrategy: GeometryProvider {
         let cocoaBounds = CoordinateMapper.toCocoaCoordinates(quartzBounds)
 
         guard CoordinateMapper.validateBounds(cocoaBounds) else {
-            Logger.debug("SelectionBoundsStrategy: Converted bounds failed validation")
+            Logger.debug("SelectionBoundsStrategy: Converted bounds failed validation", category: Logger.accessibility)
             return nil
         }
 
-        Logger.info("SelectionBoundsStrategy: SUCCESS! Bounds: \(cocoaBounds)")
+        Logger.info("SelectionBoundsStrategy: SUCCESS! Bounds: \(cocoaBounds)", category: Logger.accessibility)
 
         return GeometryResult(
             bounds: cocoaBounds,
@@ -190,7 +190,7 @@ class SelectionBoundsStrategy: GeometryProvider {
 
     private func restoreSelection(element: AXUIElement, originalSelection: NSRange) {
         if !setSelection(element: element, range: originalSelection) {
-            Logger.warning("SelectionBoundsStrategy: Could not restore original selection!")
+            Logger.warning("SelectionBoundsStrategy: Could not restore original selection!", category: Logger.accessibility)
         }
     }
 
@@ -205,23 +205,23 @@ class SelectionBoundsStrategy: GeometryProvider {
         )
 
         guard result == .success, let axValue = value else {
-            Logger.debug("SelectionBoundsStrategy: AXInsertionPointFrame failed: \(result.rawValue)")
+            Logger.debug("SelectionBoundsStrategy: AXInsertionPointFrame failed: \(result.rawValue)", category: Logger.accessibility)
             return nil
         }
 
         guard let frame = safeAXValueGetRect(axValue) else {
-            Logger.debug("SelectionBoundsStrategy: Could not extract CGRect from AXInsertionPointFrame")
+            Logger.debug("SelectionBoundsStrategy: Could not extract CGRect from AXInsertionPointFrame", category: Logger.accessibility)
             return nil
         }
 
         // Validate frame - Chromium bug may return zero dimensions or negative coordinates
         guard frame.height > GeometryConstants.minimumBoundsSize && frame.height < GeometryConstants.conservativeMaxLineHeight else {
-            Logger.debug("SelectionBoundsStrategy: Invalid frame height: \(frame)")
+            Logger.debug("SelectionBoundsStrategy: Invalid frame height: \(frame)", category: Logger.accessibility)
             return nil
         }
 
         guard frame.origin.x > 0 else {
-            Logger.debug("SelectionBoundsStrategy: Invalid frame x position: \(frame)")
+            Logger.debug("SelectionBoundsStrategy: Invalid frame x position: \(frame)", category: Logger.accessibility)
             return nil
         }
 

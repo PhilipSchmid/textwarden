@@ -110,7 +110,7 @@ class ElementTreeStrategy: GeometryProvider {
         let errorEnd = min(originalEnd, text.count)
 
         guard errorStart < errorEnd else {
-            Logger.debug("ElementTreeStrategy: Invalid range after offset adjustment")
+            Logger.debug("ElementTreeStrategy: Invalid range after offset adjustment", category: Logger.accessibility)
             return nil
         }
 
@@ -118,7 +118,7 @@ class ElementTreeStrategy: GeometryProvider {
         guard let startIndex = text.index(text.startIndex, offsetBy: errorStart, limitedBy: text.endIndex),
               let endIndex = text.index(text.startIndex, offsetBy: errorEnd, limitedBy: text.endIndex),
               startIndex <= endIndex else {
-            Logger.debug("ElementTreeStrategy: String index out of bounds for error text")
+            Logger.debug("ElementTreeStrategy: String index out of bounds for error text", category: Logger.accessibility)
             return nil
         }
         let errorText = String(text[startIndex..<endIndex])
@@ -130,13 +130,13 @@ class ElementTreeStrategy: GeometryProvider {
             errorText,
             in: element
         ) else {
-            Logger.debug("ElementTreeStrategy: Could not find element containing error text")
+            Logger.debug("ElementTreeStrategy: Could not find element containing error text", category: Logger.accessibility)
             return nil
         }
 
         // Get the element's frame and role
         guard let elementFrame = AccessibilityBridge.getElementFrame(targetElement) else {
-            Logger.debug("ElementTreeStrategy: Could not get element frame")
+            Logger.debug("ElementTreeStrategy: Could not get element frame", category: Logger.accessibility)
             return nil
         }
 
@@ -150,7 +150,7 @@ class ElementTreeStrategy: GeometryProvider {
 
         // Calculate position within the element's text
         guard let range = elementText.range(of: errorText) else {
-            Logger.debug("ElementTreeStrategy: Error text not found in element text")
+            Logger.debug("ElementTreeStrategy: Error text not found in element text", category: Logger.accessibility)
             return createResultFromFrame(elementFrame, errorText: errorText, parser: parser)
         }
 
@@ -286,7 +286,7 @@ class ElementTreeStrategy: GeometryProvider {
         Logger.debug("ElementTreeStrategy: Cocoa bounds: \(cocoaBounds)", category: Logger.ui)
 
         guard cocoaBounds.width > 0 && cocoaBounds.height > 0 else {
-            Logger.debug("ElementTreeStrategy: Invalid bounds dimensions")
+            Logger.debug("ElementTreeStrategy: Invalid bounds dimensions", category: Logger.accessibility)
             return nil
         }
 
@@ -533,7 +533,7 @@ class ElementTreeStrategy: GeometryProvider {
             return nil
         }
 
-        Logger.debug("ElementTreeStrategy: Fallback with element frame: \(cocoaBounds)")
+        Logger.debug("ElementTreeStrategy: Fallback with element frame: \(cocoaBounds)", category: Logger.accessibility)
 
         return GeometryResult(
             bounds: cocoaBounds,
@@ -567,7 +567,7 @@ class ElementTreeStrategy: GeometryProvider {
         let estimatedLineCount = Int(ceil(overallBounds.height / typicalLineHeight))
         let likelyMultiLine = overallBounds.height > typicalLineHeight * 1.5
 
-        Logger.debug("ElementTreeStrategy: Multi-line check - height: \(overallBounds.height), lineHeight: \(typicalLineHeight), estimatedLines: \(estimatedLineCount), likely: \(likelyMultiLine)")
+        Logger.debug("ElementTreeStrategy: Multi-line check - height: \(overallBounds.height), lineHeight: \(typicalLineHeight), estimatedLines: \(estimatedLineCount), likely: \(likelyMultiLine)", category: Logger.accessibility)
 
         guard likelyMultiLine && estimatedLineCount > 1 else {
             return nil // Single line, no need for multi-line bounds
@@ -578,13 +578,13 @@ class ElementTreeStrategy: GeometryProvider {
         if let startLine = getLineForIndex(range.location, in: element),
            let endLine = getLineForIndex(range.location + range.length - 1, in: element),
            startLine != endLine {
-            Logger.debug("ElementTreeStrategy: Using AXRangeForLine - range spans lines \(startLine) to \(endLine)")
+            Logger.debug("ElementTreeStrategy: Using AXRangeForLine - range spans lines \(startLine) to \(endLine)", category: Logger.accessibility)
 
             var lineBounds: [CGRect] = []
 
             for lineNum in startLine...endLine {
                 guard let fullLineRange = getRangeForLine(lineNum, in: element) else {
-                    Logger.debug("ElementTreeStrategy: AXRangeForLine failed for line \(lineNum)")
+                    Logger.debug("ElementTreeStrategy: AXRangeForLine failed for line \(lineNum)", category: Logger.accessibility)
                     continue
                 }
 
@@ -610,7 +610,7 @@ class ElementTreeStrategy: GeometryProvider {
 
                     let lineRect = CGRect(x: lineX, y: lineY, width: lineWidth, height: lineHeight)
                     lineBounds.append(lineRect)
-                    Logger.debug("ElementTreeStrategy: Line \(lineNum) bounds via AXRangeForLine: \(lineRect), chars \(intersectionRange.location)-\(intersectionRange.location + intersectionRange.length)")
+                    Logger.debug("ElementTreeStrategy: Line \(lineNum) bounds via AXRangeForLine: \(lineRect), chars \(intersectionRange.location)-\(intersectionRange.location + intersectionRange.length)", category: Logger.accessibility)
                 }
             }
 
@@ -658,7 +658,7 @@ class ElementTreeStrategy: GeometryProvider {
                 // End the previous line at the character BEFORE this one
                 let prevIndex = charYCoords[i - 1].index
                 lines.append((startIndex: currentLineStart, endIndex: prevIndex, y: currentLineY, firstBounds: currentFirstBounds))
-                Logger.debug("ElementTreeStrategy: Line ended at index \(prevIndex), Y=\(currentLineY)")
+                Logger.debug("ElementTreeStrategy: Line ended at index \(prevIndex), Y=\(currentLineY)", category: Logger.accessibility)
 
                 // Start new line
                 currentLineStart = index
@@ -671,7 +671,7 @@ class ElementTreeStrategy: GeometryProvider {
         let lastIndex = charYCoords[charYCoords.count - 1].index
         lines.append((startIndex: currentLineStart, endIndex: lastIndex, y: currentLineY, firstBounds: currentFirstBounds))
 
-        Logger.debug("ElementTreeStrategy: Found \(lines.count) lines via Y-coordinate grouping")
+        Logger.debug("ElementTreeStrategy: Found \(lines.count) lines via Y-coordinate grouping", category: Logger.accessibility)
 
         // Build bounds for each line
         if lines.count > 1 {
@@ -687,7 +687,7 @@ class ElementTreeStrategy: GeometryProvider {
 
                     let lineRect = CGRect(x: lineX, y: lineY, width: lineWidth, height: lineHeight)
                     lineBounds.append(lineRect)
-                    Logger.debug("ElementTreeStrategy: Line \(i) bounds: \(lineRect), indices \(line.startIndex)-\(line.endIndex)")
+                    Logger.debug("ElementTreeStrategy: Line \(i) bounds: \(lineRect), indices \(line.startIndex)-\(line.endIndex)", category: Logger.accessibility)
                 }
             }
 
@@ -697,7 +697,7 @@ class ElementTreeStrategy: GeometryProvider {
         }
 
         // Method 2: Geometric fallback - split overall bounds into estimated line segments
-        Logger.debug("ElementTreeStrategy: Using geometric fallback to split into \(estimatedLineCount) lines")
+        Logger.debug("ElementTreeStrategy: Using geometric fallback to split into \(estimatedLineCount) lines", category: Logger.accessibility)
         lineBounds = []
 
         for lineIndex in 0..<estimatedLineCount {
@@ -732,7 +732,7 @@ class ElementTreeStrategy: GeometryProvider {
             }
 
             lineBounds.append(lineRect)
-            Logger.debug("ElementTreeStrategy: Geometric line \(lineIndex): \(lineRect)")
+            Logger.debug("ElementTreeStrategy: Geometric line \(lineIndex): \(lineRect)", category: Logger.accessibility)
         }
 
         return lineBounds.isEmpty ? nil : lineBounds
