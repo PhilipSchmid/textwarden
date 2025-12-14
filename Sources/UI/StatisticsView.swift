@@ -15,7 +15,6 @@ struct StatisticsView: View {
     @ObservedObject private var preferences = UserPreferences.shared
     @State private var showResetConfirmation = false
     @State private var selectedTimeRange: TimeRange = .week
-    @State private var selectedStyleModel: String = ""  // Empty = use current selected model
 
     var body: some View {
         ScrollView {
@@ -345,9 +344,9 @@ struct StatisticsView: View {
                 // Style Checking Statistics
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
-                        // Header with model dropdown
+                        // Header
                         HStack {
-                            Image(systemName: "sparkles")
+                            Image(systemName: "apple.intelligence")
                                 .font(.title2)
                                 .foregroundColor(.purple)
                                 .frame(width: 28)
@@ -357,20 +356,9 @@ struct StatisticsView: View {
 
                             Spacer()
 
-                            // Model selector dropdown
-                            if !statistics.modelsWithLatencyData.isEmpty {
-                                Picker("Model", selection: Binding(
-                                    get: { selectedStyleModel.isEmpty ? preferences.selectedModelId : selectedStyleModel },
-                                    set: { selectedStyleModel = $0 }
-                                )) {
-                                    ForEach(statistics.modelsWithLatencyData, id: \.self) { modelId in
-                                        Text(modelId)
-                                            .tag(modelId)
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                                .frame(width: 180)
-                            }
+                            Text("Apple Intelligence")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
                         }
 
                         // Metrics row
@@ -450,7 +438,8 @@ struct StatisticsView: View {
                             .fontWeight(.medium)
                             .foregroundColor(.secondary)
 
-                        let effectiveModelId = selectedStyleModel.isEmpty ? preferences.selectedModelId : selectedStyleModel
+                        // Apple Intelligence model ID constant
+                        let appleIntelligenceModelId = "apple-foundation-models"
 
                         if statistics.detailedStyleLatencySamples.isEmpty {
                             Text("No performance data yet")
@@ -458,15 +447,15 @@ struct StatisticsView: View {
                                 .font(.subheadline)
                                 .padding(.vertical, 8)
                         } else {
-                            // Preset legend
+                            // Temperature preset legend
                             HStack(spacing: 16) {
-                                ForEach(InferencePreset.allCases, id: \.self) { preset in
-                                    let count = statistics.sampleCount(forModel: effectiveModelId, preset: preset.rawValue)
+                                ForEach(StyleTemperaturePreset.allCases) { preset in
+                                    let count = statistics.sampleCount(forModel: appleIntelligenceModelId, preset: preset.rawValue)
                                     HStack(spacing: 4) {
                                         Circle()
-                                            .fill(presetColor(preset))
+                                            .fill(temperaturePresetColor(preset))
                                             .frame(width: 10, height: 10)
-                                        Text("\(preset.displayName) (\(count))")
+                                        Text("\(preset.label) (\(count))")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                     }
@@ -476,55 +465,55 @@ struct StatisticsView: View {
 
                             // Grouped bar chart for metrics
                             VStack(alignment: .leading, spacing: 12) {
-                                GroupedLatencyRow(
+                                AppleIntelligenceLatencyRow(
                                     label: "Average",
-                                    modelId: effectiveModelId,
+                                    modelId: appleIntelligenceModelId,
                                     statistics: statistics,
                                     metricExtractor: { stats, model, preset in
                                         stats.averageStyleLatency(forModel: model, preset: preset)
                                     }
                                 )
-                                .help("Mean LLM inference time for each quality preset.")
+                                .help("Mean inference time for each temperature preset.")
 
-                                GroupedLatencyRow(
+                                AppleIntelligenceLatencyRow(
                                     label: "Median",
-                                    modelId: effectiveModelId,
+                                    modelId: appleIntelligenceModelId,
                                     statistics: statistics,
                                     metricExtractor: { stats, model, preset in
                                         stats.medianStyleLatency(forModel: model, preset: preset)
                                     }
                                 )
-                                .help("Middle value of LLM inference times. Less affected by outliers.")
+                                .help("Middle value of inference times. Less affected by outliers.")
 
-                                GroupedLatencyRow(
+                                AppleIntelligenceLatencyRow(
                                     label: "P90",
-                                    modelId: effectiveModelId,
+                                    modelId: appleIntelligenceModelId,
                                     statistics: statistics,
                                     metricExtractor: { stats, model, preset in
                                         stats.p90StyleLatency(forModel: model, preset: preset)
                                     }
                                 )
-                                .help("90% of LLM inferences complete faster than this time.")
+                                .help("90% of inferences complete faster than this time.")
 
-                                GroupedLatencyRow(
+                                AppleIntelligenceLatencyRow(
                                     label: "P95",
-                                    modelId: effectiveModelId,
+                                    modelId: appleIntelligenceModelId,
                                     statistics: statistics,
                                     metricExtractor: { stats, model, preset in
                                         stats.p95StyleLatency(forModel: model, preset: preset)
                                     }
                                 )
-                                .help("95% of LLM inferences complete faster than this time.")
+                                .help("95% of inferences complete faster than this time.")
 
-                                GroupedLatencyRow(
+                                AppleIntelligenceLatencyRow(
                                     label: "P99",
-                                    modelId: effectiveModelId,
+                                    modelId: appleIntelligenceModelId,
                                     statistics: statistics,
                                     metricExtractor: { stats, model, preset in
                                         stats.p99StyleLatency(forModel: model, preset: preset)
                                     }
                                 )
-                                .help("99% of LLM inferences complete faster than this time. Shows worst-case.")
+                                .help("99% of inferences complete faster than this time. Shows worst-case.")
                             }
                             .padding(.vertical, 4)
 
@@ -830,6 +819,12 @@ private func presetColor(_ preset: InferencePreset) -> Color {
     return Color(red: rgb.r, green: rgb.g, blue: rgb.b)
 }
 
+/// Helper function to convert StyleTemperaturePreset to SwiftUI Color
+private func temperaturePresetColor(_ preset: StyleTemperaturePreset) -> Color {
+    let rgb = preset.color
+    return Color(red: rgb.r, green: rgb.g, blue: rgb.b)
+}
+
 /// View that shows stacked bars for each preset (Fast/Balanced/Quality) vertically
 private struct GroupedLatencyRow: View {
     let label: String
@@ -885,6 +880,75 @@ private struct GroupedLatencyRow: View {
                         Text(String(format: "%.0fms", value))
                             .font(.system(.caption, design: .monospaced))
                             .foregroundColor(presetColor(preset))
+                            .frame(width: 60, alignment: .trailing)
+                    } else {
+                        Text("-")
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundColor(.secondary)
+                            .frame(width: 60, alignment: .trailing)
+                    }
+                }
+                .frame(height: 14)
+            }
+        }
+    }
+}
+
+/// View that shows stacked bars for Apple Intelligence temperature presets (Consistent/Balanced/Creative)
+private struct AppleIntelligenceLatencyRow: View {
+    let label: String
+    let modelId: String
+    let statistics: UserStatistics
+    let metricExtractor: (UserStatistics, String, String) -> Double
+
+    var body: some View {
+        let values = StyleTemperaturePreset.allCases.map { preset in
+            metricExtractor(statistics, modelId, preset.rawValue)
+        }
+        let maxValue = values.max() ?? 1.0
+
+        VStack(alignment: .leading, spacing: 4) {
+            // Metric label
+            Text(label)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.primary)
+                .padding(.bottom, 2)
+
+            // Stacked bars for each temperature preset
+            ForEach(StyleTemperaturePreset.allCases) { preset in
+                let value = metricExtractor(statistics, modelId, preset.rawValue)
+                let hasData = statistics.hasData(forModel: modelId, preset: preset.rawValue)
+                let percentage = maxValue > 0 ? (value / maxValue) : 0
+
+                HStack(spacing: 8) {
+                    // Preset indicator
+                    Circle()
+                        .fill(temperaturePresetColor(preset))
+                        .frame(width: 8, height: 8)
+
+                    // Bar
+                    GeometryReader { geometry in
+                        HStack(spacing: 0) {
+                            if hasData {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(temperaturePresetColor(preset).opacity(0.6))
+                                    .frame(width: max(2, geometry.size.width * 0.7 * percentage), height: 6)
+                            } else {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(Color.gray.opacity(0.2))
+                                    .frame(width: geometry.size.width * 0.3, height: 6)
+                            }
+                            Spacer()
+                        }
+                    }
+                    .frame(height: 6)
+
+                    // Value
+                    if hasData {
+                        Text(String(format: "%.0fms", value))
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundColor(temperaturePresetColor(preset))
                             .frame(width: 60, alignment: .trailing)
                     } else {
                         Text("-")

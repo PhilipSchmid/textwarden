@@ -94,25 +94,25 @@ final class FoundationModelsEngine: ObservableObject {
         switch model.availability {
         case .available:
             status = .available
-            Logger.info("Foundation Models available", category: Logger.analysis)
+            Logger.debug("Apple Intelligence: Available", category: Logger.llm)
 
         case .unavailable(let reason):
             switch reason {
             case .appleIntelligenceNotEnabled:
                 status = .appleIntelligenceNotEnabled
-                Logger.info("Apple Intelligence not enabled", category: Logger.analysis)
+                Logger.info("Apple Intelligence: Not enabled in System Settings", category: Logger.llm)
 
             case .deviceNotEligible:
                 status = .deviceNotEligible
-                Logger.info("Device not eligible for Apple Intelligence", category: Logger.analysis)
+                Logger.info("Apple Intelligence: Device not eligible", category: Logger.llm)
 
             case .modelNotReady:
                 status = .modelNotReady
-                Logger.info("Foundation model not ready yet", category: Logger.analysis)
+                Logger.debug("Apple Intelligence: Model not ready yet", category: Logger.llm)
 
             @unknown default:
                 status = .unknown("\(reason)")
-                Logger.warning("Unknown Foundation Models unavailability: \(reason)", category: Logger.analysis)
+                Logger.warning("Apple Intelligence: Unknown unavailability reason", category: Logger.llm)
             }
         }
     }
@@ -123,16 +123,16 @@ final class FoundationModelsEngine: ObservableObject {
     /// Call this on app launch or when the user is likely to request style checking
     func prewarm() async {
         guard status == .available else {
-            Logger.debug("Skipping prewarm - status is \(status)", category: Logger.analysis)
+            Logger.debug("Apple Intelligence: Skipping prewarm, not available", category: Logger.llm)
             return
         }
 
         do {
             let session = LanguageModelSession()
             try await session.prewarm()
-            Logger.info("Foundation Models session prewarmed", category: Logger.analysis)
+            Logger.debug("Apple Intelligence: Session prewarmed", category: Logger.llm)
         } catch {
-            Logger.warning("Failed to prewarm Foundation Models: \(error)", category: Logger.analysis)
+            Logger.warning("Apple Intelligence: Prewarm failed", category: Logger.llm)
         }
     }
 
@@ -153,7 +153,7 @@ final class FoundationModelsEngine: ObservableObject {
         customVocabulary: [String] = []
     ) async throws -> [StyleSuggestionModel] {
         guard status == .available else {
-            Logger.warning("Cannot analyze - Foundation Models not available: \(status)", category: Logger.analysis)
+            Logger.warning("Apple Intelligence: Cannot analyze, not available", category: Logger.llm)
             throw FoundationModelsError.notAvailable(status)
         }
 
@@ -171,10 +171,17 @@ final class FoundationModelsEngine: ObservableObject {
         // Create session with instructions
         let session = LanguageModelSession(instructions: instructions)
 
-        // Configure generation options with temperature
-        let options = GenerationOptions(temperature: temperaturePreset.temperature)
+        // Configure generation options based on preset
+        // Use greedy sampling for consistent mode (deterministic), otherwise use temperature
+        let options: GenerationOptions
+        if temperaturePreset.usesGreedySampling {
+            options = GenerationOptions(sampling: .greedy)
+        } else {
+            options = GenerationOptions(temperature: temperaturePreset.temperature)
+        }
 
-        Logger.debug("Analyzing text (\(text.count) chars) with style: \(style.displayName), temp: \(temperaturePreset.temperature)", category: Logger.analysis)
+        let samplingInfo = temperaturePreset.usesGreedySampling ? "greedy" : "temp=\(temperaturePreset.temperature)"
+        Logger.debug("Apple Intelligence: Analyzing \(text.count) chars, style=\(style.displayName), \(samplingInfo)", category: Logger.llm)
 
         do {
             let response = try await session.respond(
@@ -188,15 +195,15 @@ final class FoundationModelsEngine: ObservableObject {
             // Convert and validate results
             let suggestions = response.content.toStyleSuggestionModels(in: text, style: style)
 
-            Logger.info("Foundation Models analysis complete: \(suggestions.count) suggestions in \(String(format: "%.2f", elapsed))s", category: Logger.analysis)
+            Logger.debug("Apple Intelligence: Analysis complete, \(suggestions.count) suggestion(s) in \(String(format: "%.2f", elapsed))s", category: Logger.llm)
 
             return suggestions
 
         } catch let error as LanguageModelSession.GenerationError {
-            Logger.error("Foundation Models generation error: \(error)", category: Logger.analysis)
+            Logger.error("Apple Intelligence: Generation error - \(error.localizedDescription)", category: Logger.llm)
             throw FoundationModelsError.generationFailed(error.localizedDescription)
         } catch {
-            Logger.error("Foundation Models analysis failed: \(error)", category: Logger.analysis)
+            Logger.error("Apple Intelligence: Analysis failed - \(error.localizedDescription)", category: Logger.llm)
             throw FoundationModelsError.analysisError(error.localizedDescription)
         }
     }
@@ -222,10 +229,40 @@ enum FoundationModelsError: LocalizedError {
     }
 }
 
+// MARK: - Temperature Configuration
+
+/// Temperature values optimized for grammar and style checking tasks.
+///
+/// Based on research from WWDC25 and LLM best practices:
+/// - Grammar/style checking requires **accuracy over creativity**
+/// - Higher temperatures increase hallucination probability
+/// - For factual tasks, lower temperatures (0.0-0.3) are recommended
+///
+/// References:
+/// - Apple WWDC25: "Deep dive into the Foundation Models framework"
+/// - Research: "Temperature settings at or below 1.50 yield consistent performance"
+/// - Best practice: "Use lower temperatures and greedy sampling for factual tasks"
+private enum TemperatureValues {
+    /// Greedy sampling (temperature 0) - most deterministic, no randomness.
+    /// Best for reproducible, accurate suggestions with zero hallucination risk.
+    static let greedy: Double = 0.0
+
+    /// Low temperature for reliable, predictable suggestions.
+    /// Minimal variance while still allowing some flexibility.
+    static let low: Double = 0.3
+
+    /// Moderate temperature for balanced suggestions.
+    /// Provides variety while maintaining accuracy for grammar tasks.
+    static let moderate: Double = 0.5
+}
+
 // MARK: - Temperature Preset
 
-/// Temperature presets for Foundation Models generation
-/// Controls the creativity vs consistency of style suggestions
+/// Temperature presets for Foundation Models generation.
+///
+/// These presets are tuned for **grammar and style checking** tasks,
+/// which prioritize accuracy over creativity. All values are intentionally
+/// kept low to minimize hallucinations and incorrect suggestions.
 enum StyleTemperaturePreset: String, CaseIterable, Identifiable {
     case consistent = "consistent"
     case balanced = "balanced"
@@ -233,13 +270,23 @@ enum StyleTemperaturePreset: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// The actual temperature value for Foundation Models
+    /// The temperature value for Foundation Models generation.
+    ///
+    /// Values are kept low for grammar/style tasks:
+    /// - `consistent`: Uses greedy sampling (0.0) for deterministic output
+    /// - `balanced`: Low temperature (0.3) for reliable suggestions
+    /// - `creative`: Moderate temperature (0.5) for some variety
     var temperature: Double {
         switch self {
-        case .consistent: return 0.3
-        case .balanced: return 0.7
-        case .creative: return 1.2
+        case .consistent: return TemperatureValues.greedy
+        case .balanced: return TemperatureValues.low
+        case .creative: return TemperatureValues.moderate
         }
+    }
+
+    /// Whether this preset uses greedy (deterministic) sampling
+    var usesGreedySampling: Bool {
+        self == .consistent
     }
 
     /// Display name for UI
@@ -255,20 +302,29 @@ enum StyleTemperaturePreset: String, CaseIterable, Identifiable {
     var description: String {
         switch self {
         case .consistent:
-            return "Predictable, stable suggestions"
+            return "Deterministic, most accurate"
         case .balanced:
-            return "Good balance of variety"
+            return "Reliable with slight variation"
         case .creative:
-            return "More varied, experimental suggestions"
+            return "More variety, still accurate"
         }
     }
 
     /// SF Symbol name for UI
     var symbolName: String {
         switch self {
-        case .consistent: return "tortoise.fill"
+        case .consistent: return "checkmark.seal.fill"
         case .balanced: return "dial.medium.fill"
-        case .creative: return "sparkles"
+        case .creative: return "wand.and.stars"
+        }
+    }
+
+    /// Color for statistics charts (RGB values)
+    var color: (r: Double, g: Double, b: Double) {
+        switch self {
+        case .consistent: return (0.2, 0.8, 0.4)   // Green
+        case .balanced: return (0.3, 0.5, 0.9)     // Blue
+        case .creative: return (0.7, 0.3, 0.8)     // Purple
         }
     }
 }

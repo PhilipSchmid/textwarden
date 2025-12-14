@@ -1136,6 +1136,14 @@ class UserStatistics: ObservableObject {
         return knownApps[bundleID] ?? bundleID.components(separatedBy: ".").last?.capitalized ?? bundleID
     }
 
+    /// Convert model ID to user-friendly display name
+    func modelDisplayName(from modelId: String) -> String {
+        if modelId == "apple-foundation-models" {
+            return "Apple Intelligence"
+        }
+        return modelId
+    }
+
     // MARK: - LLM Style Checking Recording
 
     /// Record style suggestions shown in an analysis session with model and preset context

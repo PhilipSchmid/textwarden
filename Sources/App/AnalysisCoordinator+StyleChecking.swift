@@ -3,7 +3,7 @@
 //  TextWarden
 //
 //  Style checking and performance optimization functionality extracted from AnalysisCoordinator.
-//  Handles Foundation Models-based style analysis, AI-enhanced readability suggestions, and style caching.
+//  Handles Apple Intelligence style analysis, AI-enhanced readability suggestions, and style caching.
 //
 
 import Foundation
@@ -232,25 +232,25 @@ extension AnalysisCoordinator {
     /// If text is selected, only analyzes the selected portion; otherwise analyzes all text
     /// First checks cache for instant results, otherwise shows spinning indicator and runs analysis
     func runManualStyleCheck() {
-        Logger.info("AnalysisCoordinator: runManualStyleCheck() triggered", category: Logger.analysis)
+        Logger.debug("Style check triggered", category: Logger.llm)
 
         // Get current monitored element and context
         guard let element = textMonitor.monitoredElement,
               let context = monitoredContext else {
-            Logger.warning("AnalysisCoordinator: No monitored element for manual style check", category: Logger.analysis)
+            Logger.debug("Style check: No monitored element", category: Logger.llm)
             return
         }
 
-        // Check if Foundation Models is available (requires macOS 26+)
+        // Check if Apple Intelligence is available (requires macOS 26+)
         guard #available(macOS 26.0, *) else {
-            Logger.warning("AnalysisCoordinator: Foundation Models requires macOS 26+", category: Logger.analysis)
+            Logger.warning("Apple Intelligence: Requires macOS 26 or later", category: Logger.llm)
             return
         }
 
         runManualStyleCheckWithFM(element: element, context: context)
     }
 
-    /// Internal implementation of manual style check using Foundation Models
+    /// Internal implementation of manual style check using Apple Intelligence
     @available(macOS 26.0, *)
     private func runManualStyleCheckWithFM(element: AXUIElement, context: ApplicationContext) {
         // Create engine on demand
@@ -258,7 +258,7 @@ extension AnalysisCoordinator {
         fmEngine.checkAvailability()
 
         guard fmEngine.status.isAvailable else {
-            Logger.warning("AnalysisCoordinator: Foundation Models not available: \(fmEngine.status.userMessage)", category: Logger.analysis)
+            Logger.warning("Apple Intelligence: Not available - \(fmEngine.status.userMessage)", category: Logger.llm)
             return
         }
 
@@ -269,7 +269,7 @@ extension AnalysisCoordinator {
 
         // Always capture full text for invalidation tracking
         guard let fullText = currentText(), !fullText.isEmpty else {
-            Logger.warning("AnalysisCoordinator: No text available for manual style check", category: Logger.analysis)
+            Logger.debug("Style check: No text available", category: Logger.llm)
             return
         }
 
@@ -277,7 +277,7 @@ extension AnalysisCoordinator {
         let text = selection ?? fullText
 
         if isSelectionMode {
-            Logger.info("AnalysisCoordinator: Manual style check - analyzing selected text (\(text.count) chars)", category: Logger.analysis)
+            Logger.debug("Style check: Analyzing selection (\(text.count) chars)", category: Logger.llm)
         }
 
         let styleName = userPreferences.selectedWritingStyle
@@ -287,7 +287,7 @@ extension AnalysisCoordinator {
         // Note: Cache is keyed by analyzed text, but we also need full text to match for validity
         let cacheKey = computeStyleCacheKey(text: text)
         if let cached = styleCache[cacheKey], fullText == styleAnalysisSourceText {
-            Logger.info("AnalysisCoordinator: Manual style check - using cached results (\(cached.count) suggestions)", category: Logger.analysis)
+            Logger.debug("Style check: Cache hit, \(cached.count) suggestion(s)", category: Logger.llm)
 
             // Update cache access time
             styleCacheMetadata[cacheKey] = StyleCacheMetadata(
@@ -314,8 +314,8 @@ extension AnalysisCoordinator {
             return
         }
 
-        // Cache miss - run Foundation Models analysis
-        Logger.debug("AnalysisCoordinator: Manual style check - cache miss, running Foundation Models analysis", category: Logger.analysis)
+        // Cache miss - run Apple Intelligence analysis
+        Logger.debug("Style check: Cache miss, running analysis", category: Logger.llm)
 
         // Set flag to prevent regular analysis from hiding indicator
         isManualStyleCheckActive = true
@@ -333,13 +333,13 @@ extension AnalysisCoordinator {
         // Get custom vocabulary for context
         let vocabulary = customVocabulary.allWords()
 
-        // Run style analysis using Foundation Models
+        // Run style analysis using Apple Intelligence
         Task { @MainActor [weak self] in
             guard let self = self else { return }
 
             let segmentContent = text
 
-            Logger.info("AnalysisCoordinator: Running Foundation Models style analysis on \(segmentContent.count) chars", category: Logger.analysis)
+            Logger.debug("Style check: Starting analysis (\(segmentContent.count) chars)", category: Logger.llm)
 
             let startTime = Date()
 
@@ -353,7 +353,7 @@ extension AnalysisCoordinator {
 
                 let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
 
-                Logger.info("AnalysisCoordinator: Foundation Models analysis completed in \(latencyMs)ms, \(suggestions.count) suggestions", category: Logger.analysis)
+                Logger.debug("Style check: Completed in \(latencyMs)ms, \(suggestions.count) suggestion(s)", category: Logger.llm)
 
                 // Update statistics
                 self.statistics.recordStyleSuggestions(
@@ -385,12 +385,10 @@ extension AnalysisCoordinator {
                     self?.isManualStyleCheckActive = false
                 }
 
-                Logger.info("AnalysisCoordinator: Manual style check - showing \(suggestions.count) suggestions (cached for next time)", category: Logger.analysis)
-
             } catch {
                 let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
 
-                Logger.warning("AnalysisCoordinator: Foundation Models analysis failed after \(latencyMs)ms: \(error)", category: Logger.analysis)
+                Logger.warning("Style check: Failed after \(latencyMs)ms", category: Logger.llm)
 
                 // Error occurred - still show checkmark to indicate completion, then hide
                 self.currentStyleSuggestions = []
@@ -484,7 +482,7 @@ extension AnalysisCoordinator {
 
             // Check if we have a cached AI suggestion (thread-safe via AIRephraseCache)
             if let cachedRephrase = aiRephraseCache.get(sentence) {
-                Logger.info("AnalysisCoordinator: Pre-populating cached AI rephrase for sentence of length \(sentence.count)", category: Logger.llm)
+                Logger.debug("AI rephrase: Using cached result", category: Logger.llm)
 
                 // Create enhanced error with cached AI suggestion
                 let enhancedError = GrammarErrorModel(
@@ -517,7 +515,6 @@ extension AnalysisCoordinator {
         let modelLoaded = llmEngine.isModelLoaded()
 
         guard styleCheckingEnabled && llmInitialized && modelLoaded else {
-            Logger.debug("AnalysisCoordinator: AI enhancement skipped - style checking not available", category: Logger.llm)
             return
         }
 
@@ -533,16 +530,11 @@ extension AnalysisCoordinator {
             error.suggestions.isEmpty
         }
 
-        // Debug logging for all errors
-        for error in errors {
-            Logger.debug("AnalysisCoordinator: Error - category=\(error.category), lintId=\(error.lintId), suggestions=\(error.suggestions.count)", category: Logger.llm)
-        }
-
         guard !readabilityErrorsWithoutSuggestions.isEmpty else {
             return
         }
 
-        Logger.info("AnalysisCoordinator: Found \(readabilityErrorsWithoutSuggestions.count) readability error(s) needing AI suggestions", category: Logger.llm)
+        Logger.debug("AI rephrase: Processing \(readabilityErrorsWithoutSuggestions.count) long sentence(s)", category: Logger.llm)
 
         // Capture LLM engine reference before async dispatch
         let llmEngineRef = llmEngine
@@ -562,7 +554,7 @@ extension AnalysisCoordinator {
                       let startIndex = sourceText.index(sourceText.startIndex, offsetBy: start, limitedBy: sourceText.endIndex),
                       let endIndex = sourceText.index(sourceText.startIndex, offsetBy: end, limitedBy: sourceText.endIndex),
                       startIndex <= endIndex else {
-                    Logger.warning("AnalysisCoordinator: Invalid error range for AI enhancement", category: Logger.llm)
+                    Logger.warning("AI rephrase: Invalid error range", category: Logger.llm)
                     continue
                 }
 
@@ -571,24 +563,17 @@ extension AnalysisCoordinator {
                 // Check AI rephrase cache first (thread-safe via AIRephraseCache)
                 var rephrased = self.aiRephraseCache.get(sentence)
 
-                if rephrased != nil {
-                    Logger.info("AnalysisCoordinator: Using cached AI rephrase for sentence of length \(sentence.count)", category: Logger.llm)
-                } else {
-                    Logger.debug("AnalysisCoordinator: Generating AI rephrase for sentence of length \(sentence.count)", category: Logger.llm)
-
+                if rephrased == nil {
                     // Generate AI suggestion
                     rephrased = llmEngineRef.rephraseSentence(sentence)
 
                     // Cache the result (thread-safe, handles LRU eviction internally)
                     if let newRephrase = rephrased {
                         aiRephraseCache.set(sentence, value: newRephrase)
-                        Logger.debug("AnalysisCoordinator: Cached AI rephrase (cache size: \(aiRephraseCache.count))", category: Logger.llm)
                     }
                 }
 
                 if let finalRephrase = rephrased {
-                    Logger.info("AnalysisCoordinator: AI rephrase available", category: Logger.llm)
-
                     // Create enhanced error with AI suggestion
                     // Store both original sentence (index 0) and rephrase (index 1) for Before/After display
                     let enhancedError = GrammarErrorModel(
@@ -602,7 +587,7 @@ extension AnalysisCoordinator {
                     )
                     enhancedErrors.append(enhancedError)
                 } else {
-                    Logger.debug("AnalysisCoordinator: AI rephrase failed for sentence", category: Logger.llm)
+                    Logger.warning("AI rephrase: Generation failed", category: Logger.llm)
                 }
             }
 
@@ -623,7 +608,6 @@ extension AnalysisCoordinator {
                         existingError.lintId == enhancedError.lintId
                     }) {
                         updatedErrors[index] = enhancedError
-                        Logger.debug("AnalysisCoordinator: Replaced error at index \(index) with AI-enhanced version", category: Logger.llm)
                     }
                 }
 
@@ -651,7 +635,7 @@ extension AnalysisCoordinator {
                 // This enables seamless transition from "loading" to "Before/After" view
                 self.suggestionPopover.updateErrors(updatedErrors)
 
-                Logger.info("AnalysisCoordinator: Updated UI with \(enhancedErrors.count) AI-enhanced readability error(s)", category: Logger.llm)
+                Logger.debug("AI rephrase: Enhanced \(enhancedErrors.count) error(s)", category: Logger.llm)
             }
         }
     }
