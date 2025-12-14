@@ -33,15 +33,26 @@ final class AIRephraseCache: @unchecked Sendable {
     }
 
     /// Get cached rephrase for a sentence
+    /// Marks the entry as recently used (moves to end of eviction queue)
     func get(_ key: String) -> String? {
-        queue.sync { cache[key] }
+        queue.sync {
+            guard let value = cache[key] else { return nil }
+            // Move to end to mark as recently used (LRU semantics)
+            // Swift's Dictionary maintains insertion order during iteration
+            cache.removeValue(forKey: key)
+            cache[key] = value
+            return value
+        }
     }
 
     /// Store rephrase with LRU eviction if cache is full
     func set(_ key: String, value: String) {
         queue.sync {
-            // Simple LRU eviction - remove first entry if at capacity
-            if cache.count >= maxEntries, let firstKey = cache.keys.first {
+            // If updating existing entry, remove first to maintain insertion order
+            if cache[key] != nil {
+                cache.removeValue(forKey: key)
+            } else if cache.count >= maxEntries, let firstKey = cache.keys.first {
+                // LRU eviction - remove oldest entry (first in iteration order)
                 cache.removeValue(forKey: firstKey)
             }
             cache[key] = value
