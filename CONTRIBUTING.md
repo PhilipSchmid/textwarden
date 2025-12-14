@@ -292,6 +292,53 @@ See the [mistral.rs documentation](https://github.com/EricLBuehler/mistral.rs#su
 
 For detailed coding principles, threading guidelines, and common pitfalls, see **[ARCHITECTURE.md](ARCHITECTURE.md#design-principles)**.
 
+### Logging Guidelines
+
+TextWarden processes sensitive user text, so proper logging hygiene is critical:
+
+**Never log user content:**
+```swift
+// BAD - leaks user text
+Logger.debug("Processing text: '\(userText)'")
+Logger.debug("Error in: \(errorText)")
+Logger.debug("Suggestion: \(suggestion.originalText) → \(suggestion.suggestedText)")
+
+// GOOD - log metadata only
+Logger.debug("Processing text (\(userText.count) chars)")
+Logger.debug("Error at range \(error.start)-\(error.end)")
+Logger.debug("Applied suggestion (\(suggestion.suggestedText.count) chars)")
+```
+
+**Use appropriate log levels:**
+- `trace` - High-frequency events (mouse movement, per-character processing)
+- `debug` - Routine operations useful for debugging
+- `info` - Significant milestones (app launch, analysis complete)
+- `warning` - Recoverable issues (API fallbacks, timeouts)
+- `error` - Failures that affect functionality
+- `critical` - Unrecoverable errors
+
+**Use the appropriate category:**
+- `Logger.general` - Default, general application logs
+- `Logger.permissions` - Permission checks and changes
+- `Logger.analysis` - Grammar/style analysis operations
+- `Logger.accessibility` - Accessibility API interactions
+- `Logger.ffi` - Rust FFI calls
+- `Logger.llm` - Apple Intelligence / LLM operations
+- `Logger.ui` - UI updates and positioning
+- `Logger.performance` - Performance measurements
+- `Logger.errors` - Error conditions
+- `Logger.lifecycle` - App lifecycle events
+- `Logger.rust` - Logs forwarded from Rust code
+
+**Use consistent prefixes** for log messages:
+```swift
+Logger.debug("AppleIntelligence: Analysis complete", category: Logger.llm)
+Logger.debug("TextMonitor: Focus changed", category: Logger.accessibility)
+Logger.debug("AnalysisCoordinator: Started analysis", category: Logger.analysis)
+```
+
+Log volume is tracked in the Diagnostics view (by severity), so avoid excessive logging that could impact performance or storage.
+
 ## Submitting Changes
 
 1. Fork the repository
