@@ -479,6 +479,114 @@ Before committing:
 make ci-check  # Runs formatting, linting, tests, build
 ```
 
+## Dependency Injection
+
+The codebase uses dependency injection for testability, primarily in `AnalysisCoordinator`.
+
+### DependencyContainer
+
+All injectable dependencies are defined in `Sources/App/Dependencies.swift`:
+
+```swift
+@MainActor
+struct DependencyContainer {
+    let textMonitor: TextMonitor
+    let applicationTracker: ApplicationTracker
+    let permissionManager: PermissionManager
+    let grammarEngine: GrammarAnalyzing
+    let llmEngine: StyleAnalyzing
+    let userPreferences: UserPreferencesProviding
+    let appRegistry: AppConfigurationProviding
+    let customVocabulary: CustomVocabularyProviding
+    let browserURLExtractor: BrowserURLExtracting
+    let positionResolver: PositionResolving
+    let statistics: StatisticsTracking
+    let suggestionPopover: SuggestionPopover
+    let floatingIndicator: FloatingErrorIndicator
+
+    static let production = DependencyContainer(...)  // Default singletons
+}
+```
+
+### Protocols
+
+Key services are abstracted behind protocols:
+
+| Protocol | Production Implementation | Purpose |
+|----------|--------------------------|---------|
+| `GrammarAnalyzing` | `GrammarEngine` | Grammar analysis via Harper |
+| `StyleAnalyzing` | `LLMEngine` | LLM style suggestions |
+| `UserPreferencesProviding` | `UserPreferences` | User settings access |
+| `AppConfigurationProviding` | `AppRegistry` | Per-app configurations |
+| `CustomVocabularyProviding` | `CustomVocabulary` | User dictionary |
+| `BrowserURLExtracting` | `BrowserURLExtractor` | Browser URL extraction |
+| `PositionResolving` | `PositionResolver` | Error position calculation |
+| `StatisticsTracking` | `UserStatistics` | Usage metrics |
+
+### Usage in Production
+
+Production code uses the shared singleton, which initializes with default dependencies:
+
+```swift
+// Production - uses DependencyContainer.production internally
+let coordinator = AnalysisCoordinator.shared
+```
+
+### Usage in Tests
+
+Tests can inject mock dependencies:
+
+```swift
+// Test setup with mocks
+class MockGrammarEngine: GrammarAnalyzing {
+    var analyzeTextResult = GrammarAnalysisResult(errors: [], analysisTimeMs: 0)
+
+    func analyzeText(_ text: String, dialect: String, ...) -> GrammarAnalysisResult {
+        return analyzeTextResult
+    }
+}
+
+let mockContainer = DependencyContainer(
+    textMonitor: TextMonitor(),
+    applicationTracker: .shared,
+    permissionManager: .shared,
+    grammarEngine: MockGrammarEngine(),  // Mock
+    llmEngine: LLMEngine.shared,
+    userPreferences: UserPreferences.shared,
+    appRegistry: AppRegistry.shared,
+    customVocabulary: CustomVocabulary.shared,
+    browserURLExtractor: BrowserURLExtractor.shared,
+    positionResolver: PositionResolver.shared,
+    statistics: UserStatistics.shared,
+    suggestionPopover: .shared,
+    floatingIndicator: .shared
+)
+
+let coordinator = AnalysisCoordinator(dependencies: mockContainer)
+```
+
+### Services Locator (Bridge Pattern)
+
+For code that can't easily use constructor injection, `Services` provides global access:
+
+```swift
+// Configure at app startup (optional)
+Services.configure(with: customContainer)
+
+// Access current container
+let prefs = Services.current.userPreferences
+
+// Reset for test teardown
+Services.reset()
+```
+
+### Design Decisions
+
+1. **Protocols for external services** - Grammar/LLM engines, preferences, statistics
+2. **Concrete types for UI components** - Popovers, indicators (rarely mocked)
+3. **@MainActor isolation** - All protocols are main-actor isolated for thread safety
+4. **Default to production** - Missing configuration falls back to production singletons
+
 ## Async/Await Pattern
 
 Text replacement uses async/await throughout. The popover callback is async:

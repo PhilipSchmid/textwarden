@@ -22,17 +22,18 @@ import Combine
 /// Coordinates grammar analysis workflow: monitoring → analysis → UI
 ///
 /// # Testability
-/// This class supports dependency injection for testing. While production code uses the
-/// `shared` singleton, tests can create instances with custom dependencies via `init(...)`.
+/// This class supports full dependency injection via `DependencyContainer`.
+/// Production code uses the `shared` singleton which initializes with `.production` dependencies.
+/// Tests can create instances with mock dependencies.
 ///
 /// Example test setup:
 /// ```swift
-/// let mockTextMonitor = MockTextMonitor()
-/// let coordinator = AnalysisCoordinator(
-///     textMonitor: mockTextMonitor,
-///     applicationTracker: ApplicationTracker.shared,
-///     permissionManager: PermissionManager.shared
+/// let mockContainer = DependencyContainer(
+///     textMonitor: MockTextMonitor(),
+///     grammarEngine: MockGrammarEngine(),
+///     // ... other mocks
 /// )
+/// let coordinator = AnalysisCoordinator(dependencies: mockContainer)
 /// ```
 @MainActor
 class AnalysisCoordinator: ObservableObject {
@@ -52,8 +53,32 @@ class AnalysisCoordinator: ObservableObject {
     /// Permission manager
     private let permissionManager: PermissionManager
 
+    /// Grammar analysis engine
+    private let grammarEngine: GrammarAnalyzing
+
+    /// LLM style analysis engine
+    private let llmEngine: StyleAnalyzing
+
+    /// User preferences
+    private let userPreferences: UserPreferencesProviding
+
+    /// App configuration registry
+    private let appRegistry: AppConfigurationProviding
+
+    /// Custom vocabulary
+    private let customVocabulary: CustomVocabularyProviding
+
+    /// Browser URL extractor
+    private let browserURLExtractor: BrowserURLExtracting
+
+    /// Position resolver
+    private let positionResolver: PositionResolving
+
+    /// Statistics tracker
+    private let statistics: StatisticsTracking
+
     /// Suggestion popover
-    let suggestionPopover = SuggestionPopover.shared
+    let suggestionPopover: SuggestionPopover
 
     /// Error overlay window for visual underlines (lazy initialization)
     lazy var errorOverlay: ErrorOverlayWindow = {
@@ -63,7 +88,7 @@ class AnalysisCoordinator: ObservableObject {
     }()
 
     /// Floating error indicator for apps without visual underlines
-    let floatingIndicator = FloatingErrorIndicator.shared
+    let floatingIndicator: FloatingErrorIndicator
 
     // MARK: - Grammar Analysis Cache (internal for cross-file extension access)
 
@@ -216,26 +241,25 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Initialize with default production dependencies
     private convenience init() {
-        self.init(
-            textMonitor: TextMonitor(),
-            applicationTracker: .shared,
-            permissionManager: .shared
-        )
+        self.init(dependencies: .production)
     }
 
     /// Initialize with custom dependencies (for testing)
-    /// - Parameters:
-    ///   - textMonitor: Text monitor instance
-    ///   - applicationTracker: Application tracker
-    ///   - permissionManager: Permission manager
-    init(
-        textMonitor: TextMonitor,
-        applicationTracker: ApplicationTracker,
-        permissionManager: PermissionManager
-    ) {
-        self.textMonitor = textMonitor
-        self.applicationTracker = applicationTracker
-        self.permissionManager = permissionManager
+    /// - Parameter dependencies: Container with all dependencies
+    init(dependencies: DependencyContainer) {
+        self.textMonitor = dependencies.textMonitor
+        self.applicationTracker = dependencies.applicationTracker
+        self.permissionManager = dependencies.permissionManager
+        self.grammarEngine = dependencies.grammarEngine
+        self.llmEngine = dependencies.llmEngine
+        self.userPreferences = dependencies.userPreferences
+        self.appRegistry = dependencies.appRegistry
+        self.customVocabulary = dependencies.customVocabulary
+        self.browserURLExtractor = dependencies.browserURLExtractor
+        self.positionResolver = dependencies.positionResolver
+        self.statistics = dependencies.statistics
+        self.suggestionPopover = dependencies.suggestionPopover
+        self.floatingIndicator = dependencies.floatingIndicator
 
         setupMonitoring()
         setupPopoverCallbacks()
