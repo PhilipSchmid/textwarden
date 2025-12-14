@@ -199,7 +199,7 @@ struct DiagnosticsView: View {
                         .foregroundColor(.secondary)
                     }
 
-                    Text("⚠️ Privacy: User text content is NEVER included in exports")
+                    Text("⚠️ Privacy: We take great care to exclude your text from exports, but please review before sharing")
                         .font(.caption)
                         .foregroundColor(.orange)
                         .padding(.top, 4)
