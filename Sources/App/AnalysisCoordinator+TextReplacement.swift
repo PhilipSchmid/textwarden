@@ -515,96 +515,11 @@ extension AnalysisCoordinator {
 
     /// Apply text replacement for Apple Mail using AXReplaceRangeWithText
     /// Mail's WebKit composition area supports this proper API, which preserves formatting
+    /// Legacy completion handler wrapper - delegates to async version
     func applyMailTextReplacement(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement, completion: @escaping () -> Void) {
-        Logger.debug("Mail text replacement using AXReplaceRangeWithText", category: Logger.analysis)
-
-        // Mark that we're applying a suggestion - prevents typing callback from hiding overlays
-        lastReplacementTime = Date()
-
-        // Look up the CURRENT error position from currentErrors
-        let currentError = currentErrors.first { err in
-            err.message == error.message && err.lintId == error.lintId && err.category == error.category
-        } ?? error
-
-        Logger.debug("Mail replacement: Using positions \(currentError.start)-\(currentError.end)", category: Logger.analysis)
-
-        let range = NSRange(location: currentError.start, length: currentError.end - currentError.start)
-        let lengthDelta = suggestion.count - (currentError.end - currentError.start)
-
-        // Try the proper WebKit API first
-        if MailContentParser.replaceText(range: range, with: suggestion, in: element) {
-            Logger.info("Mail: AXReplaceRangeWithText succeeded", category: Logger.analysis)
-
-            // Record statistics
-            UserStatistics.shared.recordSuggestionApplied(category: currentError.category)
-
-            // Invalidate cache and trigger re-analysis (crucial for showing remaining errors)
-            invalidateCacheAfterReplacement(at: currentError.start..<currentError.end)
-
-            // Update UI immediately so popover shows next error
-            removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
+        Task { @MainActor in
+            await self.applyMailTextReplacementAsync(for: error, with: suggestion, element: element)
             completion()
-            return
-        }
-
-        // Fallback: try selection + paste approach
-        Logger.debug("Mail: AXReplaceRangeWithText failed, falling back to selection + paste", category: Logger.analysis)
-
-        let selectSuccess = MailContentParser.selectTextForReplacement(range: range, in: element)
-        Logger.debug("Mail: Selection \(selectSuccess ? "succeeded" : "failed")", category: Logger.analysis)
-
-        // Even if selection fails, try paste anyway
-        let pasteboard = NSPasteboard.general
-        let originalString = pasteboard.string(forType: .string)
-
-        pasteboard.clearContents()
-        pasteboard.setString(suggestion, forType: .string)
-
-        // Activate Mail
-        let apps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.mail")
-        if let mailApp = apps.first {
-            mailApp.activate()
-        }
-
-        // Wait then paste - use shorter delays for native apps (50ms is enough)
-        DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.shortDelay) { [weak self] in
-            guard let self = self else { return }
-
-            let startTime = Date()
-            Logger.trace("WebKit paste: T=0ms starting", category: Logger.analysis)
-
-            self.pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
-            Logger.trace("WebKit paste: T=\(Int(Date().timeIntervalSince(startTime) * 1000))ms pasted via Cmd+V", category: Logger.analysis)
-
-            // Record statistics
-            UserStatistics.shared.recordSuggestionApplied(category: currentError.category)
-
-            // IMPORTANT: Call removeErrorAndUpdateUI FIRST before invalidateCacheAfterReplacement
-            // removeErrorAndUpdateUI removes just the fixed error and adjusts positions of remaining errors
-            self.removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
-            Logger.trace("WebKit paste: T=\(Int(Date().timeIntervalSince(startTime) * 1000))ms error removed from UI", category: Logger.analysis)
-
-            // Clear position cache for remaining errors (byte offsets are now stale)
-            self.invalidateCacheAfterReplacementForWebKit(at: currentError.start..<currentError.end)
-            Logger.trace("WebKit paste: T=\(Int(Date().timeIntervalSince(startTime) * 1000))ms cache invalidated", category: Logger.analysis)
-
-            // Restore clipboard and complete
-            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.shortDelay) { [weak self] in
-                if let original = originalString {
-                    pasteboard.clearContents()
-                    pasteboard.setString(original, forType: .string)
-                }
-                // Set grace period BEFORE calling completion (which sets isApplyingReplacement=false)
-                // This ensures the popover stays visible during focus settling
-                self?.replacementCompletedAt = Date()
-                Logger.trace("WebKit paste: T=\(Int(Date().timeIntervalSince(startTime) * 1000))ms completing, grace period started", category: Logger.analysis)
-                completion()
-
-                // Schedule delayed re-analysis for focus-bounce apps
-                // WebKit apps fire AXFocusedUIElementChanged during paste, clearing the monitored element.
-                // Wait for focus to settle, then re-acquire the element and re-analyze.
-                self?.scheduleDelayedReanalysis(startTime: startTime)
-            }
         }
     }
 
@@ -1402,294 +1317,11 @@ extension AnalysisCoordinator {
 
     /// Apply text replacement using keyboard simulation (for Electron apps and Terminals)
     /// Uses hybrid replacement approach: try AX API first, fall back to keyboard
+    /// Legacy completion handler wrapper - delegates to async version
     func applyTextReplacementViaKeyboard(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement, completion: @escaping () -> Void) {
-        guard let context = self.monitoredContext else {
-            Logger.debug("No context available for keyboard replacement", category: Logger.analysis)
+        Task { @MainActor in
+            await self.applyTextReplacementViaKeyboardAsync(for: error, with: suggestion, element: element)
             completion()
-            return
-        }
-
-        Logger.debug("Using keyboard simulation for text replacement (app: \(context.applicationName), isTerminal: \(context.isTerminalApp), isBrowser: \(context.isBrowser))", category: Logger.analysis)
-
-        // SPECIAL HANDLING FOR APPLE MAIL
-        // Mail's WebKit composition area supports AXReplaceRangeWithText - use it directly
-        let isMail = context.bundleIdentifier == "com.apple.mail"
-        if isMail {
-            applyMailTextReplacement(for: error, with: suggestion, element: element, completion: completion)
-            return
-        }
-
-        // SPECIAL HANDLING FOR BROWSERS, SLACK, MICROSOFT OFFICE, AND MAC CATALYST APPS
-        // These apps have contenteditable areas where AX API often silently fails
-        // Use simplified approach: select via AX API, then paste via menu action or Cmd+V
-        // Inspired by SelectedTextKit's menu action approach
-        let isSlack = context.bundleIdentifier == "com.tinyspeck.slackmacgap"
-        let isMessages = context.bundleIdentifier == "com.apple.MobileSMS"
-        let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
-                                context.bundleIdentifier == "com.microsoft.Powerpoint"
-        if context.isBrowser || isSlack || isMessages || isMicrosoftOffice || context.isMacCatalystApp {
-            applyBrowserTextReplacement(for: error, with: suggestion, element: element, context: context, completion: completion)
-            return
-        }
-
-        // SPECIAL HANDLING FOR TERMINALS
-        // Terminal.app's AX API is completely broken - both selection AND text setting fail
-        // Solution: Clear the entire command line and paste the corrected full text
-        if context.isTerminalApp {
-            // Try to get original cursor position via AXSelectedTextRange
-            var selectedRangeValue: CFTypeRef?
-            let rangeResult = AXUIElementCopyAttributeValue(
-                element,
-                kAXSelectedTextRangeAttribute as CFString,
-                &selectedRangeValue
-            )
-
-            var originalCursorPosition: Int?
-            if rangeResult == .success,
-               let rangeValue = selectedRangeValue,
-               let cfRange = safeAXValueGetRange(rangeValue) {
-                originalCursorPosition = cfRange.location
-                Logger.debug("Terminal: Original cursor position: \(cfRange.location) (selection length: \(cfRange.length))", category: Logger.analysis)
-            } else {
-                Logger.debug("Terminal: Could not query AXSelectedTextRange (error: \(rangeResult.rawValue))", category: Logger.analysis)
-            }
-
-            var currentTextValue: CFTypeRef?
-            let getTextResult = AXUIElementCopyAttributeValue(
-                element,
-                kAXValueAttribute as CFString,
-                &currentTextValue
-            )
-
-            guard getTextResult == .success, let fullText = currentTextValue as? String else {
-                Logger.debug("Failed to get current text for Terminal replacement", category: Logger.analysis)
-                return
-            }
-
-            // Apply preprocessing to get just the command line text
-            let parser = ContentParserFactory.shared.parser(for: context.bundleIdentifier)
-            guard let commandLineText = parser.preprocessText(fullText) else {
-                Logger.debug("Failed to preprocess text for Terminal", category: Logger.analysis)
-                return
-            }
-
-            // Apply the correction to the command line text
-            // Note: error.start/end are Unicode scalar indices from Harper
-            guard let startIndex = scalarIndexToStringIndex(error.start, in: commandLineText),
-                  let endIndex = scalarIndexToStringIndex(error.end, in: commandLineText) else {
-                Logger.warning("Terminal: Failed to convert scalar indices to string indices", category: Logger.analysis)
-                return
-            }
-            var correctedText = commandLineText
-            correctedText.replaceSubrange(startIndex..<endIndex, with: suggestion)
-
-            Logger.debug("Terminal: Original command: '\(commandLineText)'", category: Logger.analysis)
-
-            Logger.debug("Terminal: Corrected command: '\(correctedText)'", category: Logger.analysis)
-
-            // Calculate target cursor position for restoration
-            var targetCursorPosition: Int?
-            if let axCursorPos = originalCursorPosition {
-                // Map cursor position from full text to command line coordinates
-                // Find where the command line starts in the full text
-                let commandRange = (fullText as NSString).range(of: commandLineText)
-                if commandRange.location != NSNotFound {
-                    let promptOffset = commandRange.location
-                    let cursorInCommandLine = axCursorPos - promptOffset
-
-                    Logger.debug("Terminal: Cursor in command line: \(cursorInCommandLine) (AX position: \(axCursorPos), prompt offset: \(promptOffset))", category: Logger.analysis)
-
-                    // Calculate new cursor position after replacement
-                    let errorLength = error.end - error.start
-                    let replacementLength = suggestion.count
-                    let lengthDelta = replacementLength - errorLength
-
-                    if cursorInCommandLine < error.start {
-                        // Cursor before error - position unchanged
-                        targetCursorPosition = cursorInCommandLine
-                        Logger.debug("Cursor before error - keeping at position \(cursorInCommandLine)", category: Logger.analysis)
-                    } else if cursorInCommandLine >= error.end {
-                        // Cursor after error - shift by length delta
-                        targetCursorPosition = cursorInCommandLine + lengthDelta
-                        Logger.debug("Cursor after error - moving to position \(cursorInCommandLine + lengthDelta)", category: Logger.analysis)
-                    } else {
-                        // Cursor inside error - move to end of replacement
-                        targetCursorPosition = error.start + replacementLength
-                        Logger.debug("Cursor inside error - moving to end of replacement at position \(error.start + replacementLength)", category: Logger.analysis)
-                    }
-                } else {
-                    Logger.debug("Terminal: Could not find command line in full text - cannot map cursor position", category: Logger.analysis)
-                }
-            }
-
-            // Copy corrected text to clipboard
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(correctedText, forType: .string)
-
-            Logger.debug("Copied corrected command to clipboard", category: Logger.analysis)
-
-            // Activate Terminal
-            let apps = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier)
-            if let targetApp = apps.first {
-                targetApp.activate()
-                Logger.debug("Activated Terminal for keyboard commands", category: Logger.analysis)
-            }
-
-            // Wait for activation, then clear line and paste
-            // Terminal replacement strategy:
-            // 1. Query AXSelectedTextRange to get original cursor position
-            // 2. Ctrl+A: Move cursor to beginning of line
-            // 3. Ctrl+K: Kill (delete) from cursor to end of line
-            // 4. Cmd+V: Paste corrected text from clipboard
-            // 5. Ctrl+A: Move back to beginning
-            // 6. Send N right arrows to restore cursor position (calculated based on replacement)
-            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.longDelay) { [weak self] in
-                guard let self = self else { return }
-                // Step 1: Ctrl+A to go to beginning of line
-                self.pressKey(key: VirtualKeyCode.a, flags: .maskControl)
-
-                Logger.debug("Sent Ctrl+A", category: Logger.analysis)
-
-                // Small delay before Ctrl+K
-                DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.shortDelay) { [weak self] in
-                    guard let self = self else { return }
-                    // Step 2: Ctrl+K to kill (delete) to end of line
-                    self.pressKey(key: VirtualKeyCode.k, flags: .maskControl)
-
-                    Logger.debug("Sent Ctrl+K", category: Logger.analysis)
-
-                    // Small delay before paste
-                    DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.shortDelay) { [weak self] in
-                        guard let self = self else { return }
-                        // Step 3: Paste the corrected text
-                        self.pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
-
-                        Logger.debug("Sent Cmd+V", category: Logger.analysis)
-
-                        // Step 4: Position cursor at target location
-                        DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.shortDelay) { [weak self] in
-                            guard let self = self else { return }
-                            if let targetPos = targetCursorPosition {
-                                // Navigate to target cursor position
-                                // First move to beginning
-                                self.pressKey(key: VirtualKeyCode.a, flags: .maskControl)
-
-                                Logger.debug("Sent Ctrl+A to move to beginning before cursor positioning", category: Logger.analysis)
-
-                                // Small delay, then send right arrows to reach target position
-                                DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.tinyDelay) { [weak self] in
-                                    guard let self = self else { return }
-                                    // Send all right arrow keys rapidly (no delays between them to avoid animation)
-                                    for _ in 0..<targetPos {
-                                        self.pressKey(key: VirtualKeyCode.rightArrow, flags: [], withDelay: false)
-                                    }
-
-                                    Logger.debug("Terminal replacement complete (cursor at position \(targetPos))", category: Logger.analysis)
-
-                                    // Record statistics
-                                    UserStatistics.shared.recordSuggestionApplied(category: error.category)
-
-                                    // Invalidate cache
-                                    self.invalidateCacheAfterReplacement(at: error.start..<error.end)
-
-                                    // Remove error from UI immediately
-                                    let lengthDelta = suggestion.count - (error.end - error.start)
-                                    self.removeErrorAndUpdateUI(error, suggestion: suggestion, lengthDelta: lengthDelta)
-
-                                    // Signal completion
-                                    completion()
-                                }
-                            } else {
-                                // Fallback: move to end if we couldn't determine target position
-                                self.pressKey(key: VirtualKeyCode.e, flags: .maskControl)
-
-                                Logger.debug("Terminal replacement complete (cursor at end - position unknown)", category: Logger.analysis)
-
-                                // Record statistics
-                                UserStatistics.shared.recordSuggestionApplied(category: error.category)
-
-                                // Invalidate cache
-                                self.invalidateCacheAfterReplacement(at: error.start..<error.end)
-
-                                // Remove error from UI immediately
-                                let lengthDelta = suggestion.count - (error.end - error.start)
-                                self.removeErrorAndUpdateUI(error, suggestion: suggestion, lengthDelta: lengthDelta)
-
-                                // Signal completion
-                                completion()
-                            }
-                        }
-                    }
-                }
-            }
-
-            return
-        }
-
-        // For non-terminal apps, use standard keyboard navigation
-        // CRITICAL FIX: Activate the target application before sending keyboard events
-        // CGEventPost only sends keyboard events to the frontmost application
-        // When user clicks the popover, Terminal loses focus, so we must restore it
-        let apps = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier)
-        if let targetApp = apps.first {
-            Logger.debug("Activating \(context.applicationName) to make it frontmost", category: Logger.analysis)
-            targetApp.activate()
-        } else {
-            Logger.debug("Could not find running app with bundle ID \(context.bundleIdentifier)", category: Logger.analysis)
-        }
-
-        let delay = context.keyboardOperationDelay
-        let activationDelay: TimeInterval = TimingConstants.keyboardActivationDelay
-        Logger.debug("Using \(delay)s keyboard delay + \(activationDelay)s activation delay for \(context.applicationName)", category: Logger.analysis)
-
-        // Save suggestion to clipboard
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(suggestion, forType: .string)
-
-        Logger.debug("Copied suggestion to clipboard: \(suggestion)", category: Logger.analysis)
-
-        // Use keyboard navigation to select and replace text
-        // Wait for app activation to complete before sending keyboard events
-        DispatchQueue.main.asyncAfter(deadline: .now() + activationDelay) { [weak self] in
-            guard let self = self else { return }
-            // Step 1: Go to beginning of text field (Cmd+Left = Home)
-            self.pressKey(key: 123, flags: .maskCommand)
-
-            // Wait for navigation
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                guard let self = self else { return }
-                // Step 2: Navigate to error start position using Right arrow
-                let navigationDelay: TimeInterval = TimingConstants.arrowKeyDelay
-
-                // Navigate to error start
-                self.sendArrowKeys(count: error.start, keyCode: 124, flags: [], delay: navigationDelay) { [weak self] in
-                    guard let self = self else { return }
-                    // Step 3: Select error text using Shift+Right arrow
-                    let errorLength = error.end - error.start
-                    self.sendArrowKeys(count: errorLength, keyCode: 124, flags: .maskShift, delay: navigationDelay) { [weak self] in
-                        guard let self = self else { return }
-                        // Step 4: Paste suggestion (Cmd+V)
-                        self.pressKey(key: 9, flags: .maskCommand) // Cmd+V
-
-                        Logger.debug("Keyboard-based text replacement complete", category: Logger.analysis)
-
-                        // Record statistics
-                        UserStatistics.shared.recordSuggestionApplied(category: error.category)
-
-                        // Invalidate cache
-                        self.invalidateCacheAfterReplacement(at: error.start..<error.end)
-
-                        // Remove error from UI immediately
-                        let lengthDelta = suggestion.count - (error.end - error.start)
-                        self.removeErrorAndUpdateUI(error, suggestion: suggestion, lengthDelta: lengthDelta)
-
-                        // Signal completion
-                        completion()
-                    }
-                }
-            }
         }
     }
 
@@ -1711,12 +1343,18 @@ extension AnalysisCoordinator {
         }
 
         // SPECIAL HANDLING FOR BROWSERS, SLACK, MICROSOFT OFFICE, AND MAC CATALYST APPS
+        // Use the full-featured completion-handler version via continuation
+        // (The async version is simplified and missing Office/Catalyst special handling)
         let isSlack = context.bundleIdentifier == "com.tinyspeck.slackmacgap"
         let isMessages = context.bundleIdentifier == "com.apple.MobileSMS"
         let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
                                 context.bundleIdentifier == "com.microsoft.Powerpoint"
         if context.isBrowser || isSlack || isMessages || isMicrosoftOffice || context.isMacCatalystApp {
-            await applyBrowserTextReplacementAsync(for: error, with: suggestion, element: element, context: context)
+            await withCheckedContinuation { continuation in
+                self.applyBrowserTextReplacement(for: error, with: suggestion, element: element, context: context) {
+                    continuation.resume()
+                }
+            }
             return
         }
 
