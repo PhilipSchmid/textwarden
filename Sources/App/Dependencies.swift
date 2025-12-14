@@ -48,14 +48,20 @@ protocol GrammarAnalyzing {
 @MainActor
 protocol StyleAnalyzing {
     var isInitialized: Bool { get }
+    var isReady: Bool { get }
     func isModelLoaded() -> Bool
     func getLoadedModelId() -> String
     func analyzeStyle(_ text: String, style: WritingStyle) -> StyleAnalysisResultModel
+    func rephraseSentence(_ sentence: String) -> String?
 }
 
 /// Protocol for user preferences access
 @MainActor
 protocol UserPreferencesProviding: AnyObject {
+    // Global state
+    var isEnabled: Bool { get }
+    var disabledApplications: Set<String> { get }
+
     // Grammar settings
     var selectedDialect: String { get }
     var enableInternetAbbreviations: Bool { get }
@@ -79,6 +85,8 @@ protocol UserPreferencesProviding: AnyObject {
     var selectedWritingStyle: String { get }
     var styleConfidenceThreshold: Double { get }
     var styleMinSentenceWords: Int { get }
+    var selectedModelId: String { get }
+    var styleInferencePreset: String { get }
 
     // Debug settings
     var showDebugBorderCGWindowCoords: Bool { get }
@@ -122,6 +130,7 @@ protocol PositionResolving {
         parser: ContentParser,
         bundleID: String
     ) -> GeometryResult
+    func clearCache()
 }
 
 /// Protocol for user statistics tracking
@@ -136,6 +145,8 @@ protocol StatisticsTracking {
     )
     func recordSuggestionApplied(category: String)
     func recordSuggestionDismissed()
+    func recordWordAddedToDictionary()
+    func recordStyleSuggestions(count: Int, latencyMs: Double, modelId: String, preset: String)
 }
 
 // MARK: - Protocol Conformance

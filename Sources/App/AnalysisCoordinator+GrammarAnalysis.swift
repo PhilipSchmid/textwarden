@@ -33,16 +33,16 @@ extension AnalysisCoordinator {
     /// Capture grammar preferences on main thread before async dispatch
     func captureGrammarConfig() -> GrammarConfig {
         GrammarConfig(
-            dialect: UserPreferences.shared.selectedDialect,
-            enableInternetAbbrev: UserPreferences.shared.enableInternetAbbreviations,
-            enableGenZSlang: UserPreferences.shared.enableGenZSlang,
-            enableITTerminology: UserPreferences.shared.enableITTerminology,
-            enableBrandNames: UserPreferences.shared.enableBrandNames,
-            enablePersonNames: UserPreferences.shared.enablePersonNames,
-            enableLastNames: UserPreferences.shared.enableLastNames,
-            enableLanguageDetection: UserPreferences.shared.enableLanguageDetection,
-            excludedLanguages: Array(UserPreferences.shared.excludedLanguages.map { UserPreferences.languageCode(for: $0) }),
-            enableSentenceStartCapitalization: UserPreferences.shared.enableSentenceStartCapitalization
+            dialect: userPreferences.selectedDialect,
+            enableInternetAbbrev: userPreferences.enableInternetAbbreviations,
+            enableGenZSlang: userPreferences.enableGenZSlang,
+            enableITTerminology: userPreferences.enableITTerminology,
+            enableBrandNames: userPreferences.enableBrandNames,
+            enablePersonNames: userPreferences.enablePersonNames,
+            enableLastNames: userPreferences.enableLastNames,
+            enableLanguageDetection: userPreferences.enableLanguageDetection,
+            excludedLanguages: Array(userPreferences.excludedLanguages.map { UserPreferences.languageCode(for: $0) }),
+            enableSentenceStartCapitalization: userPreferences.enableSentenceStartCapitalization
         )
     }
 
@@ -113,23 +113,26 @@ extension AnalysisCoordinator {
         let segmentContent = segment.content
 
         // Capture UserPreferences values on main thread before async dispatch
-        let dialect = UserPreferences.shared.selectedDialect
-        let enableInternetAbbrev = UserPreferences.shared.enableInternetAbbreviations
-        let enableGenZSlang = UserPreferences.shared.enableGenZSlang
-        let enableITTerminology = UserPreferences.shared.enableITTerminology
-        let enableBrandNames = UserPreferences.shared.enableBrandNames
-        let enablePersonNames = UserPreferences.shared.enablePersonNames
-        let enableLastNames = UserPreferences.shared.enableLastNames
-        let enableLanguageDetection = UserPreferences.shared.enableLanguageDetection
-        let excludedLanguages = Array(UserPreferences.shared.excludedLanguages.map { UserPreferences.languageCode(for: $0) })
-        let enableSentenceStartCapitalization = UserPreferences.shared.enableSentenceStartCapitalization
+        let dialect = userPreferences.selectedDialect
+        let enableInternetAbbrev = userPreferences.enableInternetAbbreviations
+        let enableGenZSlang = userPreferences.enableGenZSlang
+        let enableITTerminology = userPreferences.enableITTerminology
+        let enableBrandNames = userPreferences.enableBrandNames
+        let enablePersonNames = userPreferences.enablePersonNames
+        let enableLastNames = userPreferences.enableLastNames
+        let enableLanguageDetection = userPreferences.enableLanguageDetection
+        let excludedLanguages = Array(userPreferences.excludedLanguages.map { UserPreferences.languageCode(for: $0) })
+        let enableSentenceStartCapitalization = userPreferences.enableSentenceStartCapitalization
+
+        // Capture grammar engine reference before async dispatch
+        let grammarEngineRef = grammarEngine
 
         // Simplified: For large docs, still analyze full text but async
         // Full incremental diff would require text diffing algorithm
         analysisQueue.async { [weak self] in
             guard let self = self else { return }
 
-            let result = GrammarEngine.shared.analyzeText(
+            let result = grammarEngineRef.analyzeText(
                 segmentContent,
                 dialect: dialect,
                 enableInternetAbbrev: enableInternetAbbrev,
@@ -157,7 +160,7 @@ extension AnalysisCoordinator {
                     categoryBreakdown[error.category, default: 0] += 1
                 }
 
-                UserStatistics.shared.recordDetailedAnalysisSession(
+                self.statistics.recordDetailedAnalysisSession(
                     wordsProcessed: wordCount,
                     errorsFound: result.errors.count,
                     bundleIdentifier: self.monitoredContext?.bundleIdentifier,
@@ -177,12 +180,15 @@ extension AnalysisCoordinator {
         config: GrammarConfig,
         element: AXUIElement?
     ) {
+        // Capture grammar engine reference before async dispatch
+        let grammarEngineRef = grammarEngine
+
         analysisQueue.async { [weak self] in
             guard let self = self else { return }
 
             Logger.debug("AnalysisCoordinator: Calling Harper grammar engine...", category: Logger.analysis)
 
-            let grammarResult = GrammarEngine.shared.analyzeText(
+            let grammarResult = grammarEngineRef.analyzeText(
                 text,
                 dialect: config.dialect,
                 enableInternetAbbrev: config.enableInternetAbbrev,
@@ -228,7 +234,7 @@ extension AnalysisCoordinator {
             categoryBreakdown[error.category, default: 0] += 1
         }
 
-        UserStatistics.shared.recordDetailedAnalysisSession(
+        statistics.recordDetailedAnalysisSession(
             wordsProcessed: wordCount,
             errorsFound: result.errors.count,
             bundleIdentifier: monitoredContext?.bundleIdentifier,
@@ -283,11 +289,11 @@ extension AnalysisCoordinator {
 
     /// Check if auto style checking should run
     func shouldRunAutoStyleChecking() -> Bool {
-        let styleCheckingEnabled = UserPreferences.shared.enableStyleChecking
-        let autoStyleChecking = UserPreferences.shared.autoStyleChecking
-        let llmInitialized = LLMEngine.shared.isInitialized
-        let modelLoaded = LLMEngine.shared.isModelLoaded()
-        let loadedModelId = LLMEngine.shared.getLoadedModelId()
+        let styleCheckingEnabled = userPreferences.enableStyleChecking
+        let autoStyleChecking = userPreferences.autoStyleChecking
+        let llmInitialized = llmEngine.isInitialized
+        let modelLoaded = llmEngine.isModelLoaded()
+        let loadedModelId = llmEngine.getLoadedModelId()
         let shouldRun = styleCheckingEnabled && autoStyleChecking && llmInitialized && modelLoaded
 
         Logger.info("AnalysisCoordinator: Style check eligibility - enabled=\(styleCheckingEnabled), auto=\(autoStyleChecking), llmInit=\(llmInitialized), modelLoaded=\(modelLoaded), modelId='\(loadedModelId)', willRun=\(shouldRun)", category: Logger.llm)
@@ -296,7 +302,7 @@ extension AnalysisCoordinator {
 
     /// Run debounced style analysis
     func runDebouncedStyleAnalysis(text: String) {
-        let minWords = UserPreferences.shared.styleMinSentenceWords
+        let minWords = userPreferences.styleMinSentenceWords
         guard containsSentenceWithMinWords(text, minWords: minWords) else {
             Logger.debug("AnalysisCoordinator: No sentence with \(minWords)+ words - skipping style", category: Logger.llm)
             return
@@ -340,15 +346,18 @@ extension AnalysisCoordinator {
 
     /// Execute LLM style analysis on background queue
     func executeLLMStyleAnalysis(text: String, cacheKey: String, generation: UInt64) {
-        let styleName = UserPreferences.shared.selectedWritingStyle
+        let styleName = userPreferences.selectedWritingStyle
         let style = WritingStyle.allCases.first { $0.displayName == styleName } ?? .default
-        let confidenceThreshold = Float(UserPreferences.shared.styleConfidenceThreshold)
+        let confidenceThreshold = Float(userPreferences.styleConfidenceThreshold)
+
+        // Capture LLM engine reference before async dispatch
+        let llmEngineRef = llmEngine
 
         styleAnalysisQueue.async { [weak self] in
             guard self != nil else { return }
 
             Logger.info("AnalysisCoordinator: Starting LLM style analysis (gen=\(generation))...", category: Logger.llm)
-            let styleResult = LLMEngine.shared.analyzeStyle(text, style: style)
+            let styleResult = llmEngineRef.analyzeStyle(text, style: style)
             Logger.debug("AnalysisCoordinator: LLM returned \(styleResult.suggestions.count) suggestion(s)", category: Logger.analysis)
 
             DispatchQueue.main.async { [weak self] in

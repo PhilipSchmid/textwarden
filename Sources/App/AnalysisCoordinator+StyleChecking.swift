@@ -176,9 +176,9 @@ extension AnalysisCoordinator {
     /// Uses a hash to keep keys short while being collision-resistant
     /// Includes model ID and preset so changing these triggers re-analysis of the same text
     func computeStyleCacheKey(text: String) -> String {
-        let style = UserPreferences.shared.selectedWritingStyle
-        let modelId = UserPreferences.shared.selectedModelId
-        let preset = UserPreferences.shared.styleInferencePreset
+        let style = userPreferences.selectedWritingStyle
+        let modelId = userPreferences.selectedModelId
+        let preset = userPreferences.styleInferencePreset
         let combined = "\(text.hashValue)_\(style)_\(modelId)_\(preset)"
         return combined
     }
@@ -242,7 +242,7 @@ extension AnalysisCoordinator {
         }
 
         // Check if LLM is ready
-        guard LLMEngine.shared.isInitialized && LLMEngine.shared.isModelLoaded() else {
+        guard llmEngine.isInitialized && llmEngine.isModelLoaded() else {
             Logger.warning("AnalysisCoordinator: LLM not ready for manual style check", category: Logger.llm)
             return
         }
@@ -265,7 +265,7 @@ extension AnalysisCoordinator {
             Logger.info("AnalysisCoordinator: Manual style check - analyzing selected text (\(text.count) chars)", category: Logger.llm)
         }
 
-        let styleName = UserPreferences.shared.selectedWritingStyle
+        let styleName = userPreferences.selectedWritingStyle
         let style = WritingStyle.allCases.first { $0.displayName == styleName } ?? .default
 
         // Check cache first - instant results if text hasn't changed
@@ -315,27 +315,30 @@ extension AnalysisCoordinator {
         let capturedFullText = fullText
 
         // Capture UserPreferences values on main thread before async dispatch
-        let modelId = UserPreferences.shared.selectedModelId
-        let preset = UserPreferences.shared.styleInferencePreset
-        let confidenceThreshold = Float(UserPreferences.shared.styleConfidenceThreshold)
+        let modelId = userPreferences.selectedModelId
+        let preset = userPreferences.styleInferencePreset
+        let confidenceThreshold = Float(userPreferences.styleConfidenceThreshold)
+
+        // Capture LLM engine reference before async dispatch
+        let llmEngineRef = llmEngine
 
         // Run style analysis in background
         styleAnalysisQueue.async { [weak self] in
-            guard self != nil else { return }
+            guard let self = self else { return }
 
             let segmentContent = text
 
             Logger.info("AnalysisCoordinator: Running manual style analysis on \(segmentContent.count) chars", category: Logger.llm)
 
             let startTime = Date()
-            let styleResult = LLMEngine.shared.analyzeStyle(segmentContent, style: style)
+            let styleResult = llmEngineRef.analyzeStyle(segmentContent, style: style)
             let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
 
             Logger.info("AnalysisCoordinator: Manual style check completed in \(latencyMs)ms, \(styleResult.suggestions.count) suggestions", category: Logger.llm)
 
             // Update statistics with model and preset context (dispatch to main since UserStatistics is @MainActor)
-            DispatchQueue.main.async {
-                UserStatistics.shared.recordStyleSuggestions(
+            DispatchQueue.main.async { [weak self] in
+                self?.statistics.recordStyleSuggestions(
                     count: styleResult.suggestions.count,
                     latencyMs: Double(latencyMs),
                     modelId: modelId,
@@ -496,9 +499,9 @@ extension AnalysisCoordinator {
         segment: TextSegment
     ) {
         // Check if AI enhancement is available
-        let styleCheckingEnabled = UserPreferences.shared.enableStyleChecking
-        let llmInitialized = LLMEngine.shared.isInitialized
-        let modelLoaded = LLMEngine.shared.isModelLoaded()
+        let styleCheckingEnabled = userPreferences.enableStyleChecking
+        let llmInitialized = llmEngine.isInitialized
+        let modelLoaded = llmEngine.isModelLoaded()
 
         guard styleCheckingEnabled && llmInitialized && modelLoaded else {
             Logger.debug("AnalysisCoordinator: AI enhancement skipped - style checking not available", category: Logger.llm)
@@ -528,6 +531,9 @@ extension AnalysisCoordinator {
 
         Logger.info("AnalysisCoordinator: Found \(readabilityErrorsWithoutSuggestions.count) readability error(s) needing AI suggestions", category: Logger.llm)
 
+        // Capture LLM engine reference before async dispatch
+        let llmEngineRef = llmEngine
+
         // Process each readability error asynchronously
         styleAnalysisQueue.async { [weak self] in
             guard let self = self else { return }
@@ -550,7 +556,7 @@ extension AnalysisCoordinator {
                 let sentence = String(sourceText[startIndex..<endIndex])
 
                 // Check AI rephrase cache first (thread-safe via AIRephraseCache)
-                var rephrased = aiRephraseCache.get(sentence)
+                var rephrased = self.aiRephraseCache.get(sentence)
 
                 if rephrased != nil {
                     Logger.info("AnalysisCoordinator: Using cached AI rephrase for sentence of length \(sentence.count)", category: Logger.llm)
@@ -558,7 +564,7 @@ extension AnalysisCoordinator {
                     Logger.debug("AnalysisCoordinator: Generating AI rephrase for sentence of length \(sentence.count)", category: Logger.llm)
 
                     // Generate AI suggestion
-                    rephrased = LLMEngine.shared.rephraseSentence(sentence)
+                    rephrased = llmEngineRef.rephraseSentence(sentence)
 
                     // Cache the result (thread-safe, handles LRU eviction internally)
                     if let newRephrase = rephrased {

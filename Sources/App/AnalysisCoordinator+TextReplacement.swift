@@ -150,7 +150,7 @@ extension AnalysisCoordinator {
 
         let replaceError = AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, suggestion as CFTypeRef)
         if replaceError == .success {
-            UserStatistics.shared.recordSuggestionApplied(category: error.category)
+            statistics.recordSuggestionApplied(category: error.category)
             invalidateCacheAfterReplacement(at: error.start..<error.end)
 
             var newPosition = CFRange(location: error.start + suggestion.count, length: 0)
@@ -464,7 +464,7 @@ extension AnalysisCoordinator {
     /// This waits for focus to settle, then restarts monitoring to find the composition element.
     func scheduleDelayedReanalysis(startTime: Date) {
         guard let context = monitoredContext else { return }
-        let appConfig = AppRegistry.shared.configuration(for: context.bundleIdentifier)
+        let appConfig = appRegistry.configuration(for: context.bundleIdentifier)
         guard appConfig.features.focusBouncesDuringPaste else { return }
 
         Logger.trace("Focus bounce reanalysis: T=\(Int(Date().timeIntervalSince(startTime) * 1000))ms scheduling", category: Logger.analysis)
@@ -474,7 +474,7 @@ extension AnalysisCoordinator {
             guard let self = self else { return }
             guard let context = self.monitoredContext else { return }
 
-            let appConfig = AppRegistry.shared.configuration(for: context.bundleIdentifier)
+            let appConfig = appRegistry.configuration(for: context.bundleIdentifier)
             guard appConfig.features.focusBouncesDuringPaste else {
                 Logger.trace("Focus bounce reanalysis: skipping - app no longer has focus bounce", category: Logger.analysis)
                 return
@@ -522,7 +522,7 @@ extension AnalysisCoordinator {
         Logger.trace("WebKit cache invalidation: clearing position cache only", category: Logger.analysis)
 
         // Clear position cache - geometry is now stale since text positions shifted
-        PositionResolver.shared.clearCache()
+        positionResolver.clearCache()
 
         // Hide overlays temporarily while we recalculate positions
         errorOverlay.hide()
@@ -1050,7 +1050,7 @@ extension AnalysisCoordinator {
         }
 
         // Record statistics and update UI
-        UserStatistics.shared.recordSuggestionApplied(category: error.category)
+        statistics.recordSuggestionApplied(category: error.category)
         invalidateCacheAfterReplacement(at: error.start..<error.end)
         let lengthDelta = suggestion.count - (error.end - error.start)
         removeErrorAndUpdateUI(error, suggestion: suggestion, lengthDelta: lengthDelta)
@@ -1073,7 +1073,7 @@ extension AnalysisCoordinator {
         // Try the proper WebKit API first
         if MailContentParser.replaceText(range: range, with: suggestion, in: element) {
             Logger.info("Mail: AXReplaceRangeWithText succeeded", category: Logger.analysis)
-            UserStatistics.shared.recordSuggestionApplied(category: currentError.category)
+            statistics.recordSuggestionApplied(category: currentError.category)
             invalidateCacheAfterReplacement(at: currentError.start..<currentError.end)
             removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
             return
@@ -1096,7 +1096,7 @@ extension AnalysisCoordinator {
         try? await Task.sleep(nanoseconds: UInt64(TimingConstants.shortDelay * 1_000_000_000))
 
         pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
-        UserStatistics.shared.recordSuggestionApplied(category: currentError.category)
+        statistics.recordSuggestionApplied(category: currentError.category)
         removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
         invalidateCacheAfterReplacementForWebKit(at: currentError.start..<currentError.end)
 
@@ -1280,12 +1280,12 @@ extension AnalysisCoordinator {
         }
 
         // Finalize replacement
-        UserStatistics.shared.recordSuggestionApplied(category: currentError.category)
+        statistics.recordSuggestionApplied(category: currentError.category)
         let lengthDelta = suggestion.count - (currentError.end - currentError.start)
         removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
 
         if isMicrosoftOffice {
-            PositionResolver.shared.clearCache()
+            positionResolver.clearCache()
         } else {
             invalidateCacheAfterReplacement(at: currentError.start..<currentError.end)
         }
@@ -1309,7 +1309,7 @@ extension AnalysisCoordinator {
         let typingDelay = Double(suggestion.count) * 0.01 + 0.1
         try? await Task.sleep(nanoseconds: UInt64(typingDelay * 1_000_000_000))
 
-        UserStatistics.shared.recordSuggestionApplied(category: currentError.category)
+        statistics.recordSuggestionApplied(category: currentError.category)
         invalidateCacheAfterReplacement(at: currentError.start..<currentError.end)
         let lengthDelta = suggestion.count - (currentError.end - currentError.start)
         removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
@@ -1368,7 +1368,7 @@ extension AnalysisCoordinator {
         Logger.debug("Keyboard-based text replacement complete", category: Logger.analysis)
 
         // Record statistics and update UI
-        UserStatistics.shared.recordSuggestionApplied(category: error.category)
+        statistics.recordSuggestionApplied(category: error.category)
         invalidateCacheAfterReplacement(at: error.start..<error.end)
         let lengthDelta = suggestion.count - (error.end - error.start)
         removeErrorAndUpdateUI(error, suggestion: suggestion, lengthDelta: lengthDelta)
@@ -1503,10 +1503,10 @@ extension AnalysisCoordinator {
     /// Invalidate cache after text replacement
     func invalidateCacheAfterReplacement(at range: Range<Int>) {
         // Clear position cache - geometry is now stale since text positions shifted
-        PositionResolver.shared.clearCache()
+        positionResolver.clearCache()
 
         let bundleID = monitoredContext?.bundleIdentifier ?? ""
-        let appConfig = AppRegistry.shared.configuration(for: bundleID)
+        let appConfig = appRegistry.configuration(for: bundleID)
 
         // Check if this app requires full re-analysis (Electron, WebKit, browsers)
         // These apps have fragile byte offsets that become invalid when text shifts

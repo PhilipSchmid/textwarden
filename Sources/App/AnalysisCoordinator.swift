@@ -42,40 +42,40 @@ class AnalysisCoordinator: ObservableObject {
 
     static let shared = AnalysisCoordinator()
 
-    // MARK: - Dependencies (injectable for testing)
+    // MARK: - Dependencies (injectable for testing, internal for extension access)
 
     /// Text monitor for accessibility
     let textMonitor: TextMonitor
 
     /// Application tracker
-    private let applicationTracker: ApplicationTracker
+    let applicationTracker: ApplicationTracker
 
     /// Permission manager
-    private let permissionManager: PermissionManager
+    let permissionManager: PermissionManager
 
     /// Grammar analysis engine
-    private let grammarEngine: GrammarAnalyzing
+    let grammarEngine: GrammarAnalyzing
 
     /// LLM style analysis engine
-    private let llmEngine: StyleAnalyzing
+    let llmEngine: StyleAnalyzing
 
     /// User preferences
-    private let userPreferences: UserPreferencesProviding
+    let userPreferences: UserPreferencesProviding
 
     /// App configuration registry
-    private let appRegistry: AppConfigurationProviding
+    let appRegistry: AppConfigurationProviding
 
     /// Custom vocabulary
-    private let customVocabulary: CustomVocabularyProviding
+    let customVocabulary: CustomVocabularyProviding
 
     /// Browser URL extractor
-    private let browserURLExtractor: BrowserURLExtracting
+    let browserURLExtractor: BrowserURLExtracting
 
     /// Position resolver
-    private let positionResolver: PositionResolving
+    let positionResolver: PositionResolving
 
     /// Statistics tracker
-    private let statistics: StatisticsTracking
+    let statistics: StatisticsTracking
 
     /// Suggestion popover
     let suggestionPopover: SuggestionPopover
@@ -204,7 +204,7 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Whether LLM style checking should run for the current text
     private var shouldRunStyleChecking: Bool {
-        UserPreferences.shared.enableStyleChecking && LLMEngine.shared.isReady
+        userPreferences.enableStyleChecking && llmEngine.isReady
     }
 
     /// Flag to prevent regular analysis from hiding indicator during manual style check
@@ -279,7 +279,7 @@ class AnalysisCoordinator: ObservableObject {
 
             // Check if we're monitoring an app that requires typing pause
             guard let bundleID = self.textMonitor.currentContext?.bundleIdentifier else { return }
-            let appConfig = AppRegistry.shared.configuration(for: bundleID)
+            let appConfig = self.appRegistry.configuration(for: bundleID)
 
             // Only act on keyboard events for apps that delay AX notifications (like Notion)
             // For apps like Slack that send immediate AX notifications, this callback won't fire
@@ -296,7 +296,7 @@ class AnalysisCoordinator: ObservableObject {
                 // Don't hide overlay - that causes flickering while typing
                 // Just clear position cache so underlines update correctly after re-analysis
                 Logger.trace("AnalysisCoordinator: Typing detected in \(appConfig.displayName) - clearing position cache", category: Logger.ui)
-                PositionResolver.shared.clearCache()
+                self.positionResolver.clearCache()
             }
         }
 
@@ -627,14 +627,14 @@ class AnalysisCoordinator: ObservableObject {
         // Note: We no longer hide overlays here to avoid flickering during typing
         // Overlays will update naturally after the debounced re-analysis completes
         textMonitor.onImmediateTextChange = { [weak self] text, context in
-            guard self != nil else { return }
+            guard let self = self else { return }
 
             // Just clear the position cache so underlines update correctly after re-analysis
             // Don't hide overlays - that causes flickering while typing
-            let appConfig = AppRegistry.shared.configuration(for: context.bundleIdentifier)
+            let appConfig = self.appRegistry.configuration(for: context.bundleIdentifier)
             if appConfig.features.requiresTypingPause {
                 Logger.trace("AnalysisCoordinator: Immediate text change in \(context.applicationName) - clearing position cache", category: Logger.ui)
-                PositionResolver.shared.clearCache()
+                self.positionResolver.clearCache()
             }
         }
 
@@ -655,8 +655,8 @@ class AnalysisCoordinator: ObservableObject {
             Logger.debug("AnalysisCoordinator: Found existing active application: \(currentApp.applicationName) (\(currentApp.bundleIdentifier))", category: Logger.analysis)
             Logger.debug("AnalysisCoordinator: Should check? \(currentApp.shouldCheck())", category: Logger.analysis)
             Logger.debug("AnalysisCoordinator: Context isEnabled: \(currentApp.isEnabled)", category: Logger.analysis)
-            Logger.debug("AnalysisCoordinator: Global isEnabled: \(UserPreferences.shared.isEnabled)", category: Logger.analysis)
-            Logger.debug("AnalysisCoordinator: Is in disabled apps? \(UserPreferences.shared.disabledApplications.contains(currentApp.bundleIdentifier))", category: Logger.analysis)
+            Logger.debug("AnalysisCoordinator: Global isEnabled: \(userPreferences.isEnabled)", category: Logger.analysis)
+            Logger.debug("AnalysisCoordinator: Is in disabled apps? \(userPreferences.disabledApplications.contains(currentApp.bundleIdentifier))", category: Logger.analysis)
             if currentApp.shouldCheck() {
                 Logger.debug("AnalysisCoordinator: Starting monitoring for existing app", category: Logger.analysis)
                 self.monitoredContext = currentApp  // Set BEFORE startMonitoring
@@ -740,9 +740,9 @@ class AnalysisCoordinator: ObservableObject {
         }
 
         // Check if any debug borders are enabled
-        let showCGWindow = UserPreferences.shared.showDebugBorderCGWindowCoords
-        let showCocoa = UserPreferences.shared.showDebugBorderCocoaCoords
-        let showTextBounds = UserPreferences.shared.showDebugBorderTextFieldBounds
+        let showCGWindow = userPreferences.showDebugBorderCGWindowCoords
+        let showCocoa = userPreferences.showDebugBorderCocoaCoords
+        let showTextBounds = userPreferences.showDebugBorderTextFieldBounds
 
         guard showCGWindow || showCocoa || showTextBounds else {
             DebugBorderWindow.clearAll()
@@ -867,7 +867,7 @@ class AnalysisCoordinator: ObservableObject {
             return
         }
 
-        let appConfig = AppRegistry.shared.configuration(for: context.bundleIdentifier)
+        let appConfig = appRegistry.configuration(for: context.bundleIdentifier)
 
         // Handle case when no element is being monitored (e.g., browser UI element)
         if textMonitor.monitoredElement == nil {
@@ -901,7 +901,7 @@ class AnalysisCoordinator: ObservableObject {
         currentSegment = segment
 
         // Perform analysis if enabled
-        guard UserPreferences.shared.isEnabled else {
+        guard userPreferences.isEnabled else {
             Logger.debug("AnalysisCoordinator: Analysis disabled in preferences", category: Logger.analysis)
             return
         }
@@ -971,17 +971,17 @@ class AnalysisCoordinator: ObservableObject {
             errorOverlay.hide()
             if !isManualStyleCheckActive { floatingIndicator.hide() }
             currentErrors.removeAll()
-            PositionResolver.shared.clearCache()
+            positionResolver.clearCache()
         } else if !isTyping {
             // Significant change (e.g., switching chats)
             Logger.debug("AnalysisCoordinator: Text changed significantly - hiding overlays", category: Logger.analysis)
             errorOverlay.hide()
             if !isManualStyleCheckActive { floatingIndicator.hide() }
-            PositionResolver.shared.clearCache()
+            positionResolver.clearCache()
         } else {
             // Normal typing - just clear position cache
             Logger.debug("AnalysisCoordinator: Typing detected - clearing position cache", category: Logger.analysis)
-            PositionResolver.shared.clearCache()
+            positionResolver.clearCache()
         }
 
         // Electron/browser apps need full cache clear on significant changes
@@ -1042,7 +1042,7 @@ class AnalysisCoordinator: ObservableObject {
         currentStyleSuggestions = cachedStyleSuggestions
         styleAnalysisSourceText = text
 
-        let styleName = UserPreferences.shared.selectedWritingStyle
+        let styleName = userPreferences.selectedWritingStyle
         styleCacheMetadata[styleCacheKey] = StyleCacheMetadata(
             lastAccessed: Date(),
             style: styleName
@@ -1067,7 +1067,7 @@ class AnalysisCoordinator: ObservableObject {
             return false
         }
 
-        currentBrowserURL = BrowserURLExtractor.shared.extractURL(
+        currentBrowserURL = browserURLExtractor.extractURL(
             processID: context.processID,
             bundleIdentifier: context.bundleIdentifier
         )
@@ -1079,7 +1079,7 @@ class AnalysisCoordinator: ObservableObject {
 
         Logger.debug("AnalysisCoordinator: Browser URL detected: \(url)", category: Logger.analysis)
 
-        guard !UserPreferences.shared.isEnabled(forURL: url) else {
+        guard !userPreferences.isEnabled(forURL: url) else {
             return false
         }
 
@@ -1147,7 +1147,7 @@ class AnalysisCoordinator: ObservableObject {
         }
 
         // Filter by category (e.g., Spelling, Grammar, Style)
-        let enabledCategories = UserPreferences.shared.enabledCategories
+        let enabledCategories = userPreferences.enabledCategories
         Logger.debug("AnalysisCoordinator: Enabled categories: \(enabledCategories)", category: Logger.analysis)
 
         filteredErrors = filteredErrors.filter { error in
@@ -1167,7 +1167,7 @@ class AnalysisCoordinator: ObservableObject {
         Logger.debug("  After deduplication: \(filteredErrors.count) errors", category: Logger.analysis)
 
         // Filter by dismissed rules
-        let dismissedRules = UserPreferences.shared.ignoredRules
+        let dismissedRules = userPreferences.ignoredRules
         filteredErrors = filteredErrors.filter { error in
             !dismissedRules.contains(error.lintId)
         }
@@ -1175,7 +1175,7 @@ class AnalysisCoordinator: ObservableObject {
         // Filter by custom vocabulary
         // Skip errors that contain words from the user's custom dictionary
         // Note: error.start/end are Unicode scalar indices from Harper
-        let vocabulary = CustomVocabulary.shared
+        let vocabulary = customVocabulary
         let sourceScalarCount = sourceText.unicodeScalars.count
         filteredErrors = filteredErrors.filter { error in
             // Extract error text from source using scalar indices
@@ -1192,7 +1192,7 @@ class AnalysisCoordinator: ObservableObject {
 
         // Filter by globally ignored error texts
         // Skip errors that match texts the user has chosen to ignore globally
-        let ignoredTexts = UserPreferences.shared.ignoredErrorTexts
+        let ignoredTexts = userPreferences.ignoredErrorTexts
         filteredErrors = filteredErrors.filter { error in
             // Extract error text from source using scalar indices
             guard error.start < sourceScalarCount, error.end <= sourceScalarCount, error.start < error.end,
@@ -1210,7 +1210,7 @@ class AnalysisCoordinator: ObservableObject {
         // French spaces errors in Notion are often triggered by placeholder text artifacts
         // (e.g., "Write, press 'space' for AI" placeholder creates invisible whitespace patterns)
         if let context = monitoredContext,
-           AppRegistry.shared.configuration(for: context.bundleIdentifier).parserType == .notion {
+           appRegistry.configuration(for: context.bundleIdentifier).parserType == .notion {
             filteredErrors = filteredErrors.filter { error in
                 // Filter French spaces errors where the error text is just whitespace
                 // These are false positives from Notion's placeholder handling
@@ -1257,7 +1257,7 @@ class AnalysisCoordinator: ObservableObject {
         // For Electron apps: Add a small delay to let the DOM stabilize
         // Electron apps (Notion, Slack) may have stale AX positions briefly after text changes
         let bundleID = monitoredContext?.bundleIdentifier ?? ""
-        let appConfig = AppRegistry.shared.configuration(for: bundleID)
+        let appConfig = appRegistry.configuration(for: bundleID)
         if appConfig.category == .electron {
             // Cancel any pending layout timer
             electronLayoutTimer?.invalidate()
@@ -1382,7 +1382,7 @@ class AnalysisCoordinator: ObservableObject {
     /// Dismiss error for current session
     func dismissError(_ error: GrammarErrorModel) {
         // Record statistics
-        UserStatistics.shared.recordSuggestionDismissed()
+        statistics.recordSuggestionDismissed()
 
         // Extract error text and persist it globally
         // Note: error.start/end are Unicode scalar indices from Harper
@@ -1399,7 +1399,7 @@ class AnalysisCoordinator: ObservableObject {
             let errorText = String(sourceText[startIndex..<endIndex])
 
             // Persist this error text globally
-            UserPreferences.shared.ignoreErrorText(errorText)
+            userPreferences.ignoreErrorText(errorText)
         }
 
         currentErrors.removeAll { $0.start == error.start && $0.end == error.end }
@@ -1411,7 +1411,7 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Ignore rule permanently
     func ignoreRulePermanently(_ ruleId: String) {
-        UserPreferences.shared.ignoreRule(ruleId)
+        userPreferences.ignoreRule(ruleId)
 
         // Re-filter current errors
         let sourceText = currentSegment?.content ?? ""
@@ -1434,11 +1434,11 @@ class AnalysisCoordinator: ObservableObject {
         let errorText = String(sourceText[startIndex..<endIndex])
 
         do {
-            try CustomVocabulary.shared.addWord(errorText)
+            try customVocabulary.addWord(errorText)
             Logger.info("Added '\(errorText)' to custom dictionary", category: Logger.analysis)
 
             // Record statistics
-            UserStatistics.shared.recordWordAddedToDictionary()
+            statistics.recordWordAddedToDictionary()
         } catch {
             Logger.error("Failed to add '\(errorText)' to dictionary: \(error)", category: Logger.analysis)
         }

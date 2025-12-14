@@ -129,7 +129,7 @@ extension AnalysisCoordinator {
                 DebugBorderWindow.clearAll()
                 self.currentErrors.removeAll()
                 self.lastAnalyzedText = ""
-                PositionResolver.shared.clearCache()
+                positionResolver.clearCache()
             }
             return
         }
@@ -156,7 +156,7 @@ extension AnalysisCoordinator {
                 if isMicrosoftOffice {
                     self.currentErrors.removeAll()
                     self.lastAnalyzedText = ""
-                    PositionResolver.shared.clearCache()
+                    positionResolver.clearCache()
 
                     // Trigger fresh analysis
                     DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.mediumDelay) { [weak self] in
@@ -181,7 +181,7 @@ extension AnalysisCoordinator {
                 if isCatalystApp {
                     self.currentErrors.removeAll()
                     self.lastAnalyzedText = ""
-                    PositionResolver.shared.clearCache()
+                    positionResolver.clearCache()
 
                     // Trigger fresh analysis after a short delay
                     DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.longDelay) { [weak self] in
@@ -325,7 +325,7 @@ extension AnalysisCoordinator {
                 } else if significantHeightChange && heightChange > 0 && !currentErrors.isEmpty {
                     // Text field grew - user is typing more, text positions shifted
                     Logger.debug("Element monitoring: Text field grew by \(heightChange)px in Mac Catalyst app - invalidating positions", category: Logger.analysis)
-                    PositionResolver.shared.clearCache()
+                    positionResolver.clearCache()
                     errorOverlay.hide()
                 }
             }
@@ -353,7 +353,7 @@ extension AnalysisCoordinator {
         DebugBorderWindow.clearAll()
 
         // Clear position cache
-        PositionResolver.shared.clearCache()
+        positionResolver.clearCache()
 
         // Clear current errors and text tracking - the text has changed
         currentErrors.removeAll()
@@ -412,7 +412,7 @@ extension AnalysisCoordinator {
             suggestionPopover.hide()
 
             // Clear the position cache so underlines are recalculated after scroll
-            PositionResolver.shared.clearCache()
+            positionResolver.clearCache()
         }
 
         // Determine restore delay based on app type
@@ -485,7 +485,7 @@ extension AnalysisCoordinator {
         suggestionPopover.hide()
         currentErrors.removeAll()
         lastAnalyzedText = ""
-        PositionResolver.shared.clearCache()
+        positionResolver.clearCache()
         DebugBorderWindow.clearAll()
     }
 
@@ -508,7 +508,7 @@ extension AnalysisCoordinator {
 
         // CRITICAL: Clear the position cache so underlines are recalculated at new window position
         // The cache stores screen coordinates which become stale when the window moves
-        PositionResolver.shared.clearCache()
+        positionResolver.clearCache()
 
         // Cancel any pending re-show
         windowMovementDebounceTimer?.invalidate()
@@ -561,7 +561,7 @@ extension AnalysisCoordinator {
         overlaysHiddenDueToWindowOffScreen = false
 
         // Clear position cache since window position may have changed
-        PositionResolver.shared.clearCache()
+        positionResolver.clearCache()
 
         // Update debug borders immediately
         updateDebugBorders()
@@ -620,7 +620,7 @@ extension AnalysisCoordinator {
             lastElementPosition = nil
             contentStabilityCount = 0
             lastCharacterBounds = nil
-            PositionResolver.shared.clearCache()
+            positionResolver.clearCache()
             let sourceText = currentSegment?.content ?? ""
             applyFilters(to: currentErrors, sourceText: sourceText, element: textMonitor.monitoredElement)
             updateDebugBorders()
@@ -797,7 +797,7 @@ extension AnalysisCoordinator {
         // The cache was cleared when movement started, but async analysis operations
         // running during the debounce period might have repopulated it with stale positions
         // (calculated from the old window location). Clear it now to ensure fresh positions.
-        PositionResolver.shared.clearCache()
+        positionResolver.clearCache()
 
         // Re-show overlays by triggering a re-filter of current errors
         // This will recalculate positions and show overlays at the new location

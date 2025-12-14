@@ -481,7 +481,7 @@ make ci-check  # Runs formatting, linting, tests, build
 
 ## Dependency Injection
 
-The codebase uses dependency injection for testability, primarily in `AnalysisCoordinator`.
+The codebase uses dependency injection for testability. `AnalysisCoordinator` and all its extensions (`+GrammarAnalysis`, `+StyleChecking`, `+WindowTracking`, `+TextReplacement`) use injected dependencies instead of accessing `.shared` singletons directly.
 
 ### DependencyContainer
 
