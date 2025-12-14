@@ -109,7 +109,7 @@ extension AnalysisCoordinator {
         // Check if text has changed from what we analyzed
         let analyzedText = lastAnalyzedText
 
-        Logger.trace("Text validation: current='\(currentText.prefix(50))...' (\(currentText.count) chars), analyzed='\(analyzedText.prefix(50))...' (\(analyzedText.count) chars)", category: Logger.analysis)
+        Logger.trace("Text validation: current=\(currentText.count) chars, analyzed=\(analyzedText.count) chars", category: Logger.analysis)
 
         // Text matches - no action needed
         if currentText == analyzedText {

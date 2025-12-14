@@ -666,7 +666,7 @@ class NotionContentParser: ContentParser {
 
         Logger.debug("NotionContentParser: Paragraph analysis:", category: Logger.ui)
         for (idx, para) in paragraphs.enumerated() {
-            Logger.debug("  Para \(idx): offset=\(para.startOffset), isTitle=\(para.isTitle), blanksBefore=\(para.blankLinesBefore), text='\(String(para.text.prefix(40)))'", category: Logger.ui)
+            Logger.debug("  Para \(idx): offset=\(para.startOffset), isTitle=\(para.isTitle), blanksBefore=\(para.blankLinesBefore), textLen=\(para.text.count)", category: Logger.ui)
         }
 
         // Find which paragraph contains the error

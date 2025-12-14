@@ -91,7 +91,7 @@ class WordContentParser: ContentParser {
         AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef)
         let value = valueRef as? String ?? ""
 
-        Logger.debug("WordContentParser: Checking element - role: \(role), subrole: \(subrole), desc: \(description), id: \(identifier), title: \(title), value: \(value.prefix(50))...", category: Logger.accessibility)
+        Logger.debug("WordContentParser: Checking element - role: \(role), subrole: \(subrole), hasDesc: \(!description.isEmpty), hasId: \(!identifier.isEmpty), hasTitle: \(!title.isEmpty), valueLen: \(value.count)", category: Logger.accessibility)
 
         // EXCLUDE: Toolbar elements (ribbon controls)
         if isToolbarElement(role: role, subrole: subrole, description: description, identifier: identifier, title: title, value: value) {

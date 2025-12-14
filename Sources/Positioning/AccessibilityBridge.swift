@@ -377,7 +377,7 @@ enum AccessibilityBridge {
 
         // Try to get text between markers to validate range
         if let text = getTextUsingMarkers(from: startMarker, to: endMarker, in: element) {
-            Logger.debug("  Marker range text: \"\(text)\"", category: Logger.accessibility)
+            Logger.debug("  Marker range text length: \(text.count)", category: Logger.accessibility)
         } else {
             Logger.debug("  Could not get text for marker range", category: Logger.accessibility)
         }
@@ -1050,7 +1050,7 @@ enum AccessibilityBridge {
         if let text = textValue as? String {
             result.textLength = text.count
             result.textPreview = String(text.prefix(100))
-            Logger.info("Text length: \(text.count), preview: '\(String(text.prefix(50)))'", category: Logger.accessibility)
+            Logger.info("Text length: \(text.count) chars", category: Logger.accessibility)
         }
 
         // 4. List all supported attributes
@@ -1269,7 +1269,7 @@ enum AccessibilityBridge {
                 )
                 results.append(info)
 
-                Logger.debug("    Child[\(depth)][\(index)] role=\(role) frame=\(frame) text='\(text?.prefix(20) ?? "nil")'")
+                Logger.debug("    Child[\(depth)][\(index)] role=\(role) frame=\(frame) hasText=\(text != nil)")
             }
 
             // Recurse

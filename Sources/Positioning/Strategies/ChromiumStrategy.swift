@@ -178,7 +178,7 @@ class ChromiumStrategy: GeometryProvider {
             let font = NSFont.systemFont(ofSize: 15)
             let estimatedWidth = (errorText as NSString).size(withAttributes: [.font: font]).width
             bounds = CGRect(x: bounds.origin.x, y: bounds.origin.y, width: max(estimatedWidth, 20), height: bounds.height)
-            Logger.debug("ChromiumStrategy: Estimated width \(estimatedWidth) for '\(errorText)'", category: Logger.analysis)
+            Logger.debug("ChromiumStrategy: Estimated width \(estimatedWidth) for \(errorText.count) chars", category: Logger.analysis)
         }
 
         // Cache and return (thread-safe access)

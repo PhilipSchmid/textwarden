@@ -36,7 +36,7 @@ class SelectionBoundsStrategy: GeometryProvider {
         parser: ContentParser
     ) -> GeometryResult? {
 
-        Logger.debug("SelectionBoundsStrategy: Attempting for range \(errorRange) in '\(text.prefix(50))...'", category: Logger.ui)
+        Logger.debug("SelectionBoundsStrategy: Attempting for range \(errorRange) in text of \(text.count) chars", category: Logger.ui)
 
         // Step 1: Save current selection
         guard let originalSelection = getCurrentSelection(element: element) else {

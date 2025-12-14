@@ -129,7 +129,7 @@ class LineIndexStrategy: GeometryProvider {
             let parts = textBeforeErrorInLine.components(separatedBy: "\n")
             lineOffsetAdjustment = parts.count - 1  // Number of newlines crossed
             textBeforeErrorInLine = parts.last ?? ""
-            Logger.debug("LineIndexStrategy: Adjusted for newline boundary - \(lineOffsetAdjustment) lines down, text before now: '\(textBeforeErrorInLine)'", category: Logger.ui)
+            Logger.debug("LineIndexStrategy: Adjusted for newline boundary - \(lineOffsetAdjustment) lines down", category: Logger.ui)
         }
 
         // Get error text (using UTF-16 coordinates)
@@ -144,7 +144,7 @@ class LineIndexStrategy: GeometryProvider {
             return nil
         }
 
-        Logger.debug("LineIndexStrategy: textBeforeErrorInLine='\(textBeforeErrorInLine)', errorText='\(errorText)'", category: Logger.ui)
+        Logger.debug("LineIndexStrategy: textBeforeErrorInLine=\(textBeforeErrorInLine.count) chars, errorText=\(errorText.count) chars", category: Logger.ui)
 
         // Calculate widths using font measurement
         // Try to detect the actual font from the element for accurate measurement

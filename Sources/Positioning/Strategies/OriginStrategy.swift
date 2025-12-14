@@ -93,7 +93,7 @@ class OriginStrategy: GeometryProvider {
         let errorWidth = max((errorText as NSString).size(withAttributes: attributes).width, 20.0)
         let errorHeight = fontSize * 1.3
 
-        Logger.debug("OriginStrategy: Estimated width=\(errorWidth), height=\(errorHeight) for '\(errorText)'", category: Logger.ui)
+        Logger.debug("OriginStrategy: Estimated width=\(errorWidth), height=\(errorHeight)", category: Logger.ui)
 
         // Construct bounds using valid position and estimated dimensions
         let quartzBounds = CGRect(

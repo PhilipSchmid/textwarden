@@ -123,7 +123,7 @@ class ElementTreeStrategy: GeometryProvider {
         }
         let errorText = String(text[startIndex..<endIndex])
 
-        Logger.debug("ElementTreeStrategy: Looking for error text: '\(errorText)'", category: Logger.ui)
+        Logger.debug("ElementTreeStrategy: Looking for error text (\(errorText.count) chars)", category: Logger.ui)
 
         // Find the best child element containing the error text
         guard let targetElement = findBestElementContainingText(
@@ -146,7 +146,7 @@ class ElementTreeStrategy: GeometryProvider {
         // Get the element's text
         let elementText = getElementText(targetElement) ?? ""
 
-        Logger.debug("ElementTreeStrategy: Element text: '\(elementText.prefix(50))'", category: Logger.ui)
+        Logger.debug("ElementTreeStrategy: Element text length: \(elementText.count) chars", category: Logger.ui)
 
         // Calculate position within the element's text
         guard let range = elementText.range(of: errorText) else {
@@ -350,7 +350,7 @@ class ElementTreeStrategy: GeometryProvider {
 
                 if score.total > 0 {
                     candidates.append((element: element, score: score, frame: f))
-                    Logger.debug("ElementTreeStrategy: Candidate \(role) score=\(score.total) frame=\(f) text='\(elementText.prefix(30))'", category: Logger.ui)
+                    Logger.debug("ElementTreeStrategy: Candidate \(role) score=\(score.total) frame=\(f) textLen=\(elementText.count)", category: Logger.ui)
                 }
             }
         }

@@ -466,8 +466,6 @@ class TextMonitor: ObservableObject {
 
             if valueError == .success, let textValue = value as? String, !textValue.isEmpty {
                 Logger.debug("TextMonitor: Got AXValue text (\(textValue.count) chars)", category: Logger.accessibility)
-                let preview = String(textValue.prefix(200))
-                Logger.debug("TextMonitor: Text preview: \"\(preview)\"", category: Logger.accessibility)
                 extractedText = textValue
             } else {
                 Logger.debug("TextMonitor: AXValue empty or failed (error: \(valueError.rawValue)), trying AXSelectedText", category: Logger.accessibility)
@@ -508,11 +506,6 @@ class TextMonitor: ObservableObject {
             }
 
             Logger.debug("TextMonitor: Handling text change (\(processedText.count) chars after preprocessing)", category: Logger.accessibility)
-
-            // Log the preprocessed text that will be grammar-checked
-            let preprocessedPreview = String(processedText.prefix(200))
-            Logger.debug("TextMonitor: Preprocessed text for grammar checking: \"\(preprocessedPreview)\"", category: Logger.accessibility)
-
             handleTextChange(processedText)
         } else {
             Logger.debug("TextMonitor: No text extracted or text is empty", category: Logger.accessibility)

@@ -182,7 +182,7 @@ class TerminalContentParser: ContentParser {
 
             // Only return if we have meaningful input
             if userInput.count > 0 && userInput.count < 1000 {
-                Logger.debug("TerminalContentParser: Extracted user input: \"\(userInput.prefix(100))...\" at offset \(self.userInputOffset)")
+                Logger.debug("TerminalContentParser: Extracted user input: \(userInput.count) chars at offset \(self.userInputOffset)")
                 return userInput
             }
         }

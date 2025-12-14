@@ -386,7 +386,7 @@ class InsertionPointStrategy: GeometryProvider {
             }
         }
 
-        Logger.debug("InsertionPointStrategy: findLineAndPosition - line=\(visualLineNumber), textOnLine='\(currentLineText)', hardLines=\(hardLines.count), hardLineIndex=\(currentHardLineIndex)", category: Logger.ui)
+        Logger.debug("InsertionPointStrategy: findLineAndPosition - line=\(visualLineNumber), textOnLineLen=\(currentLineText.count), hardLines=\(hardLines.count), hardLineIndex=\(currentHardLineIndex)", category: Logger.ui)
 
         return LinePositionResult(
             visualLineNumber: visualLineNumber,
@@ -613,7 +613,7 @@ class InsertionPointStrategy: GeometryProvider {
             lineHeight = normalLineHeight
         }
 
-        Logger.debug("InsertionPointStrategy: Hybrid - AX Y + font metrics X: x=\(errorX), y=\(errorY), w=\(errorWidth), lineOnScreen='\(textOnCurrentLine.prefix(20))...'", category: Logger.ui)
+        Logger.debug("InsertionPointStrategy: Hybrid - AX Y + font metrics X: x=\(errorX), y=\(errorY), w=\(errorWidth), lineLen=\(textOnCurrentLine.count)", category: Logger.ui)
 
         // Construct hybrid bounds
         let quartzBounds = CGRect(

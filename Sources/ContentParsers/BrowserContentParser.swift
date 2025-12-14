@@ -112,7 +112,7 @@ class BrowserContentParser: ContentParser {
         let value = (elementValue as? String) ?? ""
 
         // Log attributes for debugging browser UI element detection
-        Logger.debug("BrowserContentParser: Checking element - role: \(role), subrole: \(subrole), desc: '\(description.prefix(30))', title: '\(title.prefix(30))', id: '\(identifier.prefix(30))', placeholder: '\(placeholder.prefix(30))', roleDesc: '\(roleDesc)'", category: Logger.accessibility)
+        Logger.debug("BrowserContentParser: Checking element - role: \(role), subrole: \(subrole), hasDesc: \(!description.isEmpty), hasTitle: \(!title.isEmpty), hasId: \(!identifier.isEmpty), hasPlaceholder: \(!placeholder.isEmpty), roleDesc: '\(roleDesc)'", category: Logger.accessibility)
 
         // Keywords that indicate browser UI elements (not web content)
         let browserUIKeywords = [
@@ -189,7 +189,7 @@ class BrowserContentParser: ContentParser {
 
             let parentText = "\(parentTitleStr) \(parentDescStr)"
             if parentText.contains("find") || parentText.contains("search") {
-                Logger.debug("BrowserContentParser: Skipping element - parent contains find/search (depth: \(depth), text: '\(parentText.prefix(50))')", category: Logger.accessibility)
+                Logger.debug("BrowserContentParser: Skipping element - parent contains find/search (depth: \(depth))", category: Logger.accessibility)
                 return true
             }
 

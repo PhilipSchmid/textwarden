@@ -22,7 +22,7 @@ extension AnalysisCoordinator {
     ///   - suggestion: The replacement text that was applied
     ///   - lengthDelta: The change in text length (suggestion.count - errorLength)
     func removeErrorAndUpdateUI(_ error: GrammarErrorModel, suggestion: String, lengthDelta: Int = 0) {
-        Logger.debug("removeErrorAndUpdateUI: Removing error at \(error.start)-\(error.end), suggestion: '\(suggestion)', lengthDelta: \(lengthDelta)", category: Logger.analysis)
+        Logger.debug("removeErrorAndUpdateUI: Removing error at \(error.start)-\(error.end), lengthDelta: \(lengthDelta)", category: Logger.analysis)
 
         // Remove the error from currentErrors
         currentErrors.removeAll { $0.start == error.start && $0.end == error.end }
@@ -91,7 +91,7 @@ extension AnalysisCoordinator {
     /// Apply text replacement for error (async version)
     @MainActor
     func applyTextReplacementAsync(for error: GrammarErrorModel, with suggestion: String) async {
-        Logger.debug("applyTextReplacementAsync called - error: '\(error.message)', suggestion: '\(suggestion)'", category: Logger.analysis)
+        Logger.debug("applyTextReplacementAsync called - error range: \(error.start)-\(error.end)", category: Logger.analysis)
 
         guard let element = textMonitor.monitoredElement else {
             Logger.debug("No monitored element for text replacement", category: Logger.analysis)
@@ -169,14 +169,10 @@ extension AnalysisCoordinator {
     /// Apply text replacement for a style suggestion
     /// Similar to applyTextReplacement but uses StyleSuggestionModel's positions and suggested text
     func applyStyleTextReplacement(for suggestion: StyleSuggestionModel) {
-        Logger.debug("applyStyleTextReplacement called - original: '\(suggestion.originalText)', suggested: '\(suggestion.suggestedText)'", category: Logger.analysis)
-
         guard let element = textMonitor.monitoredElement else {
-            Logger.debug("No monitored element for style text replacement", category: Logger.analysis)
+            Logger.debug("Style replacement: No monitored element", category: Logger.analysis)
             return
         }
-
-        Logger.debug("Have monitored element for style replacement, context: \(monitoredContext?.applicationName ?? "nil")", category: Logger.analysis)
 
         // Use keyboard automation directly for known Electron apps
         if let context = monitoredContext, context.requiresKeyboardReplacement {
@@ -201,7 +197,7 @@ extension AnalysisCoordinator {
 
         // Find the actual position of the original text in the current content
         guard let range = currentText.range(of: suggestion.originalText) else {
-            Logger.debug("Could not find original text '\(suggestion.originalText)' in current content, skipping", category: Logger.analysis)
+            Logger.debug("Could not find original text in current content, skipping", category: Logger.analysis)
             // Remove from tracking since we can't apply it
             removeSuggestionFromTracking(suggestion)
             return
@@ -306,7 +302,7 @@ extension AnalysisCoordinator {
 
         // Find the actual position of the original text in the current content
         guard let range = currentText.range(of: suggestion.originalText) else {
-            Logger.debug("Could not find original text '\(suggestion.originalText)' in current content for keyboard replacement", category: Logger.analysis)
+            Logger.debug("Could not find original text in current content for keyboard replacement", category: Logger.analysis)
             removeSuggestionFromTracking(suggestion)
             return
         }
@@ -609,7 +605,7 @@ extension AnalysisCoordinator {
 
         // Apple Mail: use WebKit-specific marker-based selection
         if isMail {
-            Logger.debug("Mail: Using WebKit-specific text selection for '\(targetText)'", category: Logger.analysis)
+            Logger.debug("Mail: Using WebKit-specific text selection", category: Logger.analysis)
 
             if let range = fallbackRange {
                 let nsRange = NSRange(location: range.location, length: range.length)
@@ -638,7 +634,7 @@ extension AnalysisCoordinator {
         // Electron apps (Notion, Slack) need child element traversal for selection
         if isNotion || isSlack {
             let appName = isNotion ? "Notion" : "Slack"
-            Logger.debug("\(appName): Looking for text '\(targetText)' to select", category: Logger.analysis)
+            Logger.debug("\(appName): Looking for text to select (\(targetText.count) chars)", category: Logger.analysis)
 
             // Try to find child element containing the text and select within it
             if let (childElement, offsetInChild) = findChildElementContainingText(targetText, in: element) {
@@ -684,7 +680,7 @@ extension AnalysisCoordinator {
                 }
 
                 guard let textRange = currentText.range(of: targetText) else {
-                    Logger.debug("Could not find text '\(targetText)' in current content", category: Logger.analysis)
+                    Logger.debug("Could not find target text in current content", category: Logger.analysis)
                     return false
                 }
 
@@ -807,7 +803,7 @@ extension AnalysisCoordinator {
     /// Based on the Force-Paste approach: https://github.com/EugeneDae/Force-Paste
     /// See Apple docs: https://developer.apple.com/documentation/coregraphics/1456028-cgeventkeyboardsetunicodestring
     func typeTextDirectly(_ text: String) {
-        Logger.debug("Typing text directly: '\(text)' (\(text.count) chars)", category: Logger.analysis)
+        Logger.debug("Typing text directly (\(text.count) chars)", category: Logger.analysis)
 
         let source = CGEventSource(stateID: .hidSystemState)
 
@@ -862,7 +858,7 @@ extension AnalysisCoordinator {
         for candidate in candidates {
             guard let range = candidate.text.range(of: targetText) else { continue }
             let offset = candidate.text.distance(from: candidate.text.startIndex, to: range.lowerBound)
-            Logger.debug("Found '\(targetText)' in child element at offset \(offset)", category: Logger.analysis)
+            Logger.debug("Found target text in child element at offset \(offset)", category: Logger.analysis)
             return (candidate.element, offset)
         }
 
@@ -982,7 +978,7 @@ extension AnalysisCoordinator {
         var correctedText = commandLineText
         correctedText.replaceSubrange(startIndex..<endIndex, with: suggestion)
 
-        Logger.debug("Terminal: Corrected command: '\(correctedText)'", category: Logger.analysis)
+        Logger.debug("Terminal: Applied correction (\(correctedText.count) chars)", category: Logger.analysis)
 
         // Calculate target cursor position
         var targetCursorPosition: Int?
