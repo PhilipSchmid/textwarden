@@ -32,11 +32,13 @@ extension AnalysisCoordinator {
         // If we don't update it, subsequent errors will have incorrect underline positions
         if let segment = currentSegment {
             var newContent = segment.content
-            // Use limitedBy: for safe index operations - returns nil if out of bounds
-            guard let startIdx = newContent.index(newContent.startIndex, offsetBy: error.start, limitedBy: newContent.endIndex),
-                  let endIdx = newContent.index(newContent.startIndex, offsetBy: error.end, limitedBy: newContent.endIndex),
+            // Use TextIndexConverter to convert Harper's Unicode scalar indices to Swift String.Index
+            // Harper uses Rust char indices (Unicode scalars), but Swift String uses grapheme clusters
+            // Example: "👨‍👩‍👧" is 1 grapheme cluster but 7 Unicode scalars
+            guard let startIdx = TextIndexConverter.scalarIndexToStringIndex(error.start, in: newContent),
+                  let endIdx = TextIndexConverter.scalarIndexToStringIndex(error.end, in: newContent),
                   startIdx < endIdx else {
-                Logger.warning("removeErrorAndUpdateUI: Invalid range for string replacement (error: \(error.start)-\(error.end), content length: \(newContent.count))")
+                Logger.warning("removeErrorAndUpdateUI: Invalid range for string replacement (error: \(error.start)-\(error.end), scalar count: \(newContent.unicodeScalars.count))")
                 return
             }
             newContent.replaceSubrange(startIdx..<endIdx, with: suggestion)
@@ -72,10 +74,13 @@ extension AnalysisCoordinator {
         // Update lastAnalyzedText to reflect the replacement
         // This prevents validateCurrentText from thinking text changed (triggering re-analysis/hiding)
         // by computing what the new text should be after applying the replacement
-        if !lastAnalyzedText.isEmpty {
-            let errorRange = lastAnalyzedText.index(lastAnalyzedText.startIndex, offsetBy: min(error.start, lastAnalyzedText.count))..<lastAnalyzedText.index(lastAnalyzedText.startIndex, offsetBy: min(error.end, lastAnalyzedText.count))
+        // Use TextIndexConverter for proper Unicode scalar → String.Index conversion
+        if !lastAnalyzedText.isEmpty,
+           let startIndex = TextIndexConverter.scalarIndexToStringIndex(error.start, in: lastAnalyzedText),
+           let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: lastAnalyzedText),
+           startIndex <= endIndex {
             var updatedText = lastAnalyzedText
-            updatedText.replaceSubrange(errorRange, with: suggestion)
+            updatedText.replaceSubrange(startIndex..<endIndex, with: suggestion)
             lastAnalyzedText = updatedText
             Logger.debug("removeErrorAndUpdateUI: Updated lastAnalyzedText to reflect replacement", category: Logger.analysis)
         }

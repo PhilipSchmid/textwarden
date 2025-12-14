@@ -690,11 +690,12 @@ class SuggestionPopover: NSObject, ObservableObject {
             await self.onApplySuggestion?(error, suggestion)
 
             // Update sourceText to reflect the applied correction
-            // Use safe index operations with limitedBy to prevent crashes on out-of-bounds access
+            // Use TextIndexConverter to convert Harper's Unicode scalar indices to Swift String.Index
+            // Harper uses Rust char indices (Unicode scalars), but Swift String uses grapheme clusters
             if !self.sourceText.isEmpty,
                error.start <= error.end,
-               let startIndex = self.sourceText.index(self.sourceText.startIndex, offsetBy: error.start, limitedBy: self.sourceText.endIndex),
-               let endIndex = self.sourceText.index(self.sourceText.startIndex, offsetBy: error.end, limitedBy: self.sourceText.endIndex),
+               let startIndex = TextIndexConverter.scalarIndexToStringIndex(error.start, in: self.sourceText),
+               let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: self.sourceText),
                startIndex <= endIndex {
                 self.sourceText.replaceSubrange(startIndex..<endIndex, with: suggestion)
             }
