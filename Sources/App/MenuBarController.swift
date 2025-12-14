@@ -176,7 +176,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
     /// Add utility menu items (Preferences, About, Quit)
     private func addUtilityMenuItems() {
-        let errorCount = AnalysisCoordinator.shared.getCurrentErrors().count
+        let errorCount = AnalysisCoordinator.shared.errors().count
         if errorCount > 0 {
             let errorItem = NSMenuItem(
                 title: "Show \(errorCount) Grammar \(errorCount == 1 ? "Issue" : "Issues")...",
@@ -374,7 +374,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func showCurrentErrors() {
-        let errors = AnalysisCoordinator.shared.getCurrentErrors()
+        let errors = AnalysisCoordinator.shared.errors()
         guard let firstError = errors.first else { return }
 
         // Position near menu bar icon since we don't have text field position

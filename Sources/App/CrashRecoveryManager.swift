@@ -173,8 +173,8 @@ class CrashRecoveryManager {
 
     // MARK: - Health Check
 
-    /// Get current health status
-    func getHealthStatus() -> HealthStatus {
+    /// Current health status
+    func healthStatus() -> HealthStatus {
         return HealthStatus(
             isHealthy: restartAttempts < maxRestartAttempts,
             restartAttempts: restartAttempts,
@@ -185,8 +185,8 @@ class CrashRecoveryManager {
 
     // MARK: - Crash Logs
 
-    /// Get crash logs for diagnostic export
-    func getCrashLogs() -> [String] {
+    /// Crash logs for diagnostic export
+    func crashLogs() -> [String] {
         var logs: [String] = []
 
         // Add crash count information
@@ -208,7 +208,7 @@ class CrashRecoveryManager {
         }
 
         // Add health status
-        let health = getHealthStatus()
+        let health = healthStatus()
         logs.append("Health status: \(health.isHealthy ? "Healthy" : "Unhealthy")")
 
         if logs.isEmpty {

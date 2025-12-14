@@ -1696,18 +1696,18 @@ class AnalysisCoordinator: ObservableObject {
 
     // MARK: - Public API
 
-    /// Get errors for current text
-    func getCurrentErrors() -> [GrammarErrorModel] {
+    /// Errors for current text
+    func errors() -> [GrammarErrorModel] {
         currentErrors
     }
 
-    /// Get the current browser URL (nil if not in a browser or URL couldn't be extracted)
-    func getCurrentBrowserURL() -> URL? {
+    /// Current browser URL (nil if not in a browser or URL couldn't be extracted)
+    func browserURL() -> URL? {
         currentBrowserURL
     }
 
-    /// Get the current browser domain (e.g., "github.com")
-    func getCurrentBrowserDomain() -> String? {
+    /// Current browser domain (e.g., "github.com")
+    func browserDomain() -> String? {
         currentBrowserURL?.host?.lowercased()
     }
 

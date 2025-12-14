@@ -48,7 +48,7 @@ struct WebsiteSettingsView: View {
                 .cornerRadius(6)
 
                 // Current website button (if in browser)
-                if let currentDomain = AnalysisCoordinator.shared.getCurrentBrowserDomain() {
+                if let currentDomain = AnalysisCoordinator.shared.browserDomain() {
                     if !preferences.isWebsiteDisabled(currentDomain) {
                         Button {
                             preferences.disableWebsite(currentDomain)

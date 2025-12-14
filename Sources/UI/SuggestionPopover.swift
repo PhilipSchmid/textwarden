@@ -1026,14 +1026,14 @@ class SuggestionPopover: NSObject, ObservableObject {
 // MARK: - Position Helper
 
 extension SuggestionPopover {
-    /// Get position for error range in AX element
-    static func getErrorPosition(in element: AXUIElement, for error: GrammarErrorModel) -> CGPoint? {
+    /// Position for error range in AX element
+    static func errorPosition(in element: AXUIElement, for error: GrammarErrorModel) -> CGPoint? {
         let location = error.start
         let length = error.end - error.start
 
         var range = CFRange(location: location, length: max(1, length))
         guard let rangeValue = AXValueCreate(.cfRange, &range) else {
-            return getCursorPosition(in: element)
+            return cursorPosition(in: element)
         }
 
         var boundsValue: CFTypeRef?
@@ -1047,7 +1047,7 @@ extension SuggestionPopover {
         guard boundsError == .success,
               let axValue = boundsValue,
               let rect = safeAXValueGetRect(axValue) else {
-            return getCursorPosition(in: element)
+            return cursorPosition(in: element)
         }
 
         // CRITICAL: AX API returns coordinates in top-left origin system (Quartz)
@@ -1062,8 +1062,8 @@ extension SuggestionPopover {
         return CGPoint(x: rect.origin.x, y: rect.origin.y)
     }
 
-    /// Get cursor position from AX element
-    static func getCursorPosition(in element: AXUIElement) -> CGPoint? {
+    /// Cursor position from AX element
+    static func cursorPosition(in element: AXUIElement) -> CGPoint? {
         // Try to get selected text range
         var rangeValue: CFTypeRef?
         let rangeError = AXUIElementCopyAttributeValue(
