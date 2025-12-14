@@ -82,6 +82,12 @@ struct ResourceMonitoringView: View {
 
                     // Memory Metrics
                     memoryMetricsView(samples: samples)
+
+                    Divider()
+                        .padding(.vertical, 8)
+
+                    // Log Volume Metrics
+                    logVolumeMetricsView()
                 } else {
                     VStack(spacing: 12) {
                         Image(systemName: "chart.bar.xaxis")
@@ -451,6 +457,83 @@ struct ResourceMonitoringView: View {
         }
     }
 
+    // MARK: - Log Volume Metrics View
+
+    @ViewBuilder
+    private func logVolumeMetricsView() -> some View {
+        let counts = statistics.logCountBySeverity(inMinutes: selectedTimeRange.minutes)
+        let totalLogs = counts.trace + counts.debug + counts.info + counts.warning + counts.error + counts.critical
+        let minLevel = Logger.minimumLogLevel
+
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "doc.text.magnifyingglass")
+                    .foregroundColor(.purple)
+                Text("Log Volume")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                Spacer()
+            }
+
+            if totalLogs == 0 {
+                Text("No log data yet")
+                    .foregroundColor(.secondary)
+                    .font(.subheadline)
+                    .padding(.vertical, 8)
+            } else {
+                // Only consider counts for enabled levels when calculating max
+                let enabledCounts = [
+                    minLevel <= .critical ? counts.critical : 0,
+                    minLevel <= .error ? counts.error : 0,
+                    minLevel <= .warning ? counts.warning : 0,
+                    minLevel <= .info ? counts.info : 0,
+                    minLevel <= .debug ? counts.debug : 0,
+                    minLevel <= .trace ? counts.trace : 0
+                ]
+                let maxCount = max(enabledCounts.max() ?? 1, 1)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    // Only show levels at or above the minimum configured level
+                    if minLevel <= .critical {
+                        LogVolumeRow(label: "Critical", count: counts.critical, maxCount: maxCount, color: .red)
+                            .help("Unrecoverable errors requiring immediate attention")
+                    }
+
+                    if minLevel <= .error {
+                        LogVolumeRow(label: "Error", count: counts.error, maxCount: maxCount, color: .orange)
+                            .help("Failures that affect functionality")
+                    }
+
+                    if minLevel <= .warning {
+                        LogVolumeRow(label: "Warning", count: counts.warning, maxCount: maxCount, color: .yellow)
+                            .help("Recoverable issues like API fallbacks or timeouts")
+                    }
+
+                    if minLevel <= .info {
+                        LogVolumeRow(label: "Info", count: counts.info, maxCount: maxCount, color: .blue)
+                            .help("Significant milestones like app launch or analysis completion")
+                    }
+
+                    if minLevel <= .debug {
+                        LogVolumeRow(label: "Debug", count: counts.debug, maxCount: maxCount, color: .gray)
+                            .help("Routine operations useful for debugging")
+                    }
+
+                    if minLevel <= .trace {
+                        LogVolumeRow(label: "Trace", count: counts.trace, maxCount: maxCount, color: Color.gray.opacity(0.5))
+                            .help("High-frequency events like mouse movement")
+                    }
+                }
+                .padding(.vertical, 4)
+
+                Text("Total logs: \(totalLogs)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 4)
+            }
+        }
+    }
+
     // MARK: - Helper Methods
 
     private func filteredSamples() -> [ResourceMetricSample] {
@@ -584,5 +667,48 @@ struct ResourceMonitoringView: View {
                     .monospacedDigit()
             }
         }
+    }
+}
+
+// MARK: - Log Volume Helper Views
+
+/// Horizontal bar row for log volume by severity (matches LatencyRow style)
+private struct LogVolumeRow: View {
+    let label: String
+    let count: Int
+    let maxCount: Int
+    let color: Color
+
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .frame(width: 70, alignment: .leading)
+
+            // Visual bar indicator
+            GeometryReader { geometry in
+                HStack(spacing: 4) {
+                    // Bar (scaled relative to max value)
+                    let percentage = maxCount > 0 ? (Double(count) / Double(maxCount)) : 0
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(color.opacity(0.5))
+                        .frame(width: geometry.size.width * 0.75 * percentage)
+                        .frame(height: 6)
+                        .accessibilityHidden(true)
+
+                    Spacer()
+
+                    // Value
+                    Text("\(count)")
+                        .font(.system(.subheadline, design: .monospaced))
+                        .fontWeight(.medium)
+                        .foregroundColor(count > 0 ? color : .secondary)
+                }
+            }
+            .frame(height: 20)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label): \(count) logs")
     }
 }

@@ -202,6 +202,11 @@ struct Logger {
         if fileLoggingEnabled {
             logToFile(level: level, message: message, category: category)
         }
+
+        // Record log volume statistics (async to main thread)
+        DispatchQueue.main.async {
+            UserStatistics.shared.recordLog(level: level)
+        }
     }
 
     private static func logToFile(level: LogLevel, message: String, category: OSLog) {

@@ -70,6 +70,39 @@ struct StyleLatencySample: Codable {
     let latencyMs: Double
 }
 
+/// Log volume sample tracking log counts by severity over a time window
+struct LogVolumeSample: Codable, Identifiable {
+    let id: UUID
+    let timestamp: Date
+    var trace: Int
+    var debug: Int
+    var info: Int
+    var warning: Int
+    var error: Int
+    var critical: Int
+
+    init(timestamp: Date = Date()) {
+        self.id = UUID()
+        self.timestamp = timestamp
+        self.trace = 0
+        self.debug = 0
+        self.info = 0
+        self.warning = 0
+        self.error = 0
+        self.critical = 0
+    }
+
+    /// Total log count across all severities
+    var total: Int {
+        trace + debug + info + warning + error + critical
+    }
+
+    /// Count of logs at warning level or higher
+    var warningsAndAbove: Int {
+        warning + error + critical
+    }
+}
+
 /// Extension to add UI properties to FFI InferencePreset
 extension InferencePreset {
     static var allCases: [InferencePreset] {
@@ -242,6 +275,20 @@ class UserStatistics: ObservableObject {
     private let maxResourceAge: TimeInterval = TimingConstants.statisticsMaxAge
     private let maxInMemorySamples = 720  // 1 hour at 5s interval
     private var persistBatchCounter = 0
+
+    // MARK: - Log Volume Tracking
+
+    /// Log volume samples aggregated per minute (persisted, 30-day retention)
+    @Published private(set) var logVolumeSamples: [LogVolumeSample] = [] {
+        didSet {
+            persistLogVolumeSamples()
+        }
+    }
+
+    /// Current minute's log accumulator (not persisted, aggregates logs within the minute)
+    private var currentLogSample: LogVolumeSample?
+    private var logPersistBatchCounter = 0
+    private let logSampleInterval: TimeInterval = 60  // Aggregate logs per minute
 
     // MARK: - LLM Style Checking Statistics
 
@@ -806,6 +853,10 @@ class UserStatistics: ObservableObject {
         // Load resource monitoring data
         loadResourceSamples()
         cleanupOldResourceSamples()
+
+        // Load log volume samples
+        loadLogVolumeSamples()
+        cleanupOldLogVolumeSamples()
     }
 
     // MARK: - Recording Methods
@@ -1084,6 +1135,131 @@ class UserStatistics: ObservableObject {
     func performPeriodicCleanup() {
         cleanupOldData()  // Existing 90-day cleanup
         cleanupOldResourceSamples()  // New 30-day cleanup for resource samples
+        cleanupOldLogVolumeSamples()  // 30-day cleanup for log volume samples
+    }
+
+    // MARK: - Log Volume Methods
+
+    /// Record a log event at the given level
+    /// Call this from Logger for each log message
+    func recordLog(level: LogLevel) {
+        let now = Date()
+
+        // Check if we need to finalize the current sample and start a new one
+        if let current = currentLogSample {
+            let elapsed = now.timeIntervalSince(current.timestamp)
+            if elapsed >= logSampleInterval {
+                // Finalize current sample
+                logVolumeSamples.append(current)
+                currentLogSample = nil
+            }
+        }
+
+        // Create new sample if needed
+        if currentLogSample == nil {
+            currentLogSample = LogVolumeSample(timestamp: now)
+        }
+
+        // Increment the appropriate counter
+        switch level {
+        case .trace:
+            currentLogSample?.trace += 1
+        case .debug:
+            currentLogSample?.debug += 1
+        case .info:
+            currentLogSample?.info += 1
+        case .warning:
+            currentLogSample?.warning += 1
+        case .error:
+            currentLogSample?.error += 1
+        case .critical:
+            currentLogSample?.critical += 1
+        }
+    }
+
+    /// Flush current log sample (call periodically or on app termination)
+    func flushLogSample() {
+        guard let current = currentLogSample, current.total > 0 else { return }
+        logVolumeSamples.append(current)
+        currentLogSample = nil
+    }
+
+    /// Load log volume samples from UserDefaults
+    private func loadLogVolumeSamples() {
+        guard let data = defaults.data(forKey: Keys.logVolumeSamples),
+              let decoded = try? decoder.decode([LogVolumeSample].self, from: data) else {
+            return
+        }
+        logVolumeSamples = decoded
+    }
+
+    /// Persist log volume samples to UserDefaults (batched, background queue)
+    private func persistLogVolumeSamples() {
+        logPersistBatchCounter += 1
+        // Persist every 10 samples to avoid too frequent writes
+        guard logPersistBatchCounter >= 10 else { return }
+        logPersistBatchCounter = 0
+
+        // Capture @Published property on main thread to create snapshot
+        let samplesToEncode = logVolumeSamples
+
+        DispatchQueue.global(qos: .utility).async {
+            do {
+                let encoder = JSONEncoder()
+                let encoded = try encoder.encode(samplesToEncode)
+                UserDefaults.standard.set(encoded, forKey: Keys.logVolumeSamples)
+            } catch {
+                Logger.warning("Failed to persist log volume samples: \(error.localizedDescription)", category: Logger.performance)
+            }
+        }
+    }
+
+    /// Force persist log volume samples (for app termination)
+    func forceLogVolumePersist() {
+        // Synchronous persist for app termination
+        do {
+            let encoder = JSONEncoder()
+            let encoded = try encoder.encode(logVolumeSamples)
+            UserDefaults.standard.set(encoded, forKey: Keys.logVolumeSamples)
+        } catch {
+            Logger.warning("Failed to force persist log volume samples: \(error.localizedDescription)", category: Logger.performance)
+        }
+    }
+
+    /// Clean up log volume samples older than 30 days
+    private func cleanupOldLogVolumeSamples() {
+        let cutoffDate = Date(timeIntervalSinceNow: -maxResourceAge)
+        let before = logVolumeSamples.count
+        logVolumeSamples.removeAll { $0.timestamp < cutoffDate }
+
+        if before != logVolumeSamples.count {
+            let removed = before - logVolumeSamples.count
+            Logger.debug("LogVolume: Cleaned up \(removed) samples older than 30 days", category: Logger.performance)
+        }
+    }
+
+    /// Get log volume samples filtered by ResourceTimeRange (for ResourceMonitoringView)
+    func logVolumeSamples(inMinutes minutes: Int) -> [LogVolumeSample] {
+        let cutoffDate = Calendar.current.date(byAdding: .minute, value: -minutes, to: Date()) ?? Date.distantPast
+        return logVolumeSamples.filter { $0.timestamp >= cutoffDate }
+    }
+
+    /// Total log count across all severities for the time range
+    func totalLogCount(inMinutes minutes: Int) -> Int {
+        logVolumeSamples(inMinutes: minutes).reduce(0) { $0 + $1.total }
+    }
+
+    /// Log count by severity for the time range
+    func logCountBySeverity(inMinutes minutes: Int) -> (trace: Int, debug: Int, info: Int, warning: Int, error: Int, critical: Int) {
+        let samples = logVolumeSamples(inMinutes: minutes)
+        return (
+            trace: samples.reduce(0) { $0 + $1.trace },
+            debug: samples.reduce(0) { $0 + $1.debug },
+            info: samples.reduce(0) { $0 + $1.info },
+            warning: samples.reduce(0) { $0 + $1.warning },
+            error: samples.reduce(0) { $0 + $1.error },
+            critical: samples.reduce(0) { $0 + $1.critical }
+        )
     }
 
     // MARK: - Helper Methods
@@ -1117,23 +1293,72 @@ class UserStatistics: ObservableObject {
     func friendlyAppName(from bundleID: String) -> String {
         // Map common bundle IDs to friendly names
         let knownApps: [String: String] = [
-            "com.tinyspeck.slackmacgap": "Slack",
-            "com.google.Chrome": "Chrome",
-            "com.apple.Safari": "Safari",
-            "com.microsoft.edgemac": "Edge",
-            "com.microsoft.Outlook": "Outlook",
+            // Apple Apps
+            "com.apple.MobileSMS": "Messages",
             "com.apple.mail": "Mail",
-            "com.notion.id": "Notion",
+            "com.apple.Safari": "Safari",
             "com.apple.Notes": "Notes",
-            "com.microsoft.VSCode": "VS Code",
+            "com.apple.reminders": "Reminders",
+            "com.apple.iCal": "Calendar",
+            "com.apple.TextEdit": "TextEdit",
+            "com.apple.Terminal": "Terminal",
             "com.apple.dt.Xcode": "Xcode",
+            "com.apple.iWork.Pages": "Pages",
+            "com.apple.iWork.Numbers": "Numbers",
+            "com.apple.iWork.Keynote": "Keynote",
+            "com.apple.finder": "Finder",
+
+            // Microsoft Apps
+            "com.microsoft.Word": "Word",
+            "com.microsoft.Excel": "Excel",
+            "com.microsoft.Powerpoint": "PowerPoint",
+            "com.microsoft.Outlook": "Outlook",
+            "com.microsoft.onenote.mac": "OneNote",
+            "com.microsoft.teams2": "Teams",
+            "com.microsoft.VSCode": "VS Code",
+            "com.microsoft.edgemac": "Edge",
+
+            // Google Apps
+            "com.google.Chrome": "Chrome",
+            "com.google.Chrome.canary": "Chrome Canary",
+
+            // Other Popular Apps
+            "com.tinyspeck.slackmacgap": "Slack",
+            "com.notion.id": "Notion",
+            "notion.id": "Notion",
             "com.linear": "Linear",
             "com.figma.Desktop": "Figma",
-            "com.apple.iWork.Pages": "Pages",
-            "com.microsoft.Word": "Word",
+            "net.whatsapp.WhatsApp": "WhatsApp",
+            "com.hnc.Discord": "Discord",
+            "ru.keepcoder.Telegram": "Telegram",
+            "com.facebook.Messenger": "Messenger",
+            "us.zoom.xos": "Zoom",
+            "com.webex.meetingmanager": "Webex",
+            "com.agilebits.onepassword7": "1Password",
+            "com.todoist.mac.Todoist": "Todoist",
+            "com.readdle.smartemail-Mac": "Spark",
+            "com.postbox-inc.postbox": "Postbox",
+            "org.mozilla.firefox": "Firefox",
+            "company.thebrowser.Browser": "Arc",
+            "com.operasoftware.Opera": "Opera",
+            "com.brave.Browser": "Brave",
+            "com.sublimetext.4": "Sublime Text",
+            "com.jetbrains.intellij": "IntelliJ",
+            "com.jetbrains.pycharm": "PyCharm",
+            "com.jetbrains.WebStorm": "WebStorm",
+            "com.github.atom": "Atom",
+            "com.obsproject.obs-studio": "OBS",
+            "com.spotify.client": "Spotify",
         ]
 
-        return knownApps[bundleID] ?? bundleID.components(separatedBy: ".").last?.capitalized ?? bundleID
+        // Try exact match first
+        if let name = knownApps[bundleID] {
+            return name
+        }
+
+        // Fallback: extract last component and capitalize
+        let lastComponent = bundleID.components(separatedBy: ".").last ?? bundleID
+        return lastComponent.capitalized
     }
 
     /// Convert model ID to user-friendly display name
@@ -1338,6 +1563,7 @@ class UserStatistics: ObservableObject {
         static let appLaunchTimestamp = "statistics.appLaunchTimestamp"
         static let appLaunchHistory = "statistics.appLaunchHistory"
         static let resourceSamples = "statistics.resourceSamples"
+        static let logVolumeSamples = "statistics.logVolumeSamples"
 
         // LLM Style Checking
         static let styleSuggestionsShown = "statistics.styleSuggestionsShown"
