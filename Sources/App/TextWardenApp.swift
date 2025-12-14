@@ -192,6 +192,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Stop resource monitoring
         ResourceMonitor.shared.stopMonitoring()
 
+        // Flush and persist log volume statistics
+        UserStatistics.shared.flushLogSample()
+        UserStatistics.shared.forceLogVolumePersist()
+
         // Clean up AnalysisCoordinator (timers, event monitors)
         analysisCoordinator?.cleanup()
 
@@ -502,13 +506,10 @@ extension AppDelegate: NSWindowDelegate {
                 }
 
                 // Handle style suggestions
-                if let styleSuggestion = SuggestionPopover.shared.currentStyleSuggestion {
-                    Logger.debug("Keyboard shortcut: Accept style suggestion - \(styleSuggestion.suggestedText)", category: Logger.ui)
+                if SuggestionPopover.shared.currentStyleSuggestion != nil {
                     SuggestionPopover.shared.acceptStyleSuggestion()
                     return
                 }
-
-                Logger.debug("Keyboard shortcut: No suggestion to accept", category: Logger.ui)
             }
         }
 
