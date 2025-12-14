@@ -1800,8 +1800,8 @@ class AnalysisCoordinator: ObservableObject {
 // MARK: - Error Handling
 
 extension AnalysisCoordinator {
-    /// Handle overlapping errors
-    func getPriorityError(for range: Range<Int>) -> GrammarErrorModel? {
+    /// Priority error for overlapping range
+    func priorityError(for range: Range<Int>) -> GrammarErrorModel? {
         let overlappingErrors = currentErrors.filter { error in
             let errorRange = error.start..<error.end
             return errorRange.overlaps(range)

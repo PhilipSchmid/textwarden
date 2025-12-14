@@ -249,17 +249,17 @@ extension AnalysisCoordinator {
 
         // Check for selected text first - if user has text selected, only analyze that
         // Otherwise fall back to analyzing all text
-        let selectedText = getSelectedText()
-        let isSelectionMode = selectedText != nil
+        let selection = selectedText()
+        let isSelectionMode = selection != nil
 
         // Always capture full text for invalidation tracking
-        guard let fullText = getCurrentText(), !fullText.isEmpty else {
+        guard let fullText = currentText(), !fullText.isEmpty else {
             Logger.warning("AnalysisCoordinator: No text available for manual style check", category: Logger.llm)
             return
         }
 
         // Text to analyze is either the selection or the full text
-        let text = selectedText ?? fullText
+        let text = selection ?? fullText
 
         if isSelectionMode {
             Logger.info("AnalysisCoordinator: Manual style check - analyzing selected text (\(text.count) chars)", category: Logger.llm)
@@ -393,8 +393,8 @@ extension AnalysisCoordinator {
         }
     }
 
-    /// Get current text from monitored element
-    private func getCurrentText() -> String? {
+    /// Current text from monitored element
+    private func currentText() -> String? {
         guard let element = textMonitor.monitoredElement else { return nil }
 
         var valueRef: CFTypeRef?
@@ -407,9 +407,9 @@ extension AnalysisCoordinator {
         return value
     }
 
-    /// Get currently selected text from monitored element, if any
+    /// Currently selected text from monitored element, if any
     /// Returns nil if no text is selected (cursor only) or if selection cannot be retrieved
-    private func getSelectedText() -> String? {
+    private func selectedText() -> String? {
         guard let element = textMonitor.monitoredElement else { return nil }
 
         // First check if there's a selection range with non-zero length
