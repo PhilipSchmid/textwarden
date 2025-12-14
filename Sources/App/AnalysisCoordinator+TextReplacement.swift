@@ -32,13 +32,16 @@ extension AnalysisCoordinator {
         // If we don't update it, subsequent errors will have incorrect underline positions
         if let segment = currentSegment {
             var newContent = segment.content
-            let startIdx = newContent.index(newContent.startIndex, offsetBy: min(error.start, newContent.count))
-            let endIdx = newContent.index(newContent.startIndex, offsetBy: min(error.end, newContent.count))
-            if startIdx <= endIdx && endIdx <= newContent.endIndex {
-                newContent.replaceSubrange(startIdx..<endIdx, with: suggestion)
-                currentSegment = segment.with(content: newContent)
-                Logger.debug("removeErrorAndUpdateUI: Updated currentSegment content (new length: \(newContent.count))", category: Logger.analysis)
+            // Use limitedBy: for safe index operations - returns nil if out of bounds
+            guard let startIdx = newContent.index(newContent.startIndex, offsetBy: error.start, limitedBy: newContent.endIndex),
+                  let endIdx = newContent.index(newContent.startIndex, offsetBy: error.end, limitedBy: newContent.endIndex),
+                  startIdx < endIdx else {
+                Logger.warning("removeErrorAndUpdateUI: Invalid range for string replacement (error: \(error.start)-\(error.end), content length: \(newContent.count))")
+                return
             }
+            newContent.replaceSubrange(startIdx..<endIdx, with: suggestion)
+            currentSegment = segment.with(content: newContent)
+            Logger.debug("removeErrorAndUpdateUI: Updated currentSegment content (new length: \(newContent.count))", category: Logger.analysis)
         }
 
         // Adjust positions of remaining errors that come after the fixed error
