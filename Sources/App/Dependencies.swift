@@ -87,6 +87,7 @@ protocol UserPreferencesProviding: AnyObject {
     var styleMinSentenceWords: Int { get }
     var selectedModelId: String { get }
     var styleInferencePreset: String { get }
+    var styleTemperaturePreset: String { get }
 
     // Debug settings
     var showDebugBorderCGWindowCoords: Bool { get }
@@ -105,6 +106,7 @@ protocol UserPreferencesProviding: AnyObject {
 protocol CustomVocabularyProviding {
     func containsAnyWord(in text: String) -> Bool
     func addWord(_ word: String) throws
+    func allWords() -> [String]
 }
 
 /// Protocol for app configuration registry

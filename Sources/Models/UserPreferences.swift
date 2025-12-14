@@ -603,9 +603,17 @@ class UserPreferences: ObservableObject {
     }
 
     /// Inference preset for speed vs quality tradeoff (Fast/Balanced/Quality)
+    /// Note: This setting is hidden when using Foundation Models (FM has consistent quality)
     @Published var styleInferencePreset: String {
         didSet {
             defaults.set(styleInferencePreset, forKey: Keys.styleInferencePreset)
+        }
+    }
+
+    /// Temperature preset for Foundation Models (controls creativity vs consistency)
+    @Published var styleTemperaturePreset: String {
+        didSet {
+            defaults.set(styleTemperaturePreset, forKey: Keys.styleTemperaturePreset)
         }
     }
 
@@ -676,6 +684,7 @@ class UserPreferences: ObservableObject {
         self.styleConfidenceThreshold = 0.7
         self.styleAutoLoadModel = true
         self.styleInferencePreset = "balanced"  // Default to balanced
+        self.styleTemperaturePreset = "balanced"  // Default FM temperature
 
         // Then load saved preferences
         if let pauseString = defaults.string(forKey: Keys.pauseDuration),
@@ -799,6 +808,7 @@ class UserPreferences: ObservableObject {
         self.styleConfidenceThreshold = defaults.object(forKey: Keys.styleConfidenceThreshold) as? Double ?? 0.7
         self.styleAutoLoadModel = defaults.object(forKey: Keys.styleAutoLoadModel) as? Bool ?? true
         self.styleInferencePreset = defaults.string(forKey: Keys.styleInferencePreset) ?? "balanced"
+        self.styleTemperaturePreset = defaults.string(forKey: Keys.styleTemperaturePreset) ?? "balanced"
 
         // This prevents grammar checking in terminals where command output can cause false positives
         // Users can still enable terminals individually via Applications preferences
@@ -1223,5 +1233,6 @@ class UserPreferences: ObservableObject {
         static let styleConfidenceThreshold = "styleConfidenceThreshold"
         static let styleAutoLoadModel = "styleAutoLoadModel"
         static let styleInferencePreset = "styleInferencePreset"
+        static let styleTemperaturePreset = "styleTemperaturePreset"
     }
 }

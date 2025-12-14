@@ -11,6 +11,9 @@ struct StyleCheckingSettingsView: View {
     @ObservedObject private var preferences = UserPreferences.shared
     @StateObject private var modelManager = ModelManager.shared
 
+    // Foundation Models engine status - wrapped for availability
+    @State private var fmStatus: StyleEngineStatus = .unknown("")
+
     var body: some View {
         Form {
             // MARK: - Enable Section
@@ -27,7 +30,7 @@ struct StyleCheckingSettingsView: View {
             } header: {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 8) {
-                        Image(systemName: "sparkles")
+                        Image(systemName: "apple.intelligence")
                             .font(.title2)
                             .foregroundColor(.purple)
                         Text("Style Checking")
@@ -35,7 +38,7 @@ struct StyleCheckingSettingsView: View {
                             .fontWeight(.semibold)
                     }
 
-                    Text("Style checking uses a local AI model to suggest improvements to your writing style. All processing happens on your device - no data is sent to the cloud.")
+                    Text("Style checking uses Apple Intelligence to suggest improvements to your writing. All processing happens on your device.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -89,73 +92,71 @@ struct StyleCheckingSettingsView: View {
                         .font(.headline)
                 }
 
-                // MARK: - AI Model Section
+                // MARK: - Apple Intelligence Status Section
                 Section {
-                    if modelManager.models.isEmpty {
-                        HStack {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                            Text("Loading models...")
+                    HStack(spacing: 12) {
+                        Image(systemName: fmStatus.symbolName)
+                            .font(.title2)
+                            .foregroundColor(fmStatus.isAvailable ? .green : .orange)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(fmStatus.isAvailable ? "Apple Intelligence Ready" : "Apple Intelligence")
+                                .font(.system(size: 13, weight: .semibold))
+
+                            Text(fmStatus.userMessage)
+                                .font(.caption)
                                 .foregroundColor(.secondary)
                         }
-                    } else {
-                        ForEach(modelManager.models) { model in
-                            ModelRowView(
-                                model: model,
-                                isSelected: preferences.selectedModelId == model.id,
-                                isLoaded: modelManager.loadedModelId == model.id,
-                                isLoading: modelManager.isLoadingModel && preferences.selectedModelId == model.id,
-                                isAnyModelLoading: modelManager.isLoadingModel,
-                                isDownloading: modelManager.isDownloading(model.id),
-                                downloadProgress: modelManager.downloadProgress(for: model.id),
-                                lastError: modelManager.error(for: model.id),
-                                onSelect: { selectModel(model) },
-                                onDownload: { downloadModel(model) },
-                                onDelete: { deleteModel(model) },
-                                onCancelDownload: { modelManager.cancelDownload(model.id) },
-                                onDismissError: { modelManager.clearError(for: model.id) }
-                            )
-                        }
-                    }
-                } header: {
-                    HStack {
-                        Text("AI Model")
-                            .font(.headline)
+
                         Spacer()
-                        Button {
-                            openModelsFolder()
-                        } label: {
-                            Label("Open in Finder", systemImage: "folder")
-                                .font(.caption)
+
+                        if fmStatus == .appleIntelligenceNotEnabled {
+                            Button("Open Settings") {
+                                // Open System Settings → Apple Intelligence
+                                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.appleintelli") {
+                                    NSWorkspace.shared.open(url)
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        } else if fmStatus.canRetry {
+                            Button("Check Again") {
+                                checkFMAvailability()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
                         }
-                        .buttonStyle(.plain)
-                        .foregroundColor(.accentColor)
                     }
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Status")
+                        .font(.headline)
+                }
+                .onAppear {
+                    checkFMAvailability()
                 }
 
                 // MARK: - Advanced Settings Section
                 Section {
-                    // Inference Preset (Speed vs Quality)
+                    // Temperature Preset (Creativity vs Consistency)
                     VStack(alignment: .leading, spacing: 8) {
-                        // Segmented control for presets (matching Writing Style design)
+                        // Segmented control for temperature presets
                         HStack(spacing: 0) {
-                            ForEach(LLMInferencePreset.allCases) { preset in
+                            ForEach(StyleTemperaturePreset.allCases) { preset in
                                 Button {
-                                    preferences.styleInferencePreset = preset.rawValue
-                                    // Apply the preset to the engine
-                                    LLMEngine.shared.setInferencePreset(preset)
+                                    preferences.styleTemperaturePreset = preset.rawValue
                                 } label: {
                                     HStack(spacing: 4) {
-                                        Text(preset.displayName)
-                                        Image(systemName: presetIcon(for: preset))
+                                        Text(preset.label)
+                                        Image(systemName: preset.symbolName)
                                             .font(.system(size: 10))
                                     }
-                                    .font(.system(size: 12, weight: selectedPreset == preset ? .semibold : .regular))
-                                    .foregroundColor(selectedPreset == preset ? .white : .primary)
+                                    .font(.system(size: 12, weight: selectedTemperaturePreset == preset ? .semibold : .regular))
+                                    .foregroundColor(selectedTemperaturePreset == preset ? .white : .primary)
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 6)
                                     .background(
-                                        selectedPreset == preset
+                                        selectedTemperaturePreset == preset
                                             ? Color.accentColor
                                             : Color.clear
                                     )
@@ -171,7 +172,7 @@ struct StyleCheckingSettingsView: View {
                                 .stroke(Color(.separatorColor), lineWidth: 0.5)
                         )
 
-                        Text(selectedPreset.description)
+                        Text(selectedTemperaturePreset.description)
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -194,25 +195,6 @@ struct StyleCheckingSettingsView: View {
                             step: 1
                         )
                         Text("Only analyze sentences with at least this many words")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.vertical, 4)
-
-                    // Confidence threshold
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Confidence threshold")
-                            Spacer()
-                            Text("\(Int(preferences.styleConfidenceThreshold * 100))%")
-                                .foregroundColor(.secondary)
-                        }
-                        Slider(
-                            value: $preferences.styleConfidenceThreshold,
-                            in: 0.5...0.95,
-                            step: 0.05
-                        )
-                        Text("The AI model assigns a confidence score (0-100%) to each suggestion based on how certain it is. Higher thresholds show fewer but more reliable suggestions.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -246,61 +228,30 @@ struct StyleCheckingSettingsView: View {
         }
     }
 
-    // MARK: - Inference Preset Helpers
+    // MARK: - Temperature Preset Helpers
 
-    /// Current selected preset based on preferences
-    private var selectedPreset: LLMInferencePreset {
-        LLMInferencePreset(rawValue: preferences.styleInferencePreset) ?? .balanced
+    /// Current selected temperature preset based on preferences
+    private var selectedTemperaturePreset: StyleTemperaturePreset {
+        StyleTemperaturePreset(rawValue: preferences.styleTemperaturePreset) ?? .balanced
     }
 
-    /// Icon for each preset
-    private func presetIcon(for preset: LLMInferencePreset) -> String {
-        switch preset {
-        case .fast: return "hare"
-        case .balanced: return "dial.medium"
-        case .quality: return "sparkles"
+    // MARK: - Foundation Models Availability
+
+    /// Check Foundation Models availability (requires macOS 26+)
+    private func checkFMAvailability() {
+        if #available(macOS 26.0, *) {
+            let engine = FoundationModelsEngine()
+            engine.checkAvailability()
+            fmStatus = engine.status
+        } else {
+            fmStatus = .deviceNotEligible
         }
-    }
-
-    // MARK: - Actions
-
-    private func selectModel(_ model: LLMModelInfo) {
-        // Block selection while any model is loading
-        guard !modelManager.isLoadingModel else { return }
-
-        preferences.selectedModelId = model.id
-        if model.isDownloaded && modelManager.loadedModelId != model.id {
-            // Use Task.detached to avoid blocking main thread during model load/unload
-            let modelId = model.id
-            Task.detached(priority: .userInitiated) {
-                await modelManager.loadModel(modelId)
-            }
-        }
-    }
-
-    private func downloadModel(_ model: LLMModelInfo) {
-        modelManager.startDownload(model.id)
-    }
-
-    private func deleteModel(_ model: LLMModelInfo) {
-        modelManager.deleteModel(model.id)
-    }
-
-    private func openModelsFolder() {
-        // Get or create the models directory
-        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            Logger.error("Application Support directory not available", category: Logger.ui)
-            return
-        }
-        let modelsDir = appSupport.appendingPathComponent("TextWarden/Models", isDirectory: true)
-
-        // Create directory if it doesn't exist
-        try? FileManager.default.createDirectory(at: modelsDir, withIntermediateDirectories: true)
-
-        // Open in Finder
-        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: modelsDir.path)
     }
 }
+
+// MARK: - Legacy Model UI (Hidden but preserved for future use)
+// The model selection UI and ModelRowView are kept below but not used.
+// Foundation Models replaces the custom GGUF model approach.
 
 // MARK: - Model Row View
 

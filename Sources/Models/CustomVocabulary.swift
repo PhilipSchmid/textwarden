@@ -91,6 +91,12 @@ class CustomVocabulary: ObservableObject {
         }
     }
 
+    /// Get all words in the custom vocabulary
+    /// Used to provide context to Foundation Models for style analysis
+    func allWords() -> [String] {
+        Array(words)
+    }
+
     // MARK: - Persistence
 
     /// Save vocabulary to JSON file

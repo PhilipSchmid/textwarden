@@ -36,5 +36,7 @@
 	<true/>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
+	<key>NSAppleIntelligenceUsageDescription</key>
+	<string>TextWarden uses Apple Intelligence to suggest style improvements for your writing. All processing happens on your device.</string>
 </dict>
 </plist>

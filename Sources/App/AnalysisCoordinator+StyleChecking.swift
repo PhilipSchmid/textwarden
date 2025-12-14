@@ -3,12 +3,13 @@
 //  TextWarden
 //
 //  Style checking and performance optimization functionality extracted from AnalysisCoordinator.
-//  Handles LLM-based style analysis, AI-enhanced readability suggestions, and style caching.
+//  Handles Foundation Models-based style analysis, AI-enhanced readability suggestions, and style caching.
 //
 
 import Foundation
 import AppKit
 @preconcurrency import ApplicationServices
+import FoundationModels
 
 // MARK: - Performance Optimizations (User Story 4)
 
@@ -172,14 +173,13 @@ extension AnalysisCoordinator {
 
     // MARK: - Style Cache Methods
 
-    /// Compute a cache key for style analysis based on text content, style, model, and preset
+    /// Compute a cache key for style analysis based on text content, style, and temperature preset
     /// Uses a hash to keep keys short while being collision-resistant
-    /// Includes model ID and preset so changing these triggers re-analysis of the same text
+    /// Includes temperature preset so changing it triggers re-analysis of the same text
     func computeStyleCacheKey(text: String) -> String {
         let style = userPreferences.selectedWritingStyle
-        let modelId = userPreferences.selectedModelId
-        let preset = userPreferences.styleInferencePreset
-        let combined = "\(text.hashValue)_\(style)_\(modelId)_\(preset)"
+        let temperaturePreset = userPreferences.styleTemperaturePreset
+        let combined = "\(text.hashValue)_\(style)_fm_\(temperaturePreset)"
         return combined
     }
 
@@ -232,18 +232,33 @@ extension AnalysisCoordinator {
     /// If text is selected, only analyzes the selected portion; otherwise analyzes all text
     /// First checks cache for instant results, otherwise shows spinning indicator and runs analysis
     func runManualStyleCheck() {
-        Logger.info("AnalysisCoordinator: runManualStyleCheck() triggered", category: Logger.llm)
+        Logger.info("AnalysisCoordinator: runManualStyleCheck() triggered", category: Logger.analysis)
 
         // Get current monitored element and context
         guard let element = textMonitor.monitoredElement,
               let context = monitoredContext else {
-            Logger.warning("AnalysisCoordinator: No monitored element for manual style check", category: Logger.llm)
+            Logger.warning("AnalysisCoordinator: No monitored element for manual style check", category: Logger.analysis)
             return
         }
 
-        // Check if LLM is ready
-        guard llmEngine.isInitialized && llmEngine.isModelLoaded() else {
-            Logger.warning("AnalysisCoordinator: LLM not ready for manual style check", category: Logger.llm)
+        // Check if Foundation Models is available (requires macOS 26+)
+        guard #available(macOS 26.0, *) else {
+            Logger.warning("AnalysisCoordinator: Foundation Models requires macOS 26+", category: Logger.analysis)
+            return
+        }
+
+        runManualStyleCheckWithFM(element: element, context: context)
+    }
+
+    /// Internal implementation of manual style check using Foundation Models
+    @available(macOS 26.0, *)
+    private func runManualStyleCheckWithFM(element: AXUIElement, context: ApplicationContext) {
+        // Create engine on demand
+        let fmEngine = FoundationModelsEngine()
+        fmEngine.checkAvailability()
+
+        guard fmEngine.status.isAvailable else {
+            Logger.warning("AnalysisCoordinator: Foundation Models not available: \(fmEngine.status.userMessage)", category: Logger.analysis)
             return
         }
 
@@ -254,7 +269,7 @@ extension AnalysisCoordinator {
 
         // Always capture full text for invalidation tracking
         guard let fullText = currentText(), !fullText.isEmpty else {
-            Logger.warning("AnalysisCoordinator: No text available for manual style check", category: Logger.llm)
+            Logger.warning("AnalysisCoordinator: No text available for manual style check", category: Logger.analysis)
             return
         }
 
@@ -262,7 +277,7 @@ extension AnalysisCoordinator {
         let text = selection ?? fullText
 
         if isSelectionMode {
-            Logger.info("AnalysisCoordinator: Manual style check - analyzing selected text (\(text.count) chars)", category: Logger.llm)
+            Logger.info("AnalysisCoordinator: Manual style check - analyzing selected text (\(text.count) chars)", category: Logger.analysis)
         }
 
         let styleName = userPreferences.selectedWritingStyle
@@ -272,7 +287,7 @@ extension AnalysisCoordinator {
         // Note: Cache is keyed by analyzed text, but we also need full text to match for validity
         let cacheKey = computeStyleCacheKey(text: text)
         if let cached = styleCache[cacheKey], fullText == styleAnalysisSourceText {
-            Logger.info("AnalysisCoordinator: Manual style check - using cached results (\(cached.count) suggestions)", category: Logger.llm)
+            Logger.info("AnalysisCoordinator: Manual style check - using cached results (\(cached.count) suggestions)", category: Logger.analysis)
 
             // Update cache access time
             styleCacheMetadata[cacheKey] = StyleCacheMetadata(
@@ -299,98 +314,96 @@ extension AnalysisCoordinator {
             return
         }
 
-        // Cache miss - run LLM analysis
-        Logger.debug("AnalysisCoordinator: Manual style check - cache miss, running LLM analysis", category: Logger.llm)
+        // Cache miss - run Foundation Models analysis
+        Logger.debug("AnalysisCoordinator: Manual style check - cache miss, running Foundation Models analysis", category: Logger.analysis)
 
         // Set flag to prevent regular analysis from hiding indicator
         isManualStyleCheckActive = true
 
         // Show spinning indicator immediately
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            self.floatingIndicator.showStyleCheckInProgress(element: element, context: context)
-        }
+        floatingIndicator.showStyleCheckInProgress(element: element, context: context)
 
         // Capture fullText for setting styleAnalysisSourceText when analysis completes
         let capturedFullText = fullText
 
         // Capture UserPreferences values on main thread before async dispatch
-        let modelId = userPreferences.selectedModelId
-        let preset = userPreferences.styleInferencePreset
-        let confidenceThreshold = Float(userPreferences.styleConfidenceThreshold)
+        let temperaturePresetName = userPreferences.styleTemperaturePreset
+        let temperaturePreset = StyleTemperaturePreset(rawValue: temperaturePresetName) ?? .balanced
 
-        // Capture LLM engine reference before async dispatch
-        let llmEngineRef = llmEngine
+        // Get custom vocabulary for context
+        let vocabulary = customVocabulary.allWords()
 
-        // Run style analysis in background
-        styleAnalysisQueue.async { [weak self] in
+        // Run style analysis using Foundation Models
+        Task { @MainActor [weak self] in
             guard let self = self else { return }
 
             let segmentContent = text
 
-            Logger.info("AnalysisCoordinator: Running manual style analysis on \(segmentContent.count) chars", category: Logger.llm)
+            Logger.info("AnalysisCoordinator: Running Foundation Models style analysis on \(segmentContent.count) chars", category: Logger.analysis)
 
             let startTime = Date()
-            let styleResult = llmEngineRef.analyzeStyle(segmentContent, style: style)
-            let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
 
-            Logger.info("AnalysisCoordinator: Manual style check completed in \(latencyMs)ms, \(styleResult.suggestions.count) suggestions", category: Logger.llm)
-
-            // Update statistics with model and preset context (dispatch to main since UserStatistics is @MainActor)
-            DispatchQueue.main.async { [weak self] in
-                self?.statistics.recordStyleSuggestions(
-                    count: styleResult.suggestions.count,
-                    latencyMs: Double(latencyMs),
-                    modelId: modelId,
-                    preset: preset
+            do {
+                let suggestions = try await fmEngine.analyzeStyle(
+                    segmentContent,
+                    style: style,
+                    temperaturePreset: temperaturePreset,
+                    customVocabulary: vocabulary
                 )
-            }
 
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
+                let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
 
-                if !styleResult.isError {
-                    let threshold = confidenceThreshold
-                    let filteredSuggestions = styleResult.suggestions.filter { $0.confidence >= threshold }
-                    self.currentStyleSuggestions = filteredSuggestions
-                    self.styleAnalysisSourceText = capturedFullText
+                Logger.info("AnalysisCoordinator: Foundation Models analysis completed in \(latencyMs)ms, \(suggestions.count) suggestions", category: Logger.analysis)
 
-                    // Cache the results for instant access next time
-                    self.styleCache[cacheKey] = filteredSuggestions
-                    self.styleCacheMetadata[cacheKey] = StyleCacheMetadata(
-                        lastAccessed: Date(),
-                        style: styleName
-                    )
-                    self.evictStyleCacheIfNeeded()
+                // Update statistics
+                self.statistics.recordStyleSuggestions(
+                    count: suggestions.count,
+                    latencyMs: Double(latencyMs),
+                    modelId: "apple-foundation-models",
+                    preset: temperaturePresetName
+                )
 
-                    // Update indicator to show results (checkmark first, then transition)
-                    self.floatingIndicator.showStyleSuggestionsReady(
-                        count: filteredSuggestions.count,
-                        styleSuggestions: filteredSuggestions
-                    )
+                self.currentStyleSuggestions = suggestions
+                self.styleAnalysisSourceText = capturedFullText
 
-                    // Clear the flag after the checkmark display period
-                    DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.aiInferenceRetryDelay) { [weak self] in
-                        self?.isManualStyleCheckActive = false
-                    }
+                // Cache the results for instant access next time
+                self.styleCache[cacheKey] = suggestions
+                self.styleCacheMetadata[cacheKey] = StyleCacheMetadata(
+                    lastAccessed: Date(),
+                    style: styleName
+                )
+                self.evictStyleCacheIfNeeded()
 
-                    Logger.info("AnalysisCoordinator: Manual style check - showing \(filteredSuggestions.count) suggestions (cached for next time)", category: Logger.llm)
-                } else {
-                    // Error occurred - still show checkmark to indicate completion, then hide
-                    self.currentStyleSuggestions = []
+                // Update indicator to show results (checkmark first, then transition)
+                self.floatingIndicator.showStyleSuggestionsReady(
+                    count: suggestions.count,
+                    styleSuggestions: suggestions
+                )
 
-                    // Show checkmark even for errors so user knows check completed
-                    self.floatingIndicator.showStyleSuggestionsReady(
-                        count: 0,
-                        styleSuggestions: []
-                    )
+                // Clear the flag after the checkmark display period
+                DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.aiInferenceRetryDelay) { [weak self] in
+                    self?.isManualStyleCheckActive = false
+                }
 
-                    // Clear the flag after the checkmark display period
-                    DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.aiInferenceRetryDelay) { [weak self] in
-                        self?.isManualStyleCheckActive = false
-                    }
+                Logger.info("AnalysisCoordinator: Manual style check - showing \(suggestions.count) suggestions (cached for next time)", category: Logger.analysis)
 
-                    Logger.warning("AnalysisCoordinator: Manual style analysis returned error: \(styleResult.error ?? "unknown")", category: Logger.llm)
+            } catch {
+                let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
+
+                Logger.warning("AnalysisCoordinator: Foundation Models analysis failed after \(latencyMs)ms: \(error)", category: Logger.analysis)
+
+                // Error occurred - still show checkmark to indicate completion, then hide
+                self.currentStyleSuggestions = []
+
+                // Show checkmark even for errors so user knows check completed
+                self.floatingIndicator.showStyleSuggestionsReady(
+                    count: 0,
+                    styleSuggestions: []
+                )
+
+                // Clear the flag after the checkmark display period
+                DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.aiInferenceRetryDelay) { [weak self] in
+                    self?.isManualStyleCheckActive = false
                 }
             }
         }
