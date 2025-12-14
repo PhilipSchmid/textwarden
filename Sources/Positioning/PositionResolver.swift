@@ -70,9 +70,9 @@ class PositionResolver {
             return lhs.tierPriority < rhs.tierPriority
         }
 
-        Logger.debug("PositionResolver: Initialized with \(allStrategies.count) strategies")
+        Logger.debug("PositionResolver: Initialized with \(allStrategies.count) strategies", category: Logger.accessibility)
         for strategy in allStrategies {
-            Logger.debug("  Strategy: \(strategy.strategyName) (tier: \(strategy.tier.description), priority: \(strategy.tierPriority))")
+            Logger.debug("  Strategy: \(strategy.strategyName) (tier: \(strategy.tier.description), priority: \(strategy.tierPriority))", category: Logger.accessibility)
         }
     }
 
@@ -129,13 +129,13 @@ class PositionResolver {
 
         // Check cache first
         if let cached = cache.get(key: cacheKey) {
-            Logger.debug("PositionResolver: Using cached result for \(cacheKey.description)")
+            Logger.debug("PositionResolver: Using cached result for \(cacheKey.description)", category: Logger.accessibility)
             return cached
         }
 
         // Check visibility BEFORE attempting positioning
         if !AccessibilityBridge.isRangeVisible(errorRange, in: element) {
-            Logger.debug("PositionResolver: Range \(errorRange) is not visible - skipping positioning")
+            Logger.debug("PositionResolver: Range \(errorRange) is not visible - skipping positioning", category: Logger.accessibility)
             return GeometryResult.unavailable(reason: "Range not visible (scrolled out of view)")
         }
 
@@ -167,7 +167,7 @@ class PositionResolver {
             ) {
                 // Check if this is an "unavailable" result - return immediately
                 if result.isUnavailable {
-                    Logger.debug("PositionResolver: Strategy \(strategy.strategyName) returned unavailable")
+                    Logger.debug("PositionResolver: Strategy \(strategy.strategyName) returned unavailable", category: Logger.accessibility)
                     return result
                 }
 
@@ -175,12 +175,12 @@ class PositionResolver {
                 if let editArea = editAreaFrame {
                     let quartzBounds = CoordinateMapper.toQuartzCoordinates(result.bounds)
                     if !AccessibilityBridge.validateBoundsWithinEditArea(quartzBounds, editAreaFrame: editArea) {
-                        Logger.debug("PositionResolver: Strategy \(strategy.strategyName) bounds outside edit area")
+                        Logger.debug("PositionResolver: Strategy \(strategy.strategyName) bounds outside edit area", category: Logger.accessibility)
                         continue
                     }
                 }
 
-                Logger.debug("PositionResolver: Strategy \(strategy.strategyName) succeeded with confidence \(result.confidence)")
+                Logger.debug("PositionResolver: Strategy \(strategy.strategyName) succeeded with confidence \(result.confidence)", category: Logger.accessibility)
                 Logger.debug("  Strategy \(strategy.strategyName) SUCCEEDED with confidence \(result.confidence)", category: Logger.ui)
 
                 // Cache successful result (unless strategy opts out)
@@ -196,7 +196,7 @@ class PositionResolver {
         }
 
         // Graceful degradation - don't show underline rather than show it wrong
-        Logger.warning("PositionResolver: All strategies failed for range \(errorRange)")
+        Logger.warning("PositionResolver: All strategies failed for range \(errorRange)", category: Logger.accessibility)
         return GeometryResult.unavailable(reason: "All positioning strategies failed")
     }
 

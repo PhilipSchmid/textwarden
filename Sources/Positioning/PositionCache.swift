@@ -61,18 +61,17 @@ class PositionCache {
             )
 
             hits += 1
-            Logger.debug("PositionCache hit for \(key.description) (age: \(String(format: "%.2f", entry.age))s, hits: \(entry.hitCount + 1))")
+            Logger.debug("PositionCache hit for \(key.description) (age: \(String(format: "%.2f", entry.age))s, hits: \(entry.hitCount + 1))", category: Logger.performance)
 
             return entry.result
         }
     }
 
-    /// Store result in cache
-    /// Automatically evicts old entries if needed
+    /// Store result in cache.
+    /// Automatically evicts old entries if needed.
+    /// Uses sync to prevent race conditions with get().
     func store(_ result: GeometryResult, for key: CacheKey) {
-        queue.async { [weak self] in
-            guard let self = self else { return }
-
+        queue.sync {
             // Evict old entries if at capacity
             if self.cache.count >= self.maxEntries {
                 self.evictOldest()
@@ -84,17 +83,18 @@ class PositionCache {
                 hitCount: 0
             )
 
-            Logger.debug("PositionCache stored result for \(key.description)")
+            Logger.debug("PositionCache stored result for \(key.description)", category: Logger.performance)
         }
     }
 
-    /// Clear all cache entries
+    /// Clear all cache entries.
+    /// Uses sync to ensure cache is cleared before returning.
     func clear() {
-        queue.async { [weak self] in
-            self?.cache.removeAll()
-            self?.hits = 0
-            self?.misses = 0
-            Logger.debug("PositionCache cleared")
+        queue.sync {
+            self.cache.removeAll()
+            self.hits = 0
+            self.misses = 0
+            Logger.debug("PositionCache cleared", category: Logger.performance)
         }
     }
 
@@ -113,7 +113,7 @@ class PositionCache {
 
         if let oldest = sorted.first {
             cache.removeValue(forKey: oldest.key)
-            Logger.debug("PositionCache evicted \(oldest.key.description) (hits: \(oldest.value.hitCount), age: \(String(format: "%.2f", oldest.value.age))s)")
+            Logger.debug("PositionCache evicted \(oldest.key.description) (hits: \(oldest.value.hitCount), age: \(String(format: "%.2f", oldest.value.age))s)", category: Logger.performance)
         }
     }
 
@@ -146,22 +146,69 @@ class PositionCache {
 
 // MARK: - Cache Key
 
-/// Key for cache lookups
-/// Combines element identity, text range, and text content hash
+/// Key for cache lookups.
+/// Combines element identity (PID + role + identifier), text range, and text content hash.
+/// Uses stable identifiers instead of pointer addresses to avoid cache collisions
+/// when elements are released and reallocated.
 struct CacheKey: Hashable {
-    let elementHash: Int
+    let pid: pid_t
+    let elementRole: String
+    let elementIdentifier: String
     let range: NSRange
     let textHash: Int
 
     init(element: AXUIElement, range: NSRange, textHash: Int) {
-        // Note: This assumes element pointer stays valid during cache lifetime
-        self.elementHash = unsafeBitCast(element, to: Int.self)
+        // Use PID + element attributes for stable identification
+        var pid: pid_t = 0
+        AXUIElementGetPid(element, &pid)
+        self.pid = pid
+
+        // Get element role (e.g., "AXTextArea", "AXTextField")
+        var roleValue: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue) == .success,
+           let role = roleValue as? String {
+            self.elementRole = role
+        } else {
+            self.elementRole = "unknown"
+        }
+
+        // Get element identifier if available (some apps provide unique IDs)
+        var identifierValue: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXIdentifierAttribute as CFString, &identifierValue) == .success,
+           let identifier = identifierValue as? String {
+            self.elementIdentifier = identifier
+        } else {
+            // Fall back to element description or position hash for uniqueness
+            var descValue: CFTypeRef?
+            if AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute as CFString, &descValue) == .success,
+               let desc = descValue as? String {
+                self.elementIdentifier = desc
+            } else {
+                // Use frame position as a last resort (less stable but better than pointer)
+                var posValue: CFTypeRef?
+                if AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &posValue) == .success,
+                   let positionValue = posValue,
+                   CFGetTypeID(positionValue) == AXValueGetTypeID() {
+                    var point = CGPoint.zero
+                    // Safe cast after type check
+                    let axValue = positionValue as! AXValue
+                    if AXValueGetValue(axValue, .cgPoint, &point) {
+                        self.elementIdentifier = "pos:\(Int(point.x)),\(Int(point.y))"
+                    } else {
+                        self.elementIdentifier = "fallback"
+                    }
+                } else {
+                    self.elementIdentifier = "fallback"
+                }
+            }
+        }
+
         self.range = range
         self.textHash = textHash
     }
 
     var description: String {
-        return "element:\(elementHash) range:(\(range.location),\(range.length)) text:\(textHash)"
+        return "pid:\(pid) role:\(elementRole) id:\(elementIdentifier) range:(\(range.location),\(range.length)) text:\(textHash)"
     }
 }
 

@@ -646,7 +646,7 @@ struct DiagnosticReport: Codable {
             // 2. Generate and save JSON overview with crash report count
             let report = DiagnosticReport.generate(preferences: preferences, crashReportCount: crashFilesToCopy.count, shortcuts: shortcuts)
             guard let jsonString = report.toJSON() else {
-                Logger.error("Failed to generate JSON for diagnostic report")
+                Logger.error("Failed to generate JSON for diagnostic report", category: Logger.errors)
                 return false
             }
 
@@ -686,7 +686,7 @@ struct DiagnosticReport: Codable {
 
             return zipSuccess
         } catch {
-            Logger.error("Failed to export diagnostic package", error: error)
+            Logger.error("Failed to export diagnostic package", error: error, category: Logger.errors)
             try? fileManager.removeItem(at: tempDir)
             return false
         }
@@ -703,7 +703,7 @@ struct DiagnosticReport: Codable {
             task.waitUntilExit()
             return task.terminationStatus == 0
         } catch {
-            Logger.error("Failed to create ZIP archive", error: error)
+            Logger.error("Failed to create ZIP archive", error: error, category: Logger.errors)
             return false
         }
     }

@@ -34,7 +34,7 @@ final class ContentParserFactory {
             .powerpoint: PowerPointContentParser()
         ]
 
-        Logger.info("ContentParserFactory: Initialized with \(parsersByType.count) parser types")
+        Logger.info("ContentParserFactory: Initialized with \(parsersByType.count) parser types", category: Logger.analysis)
     }
 
     /// Get parser for a bundle identifier
@@ -72,7 +72,7 @@ final class ContentParserFactory {
         // Cache for next lookup
         parserCache[bundleID] = parser
 
-        Logger.debug("ContentParserFactory: Using \(config.parserType) parser for \(bundleID)")
+        Logger.debug("ContentParserFactory: Using \(config.parserType) parser for \(bundleID)", category: Logger.analysis)
         return parser
     }
 

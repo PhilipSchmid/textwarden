@@ -67,6 +67,9 @@ enum TimingConstants {
     /// Focus bounce grace period
     static let focusBounceGrace: TimeInterval = 0.5
 
+    /// Grace period after applying text replacement before re-analysis
+    static let replacementGracePeriod: TimeInterval = 1.5
+
     /// Accessibility announcement delay
     static let accessibilityAnnounce: TimeInterval = 0.5
 

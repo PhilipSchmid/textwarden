@@ -2,8 +2,34 @@
 //  CoordinateMapper.swift
 //  TextWarden
 //
-//  Handles coordinate system conversions
-//  macOS has THREE coordinate systems - we handle them all correctly
+//  Handles coordinate system conversions between macOS's THREE coordinate systems:
+//
+//  1. QUARTZ COORDINATES (CGWindow, Accessibility APIs, Core Graphics)
+//     - Origin: Top-left of PRIMARY screen (screen with frame origin 0,0)
+//     - Y-axis: Increases DOWNWARD
+//     - Used by: AXUIElement bounds, CGWindowListCopyWindowInfo, CGRect from AX APIs
+//     - Example: A point at screen top-left is (0, 0)
+//
+//  2. COCOA COORDINATES (NSWindow, NSView, NSScreen)
+//     - Origin: Bottom-left of PRIMARY screen
+//     - Y-axis: Increases UPWARD
+//     - Used by: NSWindow frame, NSView frame, overlay window positioning
+//     - Example: A point at screen bottom-left is (0, 0)
+//
+//  3. VIEW-LOCAL COORDINATES (Inside NSView hierarchy)
+//     - Origin: Bottom-left of the view's bounds
+//     - Y-axis: Increases UPWARD
+//     - Used by: Drawing operations, hit testing, NSView.convert()
+//
+//  CONVERSION RULES:
+//  - Quartz → Cocoa: cocoaY = screenHeight - quartzY - rectHeight
+//  - Cocoa → Quartz: quartzY = screenHeight - cocoaY - rectHeight
+//  - Always use PRIMARY screen height (the one with frame.origin == .zero)
+//
+//  COMMON PITFALLS:
+//  - Multi-monitor: Each screen has its own frame in global coordinates
+//  - Screen height: Must use PRIMARY screen height for conversions, not the target screen
+//  - Y-flip requires rect height: Point conversion differs from rect conversion
 //
 
 import Foundation
@@ -124,7 +150,7 @@ enum CoordinateMapper {
         // This is where the Quartz coordinate system origin is defined
         let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero }
         guard let screen = primaryScreen ?? NSScreen.main else {
-            Logger.warning("No screen found during coordinate conversion")
+            Logger.warning("No screen found during coordinate conversion", category: Logger.accessibility)
             return quartzRect
         }
 
@@ -143,7 +169,7 @@ enum CoordinateMapper {
         // Use PRIMARY screen height (the one with Cocoa frame origin at 0,0)
         let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero }
         guard let screen = primaryScreen ?? NSScreen.main else {
-            Logger.warning("No screen found during coordinate conversion")
+            Logger.warning("No screen found during coordinate conversion", category: Logger.accessibility)
             return cocoaRect
         }
 
@@ -163,7 +189,7 @@ enum CoordinateMapper {
     static func validateBounds(_ rect: CGRect) -> Bool {
         // Check for positive dimensions
         guard GeometryConstants.hasValidSize(rect) else {
-            Logger.debug("Invalid bounds: zero or negative dimensions \(rect)")
+            Logger.debug("CoordinateMapper: Invalid bounds: zero or negative dimensions \(rect)")
             return false
         }
 
@@ -171,34 +197,34 @@ enum CoordinateMapper {
         // Anything larger is likely a container bound, not character bounds
         guard rect.width < GeometryConstants.maximumTextWidth &&
               rect.height < GeometryConstants.maximumLineHeight else {
-            Logger.debug("Invalid bounds: dimensions too large for text \(rect)")
+            Logger.debug("CoordinateMapper: Invalid bounds: dimensions too large for text \(rect)")
             return false
         }
 
         // Check for NaN values
         guard !rect.origin.x.isNaN && !rect.origin.y.isNaN &&
               !rect.width.isNaN && !rect.height.isNaN else {
-            Logger.debug("Invalid bounds: contains NaN values \(rect)")
+            Logger.debug("CoordinateMapper: Invalid bounds: contains NaN values \(rect)")
             return false
         }
 
         // Check for infinite values
         guard !rect.origin.x.isInfinite && !rect.origin.y.isInfinite &&
               !rect.width.isInfinite && !rect.height.isInfinite else {
-            Logger.debug("Invalid bounds: contains infinite values \(rect)")
+            Logger.debug("CoordinateMapper: Invalid bounds: contains infinite values \(rect)")
             return false
         }
 
         // Check for extremely small dimensions (< 1px suggests error)
         guard rect.width >= 1.0 && rect.height >= 1.0 else {
-            Logger.debug("Invalid bounds: dimensions too small \(rect)")
+            Logger.debug("CoordinateMapper: Invalid bounds: dimensions too small \(rect)")
             return false
         }
 
         // Check for negative coordinates (often indicates stale values)
         // Note: Negative Y is valid in Quartz coords for multi-monitor, so only check extremely negative
         guard rect.origin.x >= -10000 && rect.origin.y >= -10000 else {
-            Logger.debug("Invalid bounds: extremely negative coordinates \(rect)")
+            Logger.debug("CoordinateMapper: Invalid bounds: extremely negative coordinates \(rect)")
             return false
         }
 
@@ -215,7 +241,7 @@ enum CoordinateMapper {
 
         // Check if bounds are on any screen
         guard isVisibleOnScreen(rect) else {
-            Logger.debug("Invalid bounds: not visible on any screen \(rect)")
+            Logger.debug("CoordinateMapper: Invalid bounds: not visible on any screen \(rect)")
             return false
         }
 
@@ -238,7 +264,7 @@ enum CoordinateMapper {
         let expandedEditArea = editArea.insetBy(dx: -tolerance, dy: -tolerance)
 
         guard expandedEditArea.contains(rect.origin) else {
-            Logger.debug("Invalid bounds: origin \(rect.origin) outside edit area \(editArea)")
+            Logger.debug("CoordinateMapper: Invalid bounds: origin \(rect.origin) outside edit area \(editArea)")
             return false
         }
 

@@ -21,10 +21,13 @@ import Combine
 
 // MARK: - Thread-Safe AI Rephrase Cache
 
-/// Thread-safe cache for AI rephrase suggestions
-/// Encapsulates synchronization so callers don't need to manage the queue
+/// Thread-safe LRU cache for AI rephrase suggestions.
+/// Uses a dictionary for O(1) lookup and an array to track access order.
+/// Note: Swift's Dictionary does NOT maintain insertion order, so we use
+/// a separate array to track LRU ordering.
 final class AIRephraseCache: @unchecked Sendable {
     private var cache: [String: String] = [:]
+    private var accessOrder: [String] = []  // Oldest at front, newest at back
     private let queue = DispatchQueue(label: "com.textwarden.aiRephraseCache")
     private let maxEntries: Int
 
@@ -32,30 +35,35 @@ final class AIRephraseCache: @unchecked Sendable {
         self.maxEntries = maxEntries
     }
 
-    /// Get cached rephrase for a sentence
-    /// Marks the entry as recently used (moves to end of eviction queue)
+    /// Get cached rephrase for a sentence.
+    /// Marks the entry as recently used (moves to end of access order).
     func get(_ key: String) -> String? {
         queue.sync {
             guard let value = cache[key] else { return nil }
             // Move to end to mark as recently used (LRU semantics)
-            // Swift's Dictionary maintains insertion order during iteration
-            cache.removeValue(forKey: key)
-            cache[key] = value
+            if let index = accessOrder.firstIndex(of: key) {
+                accessOrder.remove(at: index)
+                accessOrder.append(key)
+            }
             return value
         }
     }
 
-    /// Store rephrase with LRU eviction if cache is full
+    /// Store rephrase with LRU eviction if cache is full.
     func set(_ key: String, value: String) {
         queue.sync {
-            // If updating existing entry, remove first to maintain insertion order
+            // If updating existing entry, remove from access order first
             if cache[key] != nil {
-                cache.removeValue(forKey: key)
-            } else if cache.count >= maxEntries, let firstKey = cache.keys.first {
-                // LRU eviction - remove oldest entry (first in iteration order)
-                cache.removeValue(forKey: firstKey)
+                if let index = accessOrder.firstIndex(of: key) {
+                    accessOrder.remove(at: index)
+                }
+            } else if cache.count >= maxEntries, !accessOrder.isEmpty {
+                // LRU eviction - remove oldest entry (first in access order)
+                let oldestKey = accessOrder.removeFirst()
+                cache.removeValue(forKey: oldestKey)
             }
             cache[key] = value
+            accessOrder.append(key)
         }
     }
 
@@ -282,9 +290,8 @@ class AnalysisCoordinator: ObservableObject {
             if appConfig.features.delaysAXNotifications {
                 // Skip if we just applied a suggestion programmatically
                 // (prevents paste-triggered AX notifications from hiding overlays we just showed)
-                // Use 1.5s grace period to match handleTextChange for consistency
                 if let lastReplacement = self.lastReplacementTime,
-                   Date().timeIntervalSince(lastReplacement) < 1.5 {
+                   Date().timeIntervalSince(lastReplacement) < TimingConstants.replacementGracePeriod {
                     Logger.debug("AnalysisCoordinator: Ignoring typing callback - just applied suggestion", category: Logger.ui)
                     return
                 }
@@ -873,7 +880,7 @@ class AnalysisCoordinator: ObservableObject {
         updateDebugBorders()
 
         // Handle cache invalidation based on text changes
-        let isInReplacementGracePeriod = lastReplacementTime.map { Date().timeIntervalSince($0) < 1.5 } ?? false
+        let isInReplacementGracePeriod = lastReplacementTime.map { Date().timeIntervalSince($0) < TimingConstants.replacementGracePeriod } ?? false
         invalidateCachesForTextChange(
             text: text,
             context: context,

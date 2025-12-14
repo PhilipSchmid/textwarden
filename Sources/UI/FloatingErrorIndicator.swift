@@ -119,8 +119,8 @@ class FloatingErrorIndicator: NSPanel {
 
             // Enlarge indicator to show it's being dragged
             let currentFrame = self.frame
-            let normalSize: CGFloat = 40
-            let enlargedSize: CGFloat = 45
+            let normalSize: CGFloat = UIConstants.indicatorSize
+            let enlargedSize: CGFloat = UIConstants.indicatorDragSize
             let sizeDelta = enlargedSize - normalSize
 
             // Adjust origin to keep indicator centered while enlarging
@@ -152,8 +152,8 @@ class FloatingErrorIndicator: NSPanel {
             guard let self = self else { return }
 
             // Restore normal size
-            let normalSize: CGFloat = 40
-            let enlargedSize: CGFloat = 45
+            let normalSize: CGFloat = UIConstants.indicatorSize
+            let enlargedSize: CGFloat = UIConstants.indicatorDragSize
             let sizeDelta = enlargedSize - normalSize
 
             // Adjust origin to keep indicator centered while shrinking back
@@ -328,7 +328,7 @@ class FloatingErrorIndicator: NSPanel {
 
         Logger.debug("FloatingErrorIndicator: Using visible window frame (by PID): \(visibleFrame)", category: Logger.ui)
 
-        let indicatorSize: CGFloat = 40
+        let indicatorSize: CGFloat = UIConstants.indicatorSize
 
         // Check for per-app stored position first
         var percentagePos: IndicatorPositionStore.PercentagePosition?
@@ -378,8 +378,8 @@ class FloatingErrorIndicator: NSPanel {
                 let height = boundsDict["Height"] ?? 0
                 let area = width * height
 
-                // Skip tiny windows (< 100x100, likely tooltips or popups)
-                guard width >= 100 && height >= 100 else { continue }
+                // Skip tiny windows (likely tooltips or popups)
+                guard width >= UIConstants.minimumValidWindowSize && height >= UIConstants.minimumValidWindowSize else { continue }
 
                 if bestWindow.map({ area > $0.area }) ?? true {
                     bestWindow = (x: x, y: y, width: width, height: height, area: area)
@@ -517,7 +517,7 @@ class FloatingErrorIndicator: NSPanel {
             return
         }
 
-        let indicatorSize: CGFloat = 40
+        let indicatorSize: CGFloat = UIConstants.indicatorSize
 
         // Snap position to valid border area
         let snappedPosition = snapToBorderArea(
@@ -604,7 +604,7 @@ class FloatingErrorIndicator: NSPanel {
 
         Logger.debug("FloatingErrorIndicator: Using visible window frame: \(visibleFrame)", category: Logger.ui)
 
-        let indicatorSize: CGFloat = 40
+        let indicatorSize: CGFloat = UIConstants.indicatorSize
 
         // Check for per-app stored position first
         var percentagePos: IndicatorPositionStore.PercentagePosition?
@@ -664,7 +664,7 @@ class FloatingErrorIndicator: NSPanel {
 
         let screenFrame = screen.visibleFrame
         let padding: CGFloat = 10
-        let indicatorSize: CGFloat = 40
+        let indicatorSize: CGFloat = UIConstants.indicatorSize
         let position = UserPreferences.shared.indicatorPosition
 
         let (x, y) = calculatePosition(
@@ -719,8 +719,8 @@ class FloatingErrorIndicator: NSPanel {
                 let height = boundsDict["Height"] ?? 0
                 let area = width * height
 
-                // Skip tiny windows (< 100x100, likely tooltips or popups)
-                guard width >= 100 && height >= 100 else { continue }
+                // Skip tiny windows (likely tooltips or popups)
+                guard width >= UIConstants.minimumValidWindowSize && height >= UIConstants.minimumValidWindowSize else { continue }
 
                 // If we have an element window frame, try to match it
                 if let axFrame = elementWindowFrame {
@@ -897,10 +897,8 @@ class FloatingErrorIndicator: NSPanel {
         let indicatorPosition = UserPreferences.shared.indicatorPosition
         // Use larger spacing for left positions (to overcome popover's auto-positioning logic)
         // Use smaller spacing for right positions to match visual gap
-        // Formula: left gap = leftSpacing - popoverWidth - padding
-        //          right gap = rightSpacing + padding
-        let leftSpacing: CGFloat = 400
-        let rightSpacing: CGFloat = 30
+        let leftSpacing: CGFloat = UIConstants.popoverLeftSpacing
+        let rightSpacing: CGFloat = UIConstants.popoverRightSpacing
 
         switch indicatorPosition {
         case "Top Left":

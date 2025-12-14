@@ -408,7 +408,7 @@ class ErrorOverlayWindow: NSPanel {
 
                 // Validate local bounds - reject invalid coordinates
                 // Invalid bounds cause hover detection to fail
-                let maxValidHeight: CGFloat = 100.0  // Text lines shouldn't be > 100px
+                let maxValidHeight: CGFloat = UIConstants.maximumTextLineHeight
                 if localBounds.origin.y < -10 || localBounds.height > maxValidHeight {
                     Logger.warning("ErrorOverlay: Skipping invalid line bounds (y=\(localBounds.origin.y), h=\(localBounds.height))")
                     continue
