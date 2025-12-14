@@ -10,6 +10,41 @@ import AppKit
 @preconcurrency import ApplicationServices
 import Combine
 
+// MARK: - Thread-Safe AI Rephrase Cache
+
+/// Thread-safe cache for AI rephrase suggestions
+/// Encapsulates synchronization so callers don't need to manage the queue
+final class AIRephraseCache: @unchecked Sendable {
+    private var cache: [String: String] = [:]
+    private let queue = DispatchQueue(label: "com.textwarden.aiRephraseCache")
+    private let maxEntries: Int
+
+    init(maxEntries: Int = 50) {
+        self.maxEntries = maxEntries
+    }
+
+    /// Get cached rephrase for a sentence
+    func get(_ key: String) -> String? {
+        queue.sync { cache[key] }
+    }
+
+    /// Store rephrase with LRU eviction if cache is full
+    func set(_ key: String, value: String) {
+        queue.sync {
+            // Simple LRU eviction - remove first entry if at capacity
+            if cache.count >= maxEntries, let firstKey = cache.keys.first {
+                cache.removeValue(forKey: firstKey)
+            }
+            cache[key] = value
+        }
+    }
+
+    /// Current number of cached entries
+    var count: Int {
+        queue.sync { cache.count }
+    }
+}
+
 /// Coordinates grammar analysis workflow: monitoring → analysis → UI
 @MainActor
 class AnalysisCoordinator: ObservableObject {
@@ -52,14 +87,8 @@ class AnalysisCoordinator: ObservableObject {
 
     /// AI rephrase suggestions cache - maps original sentence text to AI-generated rephrase
     /// This cache persists across app switches and re-analyses to avoid regenerating expensive LLM suggestions
-    /// Note: nonisolated(unsafe) because cache access is synchronized via aiRephraseCacheQueue
-    nonisolated(unsafe) var aiRephraseCache: [String: String] = [:]
-
-    /// Serial queue to guard AI rephrase cache access off the main thread
-    nonisolated let aiRephraseCacheQueue = DispatchQueue(label: "com.textwarden.aiRephraseCache")
-
-    /// Maximum entries in AI rephrase cache before LRU eviction
-    nonisolated let aiRephraseCacheMaxEntries = 50
+    /// Thread-safe: AIRephraseCache handles synchronization internally
+    nonisolated let aiRephraseCache = AIRephraseCache()
 
     /// Previous text for incremental analysis
     var previousText: String = ""

@@ -466,9 +466,8 @@ extension AnalysisCoordinator {
 
             let sentence = String(sourceText[startIndex..<endIndex])
 
-            // Check if we have a cached AI suggestion (thread-safe access)
-            let cachedRephrase = aiRephraseCacheQueue.sync { aiRephraseCache[sentence] }
-            if let cachedRephrase = cachedRephrase {
+            // Check if we have a cached AI suggestion (thread-safe via AIRephraseCache)
+            if let cachedRephrase = aiRephraseCache.get(sentence) {
                 Logger.info("AnalysisCoordinator: Pre-populating cached AI rephrase for sentence of length \(sentence.count)", category: Logger.llm)
 
                 // Create enhanced error with cached AI suggestion
@@ -550,13 +549,8 @@ extension AnalysisCoordinator {
 
                 let sentence = String(sourceText[startIndex..<endIndex])
 
-                // Check AI rephrase cache first
-                var rephrased: String?
-
-                // Access cache on dedicated queue to avoid race conditions
-                aiRephraseCacheQueue.sync {
-                    rephrased = self.aiRephraseCache[sentence]
-                }
+                // Check AI rephrase cache first (thread-safe via AIRephraseCache)
+                var rephrased = aiRephraseCache.get(sentence)
 
                 if rephrased != nil {
                     Logger.info("AnalysisCoordinator: Using cached AI rephrase for sentence of length \(sentence.count)", category: Logger.llm)
@@ -566,19 +560,10 @@ extension AnalysisCoordinator {
                     // Generate AI suggestion
                     rephrased = LLMEngine.shared.rephraseSentence(sentence)
 
-                    // Cache the result on dedicated queue
+                    // Cache the result (thread-safe, handles LRU eviction internally)
                     if let newRephrase = rephrased {
-                        aiRephraseCacheQueue.sync {
-                            // Evict old entries if cache is full
-                            if self.aiRephraseCache.count >= self.aiRephraseCacheMaxEntries {
-                                // Remove first (oldest) entry - simple FIFO eviction
-                                if let firstKey = self.aiRephraseCache.keys.first {
-                                    self.aiRephraseCache.removeValue(forKey: firstKey)
-                                }
-                            }
-                            self.aiRephraseCache[sentence] = newRephrase
-                            Logger.debug("AnalysisCoordinator: Cached AI rephrase (cache size: \(self.aiRephraseCache.count))", category: Logger.llm)
-                        }
+                        aiRephraseCache.set(sentence, value: newRephrase)
+                        Logger.debug("AnalysisCoordinator: Cached AI rephrase (cache size: \(aiRephraseCache.count))", category: Logger.llm)
                     }
                 }
 
