@@ -1343,6 +1343,7 @@ class TooltipPanel {
     /// Hide tooltip with optional delay
     func hide(after delay: TimeInterval = 0) {
         hideTimer?.invalidate()
+        hideTimer = nil
 
         if delay > 0 {
             hideTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in

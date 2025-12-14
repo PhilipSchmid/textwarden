@@ -1285,6 +1285,7 @@ class AnalysisCoordinator: ObservableObject {
         let currentGeneration = styleAnalysisGeneration
 
         styleDebounceTimer?.invalidate()
+        styleDebounceTimer = nil
 
         // Check cache first
         let cacheKey = computeStyleCacheKey(text: text)
