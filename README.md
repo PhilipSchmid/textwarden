@@ -128,6 +128,10 @@ If you need cross-platform support (Windows, Linux, iOS, Android), grammar check
 
 TextWarden never sends your text anywhere. The only network activity is downloading AI models (optional), which you can also download manually. Block TextWarden in your firewall and it works exactly the same.
 
+## AI Assistance
+
+The majority of TextWarden's code was generated using Anthropic's Claude, with human oversight, review, and testing throughout the development process.
+
 ## Credits
 
 Built on excellent open source projects:
