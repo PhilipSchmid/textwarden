@@ -560,7 +560,8 @@ class SuggestionPopover: NSObject, ObservableObject {
     func nextError() {
         guard !allErrors.isEmpty else { return }
         currentIndex = (currentIndex + 1) % allErrors.count
-        currentError = allErrors[currentIndex]
+        // Safe access with bounds check
+        currentError = allErrors.indices.contains(currentIndex) ? allErrors[currentIndex] : nil
 
         // Rebuild content view from scratch for clean rendering
         rebuildContentView()
@@ -570,7 +571,8 @@ class SuggestionPopover: NSObject, ObservableObject {
     func previousError() {
         guard !allErrors.isEmpty else { return }
         currentIndex = (currentIndex - 1 + allErrors.count) % allErrors.count
-        currentError = allErrors[currentIndex]
+        // Safe access with bounds check
+        currentError = allErrors.indices.contains(currentIndex) ? allErrors[currentIndex] : nil
 
         // Rebuild content view from scratch for clean rendering
         rebuildContentView()
@@ -720,7 +722,8 @@ class SuggestionPopover: NSObject, ObservableObject {
                 if self.currentIndex >= self.allErrors.count {
                     self.currentIndex = 0
                 }
-                self.currentError = self.allErrors.isEmpty ? nil : self.allErrors[self.currentIndex]
+                // Safe access with bounds check
+                self.currentError = self.allErrors.indices.contains(self.currentIndex) ? self.allErrors[self.currentIndex] : nil
 
                 if self.currentError == nil {
                     self.hide()
@@ -746,7 +749,8 @@ class SuggestionPopover: NSObject, ObservableObject {
             if currentIndex >= allErrors.count {
                 currentIndex = 0
             }
-            currentError = allErrors.isEmpty ? nil : allErrors[currentIndex]
+            // Safe access with bounds check
+            currentError = allErrors.indices.contains(currentIndex) ? allErrors[currentIndex] : nil
 
             if currentError == nil {
                 hide()
@@ -772,7 +776,8 @@ class SuggestionPopover: NSObject, ObservableObject {
             if currentIndex >= allErrors.count {
                 currentIndex = 0
             }
-            currentError = allErrors.isEmpty ? nil : allErrors[currentIndex]
+            // Safe access with bounds check
+            currentError = allErrors.indices.contains(currentIndex) ? allErrors[currentIndex] : nil
 
             if currentError == nil {
                 hide()
