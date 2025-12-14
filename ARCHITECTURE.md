@@ -479,19 +479,41 @@ Before committing:
 make ci-check  # Runs formatting, linting, tests, build
 ```
 
-## Async/Await Migration
+## Async/Await Pattern
 
-The codebase is migrating from completion handlers to async/await. The pattern used:
+Text replacement functions use async/await with `Task.sleep` instead of nested `DispatchQueue.main.asyncAfter` callbacks. Legacy completion handler APIs wrap the async versions:
 
-1. Add async version of function (e.g., `sendArrowKeysAsync`)
-2. Update legacy completion handler to wrap the async version
-3. Gradually update callers to use async version directly
+```swift
+// Async implementation (source of truth)
+@MainActor
+func applyMailTextReplacementAsync(...) async {
+    try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+    // ... sequential async code
+}
 
-Examples of migrated functions:
-- `RetryScheduler.execute()` - async with Task.sleep for delays
-- `sendArrowKeysAsync()` - async keyboard simulation
-- `applyTextReplacementViaKeyboardAsync()` - routes to app-specific async handler
-- `applyTerminalTextReplacementAsync()` - terminal text replacement with Ctrl+A/K
-- `applyMailTextReplacementAsync()` - Apple Mail replacement via selection
-- `applyBrowserTextReplacementAsync()` - browser/Electron clipboard-based replacement
-- `applyStandardKeyboardReplacementAsync()` - standard keyboard navigation replacement
+// Legacy wrapper for callers that need completion handlers
+func applyMailTextReplacement(..., completion: @escaping () -> Void) {
+    Task { @MainActor in
+        await self.applyMailTextReplacementAsync(...)
+        completion()
+    }
+}
+```
+
+For complex functions where the async version is incomplete, use `withCheckedContinuation` to bridge:
+
+```swift
+await withCheckedContinuation { continuation in
+    self.applyBrowserTextReplacement(...) {
+        continuation.resume()
+    }
+}
+```
+
+Async functions:
+- `RetryScheduler.execute()` - retry logic with exponential backoff
+- `sendArrowKeysAsync()` - keyboard simulation
+- `applyTextReplacementViaKeyboardAsync()` - routes to app-specific handler
+- `applyTerminalTextReplacementAsync()` - terminal Ctrl+A/K replacement
+- `applyMailTextReplacementAsync()` - Apple Mail replacement
+- `applyStandardKeyboardReplacementAsync()` - standard keyboard navigation
