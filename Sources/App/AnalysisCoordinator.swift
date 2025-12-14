@@ -737,6 +737,35 @@ class AnalysisCoordinator: ObservableObject {
         }
     }
 
+    // MARK: - Public Control Methods
+
+    /// Hide all visual overlays (error underlines, indicator, popover)
+    /// Used when disabling grammar checking via keyboard shortcut
+    func hideAllOverlays() {
+        errorOverlay.hide()
+        DebugBorderWindow.clearAll()
+        positionResolver.clearCache()
+        currentErrors.removeAll()
+        currentStyleSuggestions.removeAll()
+        Logger.debug("AnalysisCoordinator: hideAllOverlays - cleared all visual feedback", category: Logger.ui)
+    }
+
+    /// Trigger re-analysis of current text to show errors immediately
+    /// Used when enabling grammar checking via keyboard shortcut
+    func triggerReanalysis() {
+        guard let element = textMonitor.monitoredElement else {
+            Logger.debug("AnalysisCoordinator: triggerReanalysis - no monitored element", category: Logger.analysis)
+            return
+        }
+
+        // Clear previousText to force re-analysis even if text hasn't changed
+        // This mirrors the behavior when returning to an app after switching away
+        previousText = ""
+
+        Logger.debug("AnalysisCoordinator: triggerReanalysis - extracting text for analysis", category: Logger.analysis)
+        textMonitor.extractText(from: element)
+    }
+
     // MARK: - Debug Border Management
 
     /// Update debug borders based on current window position and visibility

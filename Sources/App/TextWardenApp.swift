@@ -422,7 +422,7 @@ extension AppDelegate: NSWindowDelegate {
 
     /// Setup global keyboard shortcuts using KeyboardShortcuts package
     private func setupKeyboardShortcuts() {
-        // Toggle grammar checking (Cmd+Shift+G by default)
+        // Toggle grammar checking (Cmd+Ctrl+T by default)
         KeyboardShortcuts.onKeyUp(for: .toggleGrammarChecking) {
             Task { @MainActor in
                 let preferences = UserPreferences.shared
@@ -432,11 +432,25 @@ extension AppDelegate: NSWindowDelegate {
 
                 // Toggle pause duration between active and indefinite
                 if preferences.pauseDuration == .active {
+                    // Disabling - hide all overlays immediately
                     preferences.pauseDuration = .indefinite
                     MenuBarController.shared?.setIconState(.inactive)
+
+                    // Hide error underlines, indicator, and popover
+                    FloatingErrorIndicator.shared.hide()
+                    SuggestionPopover.shared.hide()
+                    AnalysisCoordinator.shared.hideAllOverlays()
+
+                    Logger.debug("Grammar checking disabled - hid all overlays", category: Logger.ui)
                 } else {
+                    // Enabling - trigger re-analysis to show errors
                     preferences.pauseDuration = .active
                     MenuBarController.shared?.setIconState(.active)
+
+                    // Trigger re-analysis of current text to show errors immediately
+                    AnalysisCoordinator.shared.triggerReanalysis()
+
+                    Logger.debug("Grammar checking enabled - triggered re-analysis", category: Logger.ui)
                 }
             }
         }
@@ -454,18 +468,47 @@ extension AppDelegate: NSWindowDelegate {
             }
         }
 
+        // Toggle suggestion popover (Cmd+Ctrl+. by default)
+        KeyboardShortcuts.onKeyUp(for: .showSuggestionPopover) {
+            Task { @MainActor in
+                let preferences = UserPreferences.shared
+                guard preferences.keyboardShortcutsEnabled else { return }
+
+                // Toggle: hide if visible, show if hidden
+                if SuggestionPopover.shared.isVisible {
+                    Logger.debug("Keyboard shortcut: Hide suggestion popover (toggle)", category: Logger.ui)
+                    SuggestionPopover.shared.hide()
+                } else {
+                    Logger.debug("Keyboard shortcut: Show suggestion popover (toggle)", category: Logger.ui)
+                    // Show popover via FloatingErrorIndicator (uses its position and data)
+                    FloatingErrorIndicator.shared.showPopoverFromKeyboard()
+                }
+            }
+        }
+
         // Accept current suggestion (Tab by default)
         KeyboardShortcuts.onKeyUp(for: .acceptSuggestion) {
             Task { @MainActor in
                 let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
                 guard SuggestionPopover.shared.isVisible else { return }
-                guard let error = SuggestionPopover.shared.currentError else { return }
-                guard let firstSuggestion = error.suggestions.first else { return }
 
-                Logger.debug("Keyboard shortcut: Accept suggestion - \(firstSuggestion)", category: Logger.ui)
+                // Handle grammar errors
+                if let error = SuggestionPopover.shared.currentError,
+                   let firstSuggestion = error.suggestions.first {
+                    Logger.debug("Keyboard shortcut: Accept grammar suggestion - \(firstSuggestion)", category: Logger.ui)
+                    SuggestionPopover.shared.applySuggestion(firstSuggestion)
+                    return
+                }
 
-                SuggestionPopover.shared.applySuggestion(firstSuggestion)
+                // Handle style suggestions
+                if let styleSuggestion = SuggestionPopover.shared.currentStyleSuggestion {
+                    Logger.debug("Keyboard shortcut: Accept style suggestion - \(styleSuggestion.suggestedText)", category: Logger.ui)
+                    SuggestionPopover.shared.acceptStyleSuggestion()
+                    return
+                }
+
+                Logger.debug("Keyboard shortcut: No suggestion to accept", category: Logger.ui)
             }
         }
 

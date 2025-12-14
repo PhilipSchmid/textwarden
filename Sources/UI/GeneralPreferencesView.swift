@@ -307,6 +307,7 @@ struct GeneralPreferencesView: View {
             Section {
                 KeyboardShortcuts.Recorder("Toggle Grammar Checking:", name: .toggleGrammarChecking)
                 KeyboardShortcuts.Recorder("Run Style Check:", name: .runStyleCheck)
+                KeyboardShortcuts.Recorder("Show Suggestions:", name: .showSuggestionPopover)
 
                 Text("Works system-wide, even when TextWarden isn't the active app")
                     .font(.caption)

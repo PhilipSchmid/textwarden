@@ -838,6 +838,25 @@ class FloatingErrorIndicator: NSPanel {
 
     // MARK: - Popover Display
 
+    /// Show the suggestion popover from keyboard shortcut
+    /// Returns true if popover was shown, false if no errors/suggestions available
+    @discardableResult
+    func showPopoverFromKeyboard() -> Bool {
+        guard isVisible else {
+            Logger.debug("FloatingErrorIndicator: showPopoverFromKeyboard - indicator not visible", category: Logger.ui)
+            return false
+        }
+
+        guard !mode.isEmpty else {
+            Logger.debug("FloatingErrorIndicator: showPopoverFromKeyboard - no errors or suggestions", category: Logger.ui)
+            return false
+        }
+
+        Logger.debug("FloatingErrorIndicator: showPopoverFromKeyboard - showing popover", category: Logger.ui)
+        showErrors()
+        return true
+    }
+
     /// Show errors/suggestions popover
     private func showErrors() {
         Logger.debug("FloatingErrorIndicator: showErrors called - errors=\(errors.count), styleSuggestions=\(styleSuggestions.count)", category: Logger.ui)

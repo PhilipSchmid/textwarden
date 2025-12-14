@@ -11,13 +11,16 @@ import AppKit
 extension KeyboardShortcuts.Name {
     // MARK: - Grammar Checking
 
-    /// Toggle grammar checking on/off globally
-    static let toggleGrammarChecking = Self("toggleGrammarChecking", default: .init(.g, modifiers: [.command, .control]))
+    /// Toggle grammar checking on/off globally ("T" for TextWarden)
+    static let toggleGrammarChecking = Self("toggleGrammarChecking", default: .init(.t, modifiers: [.command, .control]))
 
     /// Trigger style check on current text
     static let runStyleCheck = Self("runStyleCheck", default: .init(.s, modifiers: [.command, .control]))
 
     // MARK: - Suggestion Popover
+
+    /// Toggle suggestion popover (show if hidden, hide if shown) - "G" for Grammar
+    static let showSuggestionPopover = Self("showSuggestionPopover", default: .init(.g, modifiers: [.command, .control]))
 
     /// Accept the currently selected suggestion
     static let acceptSuggestion = Self("acceptSuggestion", default: .init(.tab))
