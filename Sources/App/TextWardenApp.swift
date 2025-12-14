@@ -422,13 +422,13 @@ extension AppDelegate: NSWindowDelegate {
 
     /// Setup global keyboard shortcuts using KeyboardShortcuts package
     private func setupKeyboardShortcuts() {
-        // Toggle grammar checking (Cmd+Ctrl+T by default)
-        KeyboardShortcuts.onKeyUp(for: .toggleGrammarChecking) {
+        // Toggle TextWarden (Cmd+Ctrl+T by default)
+        KeyboardShortcuts.onKeyUp(for: .toggleTextWarden) {
             Task { @MainActor in
                 let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
 
-                Logger.debug("Keyboard shortcut: Toggle grammar checking", category: Logger.ui)
+                Logger.debug("Keyboard shortcut: Toggle TextWarden", category: Logger.ui)
 
                 // Toggle pause duration between active and indefinite
                 if preferences.pauseDuration == .active {

@@ -9,10 +9,10 @@ import KeyboardShortcuts
 import AppKit
 
 extension KeyboardShortcuts.Name {
-    // MARK: - Grammar Checking
+    // MARK: - Global Controls
 
-    /// Toggle grammar checking on/off globally ("T" for TextWarden)
-    static let toggleGrammarChecking = Self("toggleGrammarChecking", default: .init(.t, modifiers: [.command, .control]))
+    /// Toggle TextWarden on/off globally ("T" for TextWarden)
+    static let toggleTextWarden = Self("toggleTextWarden", default: .init(.t, modifiers: [.command, .control]))
 
     /// Trigger style check on current text
     static let runStyleCheck = Self("runStyleCheck", default: .init(.s, modifiers: [.command, .control]))

@@ -305,7 +305,7 @@ struct GeneralPreferencesView: View {
             }
 
             Section {
-                KeyboardShortcuts.Recorder("Toggle Grammar Checking:", name: .toggleGrammarChecking)
+                KeyboardShortcuts.Recorder("Toggle TextWarden:", name: .toggleTextWarden)
                 KeyboardShortcuts.Recorder("Run Style Check:", name: .runStyleCheck)
                 KeyboardShortcuts.Recorder("Show Suggestions:", name: .showSuggestionPopover)
 

@@ -498,8 +498,8 @@ struct SettingsDump: Codable {
 
         // IMPORTANT: This must be called on the main thread because
         // KeyboardShortcuts.Shortcut.description accesses input sources
-        if let shortcut = KeyboardShortcuts.getShortcut(for: .toggleGrammarChecking) {
-            shortcutsDict["Toggle Grammar Checking"] = shortcut.description
+        if let shortcut = KeyboardShortcuts.getShortcut(for: .toggleTextWarden) {
+            shortcutsDict["Toggle TextWarden"] = shortcut.description
         }
         if let shortcut = KeyboardShortcuts.getShortcut(for: .acceptSuggestion) {
             shortcutsDict["Accept Suggestion"] = shortcut.description
