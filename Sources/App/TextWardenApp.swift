@@ -87,6 +87,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarController = MenuBarController()
         Logger.info("Menu bar controller initialized", category: Logger.lifecycle)
 
+        // Setup main application menu (overrides default About action)
+        setupMainMenu()
+        Logger.info("Main application menu initialized", category: Logger.lifecycle)
+
         // Setup keyboard shortcuts
         setupKeyboardShortcuts()
 
@@ -275,6 +279,124 @@ extension AppDelegate: NSWindowDelegate {
 
             Logger.debug("setActivationPolicy(.accessory) completed - ActivationPolicy: \(NSApp.activationPolicy().rawValue)", category: Logger.ui)
         }
+    }
+
+    // MARK: - Menu Setup
+
+    /// Setup custom main application menu to override default About action
+    private func setupMainMenu() {
+        let mainMenu = NSMenu()
+
+        // Application menu (TextWarden)
+        let appMenuItem = NSMenuItem()
+        mainMenu.addItem(appMenuItem)
+
+        let appMenu = NSMenu()
+        appMenuItem.submenu = appMenu
+
+        // About TextWarden - custom action
+        let aboutItem = NSMenuItem(
+            title: "About TextWarden",
+            action: #selector(showAboutFromMenu),
+            keyEquivalent: ""
+        )
+        aboutItem.target = self
+        appMenu.addItem(aboutItem)
+
+        appMenu.addItem(NSMenuItem.separator())
+
+        // Check for Updates
+        let updateItem = NSMenuItem(
+            title: "Check for Updates...",
+            action: #selector(checkForUpdatesFromMenu),
+            keyEquivalent: ""
+        )
+        updateItem.target = self
+        appMenu.addItem(updateItem)
+
+        appMenu.addItem(NSMenuItem.separator())
+
+        // Preferences
+        let prefsItem = NSMenuItem(
+            title: "Settings...",
+            action: #selector(openSettingsWindowFromMenu),
+            keyEquivalent: ","
+        )
+        prefsItem.target = self
+        appMenu.addItem(prefsItem)
+
+        appMenu.addItem(NSMenuItem.separator())
+
+        // Hide TextWarden
+        let hideItem = NSMenuItem(
+            title: "Hide TextWarden",
+            action: #selector(NSApplication.hide(_:)),
+            keyEquivalent: "h"
+        )
+        appMenu.addItem(hideItem)
+
+        // Hide Others
+        let hideOthersItem = NSMenuItem(
+            title: "Hide Others",
+            action: #selector(NSApplication.hideOtherApplications(_:)),
+            keyEquivalent: "h"
+        )
+        hideOthersItem.keyEquivalentModifierMask = [.command, .option]
+        appMenu.addItem(hideOthersItem)
+
+        // Show All
+        let showAllItem = NSMenuItem(
+            title: "Show All",
+            action: #selector(NSApplication.unhideAllApplications(_:)),
+            keyEquivalent: ""
+        )
+        appMenu.addItem(showAllItem)
+
+        appMenu.addItem(NSMenuItem.separator())
+
+        // Quit TextWarden
+        let quitItem = NSMenuItem(
+            title: "Quit TextWarden",
+            action: #selector(NSApplication.terminate(_:)),
+            keyEquivalent: "q"
+        )
+        appMenu.addItem(quitItem)
+
+        // Help menu
+        let helpMenuItem = NSMenuItem()
+        mainMenu.addItem(helpMenuItem)
+
+        let helpMenu = NSMenu(title: "Help")
+        helpMenuItem.submenu = helpMenu
+
+        let helpItem = NSMenuItem(
+            title: "TextWarden Help",
+            action: #selector(showHelpFromMenu),
+            keyEquivalent: "?"
+        )
+        helpItem.target = self
+        helpMenu.addItem(helpItem)
+
+        NSApp.mainMenu = mainMenu
+    }
+
+    @MainActor @objc private func showAboutFromMenu() {
+        PreferencesWindowController.shared.selectTab(.about)
+        openSettingsWindow()
+    }
+
+    @MainActor @objc private func checkForUpdatesFromMenu() {
+        updaterViewModel.checkForUpdates()
+        showAboutFromMenu()
+    }
+
+    @MainActor @objc private func openSettingsWindowFromMenu() {
+        PreferencesWindowController.shared.selectTab(.general)
+        openSettingsWindow()
+    }
+
+    @objc private func showHelpFromMenu() {
+        NSApp.showHelp(nil)
     }
 
     // MARK: - Keyboard Shortcuts
