@@ -196,6 +196,7 @@ class UserPreferences: ObservableObject {
         "com.logi.cp-dev-mgr",          // Logitech Device Manager
         "pro.betterdisplay.BetterDisplay",  // BetterDisplay
         "com.electron.dockerdesktop",       // Docker Desktop
+        "com.apple.dt.Xcode",               // Xcode
         "com.grammarly.ProjectLlama",       // Grammarly
         "org.inkscape.Inkscape",            // Inkscape
         "com.microsoft.OneDrive",           // OneDrive
