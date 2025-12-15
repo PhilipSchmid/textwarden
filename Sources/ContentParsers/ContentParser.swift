@@ -71,6 +71,12 @@ protocol ContentParser {
     /// - Returns: Multiplier to apply to NSFont measurements (1.0 = no adjustment)
     func spacingMultiplier(context: String?) -> CGFloat
 
+    /// Get configured font family for this app
+    /// Used when accessibility APIs don't provide font information
+    /// - Parameter context: UI context if available
+    /// - Returns: Font family name, or nil to use system font
+    func fontFamily(context: String?) -> String?
+
     /// Get horizontal padding for text input elements
     /// - Parameter context: UI context if available
     /// - Returns: Left padding in points
@@ -157,6 +163,11 @@ extension ContentParser {
 
     /// Default: no custom bounds calculation, return nil to use standard API
     func getBoundsForRange(range: NSRange, in element: AXUIElement) -> CGRect? {
+        return nil
+    }
+
+    /// Default: no configured font family, use system font
+    func fontFamily(context: String?) -> String? {
         return nil
     }
 

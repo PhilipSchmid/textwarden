@@ -151,10 +151,17 @@ class LineIndexStrategy: GeometryProvider {
         let font = detectFont(from: element, parser: parser)
         let attributes: [NSAttributedString.Key: Any] = [.font: font]
 
+        // textBeforeWidth determines X position - don't apply multiplier to avoid shifting start position
         let textBeforeWidth = (textBeforeErrorInLine as NSString).size(withAttributes: attributes).width
-        let errorWidth = max((errorText as NSString).size(withAttributes: attributes).width, 20.0)
+        // Apply spacing multiplier only to error width for apps with non-standard text rendering
+        let multiplier = parser.spacingMultiplier(context: nil)
+        let rawErrorWidth = (errorText as NSString).size(withAttributes: attributes).width * multiplier
+        // Minimum width proportional to character count (roughly 4px per char) to handle narrow chars like "I"
+        // Old fixed minimum of 20px was too wide for short narrow-char errors like "I I"
+        let minWidth = max(CGFloat(errorText.count) * 4.0, 8.0)
+        let errorWidth = max(rawErrorWidth, minWidth)
 
-        Logger.debug("LineIndexStrategy: textBeforeWidth=\(textBeforeWidth), errorWidth=\(errorWidth)", category: Logger.ui)
+        Logger.debug("LineIndexStrategy: textBeforeWidth=\(textBeforeWidth), errorWidth=\(errorWidth), multiplier=\(multiplier)", category: Logger.ui)
 
         // Step 5: Calculate final bounds
         let errorX = lineBounds.origin.x + textBeforeWidth
@@ -288,9 +295,16 @@ class LineIndexStrategy: GeometryProvider {
             return font
         }
 
-        // Fallback to parser's estimated font size with system font
+        // Fallback to parser's estimated font size
         let context = parser.detectUIContext(element: element)
         let fontSize = parser.estimatedFontSize(context: context)
+
+        // Use configured font family if available, otherwise system font
+        if let fontFamily = parser.fontFamily(context: context),
+           let font = NSFont(name: fontFamily, size: fontSize) {
+            Logger.debug("LineIndexStrategy: Using configured font '\(fontFamily)' size \(fontSize)", category: Logger.ui)
+            return font
+        }
 
         Logger.debug("LineIndexStrategy: Using fallback system font size \(fontSize)", category: Logger.ui)
         return NSFont.systemFont(ofSize: fontSize)
@@ -315,12 +329,15 @@ class LineIndexStrategy: GeometryProvider {
         guard result == .success,
               let attrString = attrStringValue as? NSAttributedString,
               attrString.length > 0 else {
+            Logger.trace("LineIndexStrategy: AXAttributedStringForRange unavailable", category: Logger.ui)
             return nil
         }
 
         // Extract font from attributes
         let attrs = attrString.attributes(at: 0, effectiveRange: nil)
+
         if let font = attrs[.font] as? NSFont {
+            Logger.trace("LineIndexStrategy: Font from .font attr: \(font.fontName) \(font.pointSize)pt", category: Logger.ui)
             return font
         }
 
@@ -329,6 +346,7 @@ class LineIndexStrategy: GeometryProvider {
             if let fontName = fontDict["AXFontName"] as? String,
                let fontSize = fontDict["AXFontSize"] as? CGFloat {
                 if let font = NSFont(name: fontName, size: fontSize) {
+                    Logger.trace("LineIndexStrategy: Font from AXFont: \(fontName) \(fontSize)pt", category: Logger.ui)
                     return font
                 }
             }

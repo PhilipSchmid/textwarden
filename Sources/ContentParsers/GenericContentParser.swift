@@ -50,6 +50,11 @@ class GenericContentParser: ContentParser {
         return config.fontConfig.spacingMultiplier
     }
 
+    func fontFamily(context: String?) -> String? {
+        // Use font family from AppConfiguration if available
+        return config.fontConfig.fontFamily
+    }
+
     func horizontalPadding(context: String?) -> CGFloat {
         // Use horizontal padding from AppConfiguration
         return config.horizontalPadding
