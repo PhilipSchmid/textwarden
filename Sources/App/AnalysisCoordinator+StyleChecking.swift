@@ -9,7 +9,10 @@
 import Foundation
 import AppKit
 @preconcurrency import ApplicationServices
+
+#if canImport(FoundationModels)
 import FoundationModels
+#endif
 
 // MARK: - Performance Optimizations (User Story 4)
 

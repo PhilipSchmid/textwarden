@@ -2,6 +2,8 @@
 // Foundation Models @Generable types for style analysis
 
 import Foundation
+
+#if canImport(FoundationModels)
 import FoundationModels
 
 // MARK: - @Generable Types for Foundation Models
@@ -104,3 +106,5 @@ extension FMStyleAnalysisResult {
         suggestions.compactMap { $0.toStyleSuggestionModel(in: text, style: style) }
     }
 }
+
+#endif
