@@ -35,6 +35,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var menuBarController: MenuBarController?
     var analysisCoordinator: AnalysisCoordinator?
     var settingsWindow: NSWindow?  // Keep strong reference to settings window
+    var onboardingWindow: NSWindow?  // Keep strong reference to onboarding window
 
     /// Shared updater view model for Sparkle auto-updates
     /// Lazy to ensure initialization happens on main thread (UpdaterViewModel is @MainActor)
@@ -104,13 +105,43 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         updaterViewModel.checkForUpdatesInBackground()
         Logger.info("Background update check initiated", category: Logger.lifecycle)
 
-        // Check permissions on launch
+        // Check permissions and onboarding status
         let permissionManager = PermissionManager.shared
         let hasPermission = permissionManager.isPermissionGranted
+        let hasCompletedOnboarding = UserPreferences.shared.hasCompletedOnboarding
         Logger.info("Accessibility permission check: \(hasPermission ? "Granted" : "Not granted")", category: Logger.permissions)
+        Logger.info("Onboarding completed: \(hasCompletedOnboarding)", category: Logger.lifecycle)
 
-        if hasPermission {
-            // Permission already granted - start grammar checking immediately
+        // Show onboarding if not completed yet, regardless of permission status
+        let shouldShowOnboarding = !hasCompletedOnboarding || !hasPermission
+
+        if shouldShowOnboarding {
+            // Show onboarding (either first launch or permission not granted)
+            if !hasCompletedOnboarding {
+                Logger.info("First launch or reset - showing onboarding", category: Logger.lifecycle)
+            } else {
+                Logger.warning("Accessibility permission not granted - showing onboarding", category: Logger.permissions)
+            }
+
+            // If permission already granted, start analysis coordinator immediately
+            if hasPermission {
+                analysisCoordinator = AnalysisCoordinator.shared
+                Logger.info("Analysis coordinator initialized (permission already granted)", category: Logger.lifecycle)
+            } else {
+                permissionManager.onPermissionGranted = { [weak self] in
+                    guard let self = self else { return }
+                    Logger.info("Permission granted via onboarding - starting grammar checking", category: Logger.permissions)
+                    self.analysisCoordinator = AnalysisCoordinator.shared
+                    Logger.info("Analysis coordinator initialized", category: Logger.lifecycle)
+                }
+            }
+
+            // Open onboarding window
+            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.longDelay) { [weak self] in
+                self?.openOnboardingWindow()
+            }
+        } else {
+            // Permission granted and onboarding completed - start grammar checking immediately
             Logger.info("Starting grammar checking - enabled: \(UserPreferences.shared.isEnabled)", category: Logger.lifecycle)
 
             // Log paused applications (excluding .active state)
@@ -128,27 +159,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     self?.openSettingsWindow()
                 }
             }
-        } else {
-            // No permission - show onboarding to request it
-            Logger.warning("Accessibility permission not granted - showing onboarding", category: Logger.permissions)
-
-            permissionManager.onPermissionGranted = { [weak self] in
-                guard let self = self else { return }
-                Logger.info("Permission granted via onboarding - starting grammar checking", category: Logger.permissions)
-                self.analysisCoordinator = AnalysisCoordinator.shared
-                Logger.info("Analysis coordinator initialized", category: Logger.lifecycle)
-
-                // Return to accessory mode after onboarding completes
-                DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.focusBounceGrace) {
-                    NSApp.setActivationPolicy(.accessory)
-                    Logger.info("Returned to menu bar only mode", category: Logger.lifecycle)
-                }
-            }
-
-            // Open onboarding window
-            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.longDelay) { [weak self] in
-                self?.openOnboardingWindow()
-            }
         }
     }
 
@@ -161,9 +171,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Welcome to TextWarden"
         window.styleMask = [.titled, .closable]
-        window.isReleasedWhenClosed = true  // Can be released when closed
+        window.isReleasedWhenClosed = false  // We manage the lifecycle manually
         window.setContentSize(NSSize(width: 580, height: 650))
         window.center()
+
+        // Store strong reference to prevent premature deallocation
+        self.onboardingWindow = window
+
+        // Clean up reference after window closes (with delay for animations)
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            // Delay cleanup to let window animations complete (macOS 26 fix)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self?.onboardingWindow = nil
+                Logger.debug("Onboarding window reference cleared", category: Logger.ui)
+            }
+        }
 
         // Temporarily switch to regular mode to show window
         NSApp.setActivationPolicy(.regular)
@@ -172,6 +198,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
 
         Logger.info("Onboarding window displayed", category: Logger.ui)
+    }
+
+    /// Close the onboarding window and return to menu bar mode
+    @objc func closeOnboardingWindow() {
+        Logger.info("Closing onboarding window", category: Logger.ui)
+
+        // Close the window (triggers willCloseNotification which cleans up the reference)
+        onboardingWindow?.close()
+
+        // Return to accessory mode after window closes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            NSApp.setActivationPolicy(.accessory)
+            Logger.info("Returned to menu bar only mode", category: Logger.lifecycle)
+        }
     }
 
     // Prevent app from quitting when all windows close (menu bar app)
