@@ -182,7 +182,7 @@ TextWarden uses the macOS Accessibility API and works with most applications. Vi
 | **Microsoft PowerPoint** | Notes only** | Indicator only* |
 | **Microsoft Excel** | Not supported | N/A |
 | **Microsoft Teams** | Full | Indicator only* |
-| **Terminal apps** (iTerm2, Terminal.app, Warp) | Full | Indicator only* |
+| **Terminal apps** (iTerm2, Terminal.app, Warp, Ghostty, Kitty, etc.) | Full | Indicator only* |
 
 *\*These apps use a floating indicator instead of inline underlines due to accessibility API limitations. Microsoft Word crashes (EXC_BAD_INSTRUCTION in mso99) when applications query parameterized accessibility attributes like AXBoundsForRange, so visual underlines are disabled.*
 
