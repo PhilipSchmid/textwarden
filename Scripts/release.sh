@@ -18,6 +18,12 @@ PROJECT="TextWarden.xcodeproj"
 SCHEME="TextWarden"
 GITHUB_REPO="PhilipSchmid/textwarden"
 
+# Code signing settings
+DEVELOPER_ID="Developer ID Application: Philip Schmid (KSW8RTNTKJ)"
+ENTITLEMENTS="TextWarden.entitlements"
+APPLE_ID="${APPLE_ID:-}"  # Set via environment or keychain
+TEAM_ID="KSW8RTNTKJ"
+
 # Directories
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -137,14 +143,16 @@ build_archive() {
     cd "$PROJECT_ROOT"
     FEATURES=llm ./Scripts/build-rust.sh
 
-    # Archive
+    # Archive with Developer ID signing
     local archive_path="$RELEASE_DIR/$APP_NAME.xcarchive"
     xcodebuild archive \
         -project "$PROJECT" \
         -scheme "$SCHEME" \
         -configuration Release \
         -archivePath "$archive_path" \
-        CODE_SIGN_IDENTITY="-" \
+        CODE_SIGN_IDENTITY="$DEVELOPER_ID" \
+        CODE_SIGN_ENTITLEMENTS="$PROJECT_ROOT/$ENTITLEMENTS" \
+        OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime" \
         2>&1 | grep -E "(error:|warning:|ARCHIVE SUCCEEDED|ARCHIVE FAILED)" || true
 
     # Verify archive succeeded
@@ -167,11 +175,64 @@ export_app() {
     rm -rf "$export_path"
     mkdir -p "$export_path"
 
-    # For unsigned development builds, just copy from archive
+    # Copy from archive
     cp -R "$archive_path/Products/Applications/$APP_NAME.app" "$export_path/"
 
-    echo -e "${GREEN}App exported${NC}"
+    # Re-sign with Developer ID and entitlements for distribution
+    echo -e "${BLUE}Signing app with Developer ID...${NC}"
+    codesign --force --deep --timestamp --options=runtime \
+        --sign "$DEVELOPER_ID" \
+        --entitlements "$PROJECT_ROOT/$ENTITLEMENTS" \
+        "$export_path/$APP_NAME.app"
+
+    # Verify signature
+    if ! codesign --verify --deep --strict "$export_path/$APP_NAME.app" 2>/dev/null; then
+        echo -e "${RED}Code signing verification failed${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}App exported and signed${NC}"
     echo "$export_path/$APP_NAME.app"
+}
+
+# Notarize the app
+notarize_app() {
+    local dmg_path="$1"
+
+    echo -e "${BLUE}Notarizing app...${NC}"
+
+    # Check for Apple ID credentials
+    if [[ -z "$APPLE_ID" ]]; then
+        echo -e "${YELLOW}APPLE_ID not set. Checking keychain for notarytool credentials...${NC}"
+        # Try using stored keychain profile
+        if ! xcrun notarytool history --keychain-profile "TextWarden" >/dev/null 2>&1; then
+            echo -e "${YELLOW}No keychain profile found. Skipping notarization.${NC}"
+            echo -e "${YELLOW}To enable notarization, run:${NC}"
+            echo -e "  xcrun notarytool store-credentials \"TextWarden\" --apple-id YOUR_APPLE_ID --team-id $TEAM_ID"
+            return 0
+        fi
+        local auth_args="--keychain-profile TextWarden"
+    else
+        local auth_args="--apple-id $APPLE_ID --team-id $TEAM_ID --password @keychain:AC_PASSWORD"
+    fi
+
+    # Submit for notarization
+    echo -e "${BLUE}Submitting to Apple notary service...${NC}"
+    local result
+    result=$(xcrun notarytool submit "$dmg_path" $auth_args --wait 2>&1)
+
+    if echo "$result" | grep -q "status: Accepted"; then
+        echo -e "${GREEN}Notarization successful${NC}"
+
+        # Staple the ticket to the DMG
+        echo -e "${BLUE}Stapling notarization ticket...${NC}"
+        xcrun stapler staple "$dmg_path"
+        echo -e "${GREEN}Stapling complete${NC}"
+    else
+        echo -e "${RED}Notarization failed:${NC}"
+        echo "$result"
+        echo -e "${YELLOW}Continuing without notarization...${NC}"
+    fi
 }
 
 # Create DMG
@@ -398,6 +459,9 @@ do_release() {
 
     # Sign with Sparkle
     local signature=$(sign_update "$dmg_path" "$sparkle_bin")
+
+    # Notarize the DMG (requires Apple Developer credentials)
+    notarize_app "$dmg_path"
 
     # Update appcast
     update_appcast "$version" "$new_build" "$dmg_path" "$signature" "$release_notes" "$is_prerelease" "$version_type"
