@@ -49,6 +49,8 @@ A small indicator appears when issues are found. Click to see suggestions. Accep
 3. Grant Accessibility permission when prompted (required to read text in other apps)
 4. Start typing - TextWarden works automatically in the background
 
+For detailed explanations of all settings and how they affect your experience, see the **[Configuration Guide](CONFIGURATION.md)**.
+
 > **Note on Default Settings**: TextWarden's default settings are opinionated based on my own application usage. If you'd like to see different defaults or have suggestions for improvements, I'm happy to consider changes - please [open a discussion](https://github.com/philipschmid/textwarden/discussions) to share your thoughts.
 
 ## Feature Details
