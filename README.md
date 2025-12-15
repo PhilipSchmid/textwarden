@@ -9,6 +9,9 @@ TextWarden checks your spelling and grammar while you type - in any app on your 
   <img src="Assets/textwarden_logo.svg" alt="TextWarden Logo" width="320" height="320">
 </p>
 
+> [!NOTE]
+> **Beta Software**: TextWarden is currently in beta and may contain bugs. If you encounter any issues, please [report them](#support) so they can be fixed.
+
 ## Why TextWarden?
 
 **Private by Design**
