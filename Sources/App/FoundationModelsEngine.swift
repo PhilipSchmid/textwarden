@@ -127,13 +127,9 @@ final class FoundationModelsEngine: ObservableObject {
             return
         }
 
-        do {
-            let session = LanguageModelSession()
-            try await session.prewarm()
-            Logger.debug("Apple Intelligence: Session prewarmed", category: Logger.llm)
-        } catch {
-            Logger.warning("Apple Intelligence: Prewarm failed", category: Logger.llm)
-        }
+        let session = LanguageModelSession()
+        session.prewarm()
+        Logger.debug("Apple Intelligence: Session prewarmed", category: Logger.llm)
     }
 
     // MARK: - Style Analysis

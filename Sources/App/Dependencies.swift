@@ -27,8 +27,8 @@ import AppKit
 // MARK: - Service Protocols
 
 /// Protocol for grammar analysis engine
-@MainActor
-protocol GrammarAnalyzing {
+/// Thread-safe: implementations must be safe to call from any thread
+protocol GrammarAnalyzing: Sendable {
     func analyzeText(
         _ text: String,
         dialect: String,

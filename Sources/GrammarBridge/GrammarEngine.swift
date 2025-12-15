@@ -4,7 +4,8 @@
 import Foundation
 
 /// Swift wrapper for the Rust grammar analysis engine
-@objc public class GrammarEngine: NSObject {
+/// Thread-safe: all FFI calls to Rust are internally synchronized
+@objc public class GrammarEngine: NSObject, @unchecked Sendable {
 
     /// Shared singleton instance
     @objc public static let shared = GrammarEngine()
