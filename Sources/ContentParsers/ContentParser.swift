@@ -110,6 +110,15 @@ protocol ContentParser {
     /// Returns 0 for most parsers, only non-zero for terminal parsers
     var textReplacementOffset: Int { get }
 
+    /// Calculate selection offset for a given position in text.
+    /// Used by positioning strategies to adjust for app-specific text representation differences.
+    /// For example, Slack replaces emojis with newlines in AXValue but selection API ignores them.
+    /// - Parameters:
+    ///   - position: The grapheme cluster position in the text
+    ///   - text: The full text content from the element
+    /// - Returns: Number of characters to subtract from position for selection API
+    func selectionOffset(at position: Int, in text: String) -> Int
+
     /// Custom bounds calculation for apps with non-standard accessibility APIs.
     /// Override this for apps where standard AXBoundsForRange doesn't work correctly
     /// (e.g., Apple Mail's WebKit which needs single-char queries and coordinate conversion).
@@ -158,6 +167,11 @@ extension ContentParser {
 
     /// Default: no offset needed for text replacement
     var textReplacementOffset: Int {
+        return 0
+    }
+
+    /// Default: no selection offset adjustment needed
+    func selectionOffset(at position: Int, in text: String) -> Int {
         return 0
     }
 

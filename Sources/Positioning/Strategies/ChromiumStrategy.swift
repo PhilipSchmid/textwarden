@@ -132,15 +132,23 @@ class ChromiumStrategy: GeometryProvider {
 
         let offset = parser.textReplacementOffset
         let startIndex = errorRange.location + offset
-        let adjustedRange = NSRange(location: startIndex, length: errorRange.length)
+        let graphemeRange = NSRange(location: startIndex, length: errorRange.length)
 
-        Logger.debug("ChromiumStrategy: Calculating bounds for range [\(adjustedRange.location), \(adjustedRange.length)] (text length: \(text.count))", category: Logger.ui)
+        // Apply app-specific selection offset (e.g., Slack needs newline adjustment)
+        let selectionOffset = parser.selectionOffset(at: graphemeRange.location, in: text)
+        let adjustedLocation = max(0, graphemeRange.location - selectionOffset)
+        let selectionRange = NSRange(location: adjustedLocation, length: graphemeRange.length)
+
+        if selectionOffset > 0 {
+            Logger.debug("ChromiumStrategy: Selection offset adjustment [\(graphemeRange.location)] - \(selectionOffset) -> [\(selectionRange.location)]", category: Logger.ui)
+        }
 
         // Check cache invalidation conditions
         invalidateCacheIfNeeded(element: element, text: text)
 
-        // Return cached bounds if available (thread-safe access)
-        if let cachedBounds = ChromiumStrategy.stateQueue.sync(execute: { ChromiumStrategy._boundsCache[adjustedRange] }) {
+        // Return cached bounds if available - cache key uses grapheme range since error positions
+        // come in grapheme terms, but bounds were measured using UTF-16 selection
+        if let cachedBounds = ChromiumStrategy.stateQueue.sync(execute: { ChromiumStrategy._boundsCache[graphemeRange] }) {
             let cocoaBounds = convertQuartzToCocoa(cachedBounds)
             return GeometryResult(
                 bounds: cocoaBounds,
@@ -159,9 +167,9 @@ class ChromiumStrategy: GeometryProvider {
         // Save cursor once before first measurement
         saveCursorPosition(element: element)
 
-        // Measure bounds using selection-based approach
-        guard var bounds = measureBoundsViaSelection(element: element, range: adjustedRange) else {
-            Logger.debug("ChromiumStrategy: measureBoundsViaSelection returned nil for range \(adjustedRange)", category: Logger.analysis)
+        // Measure bounds using selection-based approach (with emoji offset correction)
+        guard var bounds = measureBoundsViaSelection(element: element, range: selectionRange) else {
+            Logger.debug("ChromiumStrategy: measureBoundsViaSelection returned nil for range \(selectionRange)", category: Logger.analysis)
             return nil
         }
 
@@ -198,8 +206,8 @@ class ChromiumStrategy: GeometryProvider {
             Logger.debug("ChromiumStrategy: Estimated width \(estimatedWidth) for \(errorText.count) chars", category: Logger.analysis)
         }
 
-        // Cache and return (thread-safe access)
-        ChromiumStrategy.stateQueue.sync { ChromiumStrategy._boundsCache[adjustedRange] = bounds }
+        // Cache and return (thread-safe access) - cache key uses grapheme range
+        ChromiumStrategy.stateQueue.sync { ChromiumStrategy._boundsCache[graphemeRange] = bounds }
         let cocoaBounds = convertQuartzToCocoa(bounds)
 
         // Log coordinate transformation for debugging multi-line issues

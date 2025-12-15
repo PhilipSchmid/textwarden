@@ -26,6 +26,21 @@ class SlackContentParser: ContentParser {
         return !config.features.visualUnderlinesEnabled
     }
 
+    /// Slack's selection API treats newlines as zero-width, but AXValue includes them.
+    /// This is because Slack replaces emojis with \n\n and adds \n for line breaks.
+    /// Each newline needs to be subtracted from position for accurate selection.
+    func selectionOffset(at position: Int, in text: String) -> Int {
+        guard position > 0 else { return 0 }
+
+        let endIndex = min(position, text.count)
+        guard let endStringIndex = text.index(text.startIndex, offsetBy: endIndex, limitedBy: text.endIndex) else {
+            return 0
+        }
+
+        let prefix = String(text[..<endStringIndex])
+        return prefix.filter { $0 == "\n" }.count
+    }
+
     /// Diagnostic result from probing Slack's AX capabilities
     private static var diagnosticResult: NotionDiagnosticResult?
     private static var hasRunDiagnostic = false
