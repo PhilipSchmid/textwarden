@@ -1,0 +1,336 @@
+# TextWarden Configuration Guide
+
+This guide explains all the settings available in TextWarden and how they affect your experience. Access settings via the TextWarden menu bar icon → **Preferences**.
+
+## Table of Contents
+
+- [Table of Contents](#table-of-contents)
+- [General Settings](#general-settings)
+- [Grammar \& Language](#grammar--language)
+- [Custom Vocabulary](#custom-vocabulary)
+- [Style Checking (Apple Intelligence)](#style-checking-apple-intelligence)
+- [Appearance](#appearance)
+- [Application Controls](#application-controls)
+- [Keyboard Shortcuts](#keyboard-shortcuts)
+- [Advanced Settings](#advanced-settings)
+- [Troubleshooting Tips](#troubleshooting-tips)
+- [Getting Help](#getting-help)
+
+---
+
+## General Settings
+
+### Launch at Login
+
+**What it does:** Automatically starts TextWarden when you log into your Mac.
+
+**Recommendation:** Enable this for always-on grammar checking without having to remember to launch the app.
+
+### Analysis Delay
+
+**What it does:** Controls how long TextWarden waits after you stop typing before analyzing your text.
+
+**Options:**
+- **Instant (50ms)** - Fastest feedback, may feel intrusive while typing quickly
+- **Fast (150ms)** - Good balance for most users
+- **Normal (300ms)** - Default, waits for natural pauses
+- **Relaxed (500ms)** - Best for slower typists or if you find suggestions distracting
+
+**Recommendation:** Start with Normal. If you find underlines appearing while you're still composing a thought, increase the delay.
+
+---
+
+## Grammar & Language
+
+### English Dialect
+
+**What it does:** Determines spelling and grammar rules. For example, "colour" vs "color", "analyse" vs "analyze".
+
+**Options:**
+- American English
+- British English
+- Canadian English
+- Australian English
+
+**Recommendation:** Choose the dialect matching your audience or workplace standards.
+
+### Language Detection
+
+**What it does:** When enabled, TextWarden detects non-English sentences and skips them. This prevents false errors when you write in multiple languages.
+
+**Excluded Languages:** If language detection is on, you can specify which languages to ignore (e.g., German, French, Spanish).
+
+**Recommendation:** Enable if you frequently mix languages. Otherwise, leave it off for faster processing.
+
+### Grammar Categories
+
+**What it does:** Choose which types of errors TextWarden flags.
+
+**Categories include:**
+- **Spelling** - Misspelled words
+- **Grammar** - Subject-verb agreement, tense consistency
+- **Punctuation** - Missing or incorrect punctuation
+- **Style** - Wordiness, passive voice, clichés
+- **Capitalization** - Proper nouns, sentence starts
+- **Repetition** - Repeated words like "the the"
+
+**Recommendation:** Enable all categories initially. Disable specific ones only if they generate too many unwanted suggestions for your writing style.
+
+### Sentence Start Capitalization
+
+**What it does:** Flags sentences that don't start with a capital letter.
+
+**Recommendation:** Disable if you frequently write in contexts where lowercase starts are intentional (code comments, chat messages, etc.).
+
+---
+
+## Custom Vocabulary
+
+### Your Words
+
+**What it does:** Words you add here will never be flagged as spelling errors. Useful for names, technical terms, brand names, and jargon specific to your field.
+
+**How to add words:**
+1. Click "Add Word" and type the term
+2. Or right-click any flagged word → "Add to Dictionary"
+
+### Built-in Word Lists
+
+TextWarden includes optional word lists you can enable:
+
+- **Internet Abbreviations** - Common online terms (lol, btw, imo, etc.)
+- **Gen Z Slang** - Modern slang terms (vibe, slay, bussin, etc.)
+- **IT Terminology** - Technical terms (kubernetes, nginx, oauth, etc.)
+- **Brand Names** - Company and product names (iPhone, LinkedIn, etc.)
+- **Person Names** - Common first and last names
+
+**Recommendation:** Enable the lists matching your typical writing context. Developers might enable IT Terminology; social media managers might enable Internet Abbreviations and Gen Z Slang.
+
+---
+
+## Style Checking (Apple Intelligence)
+
+> **Requires:** macOS 26 (Tahoe) or later with Apple Intelligence enabled
+
+### Enable Style Checking
+
+**What it does:** Activates AI-powered style suggestions using Apple Intelligence. These go beyond grammar to suggest clearer, more effective phrasing.
+
+**What you'll see:** When enabled, you may get suggestions like "Consider rephrasing for clarity" or "This could be more concise."
+
+### Automatic Style Checks
+
+**What it does:** When enabled, style analysis runs automatically as you type (with a delay to avoid interrupting your flow). When disabled, you must manually trigger style checks using the keyboard shortcut.
+
+**Recommendation:** Start with automatic checks disabled. Use manual triggers until you're comfortable with the suggestions, then consider enabling automatic checks.
+
+### Writing Style
+
+**What it does:** Tailors suggestions to match your intended tone.
+
+**Options:**
+- **Default** - Balanced improvements for general writing
+- **Formal** - Professional tone, complete sentences, suitable for business documents
+- **Casual** - Friendly, conversational, good for emails to friends or social media
+- **Business** - Clear, action-oriented, ideal for professional communication
+- **Concise** - Removes filler words and unnecessary verbosity
+
+**Recommendation:** Match this to your current task. Switch between styles as needed—formal for reports, casual for Slack messages.
+
+### Temperature Preset
+
+**What it does:** Controls how creative vs. consistent the AI suggestions are.
+
+**Options:**
+- **Consistent** - Same input produces same suggestions (deterministic)
+- **Balanced** - Slight variation while maintaining accuracy
+- **Creative** - More varied suggestions, still appropriate for writing tasks
+
+**Recommendation:** Use Consistent for professional documents where you want predictable results. Use Balanced for everyday writing.
+
+### Minimum Sentence Length
+
+**What it does:** Only analyzes sentences with at least this many words. Short phrases like "Thanks!" or "OK" are skipped.
+
+**Range:** 3-10 words
+
+**Recommendation:** Keep at 5-6 words. Lower values may generate unnecessary suggestions for greetings and short responses.
+
+---
+
+## Appearance
+
+### App Theme
+
+**What it does:** Controls the overall look of TextWarden's interface.
+
+**Options:**
+- **System** - Follows your Mac's appearance setting
+- **Light** - Always light mode
+- **Dark** - Always dark mode
+
+### Overlay Theme
+
+**What it does:** Controls the appearance of suggestion popovers and indicators.
+
+**Options:**
+- **System** - Matches your Mac's appearance
+- **Light** - Light background for popovers
+- **Dark** - Dark background for popovers
+
+### Suggestion Opacity
+
+**What it does:** How transparent the suggestion popover appears.
+
+**Range:** 50% (more transparent) to 100% (fully opaque)
+
+**Recommendation:** If popovers feel too prominent, reduce opacity. If they're hard to read, increase it.
+
+### Text Size
+
+**What it does:** Size of text in suggestion popovers.
+
+**Range:** Small to Large
+
+**Recommendation:** Adjust based on your display and visual preferences.
+
+### Underline Thickness
+
+**What it does:** Thickness of the wavy underlines shown under errors.
+
+**Range:** Thin to Thick
+
+**Recommendation:** Thicker lines are more noticeable but may feel intrusive. Find your balance.
+
+### Indicator Position
+
+**What it does:** Where the error count indicator appears relative to the text field.
+
+**Options:**
+- **Auto** - TextWarden chooses based on available space
+- **Top Right** - Above and to the right
+- **Bottom Right** - Below and to the right
+- **Top Left** - Above and to the left
+- **Bottom Left** - Below and to the left
+
+---
+
+## Application Controls
+
+### Per-App Settings
+
+**What it does:** Enable, disable, or pause TextWarden for specific applications.
+
+**Options for each app:**
+- **Active** - TextWarden monitors and checks text
+- **Paused (duration)** - Temporarily disabled (15 min, 1 hour, etc.)
+- **Paused Indefinitely** - Disabled until you re-enable
+
+**Use cases:**
+- Pause for apps where you intentionally write unconventionally
+- Disable for terminal applications (automatically paused by default)
+- Pause during presentations or screen sharing
+
+### Global Pause
+
+**What it does:** Quickly pause TextWarden across all applications.
+
+**How to use:** Click the menu bar icon → select a pause duration
+
+**Options:**
+- 15 minutes
+- 1 hour
+- 4 hours
+- Until tomorrow
+- Indefinitely
+
+---
+
+## Keyboard Shortcuts
+
+TextWarden supports global keyboard shortcuts that work in any application.
+
+### Available Shortcuts
+
+| Action | Default | Description |
+|--------|---------|-------------|
+| Toggle TextWarden | ⌃⌥G | Enable/disable grammar checking globally |
+| Accept Suggestion | ⌃⌥A | Apply the current suggestion |
+| Dismiss Suggestion | ⌃⌥D | Dismiss without applying |
+| Previous Suggestion | ⌃⌥← | Navigate to previous error |
+| Next Suggestion | ⌃⌥→ | Navigate to next error |
+| Apply Suggestion 1 | ⌃⌥1 | Apply first suggestion option |
+| Apply Suggestion 2 | ⌃⌥2 | Apply second suggestion option |
+| Apply Suggestion 3 | ⌃⌥3 | Apply third suggestion option |
+
+### Customizing Shortcuts
+
+1. Open Preferences → Shortcuts tab
+2. Click on any shortcut to record a new key combination
+3. Press your desired keys
+4. Click elsewhere to confirm
+
+**Tip:** Choose shortcuts that don't conflict with your most-used applications.
+
+---
+
+## Advanced Settings
+
+### Debug Overlays
+
+**What it does:** Shows colored borders around detected text fields. Useful for troubleshooting positioning issues.
+
+**Options:**
+- **Text Field Bounds** - Where TextWarden thinks the text area is
+- **Window Coordinates** - Raw window position data
+- **Cocoa Coordinates** - Converted screen coordinates
+
+**Recommendation:** Keep disabled unless troubleshooting. These are developer tools.
+
+### Logging
+
+**What it does:** Controls what information TextWarden records for diagnostics.
+
+**Log Levels:**
+- **Error** - Only serious problems
+- **Warning** - Potential issues
+- **Info** - General operation info
+- **Debug** - Detailed technical info
+- **Trace** - Everything (generates large log files)
+
+**File Logging:** When enabled, writes logs to disk for later review.
+
+**Recommendation:** Keep at "Warning" or "Info" for normal use. Enable "Debug" only when troubleshooting issues.
+
+---
+
+## Troubleshooting Tips
+
+**Suggestions aren't appearing:**
+1. Check that TextWarden is running (look for the menu bar icon)
+2. Verify the app isn't paused (icon should not show a pause indicator)
+3. Ensure the current application isn't in the paused list
+4. Try increasing the analysis delay if you're typing very quickly
+
+**Too many suggestions:**
+1. Disable grammar categories that don't apply to your writing
+2. Add frequently-flagged terms to your custom dictionary
+3. Enable appropriate word lists (IT Terminology, etc.)
+
+**Style checking unavailable:**
+1. Requires macOS 26 (Tahoe) or later
+2. Apple Intelligence must be enabled in System Settings → Apple Intelligence & Siri
+3. Requires an Apple Silicon Mac (M1 or later)
+
+**Underlines in wrong position:**
+1. Try a different application if possible—some apps have limited accessibility support
+2. Check Debug Overlays to see what TextWarden detects
+3. Report the issue with a diagnostic export (Help → Export Diagnostics)
+
+---
+
+## Getting Help
+
+- **Troubleshooting Guide:** See [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+- **Report Issues:** [GitHub Issues](https://github.com/philipschmid/textwarden/issues)
+- **Export Diagnostics:** Help → Export Diagnostics (includes logs, settings, no personal text)
