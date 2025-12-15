@@ -9,6 +9,12 @@ TextWarden checks your spelling and grammar while you type - in any app on your 
   <img src="Assets/textwarden_logo.svg" alt="TextWarden Logo" width="320" height="320">
 </p>
 
+<p align="center">
+  <a href="https://github.com/philipschmid/textwarden/releases">
+    <img src="https://user-images.githubusercontent.com/37590873/219133640-8b7a0179-20a7-4e02-8887-fbbd2eaad64b.png" alt="Download for macOS" width="250">
+  </a>
+</p>
+
 > [!NOTE]
 > **Beta Software**: TextWarden is currently in beta and may contain bugs. If you encounter any issues, please [report them](#support) so they can be fixed.
 
