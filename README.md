@@ -39,7 +39,8 @@ A small indicator appears when issues are found. Click to see suggestions. Accep
 ## Requirements
 
 - Apple Silicon Mac (M1 or later)
-- macOS 14 or later
+- macOS 15 or later
+- macOS 26+ for AI-powered style suggestions (Apple Intelligence)
 
 ## Getting Started
 
