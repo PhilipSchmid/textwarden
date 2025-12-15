@@ -62,3 +62,4 @@ build/
 # Temporary files
 *.log
 *.tmp
+CLAUDE.local.md
