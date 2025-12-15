@@ -4,26 +4,32 @@ This document describes the architecture, design patterns, and coding principles
 
 ## High-Level Overview
 
-TextWarden is a macOS menu bar application that monitors text input across all applications and provides grammar checking and style suggestions in real-time. The architecture consists of two main components:
+TextWarden is a macOS menu bar application that monitors text input across all applications and provides grammar checking and style suggestions in real-time.
 
 ```mermaid
 flowchart TB
+    User["User"]
+
     subgraph Swift["TextWarden (Swift)"]
-        AX["Accessibility Layer"]
-        AC["AnalysisCoordinator<br/>(Core)"]
-        UI["UI Layer<br/>(Popovers/Overlays)"]
-        CP["ContentParsers<br/>Factory"]
-
-        AX --> AC
-        AC --> UI
-        AX --> CP
+        direction LR
+        AX["Accessibility Layer"] --> AC["AnalysisCoordinator"] --> UI["UI Layer"]
     end
 
-    subgraph Rust["GrammarEngine (Rust)"]
-        GE["Grammar Analysis"]
-    end
+    GE["Rust/Harper Grammar"]
+    AI["Apple Intelligence"]
 
-    AC <-->|"FFI Bridge"| GE
+    User --> AX
+    UI --> User
+    AC --> GE
+    AC --> AI
+
+    style User fill:#4a9eff,stroke:#2d7dd2,color:#fff
+    style AX fill:#34d399,stroke:#059669,color:#fff
+    style AC fill:#f472b6,stroke:#db2777,color:#fff
+    style UI fill:#a78bfa,stroke:#7c3aed,color:#fff
+    style GE fill:#fb923c,stroke:#ea580c,color:#fff
+    style AI fill:#fbbf24,stroke:#d97706,color:#fff
+    style Swift fill:#1e293b,stroke:#475569,color:#fff
 ```
 
 **Swift Layer** handles:
@@ -32,88 +38,123 @@ flowchart TB
 - Error position calculation for visual underlines
 - UI rendering (suggestion popovers, error indicators)
 - Text replacement operations
+- Apple Intelligence integration via FoundationModelsEngine
 
 **Rust Layer** (GrammarEngine) handles:
 - Grammar analysis via Harper library
+- Language detection via whichlang
+- Custom vocabulary support (slang, IT terms, brand names)
 
 **Apple Intelligence** (macOS 26+):
-- Style suggestions via Apple's Foundation Models framework
-- On-device processing with privacy guarantees
+- Style suggestions via Foundation Models framework
+- On-device processing with complete privacy
+- Writing style adaptation (formal, casual, concise, business)
 
 ## Directory Structure
 
 ```
 Sources/
-├── App/                        # Application lifecycle and orchestration
-│   ├── TextWardenApp.swift     # Main entry point, @main
-│   ├── AnalysisCoordinator.swift # Central orchestrator (see below)
-│   ├── MenuBarController.swift # Menu bar UI
-│   └── UpdaterViewModel.swift  # Sparkle auto-updater
+├── App/                                     # Application lifecycle and orchestration
+│   ├── TextWardenApp.swift                  # Main entry point (@main)
+│   ├── AnalysisCoordinator.swift            # Central orchestrator (+ extensions)
+│   ├── FoundationModelsEngine.swift         # Apple Intelligence integration
+│   ├── StyleInstructions.swift              # AI prompt templates
+│   ├── MenuBarController.swift              # Menu bar UI
+│   ├── Dependencies.swift                   # Dependency injection container
+│   └── UpdaterViewModel.swift               # Sparkle auto-updater
 │
-├── Accessibility/              # macOS Accessibility API layer
-│   ├── TextMonitor.swift       # Monitors text changes via AX observers
-│   ├── ApplicationTracker.swift # Tracks active app/window focus
-│   ├── PermissionManager.swift # Accessibility permission handling
-│   └── BrowserURLExtractor.swift # Extracts URLs from browser address bars
+├── Accessibility/                           # macOS Accessibility API layer
+│   ├── TextMonitor.swift                    # Monitors text changes via AX observers
+│   ├── ApplicationTracker.swift             # Tracks active app/window focus
+│   ├── PermissionManager.swift              # Accessibility permission handling
+│   ├── BrowserURLExtractor.swift            # Extracts URLs from browser address bars
+│   └── CGWindowHelper.swift                 # Window-level helpers
 │
-├── ContentParsers/             # App-specific text extraction
-│   ├── ContentParser.swift     # Protocol definition
-│   ├── ContentParserFactory.swift # Factory for parser instantiation
-│   ├── GenericContentParser.swift # Default parser
-│   ├── BrowserContentParser.swift # Chrome, Safari, Firefox, etc.
-│   ├── SlackContentParser.swift   # Slack-specific handling
-│   ├── NotionContentParser.swift  # Notion blocks parsing
-│   ├── MailContentParser.swift    # Apple Mail
-│   ├── WordContentParser.swift    # Microsoft Word
-│   ├── TeamsContentParser.swift   # Microsoft Teams
-│   └── TerminalContentParser.swift # Terminal emulators
+├── ContentParsers/                          # App-specific text extraction
+│   ├── ContentParser.swift                  # Protocol definition
+│   ├── ContentParserFactory.swift           # Factory for parser instantiation
+│   ├── GenericContentParser.swift           # Default parser
+│   ├── BrowserContentParser.swift           # Chrome, Safari, Firefox, Arc
+│   ├── SlackContentParser.swift             # Slack rich text handling
+│   ├── NotionContentParser.swift            # Notion blocks parsing
+│   ├── MailContentParser.swift              # Apple Mail
+│   ├── WordContentParser.swift              # Microsoft Word
+│   ├── PowerPointContentParser.swift        # Microsoft PowerPoint
+│   ├── TeamsContentParser.swift             # Microsoft Teams
+│   └── TerminalContentParser.swift          # Terminal emulators
 │
-├── Positioning/                # Error underline position calculation
-│   ├── PositionResolver.swift  # Strategy orchestrator
-│   ├── AccessibilityBridge.swift # AX API helpers
-│   ├── CoordinateMapper.swift  # Quartz ↔ Cocoa coordinate conversion
-│   ├── TypingDetector.swift    # Detects when user stops typing
-│   └── Strategies/             # Different positioning approaches
-│       ├── GeometryProvider.swift # Strategy protocol
-│       ├── RangeBoundsStrategy.swift # AXBoundsForRange
-│       ├── LineIndexStrategy.swift   # Line-based calculation
-│       ├── TextMarkerStrategy.swift  # AXTextMarker APIs
-│       ├── InsertionPointStrategy.swift # Cursor-based fallback
-│       ├── AnchorSearchStrategy.swift # Probe-based search
-│       ├── ChromiumStrategy.swift # Electron/Chromium specifics
-│       └── Legacy/             # Deprecated strategies (reference only)
+├── Positioning/                             # Error underline position calculation
+│   ├── PositionResolver.swift               # Strategy orchestrator
+│   ├── AccessibilityBridge.swift            # AX API helpers
+│   ├── CoordinateMapper.swift               # Quartz ↔ Cocoa coordinate conversion
+│   ├── GeometryProvider.swift               # Strategy protocol
+│   ├── GeometryConstants.swift              # Bounds validation constants
+│   ├── PositionCache.swift                  # Position caching
+│   ├── TypingDetector.swift                 # Detects typing pauses
+│   └── Strategies/                          # Positioning algorithms
+│       ├── RangeBoundsStrategy.swift        # AXBoundsForRange
+│       ├── LineIndexStrategy.swift          # Line + offset calculation
+│       ├── TextMarkerStrategy.swift         # AXTextMarker APIs
+│       ├── InsertionPointStrategy.swift     # Cursor-based fallback
+│       ├── AnchorSearchStrategy.swift       # Probe nearby characters
+│       ├── ChromiumStrategy.swift           # Electron/Chromium heuristics
+│       ├── FontMetricsStrategy.swift        # Font-based calculation
+│       ├── ElementTreeStrategy.swift        # Element hierarchy traversal
+│       ├── OriginStrategy.swift             # Origin-based positioning
+│       └── Legacy/                          # Deprecated (reference only)
 │
-├── AppConfiguration/           # Per-application settings
-│   ├── AppRegistry.swift       # Single source of truth for app configs
-│   ├── AppConfiguration.swift  # Configuration data model
-│   ├── StrategyProfiler.swift  # Auto-detection of app capabilities
-│   └── StrategyProfileCache.swift # Disk cache for detected profiles
+├── AppConfiguration/                        # Per-application settings
+│   ├── AppRegistry.swift                    # Single source of truth for configs
+│   ├── AppConfiguration.swift               # Configuration data model
+│   ├── StrategyProfiler.swift               # Auto-detection of app capabilities
+│   ├── StrategyProfileCache.swift           # Disk cache for profiles
+│   ├── StrategyRecommendationEngine.swift   # Profile-based recommendations
+│   ├── AXCapabilityProfile.swift            # Accessibility capability model
+│   ├── TimingConstants.swift                # Centralized delay values
+│   └── UIConstants.swift                    # UI sizing constants
 │
-├── GrammarBridge/              # Swift-Rust FFI layer
-│   ├── GrammarEngine.swift     # Grammar analysis wrapper
-│   ├── StyleTypes.swift        # Style suggestion models
-│   └── GrammarError.swift      # Error models
+├── GrammarBridge/                           # Swift-Rust FFI layer
+│   ├── GrammarEngine.swift                  # Grammar analysis wrapper
+│   ├── GrammarError.swift                   # Error models
+│   ├── StyleTypes.swift                     # Style suggestion models
+│   └── Suggestion.swift                     # Suggestion data model
 │
-├── Models/                     # Domain models and persistence
-│   ├── GrammarErrorModel.swift # Grammar error representation
-│   ├── StyleSuggestionModel.swift # Style suggestion data
-│   ├── ApplicationContext.swift # Current app context
-│   ├── UserPreferences.swift   # User settings (UserDefaults)
-│   ├── UserStatistics.swift    # Usage metrics
-│   └── Logger.swift            # Logging infrastructure
+├── Models/                                  # Domain models and persistence
+│   ├── UserPreferences.swift                # User settings (UserDefaults)
+│   ├── UserStatistics.swift                 # Usage metrics and analytics
+│   ├── CustomVocabulary.swift               # User dictionary
+│   ├── ApplicationContext.swift             # Current app context
+│   ├── DiagnosticReport.swift               # Diagnostic export
+│   ├── Logger.swift                         # Logging infrastructure
+│   ├── BuildInfo.swift                      # Build metadata
+│   └── TextSegment.swift                    # Text segment model
 │
-├── UI/                         # User interface components
-│   ├── SuggestionPopover.swift # Main suggestion UI
-│   ├── StyleSuggestionPopover.swift # Style-specific popover
-│   ├── FloatingErrorIndicator.swift # Floating underline indicators
-│   ├── ErrorOverlayWindow.swift # Error overlay rendering
-│   ├── PreferencesView.swift   # Settings UI
-│   └── AboutView.swift         # About dialog
+├── UI/                                      # User interface components
+│   ├── SuggestionPopover.swift              # Main grammar suggestion UI
+│   ├── StyleSuggestionPopover.swift         # Style suggestion popover
+│   ├── FloatingErrorIndicator.swift         # Error count indicator
+│   ├── ErrorOverlayWindow.swift             # Visual underline rendering
+│   ├── PreferencesView.swift                # Main settings UI
+│   ├── StyleCheckingSettingsView.swift      # Apple Intelligence settings
+│   ├── StatisticsView.swift                 # Usage statistics dashboard
+│   ├── DiagnosticsView.swift                # Diagnostic export UI
+│   ├── OnboardingView.swift                 # First-run setup
+│   └── AboutView.swift                      # About dialog
 │
-└── Utilities/                  # Support utilities
-    ├── TimingConstants.swift   # Centralized delay/timeout values
-    ├── ResourceMonitor.swift   # Memory/CPU monitoring
-    └── RetryScheduler.swift    # Retry logic for failed operations
+└── Utilities/                               # Support utilities
+    ├── ResourceMonitor.swift                # Memory/CPU monitoring
+    ├── RetryScheduler.swift                 # Retry logic with backoff
+    ├── ClipboardManager.swift               # Clipboard operations
+    └── LogCollector.swift                   # Log file management
+
+GrammarEngine/                               # Rust grammar engine
+└── src/
+    ├── lib.rs                               # Library entry point
+    ├── bridge.rs                            # Swift-Rust FFI bridge
+    ├── analyzer.rs                          # Harper grammar integration
+    ├── language_filter.rs                   # Language detection
+    ├── slang_dict.rs                        # Custom vocabulary dictionaries
+    └── swift_logger.rs                      # Swift logging bridge
 ```
 
 ## Core Components
@@ -139,7 +180,7 @@ The central orchestrator that connects all subsystems. Located in `Sources/App/A
 **Threading Model:**
 - Main thread: UI updates, @Published property changes
 - `analysisQueue`: Grammar analysis dispatch
-- `styleAnalysisQueue`: LLM style analysis dispatch
+- Style analysis uses Swift async/await via FoundationModelsEngine
 
 ### AppRegistry
 
@@ -196,6 +237,51 @@ Each strategy returns a `GeometryResult` with:
 - `strategy: String` - Which strategy produced the result
 
 The resolver tries strategies in order of reliability and stops at the first valid result.
+
+### Apple Foundation Models Integration
+
+TextWarden uses Apple's Foundation Models framework (macOS 26+) for AI-powered style suggestions. This replaces the previous mistral.rs-based approach with Apple Intelligence.
+
+**Key Components:**
+
+- **FoundationModelsEngine** (`Sources/App/FoundationModelsEngine.swift`): Main wrapper around the Foundation Models API. Handles availability checking, session management, and structured output generation.
+
+- **StyleInstructions** (`Sources/App/StyleInstructions.swift`): Builds context-aware prompts for the language model based on writing style preferences.
+
+- **StyleTypes+Generable** (`Sources/App/StyleTypes+Generable.swift`): Defines `@Generable` structs for structured output that the model produces.
+
+**How It Works:**
+
+```swift
+// 1. Check availability
+let engine = FoundationModelsEngine()
+guard engine.status == .available else { return }
+
+// 2. Analyze text with style preference
+let suggestions = try await engine.analyzeStyle(
+    text,
+    style: .formal,
+    temperaturePreset: .balanced
+)
+
+// 3. Apply suggestions via UI
+for suggestion in suggestions {
+    // Show diff, let user accept/reject
+}
+```
+
+**Availability States:**
+- `.available` - Ready to use
+- `.appleIntelligenceNotEnabled` - User needs to enable in System Settings
+- `.deviceNotEligible` - Requires Apple Silicon Mac
+- `.modelNotReady` - Model is downloading/preparing
+
+**Temperature Presets:**
+- **Consistent** (greedy): Deterministic, most accurate
+- **Balanced** (0.3): Reliable with slight variation
+- **Creative** (0.5): More variety while staying accurate
+
+All values are intentionally low since grammar/style checking prioritizes accuracy over creativity.
 
 ## Data Flow
 
@@ -496,7 +582,6 @@ struct DependencyContainer {
     let applicationTracker: ApplicationTracker
     let permissionManager: PermissionManager
     let grammarEngine: GrammarAnalyzing
-    let llmEngine: StyleAnalyzing
     let userPreferences: UserPreferencesProviding
     let appRegistry: AppConfigurationProviding
     let customVocabulary: CustomVocabularyProviding
@@ -588,7 +673,7 @@ Services.reset()
 
 ### Design Decisions
 
-1. **Protocols for external services** - Grammar/LLM engines, preferences, statistics
+1. **Protocols for external services** - Grammar engines, preferences, statistics
 2. **Concrete types for UI components** - Popovers, indicators (rarely mocked)
 3. **@MainActor isolation** - All protocols are main-actor isolated for thread safety
 4. **Default to production** - Missing configuration falls back to production singletons
