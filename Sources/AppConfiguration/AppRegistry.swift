@@ -88,13 +88,13 @@ final class AppRegistry {
         register(.teams)
         register(.browsers)
         register(.notion)
-        register(.terminals)
         register(.mail)
         register(.messages)
         register(.telegram)
         register(.word)
         register(.powerpoint)
         // Note: .default is not registered, used as fallback
+        // Note: Terminal apps are not supported (hidden by default in UserPreferences)
     }
 }
 
@@ -222,27 +222,6 @@ extension AppConfiguration {
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: true  // Electron byte offsets are fragile
         )
-    )
-
-    // MARK: - Terminal Apps
-
-    static let terminals = AppConfiguration(
-        identifier: "terminals",
-        displayName: "Terminal Apps",
-        bundleIDs: [
-            "com.apple.Terminal",
-            "com.googlecode.iterm2",
-            "co.zeit.hyper",
-            "dev.warp.Warp-Stable",
-            "org.alacritty",
-            "net.kovidgoyal.kitty",
-            "com.github.wez.wezterm",
-            "com.mitchellh.ghostty"
-        ],
-        category: .terminal,
-        parserType: .terminal,
-        horizontalPadding: 5
-        // Uses terminal category defaults (underlines disabled)
     )
 
     // MARK: - Apple Mail

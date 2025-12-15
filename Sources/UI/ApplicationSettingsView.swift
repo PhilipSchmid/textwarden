@@ -260,7 +260,7 @@ struct ApplicationSettingsView: View {
     private func loadDiscoveredApplications() {
         var bundleIDs = Set<String>()
 
-        // 1. Add common applications (always show these)
+        // 1. Add common applications (excluding hidden ones)
         let commonBundleIDs = [
             "com.apple.TextEdit",
             "com.microsoft.VSCode",
@@ -275,12 +275,13 @@ struct ApplicationSettingsView: View {
             "com.tinyspeck.slackmacgap",
             "notion.id",
             "md.obsidian",
-            "com.literatureandlatte.scrivener3",
-            "com.apple.Terminal",
-            "com.googlecode.iterm2",
-            "dev.warp.Warp-Stable"
+            "com.literatureandlatte.scrivener3"
         ]
-        bundleIDs.formUnion(commonBundleIDs)
+        for bundleID in commonBundleIDs {
+            if !shouldExcludeFromApplicationList(bundleID) {
+                bundleIDs.insert(bundleID)
+            }
+        }
 
         // 2. Add all discovered applications (apps that have been used), excluding system apps
         for bundleID in preferences.discoveredApplications {

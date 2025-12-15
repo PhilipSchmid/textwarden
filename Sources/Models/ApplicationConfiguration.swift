@@ -40,8 +40,6 @@ class ApplicationConfiguration {
             return 0.10
         case .browser:
             return 0.10
-        case .terminal:
-            return 0.05
         case .native, .custom:
             return 0.05
         }

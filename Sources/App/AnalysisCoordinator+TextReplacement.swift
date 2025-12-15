@@ -913,7 +913,7 @@ extension AnalysisCoordinator {
             return
         }
 
-        Logger.debug("Using keyboard simulation for text replacement (app: \(context.applicationName), isTerminal: \(context.isTerminalApp), isBrowser: \(context.isBrowser))", category: Logger.analysis)
+        Logger.debug("Using keyboard simulation for text replacement (app: \(context.applicationName), isBrowser: \(context.isBrowser))", category: Logger.analysis)
 
         // SPECIAL HANDLING FOR APPLE MAIL
         if context.bundleIdentifier == "com.apple.mail" {
@@ -931,125 +931,8 @@ extension AnalysisCoordinator {
             return
         }
 
-        // SPECIAL HANDLING FOR TERMINALS
-        if context.isTerminalApp {
-            await applyTerminalTextReplacementAsync(for: error, with: suggestion, element: element, context: context)
-            return
-        }
-
-        // For non-terminal apps, use standard keyboard navigation
+        // Use standard keyboard navigation for remaining apps
         await applyStandardKeyboardReplacementAsync(for: error, with: suggestion, element: element, context: context)
-    }
-
-    /// Terminal-specific text replacement (async version)
-    @MainActor
-    private func applyTerminalTextReplacementAsync(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement, context: ApplicationContext) async {
-        // Get original cursor position
-        var selectedRangeValue: CFTypeRef?
-        let rangeResult = AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &selectedRangeValue)
-
-        var originalCursorPosition: Int?
-        if rangeResult == .success, let rangeValue = selectedRangeValue, let cfRange = safeAXValueGetRange(rangeValue) {
-            originalCursorPosition = cfRange.location
-            Logger.debug("Terminal: Original cursor position: \(cfRange.location)", category: Logger.analysis)
-        }
-
-        // Get current text
-        var currentTextValue: CFTypeRef?
-        let getTextResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextValue)
-        guard getTextResult == .success, let fullText = currentTextValue as? String else {
-            Logger.debug("Failed to get current text for Terminal replacement", category: Logger.analysis)
-            return
-        }
-
-        // Preprocess to get command line text
-        let parser = contentParserFactory.parser(for: context.bundleIdentifier)
-        guard let commandLineText = parser.preprocessText(fullText) else {
-            Logger.debug("Failed to preprocess text for Terminal", category: Logger.analysis)
-            return
-        }
-
-        // Apply correction
-        guard let startIndex = scalarIndexToStringIndex(error.start, in: commandLineText),
-              let endIndex = scalarIndexToStringIndex(error.end, in: commandLineText) else {
-            Logger.warning("Terminal: Failed to convert scalar indices", category: Logger.analysis)
-            return
-        }
-        var correctedText = commandLineText
-        correctedText.replaceSubrange(startIndex..<endIndex, with: suggestion)
-
-        Logger.debug("Terminal: Applied correction (\(correctedText.count) chars)", category: Logger.analysis)
-
-        // Calculate target cursor position
-        var targetCursorPosition: Int?
-        if let axCursorPos = originalCursorPosition {
-            let commandRange = (fullText as NSString).range(of: commandLineText)
-            if commandRange.location != NSNotFound {
-                let promptOffset = commandRange.location
-                let cursorInCommandLine = axCursorPos - promptOffset
-                let errorLength = error.end - error.start
-                let lengthDelta = suggestion.count - errorLength
-
-                if cursorInCommandLine < error.start {
-                    targetCursorPosition = cursorInCommandLine
-                } else if cursorInCommandLine >= error.end {
-                    targetCursorPosition = cursorInCommandLine + lengthDelta
-                } else {
-                    targetCursorPosition = error.start + suggestion.count
-                }
-            }
-        }
-
-        // Copy corrected text to clipboard
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(correctedText, forType: .string)
-
-        // Activate Terminal
-        if let targetApp = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier).first {
-            targetApp.activate()
-        }
-
-        // Wait for activation
-        try? await Task.sleep(nanoseconds: UInt64(TimingConstants.longDelay * 1_000_000_000))
-
-        // Step 1: Ctrl+A to go to beginning
-        pressKey(key: VirtualKeyCode.a, flags: .maskControl)
-        Logger.debug("Sent Ctrl+A", category: Logger.analysis)
-
-        try? await Task.sleep(nanoseconds: UInt64(TimingConstants.shortDelay * 1_000_000_000))
-
-        // Step 2: Ctrl+K to kill to end of line
-        pressKey(key: VirtualKeyCode.k, flags: .maskControl)
-        Logger.debug("Sent Ctrl+K", category: Logger.analysis)
-
-        try? await Task.sleep(nanoseconds: UInt64(TimingConstants.shortDelay * 1_000_000_000))
-
-        // Step 3: Paste the corrected text
-        pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
-        Logger.debug("Sent Cmd+V", category: Logger.analysis)
-
-        try? await Task.sleep(nanoseconds: UInt64(TimingConstants.shortDelay * 1_000_000_000))
-
-        // Step 4: Position cursor
-        if let targetPos = targetCursorPosition {
-            pressKey(key: VirtualKeyCode.a, flags: .maskControl)
-            try? await Task.sleep(nanoseconds: UInt64(TimingConstants.tinyDelay * 1_000_000_000))
-
-            for _ in 0..<targetPos {
-                pressKey(key: VirtualKeyCode.rightArrow, flags: [], withDelay: false)
-            }
-            Logger.debug("Terminal replacement complete (cursor at position \(targetPos))", category: Logger.analysis)
-        } else {
-            pressKey(key: VirtualKeyCode.e, flags: .maskControl)
-            Logger.debug("Terminal replacement complete (cursor at end)", category: Logger.analysis)
-        }
-
-        // Record statistics and update UI
-        statistics.recordSuggestionApplied(category: error.category)
-        invalidateCacheAfterReplacement(at: error.start..<error.end)
-        let lengthDelta = suggestion.count - (error.end - error.start)
-        removeErrorAndUpdateUI(error, suggestion: suggestion, lengthDelta: lengthDelta)
     }
 
     /// Apply text replacement for Apple Mail (async version)

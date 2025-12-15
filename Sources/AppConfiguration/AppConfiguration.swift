@@ -15,7 +15,6 @@ enum AppCategory {
     case native      // Standard macOS apps (TextEdit, Notes, Mail)
     case electron    // Electron-based apps (Slack, Notion, VSCode)
     case browser     // Web browsers (Chrome, Safari, Firefox)
-    case terminal    // Terminal emulators
     case custom      // Apps with fully custom behavior
 }
 
@@ -27,7 +26,6 @@ enum ParserType {
     case slack
     case browser
     case notion
-    case terminal
     case teams
     case mail
     case word
@@ -167,17 +165,6 @@ extension AppCategory {
                 focusBouncesDuringPaste: false,
                 requiresFullReanalysisAfterReplacement: true  // Browser byte offsets are fragile
             )
-        case .terminal:
-            return AppFeatures(
-                visualUnderlinesEnabled: false,
-                textReplacementMethod: .standard,
-                requiresTypingPause: false,
-                supportsFormattedText: false,
-                childElementTraversal: false,
-                delaysAXNotifications: false,
-                focusBouncesDuringPaste: false,
-                requiresFullReanalysisAfterReplacement: false
-            )
         case .custom:
             return .standard
         }
@@ -192,8 +179,6 @@ extension AppCategory {
             return [.textMarker, .rangeBounds, .elementTree, .lineIndex, .fontMetrics]
         case .browser:
             return [.textMarker, .rangeBounds, .elementTree, .lineIndex]
-        case .terminal:
-            return []  // Underlines disabled
         case .custom:
             // Exclude legacy strategies that interfere with typing
             return StrategyType.allCases.filter { !$0.isLegacy }

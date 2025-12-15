@@ -228,7 +228,6 @@ TextWarden includes optional word lists you can enable:
 
 **Use cases:**
 - Pause for apps where you intentionally write unconventionally
-- Disable for terminal applications (automatically paused by default)
 - Pause during presentations or screen sharing
 
 ### Global Pause

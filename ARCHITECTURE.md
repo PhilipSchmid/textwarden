@@ -89,8 +89,7 @@ Sources/
 │   ├── MailContentParser.swift                   # Apple Mail
 │   ├── WordContentParser.swift                   # Microsoft Word
 │   ├── PowerPointContentParser.swift             # Microsoft PowerPoint
-│   ├── TeamsContentParser.swift                  # Microsoft Teams
-│   └── TerminalContentParser.swift               # Terminal emulators
+│   └── TeamsContentParser.swift                  # Microsoft Teams
 │
 ├── Positioning/                                  # Error underline position calculation
 │   ├── PositionResolver.swift                    # Strategy orchestrator
@@ -238,7 +237,6 @@ protocol ContentParser {
 - **Notion**: Block-based content, special cursor handling
 - **Mail**: Quoted reply handling, signature filtering
 - **Browsers**: Text in web content, special replacement flow
-- **Terminal**: Command output filtering
 
 ### Position Resolution
 
@@ -343,16 +341,14 @@ flowchart TB
 
     AC["AnalysisCoordinator<br/><i>.applyTextReplacement</i>"]
 
-    AC --> Standard & Browser & Terminal
+    AC --> Standard & Browser
 
     Standard["Standard Method<br/><b>AXSetValue</b><br/><i>Native apps</i>"]
     Browser["Browser Method<br/><b>Clipboard + Cmd+V</b><br/><i>Electron, browsers</i>"]
-    Terminal["Terminal Method<br/><b>Keyboard Events</b><br/><i>Shell replacement</i>"]
 ```
 
 **Standard Method:** Directly set `AXValue` attribute (native apps)
 **Browser Method:** Copy to clipboard, paste via Cmd+V (Electron, browsers)
-**Terminal Method:** Synthetic keyboard events for shell replacement
 
 ## Threading Model
 
@@ -747,7 +743,6 @@ Async functions:
 - `applyTextReplacementAsync()` - main entry point, routes by app type
 - `applyTextReplacementViaKeyboardAsync()` - keyboard-based replacement router
 - `applyBrowserTextReplacementAsync()` - browser/Office/Catalyst clipboard+paste
-- `applyTerminalTextReplacementAsync()` - terminal Ctrl+A/K replacement
 - `applyMailTextReplacementAsync()` - Apple Mail AXReplaceRangeWithText
 - `applyStandardKeyboardReplacementAsync()` - standard keyboard navigation
 - `sendArrowKeysAsync()` - keyboard simulation

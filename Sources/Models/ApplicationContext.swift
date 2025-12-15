@@ -163,18 +163,6 @@ extension ApplicationContext {
         "com.operasoftware.Opera"
     ]
 
-    /// Known terminal applications
-    private static let terminalApps: Set<String> = [
-        "com.apple.Terminal",
-        "com.googlecode.iterm2",
-        "co.zeit.hyper",
-        "dev.warp.Warp-Stable",
-        "org.alacritty",
-        "net.kovidgoyal.kitty",
-        "com.github.wez.wezterm",
-        "com.mitchellh.ghostty"
-    ]
-
     /// Check if this is an Electron-based application
     /// Electron apps require keyboard-based text replacement due to broken AX APIs
     var isElectronApp: Bool {
@@ -187,12 +175,6 @@ extension ApplicationContext {
     var isChromiumBased: Bool {
         Self.chromiumApps.contains(bundleIdentifier) ||
         bundleIdentifier.contains("chromium")
-    }
-
-    /// Check if this is a terminal application
-    /// Terminal apps require special text filtering to avoid checking command output
-    var isTerminalApp: Bool {
-        Self.terminalApps.contains(bundleIdentifier)
     }
 
     /// Check if this is a browser application (including both Chromium and non-Chromium browsers)

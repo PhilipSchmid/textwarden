@@ -27,7 +27,6 @@ final class ContentParserFactory {
             .slack: SlackContentParser(),
             .browser: BrowserContentParser(bundleIdentifier: "browser"),
             .notion: NotionContentParser(bundleIdentifier: "notion"),
-            .terminal: TerminalContentParser(bundleIdentifier: "terminal"),
             .teams: TeamsContentParser(),
             .mail: MailContentParser(),
             .word: WordContentParser(),
