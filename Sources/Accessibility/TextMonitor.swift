@@ -301,9 +301,19 @@ class TextMonitor: ObservableObject {
 
         // For Apple Mail, skip non-composition elements (sidebar folders, message list, search)
         // Only check text in actual email composition areas (new mail, reply, forward)
+        // Mail's WebKit fires focus events for parent AXGroup elements even while editing,
+        // so preserve the monitored element if it's already a valid composition area.
         if let bundleID = currentContext?.bundleIdentifier,
            AppRegistry.shared.configuration(for: bundleID).parserType == .mail {
             if !MailContentParser.isMailCompositionElement(element) {
+                // If we already have a valid composition element monitored, preserve it
+                // and just ignore this non-composition focus event
+                if let existingElement = monitoredElement,
+                   MailContentParser.isMailCompositionElement(existingElement) {
+                    Logger.trace("TextMonitor: Ignoring non-composition Mail focus event - preserving existing composition element", category: Logger.accessibility)
+                    return
+                }
+
                 Logger.debug("TextMonitor: Skipping non-composition Mail element (sidebar/list/search)", category: Logger.accessibility)
                 // Clear any existing monitoring and notify to hide overlays
                 if let previousElement = monitoredElement {
@@ -617,11 +627,41 @@ extension TextMonitor {
         return findEditableChild(in: windowElement, maxDepth: 10)
     }
 
+    /// Maximum elements to check during traversal to prevent freezing on large hierarchies (e.g., Apple Mail)
+    private static let maxTraversalElements = 200
+
+    /// Roles that are containers unlikely to contain editable text - skip recursing into these
+    /// Note: AXGroup is NOT included because some apps (e.g., Apple Mail compose) nest editable content in groups
+    private static let nonEditableContainerRoles: Set<String> = [
+        "AXCell",           // Table cells (email list rows)
+        "AXRow",            // Table rows
+        "AXColumn",         // Table columns
+        "AXTable",          // Tables (email lists, spreadsheet-like views)
+        "AXOutline",        // Outline views (folder trees)
+        "AXOutlineRow",     // Outline rows
+        "AXList",           // List views
+        "AXBrowser",        // Browser/column views
+        "AXImage",          // Images
+        "AXButton",         // Buttons
+        "AXCheckBox",       // Checkboxes
+        "AXRadioButton",    // Radio buttons
+        "AXMenuItem",       // Menu items
+        "AXMenuBar",        // Menu bar
+        "AXMenu",           // Menus
+        "AXToolbar",        // Toolbars
+        "AXStaticText"      // Static text (read-only)
+    ]
+
     /// Recursively search for an editable child element
     /// This is needed for Electron apps like Slack where AXFocusedUIElement returns wrong element
-    private func findEditableChild(in element: AXUIElement, maxDepth: Int = 5, currentDepth: Int = 0) -> AXUIElement? {
-        // Prevent infinite recursion
+    private func findEditableChild(in element: AXUIElement, maxDepth: Int = 5, currentDepth: Int = 0, elementsChecked: inout Int) -> AXUIElement? {
+        // Prevent infinite recursion and runaway traversal
         guard currentDepth < maxDepth else {
+            return nil
+        }
+
+        guard elementsChecked < Self.maxTraversalElements else {
+            Logger.warning("TextMonitor: Traversal limit reached (\(Self.maxTraversalElements) elements) - stopping search", category: Logger.accessibility)
             return nil
         }
 
@@ -636,15 +676,23 @@ extension TextMonitor {
             return nil
         }
 
-        Logger.debug("TextMonitor: Searching \(children.count) children at depth \(currentDepth)...", category: Logger.accessibility)
+        // Limit children to check at each level to prevent explosion
+        let childrenToCheck = children.prefix(50)
+
+        Logger.trace("TextMonitor: Searching \(childrenToCheck.count) children at depth \(currentDepth)...", category: Logger.accessibility)
 
         // First pass: look for direct editable children
-        for child in children {
+        for child in childrenToCheck {
+            elementsChecked += 1
+            if elementsChecked >= Self.maxTraversalElements {
+                return nil
+            }
+
             if isEditableElement(child) {
                 // Additional check: for Word, ensure element is valid content (not toolbar)
                 if let bundleID = currentContext?.bundleIdentifier {
                     if !isValidContentElement(child, bundleID: bundleID) {
-                        Logger.debug("TextMonitor: Skipping element - not valid content for app", category: Logger.accessibility)
+                        Logger.trace("TextMonitor: Skipping element - not valid content for app", category: Logger.accessibility)
                         continue
                     }
                 }
@@ -652,14 +700,28 @@ extension TextMonitor {
             }
         }
 
-        // Second pass: recursively search children
-        for child in children {
-            if let editableDescendant = findEditableChild(in: child, maxDepth: maxDepth, currentDepth: currentDepth + 1) {
+        // Second pass: recursively search children, but skip non-editable containers
+        for child in childrenToCheck {
+            // Get role to check if we should skip recursing
+            var role: CFTypeRef?
+            AXUIElementCopyAttributeValue(child, kAXRoleAttribute as CFString, &role)
+            if let roleString = role as? String, Self.nonEditableContainerRoles.contains(roleString) {
+                // Skip recursing into containers that won't have editable content
+                continue
+            }
+
+            if let editableDescendant = findEditableChild(in: child, maxDepth: maxDepth, currentDepth: currentDepth + 1, elementsChecked: &elementsChecked) {
                 return editableDescendant
             }
         }
 
         return nil
+    }
+
+    /// Wrapper for findEditableChild that initializes the element counter
+    private func findEditableChild(in element: AXUIElement, maxDepth: Int = 5, currentDepth: Int = 0) -> AXUIElement? {
+        var elementsChecked = 0
+        return findEditableChild(in: element, maxDepth: maxDepth, currentDepth: currentDepth, elementsChecked: &elementsChecked)
     }
 
     /// Check if element is an editable text field (not read-only content)
@@ -669,11 +731,11 @@ extension TextMonitor {
         AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
 
         guard let roleString = role as? String else {
-            Logger.debug("TextMonitor: Could not get role for element", category: Logger.accessibility)
+            Logger.trace("TextMonitor: Could not get role for element", category: Logger.accessibility)
             return false
         }
 
-        Logger.debug("TextMonitor: Checking element with role: \(roleString)", category: Logger.accessibility)
+        Logger.trace("TextMonitor: Checking element with role: \(roleString)", category: Logger.accessibility)
 
         // Check if it's a static text element (read-only)
         // These are what we want to EXCLUDE (terminal output, chat history)
@@ -684,7 +746,7 @@ extension TextMonitor {
         ]
 
         if readOnlyRoles.contains(roleString) {
-            Logger.debug("TextMonitor: Role '\(roleString)' is read-only - skipping", category: Logger.accessibility)
+            Logger.trace("TextMonitor: Role '\(roleString)' is read-only - skipping", category: Logger.accessibility)
             return false
         }
 
@@ -695,11 +757,11 @@ extension TextMonitor {
                 // PowerPoint uses AXLayoutArea for slide text boxes - check if it has content
                 var valueRef: CFTypeRef?
                 if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success {
-                    Logger.debug("TextMonitor: PowerPoint AXLayoutArea with AXValue - accepting", category: Logger.accessibility)
+                    Logger.trace("TextMonitor: PowerPoint AXLayoutArea with AXValue - accepting", category: Logger.accessibility)
                     return true
                 }
             }
-            Logger.debug("TextMonitor: Role 'AXLayoutArea' is read-only - skipping", category: Logger.accessibility)
+            Logger.trace("TextMonitor: Role 'AXLayoutArea' is read-only - skipping", category: Logger.accessibility)
             return false
         }
 
@@ -715,13 +777,13 @@ extension TextMonitor {
         ]
 
         if !editableRoles.contains(roleString) {
-            Logger.debug("TextMonitor: Role '\(roleString)' is not in editable whitelist - skipping", category: Logger.accessibility)
+            Logger.trace("TextMonitor: Role '\(roleString)' is not in editable whitelist - skipping", category: Logger.accessibility)
             return false
         }
 
         // For all other roles, check if the element has AXValue and is enabled
         // This allows TextEdit, TextFields, TextAreas, etc.
-        Logger.debug("TextMonitor: Role '\(roleString)' is editable, checking attributes...", category: Logger.accessibility)
+        Logger.trace("TextMonitor: Role '\(roleString)' is editable, checking attributes...", category: Logger.accessibility)
 
         // Additional check: verify element is not read-only
         // Some text areas might be marked as read-only
@@ -734,16 +796,16 @@ extension TextMonitor {
 
         // If we can check enabled status, ensure it's enabled
         let bundleID = currentContext?.bundleIdentifier ?? "unknown"
-        Logger.debug("TextMonitor: Enabled check result=\(enabledResult.rawValue), bundleID=\(bundleID)", category: Logger.accessibility)
+        Logger.trace("TextMonitor: Enabled check result=\(enabledResult.rawValue), bundleID=\(bundleID)", category: Logger.accessibility)
 
         if enabledResult == .success, let enabled = isEnabled as? Bool {
-            Logger.debug("TextMonitor: AXEnabled=\(enabled) for role \(roleString)", category: Logger.accessibility)
+            Logger.trace("TextMonitor: AXEnabled=\(enabled) for role \(roleString)", category: Logger.accessibility)
             if !enabled {
                 // Microsoft Office AXTextArea reports AXEnabled=false even when editable
                 // Accept AXTextArea for Word/PowerPoint since we've validated via content parser
                 if roleString == kAXTextAreaRole as String,
                    (bundleID == "com.microsoft.Word" || bundleID == "com.microsoft.Powerpoint") {
-                    Logger.debug("TextMonitor: Office AXTextArea reports disabled, but accepting anyway", category: Logger.accessibility)
+                    Logger.trace("TextMonitor: Office AXTextArea reports disabled, but accepting anyway", category: Logger.accessibility)
                     return true
                 }
             }
@@ -751,7 +813,7 @@ extension TextMonitor {
         }
 
         // If we can't check, assume editable (to avoid false negatives)
-        Logger.debug("TextMonitor: Could not check enabled status, assuming editable", category: Logger.accessibility)
+        Logger.trace("TextMonitor: Could not check enabled status, assuming editable", category: Logger.accessibility)
         return true
     }
 
@@ -762,7 +824,7 @@ extension TextMonitor {
         if bundleID == "com.microsoft.Word" {
             let isDocument = WordContentParser.isDocumentElement(element)
             if !isDocument {
-                Logger.debug("TextMonitor: Word element rejected by parser (likely toolbar)", category: Logger.accessibility)
+                Logger.trace("TextMonitor: Word element rejected by parser (likely toolbar)", category: Logger.accessibility)
             }
             return isDocument
         }
@@ -771,7 +833,7 @@ extension TextMonitor {
         if bundleID == "com.microsoft.Powerpoint" {
             let isSlide = PowerPointContentParser.isSlideElement(element)
             if !isSlide {
-                Logger.debug("TextMonitor: PowerPoint element rejected by parser (likely toolbar)", category: Logger.accessibility)
+                Logger.trace("TextMonitor: PowerPoint element rejected by parser (likely toolbar)", category: Logger.accessibility)
             }
             return isSlide
         }

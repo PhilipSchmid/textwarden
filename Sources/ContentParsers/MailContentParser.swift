@@ -576,18 +576,23 @@ class MailContentParser: ContentParser {
             return false
         }
 
-        // EXCLUDE: Text fields that are NOT message body (To, CC, Subject fields are AXTextField)
-        // The message body is typically AXTextArea or AXWebArea
+        // Handle text fields - some should be checked (Subject), others rejected (To/CC/BCC)
         if role == kAXTextFieldRole as String {
-            // To, CC, BCC, Subject fields are single-line text fields - skip them
-            // They often have identifiers or descriptions indicating their purpose
-            let fieldText = "\(identifier) \(description) \(roleDesc)"
+            let fieldText = "\(identifier) \(description) \(roleDesc)".lowercased()
+
+            // INCLUDE: Subject field - this is prose that should be grammar checked
+            if fieldText.contains("subject") {
+                Logger.debug("MailContentParser: Accepting - subject field", category: Logger.accessibility)
+                return true
+            }
+
+            // EXCLUDE: Address fields (To, CC, BCC) - these contain email addresses, not prose
             if fieldText.contains("to") || fieldText.contains("cc") || fieldText.contains("bcc") ||
-               fieldText.contains("subject") || fieldText.contains("recipient") ||
-               fieldText.contains("address") {
-                Logger.debug("MailContentParser: Rejecting - header field (To/CC/Subject)", category: Logger.accessibility)
+               fieldText.contains("recipient") || fieldText.contains("address") {
+                Logger.debug("MailContentParser: Rejecting - address field (To/CC/BCC)", category: Logger.accessibility)
                 return false
             }
+
             // Other single-line text fields in Mail are typically not the message body
             Logger.debug("MailContentParser: Rejecting - text field (not message body)", category: Logger.accessibility)
             return false
