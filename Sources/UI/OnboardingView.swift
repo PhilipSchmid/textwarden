@@ -23,7 +23,6 @@ private enum AppURLs {
 /// Onboarding view guiding users through Accessibility permission setup
 struct OnboardingView: View {
     @ObservedObject private var permissionManager = PermissionManager.shared
-    @Environment(\.dismiss) private var dismiss
 
     @State private var currentStep: OnboardingStep = .welcome
     @State private var isPolling = false
@@ -94,10 +93,8 @@ struct OnboardingView: View {
                 HStack {
                     if showTimeoutWarning {
                         Button("Cancel") {
-                            // Small delay to avoid crash during window animation cleanup on macOS 26
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                dismiss()
-                            }
+                            // Close the onboarding window and return to menu bar mode
+                            closeOnboardingWindow()
                         }
                         .keyboardShortcut(.escape)
                         .accessibilityLabel("Cancel setup")
@@ -469,6 +466,8 @@ struct OnboardingView: View {
 
         case .available:
             Button("Skip") {
+                // Explicitly disable style checking when skipped
+                UserPreferences.shared.enableStyleChecking = false
                 currentStep = .sponsoring
             }
 
@@ -489,6 +488,8 @@ struct OnboardingView: View {
 
         case .notEnabled:
             Button("Skip") {
+                // Explicitly disable style checking when skipped
+                UserPreferences.shared.enableStyleChecking = false
                 currentStep = .sponsoring
             }
 
@@ -502,13 +503,29 @@ struct OnboardingView: View {
 
     private var sponsoringButtons: some View {
         Button("Finish Setup") {
-            // Small delay to avoid crash during window animation cleanup on macOS 26
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                dismiss()
-            }
+            // Mark onboarding as completed
+            UserPreferences.shared.hasCompletedOnboarding = true
+            // Close the onboarding window and return to menu bar mode
+            closeOnboardingWindow()
         }
         .buttonStyle(.borderedProminent)
         .keyboardShortcut(.defaultAction)
+    }
+
+    /// Close the onboarding window properly
+    private func closeOnboardingWindow() {
+        Logger.info("Finishing onboarding setup", category: Logger.ui)
+
+        // Find and close this window
+        if let window = NSApp.windows.first(where: { $0.title == "Welcome to TextWarden" }) {
+            window.close()
+        }
+
+        // Return to accessory mode after window closes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            NSApp.setActivationPolicy(.accessory)
+            Logger.info("Returned to menu bar only mode", category: Logger.lifecycle)
+        }
     }
 
     // MARK: - Action Button
@@ -605,6 +622,7 @@ struct OnboardingView: View {
 
     private func handleSkipLaunchAtLogin() {
         Logger.info("Onboarding: Skipping launch at login...", category: Logger.general)
+        LaunchAtLogin.isEnabled = false
         currentStep = .appleIntelligence
     }
 
