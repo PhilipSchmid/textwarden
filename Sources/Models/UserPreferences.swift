@@ -158,6 +158,7 @@ class UserPreferences: ObservableObject {
         "com.apple.CommCenter",  // Communication Center
         "com.apple.cloudphotosd",  // iCloud Photos Daemon
         "com.apple.iCloudHelper",  // iCloud Helper
+        "com.apple.FollowUpUI",  // Follow Up UI (system suggestions)
         "com.apple.InputMethodKit.TextReplacementService",  // Text Replacement Service
         "com.apple.Console",  // Console
         "com.apple.dock",  // Dock
