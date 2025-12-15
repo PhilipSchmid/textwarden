@@ -234,10 +234,11 @@ struct AboutView: View {
 
             // Support subsection
             Section {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(spacing: 12) {
                     Text("TextWarden is a side project built during evenings and weekends. If you find it useful, you can support its development.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
                     Link(destination: AppURLs.buyMeACoffee) {
                         Image("BuyMeACoffeeButton")
@@ -245,6 +246,7 @@ struct AboutView: View {
                             .scaledToFit()
                             .frame(height: 36)
                     }
+                    .frame(maxWidth: .infinity, alignment: .center)
                 }
                 .padding(.vertical, 4)
             } header: {
