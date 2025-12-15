@@ -275,6 +275,9 @@ TextWarden supports global keyboard shortcuts that work in any application.
 
 **Tip:** Choose shortcuts that don't conflict with your most-used applications.
 
+**Known Conflicts:**
+- **Apple Mail**: `⌘⌃A` (Fix All Obvious) conflicts with Mail's "Archive" shortcut. Consider using `⌘⌥A` or another combination if you use Mail frequently.
+
 ---
 
 ## Advanced Settings

@@ -21,8 +21,8 @@ This guide helps you diagnose and resolve common issues with TextWarden.
 ### Style suggestions aren't working
 
 1. Style checking is disabled by default - enable it in Settings
-2. Ensure an AI model is downloaded and loaded
-3. Check that the text meets minimum length requirements
+2. Requires macOS 26 (Tahoe) or later with Apple Intelligence enabled in System Settings
+3. Check that the text meets minimum sentence length requirements (configurable in Settings)
 4. Try using the keyboard shortcut (`Cmd+Control+S`) to trigger a manual check
 
 ### High memory or CPU usage
@@ -63,7 +63,7 @@ For other applications, the floating error indicator (red dot) always works as a
 
 **If underlines appear offset in a supported app**:
 
-1. **Enable trace logging**: In Settings > General, set the log level to "Trace" to capture detailed positioning data
+1. **Enable trace logging**: In Settings > Diagnostics, set the log level to "Trace" to capture detailed positioning data
 2. **Check the logs**: Look at `~/Library/Logs/TextWarden/textwarden.log` for entries from positioning strategies (InsertionPointStrategy, ChromiumStrategy, etc.)
 3. **Multi-monitor setups**: If underlines appear correct on your primary display but offset on external monitors, this may be a coordinate conversion issue
 4. **Report the issue**: Use Export Diagnostics (which includes the trace logs) and include:

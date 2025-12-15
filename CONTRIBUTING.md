@@ -6,12 +6,12 @@ Thank you for your interest in contributing to TextWarden! This guide will help 
 
 ### Required Software
 
-1. **macOS 14+** (Sonoma or later)
+1. **macOS 26+** (Tahoe or later)
    ```bash
    sw_vers  # Check your version
    ```
 
-2. **Xcode 15+** with Command Line Tools
+2. **Xcode 26+** with Command Line Tools
    ```bash
    # Install from Mac App Store, then:
    xcode-select --install
@@ -43,8 +43,8 @@ Thank you for your interest in contributing to TextWarden! This guide will help 
 Run these commands to ensure everything is installed correctly:
 
 ```bash
-sw_vers                           # macOS 14+
-xcodebuild -version               # Xcode 15+
+sw_vers                           # macOS 26+
+xcodebuild -version               # Xcode 26+
 rustc --version                   # Rust 1.75+
 pandoc --version                  # Pandoc (any recent version)
 ```

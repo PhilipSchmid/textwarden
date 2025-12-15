@@ -11,12 +11,12 @@ TextWarden checks your spelling and grammar while you type - in any app on your 
 
 <p align="center">
   <a href="https://github.com/philipschmid/textwarden/releases">
-    <img src="https://user-images.githubusercontent.com/37590873/219133640-8b7a0179-20a7-4e02-8887-fbbd2eaad64b.png" alt="Download for macOS" width="180">
+    <img src="Assets/download-macos-button.png" alt="Download for macOS" width="180">
   </a>
 </p>
 
-> [!NOTE]
-> **Beta Software**: TextWarden is currently in beta and may contain bugs. If you encounter any issues, please [report them](#support) so they can be fixed.
+> [!WARNING]
+> **Alpha Software**: TextWarden is in early development and you will encounter bugs - some keyboard shortcuts may conflict with specific apps, visual underlines might be misaligned, or certain applications may not work as expected. That said, it's stable enough for daily use and I'd love for you to try it! Your bug reports help make TextWarden better for everyone. Found something broken? [Report it here](#support).
 
 ## Why TextWarden?
 
@@ -45,8 +45,7 @@ A small indicator appears when issues are found. Click to see suggestions. Accep
 ## Requirements
 
 - Apple Silicon Mac (M1 or later)
-- macOS 15 or later
-- macOS 26+ for AI-powered style suggestions (Apple Intelligence)
+- macOS 26 (Tahoe) or later
 
 ## Getting Started
 
@@ -138,7 +137,7 @@ If you need cross-platform support (Windows, Linux, iOS, Android), grammar check
 
 ## Privacy
 
-TextWarden never sends your text anywhere. The only network activity is downloading AI models (optional), which you can also download manually. Block TextWarden in your firewall and it works exactly the same.
+TextWarden never sends your text anywhere. All grammar checking and style analysis happens on-device using Harper (grammar) and Apple Intelligence (style suggestions). Block TextWarden in your firewall and it works exactly the same (except for automatic update checks).
 
 ## AI Assistance
 
