@@ -116,6 +116,7 @@
 				E8AC08162EC11FBB008E37E6 /* Sources */,
 				E8AC08172EC11FBB008E37E6 /* Frameworks */,
 				E8AC08182EC11FBB008E37E6 /* Resources */,
+				D4HELP0012F0000000000001 /* Copy Help Book */,
 			);
 			buildRules = (
 			);
@@ -196,6 +197,26 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		D4HELP0012F0000000000001 /* Copy Help Book */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(PROJECT_DIR)/Resources/TextWarden.help",
+			);
+			name = "Copy Help Book";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/TextWarden.help",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Copy Help Book to app bundle\ncp -R \"${PROJECT_DIR}/Resources/TextWarden.help\" \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/\"\n";
+		};
 		E8AC086E2EC12139008E37E6 /* Build Rust Grammar Engine */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;

@@ -38,5 +38,9 @@
 	<true/>
 	<key>NSAppleIntelligenceUsageDescription</key>
 	<string>TextWarden uses Apple Intelligence to suggest style improvements for your writing. All processing happens on your device.</string>
+	<key>CFBundleHelpBookFolder</key>
+	<string>TextWarden.help</string>
+	<key>CFBundleHelpBookName</key>
+	<string>TextWarden Help</string>
 </dict>
 </plist>

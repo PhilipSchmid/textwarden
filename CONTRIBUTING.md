@@ -32,6 +32,12 @@ Thank you for your interest in contributing to TextWarden! This guide will help 
 
 4. **Homebrew** (for additional build tools if needed) - [brew.sh](https://brew.sh)
 
+5. **Pandoc** (for building Help documentation)
+   ```bash
+   brew install pandoc
+   pandoc --version  # Verify installation
+   ```
+
 ### Verify Setup
 
 Run these commands to ensure everything is installed correctly:
@@ -40,6 +46,7 @@ Run these commands to ensure everything is installed correctly:
 sw_vers                           # macOS 14+
 xcodebuild -version               # Xcode 15+
 rustc --version                   # Rust 1.75+
+pandoc --version                  # Pandoc (any recent version)
 ```
 
 ## Quick Start
@@ -62,7 +69,8 @@ open TextWarden.xcodeproj
 The `make build` command will:
 1. Build the Rust grammar engine for both Intel and Apple Silicon
 2. Create a universal binary using `lipo`
-3. Build the Swift application linking against the Rust library
+3. Generate Help documentation from markdown files (using Pandoc)
+4. Build the Swift application linking against the Rust library
 
 ## Project Structure
 

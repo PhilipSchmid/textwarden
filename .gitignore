@@ -63,3 +63,8 @@ build/
 *.log
 *.tmp
 CLAUDE.local.md
+
+# Generated Help Book files (built from markdown via make help-book)
+Resources/TextWarden.help/Contents/Resources/en.lproj/configuration.html
+Resources/TextWarden.help/Contents/Resources/en.lproj/troubleshooting.html
+Resources/TextWarden.help/Contents/Resources/TextWarden.helpindex

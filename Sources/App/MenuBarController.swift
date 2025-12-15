@@ -206,6 +206,24 @@ class MenuBarController: NSObject, NSMenuDelegate {
         aboutItem.target = self
         menu?.addItem(aboutItem)
 
+        // Check for Updates
+        let updateItem = NSMenuItem(
+            title: "Check for Updates",
+            action: #selector(checkForUpdates),
+            keyEquivalent: ""
+        )
+        updateItem.target = self
+        menu?.addItem(updateItem)
+
+        // Help
+        let helpItem = NSMenuItem(
+            title: "TextWarden Help",
+            action: #selector(showHelp),
+            keyEquivalent: "?"
+        )
+        helpItem.target = self
+        menu?.addItem(helpItem)
+
         menu?.addItem(NSMenuItem.separator())
 
         // Quit
@@ -388,6 +406,26 @@ class MenuBarController: NSObject, NSMenuDelegate {
                 at: position
             )
         }
+    }
+
+    @objc private func showHelp() {
+        Logger.debug("showHelp() called", category: Logger.ui)
+        NSApp.showHelp(nil)
+    }
+
+    @objc private func checkForUpdates() {
+        Logger.debug("checkForUpdates() called", category: Logger.ui)
+
+        // Get the AppDelegate to access the updater
+        guard let appDelegate = NSApp.delegate as? AppDelegate else { return }
+
+        // Trigger update check and show About tab
+        Task { @MainActor in
+            appDelegate.updaterViewModel.checkForUpdates()
+        }
+
+        // Also show the About page
+        showAbout()
     }
 
     @objc private func quitApp() {

@@ -1,0 +1,195 @@
+/* TextWarden Help Book Styles */
+/* Follows Apple Human Interface Guidelines for Help content */
+
+:root {
+    --text-color: #1d1d1f;
+    --secondary-color: #6e6e73;
+    --link-color: #0066cc;
+    --background-color: #ffffff;
+    --code-background: #f5f5f7;
+    --border-color: #d2d2d7;
+    --accent-color: #007aff;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --text-color: #f5f5f7;
+        --secondary-color: #a1a1a6;
+        --link-color: #2997ff;
+        --background-color: #1d1d1f;
+        --code-background: #2d2d2d;
+        --border-color: #424245;
+        --accent-color: #0a84ff;
+    }
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-color);
+    background-color: var(--background-color);
+    margin: 0;
+    padding: 20px 30px;
+    max-width: 700px;
+}
+
+h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0 0 16px 0;
+    letter-spacing: -0.5px;
+}
+
+h2 {
+    font-size: 21px;
+    font-weight: 600;
+    margin: 32px 0 12px 0;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+}
+
+h3 {
+    font-size: 17px;
+    font-weight: 600;
+    margin: 24px 0 8px 0;
+}
+
+h4 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 20px 0 8px 0;
+}
+
+p {
+    margin: 0 0 12px 0;
+}
+
+a {
+    color: var(--link-color);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+ul, ol {
+    margin: 0 0 12px 0;
+    padding-left: 24px;
+}
+
+li {
+    margin-bottom: 6px;
+}
+
+code {
+    font-family: "SF Mono", Menlo, Monaco, "Courier New", monospace;
+    font-size: 12px;
+    background-color: var(--code-background);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+pre {
+    font-family: "SF Mono", Menlo, Monaco, "Courier New", monospace;
+    font-size: 12px;
+    background-color: var(--code-background);
+    padding: 12px 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 0 0 16px 0;
+}
+
+pre code {
+    padding: 0;
+    background: none;
+}
+
+blockquote {
+    margin: 0 0 16px 0;
+    padding: 12px 16px;
+    background-color: var(--code-background);
+    border-left: 4px solid var(--accent-color);
+    border-radius: 0 8px 8px 0;
+}
+
+blockquote p:last-child {
+    margin-bottom: 0;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 0 16px 0;
+    font-size: 12px;
+}
+
+th, td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+th {
+    font-weight: 600;
+    background-color: var(--code-background);
+}
+
+hr {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 24px 0;
+}
+
+/* Navigation */
+.nav-links {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.nav-links a {
+    font-weight: 500;
+}
+
+/* Note/Warning boxes */
+.note, .warning, .tip {
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin: 0 0 16px 0;
+}
+
+.note {
+    background-color: rgba(0, 122, 255, 0.1);
+    border-left: 4px solid var(--accent-color);
+}
+
+.warning {
+    background-color: rgba(255, 149, 0, 0.1);
+    border-left: 4px solid #ff9500;
+}
+
+.tip {
+    background-color: rgba(52, 199, 89, 0.1);
+    border-left: 4px solid #34c759;
+}
+
+/* Keyboard shortcuts */
+kbd {
+    display: inline-block;
+    padding: 2px 6px;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    background-color: var(--code-background);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+}
