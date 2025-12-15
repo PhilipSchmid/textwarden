@@ -81,6 +81,8 @@ struct OnboardingView: View {
                         launchAtLoginStep
                     case .appleIntelligence:
                         appleIntelligenceStep
+                    case .sponsoring:
+                        sponsoringStep
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -92,7 +94,10 @@ struct OnboardingView: View {
                 HStack {
                     if showTimeoutWarning {
                         Button("Cancel") {
-                            dismiss()
+                            // Small delay to avoid crash during window animation cleanup on macOS 26
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                dismiss()
+                            }
                         }
                         .keyboardShortcut(.escape)
                         .accessibilityLabel("Cancel setup")
@@ -117,6 +122,8 @@ struct OnboardingView: View {
                         .accessibilityHint("Double tap to enable TextWarden to start automatically when you log in")
                     } else if currentStep == .appleIntelligence {
                         appleIntelligenceButtons
+                    } else if currentStep == .sponsoring {
+                        sponsoringButtons
                     } else {
                         actionButton
                     }
@@ -124,9 +131,9 @@ struct OnboardingView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
             }
-            .frame(width: 500)
+            .frame(width: 530)
         }
-        .frame(width: 550, height: 550)
+        .frame(width: 580, height: 650)
         .onAppear {
             checkPermissionAndUpdateStep()
         }
@@ -146,9 +153,9 @@ struct OnboardingView: View {
                 .foregroundColor(.secondary)
 
             VStack(alignment: .leading, spacing: 12) {
-                FeatureRow(icon: "lock.shield", title: "Privacy First", description: "All text processing happens locally on your Mac")
-                FeatureRow(icon: "bolt.fill", title: "Real-time Checking", description: "Grammar suggestions appear as you type")
-                FeatureRow(icon: "app.badge.checkmark", title: "System-wide", description: "Works in TextEdit, Pages, Mail, and more")
+                FeatureRow(icon: "lock.shield.fill", title: "100% Local & Private", description: "All processing on your Mac — no cloud, no data leaves your device")
+                FeatureRow(icon: "sparkles", title: "AI-Powered Style Suggestions", description: "Apple Intelligence rewrites for clarity and tone")
+                FeatureRow(icon: "macwindow.on.rectangle", title: "Works in Every App", description: "Slack, Notion, VS Code, Mail, and thousands more")
             }
             .padding(.vertical, 8)
 
@@ -232,8 +239,8 @@ struct OnboardingView: View {
                     .fontWeight(.semibold)
 
                 Text("1. Open TextEdit or any text application")
-                Text("2. Type: 'This are a test'")
-                Text("3. Watch for TextWarden's grammar suggestions")
+                Text("2. Type something with a typo, e.g. 'teh' or 'definately'")
+                Text("3. Watch for TextWarden's underline and suggestions")
             }
             .font(.subheadline)
             .foregroundColor(.secondary)
@@ -297,32 +304,57 @@ struct OnboardingView: View {
             Divider()
 
             appleIntelligenceContent
-
-            Divider()
-                .padding(.top, 16)
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Support TextWarden")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-
-                Text("This is a side project built during evenings and weekends. If you find it useful, you can support its development.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                Link(destination: AppURLs.buyMeACoffee) {
-                    Image("BuyMeACoffeeButton")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(height: 36)
-                }
-                .accessibilityLabel("Buy me a coffee")
-                .accessibilityHint("Opens a link to support TextWarden development")
-            }
-            .padding(.top, 8)
         }
         .onAppear {
             checkAppleIntelligenceStatus()
+        }
+    }
+
+    private var sponsoringStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                Image(systemName: "heart.circle.fill")
+                    .font(.system(size: 40))
+                    .foregroundColor(.pink)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Support TextWarden")
+                        .font(.headline)
+
+                    Text("Help keep development going")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("TextWarden is a side project built during evenings and weekends. If you find it useful, consider supporting its development.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    FeatureRow(icon: "sparkles", title: "New Features", description: "Support helps prioritize new capabilities")
+                    FeatureRow(icon: "ladybug", title: "Bug Fixes", description: "Keep TextWarden running smoothly")
+                    FeatureRow(icon: "heart", title: "Independent Development", description: "No ads, no tracking, just a useful tool")
+                }
+                .padding(.vertical, 8)
+
+                HStack {
+                    Spacer()
+                    Link(destination: AppURLs.buyMeACoffee) {
+                        Image("BuyMeACoffeeButton")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 44)
+                    }
+                    .accessibilityLabel("Buy me a coffee")
+                    .accessibilityHint("Opens a link to support TextWarden development")
+                    Spacer()
+                }
+                .padding(.top, 8)
+            }
         }
     }
 
@@ -340,7 +372,7 @@ struct OnboardingView: View {
 
         case .available:
             VStack(alignment: .leading, spacing: 12) {
-                Text("Apple Intelligence is available on your Mac. You can enable AI-powered style suggestions to improve clarity and readability.")
+                Text("Would you like to enable AI-powered style suggestions? Apple Intelligence can help improve clarity and readability of your writing.")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
 
@@ -351,7 +383,7 @@ struct OnboardingView: View {
                 }
                 .padding(.vertical, 8)
 
-                Text("Enable style checking in Settings → Style.")
+                Text("You can change this later in Settings → Style.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -435,16 +467,29 @@ struct OnboardingView: View {
             Button("Please wait...") {}
                 .disabled(true)
 
-        case .available, .notEligible, .notSupported:
-            Button("Finish Setup") {
-                dismiss()
+        case .available:
+            Button("Skip") {
+                currentStep = .sponsoring
+            }
+
+            Button("Enable Style Checking") {
+                // Enable style checking in preferences
+                UserPreferences.shared.enableStyleChecking = true
+                currentStep = .sponsoring
+            }
+            .buttonStyle(.borderedProminent)
+            .keyboardShortcut(.defaultAction)
+
+        case .notEligible, .notSupported:
+            Button("Continue") {
+                currentStep = .sponsoring
             }
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
 
         case .notEnabled:
             Button("Skip") {
-                dismiss()
+                currentStep = .sponsoring
             }
 
             Button("Open Settings") {
@@ -453,6 +498,17 @@ struct OnboardingView: View {
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
         }
+    }
+
+    private var sponsoringButtons: some View {
+        Button("Finish Setup") {
+            // Small delay to avoid crash during window animation cleanup on macOS 26
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                dismiss()
+            }
+        }
+        .buttonStyle(.borderedProminent)
+        .keyboardShortcut(.defaultAction)
     }
 
     // MARK: - Action Button
@@ -479,6 +535,8 @@ struct OnboardingView: View {
         case .launchAtLogin:
             return "Double tap to continue to AI style checking setup"
         case .appleIntelligence:
+            return "Double tap to continue"
+        case .sponsoring:
             return "Double tap to complete setup"
         }
     }
@@ -494,6 +552,8 @@ struct OnboardingView: View {
         case .launchAtLogin:
             return "Continue"
         case .appleIntelligence:
+            return "Continue"
+        case .sponsoring:
             return "Finish Setup"
         }
     }
@@ -528,6 +588,10 @@ struct OnboardingView: View {
             break
 
         case .appleIntelligence:
+            // Handled by separate buttons
+            break
+
+        case .sponsoring:
             // Handled by separate buttons
             break
         }
@@ -686,6 +750,7 @@ private enum OnboardingStep {
     case verification
     case launchAtLogin
     case appleIntelligence
+    case sponsoring
 }
 
 // MARK: - Preview

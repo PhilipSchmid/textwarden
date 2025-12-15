@@ -152,7 +152,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func openOnboardingWindow() {
+    @objc func openOnboardingWindow() {
         Logger.info("Creating onboarding window", category: Logger.ui)
 
         let onboardingView = OnboardingView()
@@ -162,7 +162,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.title = "Welcome to TextWarden"
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = true  // Can be released when closed
-        window.setContentSize(NSSize(width: 550, height: 550))
+        window.setContentSize(NSSize(width: 580, height: 650))
         window.center()
 
         // Temporarily switch to regular mode to show window

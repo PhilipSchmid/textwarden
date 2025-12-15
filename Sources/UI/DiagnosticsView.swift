@@ -309,6 +309,17 @@ struct DiagnosticsView: View {
                         HStack(spacing: 12) {
                             Button {
                                 preferences.resetToDefaults()
+                                // Close preferences window and show onboarding
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                    // Close all windows
+                                    for window in NSApp.windows where window.isVisible {
+                                        window.close()
+                                    }
+                                    // Show onboarding wizard
+                                    if let appDelegate = NSApp.delegate as? AppDelegate {
+                                        appDelegate.openOnboardingWindow()
+                                    }
+                                }
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack {
@@ -322,7 +333,7 @@ struct DiagnosticsView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             }
                             .buttonStyle(.bordered)
-                            .help("Reset all preferences to their default values")
+                            .help("Reset all preferences and restart onboarding")
 
                             Button {
                                 preferences.customDictionary.removeAll()
