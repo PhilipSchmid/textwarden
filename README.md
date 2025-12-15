@@ -11,7 +11,7 @@ TextWarden checks your spelling and grammar while you type - in any app on your 
 
 <p align="center">
   <a href="https://github.com/philipschmid/textwarden/releases">
-    <img src="https://user-images.githubusercontent.com/37590873/219133640-8b7a0179-20a7-4e02-8887-fbbd2eaad64b.png" alt="Download for macOS" width="250">
+    <img src="https://user-images.githubusercontent.com/37590873/219133640-8b7a0179-20a7-4e02-8887-fbbd2eaad64b.png" alt="Download for macOS" width="180">
   </a>
 </p>
 
@@ -190,6 +190,8 @@ TextWarden uses the macOS Accessibility API and works with most applications. Vi
 - **Bug reports**: [Open an issue](https://github.com/philipschmid/textwarden/issues/new/choose) with diagnostic information
 - **Feature requests**: Use [GitHub Discussions](https://github.com/philipschmid/textwarden/discussions)
 - **Questions**: Check existing discussions or start a new one
+
+For support beyond what's available through GitHub, contact [sales@textwarden.io](mailto:sales@textwarden.io).
 
 ## License
 
