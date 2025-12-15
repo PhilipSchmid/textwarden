@@ -294,6 +294,13 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Whether the user has completed onboarding (triggers onboarding on first launch or after reset)
+    @Published var hasCompletedOnboarding: Bool {
+        didSet {
+            defaults.set(hasCompletedOnboarding, forKey: Keys.hasCompletedOnboarding)
+        }
+    }
+
     // MARK: - Language & Dialect
 
     /// Selected English dialect for grammar checking
@@ -753,6 +760,7 @@ class UserPreferences: ObservableObject {
         }
 
         self.openInForeground = defaults.object(forKey: Keys.openInForeground) as? Bool ?? false
+        self.hasCompletedOnboarding = defaults.object(forKey: Keys.hasCompletedOnboarding) as? Bool ?? false
 
         // Language & Dialect
         self.selectedDialect = defaults.string(forKey: Keys.selectedDialect) ?? "American"
@@ -1143,6 +1151,7 @@ class UserPreferences: ObservableObject {
 
     /// Reset all preferences to defaults
     func resetToDefaults() {
+        hasCompletedOnboarding = false
         pauseDuration = .active
         pausedUntil = nil
         disabledApplications = []
@@ -1224,6 +1233,9 @@ class UserPreferences: ObservableObject {
         static let showDebugBorderCGWindowCoords = "showDebugBorderCGWindowCoords"
         static let showDebugBorderCocoaCoords = "showDebugBorderCocoaCoords"
         static let showDebugCharacterMarkers = "showDebugCharacterMarkers"
+
+        // Onboarding
+        static let hasCompletedOnboarding = "hasCompletedOnboarding"
 
         // LLM Style Checking
         static let enableStyleChecking = "enableStyleChecking"
