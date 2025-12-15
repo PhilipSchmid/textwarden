@@ -143,7 +143,7 @@ class UserPreferences: ObservableObject {
     /// Example: "com.yourcompany.YourApp"
     static let defaultHiddenApplications: Set<String> = [
         // TextWarden itself
-        "com.philipschmid.TextWarden",  // TextWarden
+        "io.textwarden.TextWarden",  // TextWarden
         // System services and background apps
         "com.apple.loginwindow",  // Login Window
         "com.apple.UserNotificationCenter",  // Notification Center
@@ -940,7 +940,7 @@ class UserPreferences: ObservableObject {
     /// Check if grammar checking is enabled for a specific application
     func isEnabled(for bundleIdentifier: String) -> Bool {
         // Never check grammar in TextWarden's own UI
-        if bundleIdentifier == "com.philipschmid.TextWarden" {
+        if bundleIdentifier == "io.textwarden.TextWarden" {
             return false
         }
 

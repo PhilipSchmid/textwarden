@@ -22,7 +22,7 @@ sleep 1
 
 # 2. Clear preferences
 echo -e "${YELLOW}2. Clearing preferences...${NC}"
-defaults delete com.philipschmid.TextWarden 2>/dev/null && echo "  ✅ Preferences cleared" || echo "  ℹ️  No preferences found"
+defaults delete io.textwarden.TextWarden 2>/dev/null && echo "  ✅ Preferences cleared" || echo "  ℹ️  No preferences found"
 
 # 3. Clear application support
 echo -e "${YELLOW}3. Clearing application support folder...${NC}"

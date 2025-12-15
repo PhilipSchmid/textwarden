@@ -159,7 +159,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         // This was captured BEFORE the menu opened, so it's the app the user was in
         guard let targetApp = menuTargetApp,
               let bundleID = targetApp.bundleIdentifier,
-              bundleID != "com.philipschmid.TextWarden" else {
+              bundleID != "io.textwarden.TextWarden" else {
             return
         }
 

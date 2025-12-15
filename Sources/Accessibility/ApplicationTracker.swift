@@ -135,12 +135,12 @@ class ApplicationTracker: ObservableObject {
     /// - Returns: The application context to display, or `nil` if no suitable app is available
     func getMenuDisplayApp() -> ApplicationContext? {
         // If current app is not TextWarden, use it
-        if let current = activeApplication, current.bundleIdentifier != "com.philipschmid.TextWarden" {
+        if let current = activeApplication, current.bundleIdentifier != "io.textwarden.TextWarden" {
             return current
         }
 
         // Otherwise, use previous app (the one before TextWarden became active)
-        if let previous = previousApplication, previous.bundleIdentifier != "com.philipschmid.TextWarden" {
+        if let previous = previousApplication, previous.bundleIdentifier != "io.textwarden.TextWarden" {
             return previous
         }
 

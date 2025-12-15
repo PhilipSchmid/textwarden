@@ -13,7 +13,7 @@ NC='\033[0m'
 
 # Project settings
 APP_NAME="TextWarden"
-BUNDLE_ID="com.philipschmid.textwarden"
+BUNDLE_ID="io.textwarden.TextWarden"
 PROJECT="TextWarden.xcodeproj"
 SCHEME="TextWarden"
 GITHUB_REPO="PhilipSchmid/textwarden"
