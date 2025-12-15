@@ -472,15 +472,37 @@ DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.shortDelay) { .
 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { ... }  // Magic number
 ```
 
-### 5. Prefer Editing Over Creating
+### 5. Use Centralized Utilities
+
+Check `Sources/Utilities/` before implementing common operations:
+
+| Utility | Purpose |
+|---------|---------|
+| `TextIndexConverter` | UTF-16/grapheme/scalar index conversion (critical for emoji handling) |
+| `CoordinateMapper` | Quartz ↔ Cocoa coordinate conversion |
+| `ClipboardManager` | Clipboard operations with formatting preservation |
+| `RetryScheduler` | Retry logic with exponential backoff |
+| `AccessibilityBridge` | Safe AXUIElement attribute access |
+
+**Example:** macOS Accessibility APIs use UTF-16 indices, not grapheme clusters. Emojis like 😉 are 1 grapheme but 2 UTF-16 code units:
+
+```swift
+// GOOD: Use centralized converter
+let utf16Range = TextIndexConverter.graphemeToUTF16Range(graphemeRange, in: text)
+
+// BAD: Duplicate conversion logic
+let utf16Offset = text.utf16.distance(from: text.startIndex, to: ...)
+```
+
+### 6. Prefer Editing Over Creating
 
 Edit existing files rather than creating new ones. The codebase already has patterns for most use cases.
 
-### 6. Keep Functions Focused
+### 7. Keep Functions Focused
 
 Large functions are hard to maintain. If a function exceeds ~50 lines, consider extracting helper methods.
 
-### 7. Document "Why", Not "What"
+### 8. Document "Why", Not "What"
 
 ```swift
 // GOOD: Explains why

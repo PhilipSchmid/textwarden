@@ -134,6 +134,8 @@ class ChromiumStrategy: GeometryProvider {
         let startIndex = errorRange.location + offset
         let adjustedRange = NSRange(location: startIndex, length: errorRange.length)
 
+        Logger.debug("ChromiumStrategy: Calculating bounds for range [\(adjustedRange.location), \(adjustedRange.length)] (text length: \(text.count))", category: Logger.ui)
+
         // Check cache invalidation conditions
         invalidateCacheIfNeeded(element: element, text: text)
 
@@ -163,6 +165,21 @@ class ChromiumStrategy: GeometryProvider {
             return nil
         }
 
+        // Validate bounds aren't unreasonably large (catches Slack's bogus bounds for special formatting)
+        // A typical character is ~8-12px wide, so max ~15px per char is generous
+        let maxReasonableWidth = CGFloat(errorRange.length) * 15.0 + 50.0
+        let maxReasonableHeight: CGFloat = 30.0  // Single line text should be ~18-22px
+
+        if bounds.width > maxReasonableWidth && bounds.width > 200 {
+            Logger.debug("ChromiumStrategy: Rejecting bounds - width \(bounds.width)px too large for \(errorRange.length) chars (max: \(maxReasonableWidth)px)", category: Logger.analysis)
+            return nil
+        }
+
+        if bounds.height > maxReasonableHeight {
+            Logger.debug("ChromiumStrategy: Rejecting bounds - height \(bounds.height)px too large (max: \(maxReasonableHeight)px)", category: Logger.analysis)
+            return nil
+        }
+
         // Handle Teams case: position is valid but width is -1 (needs estimation)
         if bounds.width < 0 {
             // Estimate width based on error text length
@@ -185,7 +202,11 @@ class ChromiumStrategy: GeometryProvider {
         ChromiumStrategy.stateQueue.sync { ChromiumStrategy._boundsCache[adjustedRange] = bounds }
         let cocoaBounds = convertQuartzToCocoa(bounds)
 
+        // Log coordinate transformation for debugging multi-line issues
+        Logger.debug("ChromiumStrategy: Quartz bounds \(bounds) -> Cocoa bounds \(cocoaBounds)", category: Logger.ui)
+
         guard CoordinateMapper.validateBounds(cocoaBounds) else {
+            Logger.debug("ChromiumStrategy: Bounds failed validation", category: Logger.ui)
             return nil
         }
 
@@ -417,4 +438,5 @@ class ChromiumStrategy: GeometryProvider {
         cocoaRect.origin.y = screenHeight - quartzRect.origin.y - quartzRect.height
         return cocoaRect
     }
+
 }

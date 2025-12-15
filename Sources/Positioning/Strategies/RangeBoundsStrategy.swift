@@ -46,7 +46,7 @@ class RangeBoundsStrategy: GeometryProvider {
         // Convert grapheme cluster indices to UTF-16 indices for the accessibility API
         // macOS accessibility APIs use UTF-16 code units, not grapheme clusters
         // This is critical for text containing emojis (e.g., 😉 = 1 grapheme but 2 UTF-16 units)
-        let utf16Range = convertToUTF16Range(adjustedRange, in: text)
+        let utf16Range = TextIndexConverter.graphemeToUTF16Range(adjustedRange, in: text)
 
         let cfRange = CFRange(
             location: utf16Range.location,
@@ -262,36 +262,7 @@ class RangeBoundsStrategy: GeometryProvider {
         Logger.debug("RangeBoundsStrategy: Fetched \(text.count) characters from AX element for UTF-16 conversion", category: Logger.ui)
 
         // Now convert using the actual text from the element
-        return convertToUTF16Range(range, in: text)
-    }
-
-    /// Convert grapheme cluster indices to UTF-16 code unit indices.
-    /// macOS accessibility APIs (AXBoundsForRange, etc.) use UTF-16 code units,
-    /// while Swift String indices are grapheme clusters.
-    /// This matters for text containing emojis: 😉 is 1 grapheme but 2 UTF-16 code units.
-    private func convertToUTF16Range(_ range: NSRange, in text: String) -> NSRange {
-        let textCount = text.count
-        let safeLocation = min(range.location, textCount)
-        let safeEndLocation = min(range.location + range.length, textCount)
-
-        // Get String.Index for the grapheme cluster positions
-        guard let startIndex = text.index(text.startIndex, offsetBy: safeLocation, limitedBy: text.endIndex),
-              let endIndex = text.index(text.startIndex, offsetBy: safeEndLocation, limitedBy: text.endIndex) else {
-            // Fallback to original range if conversion fails
-            return range
-        }
-
-        // Extract the prefix strings and measure their UTF-16 lengths
-        let prefixToStart = String(text[..<startIndex])
-        let prefixToEnd = String(text[..<endIndex])
-
-        let utf16Location = (prefixToStart as NSString).length
-        let utf16EndLocation = (prefixToEnd as NSString).length
-        let utf16Length = max(1, utf16EndLocation - utf16Location)
-
-        Logger.debug("RangeBoundsStrategy: UTF-16 conversion: grapheme [\(range.location), \(range.length)] -> UTF-16 [\(utf16Location), \(utf16Length)]", category: Logger.ui)
-
-        return NSRange(location: utf16Location, length: utf16Length)
+        return TextIndexConverter.graphemeToUTF16Range(range, in: text)
     }
 
 }

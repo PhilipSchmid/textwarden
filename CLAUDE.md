@@ -73,6 +73,7 @@ Logger.warning("Failed to get bounds for element: \(elementRole)", category: Log
 - Remove dead code, don't comment it out
 - Keep functions focused and small
 - Prefer editing existing files over creating new ones
+- **Check `Sources/Utilities/` before implementing common operations** (TextIndexConverter, CoordinateMapper, etc.)
 - No backward compatibility required - this is a new product, focus on first release
 
 ## Design
