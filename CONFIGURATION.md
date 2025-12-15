@@ -254,14 +254,17 @@ TextWarden supports global keyboard shortcuts that work in any application.
 
 | Action | Default | Description |
 |--------|---------|-------------|
-| Toggle TextWarden | ⌃⌥G | Enable/disable grammar checking globally |
-| Accept Suggestion | ⌃⌥A | Apply the current suggestion |
-| Dismiss Suggestion | ⌃⌥D | Dismiss without applying |
-| Previous Suggestion | ⌃⌥← | Navigate to previous error |
-| Next Suggestion | ⌃⌥→ | Navigate to next error |
-| Apply Suggestion 1 | ⌃⌥1 | Apply first suggestion option |
-| Apply Suggestion 2 | ⌃⌥2 | Apply second suggestion option |
-| Apply Suggestion 3 | ⌃⌥3 | Apply third suggestion option |
+| Toggle TextWarden | ⌘⌃T | Enable/disable grammar checking globally |
+| Run Style Check | ⌘⌃S | Trigger manual style analysis |
+| Fix All Obvious | ⌘⌃A | Apply all single-suggestion fixes at once |
+| Show Suggestions | ⌘⌃G | Toggle the suggestion popover |
+| Accept Suggestion | Tab | Apply the current suggestion |
+| Dismiss Suggestion | ⌥Esc | Dismiss without applying |
+| Previous Suggestion | ⌥← | Navigate to previous error |
+| Next Suggestion | ⌥→ | Navigate to next error |
+| Apply Suggestion 1 | ⌥1 | Apply first suggestion option |
+| Apply Suggestion 2 | ⌥2 | Apply second suggestion option |
+| Apply Suggestion 3 | ⌥3 | Apply third suggestion option |
 
 ### Customizing Shortcuts
 

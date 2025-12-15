@@ -1535,4 +1535,69 @@ extension AnalysisCoordinator {
             }
         }
     }
+
+    // MARK: - Fix All Obvious Errors
+
+    /// Apply all single-suggestion fixes at once.
+    /// Filters errors to only those with exactly one suggestion (obvious fixes),
+    /// then applies them from end to start to avoid position shifts affecting earlier errors.
+    /// Returns the number of fixes applied.
+    @MainActor
+    @discardableResult
+    func applyAllSingleSuggestionFixes() async -> Int {
+        // Safety check: ensure we have a monitored element
+        guard let element = textMonitor.monitoredElement else {
+            Logger.debug("Fix all obvious: No monitored element", category: Logger.analysis)
+            return 0
+        }
+
+        // Safety check: validate that current text matches what we analyzed
+        // This prevents applying fixes at wrong positions after app switch/refocus
+        var currentTextRef: CFTypeRef?
+        let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
+        if textResult == .success, let currentText = currentTextRef as? String {
+            // Compare with lastAnalyzedText to ensure positions are still valid
+            if !lastAnalyzedText.isEmpty && currentText != lastAnalyzedText {
+                Logger.warning("Fix all obvious: Text content changed since analysis, skipping to avoid wrong positions", category: Logger.analysis)
+                // Trigger re-analysis so errors get updated positions
+                textMonitor.extractText(from: element)
+                return 0
+            }
+        }
+
+        // Filter to errors with exactly one suggestion
+        let obviousFixes = currentErrors.filter { $0.suggestions.count == 1 }
+
+        guard !obviousFixes.isEmpty else {
+            Logger.debug("Fix all obvious: No single-suggestion errors to fix", category: Logger.analysis)
+            return 0
+        }
+
+        Logger.info("Fix all obvious: Applying \(obviousFixes.count) fixes", category: Logger.analysis)
+
+        // Sort by position descending (end to start) so text shifts don't affect earlier errors
+        let sortedFixes = obviousFixes.sorted { $0.start > $1.start }
+
+        // Hide popover during bulk fix
+        SuggestionPopover.shared.hide()
+
+        var fixCount = 0
+
+        for error in sortedFixes {
+            guard let suggestion = error.suggestions.first else { continue }
+
+            Logger.debug("Fix all obvious: Applying fix at \(error.start)-\(error.end)", category: Logger.analysis)
+
+            // Apply the fix
+            await applyTextReplacementAsync(for: error, with: suggestion)
+            fixCount += 1
+
+            // Small delay between fixes for reliability (especially for keyboard-based replacements)
+            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+        }
+
+        Logger.info("Fix all obvious: Applied \(fixCount) fixes", category: Logger.analysis)
+
+        return fixCount
+    }
 }

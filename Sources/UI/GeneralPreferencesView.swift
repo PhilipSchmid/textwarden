@@ -308,6 +308,7 @@ struct GeneralPreferencesView: View {
                 KeyboardShortcuts.Recorder("Toggle TextWarden:", name: .toggleTextWarden)
                 KeyboardShortcuts.Recorder("Run Style Check:", name: .runStyleCheck)
                 KeyboardShortcuts.Recorder("Show Suggestions:", name: .showSuggestionPopover)
+                KeyboardShortcuts.Recorder("Fix All Obvious:", name: .fixAllObvious)
 
                 Text("Works system-wide, even when TextWarden isn't the active app")
                     .font(.caption)

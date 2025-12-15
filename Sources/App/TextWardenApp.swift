@@ -489,6 +489,22 @@ extension AppDelegate: NSWindowDelegate {
             }
         }
 
+        // Fix all obvious errors (Cmd+Ctrl+A by default - "A" for Apply All)
+        // Applies all single-suggestion fixes at once
+        KeyboardShortcuts.onKeyUp(for: .fixAllObvious) {
+            Task { @MainActor in
+                let preferences = UserPreferences.shared
+                guard preferences.keyboardShortcutsEnabled else { return }
+
+                Logger.debug("Keyboard shortcut: Fix all obvious errors", category: Logger.ui)
+
+                let fixCount = await AnalysisCoordinator.shared.applyAllSingleSuggestionFixes()
+                if fixCount > 0 {
+                    Logger.info("Fixed \(fixCount) obvious error(s)", category: Logger.ui)
+                }
+            }
+        }
+
         // Toggle suggestion popover (Cmd+Ctrl+. by default)
         KeyboardShortcuts.onKeyUp(for: .showSuggestionPopover) {
             Task { @MainActor in

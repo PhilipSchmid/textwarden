@@ -17,6 +17,9 @@ extension KeyboardShortcuts.Name {
     /// Trigger style check on current text
     static let runStyleCheck = Self("runStyleCheck", default: .init(.s, modifiers: [.command, .control]))
 
+    /// Fix all errors that have exactly one suggestion (obvious fixes) - "A" for Apply All
+    static let fixAllObvious = Self("fixAllObvious", default: .init(.a, modifiers: [.command, .control]))
+
     // MARK: - Suggestion Popover
 
     /// Toggle suggestion popover (show if hidden, hide if shown) - "G" for Grammar
