@@ -276,18 +276,9 @@ TextWarden supports global keyboard shortcuts that work in any application.
 
 ## Advanced Settings
 
-### Debug Overlays
+These settings are found in **Preferences → Diagnostics**.
 
-**What it does:** Shows colored borders around detected text fields. Useful for troubleshooting positioning issues.
-
-**Options:**
-- **Text Field Bounds** - Where TextWarden thinks the text area is
-- **Window Coordinates** - Raw window position data
-- **Cocoa Coordinates** - Converted screen coordinates
-
-**Recommendation:** Keep disabled unless troubleshooting. These are developer tools.
-
-### Logging
+### Logging Configuration
 
 **What it does:** Controls what information TextWarden records for diagnostics.
 
@@ -298,9 +289,20 @@ TextWarden supports global keyboard shortcuts that work in any application.
 - **Debug** - Detailed technical info
 - **Trace** - Everything (generates large log files)
 
-**File Logging:** When enabled, writes logs to disk for later review.
+**File Logging:** When enabled, writes logs to disk for later review. You can choose a custom log file location or use the default (`~/Library/Logs/TextWarden/textwarden.log`).
 
 **Recommendation:** Keep at "Warning" or "Info" for normal use. Enable "Debug" only when troubleshooting issues.
+
+### Debug Overlays
+
+**What it does:** Shows colored borders around detected text fields. Useful for troubleshooting positioning issues.
+
+**Options:**
+- **Text Field Bounds** - Where TextWarden thinks the text area is
+- **Window Coordinates** - Raw window position data
+- **Cocoa Coordinates** - Converted screen coordinates
+
+**Recommendation:** Keep disabled unless troubleshooting. These are developer tools.
 
 ---
 
