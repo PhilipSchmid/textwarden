@@ -256,7 +256,7 @@ Use Accessibility Inspector (Xcode → Open Developer Tool) to test if the app's
 - **Rust**: Run `cargo fmt` and `cargo clippy`
 - **Comments**: Explain "why", not "what"
 - **No force unwraps** (`!`) on external data
-- **Use centralized constants**: `TimingConstants` for delays, `GeometryConstants` for bounds
+- **Use centralized constants**: `TimingConstants` for delays, `GeometryConstants` for bounds, `UIConstants` for UI sizing. Never use magic numbers like `0.5` directly - add a named constant instead. See `Sources/AppConfiguration/TimingConstants.swift` for examples.
 
 For detailed coding principles, threading guidelines, and common pitfalls, see **[ARCHITECTURE.md](ARCHITECTURE.md#design-principles)**.
 

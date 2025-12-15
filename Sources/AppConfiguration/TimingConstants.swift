@@ -67,6 +67,10 @@ enum TimingConstants {
     /// Focus bounce grace period
     static let focusBounceGrace: TimeInterval = 0.5
 
+    /// Mac Catalyst accessibility stabilization delay
+    /// Catalyst apps need extra time for AX hierarchy to fully populate after focus change
+    static let catalystAccessibilityDelay: TimeInterval = 0.6
+
     /// Grace period after applying text replacement before re-analysis
     static let replacementGracePeriod: TimeInterval = 1.5
 

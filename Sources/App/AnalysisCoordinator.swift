@@ -581,6 +581,18 @@ class AnalysisCoordinator: ObservableObject {
 
                     if let element = self.textMonitor.monitoredElement {
                         self.textMonitor.extractText(from: element)
+
+                        // Mac Catalyst apps need extra time for accessibility to stabilize
+                        if context.isMacCatalystApp {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.catalystAccessibilityDelay) { [weak self] in
+                                guard let self = self else { return }
+                                self.previousText = ""
+                                if let el = self.textMonitor.monitoredElement {
+                                    Logger.debug("AnalysisCoordinator: Same app Catalyst retry - forcing re-analysis", category: Logger.analysis)
+                                    self.textMonitor.extractText(from: el)
+                                }
+                            }
+                        }
                     } else {
                         // Element was cleared by stopMonitoring - restart monitoring to find text field
                         Logger.debug("AnalysisCoordinator: Same app but element nil (was stopped) - restarting monitoring", category: Logger.analysis)
@@ -611,6 +623,20 @@ class AnalysisCoordinator: ObservableObject {
                         if let element = self.textMonitor.monitoredElement {
                             Logger.debug("AnalysisCoordinator: Retry 2 - extracting text", category: Logger.analysis)
                             self.textMonitor.extractText(from: element)
+                        }
+                    }
+
+                    // Mac Catalyst apps (Messages, WhatsApp) need extra time for accessibility hierarchy
+                    // to fully stabilize after focus change. Add a longer retry to catch late updates.
+                    if context.isMacCatalystApp {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.catalystAccessibilityDelay) { [weak self] in
+                            guard let self = self else { return }
+                            // Force re-analysis by clearing previousText
+                            self.previousText = ""
+                            if let element = self.textMonitor.monitoredElement {
+                                Logger.debug("AnalysisCoordinator: Catalyst retry 3 - forcing re-analysis", category: Logger.analysis)
+                                self.textMonitor.extractText(from: element)
+                            }
                         }
                     }
                 }
