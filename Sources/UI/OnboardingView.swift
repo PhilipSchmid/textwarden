@@ -9,10 +9,15 @@ import SwiftUI
 import ApplicationServices
 import LaunchAtLogin
 
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
+
 // MARK: - App URLs
 
 private enum AppURLs {
     static let buyMeACoffee = URL(string: "https://buymeacoffee.com/textwarden")!
+    static let appleIntelligenceSettings = URL(string: "x-apple.systempreferences:com.apple.preference.AppleIntelligence-Siri")!
 }
 
 /// Onboarding view guiding users through Accessibility permission setup
@@ -25,8 +30,18 @@ struct OnboardingView: View {
     @State private var pollingTimer: Timer?
     @State private var elapsedTime: TimeInterval = 0
     @State private var showTimeoutWarning = false
+    @State private var appleIntelligenceStatus: AppleIntelligenceStatus = .checking
 
     private let maxWaitTime: TimeInterval = TimingConstants.maxPermissionWait
+
+    /// Apple Intelligence availability status for onboarding
+    private enum AppleIntelligenceStatus {
+        case checking
+        case available
+        case notEnabled
+        case notEligible
+        case notSupported // macOS < 26
+    }
 
     var body: some View {
         ScrollView {
@@ -64,6 +79,8 @@ struct OnboardingView: View {
                         verificationStep
                     case .launchAtLogin:
                         launchAtLoginStep
+                    case .appleIntelligence:
+                        appleIntelligenceStep
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -98,6 +115,8 @@ struct OnboardingView: View {
                         .keyboardShortcut(.defaultAction)
                         .accessibilityLabel("Enable launch at login")
                         .accessibilityHint("Double tap to enable TextWarden to start automatically when you log in")
+                    } else if currentStep == .appleIntelligence {
+                        appleIntelligenceButtons
                     } else {
                         actionButton
                     }
@@ -255,6 +274,29 @@ struct OnboardingView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .padding(.top, 8)
+        }
+    }
+
+    private var appleIntelligenceStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                Image(systemName: appleIntelligenceStatusIcon)
+                    .font(.system(size: 40))
+                    .foregroundColor(appleIntelligenceStatusColor)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("AI Style Checking")
+                        .font(.headline)
+
+                    Text(appleIntelligenceStatusSubtitle)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Divider()
+
+            appleIntelligenceContent
 
             Divider()
                 .padding(.top, 16)
@@ -278,6 +320,138 @@ struct OnboardingView: View {
                 .accessibilityHint("Opens a link to support TextWarden development")
             }
             .padding(.top, 8)
+        }
+        .onAppear {
+            checkAppleIntelligenceStatus()
+        }
+    }
+
+    @ViewBuilder
+    private var appleIntelligenceContent: some View {
+        switch appleIntelligenceStatus {
+        case .checking:
+            HStack(spacing: 12) {
+                ProgressView()
+                    .scaleEffect(0.8)
+                Text("Checking Apple Intelligence availability...")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+
+        case .available:
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Apple Intelligence is available on your Mac. You can enable AI-powered style suggestions to improve clarity and readability.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    FeatureRow(icon: "sparkles", title: "Style Suggestions", description: "Get AI-powered writing improvements")
+                    FeatureRow(icon: "text.quote", title: "Multiple Styles", description: "Concise, Formal, Casual, Business")
+                    FeatureRow(icon: "lock.shield", title: "On-Device", description: "All processing stays on your Mac")
+                }
+                .padding(.vertical, 8)
+
+                Text("Enable style checking in Settings → Style.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+        case .notEnabled:
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Apple Intelligence is not enabled on your Mac. Enable it to unlock AI-powered style suggestions.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    StepRow(number: 1, text: "Click 'Open Settings' below")
+                    StepRow(number: 2, text: "Enable Apple Intelligence")
+                    StepRow(number: 3, text: "Wait for the model to download")
+                }
+                .padding(.vertical, 8)
+
+                Text("This is optional - grammar checking works without it.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+        case .notEligible:
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Apple Intelligence requires a Mac with Apple Silicon (M1 or later). Style suggestions are not available on this Mac.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
+                Text("Grammar and spelling checking work normally without this feature.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 8)
+            }
+
+        case .notSupported:
+            VStack(alignment: .leading, spacing: 12) {
+                Text("AI style suggestions require macOS 26 (Tahoe) or later. Your current macOS version does not support this feature.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
+                Text("Grammar and spelling checking work normally without this feature.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 8)
+            }
+        }
+    }
+
+    private var appleIntelligenceStatusIcon: String {
+        switch appleIntelligenceStatus {
+        case .checking: return "hourglass"
+        case .available: return "checkmark.circle.fill"
+        case .notEnabled: return "exclamationmark.circle.fill"
+        case .notEligible, .notSupported: return "xmark.circle.fill"
+        }
+    }
+
+    private var appleIntelligenceStatusColor: Color {
+        switch appleIntelligenceStatus {
+        case .checking: return .secondary
+        case .available: return .green
+        case .notEnabled: return .orange
+        case .notEligible, .notSupported: return .secondary
+        }
+    }
+
+    private var appleIntelligenceStatusSubtitle: String {
+        switch appleIntelligenceStatus {
+        case .checking: return "Checking availability..."
+        case .available: return "Available on your Mac"
+        case .notEnabled: return "Requires setup"
+        case .notEligible: return "Not available on this Mac"
+        case .notSupported: return "Requires macOS 26+"
+        }
+    }
+
+    @ViewBuilder
+    private var appleIntelligenceButtons: some View {
+        switch appleIntelligenceStatus {
+        case .checking:
+            Button("Please wait...") {}
+                .disabled(true)
+
+        case .available, .notEligible, .notSupported:
+            Button("Finish Setup") {
+                dismiss()
+            }
+            .buttonStyle(.borderedProminent)
+            .keyboardShortcut(.defaultAction)
+
+        case .notEnabled:
+            Button("Skip") {
+                dismiss()
+            }
+
+            Button("Open Settings") {
+                NSWorkspace.shared.open(AppURLs.appleIntelligenceSettings)
+            }
+            .buttonStyle(.borderedProminent)
+            .keyboardShortcut(.defaultAction)
         }
     }
 
@@ -303,6 +477,8 @@ struct OnboardingView: View {
         case .verification:
             return "Double tap to continue to the next step"
         case .launchAtLogin:
+            return "Double tap to continue to AI style checking setup"
+        case .appleIntelligence:
             return "Double tap to complete setup"
         }
     }
@@ -316,6 +492,8 @@ struct OnboardingView: View {
         case .verification:
             return "Continue"
         case .launchAtLogin:
+            return "Continue"
+        case .appleIntelligence:
             return "Finish Setup"
         }
     }
@@ -348,18 +526,56 @@ struct OnboardingView: View {
         case .launchAtLogin:
             // Handled by separate buttons
             break
+
+        case .appleIntelligence:
+            // Handled by separate buttons
+            break
         }
     }
 
     private func handleEnableLaunchAtLogin() {
         Logger.info("Onboarding: Enabling launch at login...", category: Logger.general)
         LaunchAtLogin.isEnabled = true
-        dismiss()
+        currentStep = .appleIntelligence
     }
 
     private func handleSkipLaunchAtLogin() {
         Logger.info("Onboarding: Skipping launch at login...", category: Logger.general)
-        dismiss()
+        currentStep = .appleIntelligence
+    }
+
+    private func checkAppleIntelligenceStatus() {
+        #if canImport(FoundationModels)
+        if #available(macOS 26.0, *) {
+            let model = SystemLanguageModel.default
+            switch model.availability {
+            case .available:
+                appleIntelligenceStatus = .available
+                Logger.debug("Onboarding: Apple Intelligence available", category: Logger.ui)
+            case .unavailable(let reason):
+                switch reason {
+                case .appleIntelligenceNotEnabled:
+                    appleIntelligenceStatus = .notEnabled
+                    Logger.debug("Onboarding: Apple Intelligence not enabled", category: Logger.ui)
+                case .deviceNotEligible:
+                    appleIntelligenceStatus = .notEligible
+                    Logger.debug("Onboarding: Device not eligible for Apple Intelligence", category: Logger.ui)
+                case .modelNotReady:
+                    appleIntelligenceStatus = .notEnabled
+                    Logger.debug("Onboarding: Apple Intelligence model not ready", category: Logger.ui)
+                @unknown default:
+                    appleIntelligenceStatus = .notEnabled
+                    Logger.debug("Onboarding: Apple Intelligence unknown status", category: Logger.ui)
+                }
+            }
+        } else {
+            appleIntelligenceStatus = .notSupported
+            Logger.debug("Onboarding: macOS version does not support Apple Intelligence", category: Logger.ui)
+        }
+        #else
+        appleIntelligenceStatus = .notSupported
+        Logger.debug("Onboarding: FoundationModels not available", category: Logger.ui)
+        #endif
     }
 
     private func checkPermissionAndUpdateStep() {
@@ -469,6 +685,7 @@ private enum OnboardingStep {
     case permissionRequest
     case verification
     case launchAtLogin
+    case appleIntelligence
 }
 
 // MARK: - Preview
