@@ -1198,7 +1198,10 @@ extension AnalysisCoordinator {
 
     /// Find error position for browsers and standard apps
     private func findBrowserErrorPosition(error: GrammarErrorModel) -> (errorText: String, fallbackRange: CFRange?, currentError: GrammarErrorModel) {
+        // Match by position first (most reliable), then fall back to message/lintId matching
         let currentError = currentErrors.first { err in
+            err.start == error.start && err.end == error.end
+        } ?? currentErrors.first { err in
             err.message == error.message && err.lintId == error.lintId && err.category == error.category
         } ?? error
 
