@@ -44,17 +44,6 @@ protocol GrammarAnalyzing {
     ) -> GrammarAnalysisResult
 }
 
-/// Protocol for LLM style analysis
-@MainActor
-protocol StyleAnalyzing {
-    var isInitialized: Bool { get }
-    var isReady: Bool { get }
-    func isModelLoaded() -> Bool
-    func getLoadedModelId() -> String
-    func analyzeStyle(_ text: String, style: WritingStyle) -> StyleAnalysisResultModel
-    func rephraseSentence(_ sentence: String) -> String?
-}
-
 /// Protocol for user preferences access
 @MainActor
 protocol UserPreferencesProviding: AnyObject {
@@ -79,14 +68,12 @@ protocol UserPreferencesProviding: AnyObject {
     var ignoredRules: Set<String> { get }
     var ignoredErrorTexts: Set<String> { get }
 
-    // Style settings
+    // Style settings (Apple Intelligence)
     var enableStyleChecking: Bool { get }
     var autoStyleChecking: Bool { get }
     var selectedWritingStyle: String { get }
     var styleConfidenceThreshold: Double { get }
     var styleMinSentenceWords: Int { get }
-    var selectedModelId: String { get }
-    var styleInferencePreset: String { get }
     var styleTemperaturePreset: String { get }
 
     // Debug settings
@@ -172,7 +159,6 @@ protocol TypingDetecting: AnyObject {
 // MARK: - Protocol Conformance
 
 extension GrammarEngine: GrammarAnalyzing {}
-extension LLMEngine: StyleAnalyzing {}
 extension CustomVocabulary: CustomVocabularyProviding {}
 extension AppRegistry: AppConfigurationProviding {}
 extension BrowserURLExtractor: BrowserURLExtracting {}
@@ -198,7 +184,6 @@ struct DependencyContainer {
 
     // Analysis engines
     let grammarEngine: GrammarAnalyzing
-    let llmEngine: StyleAnalyzing
 
     // Configuration and preferences
     let userPreferences: UserPreferencesProviding
@@ -222,7 +207,6 @@ struct DependencyContainer {
         applicationTracker: .shared,
         permissionManager: .shared,
         grammarEngine: GrammarEngine.shared,
-        llmEngine: LLMEngine.shared,
         userPreferences: UserPreferences.shared,
         appRegistry: AppRegistry.shared,
         customVocabulary: CustomVocabulary.shared,
@@ -240,7 +224,6 @@ struct DependencyContainer {
         applicationTracker: ApplicationTracker,
         permissionManager: PermissionManager,
         grammarEngine: GrammarAnalyzing,
-        llmEngine: StyleAnalyzing,
         userPreferences: UserPreferencesProviding,
         appRegistry: AppConfigurationProviding,
         customVocabulary: CustomVocabularyProviding,
@@ -256,7 +239,6 @@ struct DependencyContainer {
         self.applicationTracker = applicationTracker
         self.permissionManager = permissionManager
         self.grammarEngine = grammarEngine
-        self.llmEngine = llmEngine
         self.userPreferences = userPreferences
         self.appRegistry = appRegistry
         self.customVocabulary = customVocabulary

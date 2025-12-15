@@ -502,142 +502,15 @@ extension AnalysisCoordinator {
     }
 
     /// Enhance readability errors (like LongSentences) with AI-generated rephrase suggestions
-    /// This runs asynchronously after grammar analysis and updates the UI when suggestions are ready
+    /// Note: Auto-enhancement is disabled. Users can manually trigger style checking via the popover.
     func enhanceReadabilityErrorsWithAI(
         errors: [GrammarErrorModel],
         sourceText: String,
         element: AXUIElement?,
         segment: TextSegment
     ) {
-        // Check if AI enhancement is available
-        let styleCheckingEnabled = userPreferences.enableStyleChecking
-        let llmInitialized = llmEngine.isInitialized
-        let modelLoaded = llmEngine.isModelLoaded()
-
-        guard styleCheckingEnabled && llmInitialized && modelLoaded else {
-            return
-        }
-
-        // Find readability errors that have no suggestions (long sentences)
-        // The lint ID format is "Category::message_key", e.g., "Readability::this_sentence_is_50_words_long"
-        // We check if:
-        // 1. Category is "Readability" (error.category == "Readability")
-        // 2. Message contains "words long" (indicates long sentence lint)
-        // 3. Has no suggestions from Harper
-        let readabilityErrorsWithoutSuggestions = errors.filter { error in
-            error.category == "Readability" &&
-            error.message.lowercased().contains("words long") &&
-            error.suggestions.isEmpty
-        }
-
-        guard !readabilityErrorsWithoutSuggestions.isEmpty else {
-            return
-        }
-
-        Logger.debug("AI rephrase: Processing \(readabilityErrorsWithoutSuggestions.count) long sentence(s)", category: Logger.llm)
-
-        // Capture LLM engine reference before async dispatch
-        let llmEngineRef = llmEngine
-
-        // Process each readability error asynchronously
-        styleAnalysisQueue.async { [weak self] in
-            guard let self = self else { return }
-
-            var enhancedErrors: [GrammarErrorModel] = []
-
-            for error in readabilityErrorsWithoutSuggestions {
-                // Extract the problematic sentence from source text using safe index operations
-                let start = error.start
-                let end = error.end
-
-                guard start >= 0, start < end,
-                      let startIndex = sourceText.index(sourceText.startIndex, offsetBy: start, limitedBy: sourceText.endIndex),
-                      let endIndex = sourceText.index(sourceText.startIndex, offsetBy: end, limitedBy: sourceText.endIndex),
-                      startIndex <= endIndex else {
-                    Logger.warning("AI rephrase: Invalid error range", category: Logger.llm)
-                    continue
-                }
-
-                let sentence = String(sourceText[startIndex..<endIndex])
-
-                // Check AI rephrase cache first (thread-safe via AIRephraseCache)
-                var rephrased = self.aiRephraseCache.get(sentence)
-
-                if rephrased == nil {
-                    // Generate AI suggestion
-                    rephrased = llmEngineRef.rephraseSentence(sentence)
-
-                    // Cache the result (thread-safe, handles LRU eviction internally)
-                    if let newRephrase = rephrased {
-                        aiRephraseCache.set(sentence, value: newRephrase)
-                    }
-                }
-
-                if let finalRephrase = rephrased {
-                    // Create enhanced error with AI suggestion
-                    // Store both original sentence (index 0) and rephrase (index 1) for Before/After display
-                    let enhancedError = GrammarErrorModel(
-                        start: error.start,
-                        end: error.end,
-                        message: error.message,
-                        severity: error.severity,
-                        category: error.category,
-                        lintId: error.lintId,
-                        suggestions: [sentence, finalRephrase]
-                    )
-                    enhancedErrors.append(enhancedError)
-                } else {
-                    Logger.warning("AI rephrase: Generation failed", category: Logger.llm)
-                }
-            }
-
-            // Update UI with enhanced errors
-            guard !enhancedErrors.isEmpty else { return }
-
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-
-                // Replace the original readability errors with enhanced versions
-                var updatedErrors = self.currentErrors
-
-                for enhancedError in enhancedErrors {
-                    // Find and replace the matching error
-                    if let index = updatedErrors.firstIndex(where: { existingError in
-                        existingError.start == enhancedError.start &&
-                        existingError.end == enhancedError.end &&
-                        existingError.lintId == enhancedError.lintId
-                    }) {
-                        updatedErrors[index] = enhancedError
-                    }
-                }
-
-                // Update the error list and UI
-                self.currentErrors = updatedErrors
-                self.updateErrorCache(for: segment, with: updatedErrors)
-
-                // Refresh the error overlay (underlines and popover) with updated errors
-                if let element = element, let context = self.monitoredContext {
-                    _ = self.errorOverlay.update(errors: updatedErrors, element: element, context: context)
-                }
-
-                // Refresh the floating indicator if visible
-                if let element = element {
-                    self.floatingIndicator.update(
-                        errors: updatedErrors,
-                        styleSuggestions: self.currentStyleSuggestions,
-                        element: element,
-                        context: self.monitoredContext,
-                        sourceText: self.lastAnalyzedText
-                    )
-                }
-
-                // Auto-refresh the popover if it's showing the updated error
-                // This enables seamless transition from "loading" to "Before/After" view
-                self.suggestionPopover.updateErrors(updatedErrors)
-
-                Logger.debug("AI rephrase: Enhanced \(enhancedErrors.count) error(s)", category: Logger.llm)
-            }
-        }
+        // Auto AI enhancement for readability errors is disabled
+        // Users can manually trigger style checking which uses FoundationModelsEngine
     }
 }
 

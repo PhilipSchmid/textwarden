@@ -10,7 +10,6 @@
 import SwiftUI
 import os.log
 import KeyboardShortcuts
-import Combine
 
 @main
 struct TextWardenApp: App {
@@ -36,7 +35,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var menuBarController: MenuBarController?
     var analysisCoordinator: AnalysisCoordinator?
     var settingsWindow: NSWindow?  // Keep strong reference to settings window
-    private var styleCheckingCancellable: AnyCancellable?
 
     /// Shared updater view model for Sparkle auto-updates
     /// Lazy to ensure initialization happens on main thread (UpdaterViewModel is @MainActor)
@@ -119,9 +117,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             analysisCoordinator = AnalysisCoordinator.shared
             Logger.info("Analysis coordinator initialized", category: Logger.lifecycle)
 
-            // Setup style checking model management
-            setupStyleCheckingModelManagement()
-
             // Check if user wants to open settings window in foreground
             if UserPreferences.shared.openInForeground {
                 Logger.info("Opening settings window in foreground (user preference)", category: Logger.ui)
@@ -138,9 +133,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 Logger.info("Permission granted via onboarding - starting grammar checking", category: Logger.permissions)
                 self.analysisCoordinator = AnalysisCoordinator.shared
                 Logger.info("Analysis coordinator initialized", category: Logger.lifecycle)
-
-                // Setup style checking model management
-                self.setupStyleCheckingModelManagement()
 
                 // Return to accessory mode after onboarding completes
                 DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.focusBounceGrace) {
@@ -203,143 +195,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         TypingDetector.shared.cleanup()
 
         Logger.info("Cleanup complete", category: Logger.lifecycle)
-    }
-
-    /// Setup style checking model management:
-    /// - Initialize LLM engine (on background thread)
-    /// - Auto-load model on launch if enabled
-    /// - Reactively load/unload model when style checking is toggled
-    @MainActor
-    private func setupStyleCheckingModelManagement() {
-        let preferences = UserPreferences.shared
-        let modelManager = ModelManager.shared
-
-        // Setup the preference observer first (this is lightweight, can be on main thread)
-        setupStyleCheckingObserver(preferences: preferences, modelManager: modelManager)
-
-        // Capture MainActor-isolated values on main thread before dispatching to background
-        let enableStyleChecking = preferences.enableStyleChecking
-        let selectedModelId = preferences.selectedModelId
-
-        // Run heavy initialization on background thread to avoid blocking UI
-        DispatchQueue.global(qos: .userInitiated).async {
-            Self.initializeLLMEngineAndLoadModel(
-                enableStyleChecking: enableStyleChecking,
-                selectedModelId: selectedModelId,
-                modelManager: modelManager
-            )
-        }
-
-        Logger.info("Style checking model management setup initiated (async)", category: Logger.llm)
-    }
-
-    /// Initialize LLM engine and auto-load model (runs on background thread)
-    /// Parameters are captured from MainActor context before dispatch to avoid thread safety issues.
-    private static func initializeLLMEngineAndLoadModel(
-        enableStyleChecking: Bool,
-        selectedModelId: String,
-        modelManager: ModelManager
-    ) {
-        // Initialize LLM engine with app support directory
-        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            Logger.error("Failed to resolve application support directory", category: Logger.llm)
-            return
-        }
-        let textWardenDir = appSupport.appendingPathComponent("TextWarden", isDirectory: true)
-
-        // Ensure directory exists
-        do {
-            try FileManager.default.createDirectory(at: textWardenDir, withIntermediateDirectories: true)
-        } catch {
-            Logger.error("Failed to create TextWarden support directory: \(error.localizedDescription)", category: Logger.llm)
-            return
-        }
-
-        Logger.info("Initializing LLM engine on background thread...", category: Logger.llm)
-        let initSuccess = LLMEngine.shared.initialize(appSupportDir: textWardenDir)
-        if !initSuccess {
-            Logger.error("LLM engine initialization failed - style checking will not work", category: Logger.llm)
-            return
-        }
-        Logger.info("LLM engine initialized successfully", category: Logger.llm)
-
-        // Log current state
-        Logger.debug("Style checking preferences - enabled: \(enableStyleChecking), selectedModel: \(selectedModelId)", category: Logger.llm)
-
-        // Refresh models and check for auto-load on the main thread
-        // (ModelManager properties are @MainActor isolated)
-        DispatchQueue.main.async {
-            modelManager.refreshModels()
-
-            // Wait briefly to allow the refresh to complete before checking models
-            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.mediumDelay) {
-                Logger.debug("Available models: \(modelManager.models.count), downloaded: \(modelManager.downloadedModels.count)", category: Logger.llm)
-
-                // Auto-load model on launch if style checking is enabled
-                guard enableStyleChecking else {
-                    Logger.debug("Style checking is disabled - skipping model auto-load", category: Logger.llm)
-                    return
-                }
-
-                Logger.debug("Style checking enabled, checking if model '\(selectedModelId)' is available...", category: Logger.llm)
-
-                guard let model = modelManager.models.first(where: { $0.id == selectedModelId }) else {
-                    Logger.warning("Selected model '\(selectedModelId)' not found in available models", category: Logger.llm)
-                    return
-                }
-
-                Logger.debug("Found model: \(model.name), isDownloaded: \(model.isDownloaded)", category: Logger.llm)
-
-                guard model.isDownloaded else {
-                    Logger.warning("Selected model '\(model.name)' is not downloaded - cannot auto-load", category: Logger.llm)
-                    return
-                }
-
-                Logger.info("Auto-loading AI model: \(model.name) (style checking enabled)", category: Logger.llm)
-
-                // Load model on background thread (heavy operation)
-                Task.detached(priority: .userInitiated) {
-                    await modelManager.loadModel(selectedModelId)
-                }
-            }
-        }
-    }
-
-    /// Setup observer for style checking toggle (lightweight, runs on main thread)
-    @MainActor
-    private func setupStyleCheckingObserver(preferences: UserPreferences, modelManager: ModelManager) {
-        styleCheckingCancellable = preferences.$enableStyleChecking
-            .dropFirst() // Skip initial value (we handle that in initializeLLMEngineAndLoadModel)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] enabled in
-                // Use Task to satisfy @MainActor requirements for accessing preferences
-                Task { @MainActor [weak self] in
-                    guard self != nil else { return }
-                    let selectedModelId = preferences.selectedModelId
-
-                    if enabled {
-                        // Style checking enabled - load the selected model if downloaded
-                        if let model = modelManager.models.first(where: { $0.id == selectedModelId }), model.isDownloaded {
-                            Logger.info("Style checking enabled - loading model: \(model.name)", category: Logger.llm)
-                            // Use Task.detached to avoid blocking main thread
-                            Task.detached(priority: .userInitiated) {
-                                await modelManager.loadModel(selectedModelId)
-                            }
-                        } else {
-                            Logger.warning("Style checking enabled but selected model not downloaded", category: Logger.llm)
-                        }
-                    } else {
-                        // Style checking disabled - unload the model from memory
-                        if modelManager.loadedModelId != nil {
-                            Logger.info("Style checking disabled - unloading model from memory", category: Logger.llm)
-                            // Unload model (modelManager is @MainActor, so use Task)
-                            Task { @MainActor in
-                                modelManager.unloadModel()
-                            }
-                        }
-                    }
-                }
-            }
     }
 
     /// Open or bring forward the settings window

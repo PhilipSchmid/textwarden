@@ -103,37 +103,6 @@ struct LogVolumeSample: Codable, Identifiable {
     }
 }
 
-/// Extension to add UI properties to FFI InferencePreset
-extension InferencePreset {
-    static var allCases: [InferencePreset] {
-        [.Fast, .Balanced, .Quality]
-    }
-
-    var displayName: String {
-        switch self {
-        case .Fast: return "Fast"
-        case .Balanced: return "Balanced"
-        case .Quality: return "Quality"
-        }
-    }
-
-    var rawValue: String {
-        switch self {
-        case .Fast: return "fast"
-        case .Balanced: return "balanced"
-        case .Quality: return "quality"
-        }
-    }
-
-    var color: (r: Double, g: Double, b: Double) {
-        switch self {
-        case .Fast: return (0.2, 0.8, 0.4)      // Green
-        case .Balanced: return (0.3, 0.5, 0.9)  // Blue
-        case .Quality: return (0.7, 0.3, 0.8)   // Purple
-        }
-    }
-}
-
 /// Observable user statistics for tracking usage and improvements
 @MainActor
 class UserStatistics: ObservableObject {
@@ -1398,14 +1367,14 @@ class UserStatistics: ObservableObject {
 
     // MARK: - Style Latency Query Methods
 
-    /// Get unique model IDs that have latency data, including the currently selected model
+    /// Constant model ID for Apple Intelligence (no longer using downloadable models)
+    private static let appleIntelligenceModelId = "apple-intelligence"
+
+    /// Get unique model IDs that have latency data
     var modelsWithLatencyData: [String] {
         var modelIds = Set(detailedStyleLatencySamples.map { $0.modelId })
-        // Always include the currently selected model so it appears in the dropdown
-        let selectedModelId = UserPreferences.shared.selectedModelId
-        if !selectedModelId.isEmpty {
-            modelIds.insert(selectedModelId)
-        }
+        // Always include Apple Intelligence so it appears in the dropdown
+        modelIds.insert(Self.appleIntelligenceModelId)
         return Array(modelIds).sorted()
     }
 

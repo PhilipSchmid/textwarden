@@ -1,7 +1,7 @@
 # Makefile for TextWarden Grammar Checker
 # macOS-native grammar checker with Rust + Swift
 
-.PHONY: help build build-no-llm build-rust build-rust-llm build-swift \
+.PHONY: help build build-rust build-swift \
         run run-only install uninstall \
         test test-rust clean clean-all clean-derived \
         ci-check fmt lint logs kill status reset xcode version \
@@ -34,18 +34,11 @@ help: ## Show this help message
 
 ##@ Building
 
-build: build-rust-llm build-swift ## Build with LLM support (full features)
+build: build-rust build-swift ## Build the project
 
-build-no-llm: build-rust build-swift ## Build without LLM (faster, grammar only)
-
-build-rust: ## Build Rust library (no LLM)
+build-rust: ## Build Rust library
 	@echo "$(BLUE)🦀 Building Rust grammar engine...$(NC)"
 	@./Scripts/build-rust.sh
-	@echo "$(GREEN)✅ Rust build complete$(NC)"
-
-build-rust-llm: ## Build Rust library with LLM
-	@echo "$(BLUE)🦀 Building Rust with LLM support...$(NC)"
-	@FEATURES=llm ./Scripts/build-rust.sh
 	@echo "$(GREEN)✅ Rust build complete$(NC)"
 
 build-swift: ## Build Swift app
@@ -144,8 +137,8 @@ ci-check: ## Run CI checks locally (use before pushing)
 	@cd $(RUST_DIR) && cargo test
 	@echo "$(GREEN)✅ OK$(NC)"
 	@echo ""
-	@echo "$(YELLOW)[4/4] Building Swift...$(NC)"
-	@make -s build-no-llm
+	@echo "$(YELLOW)[4/4] Building...$(NC)"
+	@make -s build
 	@echo ""
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(GREEN)✅ All checks passed! Safe to push.$(NC)"

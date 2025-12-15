@@ -14,23 +14,9 @@ whichlang = "0.1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 sysinfo = "0.37"
-
-# LLM Style Checking dependencies
-# Note: mistralrs requires git dependency as it's not published to crates.io
-mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs", features = ["metal"], optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tokio = { version = "1.0", features = ["rt", "rt-multi-thread", "sync", "time"], optional = true }
-reqwest = { version = "0.12", features = ["stream"], optional = true }
-futures-util = { version = "0.3", optional = true }
-lazy_static = { version = "1.5", optional = true }
 directories = "6.0"
-similar = "2.6"  # For text diff computation
-sha2 = "0.10"
-
-[features]
-default = []
-llm = ["mistralrs", "tokio", "reqwest", "futures-util", "lazy_static"]
 
 [build-dependencies]
 swift-bridge-build = "0.1.57"

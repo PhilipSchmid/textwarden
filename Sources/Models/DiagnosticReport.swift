@@ -16,120 +16,83 @@ import AppKit
 import LaunchAtLogin
 import KeyboardShortcuts
 
-// MARK: - LLM Style Checking Diagnostics
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
 
-/// Information about a downloaded LLM model
-struct DownloadedModelDiagnostic: Codable {
-    let id: String
-    let name: String
-    let vendor: String
-    let filename: String
-    let sizeBytes: UInt64
-    let formattedSize: String
-    let fileModificationDate: Date?
-    let filePath: String
+// MARK: - Apple Intelligence Style Checking Diagnostics
 
-    static func from(_ model: LLMModelInfo, modelsDirectory: URL) -> DownloadedModelDiagnostic {
-        let filePath = modelsDirectory.appendingPathComponent(model.filename).path
-        var modDate: Date?
-
-        // Get file modification date
-        if let attrs = try? FileManager.default.attributesOfItem(atPath: filePath) {
-            modDate = attrs[.modificationDate] as? Date
-        }
-
-        // Format size
-        let gb = Double(model.sizeBytes) / 1_000_000_000.0
-        let formattedSize: String
-        if gb >= 1.0 {
-            formattedSize = String(format: "%.2f GB", gb)
-        } else {
-            let mb = Double(model.sizeBytes) / 1_000_000.0
-            formattedSize = String(format: "%.0f MB", mb)
-        }
-
-        return DownloadedModelDiagnostic(
-            id: model.id,
-            name: model.name,
-            vendor: model.vendor,
-            filename: model.filename,
-            sizeBytes: model.sizeBytes,
-            formattedSize: formattedSize,
-            fileModificationDate: modDate,
-            filePath: filePath
-        )
-    }
-}
-
-/// LLM Style Checking diagnostics for export
-struct LLMStyleCheckingDiagnostics: Codable {
+/// Apple Intelligence style checking diagnostics for export
+struct AppleIntelligenceDiagnostics: Codable {
     // Feature status
     let styleCheckingEnabled: Bool
+    let autoStyleCheckingEnabled: Bool
+
+    // Apple Intelligence availability
+    let appleIntelligenceStatus: String
+    let appleIntelligenceAvailable: Bool
+    let statusMessage: String
 
     // Settings
-    let selectedModelId: String
-    let selectedModelName: String?
     let selectedWritingStyle: String
+    let temperaturePreset: String
     let confidenceThreshold: Double
     let minSentenceWords: Int
-    let autoLoadModelEnabled: Bool
 
     // Runtime status
-    let loadedModelId: String?
-    let loadedModelName: String?
-    let isLoadingModel: Bool
-    let downloadsInProgress: [String]
-
-    // Storage info
-    let modelsDirectory: String
-    let downloadedModelsCount: Int
-    let totalDownloadedSizeBytes: UInt64
-    let totalDownloadedSizeFormatted: String
-
-    // Downloaded model details
-    let downloadedModels: [DownloadedModelDiagnostic]
-
-    // Available models (for reference)
-    let availableModelsCount: Int
+    let isAnalyzing: Bool
 
     @MainActor
-    static func current(preferences: UserPreferences) -> LLMStyleCheckingDiagnostics {
-        let modelManager = ModelManager.shared
+    static func current(preferences: UserPreferences) -> AppleIntelligenceDiagnostics {
+        // Get Apple Intelligence status if available on macOS 26+
+        var status = "Unknown"
+        var available = false
+        var statusMessage = "Requires macOS 26+"
+        let isAnalyzing = false  // Not accessible at report generation time
 
-        // Get selected model info
-        let selectedModel = modelManager.models.first { $0.id == preferences.selectedModelId }
-
-        // Get loaded model info
-        let loadedModel = modelManager.loadedModelId.flatMap { loadedId in
-            modelManager.models.first { $0.id == loadedId }
+        if #available(macOS 26.0, *) {
+            // Access the shared FoundationModelsEngine to get status
+            // Note: We can't easily access the singleton here without dependency injection,
+            // so we check availability directly
+            #if canImport(FoundationModels)
+            let model = SystemLanguageModel.default
+            switch model.availability {
+            case .available:
+                status = "Available"
+                available = true
+                statusMessage = "Ready"
+            case .unavailable(let reason):
+                switch reason {
+                case .appleIntelligenceNotEnabled:
+                    status = "NotEnabled"
+                    statusMessage = "Apple Intelligence not enabled in System Settings"
+                case .deviceNotEligible:
+                    status = "DeviceNotEligible"
+                    statusMessage = "Device not eligible (requires Apple Silicon)"
+                case .modelNotReady:
+                    status = "ModelNotReady"
+                    statusMessage = "Language model not ready yet"
+                @unknown default:
+                    status = "Unknown"
+                    statusMessage = "Unknown unavailability reason"
+                }
+            }
+            #endif
         }
 
-        // Get models directory
-        let modelsDir = modelManager.modelsDirectory?.path ?? "Unknown"
+        let preset = StyleTemperaturePreset(rawValue: preferences.styleTemperaturePreset) ?? .balanced
 
-        // Build downloaded models list with file metadata
-        let downloadedModels = modelManager.downloadedModels.map { model in
-            DownloadedModelDiagnostic.from(model, modelsDirectory: modelManager.modelsDirectory ?? URL(fileURLWithPath: modelsDir))
-        }
-
-        return LLMStyleCheckingDiagnostics(
+        return AppleIntelligenceDiagnostics(
             styleCheckingEnabled: preferences.enableStyleChecking,
-            selectedModelId: preferences.selectedModelId,
-            selectedModelName: selectedModel?.name,
+            autoStyleCheckingEnabled: preferences.autoStyleChecking,
+            appleIntelligenceStatus: status,
+            appleIntelligenceAvailable: available,
+            statusMessage: statusMessage,
             selectedWritingStyle: preferences.selectedWritingStyle,
+            temperaturePreset: preset.label,
             confidenceThreshold: preferences.styleConfidenceThreshold,
             minSentenceWords: preferences.styleMinSentenceWords,
-            autoLoadModelEnabled: preferences.styleAutoLoadModel,
-            loadedModelId: modelManager.loadedModelId,
-            loadedModelName: loadedModel?.name,
-            isLoadingModel: modelManager.isLoadingModel,
-            downloadsInProgress: Array(modelManager.downloadingModelIds),
-            modelsDirectory: modelsDir,
-            downloadedModelsCount: modelManager.downloadedModels.count,
-            totalDownloadedSizeBytes: modelManager.totalDownloadedSize,
-            totalDownloadedSizeFormatted: modelManager.formattedTotalSize,
-            downloadedModels: downloadedModels,
-            availableModelsCount: modelManager.models.count
+            isAnalyzing: isAnalyzing
         )
     }
 }
@@ -566,8 +529,8 @@ struct DiagnosticReport: Codable {
     // Statistics (comprehensive with time-range breakdown and performance metrics)
     let statistics: StatisticsSnapshot
 
-    // LLM Style Checking (models, settings, storage)
-    let llmStyleChecking: LLMStyleCheckingDiagnostics
+    // Apple Intelligence Style Checking
+    let appleIntelligence: AppleIntelligenceDiagnostics
 
     // Strategy Profiles (auto-detected app capabilities)
     let strategyProfiles: StrategyProfileDiagnostics
@@ -586,7 +549,7 @@ struct DiagnosticReport: Codable {
     ) -> DiagnosticReport {
         return DiagnosticReport(
             reportTimestamp: Date(),
-            reportVersion: "5.0",  // Bumped to 5.0 for strategy profile diagnostics
+            reportVersion: "6.0",  // Bumped to 6.0 for Apple Intelligence migration
             appVersion: BuildInfo.appVersion,
             buildNumber: BuildInfo.buildNumber,
             buildTimestamp: BuildInfo.buildTimestamp,
@@ -595,7 +558,7 @@ struct DiagnosticReport: Codable {
             applicationState: ApplicationState.current(preferences: preferences),
             settings: SettingsDump.from(preferences, shortcuts: shortcuts),
             statistics: StatisticsSnapshot.from(UserStatistics.shared),
-            llmStyleChecking: LLMStyleCheckingDiagnostics.current(preferences: preferences),
+            appleIntelligence: AppleIntelligenceDiagnostics.current(preferences: preferences),
             strategyProfiles: StrategyProfileDiagnostics.current(),
             crashReportCount: crashReportCount
         )

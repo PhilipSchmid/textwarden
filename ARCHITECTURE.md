@@ -20,7 +20,7 @@ flowchart TB
     end
 
     subgraph Rust["GrammarEngine (Rust)"]
-        GE["Grammar Analysis<br/>+ LLM Inference"]
+        GE["Grammar Analysis"]
     end
 
     AC <-->|"FFI Bridge"| GE
@@ -35,8 +35,10 @@ flowchart TB
 
 **Rust Layer** (GrammarEngine) handles:
 - Grammar analysis via Harper library
-- LLM-based style suggestions via mistral.rs
-- Model management and inference
+
+**Apple Intelligence** (macOS 26+):
+- Style suggestions via Apple's Foundation Models framework
+- On-device processing with privacy guarantees
 
 ## Directory Structure
 
@@ -89,8 +91,7 @@ Sources/
 │
 ├── GrammarBridge/              # Swift-Rust FFI layer
 │   ├── GrammarEngine.swift     # Grammar analysis wrapper
-│   ├── LLMEngine.swift         # LLM inference wrapper
-│   ├── ModelManager.swift      # Model download/management
+│   ├── StyleTypes.swift        # Style suggestion models
 │   └── GrammarError.swift      # Error models
 │
 ├── Models/                     # Domain models and persistence
@@ -214,7 +215,7 @@ flowchart TB
     AC --> GA & SA
 
     GA["Grammar Analysis"]
-    SA["LLM Style Analysis"]
+    SA["Apple Intelligence<br/>Style Analysis"]
 
     GA & SA --> Merge["Merge Results"]
     Merge --> PR
@@ -251,8 +252,9 @@ flowchart TB
 
 ### Background Queues
 - `analysisQueue` (userInitiated): Grammar analysis
-- `styleAnalysisQueue` (userInitiated): LLM inference
 - `samplingQueue` (utility): Resource monitoring
+
+Note: Style analysis via Apple Intelligence uses Swift async/await and is managed by the FoundationModelsEngine.
 
 ### Thread Safety Rules
 
@@ -517,7 +519,6 @@ Key services are abstracted behind protocols:
 | Protocol | Production Implementation | Purpose |
 |----------|--------------------------|---------|
 | `GrammarAnalyzing` | `GrammarEngine` | Grammar analysis via Harper |
-| `StyleAnalyzing` | `LLMEngine` | LLM style suggestions |
 | `UserPreferencesProviding` | `UserPreferences` | User settings access |
 | `AppConfigurationProviding` | `AppRegistry` | Per-app configurations |
 | `CustomVocabularyProviding` | `CustomVocabulary` | User dictionary |
@@ -555,7 +556,6 @@ let mockContainer = DependencyContainer(
     applicationTracker: .shared,
     permissionManager: .shared,
     grammarEngine: MockGrammarEngine(),  // Mock
-    llmEngine: LLMEngine.shared,
     userPreferences: UserPreferences.shared,
     appRegistry: AppRegistry.shared,
     customVocabulary: CustomVocabulary.shared,

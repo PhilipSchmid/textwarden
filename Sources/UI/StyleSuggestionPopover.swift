@@ -274,7 +274,6 @@ class StyleSuggestionPopover: ObservableObject {
 
         currentSuggestionActedUpon = true  // Mark as acted upon before any hide
         onAccept?(suggestion)
-        PreferenceLearner.shared.recordAcceptance(suggestion)
         UserStatistics.shared.recordStyleAcceptance()
 
         // Move to next suggestion or hide
@@ -292,7 +291,6 @@ class StyleSuggestionPopover: ObservableObject {
 
         currentSuggestionActedUpon = true  // Mark as acted upon before any hide
         onReject?(suggestion, category)
-        PreferenceLearner.shared.recordRejection(suggestion, category: category)
         UserStatistics.shared.recordStyleRejection(category: category.rawValue)
 
         // Move to next suggestion or hide

@@ -26,7 +26,7 @@ A small indicator appears when issues are found. Click to see suggestions. Accep
 ## Features
 
 - **Real-time grammar and spelling** - Catches errors as you type
-- **AI-powered style suggestions** - Optional local LLM for clarity and readability improvements
+- **AI-powered style suggestions** - Apple Intelligence for clarity and readability improvements (macOS 26+)
 - **Multilingual awareness** - Detects non-English sentences and ignores them (no false positives on foreign phrases)
 - **Custom dictionary** - Add your own technical terms and proper nouns
 - **Dialect support** - American, British, Canadian, or Australian English
@@ -137,13 +137,10 @@ The majority of TextWarden's code was generated using Anthropic's Claude, with h
 Built on excellent open source projects:
 
 - [Harper](https://github.com/Automattic/harper) - Fast, privacy-focused grammar checker
-- [mistral.rs](https://github.com/EricLBuehler/mistral.rs) - Local LLM inference engine
 - [swift-bridge](https://github.com/chinedufn/swift-bridge) - Rust/Swift interoperability
 - [whichlang](https://github.com/quickwit-oss/whichlang) - Language detection
 - [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) - Global keyboard shortcuts for macOS
 - [LaunchAtLogin-Modern](https://github.com/sindresorhus/LaunchAtLogin-Modern) - Launch at login functionality
-
-Special thanks to [VoiceInk](https://tryvoiceink.com?atp=Ylsxyh&sub1=tw) for the inspiration on leveraging local LLMs in macOS apps. VoiceInk is a fantastic voice-to-text tool that I use daily and already saved me countless hours of typing - highly recommended.
 
 ## Troubleshooting
 

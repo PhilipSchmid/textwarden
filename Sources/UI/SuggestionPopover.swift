@@ -836,7 +836,6 @@ class SuggestionPopover: NSObject, ObservableObject {
         guard let suggestion = currentStyleSuggestion else { return }
 
         onAcceptStyleSuggestion?(suggestion)
-        PreferenceLearner.shared.recordAcceptance(suggestion)
         UserStatistics.shared.recordStyleAcceptance()
 
         // Move to next suggestion or hide
@@ -848,7 +847,6 @@ class SuggestionPopover: NSObject, ObservableObject {
         guard let suggestion = currentStyleSuggestion else { return }
 
         onRejectStyleSuggestion?(suggestion, category)
-        PreferenceLearner.shared.recordRejection(suggestion, category: category)
         UserStatistics.shared.recordStyleRejection(category: category.rawValue)
 
         // Move to next suggestion or hide

@@ -56,9 +56,6 @@ class AnalysisCoordinator: ObservableObject {
     /// Grammar analysis engine
     let grammarEngine: GrammarAnalyzing
 
-    /// LLM style analysis engine
-    let llmEngine: StyleAnalyzing
-
     /// User preferences
     let userPreferences: UserPreferencesProviding
 
@@ -208,9 +205,9 @@ class AnalysisCoordinator: ObservableObject {
     /// Used to detect and skip stale analysis (when text changed during LLM inference)
     var styleAnalysisGeneration: UInt64 = 0
 
-    /// Whether LLM style checking should run for the current text
+    /// Whether style checking should run for the current text
     private var shouldRunStyleChecking: Bool {
-        userPreferences.enableStyleChecking && llmEngine.isReady
+        userPreferences.enableStyleChecking
     }
 
     /// Flag to prevent regular analysis from hiding indicator during manual style check
@@ -257,7 +254,6 @@ class AnalysisCoordinator: ObservableObject {
         self.applicationTracker = dependencies.applicationTracker
         self.permissionManager = dependencies.permissionManager
         self.grammarEngine = dependencies.grammarEngine
-        self.llmEngine = dependencies.llmEngine
         self.userPreferences = dependencies.userPreferences
         self.appRegistry = dependencies.appRegistry
         self.customVocabulary = dependencies.customVocabulary

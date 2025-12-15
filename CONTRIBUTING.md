@@ -78,7 +78,6 @@ textwarden/
 ├── GrammarEngine/        # Rust grammar checking engine
 │   └── src/
 │       ├── analyzer.rs   # Harper integration
-│       ├── llm/          # LLM model configuration
 │       └── bridge.rs     # Swift-Rust FFI
 └── Tests/                # Test suites
 ```
@@ -101,13 +100,7 @@ For a comprehensive understanding of the codebase architecture, design patterns,
    - Build in Xcode (⌘B)
    - Run tests (⌘U)
 
-3. **LLM models and checksums**:
-   - When downloading a model, save the published SHA256 alongside the GGUF file in `GrammarEngine/models`.
-   - Name the checksum file `<model-filename>.sha256` and store the hex digest only (no filename prefixes).
-   - Validation will reject models if the checksum file is present and does not match.
-   - Most hosting pages (e.g., Hugging Face) publish SHA256 digests next to the download URL; copy that value verbatim.
-
-4. **Before committing**:
+3. **Before committing**:
    ```bash
    make ci-check  # Runs formatting, linting, tests, and build
    ```
@@ -242,45 +235,6 @@ Use Accessibility Inspector (Xcode → Open Developer Tool) to test if the app's
 | `.electron` | Electron apps (Slack, VSCode) | May need custom positioning |
 | `.browser` | Web browsers | Underlines usually disabled |
 | `.terminal` | Terminal emulators | Text parsing only |
-
-## Adding AI Models
-
-TextWarden supports GGUF-quantized language models for style suggestions via [mistral.rs](https://github.com/EricLBuehler/mistral.rs). Model configurations are defined in both Rust and Swift (kept in sync).
-
-### Supported Architectures
-
-Models must be supported by mistral.rs. Currently supported architectures include:
-
-- Llama (Llama 2, 3, 3.1, 3.2)
-- Qwen2, Qwen3
-- Phi2, Phi3
-
-See the [mistral.rs documentation](https://github.com/EricLBuehler/mistral.rs#supported-models) for the full list of supported model architectures.
-
-### Adding a New Model
-
-1. **Find a compatible GGUF model** on HuggingFace (e.g., from [bartowski](https://huggingface.co/bartowski))
-   - Must be a supported architecture (see above)
-   - Recommended: Q4_K_M quantization, 1-3B parameters
-
-2. **Add to Rust** (`GrammarEngine/src/llm/config.rs`):
-   ```rust
-   ModelConfig {
-       id: "model-id",
-       name: "Model Name",
-       filename: "model-q4_k_m.gguf",
-       download_url: "https://huggingface.co/.../resolve/main/model-q4_k_m.gguf",
-       size_bytes: 1_000_000_000,
-       context_length: 8192,
-       speed_rating: 7.5,
-       quality_rating: 8.0,
-       languages: &["en"],
-       description: "Brief description.",
-       tier: ModelTier::Balanced,
-   },
-   ```
-
-3. **Verify**: `make ci-check`
 
 ## Code Style
 

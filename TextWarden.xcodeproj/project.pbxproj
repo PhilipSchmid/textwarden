@@ -213,7 +213,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "FEATURES=llm ${PROJECT_DIR}/Scripts/build-rust.sh\n";
+			shellScript = "${PROJECT_DIR}/Scripts/build-rust.sh\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

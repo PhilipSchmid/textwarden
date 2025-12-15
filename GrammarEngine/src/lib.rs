@@ -7,10 +7,3 @@ pub mod bridge;
 pub mod language_filter;
 pub mod slang_dict;
 pub mod swift_logger;
-
-// LLM Style Checking module (feature-gated)
-#[cfg(feature = "llm")]
-pub mod llm;
-
-// Always available LLM types (for FFI compatibility even without llm feature)
-pub mod llm_types;

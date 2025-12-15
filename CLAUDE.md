@@ -5,7 +5,8 @@
 **See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architecture documentation, design patterns, dependency injection, and coding principles.** Always consult ARCHITECTURE.md when making structural changes or adding new components.
 
 - **Swift**: macOS app with SwiftUI, menu bar interface, Accessibility API integration
-- **Rust**: GrammarEngine library via FFI (swift-bridge), handles text analysis and LLM inference
+- **Rust**: GrammarEngine library via FFI (swift-bridge), handles grammar analysis via Harper
+- **Apple Intelligence**: Style suggestions via Foundation Models framework (macOS 26+)
 - **Build**: `make build` (Rust first, then Xcode)
 
 ## Swift Guidelines

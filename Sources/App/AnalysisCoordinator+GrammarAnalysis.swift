@@ -288,90 +288,28 @@ extension AnalysisCoordinator {
     // MARK: - Style Analysis Helpers
 
     /// Check if auto style checking should run
+    /// Note: Auto style checking is now handled via Apple Intelligence (FoundationModelsEngine)
     func shouldRunAutoStyleChecking() -> Bool {
         let styleCheckingEnabled = userPreferences.enableStyleChecking
         let autoStyleChecking = userPreferences.autoStyleChecking
-        let llmInitialized = llmEngine.isInitialized
-        let modelLoaded = llmEngine.isModelLoaded()
-        let loadedModelId = llmEngine.getLoadedModelId()
-        let shouldRun = styleCheckingEnabled && autoStyleChecking && llmInitialized && modelLoaded
+        let shouldRun = styleCheckingEnabled && autoStyleChecking
 
-        Logger.info("AnalysisCoordinator: Style check eligibility - enabled=\(styleCheckingEnabled), auto=\(autoStyleChecking), llmInit=\(llmInitialized), modelLoaded=\(modelLoaded), modelId='\(loadedModelId)', willRun=\(shouldRun)", category: Logger.llm)
+        Logger.debug("AnalysisCoordinator: Style check eligibility - enabled=\(styleCheckingEnabled), auto=\(autoStyleChecking), willRun=\(shouldRun)", category: Logger.llm)
         return shouldRun
     }
 
     /// Run debounced style analysis
+    /// Note: Style analysis now uses Apple Intelligence via manual trigger
     func runDebouncedStyleAnalysis(text: String) {
-        let minWords = userPreferences.styleMinSentenceWords
-        guard containsSentenceWithMinWords(text, minWords: minWords) else {
-            Logger.debug("AnalysisCoordinator: No sentence with \(minWords)+ words - skipping style", category: Logger.llm)
-            return
-        }
-
-        styleAnalysisGeneration &+= 1
-        let currentGeneration = styleAnalysisGeneration
-
-        styleDebounceTimer?.invalidate()
-        styleDebounceTimer = nil
-
-        // Check cache first
-        let cacheKey = computeStyleCacheKey(text: text)
-        if let cached = styleCache[cacheKey] {
-            Logger.debug("AnalysisCoordinator: Using cached style results (\(cached.count) suggestions)", category: Logger.analysis)
-            currentStyleSuggestions = cached
-            styleAnalysisSourceText = text
-            return
-        }
-
-        // Start debounce timer
-        Logger.debug("AnalysisCoordinator: Style analysis debounced - waiting \(styleDebounceDelay)s", category: Logger.llm)
-
-        styleDebounceTimer = Timer.scheduledTimer(withTimeInterval: styleDebounceDelay, repeats: false) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self = self,
-                      currentGeneration == self.styleAnalysisGeneration else {
-                    Logger.debug("AnalysisCoordinator: Style debounce skipped - generation mismatch", category: Logger.llm)
-                    return
-                }
-
-                Logger.info("AnalysisCoordinator: Style debounce complete - queuing LLM (gen=\(currentGeneration))", category: Logger.llm)
-                self.executeLLMStyleAnalysis(
-                    text: text,
-                    cacheKey: cacheKey,
-                    generation: currentGeneration
-                )
-            }
-        }
+        // Auto style analysis is disabled - use manual style check instead
+        // Future: integrate with Apple Intelligence (FoundationModelsEngine) for auto analysis
     }
 
-    /// Execute LLM style analysis on background queue
+    /// Execute style analysis
+    /// Note: This is now a no-op - use FoundationModelsEngine for style analysis
     func executeLLMStyleAnalysis(text: String, cacheKey: String, generation: UInt64) {
-        let styleName = userPreferences.selectedWritingStyle
-        let style = WritingStyle.allCases.first { $0.displayName == styleName } ?? .default
-        let confidenceThreshold = Float(userPreferences.styleConfidenceThreshold)
-
-        // Capture LLM engine reference before async dispatch
-        let llmEngineRef = llmEngine
-
-        styleAnalysisQueue.async { [weak self] in
-            guard self != nil else { return }
-
-            Logger.info("AnalysisCoordinator: Starting LLM style analysis (gen=\(generation))...", category: Logger.llm)
-            let styleResult = llmEngineRef.analyzeStyle(text, style: style)
-            Logger.debug("AnalysisCoordinator: LLM returned \(styleResult.suggestions.count) suggestion(s)", category: Logger.analysis)
-
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                self.handleStyleResults(
-                    styleResult,
-                    text: text,
-                    cacheKey: cacheKey,
-                    generation: generation,
-                    styleName: styleName,
-                    confidenceThreshold: confidenceThreshold
-                )
-            }
-        }
+        // Style analysis via Rust LLM is removed
+        // Use FoundationModelsEngine for Apple Intelligence style analysis
     }
 
     /// Process style results and update UI
