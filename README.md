@@ -154,6 +154,12 @@ Built on excellent open source projects:
 - [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) - Global keyboard shortcuts for macOS
 - [LaunchAtLogin-Modern](https://github.com/sindresorhus/LaunchAtLogin-Modern) - Launch at login functionality
 
+## Support the Project
+
+TextWarden is a side project built during evenings and weekends. If you find it useful, you can support its development:
+
+<a href="https://buymeacoffee.com/textwarden"><img src="Assets/bmc-button-black.png" alt="Buy Me a Coffee" height="40"></a>
+
 ## Troubleshooting
 
 See the [Troubleshooting Guide](TROUBLESHOOTING.md) for help with common problems and how to collect diagnostic information.

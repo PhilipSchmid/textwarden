@@ -15,6 +15,7 @@ private enum AppURLs {
     static let github = URL(string: "https://github.com/philipschmid/textwarden")!
     static let license = URL(string: "https://github.com/philipschmid/textwarden/blob/main/LICENSE")!
     static let issues = URL(string: "https://github.com/philipschmid/textwarden/issues")!
+    static let buyMeACoffee = URL(string: "https://buymeacoffee.com/textwarden")!
 }
 
 // MARK: - About View
@@ -229,6 +230,26 @@ struct AboutView: View {
                         .font(.headline)
                         .padding(.top, 8)
                 }
+            }
+
+            // Support subsection
+            Section {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("TextWarden is a side project built during evenings and weekends. If you find it useful, you can support its development.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+
+                    Link(destination: AppURLs.buyMeACoffee) {
+                        Image("BuyMeACoffeeButton")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 36)
+                    }
+                }
+                .padding(.vertical, 4)
+            } header: {
+                Text("Support")
+                    .font(.headline)
             }
 
             // Legal subsection

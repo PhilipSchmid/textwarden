@@ -9,6 +9,12 @@ import SwiftUI
 import ApplicationServices
 import LaunchAtLogin
 
+// MARK: - App URLs
+
+private enum AppURLs {
+    static let buyMeACoffee = URL(string: "https://buymeacoffee.com/textwarden")!
+}
+
 /// Onboarding view guiding users through Accessibility permission setup
 struct OnboardingView: View {
     @ObservedObject private var permissionManager = PermissionManager.shared
@@ -249,6 +255,29 @@ struct OnboardingView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .padding(.top, 8)
+
+            Divider()
+                .padding(.top, 16)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Support TextWarden")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+
+                Text("This is a side project built during evenings and weekends. If you find it useful, you can support its development.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Link(destination: AppURLs.buyMeACoffee) {
+                    Image("BuyMeACoffeeButton")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 36)
+                }
+                .accessibilityLabel("Buy me a coffee")
+                .accessibilityHint("Opens a link to support TextWarden development")
+            }
+            .padding(.top, 8)
         }
     }
 
