@@ -837,11 +837,14 @@ class UserPreferences: ObservableObject {
         }
 
         // Migrate apps from discovered to hidden if they're in defaultHiddenApplications
-        // This ensures apps added to defaultHiddenApplications are automatically hidden
+        // BUT only if the user hasn't explicitly unhidden them (i.e., they're still in hiddenApplications)
+        // This ensures apps added to defaultHiddenApplications are automatically hidden on first discovery,
+        // while respecting user's choice to unhide specific apps.
         let appsToHide = discoveredApplications.intersection(Self.defaultHiddenApplications)
+            .intersection(hiddenApplications)  // Only migrate if still hidden (user didn't unhide)
         if !appsToHide.isEmpty {
             discoveredApplications.subtract(appsToHide)
-            hiddenApplications.formUnion(appsToHide)
+            // hiddenApplications already contains these, no need to add
         }
 
         if pauseDuration == .oneHour, let until = pausedUntil, Date() < until {

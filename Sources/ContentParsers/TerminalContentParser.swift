@@ -97,14 +97,22 @@ class TerminalContentParser: ContentParser {
     private func extractUserInput(from text: String) -> String? {
         let lines = text.components(separatedBy: .newlines)
 
-        // Common shell prompt patterns
+        // Check for terminals that return empty/whitespace-only content (accessibility limitation)
+        // Some terminals like Ghostty don't properly expose text content via accessibility APIs
+        let nonEmptyLines = lines.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        if nonEmptyLines.isEmpty {
+            Logger.debug("TerminalContentParser: Terminal returned only whitespace - accessibility API may not expose content", category: Logger.analysis)
+            return nil
+        }
+
+        // Common shell prompt patterns (use \s+ for flexible whitespace matching)
         let promptPatterns = [
-            #"[\w-]+@[\w-]+.*?[%$#>] "#,     // user@host (with hyphens): user@host-name ~ %
-            #"[~\/].*?[%$#>] "#,              // Path-based: ~/path %
-            #"[%$#>] "#,                      // Simple: % or $ or # or >
-            #"❯ "#,                           // Starship/modern prompts
-            #"➜  "#,                          // Oh My Zsh
-            #"λ "#,                           // Lambda prompt
+            #"[\w-]+@[\w-]+.*?[%$#>]\s+"#,    // user@host (with hyphens): user@host-name ~ %
+            #"[~\/].*?[%$#>]\s+"#,             // Path-based: ~/path %
+            #"[%$#>]\s+"#,                     // Simple: % or $ or # or >
+            #"❯\s+"#,                          // Starship/modern prompts
+            #"➜\s+"#,                          // Oh My Zsh
+            #"λ\s+"#,                          // Lambda prompt
         ]
 
         // Find the last line that looks like it has a prompt
