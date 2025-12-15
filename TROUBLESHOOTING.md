@@ -31,6 +31,23 @@ This guide helps you diagnose and resolve common issues with TextWarden.
 2. If using AI style checking, the model requires additional memory
 3. Try restarting TextWarden from the menu bar
 
+### How to reset settings or re-run onboarding
+
+**Via the app:**
+1. Open TextWarden Settings
+2. Go to the **Diagnostics** tab
+3. Click **Reset All Settings** - this will restart the app and show the onboarding wizard
+
+**Via Terminal (for developers):**
+```bash
+# Reset only the onboarding flag
+defaults delete io.textwarden.TextWarden hasCompletedOnboarding
+
+# Or reset all preferences
+defaults delete io.textwarden.TextWarden
+```
+Then restart TextWarden to see the changes.
+
 ### Visual underlines appear misaligned
 
 Visual underlines rely on macOS Accessibility APIs to determine character positions. Not all applications expose accurate positioning data.

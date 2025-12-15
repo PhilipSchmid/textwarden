@@ -4,7 +4,7 @@
 .PHONY: help build build-rust build-swift \
         run run-only install uninstall \
         test test-rust clean clean-all clean-derived \
-        ci-check fmt lint logs kill status reset xcode version \
+        ci-check fmt lint logs kill status reset reset-onboarding xcode version \
         release release-alpha release-beta release-rc release-upload \
         help-book
 
@@ -161,6 +161,10 @@ xcode: ## Open in Xcode
 reset: ## Reset app state (clear preferences)
 	@./Scripts/test-reset.sh
 	@echo "$(GREEN)✅ Reset complete$(NC)"
+
+reset-onboarding: ## Reset onboarding flag (for testing first-run experience)
+	@defaults delete io.textwarden.TextWarden hasCompletedOnboarding 2>/dev/null || true
+	@echo "$(GREEN)✅ Onboarding reset - restart TextWarden to see onboarding$(NC)"
 
 version: ## Show version info
 	@echo "$(BLUE)Versions:$(NC)"

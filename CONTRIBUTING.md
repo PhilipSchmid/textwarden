@@ -113,6 +113,12 @@ For a comprehensive understanding of the codebase architecture, design patterns,
    make ci-check  # Runs formatting, linting, tests, and build
    ```
 
+4. **Testing onboarding flow**:
+   ```bash
+   make reset-onboarding  # Reset onboarding flag
+   make run               # Restart app to see onboarding wizard
+   ```
+
 ### Accessibility Permissions
 
 TextWarden requires Accessibility permissions to monitor text in other applications. When you first run the app, macOS will prompt you to grant permissions. You can also enable it manually:
