@@ -309,16 +309,9 @@ struct DiagnosticsView: View {
                         HStack(spacing: 12) {
                             Button {
                                 preferences.resetToDefaults()
-                                // Close preferences window and show onboarding
+                                // Relaunch the app to start fresh with onboarding
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                    // Close all windows
-                                    for window in NSApp.windows where window.isVisible {
-                                        window.close()
-                                    }
-                                    // Show onboarding wizard
-                                    if let appDelegate = NSApp.delegate as? AppDelegate {
-                                        appDelegate.openOnboardingWindow()
-                                    }
+                                    Self.relaunchApp()
                                 }
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -469,6 +462,33 @@ struct DiagnosticsView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd-HHmmss"
         return formatter.string(from: Date())
+    }
+
+    // MARK: - App Relaunch
+
+    /// Relaunch the app to apply reset settings and show onboarding
+    private static func relaunchApp() {
+        guard let appURL = Bundle.main.bundleURL as URL? else {
+            Logger.error("Failed to get app bundle URL for relaunch", category: Logger.general)
+            return
+        }
+
+        Logger.info("Relaunching TextWarden after settings reset", category: Logger.general)
+
+        // Launch a new instance of the app
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+
+        NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { _, error in
+            if let error = error {
+                Logger.error("Failed to relaunch app: \(error.localizedDescription)", category: Logger.general)
+            } else {
+                // Terminate current instance after new one starts
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    NSApp.terminate(nil)
+                }
+            }
+        }
     }
 }
 
