@@ -1222,10 +1222,11 @@ private class IndicatorView: NSView {
             )
         }
 
-        // Draw count in bottom-right corner
-        let countString = "\(count)"
+        // Draw count in bottom-right corner (capped at 9+ for cleaner UX)
+        let countString = count > 9 ? "9+" : "\(count)"
+        let fontSize: CGFloat = count > 9 ? 9 : 11
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 11, weight: .bold),
+            .font: NSFont.systemFont(ofSize: fontSize, weight: .bold),
             .foregroundColor: NSColor.purple
         ]
         let textSize = (countString as NSString).size(withAttributes: attributes)
@@ -1256,9 +1257,12 @@ private class IndicatorView: NSView {
             }
         }()
 
-        let countString = "\(count)"
+        // Cap display at 9+ for cleaner UX (avoids double/triple digit numbers)
+        let countString = count > 9 ? "9+" : "\(count)"
+        // Use slightly smaller font for "9+" to fit nicely
+        let fontSize: CGFloat = count > 9 ? 12 : 14
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 14, weight: .semibold),
+            .font: NSFont.systemFont(ofSize: fontSize, weight: .semibold),
             .foregroundColor: textColor
         ]
         let textSize = (countString as NSString).size(withAttributes: attributes)
