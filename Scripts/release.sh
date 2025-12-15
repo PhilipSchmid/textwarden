@@ -139,9 +139,9 @@ build_archive() {
     # Clean build
     xcodebuild clean -project "$PROJECT_ROOT/$PROJECT" -scheme "$SCHEME" -configuration Release >/dev/null 2>&1
 
-    # Build Rust with LLM
+    # Build Rust with LLM in release mode
     cd "$PROJECT_ROOT"
-    FEATURES=llm ./Scripts/build-rust.sh
+    CONFIGURATION=Release FEATURES=llm ./Scripts/build-rust.sh
 
     # Archive with Developer ID signing
     local archive_path="$RELEASE_DIR/$APP_NAME.xcarchive"
