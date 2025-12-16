@@ -6,7 +6,7 @@
 //  Works in Electron, Chrome, Safari, and modern apps
 //
 
-import Foundation
+import AppKit
 import ApplicationServices
 
 /// Positioning using opaque text marker API
@@ -18,6 +18,13 @@ class TextMarkerStrategy: GeometryProvider {
     var tier: StrategyTier { .precise }
     var tierPriority: Int { 1 }
 
+    /// Get bundle ID from an AXUIElement
+    private func getBundleID(from element: AXUIElement) -> String {
+        var pid: pid_t = 0
+        AXUIElementGetPid(element, &pid)
+        return NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? "unknown"
+    }
+
     func canHandle(element: AXUIElement, bundleID: String) -> Bool {
         // CRITICAL: Do NOT use TextMarkerStrategy for Apple Mail!
         // Mail's WebKit returns different coordinates for AXBoundsForTextMarkerRange vs AXBoundsForRange.
@@ -26,6 +33,12 @@ class TextMarkerStrategy: GeometryProvider {
         // RangeBoundsStrategy uses AXBoundsForRange and works correctly for Mail.
         if bundleID == "com.apple.mail" {
             Logger.debug("TextMarkerStrategy: Skipping for Mail - use RangeBoundsStrategy instead", category: Logger.ui)
+            return false
+        }
+
+        // Check if we should skip AX calls (blacklisted or worker busy)
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.debug("TextMarkerStrategy: Skipping \(bundleID) - watchdog protection active", category: Logger.ui)
             return false
         }
 
@@ -41,15 +54,27 @@ class TextMarkerStrategy: GeometryProvider {
         parser: ContentParser
     ) -> GeometryResult? {
 
+        let bundleID = getBundleID(from: element)
+
+        // Double-check watchdog (in case status changed between canHandle and calculateGeometry)
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.debug("TextMarkerStrategy: Skipping calculation - watchdog protection active for \(bundleID)", category: Logger.ui)
+            return nil
+        }
+
         // Convert filtered coordinates to original coordinates
         let offset = parser.textReplacementOffset
         let startIndex = errorRange.location + offset
         let endIndex = startIndex + errorRange.length
 
+        // Track AX calls with watchdog
+        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXTextMarkerForIndex")
+
         guard let startMarker = AccessibilityBridge.requestOpaqueMarker(
             at: startIndex,
             from: element
         ) else {
+            AXWatchdog.shared.endCall()
             Logger.debug("TextMarkerStrategy: Failed to create start marker at index \(startIndex)", category: Logger.ui)
             return nil
         }
@@ -58,9 +83,13 @@ class TextMarkerStrategy: GeometryProvider {
             at: endIndex,
             from: element
         ) else {
+            AXWatchdog.shared.endCall()
             Logger.debug("TextMarkerStrategy: Failed to create end marker at index \(endIndex)", category: Logger.ui)
             return nil
         }
+
+        // Update watchdog for bounds calculation
+        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXBoundsForTextMarkerRange")
 
         // Calculate bounds using markers
         guard let rawBounds = AccessibilityBridge.calculateBounds(
@@ -68,9 +97,13 @@ class TextMarkerStrategy: GeometryProvider {
             to: endMarker,
             in: element
         ) else {
+            AXWatchdog.shared.endCall()
             Logger.debug("TextMarkerStrategy: Failed to calculate bounds between markers", category: Logger.ui)
             return nil
         }
+
+        // AX calls complete
+        AXWatchdog.shared.endCall()
 
         // Log raw bounds for debugging
         Logger.debug("TextMarkerStrategy: Raw bounds from AX: \(rawBounds)", category: Logger.ui)

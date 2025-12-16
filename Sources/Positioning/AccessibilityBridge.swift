@@ -6,7 +6,7 @@
 //  Handles the complex C APIs with Swift-friendly interface
 //
 
-import Foundation
+import AppKit
 import ApplicationServices
 
 // MARK: - Safe AXValue Extraction Helpers
@@ -69,6 +69,151 @@ func safeAXValueGetRange(_ value: CFTypeRef) -> CFRange? {
         return nil
     }
     return range
+}
+
+// MARK: - AX Call Watchdog
+
+/// Watchdog that detects and blacklists apps with slow/hanging AX calls.
+///
+/// This class protects TextWarden from misbehaving accessibility implementations
+/// (like Microsoft Office's mso99 framework) that can hang or freeze on certain
+/// parameterized AX API calls.
+///
+/// Features:
+/// - **Hang Detection**: Background timer monitors active calls and blacklists apps
+///   that take longer than `hangThreshold` (3s) to respond
+/// - **Busy Guard**: Prevents pile-up of blocked calls by skipping new requests
+///   while a call is in progress (up to `maxBusyTime` of 5s)
+/// - **Auto-Recovery**: Blacklisted apps are allowed again after `blacklistDuration` (30s)
+///
+/// Usage:
+/// ```
+/// // Check before making AX call
+/// guard !AXWatchdog.shared.shouldSkipCalls(for: bundleID) else { return nil }
+///
+/// // Track the call
+/// AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXTextMarkerForIndex")
+/// let result = AXUIElementCopyParameterizedAttributeValue(...)
+/// AXWatchdog.shared.endCall()
+/// ```
+final class AXWatchdog {
+    static let shared = AXWatchdog()
+
+    // MARK: - Configuration
+
+    /// How long an AX call can take before we consider the app "slow" and blacklist it
+    private let hangThreshold: TimeInterval = 3.0
+
+    /// How long to blacklist an app after detecting a hang
+    private let blacklistDuration: TimeInterval = 30.0
+
+    /// Check interval for the watchdog timer
+    private let checkInterval: TimeInterval = 0.5
+
+    /// Maximum time to consider the worker "busy" before allowing new calls.
+    /// If exceeded, we consider the worker stuck and allow new calls (blacklist handles prevention).
+    private let maxBusyTime: TimeInterval = 5.0
+
+    // MARK: - State
+
+    /// Currently active AX call info
+    private struct ActiveCall {
+        let bundleID: String
+        let startTime: Date
+        let attribute: String
+    }
+
+    /// Blacklisted apps with expiration time
+    private var blacklist: [String: Date] = [:]
+
+    /// Currently active call (if any)
+    private var activeCall: ActiveCall?
+
+    /// Lock for thread safety
+    private let lock = NSLock()
+
+    /// Watchdog timer
+    private var watchdogTimer: DispatchSourceTimer?
+
+    // MARK: - Initialization
+
+    private init() {
+        startWatchdog()
+    }
+
+    /// Start the background watchdog timer that monitors for hanging calls
+    private func startWatchdog() {
+        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
+        timer.schedule(deadline: .now(), repeating: checkInterval)
+        timer.setEventHandler { [weak self] in
+            self?.checkForHangingCalls()
+        }
+        timer.resume()
+        watchdogTimer = timer
+    }
+
+    // MARK: - Monitoring
+
+    /// Background timer callback - checks if any active call has exceeded the hang threshold
+    private func checkForHangingCalls() {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard let call = activeCall else { return }
+
+        let elapsed = Date().timeIntervalSince(call.startTime)
+        if elapsed > hangThreshold && blacklist[call.bundleID] == nil {
+            // This app is hanging - blacklist it
+            Logger.warning("AXWatchdog: Detected slow AX call to \(call.bundleID) (\(call.attribute)) - \(String(format: "%.1f", elapsed))s elapsed, blacklisting for \(Int(blacklistDuration))s", category: Logger.accessibility)
+            blacklist[call.bundleID] = Date().addingTimeInterval(blacklistDuration)
+        }
+    }
+
+    // MARK: - Public API
+
+    /// Check if we should skip AX calls for an app.
+    /// Returns true if the app is blacklisted or another call is currently in progress.
+    func shouldSkipCalls(for bundleID: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+
+        // Check blacklist (with expiration cleanup)
+        if let expirationTime = blacklist[bundleID] {
+            if Date() < expirationTime {
+                return true
+            }
+            // Blacklist expired - remove it
+            blacklist.removeValue(forKey: bundleID)
+            Logger.info("AXWatchdog: Blacklist expired for \(bundleID), allowing AX calls again", category: Logger.accessibility)
+        }
+
+        // Check if worker is busy (protects against pile-up)
+        if let call = activeCall {
+            let elapsed = Date().timeIntervalSince(call.startTime)
+            if elapsed < maxBusyTime {
+                return true
+            }
+            // Worker stuck too long - allow new calls (blacklist will prevent repeats)
+        }
+
+        return false
+    }
+
+    /// Mark the start of an AX call. Call `endCall()` when the call completes.
+    func beginCall(bundleID: String, attribute: String) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        activeCall = ActiveCall(bundleID: bundleID, startTime: Date(), attribute: attribute)
+    }
+
+    /// Mark the end of an AX call.
+    func endCall() {
+        lock.lock()
+        defer { lock.unlock() }
+
+        activeCall = nil
+    }
 }
 
 /// Low-level Accessibility API wrapper
@@ -287,6 +432,17 @@ enum AccessibilityBridge {
     /// Check if element supports modern opaque marker API
     /// Used to determine if ModernMarkerStrategy can be used
     static func supportsOpaqueMarkers(_ element: AXUIElement) -> Bool {
+        // Get bundleID for watchdog tracking
+        var pid: pid_t = 0
+        AXUIElementGetPid(element, &pid)
+        let bundleID = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? "unknown"
+
+        // Check if we should skip AX calls (blacklisted or worker busy)
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.debug("supportsOpaqueMarkers: Skipping \(bundleID) - watchdog protection active", category: Logger.accessibility)
+            return false
+        }
+
         // Try to create a marker for index 0 as capability test
         var indexValue: Int = 0
         guard let indexRef = CFNumberCreate(
@@ -297,6 +453,9 @@ enum AccessibilityBridge {
             return false
         }
 
+        // Track the AX call with watchdog
+        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXTextMarkerForIndex")
+
         var markerValue: CFTypeRef?
         let result = AXUIElementCopyParameterizedAttributeValue(
             element,
@@ -304,6 +463,8 @@ enum AccessibilityBridge {
             indexRef,
             &markerValue
         )
+
+        AXWatchdog.shared.endCall()
 
         return result == .success && markerValue != nil
     }
