@@ -283,6 +283,7 @@ class UserPreferences: ObservableObject {
     /// These apps are set to .indefinite pause on first run because grammar checking is typically not useful
     static let defaultPausedApplications: Set<String> = [
         "com.apple.iCal",               // Apple Calendar
+        "com.microsoft.VSCode",         // VS Code
         "com.todesktop.230313mzl4w4u92", // Cursor IDE
         "com.exafunction.windsurf",     // Windsurf IDE
         "com.microsoft.Excel"           // Excel
