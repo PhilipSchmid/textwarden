@@ -282,8 +282,17 @@ class ErrorOverlayWindow: NSPanel {
         Logger.debug("ErrorOverlay: Final element frame: \(elementFrame)", category: Logger.ui)
         Logger.debug("ErrorOverlay: Original element frame (for coord calc): \(originalElementFrame)", category: Logger.ui)
 
-        // Position overlay window to match visible element area
-        setFrame(elementFrame, display: true)
+        // Extend the overlay window slightly below the element frame to allow underlines
+        // on the last line to be visible. Underlines are drawn at bounds.maxY + offset,
+        // so we need extra space at the bottom. This also helps when app chrome
+        // (like ChatGPT's input bar) overlaps the bottom of the text area.
+        let underlineExtension: CGFloat = 10.0
+        var extendedFrame = elementFrame
+        extendedFrame.origin.y -= underlineExtension  // In Cocoa coords, decrease Y to extend down
+        extendedFrame.size.height += underlineExtension
+
+        // Position overlay window with extended bounds
+        setFrame(extendedFrame, display: true)
         Logger.debug("ErrorOverlay: Window positioned at \(elementFrame)", category: Logger.ui)
 
         // Extract full text once for all positioning calculations
