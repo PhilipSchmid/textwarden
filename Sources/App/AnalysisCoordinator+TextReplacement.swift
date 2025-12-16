@@ -767,7 +767,10 @@ extension AnalysisCoordinator {
 
             // Convert fallback range to UTF-16 if we have the text
             // Required for browsers and Mac Catalyst apps that use UTF-16 offsets
-            if let text = currentText {
+            // Skip for Microsoft Office: findOfficeErrorPosition already returns UTF-16 positions
+            let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
+                                    context.bundleIdentifier == "com.microsoft.Powerpoint"
+            if let text = currentText, !isMicrosoftOffice {
                 let graphemeRange = NSRange(location: range.location, length: range.length)
                 let utf16Range = TextIndexConverter.graphemeToUTF16Range(graphemeRange, in: text)
                 range = CFRange(location: utf16Range.location, length: utf16Range.length)
@@ -1005,6 +1008,67 @@ extension AnalysisCoordinator {
             : findBrowserErrorPosition(error: error)
 
         let targetText = errorText.isEmpty ? suggestion : errorText
+
+        // Microsoft Office: use clipboard paste with explicit element focus
+        // Direct AX replacement (AXSelectedText) reports success but doesn't actually work in PowerPoint
+        // We need to: 1) Focus the element, 2) Set selection, 3) Activate app, 4) Paste via keyboard
+        if isMicrosoftOffice, let range = fallbackRange {
+            Logger.debug("Office: Using focused clipboard replacement at \(range.location)-\(range.location + range.length)", category: Logger.analysis)
+
+            // Step 1: Focus the specific element (Notes area in PowerPoint, document in Word)
+            let focusResult = AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+            if focusResult != .success {
+                Logger.debug("Office: Could not focus element (\(focusResult.rawValue))", category: Logger.analysis)
+            }
+
+            // Step 2: Set selection range on the element
+            var selectionRange = CFRange(location: range.location, length: range.length)
+            if let rangeValue = AXValueCreate(.cfRange, &selectionRange) {
+                let selectResult = AXUIElementSetAttributeValue(
+                    element,
+                    kAXSelectedTextRangeAttribute as CFString,
+                    rangeValue
+                )
+                if selectResult == .success {
+                    Logger.debug("Office: Selection set successfully", category: Logger.analysis)
+                } else {
+                    Logger.debug("Office: Selection failed (\(selectResult.rawValue))", category: Logger.analysis)
+                }
+            }
+
+            // Step 3: Prepare clipboard
+            let pasteboard = NSPasteboard.general
+            let originalString = pasteboard.string(forType: .string)
+            pasteboard.clearContents()
+            pasteboard.setString(suggestion, forType: .string)
+
+            // Step 4: Activate the Office app so Cmd+V goes to the right window
+            if let targetApp = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier).first {
+                targetApp.activate()
+                Logger.debug("Office: Activated \(context.applicationName)", category: Logger.analysis)
+            }
+
+            // Small delay for activation and selection to take effect
+            try? await Task.sleep(nanoseconds: 100_000_000)  // 100ms
+
+            // Step 5: Paste via keyboard
+            pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
+            Logger.debug("Office: Pasted via Cmd+V", category: Logger.analysis)
+
+            // Restore clipboard
+            try? await Task.sleep(nanoseconds: 100_000_000)  // 100ms
+            if let original = originalString {
+                pasteboard.clearContents()
+                pasteboard.setString(original, forType: .string)
+            }
+
+            statistics.recordSuggestionApplied(category: currentError.category)
+            positionResolver.clearCache()
+            let lengthDelta = suggestion.count - (currentError.end - currentError.start)
+            removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
+            return
+        }
+
         _ = selectTextForReplacement(targetText: targetText, fallbackRange: fallbackRange, element: element, context: context)
 
         // Perform clipboard-based replacement
@@ -1026,57 +1090,30 @@ extension AnalysisCoordinator {
             liveText = text
         }
 
-        var foundRange: CFRange? = nil
-        var foundText = ""
+        // Primary strategy: Extract exact error text from cached content using Harper's positions
+        // This is the most reliable approach because it uses the precise error location
+        let cachedText = self.lastAnalyzedText.isEmpty ? (self.currentSegment?.content ?? "") : self.lastAnalyzedText
+        let scalarCount = cachedText.unicodeScalars.count
 
-        // Strategy 1: Find by case-insensitive search, prioritize unusual caps
-        var allMatches: [(range: Range<String.Index>, text: String)] = []
-        var searchStart = liveText.startIndex
-        while searchStart < liveText.endIndex {
-            let searchRange = searchStart..<liveText.endIndex
-            if let range = liveText.range(of: suggestion, options: .caseInsensitive, range: searchRange) {
-                allMatches.append((range: range, text: String(liveText[range])))
-                searchStart = range.upperBound
-            } else { break }
-        }
+        if !cachedText.isEmpty && error.start < scalarCount && error.end <= scalarCount,
+           let startIdx = TextIndexConverter.scalarIndexToStringIndex(error.start, in: cachedText),
+           let endIdx = TextIndexConverter.scalarIndexToStringIndex(error.end, in: cachedText) {
 
-        for match in allMatches where hasUnusualCapitalization(match.text) {
-            let start = utf16Offset(of: match.range.lowerBound, in: liveText)
-            foundRange = CFRange(location: start, length: match.text.utf16.count)
-            foundText = match.text
-            break
-        }
+            let errorText = String(cachedText[startIdx..<endIdx])
+            Logger.debug("Office: Looking for error text (\(errorText.count) chars) in live document", category: Logger.analysis)
 
-        if foundRange == nil {
-            for match in allMatches where match.text != suggestion {
-                let start = utf16Offset(of: match.range.lowerBound, in: liveText)
-                foundRange = CFRange(location: start, length: match.text.utf16.count)
-                foundText = match.text
-                break
+            // Find this exact error text in the live document
+            if let exactRange = liveText.range(of: errorText) {
+                let start = utf16Offset(of: exactRange.lowerBound, in: liveText)
+                let range = CFRange(location: start, length: errorText.utf16.count)
+                Logger.debug("Office: Found error at UTF-16 position \(start)", category: Logger.analysis)
+                return (errorText, range, error)
             }
         }
 
-        // Strategy 2: Search for exact error text from cache
-        if foundRange == nil {
-            let cachedText = self.lastAnalyzedText.isEmpty ? (self.currentSegment?.content ?? "") : self.lastAnalyzedText
-            let scalarCount = cachedText.unicodeScalars.count
-            if !cachedText.isEmpty && error.start < scalarCount && error.end <= scalarCount,
-               let startIdx = TextIndexConverter.scalarIndexToStringIndex(error.start, in: cachedText),
-               let endIdx = TextIndexConverter.scalarIndexToStringIndex(error.end, in: cachedText) {
-                let errorTextFromCache = String(cachedText[startIdx..<endIdx])
-                if let exactRange = liveText.range(of: errorTextFromCache) {
-                    let start = utf16Offset(of: exactRange.lowerBound, in: liveText)
-                    foundRange = CFRange(location: start, length: errorTextFromCache.utf16.count)
-                    foundText = errorTextFromCache
-                }
-            }
-        }
-
-        if let range = foundRange {
-            return (foundText, range, error)
-        } else {
-            return (suggestion, CFRange(location: error.start, length: error.end - error.start), error)
-        }
+        // Fallback: use error positions directly (may be inaccurate if text changed)
+        Logger.debug("Office: Falling back to direct position \(error.start)-\(error.end)", category: Logger.analysis)
+        return (suggestion, CFRange(location: error.start, length: error.end - error.start), error)
     }
 
     /// Find error position for browsers and standard apps
@@ -1204,15 +1241,6 @@ extension AnalysisCoordinator {
         invalidateCacheAfterReplacement(at: currentError.start..<currentError.end)
         let lengthDelta = suggestion.count - (currentError.end - currentError.start)
         removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
-    }
-
-    /// Check if text has unusual capitalization (mid-word capitals like "tHis")
-    private func hasUnusualCapitalization(_ text: String) -> Bool {
-        let chars = Array(text)
-        for i in 1..<chars.count {
-            if chars[i-1].isLowercase && chars[i].isUppercase { return true }
-        }
-        return false
     }
 
     /// Convert String.Index to UTF-16 offset

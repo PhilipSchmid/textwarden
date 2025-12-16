@@ -677,13 +677,20 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     /// Apply suggestion
     func applySuggestion(_ suggestion: String) {
-        guard let error = currentError else { return }
+        Logger.debug("Popover: applySuggestion called", category: Logger.ui)
+
+        guard let error = currentError else {
+            Logger.debug("Popover: No currentError - cannot apply suggestion", category: Logger.ui)
+            return
+        }
 
         // Prevent rapid-fire clicks - wait for previous replacement to complete
         guard !isProcessing else {
             Logger.debug("Popover: Ignoring click - still processing previous suggestion", category: Logger.ui)
             return
         }
+
+        Logger.debug("Popover: Applying suggestion for error at \(error.start)-\(error.end)", category: Logger.ui)
 
         isProcessing = true
 
