@@ -6,6 +6,10 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleHelpBookFolder</key>
+	<string>TextWarden.help</string>
+	<key>CFBundleHelpBookName</key>
+	<string>TextWarden Help</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
@@ -17,30 +21,26 @@
 	<key>CFBundleShortVersionString</key>
 	<string>0.1.0-alpha.1</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>2</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSAppleIntelligenceUsageDescription</key>
+	<string>TextWarden uses Apple Intelligence to suggest style improvements for your writing. All processing happens on your device.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2025 Philip Schmid. All rights reserved.</string>
 	<key>NSSupportsAutomaticTermination</key>
 	<true/>
 	<key>NSSupportsSuddenTermination</key>
 	<true/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
 	<key>SUFeedURL</key>
 	<string>https://raw.githubusercontent.com/PhilipSchmid/textwarden/main/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>dlmQp2PEzV/Ao69pD4OUY3MHXfwIxYzBRDPkxi+PaaU=</string>
-	<key>SUEnableInstallerLauncherService</key>
-	<true/>
-	<key>SUEnableAutomaticChecks</key>
-	<true/>
-	<key>NSAppleIntelligenceUsageDescription</key>
-	<string>TextWarden uses Apple Intelligence to suggest style improvements for your writing. All processing happens on your device.</string>
-	<key>CFBundleHelpBookFolder</key>
-	<string>TextWarden.help</string>
-	<key>CFBundleHelpBookName</key>
-	<string>TextWarden Help</string>
 </dict>
 </plist>

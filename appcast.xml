@@ -2,20 +2,25 @@
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <title>TextWarden Releases</title>
-        <!--
-        To add a new release:
-        1. Build and archive your app
-        2. Create a signed DMG or ZIP
-        3. Run: /path/to/sign_update YourApp.dmg (or .zip)
-        4. Copy the signature output
-        5. Add a new <item> entry below with:
-           - sparkle:version = CFBundleVersion (build number)
-           - sparkle:shortVersionString = CFBundleShortVersionString (display version)
-           - sparkle:edSignature = the signature from sign_update
-           - enclosure url = download URL
-           - enclosure length = file size in bytes
-
-        Or use generate_appcast tool to auto-generate this from your archives folder.
-        -->
+        <item>
+            <title>0.1.0-alpha.1</title>
+            <pubDate>Mon, 16 Dec 2024 01:22:00 +0100</pubDate>
+            <sparkle:version>2</sparkle:version>
+            <sparkle:shortVersionString>0.1.0-alpha.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:channel>experimental</sparkle:channel>
+            <description><![CDATA[
+                <h2>First Alpha Release</h2>
+                <p>Initial alpha release of TextWarden - a privacy-first grammar checker for macOS.</p>
+                <ul>
+                    <li>Grammar and spelling checking powered by Harper</li>
+                    <li>Style suggestions with Apple Intelligence (macOS 26+)</li>
+                    <li>Support for major apps: Safari, Chrome, Slack, Mail, Notes, and more</li>
+                    <li>Custom vocabulary and wordlists</li>
+                    <li>Per-app settings and pause controls</li>
+                </ul>
+            ]]></description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-alpha.1/TextWarden-0.1.0-alpha.1.dmg" length="17207148" type="application/octet-stream" sparkle:edSignature="T9MD904l+kBKqcZLKbWAETD6qhv6t9bAlz7/4TvfOKDaSDj4wPXtY5VQw/yjkKh6DrbtgOb/KcIwCvGY6vCWBw=="/>
+        </item>
     </channel>
 </rss>

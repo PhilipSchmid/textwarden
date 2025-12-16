@@ -134,34 +134,31 @@ generate_release_notes() {
 
 # Build release archive
 build_archive() {
-    echo -e "${BLUE}Building release archive...${NC}"
+    echo -e "${BLUE}Building release archive...${NC}" >&2
 
     # Clean build
     xcodebuild clean -project "$PROJECT_ROOT/$PROJECT" -scheme "$SCHEME" -configuration Release >/dev/null 2>&1
 
-    # Build Rust with LLM in release mode
+    # Build Rust in release mode
     cd "$PROJECT_ROOT"
-    CONFIGURATION=Release FEATURES=llm ./Scripts/build-rust.sh
+    CONFIGURATION=Release ./Scripts/build-rust.sh >&2
 
-    # Archive with Developer ID signing
+    # Archive (signing handled by Xcode's automatic signing, re-signed during export)
     local archive_path="$RELEASE_DIR/$APP_NAME.xcarchive"
     xcodebuild archive \
         -project "$PROJECT" \
         -scheme "$SCHEME" \
         -configuration Release \
         -archivePath "$archive_path" \
-        CODE_SIGN_IDENTITY="$DEVELOPER_ID" \
-        CODE_SIGN_ENTITLEMENTS="$PROJECT_ROOT/$ENTITLEMENTS" \
-        OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime" \
-        2>&1 | grep -E "(error:|warning:|ARCHIVE SUCCEEDED|ARCHIVE FAILED)" || true
+        2>&1 | grep -E "(error:|warning:|ARCHIVE SUCCEEDED|ARCHIVE FAILED)" >&2 || true
 
     # Verify archive succeeded
     if [[ ! -d "$archive_path" ]]; then
-        echo -e "${RED}Archive failed${NC}"
+        echo -e "${RED}Archive failed${NC}" >&2
         exit 1
     fi
 
-    echo -e "${GREEN}Archive created${NC}"
+    echo -e "${GREEN}Archive created${NC}" >&2
     echo "$archive_path"
 }
 
@@ -170,7 +167,7 @@ export_app() {
     local archive_path="$1"
     local export_path="$RELEASE_DIR/export"
 
-    echo -e "${BLUE}Exporting app...${NC}"
+    echo -e "${BLUE}Exporting app...${NC}" >&2
 
     rm -rf "$export_path"
     mkdir -p "$export_path"
@@ -179,7 +176,7 @@ export_app() {
     cp -R "$archive_path/Products/Applications/$APP_NAME.app" "$export_path/"
 
     # Re-sign with Developer ID and entitlements for distribution
-    echo -e "${BLUE}Signing app with Developer ID...${NC}"
+    echo -e "${BLUE}Signing app with Developer ID...${NC}" >&2
     codesign --force --deep --timestamp --options=runtime \
         --sign "$DEVELOPER_ID" \
         --entitlements "$PROJECT_ROOT/$ENTITLEMENTS" \
@@ -187,11 +184,11 @@ export_app() {
 
     # Verify signature
     if ! codesign --verify --deep --strict "$export_path/$APP_NAME.app" 2>/dev/null; then
-        echo -e "${RED}Code signing verification failed${NC}"
+        echo -e "${RED}Code signing verification failed${NC}" >&2
         exit 1
     fi
 
-    echo -e "${GREEN}App exported and signed${NC}"
+    echo -e "${GREEN}App exported and signed${NC}" >&2
     echo "$export_path/$APP_NAME.app"
 }
 
@@ -241,7 +238,7 @@ create_dmg() {
     local version="$2"
     local dmg_path="$RELEASE_DIR/$APP_NAME-$version.dmg"
 
-    echo -e "${BLUE}Creating DMG...${NC}"
+    echo -e "${BLUE}Creating DMG...${NC}" >&2
 
     # Remove old DMG if exists
     rm -f "$dmg_path"
@@ -266,7 +263,7 @@ create_dmg() {
     # Cleanup
     rm -rf "$dmg_temp"
 
-    echo -e "${GREEN}DMG created: $dmg_path${NC}"
+    echo -e "${GREEN}DMG created: $dmg_path${NC}" >&2
     echo "$dmg_path"
 }
 
@@ -275,16 +272,16 @@ sign_update() {
     local dmg_path="$1"
     local sparkle_bin="$2"
 
-    echo -e "${BLUE}Signing update with Sparkle...${NC}"
+    echo -e "${BLUE}Signing update with Sparkle...${NC}" >&2
 
     local signature=$("$sparkle_bin/sign_update" "$dmg_path" 2>/dev/null)
 
     if [[ -z "$signature" ]]; then
-        echo -e "${RED}Failed to sign update${NC}"
+        echo -e "${RED}Failed to sign update${NC}" >&2
         exit 1
     fi
 
-    echo -e "${GREEN}Update signed${NC}"
+    echo -e "${GREEN}Update signed${NC}" >&2
     echo "$signature"
 }
 
@@ -304,56 +301,95 @@ update_appcast() {
     local dmg_filename=$(basename "$dmg_path")
     local pub_date=$(date -R)
     local download_url="https://github.com/$GITHUB_REPO/releases/download/v$version/$dmg_filename"
+    local appcast="$PROJECT_ROOT/appcast.xml"
 
-    # Escape release notes for XML
-    local escaped_notes=$(echo "$release_notes" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
-
-    # Add channel element for pre-release versions (alpha, beta, rc -> experimental channel)
+    # Add channel element for pre-release versions
     local channel_element=""
     if [[ "$version_type" == "alpha" || "$version_type" == "beta" || "$version_type" == "rc" ]]; then
-        channel_element="
-            <sparkle:channel>experimental</sparkle:channel>"
+        channel_element="experimental"
         echo -e "${YELLOW}Adding to experimental channel${NC}"
     fi
 
-    # Create new item entry
-    local item="        <item>
-            <title>$version</title>
-            <pubDate>$pub_date</pubDate>
-            <sparkle:version>$build</sparkle:version>
-            <sparkle:shortVersionString>$version</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>$channel_element
-            <description><![CDATA[
-$escaped_notes
-            ]]></description>
-            <enclosure url=\"$download_url\" length=\"$dmg_size\" type=\"application/octet-stream\" sparkle:edSignature=\"$signature\"/>
-        </item>"
+    # Use Python for reliable XML manipulation
+    python3 << EOF
+import xml.etree.ElementTree as ET
+from datetime import datetime
+import html
 
-    # Insert after <channel> opening tag (before </channel>)
-    local appcast="$PROJECT_ROOT/appcast.xml"
+# Parse appcast
+tree = ET.parse("$appcast")
+root = tree.getroot()
 
-    # Read current appcast
-    local current=$(cat "$appcast")
+# Define Sparkle namespace
+ns = {'sparkle': 'http://www.andymatuschak.org/xml-namespaces/sparkle'}
+ET.register_namespace('sparkle', 'http://www.andymatuschak.org/xml-namespaces/sparkle')
+ET.register_namespace('', 'http://www.w3.org/2005/Atom')
 
-    # Check if there are existing items
-    if grep -q "</item>" "$appcast"; then
-        # Insert before first </item> (newest first)
-        sed -i '' "/<channel>/,/<\/channel>/ {
-            /<title>.*Releases<\/title>/a\\
-$item
-        }" "$appcast" 2>/dev/null || {
-            # Fallback: insert after channel title
-            local tmp=$(mktemp)
-            awk -v item="$item" '
-                /<title>.*Releases<\/title>/ { print; print item; next }
-                { print }
-            ' "$appcast" > "$tmp"
-            mv "$tmp" "$appcast"
-        }
-    else
-        # No existing items, add after channel opening
-        sed -i '' "s|</channel>|$item\n    </channel>|" "$appcast"
-    fi
+# Find channel
+channel = root.find('channel')
+if channel is None:
+    print("Error: No channel found in appcast")
+    exit(1)
+
+# Find insert position (after title, before first item)
+insert_idx = 0
+for i, child in enumerate(channel):
+    if child.tag == 'title':
+        insert_idx = i + 1
+        break
+
+# Create new item
+item = ET.Element('item')
+
+title = ET.SubElement(item, 'title')
+title.text = "$version"
+
+pubDate = ET.SubElement(item, 'pubDate')
+pubDate.text = "$pub_date"
+
+sparkle_version = ET.SubElement(item, '{http://www.andymatuschak.org/xml-namespaces/sparkle}version')
+sparkle_version.text = "$build"
+
+short_version = ET.SubElement(item, '{http://www.andymatuschak.org/xml-namespaces/sparkle}shortVersionString')
+short_version.text = "$version"
+
+min_sys = ET.SubElement(item, '{http://www.andymatuschak.org/xml-namespaces/sparkle}minimumSystemVersion')
+min_sys.text = "14.0"
+
+channel_elem_value = "$channel_element"
+if channel_elem_value:
+    sparkle_channel = ET.SubElement(item, '{http://www.andymatuschak.org/xml-namespaces/sparkle}channel')
+    sparkle_channel.text = channel_elem_value
+
+desc = ET.SubElement(item, 'description')
+desc.text = "See GitHub release for details"
+
+enclosure = ET.SubElement(item, 'enclosure')
+enclosure.set('url', "$download_url")
+enclosure.set('length', "$dmg_size")
+enclosure.set('type', 'application/octet-stream')
+enclosure.set('{http://www.andymatuschak.org/xml-namespaces/sparkle}edSignature', "$signature")
+
+# Insert at position
+channel.insert(insert_idx, item)
+
+# Write with proper formatting
+tree.write("$appcast", encoding='unicode', xml_declaration=True)
+
+# Pretty print by re-reading and formatting
+import xml.dom.minidom
+with open("$appcast", 'r') as f:
+    content = f.read()
+dom = xml.dom.minidom.parseString(content)
+pretty = dom.toprettyxml(indent="    ")
+# Remove extra blank lines and fix declaration
+lines = [l for l in pretty.split('\n') if l.strip()]
+lines[0] = '<?xml version="1.0" encoding="UTF-8"?>'
+with open("$appcast", 'w') as f:
+    f.write('\n'.join(lines))
+
+print("Appcast updated successfully")
+EOF
 
     echo -e "${GREEN}Appcast updated${NC}"
 }
