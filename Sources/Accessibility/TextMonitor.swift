@@ -234,6 +234,15 @@ class TextMonitor: ObservableObject {
                 }
             }
 
+            // Strategy 4 (Outlook-specific): Use parser to find compose element
+            if let bundleID = currentContext?.bundleIdentifier, bundleID == "com.microsoft.Outlook" {
+                if let composeElement = OutlookContentParser.findComposeElement(from: axElement) {
+                    Logger.debug("TextMonitor: Found Outlook compose element via parser!", category: Logger.accessibility)
+                    monitorElement(composeElement, retryAttempt: retryAttempt)
+                    return
+                }
+            }
+
             // Note: PowerPoint Notes section uses standard AXTextArea and is found by normal monitoring
             // Slide text boxes are not accessible via macOS Accessibility API
 
@@ -356,6 +365,40 @@ class TextMonitor: ObservableObject {
                    existingValueRef != nil {
                     Logger.debug("TextMonitor: PowerPoint focus bounce - preserving existing monitoring", category: Logger.accessibility)
                     return  // Keep monitoring existing element, ignore this focus change
+                }
+            }
+        }
+
+        // For Outlook, clicking in the compose body may focus on AXStaticText instead of the editable area.
+        // Search for the actual compose element when this happens.
+        if let bundleID = currentContext?.bundleIdentifier,
+           bundleID == "com.microsoft.Outlook" {
+
+            var newRoleRef: CFTypeRef?
+            AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &newRoleRef)
+            let newRole = newRoleRef as? String ?? ""
+
+            // If focus went to static text or other non-editable element, search for compose body
+            if newRole == kAXStaticTextRole as String || newRole == "AXGroup" || newRole == "AXScrollArea" {
+                Logger.debug("TextMonitor: Outlook focus on \(newRole) - searching for compose element...", category: Logger.accessibility)
+
+                if let composeElement = OutlookContentParser.findComposeElement(from: element) {
+                    Logger.debug("TextMonitor: Found Outlook compose element, monitoring it instead", category: Logger.accessibility)
+                    // Recursively call monitorElement with the found compose element
+                    monitorElement(composeElement, retryAttempt: retryAttempt)
+                    return
+                }
+
+                // If we already have a valid compose element monitored, preserve it
+                if let existingElement = monitoredElement {
+                    var existingRoleRef: CFTypeRef?
+                    AXUIElementCopyAttributeValue(existingElement, kAXRoleAttribute as CFString, &existingRoleRef)
+                    let existingRole = existingRoleRef as? String ?? ""
+
+                    if existingRole == kAXTextAreaRole as String || existingRole == kAXTextFieldRole as String {
+                        Logger.debug("TextMonitor: Outlook - preserving existing compose element monitoring", category: Logger.accessibility)
+                        return
+                    }
                 }
             }
         }
@@ -813,9 +856,9 @@ extension TextMonitor {
             Logger.trace("TextMonitor: AXEnabled=\(enabled) for role \(roleString)", category: Logger.accessibility)
             if !enabled {
                 // Microsoft Office AXTextArea reports AXEnabled=false even when editable
-                // Accept AXTextArea for Word/PowerPoint since we've validated via content parser
+                // Accept AXTextArea for Word/PowerPoint/Outlook since we've validated via content parser
                 if roleString == kAXTextAreaRole as String,
-                   (bundleID == "com.microsoft.Word" || bundleID == "com.microsoft.Powerpoint") {
+                   (bundleID == "com.microsoft.Word" || bundleID == "com.microsoft.Powerpoint" || bundleID == "com.microsoft.Outlook") {
                     Logger.trace("TextMonitor: Office AXTextArea reports disabled, but accepting anyway", category: Logger.accessibility)
                     return true
                 }
@@ -847,6 +890,15 @@ extension TextMonitor {
                 Logger.trace("TextMonitor: PowerPoint element rejected by parser (likely toolbar)", category: Logger.accessibility)
             }
             return isSlide
+        }
+
+        // Outlook-specific check: filter out toolbar/ribbon elements
+        if bundleID == "com.microsoft.Outlook" {
+            let isCompose = OutlookContentParser.isComposeElement(element)
+            if !isCompose {
+                Logger.trace("TextMonitor: Outlook element rejected by parser (likely toolbar)", category: Logger.accessibility)
+            }
+            return isCompose
         }
 
         // For other apps, assume the element is valid

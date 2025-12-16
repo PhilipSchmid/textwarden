@@ -769,7 +769,8 @@ extension AnalysisCoordinator {
             // Required for browsers and Mac Catalyst apps that use UTF-16 offsets
             // Skip for Microsoft Office: findOfficeErrorPosition already returns UTF-16 positions
             let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
-                                    context.bundleIdentifier == "com.microsoft.Powerpoint"
+                                    context.bundleIdentifier == "com.microsoft.Powerpoint" ||
+                                    context.bundleIdentifier == "com.microsoft.Outlook"
             if let text = currentText, !isMicrosoftOffice {
                 let graphemeRange = NSRange(location: range.location, length: range.length)
                 let utf16Range = TextIndexConverter.graphemeToUTF16Range(graphemeRange, in: text)
@@ -928,7 +929,8 @@ extension AnalysisCoordinator {
         let isChatGPT = context.bundleIdentifier == "com.openai.chat"
         let isMessages = context.bundleIdentifier == "com.apple.MobileSMS"
         let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
-                                context.bundleIdentifier == "com.microsoft.Powerpoint"
+                                context.bundleIdentifier == "com.microsoft.Powerpoint" ||
+                                context.bundleIdentifier == "com.microsoft.Outlook"
         if context.isBrowser || isSlack || isClaude || isPerplexity || isChatGPT || isMessages || isMicrosoftOffice || context.isMacCatalystApp {
             await applyBrowserTextReplacementAsync(for: error, with: suggestion, element: element, context: context)
             return
@@ -1000,7 +1002,8 @@ extension AnalysisCoordinator {
         lastReplacementTime = Date()
 
         let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
-                                context.bundleIdentifier == "com.microsoft.Powerpoint"
+                                context.bundleIdentifier == "com.microsoft.Powerpoint" ||
+                                context.bundleIdentifier == "com.microsoft.Outlook"
 
         // Find error text and position based on app type
         let (errorText, fallbackRange, currentError) = isMicrosoftOffice

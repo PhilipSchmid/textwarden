@@ -96,6 +96,7 @@ final class AppRegistry {
         register(.telegram)
         register(.word)
         register(.powerpoint)
+        register(.outlook)
         // Note: .default is not registered, used as fallback
         // Note: Terminal apps are not supported (hidden by default in UserPreferences)
     }
@@ -463,6 +464,37 @@ extension AppConfiguration {
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: false  // PowerPoint AXValue updates reliably
+        )
+    )
+
+    // MARK: - Microsoft Outlook
+
+    static let outlook = AppConfiguration(
+        identifier: "outlook",
+        displayName: "Microsoft Outlook",
+        bundleIDs: ["com.microsoft.Outlook"],
+        category: .native,
+        parserType: .outlook,
+        fontConfig: FontConfig(
+            defaultSize: 12,
+            fontFamily: "Aptos",
+            spacingMultiplier: 1.5  // Aptos font renders wider than system font metrics
+        ),
+        horizontalPadding: 20,  // Outlook compose has left margin with sparkle icon
+        // Outlook's subject field (AXTextField) supports visual underlines via RangeBounds.
+        // The compose body (AXTextArea) may have issues with parameterized AX queries like Word,
+        // but we enable underlines and let the strategy system handle failures gracefully.
+        // Text replacement needs browser-style (selection + keyboard paste) like other Office apps.
+        preferredStrategies: [.rangeBounds, .textMarker, .lineIndex, .fontMetrics],
+        features: AppFeatures(
+            visualUnderlinesEnabled: true,
+            textReplacementMethod: .browserStyle,  // Standard AX setValue doesn't work
+            requiresTypingPause: false,
+            supportsFormattedText: true,
+            childElementTraversal: false,
+            delaysAXNotifications: false,
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: false  // Office apps update AXValue reliably
         )
     )
 

@@ -19,6 +19,18 @@ class RangeBoundsStrategy: GeometryProvider {
     var tierPriority: Int { 20 }
 
     func canHandle(element: AXUIElement, bundleID: String) -> Bool {
+        // Microsoft Outlook: AXTextArea (compose body) returns garbage from AXBoundsForRange
+        // (2px width at wrong position), but AXTextField (subject) works fine.
+        // Reject AXTextArea for Outlook to avoid broken underlines in the body.
+        if bundleID == "com.microsoft.Outlook" {
+            var roleRef: CFTypeRef?
+            AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
+            if let role = roleRef as? String, role == kAXTextAreaRole as String {
+                Logger.debug("RangeBoundsStrategy: Skipping Outlook AXTextArea (known broken AX API)", category: Logger.accessibility)
+                return false
+            }
+        }
+
         // Works for most native macOS apps
         // May fail for Electron apps, but serves as reliable fallback
         return true
@@ -106,9 +118,11 @@ class RangeBoundsStrategy: GeometryProvider {
             return nil
         }
 
-        // Check for suspiciously small bounds
+        // Reject suspiciously small bounds - likely garbage from broken AX APIs (e.g., Microsoft Office mso99)
+        // This allows fallback strategies to try instead
         if cocoaBounds.width < GeometryConstants.minimumBoundsSize {
-            Logger.warning("RangeBoundsStrategy: Bounds width suspiciously small: \(cocoaBounds.width)px", category: Logger.accessibility)
+            Logger.warning("RangeBoundsStrategy: Bounds width suspiciously small (\(cocoaBounds.width)px < \(GeometryConstants.minimumBoundsSize)px) - rejecting to try fallback strategies", category: Logger.accessibility)
+            return nil
         }
 
         Logger.debug("RangeBoundsStrategy: Successfully calculated bounds: \(cocoaBounds)", category: Logger.accessibility)

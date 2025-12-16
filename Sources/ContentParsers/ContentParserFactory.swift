@@ -31,7 +31,8 @@ final class ContentParserFactory {
             .teams: TeamsContentParser(),
             .mail: MailContentParser(),
             .word: WordContentParser(),
-            .powerpoint: PowerPointContentParser()
+            .powerpoint: PowerPointContentParser(),
+            .outlook: OutlookContentParser()
         ]
 
         Logger.info("ContentParserFactory: Initialized with \(parsersByType.count) parser types", category: Logger.analysis)
