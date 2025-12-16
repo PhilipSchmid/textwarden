@@ -3,6 +3,7 @@
 # Handles: archive, sign, DMG creation, appcast update, GitHub release
 
 set -e
+set -o pipefail
 
 # Colors
 RED='\033[0;31m'
@@ -30,11 +31,73 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 RELEASE_DIR="$PROJECT_ROOT/releases"
 SPARKLE_BIN="$HOME/Library/Developer/Xcode/DerivedData/TextWarden-*/SourcePackages/artifacts/sparkle/Sparkle/bin"
 
+# Validate environment and dependencies
+validate_environment() {
+    echo -e "${BLUE}Validating environment...${NC}" >&2
+    local errors=0
+
+    # Check required commands
+    local required_cmds=("xcodebuild" "codesign" "hdiutil" "git" "gh" "python3" "cargo" "rustc")
+    for cmd in "${required_cmds[@]}"; do
+        if ! command -v "$cmd" &>/dev/null; then
+            echo -e "${RED}Error: Required command '$cmd' not found${NC}" >&2
+            errors=$((errors + 1))
+        fi
+    done
+
+    # Check Xcode command line tools
+    if ! xcode-select -p &>/dev/null; then
+        echo -e "${RED}Error: Xcode command line tools not installed${NC}" >&2
+        echo -e "  Run: xcode-select --install" >&2
+        errors=$((errors + 1))
+    fi
+
+    # Check code signing identity
+    if ! security find-identity -v -p codesigning 2>/dev/null | grep -q "$TEAM_ID"; then
+        echo -e "${RED}Error: Developer ID certificate not found in keychain${NC}" >&2
+        echo -e "  Team ID: $TEAM_ID" >&2
+        errors=$((errors + 1))
+    fi
+
+    # Check project files exist
+    if [[ ! -f "$PROJECT_ROOT/$PROJECT/project.pbxproj" ]]; then
+        echo -e "${RED}Error: Xcode project not found at $PROJECT_ROOT/$PROJECT${NC}" >&2
+        errors=$((errors + 1))
+    fi
+
+    if [[ ! -f "$PROJECT_ROOT/$ENTITLEMENTS" ]]; then
+        echo -e "${RED}Error: Entitlements file not found at $PROJECT_ROOT/$ENTITLEMENTS${NC}" >&2
+        errors=$((errors + 1))
+    fi
+
+    if [[ ! -f "$PROJECT_ROOT/Info.plist" ]]; then
+        echo -e "${RED}Error: Info.plist not found${NC}" >&2
+        errors=$((errors + 1))
+    fi
+
+    # Check git status (warn if dirty)
+    if [[ -n "$(git -C "$PROJECT_ROOT" status --porcelain 2>/dev/null)" ]]; then
+        echo -e "${YELLOW}Warning: Git working directory has uncommitted changes${NC}" >&2
+    fi
+
+    # Check gh CLI is authenticated
+    if ! gh auth status &>/dev/null; then
+        echo -e "${YELLOW}Warning: GitHub CLI not authenticated (gh release upload will fail)${NC}" >&2
+    fi
+
+    if [[ $errors -gt 0 ]]; then
+        echo -e "${RED}Environment validation failed with $errors error(s)${NC}" >&2
+        exit 1
+    fi
+
+    echo -e "${GREEN}Environment validated${NC}" >&2
+}
+
 # Find Sparkle tools
 find_sparkle_tools() {
     local bin_path=$(ls -d $SPARKLE_BIN 2>/dev/null | head -1)
     if [[ -z "$bin_path" ]]; then
-        echo -e "${RED}Error: Sparkle tools not found. Run 'make build' first.${NC}"
+        echo -e "${RED}Error: Sparkle tools not found. Run 'make build' first.${NC}" >&2
         exit 1
     fi
     echo "$bin_path"
@@ -136,25 +199,44 @@ generate_release_notes() {
 build_archive() {
     echo -e "${BLUE}Building release archive...${NC}" >&2
 
-    # Clean build
-    xcodebuild clean -project "$PROJECT_ROOT/$PROJECT" -scheme "$SCHEME" -configuration Release >/dev/null 2>&1
+    # Clean build first
+    echo -e "${BLUE}Cleaning previous build...${NC}" >&2
+    xcodebuild clean -project "$PROJECT_ROOT/$PROJECT" -scheme "$SCHEME" -configuration Release >/dev/null 2>&1 || true
 
-    # Build Rust in release mode
-    cd "$PROJECT_ROOT"
-    CONFIGURATION=Release ./Scripts/build-rust.sh >&2
+    # Build Rust in release mode (in subshell to isolate environment)
+    echo -e "${BLUE}Building Rust grammar engine...${NC}" >&2
+    (
+        cd "$PROJECT_ROOT"
+        # Ensure clean Rust environment
+        export CARGO_TARGET_DIR="$PROJECT_ROOT/GrammarEngine/target"
+        export MACOSX_DEPLOYMENT_TARGET="14.0"
+        CONFIGURATION=Release ./Scripts/build-rust.sh
+    ) >&2
 
     # Archive (signing handled by Xcode's automatic signing, re-signed during export)
     local archive_path="$RELEASE_DIR/$APP_NAME.xcarchive"
-    xcodebuild archive \
-        -project "$PROJECT" \
-        -scheme "$SCHEME" \
-        -configuration Release \
-        -archivePath "$archive_path" \
-        2>&1 | grep -E "(error:|warning:|ARCHIVE SUCCEEDED|ARCHIVE FAILED)" >&2 || true
+    echo -e "${BLUE}Creating Xcode archive...${NC}" >&2
+
+    # Run xcodebuild in subshell with clean environment
+    (
+        cd "$PROJECT_ROOT"
+        xcodebuild archive \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -archivePath "$archive_path" \
+            2>&1 | grep -E "(error:|warning:|ARCHIVE SUCCEEDED|ARCHIVE FAILED)" || true
+    ) >&2
 
     # Verify archive succeeded
     if [[ ! -d "$archive_path" ]]; then
-        echo -e "${RED}Archive failed${NC}" >&2
+        echo -e "${RED}Archive failed - check Xcode build settings${NC}" >&2
+        exit 1
+    fi
+
+    # Verify the app exists in the archive
+    if [[ ! -d "$archive_path/Products/Applications/$APP_NAME.app" ]]; then
+        echo -e "${RED}Archive created but app bundle not found${NC}" >&2
         exit 1
     fi
 
@@ -422,6 +504,9 @@ create_github_release() {
 do_release() {
     local version="$1"
     local skip_confirm="$2"
+
+    # Validate environment first
+    validate_environment
 
     if [[ -z "$version" ]]; then
         version=$(get_version)

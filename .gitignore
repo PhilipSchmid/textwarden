@@ -44,6 +44,9 @@ debug/
 release/
 **/generated/
 
+# Release artifacts
+releases/
+
 # Build artifacts
 *.app
 *.dmg
