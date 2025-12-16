@@ -1239,8 +1239,8 @@ class AnalysisCoordinator: ObservableObject {
         filteredErrors = filteredErrors.filter { error in
             // Extract error text from source using scalar indices
             guard error.start < sourceScalarCount, error.end <= sourceScalarCount, error.start < error.end,
-                  let startIndex = scalarIndexToStringIndex(error.start, in: sourceText),
-                  let endIndex = scalarIndexToStringIndex(error.end, in: sourceText) else {
+                  let startIndex = TextIndexConverter.scalarIndexToStringIndex(error.start, in: sourceText),
+                  let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: sourceText) else {
                 return true // Keep error if indices are invalid
             }
 
@@ -1255,8 +1255,8 @@ class AnalysisCoordinator: ObservableObject {
         filteredErrors = filteredErrors.filter { error in
             // Extract error text from source using scalar indices
             guard error.start < sourceScalarCount, error.end <= sourceScalarCount, error.start < error.end,
-                  let startIndex = scalarIndexToStringIndex(error.start, in: sourceText),
-                  let endIndex = scalarIndexToStringIndex(error.end, in: sourceText) else {
+                  let startIndex = TextIndexConverter.scalarIndexToStringIndex(error.start, in: sourceText),
+                  let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: sourceText) else {
                 return true // Keep error if indices are invalid
             }
 
@@ -1275,8 +1275,8 @@ class AnalysisCoordinator: ObservableObject {
                 // These are false positives from Notion's placeholder handling
                 if error.message.lowercased().contains("french spaces") {
                     guard error.start < sourceScalarCount, error.end <= sourceScalarCount, error.start < error.end,
-                          let startIdx = scalarIndexToStringIndex(error.start, in: sourceText),
-                          let endIdx = scalarIndexToStringIndex(error.end, in: sourceText) else {
+                          let startIdx = TextIndexConverter.scalarIndexToStringIndex(error.start, in: sourceText),
+                          let endIdx = TextIndexConverter.scalarIndexToStringIndex(error.end, in: sourceText) else {
                         return true
                     }
                     let errorText = String(sourceText[startIdx..<endIdx])
@@ -1448,8 +1448,8 @@ class AnalysisCoordinator: ObservableObject {
         if let sourceText = currentSegment?.content {
             let scalarCount = sourceText.unicodeScalars.count
             guard error.start < scalarCount, error.end <= scalarCount, error.start < error.end,
-                  let startIndex = scalarIndexToStringIndex(error.start, in: sourceText),
-                  let endIndex = scalarIndexToStringIndex(error.end, in: sourceText) else {
+                  let startIndex = TextIndexConverter.scalarIndexToStringIndex(error.start, in: sourceText),
+                  let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: sourceText) else {
                 // Invalid indices, just remove from current errors
                 currentErrors.removeAll { $0.start == error.start && $0.end == error.end }
                 return
@@ -1485,8 +1485,8 @@ class AnalysisCoordinator: ObservableObject {
 
         let scalarCount = sourceText.unicodeScalars.count
         guard error.start < scalarCount, error.end <= scalarCount, error.start < error.end,
-              let startIndex = scalarIndexToStringIndex(error.start, in: sourceText),
-              let endIndex = scalarIndexToStringIndex(error.end, in: sourceText) else {
+              let startIndex = TextIndexConverter.scalarIndexToStringIndex(error.start, in: sourceText),
+              let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: sourceText) else {
             return
         }
 

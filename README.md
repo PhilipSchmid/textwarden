@@ -170,6 +170,7 @@ TextWarden uses the macOS Accessibility API and works with most applications. Vi
 | Application | Grammar Checking | Visual Underlines |
 |-------------|-----------------|-------------------|
 | **Slack** | Full | Full |
+| **Claude** | Full | Full |
 | **Safari** | Full | Full |
 | **Chrome, Comet** | Full | Full |
 | **Apple Mail** | Full | Full |

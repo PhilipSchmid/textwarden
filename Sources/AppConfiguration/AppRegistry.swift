@@ -86,6 +86,7 @@ final class AppRegistry {
     private func registerBuiltInConfigurations() {
         register(.slack)
         register(.teams)
+        register(.claude)
         register(.browsers)
         register(.notion)
         register(.mail)
@@ -124,6 +125,33 @@ extension AppConfiguration {
             supportsFormattedText: true,
             childElementTraversal: true,
             delaysAXNotifications: false,  // Slack sends AX notifications immediately
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: true  // Electron byte offsets are fragile
+        )
+    )
+
+    // MARK: - Claude (Anthropic)
+
+    static let claude = AppConfiguration(
+        identifier: "claude",
+        displayName: "Claude",
+        bundleIDs: ["com.anthropic.claudefordesktop"],
+        category: .electron,
+        parserType: .claude,  // Dedicated parser without Slack's newline quirks
+        fontConfig: FontConfig(
+            defaultSize: 16,
+            fontFamily: nil,
+            spacingMultiplier: 1.0
+        ),
+        horizontalPadding: 12,
+        preferredStrategies: [.chromium, .textMarker, .rangeBounds, .elementTree, .lineIndex],
+        features: AppFeatures(
+            visualUnderlinesEnabled: true,
+            textReplacementMethod: .browserStyle,
+            requiresTypingPause: true,
+            supportsFormattedText: false,  // Claude input is plain text
+            childElementTraversal: true,
+            delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: true  // Electron byte offsets are fragile
         )

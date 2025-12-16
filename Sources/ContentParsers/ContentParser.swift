@@ -119,6 +119,12 @@ protocol ContentParser {
     /// - Returns: Number of characters to subtract from position for selection API
     func selectionOffset(at position: Int, in text: String) -> Int
 
+    /// Whether this app requires UTF-16 index conversion for Chromium selection APIs.
+    /// When true, ChromiumStrategy converts grapheme cluster indices to UTF-16 code unit indices.
+    /// This is needed for apps where emojis/special characters cause position drift.
+    /// Default is false to preserve existing behavior for apps like Slack.
+    var requiresUTF16Conversion: Bool { get }
+
     /// Custom bounds calculation for apps with non-standard accessibility APIs.
     /// Override this for apps where standard AXBoundsForRange doesn't work correctly
     /// (e.g., Apple Mail's WebKit which needs single-char queries and coordinate conversion).
@@ -173,6 +179,11 @@ extension ContentParser {
     /// Default: no selection offset adjustment needed
     func selectionOffset(at position: Int, in text: String) -> Int {
         return 0
+    }
+
+    /// Default: no UTF-16 conversion needed (preserves existing behavior for Slack, etc.)
+    var requiresUTF16Conversion: Bool {
+        return false
     }
 
     /// Default: no custom bounds calculation, return nil to use standard API

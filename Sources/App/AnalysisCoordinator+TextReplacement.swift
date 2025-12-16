@@ -126,7 +126,7 @@ extension AnalysisCoordinator {
         let utf16Location: Int
         let utf16Length: Int
         if let text = currentText {
-            let utf16Range = convertToUTF16Range(NSRange(location: error.start, length: error.end - error.start), in: text)
+            let utf16Range = TextIndexConverter.graphemeToUTF16Range(NSRange(location: error.start, length: error.end - error.start), in: text)
             utf16Location = utf16Range.location
             utf16Length = utf16Range.length
         } else {
@@ -601,6 +601,7 @@ extension AnalysisCoordinator {
     ) -> Bool {
         let isNotion = context.bundleIdentifier == "notion.id" || context.bundleIdentifier == "com.notion.id"
         let isSlack = context.bundleIdentifier == "com.tinyspeck.slackmacgap"
+        let isClaude = context.bundleIdentifier == "com.anthropic.claudefordesktop"
         let isMail = context.bundleIdentifier == "com.apple.mail"
 
         // Apple Mail: use WebKit-specific marker-based selection
@@ -629,6 +630,57 @@ extension AnalysisCoordinator {
                 Logger.debug("Mail: Could not find text to select", category: Logger.analysis)
                 return true  // Still try paste
             }
+        }
+
+        // Claude: standard selection with newline offset adjustment
+        // Claude's Chromium selection API treats newlines as zero-width, same as for underline positioning
+        if isClaude {
+            Logger.debug("Claude: Using selection with newline offset adjustment", category: Logger.analysis)
+
+            var currentTextRef: CFTypeRef?
+            let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
+
+            guard textResult == .success, let currentText = currentTextRef as? String else {
+                Logger.debug("Claude: Could not get current text", category: Logger.analysis)
+                return false
+            }
+
+            guard let textRange = currentText.range(of: targetText) else {
+                Logger.debug("Claude: Could not find target text in content", category: Logger.analysis)
+                return false
+            }
+
+            let startIndex = currentText.distance(from: currentText.startIndex, to: textRange.lowerBound)
+
+            // Count newlines before the start position (Chromium treats them as zero-width)
+            let prefixEndIndex = currentText.index(currentText.startIndex, offsetBy: startIndex, limitedBy: currentText.endIndex) ?? currentText.endIndex
+            let prefix = String(currentText[..<prefixEndIndex])
+            let newlineCount = prefix.filter { $0 == "\n" }.count
+
+            // Convert to UTF-16 and apply newline offset
+            let utf16Range = TextIndexConverter.graphemeToUTF16Range(NSRange(location: startIndex, length: targetText.count), in: currentText)
+            let adjustedLocation = max(0, utf16Range.location - newlineCount)
+
+            Logger.debug("Claude selection: grapheme \(startIndex) -> UTF-16 \(utf16Range.location) -> adjusted \(adjustedLocation) (newlines: \(newlineCount))", category: Logger.analysis)
+
+            var selectionRange = CFRange(location: adjustedLocation, length: utf16Range.length)
+            guard let rangeValue = AXValueCreate(.cfRange, &selectionRange) else {
+                Logger.debug("Claude: Failed to create AXValue for range", category: Logger.analysis)
+                return false
+            }
+
+            let selectResult = AXUIElementSetAttributeValue(
+                element,
+                kAXSelectedTextRangeAttribute as CFString,
+                rangeValue
+            )
+
+            if selectResult == .success {
+                Logger.debug("Claude: Selection succeeded at \(adjustedLocation)-\(adjustedLocation + utf16Range.length)", category: Logger.analysis)
+            } else {
+                Logger.debug("Claude: Selection failed (\(selectResult.rawValue)) - will try paste anyway", category: Logger.analysis)
+            }
+            return true
         }
 
         // Electron apps (Notion, Slack) need child element traversal for selection
@@ -688,7 +740,7 @@ extension AnalysisCoordinator {
                 // Required for: Mac Catalyst apps, Chromium-based browsers (like Comet), and any app using UTF-16 offsets
                 // Emojis and other multi-codepoint characters cause offset issues without this conversion
                 let startIndex = currentText.distance(from: currentText.startIndex, to: textRange.lowerBound)
-                let utf16Range = convertToUTF16Range(NSRange(location: startIndex, length: targetText.count), in: currentText)
+                let utf16Range = TextIndexConverter.graphemeToUTF16Range(NSRange(location: startIndex, length: targetText.count), in: currentText)
                 var calculatedRange = CFRange(location: utf16Range.location, length: utf16Range.length)
                 Logger.debug("Browser selection: Converted range from grapheme [\(startIndex), \(targetText.count)] to UTF-16 [\(utf16Range.location), \(utf16Range.length)]", category: Logger.analysis)
 
@@ -715,7 +767,7 @@ extension AnalysisCoordinator {
             // Required for browsers and Mac Catalyst apps that use UTF-16 offsets
             if let text = currentText {
                 let graphemeRange = NSRange(location: range.location, length: range.length)
-                let utf16Range = convertToUTF16Range(graphemeRange, in: text)
+                let utf16Range = TextIndexConverter.graphemeToUTF16Range(graphemeRange, in: text)
                 range = CFRange(location: utf16Range.location, length: utf16Range.length)
                 Logger.debug("Browser selection: Converted fallback range from grapheme [\(graphemeRange.location), \(graphemeRange.length)] to UTF-16 [\(utf16Range.location), \(utf16Range.length)]", category: Logger.analysis)
             }
@@ -738,63 +790,6 @@ extension AnalysisCoordinator {
             }
             return true
         }
-    }
-
-    /// Convert grapheme cluster indices to UTF-16 code unit indices.
-    /// Mac Catalyst apps and some accessibility APIs use UTF-16 code units,
-    /// while Swift String indices are grapheme clusters.
-    /// This matters for text containing emojis: 🖐️ is 1 grapheme but 3-4 UTF-16 code units.
-    func convertToUTF16Range(_ range: NSRange, in text: String) -> NSRange {
-        let textCount = text.count
-        let safeLocation = min(range.location, textCount)
-        let safeEndLocation = min(range.location + range.length, textCount)
-
-        // Get String.Index for the grapheme cluster positions
-        guard let startIndex = text.index(text.startIndex, offsetBy: safeLocation, limitedBy: text.endIndex),
-              let endIndex = text.index(text.startIndex, offsetBy: safeEndLocation, limitedBy: text.endIndex) else {
-            // Fallback to original range if conversion fails
-            return range
-        }
-
-        // Extract the prefix strings and measure their UTF-16 lengths
-        let prefixToStart = String(text[..<startIndex])
-        let prefixToEnd = String(text[..<endIndex])
-
-        let utf16Location = (prefixToStart as NSString).length
-        let utf16EndLocation = (prefixToEnd as NSString).length
-        let utf16Length = max(1, utf16EndLocation - utf16Location)
-
-        return NSRange(location: utf16Location, length: utf16Length)
-    }
-
-    /// Convert a Unicode scalar index to a String.Index.
-    /// Harper (via Rust) uses Unicode scalar indices (Rust's `char` count),
-    /// but Swift String operations use grapheme cluster indices.
-    /// Emojis like ❗️ are 2 scalars (U+2757 + U+FE0F) but 1 grapheme cluster.
-    func scalarIndexToStringIndex(_ scalarIndex: Int, in string: String) -> String.Index? {
-        let scalars = string.unicodeScalars
-        var scalarCount = 0
-        var currentIndex = string.startIndex
-
-        while currentIndex < string.endIndex {
-            if scalarCount == scalarIndex {
-                return currentIndex
-            }
-            // Count how many scalars are in this grapheme cluster
-            let nextIndex = string.index(after: currentIndex)
-            let scalarStart = currentIndex.samePosition(in: scalars) ?? scalars.startIndex
-            let scalarEnd = nextIndex.samePosition(in: scalars) ?? scalars.endIndex
-            let scalarsInCluster = scalars.distance(from: scalarStart, to: scalarEnd)
-            scalarCount += scalarsInCluster
-            currentIndex = nextIndex
-        }
-
-        // If scalarIndex equals total scalar count, return endIndex
-        if scalarCount == scalarIndex {
-            return string.endIndex
-        }
-
-        return nil
     }
 
     /// Type text directly using CGEvent keyboard events with Unicode strings.
@@ -921,12 +916,13 @@ extension AnalysisCoordinator {
             return
         }
 
-        // SPECIAL HANDLING FOR BROWSERS, SLACK, MICROSOFT OFFICE, AND MAC CATALYST APPS
+        // SPECIAL HANDLING FOR BROWSERS, ELECTRON APPS, MICROSOFT OFFICE, AND MAC CATALYST APPS
         let isSlack = context.bundleIdentifier == "com.tinyspeck.slackmacgap"
+        let isClaude = context.bundleIdentifier == "com.anthropic.claudefordesktop"
         let isMessages = context.bundleIdentifier == "com.apple.MobileSMS"
         let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
                                 context.bundleIdentifier == "com.microsoft.Powerpoint"
-        if context.isBrowser || isSlack || isMessages || isMicrosoftOffice || context.isMacCatalystApp {
+        if context.isBrowser || isSlack || isClaude || isMessages || isMicrosoftOffice || context.isMacCatalystApp {
             await applyBrowserTextReplacementAsync(for: error, with: suggestion, element: element, context: context)
             return
         }
@@ -1061,8 +1057,8 @@ extension AnalysisCoordinator {
             let cachedText = self.lastAnalyzedText.isEmpty ? (self.currentSegment?.content ?? "") : self.lastAnalyzedText
             let scalarCount = cachedText.unicodeScalars.count
             if !cachedText.isEmpty && error.start < scalarCount && error.end <= scalarCount,
-               let startIdx = scalarIndexToStringIndex(error.start, in: cachedText),
-               let endIdx = scalarIndexToStringIndex(error.end, in: cachedText) {
+               let startIdx = TextIndexConverter.scalarIndexToStringIndex(error.start, in: cachedText),
+               let endIdx = TextIndexConverter.scalarIndexToStringIndex(error.end, in: cachedText) {
                 let errorTextFromCache = String(cachedText[startIdx..<endIdx])
                 if let exactRange = liveText.range(of: errorTextFromCache) {
                     let start = utf16Offset(of: exactRange.lowerBound, in: liveText)
@@ -1092,8 +1088,8 @@ extension AnalysisCoordinator {
         let scalarCount = cachedText.unicodeScalars.count
 
         if !cachedText.isEmpty && currentError.start < scalarCount && currentError.end <= scalarCount,
-           let startIdx = scalarIndexToStringIndex(currentError.start, in: cachedText),
-           let endIdx = scalarIndexToStringIndex(currentError.end, in: cachedText) {
+           let startIdx = TextIndexConverter.scalarIndexToStringIndex(currentError.start, in: cachedText),
+           let endIdx = TextIndexConverter.scalarIndexToStringIndex(currentError.end, in: cachedText) {
             let errorText = String(cachedText[startIdx..<endIdx])
             return (errorText, nil, currentError)
         } else {

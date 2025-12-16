@@ -24,6 +24,7 @@ enum AppCategory {
 enum ParserType {
     case generic
     case slack
+    case claude
     case browser
     case notion
     case teams

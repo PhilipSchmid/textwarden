@@ -134,13 +134,29 @@ class ChromiumStrategy: GeometryProvider {
         let startIndex = errorRange.location + offset
         let graphemeRange = NSRange(location: startIndex, length: errorRange.length)
 
-        // Apply app-specific selection offset (e.g., Slack needs newline adjustment)
+        // Apply app-specific selection offset (e.g., Slack/Claude need newline adjustment)
         let selectionOffset = parser.selectionOffset(at: graphemeRange.location, in: text)
-        let adjustedLocation = max(0, graphemeRange.location - selectionOffset)
-        let selectionRange = NSRange(location: adjustedLocation, length: graphemeRange.length)
 
-        if selectionOffset > 0 {
-            Logger.debug("ChromiumStrategy: Selection offset adjustment [\(graphemeRange.location)] - \(selectionOffset) -> [\(selectionRange.location)]", category: Logger.ui)
+        // Calculate selection range based on app requirements
+        let selectionRange: NSRange
+        if parser.requiresUTF16Conversion {
+            // Convert grapheme cluster indices to UTF-16 code unit indices
+            // This is needed for apps like Claude where emojis cause position drift
+            let utf16Range = TextIndexConverter.graphemeToUTF16Range(graphemeRange, in: text)
+            let adjustedLocation = max(0, utf16Range.location - selectionOffset)
+            selectionRange = NSRange(location: adjustedLocation, length: utf16Range.length)
+
+            if utf16Range.location != graphemeRange.location || selectionOffset > 0 {
+                Logger.debug("ChromiumStrategy: UTF-16 + offset [\(graphemeRange.location)] -> UTF-16 [\(utf16Range.location)] - \(selectionOffset) -> [\(selectionRange.location)]", category: Logger.ui)
+            }
+        } else {
+            // Standard behavior: just apply selection offset to grapheme range
+            let adjustedLocation = max(0, graphemeRange.location - selectionOffset)
+            selectionRange = NSRange(location: adjustedLocation, length: graphemeRange.length)
+
+            if selectionOffset > 0 {
+                Logger.debug("ChromiumStrategy: Selection offset adjustment [\(graphemeRange.location)] - \(selectionOffset) -> [\(selectionRange.location)]", category: Logger.ui)
+            }
         }
 
         // Check cache invalidation conditions

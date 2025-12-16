@@ -25,6 +25,7 @@ final class ContentParserFactory {
         parsersByType = [
             .generic: GenericContentParser(bundleIdentifier: "default"),
             .slack: SlackContentParser(),
+            .claude: ClaudeContentParser(),
             .browser: BrowserContentParser(bundleIdentifier: "browser"),
             .notion: NotionContentParser(bundleIdentifier: "notion"),
             .teams: TeamsContentParser(),
