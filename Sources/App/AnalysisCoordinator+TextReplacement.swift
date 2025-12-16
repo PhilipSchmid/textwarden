@@ -634,19 +634,21 @@ extension AnalysisCoordinator {
 
         // Claude: standard selection with newline offset adjustment
         // Claude's Chromium selection API treats newlines as zero-width, same as for underline positioning
+        // Note: Perplexity and ChatGPT use standard browser selection without newline offset
         if isClaude {
-            Logger.debug("Claude: Using selection with newline offset adjustment", category: Logger.analysis)
+            let appName = "Claude"
+            Logger.debug("\(appName): Using selection with newline offset adjustment", category: Logger.analysis)
 
             var currentTextRef: CFTypeRef?
             let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
 
             guard textResult == .success, let currentText = currentTextRef as? String else {
-                Logger.debug("Claude: Could not get current text", category: Logger.analysis)
+                Logger.debug("\(appName): Could not get current text", category: Logger.analysis)
                 return false
             }
 
             guard let textRange = currentText.range(of: targetText) else {
-                Logger.debug("Claude: Could not find target text in content", category: Logger.analysis)
+                Logger.debug("\(appName): Could not find target text in content", category: Logger.analysis)
                 return false
             }
 
@@ -661,11 +663,11 @@ extension AnalysisCoordinator {
             let utf16Range = TextIndexConverter.graphemeToUTF16Range(NSRange(location: startIndex, length: targetText.count), in: currentText)
             let adjustedLocation = max(0, utf16Range.location - newlineCount)
 
-            Logger.debug("Claude selection: grapheme \(startIndex) -> UTF-16 \(utf16Range.location) -> adjusted \(adjustedLocation) (newlines: \(newlineCount))", category: Logger.analysis)
+            Logger.debug("\(appName) selection: grapheme \(startIndex) -> UTF-16 \(utf16Range.location) -> adjusted \(adjustedLocation) (newlines: \(newlineCount))", category: Logger.analysis)
 
             var selectionRange = CFRange(location: adjustedLocation, length: utf16Range.length)
             guard let rangeValue = AXValueCreate(.cfRange, &selectionRange) else {
-                Logger.debug("Claude: Failed to create AXValue for range", category: Logger.analysis)
+                Logger.debug("\(appName): Failed to create AXValue for range", category: Logger.analysis)
                 return false
             }
 
@@ -676,9 +678,9 @@ extension AnalysisCoordinator {
             )
 
             if selectResult == .success {
-                Logger.debug("Claude: Selection succeeded at \(adjustedLocation)-\(adjustedLocation + utf16Range.length)", category: Logger.analysis)
+                Logger.debug("\(appName): Selection succeeded at \(adjustedLocation)-\(adjustedLocation + utf16Range.length)", category: Logger.analysis)
             } else {
-                Logger.debug("Claude: Selection failed (\(selectResult.rawValue)) - will try paste anyway", category: Logger.analysis)
+                Logger.debug("\(appName): Selection failed (\(selectResult.rawValue)) - will try paste anyway", category: Logger.analysis)
             }
             return true
         }
@@ -919,10 +921,12 @@ extension AnalysisCoordinator {
         // SPECIAL HANDLING FOR BROWSERS, ELECTRON APPS, MICROSOFT OFFICE, AND MAC CATALYST APPS
         let isSlack = context.bundleIdentifier == "com.tinyspeck.slackmacgap"
         let isClaude = context.bundleIdentifier == "com.anthropic.claudefordesktop"
+        let isPerplexity = context.bundleIdentifier == "ai.perplexity.mac"
+        let isChatGPT = context.bundleIdentifier == "com.openai.chat"
         let isMessages = context.bundleIdentifier == "com.apple.MobileSMS"
         let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
                                 context.bundleIdentifier == "com.microsoft.Powerpoint"
-        if context.isBrowser || isSlack || isClaude || isMessages || isMicrosoftOffice || context.isMacCatalystApp {
+        if context.isBrowser || isSlack || isClaude || isPerplexity || isChatGPT || isMessages || isMicrosoftOffice || context.isMacCatalystApp {
             await applyBrowserTextReplacementAsync(for: error, with: suggestion, element: element, context: context)
             return
         }
@@ -1115,6 +1119,15 @@ extension AnalysisCoordinator {
 
         // Mac Catalyst: use direct keyboard typing
         if context.isMacCatalystApp {
+            await performCatalystDirectTyping(suggestion: suggestion, currentError: currentError, pasteboard: pasteboard, originalString: originalString)
+            return
+        }
+
+        // Perplexity at position 0: use direct typing to avoid paragraph creation bug
+        // Perplexity's Chromium contenteditable creates new paragraphs when pasting at position 0
+        let isPerplexity = context.bundleIdentifier == "ai.perplexity.mac"
+        if isPerplexity && currentError.start == 0 {
+            Logger.debug("Perplexity position 0: Using direct typing to avoid paragraph bug", category: Logger.analysis)
             await performCatalystDirectTyping(suggestion: suggestion, currentError: currentError, pasteboard: pasteboard, originalString: originalString)
             return
         }

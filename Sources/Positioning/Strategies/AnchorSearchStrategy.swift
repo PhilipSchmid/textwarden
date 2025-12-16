@@ -102,7 +102,10 @@ class AnchorSearchStrategy: GeometryProvider {
             return nil
         }
         let errorText = nsText.substring(with: NSRange(location: originalLocationUTF16, length: errorEndUTF16 - originalLocationUTF16))
-        let errorWidth = max((errorText as NSString).size(withAttributes: attributes).width, 20.0)
+        // Use proportional minimum width (4px per character, min 8px) for narrow characters like "I"
+        let measuredWidth = (errorText as NSString).size(withAttributes: attributes).width
+        let proportionalMinWidth = max(CGFloat(errorText.count) * 4.0, 8.0)
+        let errorWidth = max(measuredWidth, proportionalMinWidth)
 
         Logger.debug("AnchorSearchStrategy: textBetweenWidth=\(textBetweenWidth), errorWidth=\(errorWidth)", category: Logger.ui)
 

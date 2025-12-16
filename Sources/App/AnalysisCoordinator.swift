@@ -150,6 +150,7 @@ class AnalysisCoordinator: ObservableObject {
     var contentStabilityCount = 0  // Count consecutive stable position samples (for resize)
     var lastCharacterBounds: CGRect?  // Track actual character position to detect content reflow
     var lastElementFrame: CGRect?  // Track AXUIElement frame for text field resize detection (Mac Catalyst)
+    var sidebarToggleStartTime: Date?  // Track when sidebar toggle started (for timeout)
 
     /// Scroll detection - uses global scroll wheel event observer
     var overlaysHiddenDueToScroll = false

@@ -245,11 +245,14 @@ extension AnalysisCoordinator {
 
         // Note: Scroll detection is now handled by global scrollWheelMonitor
 
-        // For Mac Catalyst apps: track the element frame (text input field) separately
-        // The window frame stays constant when sending messages, but the text field shrinks
+        // Track element frame separately for apps where the element can move without window changes:
+        // - Mac Catalyst apps: text input field shrinks when message sent
+        // - Electron apps: element shifts when sidebar is toggled (Slack, Claude, ChatGPT, Perplexity, etc.)
         if let context = textMonitor.currentContext {
-            if context.isMacCatalystApp {
-                checkElementFrameForCatalyst(element: element)
+            let bundleID = context.bundleIdentifier
+            let isElectronApp = ElectronDetector.usesWebTechnologies(bundleID)
+            if context.isMacCatalystApp || isElectronApp {
+                checkElementFrameForApps(element: element, isCatalyst: context.isMacCatalystApp)
             }
         }
 
@@ -294,10 +297,10 @@ extension AnalysisCoordinator {
         lastWindowFrame = currentFrame
     }
 
-    /// Check element frame changes for Mac Catalyst apps
-    /// Detects when the text input field shrinks (message sent) or grows (more text typed)
-    /// Also detects when the element position changes significantly (conversation switched)
-    func checkElementFrameForCatalyst(element: AXUIElement) {
+    /// Check element frame changes for Mac Catalyst and Electron apps
+    /// - Mac Catalyst: Detects message sent (shrink), typing (grow), conversation switch (position)
+    /// - Electron apps: Detects sidebar toggle (position change without window change)
+    func checkElementFrameForApps(element: AXUIElement, isCatalyst: Bool) {
         guard let currentElementFrame = AccessibilityBridge.getElementFrame(element) else {
             return
         }
@@ -312,21 +315,28 @@ extension AnalysisCoordinator {
             let significantPositionChange = positionChange > 10.0  // Element moved significantly
 
             if significantHeightChange || significantPositionChange {
-                if significantPositionChange {
-                    // Element position changed significantly - conversation was likely switched
-                    // Always trigger re-analysis (text content has changed)
-                    // This should happen regardless of current error state
-                    Logger.debug("Element monitoring: Element position changed by \(positionChange)px in Mac Catalyst app - triggering re-analysis (conversation switch)", category: Logger.analysis)
-                    handleConversationSwitchInChatApp(element: element)
-                } else if significantHeightChange && heightChange < 0 && (!currentErrors.isEmpty || floatingIndicator.isVisible) {
-                    // Text field shrunk - message was likely sent
-                    Logger.debug("Element monitoring: Text field shrunk by \(abs(heightChange))px in Mac Catalyst app - clearing errors", category: Logger.analysis)
-                    handleMessageSentInChatApp()
-                } else if significantHeightChange && heightChange > 0 && !currentErrors.isEmpty {
-                    // Text field grew - user is typing more, text positions shifted
-                    Logger.debug("Element monitoring: Text field grew by \(heightChange)px in Mac Catalyst app - invalidating positions", category: Logger.analysis)
-                    positionResolver.clearCache()
-                    errorOverlay.hide()
+                if isCatalyst {
+                    // Mac Catalyst-specific handling
+                    if significantPositionChange {
+                        // Element position changed significantly - conversation was likely switched
+                        Logger.debug("Element monitoring: Element position changed by \(positionChange)px in Mac Catalyst app - triggering re-analysis (conversation switch)", category: Logger.analysis)
+                        handleConversationSwitchInChatApp(element: element)
+                    } else if significantHeightChange && heightChange < 0 && (!currentErrors.isEmpty || floatingIndicator.isVisible) {
+                        // Text field shrunk - message was likely sent
+                        Logger.debug("Element monitoring: Text field shrunk by \(abs(heightChange))px in Mac Catalyst app - clearing errors", category: Logger.analysis)
+                        handleMessageSentInChatApp()
+                    } else if significantHeightChange && heightChange > 0 && !currentErrors.isEmpty {
+                        // Text field grew - user is typing more, text positions shifted
+                        Logger.debug("Element monitoring: Text field grew by \(heightChange)px in Mac Catalyst app - invalidating positions", category: Logger.analysis)
+                        positionResolver.clearCache()
+                        errorOverlay.hide()
+                    }
+                } else {
+                    // Electron app handling - sidebar toggle or UI layout change
+                    if significantPositionChange {
+                        Logger.debug("Element monitoring: Element position changed by \(positionChange)px in Electron app (sidebar toggle?) - refreshing underlines", category: Logger.analysis)
+                        handleElementPositionChangeInElectronApp()
+                    }
                 }
             }
         } else {
@@ -334,6 +344,81 @@ extension AnalysisCoordinator {
         }
 
         lastElementFrame = currentElementFrame
+    }
+
+    /// Handle element position change in Electron apps (e.g., sidebar toggle)
+    /// Clears position cache and waits for AX API to settle before refreshing underlines
+    func handleElementPositionChangeInElectronApp() {
+        // Clear position cache since element position changed
+        positionResolver.clearCache()
+
+        // Hide underlines immediately
+        errorOverlay.hide()
+
+        // Reset stability tracking for sidebar toggle
+        lastCharacterBounds = nil
+        contentStabilityCount = 0
+        sidebarToggleStartTime = Date()
+
+        // Wait for AX API to settle, then verify character bounds are stable
+        // Electron apps can take 300-500ms for AX layer to update after UI changes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            self?.waitForCharacterBoundsStability()
+        }
+    }
+
+    /// Wait for character bounds to stabilize after element position change
+    /// This ensures the AX API has fully updated before we recalculate underline positions
+    private func waitForCharacterBoundsStability() {
+        guard let element = textMonitor.monitoredElement,
+              let context = textMonitor.currentContext,
+              !currentErrors.isEmpty else { return }
+
+        // Maximum wait time of 1 second to prevent infinite loops
+        if let startTime = sidebarToggleStartTime,
+           Date().timeIntervalSince(startTime) > 1.0 {
+            Logger.debug("Element monitoring: Timeout waiting for stability - refreshing anyway", category: Logger.analysis)
+            positionResolver.clearCache()
+            let _ = errorOverlay.update(errors: currentErrors, element: element, context: context)
+            lastCharacterBounds = nil
+            contentStabilityCount = 0
+            sidebarToggleStartTime = nil
+            return
+        }
+
+        // Get current character bounds
+        let currentCharBounds = firstCharacterBounds(for: element)
+
+        if let lastBounds = lastCharacterBounds, let currBounds = currentCharBounds {
+            let positionDelta = hypot(currBounds.origin.x - lastBounds.origin.x,
+                                      currBounds.origin.y - lastBounds.origin.y)
+
+            if positionDelta < 3.0 {
+                // Bounds are stable - increment counter
+                contentStabilityCount += 1
+
+                // Require 2 consecutive stable samples (faster recovery)
+                if contentStabilityCount >= 2 {
+                    Logger.debug("Element monitoring: AX API settled - refreshing underlines", category: Logger.analysis)
+                    positionResolver.clearCache()
+                    let _ = errorOverlay.update(errors: currentErrors, element: element, context: context)
+                    lastCharacterBounds = nil
+                    contentStabilityCount = 0
+                    sidebarToggleStartTime = nil
+                    return
+                }
+            } else {
+                // Still changing - reset counter
+                contentStabilityCount = 0
+            }
+        }
+
+        lastCharacterBounds = currentCharBounds
+
+        // Check again after 80ms (faster polling)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+            self?.waitForCharacterBoundsStability()
+        }
     }
 
     /// Handle conversation switch in a Mac Catalyst chat app

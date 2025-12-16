@@ -88,6 +88,7 @@ final class AppRegistry {
         register(.teams)
         register(.claude)
         register(.chatgpt)
+        register(.perplexity)
         register(.browsers)
         register(.notion)
         register(.mail)
@@ -180,6 +181,34 @@ extension AppConfiguration {
             supportsFormattedText: false,
             childElementTraversal: true,
             delaysAXNotifications: true,  // ChatGPT batches AX notifications, needs keyboard detection
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: true  // Electron byte offsets are fragile
+        )
+    )
+
+    // MARK: - Perplexity
+
+    static let perplexity = AppConfiguration(
+        identifier: "perplexity",
+        displayName: "Perplexity",
+        bundleIDs: ["ai.perplexity.mac"],
+        category: .electron,
+        parserType: .generic,
+        fontConfig: FontConfig(
+            defaultSize: 16,
+            fontFamily: nil,
+            spacingMultiplier: 1.0
+        ),
+        horizontalPadding: 12,
+        // AnchorSearch works well, Chromium/RangeBounds fail for this app
+        preferredStrategies: [.anchorSearch, .textMarker, .elementTree],
+        features: AppFeatures(
+            visualUnderlinesEnabled: true,
+            textReplacementMethod: .browserStyle,
+            requiresTypingPause: true,
+            supportsFormattedText: false,
+            childElementTraversal: true,
+            delaysAXNotifications: true,  // Electron app, needs keyboard detection
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: true  // Electron byte offsets are fragile
         )

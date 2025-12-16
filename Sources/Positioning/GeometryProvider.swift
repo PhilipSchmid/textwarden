@@ -222,14 +222,17 @@ struct GeometryResult {
 enum ElectronDetector {
     /// Known Electron app bundle identifiers
     private static let electronBundleIDs: Set<String> = [
-        "com.tinyspeck.slackmacgap",  // Slack
-        "com.slite.desktop",           // Slite
-        "com.electron.app",            // Generic Electron
-        "com.github.atom",             // Atom
-        "com.vscodium",                // VSCodium
-        "com.discordapp.discord",      // Discord
-        "com.figma.Desktop",           // Figma
-        "notion.id",                   // Notion
+        "com.tinyspeck.slackmacgap",    // Slack
+        "com.anthropic.claudefordesktop", // Claude
+        "com.openai.chat",              // ChatGPT
+        "ai.perplexity.mac",            // Perplexity
+        "com.slite.desktop",            // Slite
+        "com.electron.app",             // Generic Electron
+        "com.github.atom",              // Atom
+        "com.vscodium",                 // VSCodium
+        "com.discordapp.discord",       // Discord
+        "com.figma.Desktop",            // Figma
+        "notion.id",                    // Notion
     ]
 
     /// Check if bundle ID indicates Electron app
