@@ -454,13 +454,16 @@ class TextMonitor: ObservableObject {
         Logger.debug("TextMonitor: extractText called", category: Logger.accessibility)
 
         var extractedText: String?
+        var alreadyPreprocessed = false
 
         // First, try app-specific extraction via ContentParser
         // This allows apps like Apple Mail to use custom extraction logic
         if let bundleID = currentContext?.bundleIdentifier {
             let parser = ContentParserFactory.shared.parser(for: bundleID)
             if let parserText = parser.extractText(from: element) {
-                Logger.debug("TextMonitor: Got text from parser (\(parserText.count) chars)", category: Logger.accessibility)
+                // Check if this parser returns already-preprocessed text
+                alreadyPreprocessed = parser.extractTextReturnsPreprocessed
+                Logger.debug("TextMonitor: Got text from parser (\(parserText.count) chars, preprocessed=\(alreadyPreprocessed))", category: Logger.accessibility)
                 extractedText = parserText
             }
         }
@@ -503,16 +506,24 @@ class TextMonitor: ObservableObject {
                 return
             }
 
-            // Apply app-specific text preprocessing
+            // Apply app-specific text preprocessing (unless extractText already did it)
             guard let context = currentContext else {
                 Logger.debug("TextMonitor: No current context available", category: Logger.accessibility)
                 return
             }
 
-            let parser = ContentParserFactory.shared.parser(for: context.bundleIdentifier)
-            guard let processedText = parser.preprocessText(text) else {
-                Logger.debug("TextMonitor: Preprocessing filtered out text - skipping analysis", category: Logger.accessibility)
-                return
+            let processedText: String
+            if alreadyPreprocessed {
+                // Text from extractText() is already preprocessed - use as-is
+                processedText = text
+            } else {
+                // Raw text from AXValue - needs preprocessing
+                let parser = ContentParserFactory.shared.parser(for: context.bundleIdentifier)
+                guard let preprocessed = parser.preprocessText(text) else {
+                    Logger.debug("TextMonitor: Preprocessing filtered out text - skipping analysis", category: Logger.accessibility)
+                    return
+                }
+                processedText = preprocessed
             }
 
             Logger.debug("TextMonitor: Handling text change (\(processedText.count) chars after preprocessing)", category: Logger.accessibility)

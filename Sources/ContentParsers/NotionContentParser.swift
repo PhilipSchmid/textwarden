@@ -35,13 +35,18 @@ class NotionContentParser: ContentParser {
 
     /// UI elements that Notion includes in AX text but should be filtered
     /// These are detected via exact match or prefix matching
+    /// Note: Notion uses curly quotes (U+2018 left, U+2019 right) in some UI text
     private static let notionUIElements: [String] = [
         "Add icon",
         "Add cover",
         "Add comment",
         "Type '/' for commands",
-        "Write, press 'space' for AI, '/' for commands",  // AI placeholder
-        "Write, press 'space' for AI",  // Shorter variant
+        "Type \u{2018}/\u{2019} for commands",  // Curly quotes variant (U+2018/U+2019)
+        "Write, press 'space' for AI, '/' for commands",  // AI placeholder (straight quotes)
+        "Write, press \u{2018}space\u{2019} for AI, \u{2018}/\u{2019} for commands",  // Curly quotes variant
+        "Write, press 'space' for AI",  // Shorter variant (straight quotes)
+        "Write, press \u{2018}space\u{2019} for AI",  // Curly quotes shorter variant
+        "Write, press \u{2018}space\u{2019}",  // Even shorter (what Notion actually sends)
         "Press Enter to continue with an empty page",
         "Untitled",
     ]
@@ -79,6 +84,68 @@ class NotionContentParser: ContentParser {
 
     // MARK: - Text Preprocessing
 
+    /// Check if a string is emoji-only (page icons, decorative elements)
+    /// Notion page icons are typically single grapheme clusters that aren't alphanumeric
+    private func isEmojiOnlyLine(_ line: String) -> Bool {
+        guard !line.isEmpty else { return false }
+
+        // Check if line is very short (1-3 grapheme clusters) and contains no letters/digits
+        // This catches emoji, symbols, and other non-text UI elements
+        let graphemeCount = line.count
+        guard graphemeCount <= 3 else { return false }
+
+        // Must not contain any letter or digit characters
+        // Use explicit check for letters and digits, ignoring variation selectors and other modifiers
+        for scalar in line.unicodeScalars {
+            // Skip variation selectors and other invisible modifiers
+            if scalar.value >= 0xFE00 && scalar.value <= 0xFE0F { continue }
+            if scalar.value >= 0xE0100 && scalar.value <= 0xE01EF { continue }
+
+            // Check if this is a letter or digit
+            if CharacterSet.letters.contains(scalar) || CharacterSet.decimalDigits.contains(scalar) {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    /// Strip leading non-alphanumeric characters (emoji, symbols) from a string
+    private func stripLeadingNonAlphanumeric(_ text: String) -> String {
+        var result = text
+        while let first = result.first {
+            let isAlphanumeric = first.unicodeScalars.allSatisfy { CharacterSet.alphanumerics.contains($0) }
+            if isAlphanumeric {
+                break
+            }
+            result.removeFirst()
+        }
+        return result
+    }
+
+    /// Check if a line should be filtered as a UI element
+    private func isUIElementLine(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+        // Empty lines
+        if trimmed.isEmpty { return true }
+
+        // Emoji-only lines (page icons)
+        if isEmojiOnlyLine(trimmed) { return true }
+
+        // Strip leading emoji/symbols and check for known UI elements
+        // This handles cases like "📓Add icon" where emoji prefixes the UI text
+        let strippedLine = stripLeadingNonAlphanumeric(trimmed)
+
+        // Check both original trimmed and stripped versions against UI elements
+        return Self.notionUIElements.contains { uiElement in
+            trimmed == uiElement ||
+            trimmed.hasPrefix(uiElement) ||
+            strippedLine == uiElement ||
+            strippedLine.hasPrefix(uiElement)
+        }
+    }
+
     /// Preprocess Notion text to filter out UI elements
     func preprocessText(_ text: String) -> String? {
         guard !text.isEmpty else { return nil }
@@ -86,17 +153,9 @@ class NotionContentParser: ContentParser {
         var lines = text.components(separatedBy: "\n")
         var removedChars = 0
 
-        // Remove leading empty lines and UI elements
+        // Remove leading empty lines, UI elements, and emoji-only lines (page icons)
         while let firstLine = lines.first {
-            let line = firstLine.trimmingCharacters(in: .whitespaces)
-
-            // Check if this line is a known UI element
-            let isUIElement = line.isEmpty ||
-                Self.notionUIElements.contains { uiElement in
-                    line == uiElement || line.hasPrefix(uiElement)
-                }
-
-            if isUIElement {
+            if isUIElementLine(firstLine) {
                 // Count characters being removed (line + newline)
                 removedChars += firstLine.count + 1
                 lines.removeFirst()
@@ -110,15 +169,7 @@ class NotionContentParser: ContentParser {
 
         // Also remove trailing UI elements (like placeholders at the end)
         while let lastLine = lines.last {
-            let line = lastLine.trimmingCharacters(in: .whitespaces)
-
-            // Check if this line is a known UI element
-            let isUIElement = line.isEmpty ||
-                Self.notionUIElements.contains { uiElement in
-                    line == uiElement || line.hasPrefix(uiElement)
-                }
-
-            if isUIElement {
+            if isUIElementLine(lastLine) {
                 lines.removeLast()
             } else {
                 break
@@ -128,11 +179,7 @@ class NotionContentParser: ContentParser {
         // Also filter UI elements from MIDDLE of content (e.g., placeholder on focused empty line)
         // Replace with empty line to preserve line count for position mapping
         lines = lines.map { line in
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            let isUIElement = Self.notionUIElements.contains { uiElement in
-                trimmed == uiElement || trimmed.hasPrefix(uiElement)
-            }
-            return isUIElement ? "" : line
+            return isUIElementLine(line) ? "" : line
         }
 
         let filteredText = lines.joined(separator: "\n")
@@ -211,6 +258,29 @@ class NotionContentParser: ContentParser {
 
     var disablesVisualUnderlines: Bool {
         return false  // Enable underlines - we have cursor-anchored positioning
+    }
+
+    /// Notion's extractText returns preprocessed text (UI elements already filtered)
+    var extractTextReturnsPreprocessed: Bool {
+        return true
+    }
+
+    // MARK: - Text Extraction
+
+    /// Custom text extraction that returns preprocessed text
+    /// CRITICAL: This ensures text validation compares the same text that was analyzed.
+    /// Without this, extractTextSynchronously() would return raw AX text (with UI elements),
+    /// while lastAnalyzedText has preprocessed text (UI elements filtered), causing mismatches.
+    func extractText(from element: AXUIElement) -> String? {
+        // Get raw text from AXValue
+        var value: CFTypeRef?
+        let error = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value)
+        guard error == .success, let text = value as? String else {
+            return nil
+        }
+
+        // Return preprocessed text (with UI elements filtered)
+        return preprocessText(text)
     }
 
     // MARK: - Bounds Adjustment
@@ -299,15 +369,13 @@ class NotionContentParser: ContentParser {
             )
         }
 
-        // Strategy 3: Fall back to element frame + text measurement
-        // This uses filtered text positions, which is correct for line counting
-        return calculatePositionFromElementFrame(
-            element: element,
-            errorRange: errorRange,
-            textBeforeError: textBeforeError,
-            errorText: correctedErrorText,  // Use corrected text
-            fullText: fullText
-        )
+        // Strategy 3: Graceful degradation
+        // The element frame + paragraph-based fallback doesn't work reliably for Notion
+        // because Notion's AX text has newlines that don't correspond to visual line breaks
+        // (each block may be on its own AX line even if visually on the same line).
+        // It's better to hide underlines than show them at wrong positions.
+        Logger.debug("NotionContentParser: AX APIs failed, returning unavailable for graceful degradation", category: Logger.ui)
+        return nil
     }
 
     // MARK: - Cursor Anchor Approach

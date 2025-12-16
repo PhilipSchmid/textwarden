@@ -177,7 +177,7 @@ TextWarden uses the macOS Accessibility API and works with most applications. Vi
 | **Chrome, Comet** | Full | Full |
 | **Apple Mail** | Full | Full |
 | **Apple Messages** | Full | Full |
-| **Notion** | Full | Full |
+| **Notion** | Full | Indicator only* |
 | **Telegram** | Full | Full |
 | **WhatsApp** | Full | Full |
 | **Webex** | Full | Full |
@@ -186,11 +186,12 @@ TextWarden uses the macOS Accessibility API and works with most applications. Vi
 | **Microsoft Excel** | Not supported | N/A |
 | **Microsoft Teams** | Full | Indicator only* |
 
-*\*These apps use a floating indicator instead of inline underlines due to accessibility API limitations. Microsoft Word crashes (EXC_BAD_INSTRUCTION in mso99) when applications query parameterized accessibility attributes like AXBoundsForRange, so visual underlines are disabled.*
+*\*These apps use a floating indicator instead of inline underlines due to accessibility API limitations. Microsoft Word crashes (EXC_BAD_INSTRUCTION in mso99) when querying parameterized accessibility attributes. Notion's block-based structure causes AX text newlines that don't match visual line breaks, making underline positioning unreliable.*
 
 *\*\*PowerPoint exposes only the Notes section via the macOS Accessibility API. Slide text boxes are not accessible programmatically, so grammar checking is limited to speaker notes.*
 
-*Note: Terminal apps are not supported as their accessibility APIs typically don't expose text content in a way that's useful for grammar checking.*
+> [!NOTE]
+> Terminal apps are not supported as their accessibility APIs typically don't expose text content in a way that's useful for grammar checking.
 
 **Other applications**: TextWarden works with most apps that support standard text editing. Grammar checking and the floating error indicator work broadly; visual underlines may vary. [Request support](https://github.com/philipschmid/textwarden/discussions) for additional apps.
 

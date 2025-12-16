@@ -122,9 +122,18 @@ struct SentenceContextView: View {
                 break
             }
 
-            // Newline acts as sentence boundary when it's a line break in a list
-            // (detected by checking if current line starts with a list marker)
+            // Newline acts as sentence boundary when:
+            // 1. It's part of a paragraph break (multiple consecutive newlines)
+            // 2. It's a line break in a list (followed by list marker)
             if char.isNewline {
+                // Check for multiple consecutive newlines (paragraph break)
+                // This is especially important for Notion's block-based structure
+                if searchIndex < sourceText.endIndex && sourceText[searchIndex].isNewline {
+                    // Double newline found - treat as paragraph boundary
+                    sentenceStart = searchIndex
+                    break
+                }
+
                 // Check if this newline starts a new logical sentence (e.g., list item)
                 var checkIndex = searchIndex
                 // Skip whitespace after newline
@@ -246,7 +255,9 @@ struct SentenceContextView: View {
             let relativeStartScalar = err.start - sentenceStartScalarOffset
             let relativeEndScalar = err.end - sentenceStartScalarOffset
 
-            guard relativeStartScalar >= 0, relativeEndScalar <= sentence.unicodeScalars.count else { continue }
+            guard relativeStartScalar >= 0, relativeEndScalar <= sentence.unicodeScalars.count else {
+                continue
+            }
 
             // Convert scalar indices to String.Index using the helper
             if let startIdx = scalarIndexToStringIndex(relativeStartScalar, in: sentence),

@@ -99,6 +99,11 @@ protocol ContentParser {
     /// - Returns: Extracted text, or nil to fall back to standard extraction
     func extractText(from element: AXUIElement) -> String?
 
+    /// Whether extractText() returns already-preprocessed text
+    /// When true, TextMonitor skips calling preprocessText() on the result
+    /// Default is false - most parsers return raw text that needs preprocessing
+    var extractTextReturnsPreprocessed: Bool { get }
+
     /// Whether this parser wants to disable visual underlines
     /// Used for apps where positioning is unreliable (terminals, some Electron apps)
     /// When true, errors will use alternative notification (floating indicator)
@@ -164,6 +169,11 @@ extension ContentParser {
     /// Default: no custom extraction, use standard AXValue
     func extractText(from element: AXUIElement) -> String? {
         return nil
+    }
+
+    /// Default: extractText returns raw text that needs preprocessing
+    var extractTextReturnsPreprocessed: Bool {
+        return false
     }
 
     /// Default: allow visual underlines

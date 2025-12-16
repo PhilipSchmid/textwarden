@@ -297,8 +297,12 @@ extension AppConfiguration {
             spacingMultiplier: 1.0
         ),
         horizontalPadding: 0,
+        // Notion's block-based structure causes AX text to have newlines that don't match
+        // visual line breaks (each block may be on its own AX line). Standard AX bounds APIs
+        // return unreliable results. Visual underlines disabled; floating indicator works.
+        preferredStrategies: [],
         features: AppFeatures(
-            visualUnderlinesEnabled: true,
+            visualUnderlinesEnabled: false,  // Disabled due to unreliable Notion AX positioning
             textReplacementMethod: .browserStyle,
             requiresTypingPause: true,
             supportsFormattedText: false,

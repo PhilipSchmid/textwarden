@@ -319,13 +319,23 @@ pub fn analyze_text(
 
                 let is_sentence_start = span.start == 0 || {
                     // Check if preceded by sentence-ending punctuation (., !, ?)
+                    // OR by paragraph break (multiple newlines, as in Notion blocks)
                     text.get(..byte_offset)
-                        .and_then(|prefix| {
-                            prefix
+                        .map(|prefix| {
+                            // Check for paragraph break: 2+ consecutive newlines
+                            let has_paragraph_break = prefix.ends_with("\n\n")
+                                || prefix.ends_with("\r\n\r\n")
+                                || prefix.ends_with("\n\r\n");
+
+                            // Check for sentence-ending punctuation
+                            let has_sentence_end = prefix
                                 .trim_end()
                                 .chars()
                                 .last()
                                 .map(|c| c == '.' || c == '!' || c == '?')
+                                .unwrap_or(false);
+
+                            has_paragraph_break || has_sentence_end
                         })
                         .unwrap_or(false)
                 };
