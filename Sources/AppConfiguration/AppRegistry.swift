@@ -87,6 +87,7 @@ final class AppRegistry {
         register(.slack)
         register(.teams)
         register(.claude)
+        register(.chatgpt)
         register(.browsers)
         register(.notion)
         register(.mail)
@@ -152,6 +153,33 @@ extension AppConfiguration {
             supportsFormattedText: false,  // Claude input is plain text
             childElementTraversal: true,
             delaysAXNotifications: false,
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: true  // Electron byte offsets are fragile
+        )
+    )
+
+    // MARK: - ChatGPT (OpenAI)
+
+    static let chatgpt = AppConfiguration(
+        identifier: "chatgpt",
+        displayName: "ChatGPT",
+        bundleIDs: ["com.openai.chat"],
+        category: .electron,
+        parserType: .generic,  // RangeBoundsStrategy works well
+        fontConfig: FontConfig(
+            defaultSize: 16,
+            fontFamily: nil,
+            spacingMultiplier: 1.0
+        ),
+        horizontalPadding: 12,
+        preferredStrategies: [.rangeBounds, .textMarker, .elementTree, .lineIndex],
+        features: AppFeatures(
+            visualUnderlinesEnabled: true,
+            textReplacementMethod: .browserStyle,
+            requiresTypingPause: true,
+            supportsFormattedText: false,
+            childElementTraversal: true,
+            delaysAXNotifications: true,  // ChatGPT batches AX notifications, needs keyboard detection
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: true  // Electron byte offsets are fragile
         )

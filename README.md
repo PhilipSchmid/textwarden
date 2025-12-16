@@ -171,6 +171,7 @@ TextWarden uses the macOS Accessibility API and works with most applications. Vi
 |-------------|-----------------|-------------------|
 | **Slack** | Full | Full |
 | **Claude** | Full | Full |
+| **ChatGPT** | Full | Full |
 | **Safari** | Full | Full |
 | **Chrome, Comet** | Full | Full |
 | **Apple Mail** | Full | Full |
