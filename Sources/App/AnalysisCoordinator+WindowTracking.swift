@@ -84,6 +84,14 @@ extension AnalysisCoordinator {
             return
         }
 
+        // CRITICAL: Check watchdog BEFORE making any AX calls
+        // This prevents freeze when Outlook Copilot or other overlays make AX API unresponsive
+        let bundleID = textMonitor.currentContext?.bundleIdentifier ?? "unknown"
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.debug("Text validation: Skipping - watchdog active for \(bundleID)", category: Logger.analysis)
+            return
+        }
+
         // Don't validate immediately after a replacement - wait for text to settle
         // Browser/Catalyst text replacement can take 0.5-0.7 seconds total, plus delayed AX notifications
         // Use 1.5s grace period to match handleTextChange for consistency
@@ -198,9 +206,16 @@ extension AnalysisCoordinator {
     /// Extract text from an AXUIElement synchronously
     /// Used by text validation timer to check if content has changed
     func extractTextSynchronously(from element: AXUIElement) -> String? {
+        // CRITICAL: Check watchdog BEFORE making any AX calls
+        let bundleID = textMonitor.currentContext?.bundleIdentifier ?? "unknown"
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.debug("extractTextSynchronously: Skipping - watchdog active for \(bundleID)", category: Logger.analysis)
+            return nil
+        }
+
         // First, try app-specific extraction via ContentParser
-        if let bundleID = textMonitor.currentContext?.bundleIdentifier {
-            let parser = contentParserFactory.parser(for: bundleID)
+        if let parserBundleID = textMonitor.currentContext?.bundleIdentifier {
+            let parser = contentParserFactory.parser(for: parserBundleID)
             if let parserText = parser.extractText(from: element) {
                 return parserText
             }
@@ -227,6 +242,14 @@ extension AnalysisCoordinator {
             lastWindowFrame = nil
             lastElementFrame = nil
             DebugBorderWindow.clearAll()
+            return
+        }
+
+        // CRITICAL: Check watchdog BEFORE making any AX calls
+        // This prevents freeze when Outlook or other overlays make AX API unresponsive
+        let bundleID = textMonitor.currentContext?.bundleIdentifier ?? "unknown"
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.debug("Window monitoring: Skipping position check - watchdog active for \(bundleID)", category: Logger.analysis)
             return
         }
 
@@ -846,6 +869,13 @@ extension AnalysisCoordinator {
     /// Bounds of the first character in the text element
     /// This tracks actual content position, not just the element container
     func firstCharacterBounds(for element: AXUIElement) -> CGRect? {
+        // CRITICAL: Check watchdog BEFORE making any AX calls
+        let bundleID = textMonitor.currentContext?.bundleIdentifier ?? "unknown"
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.debug("firstCharacterBounds: Skipping - watchdog active for \(bundleID)", category: Logger.analysis)
+            return nil
+        }
+
         // Try to get bounds for character at index 0
         var boundsValue: CFTypeRef?
         var mutableRange = CFRangeMake(0, 1)
@@ -896,6 +926,13 @@ extension AnalysisCoordinator {
     /// AX window position for the given element (walks up to find window)
     /// Returns position in Quartz coordinates (top-left origin) for comparison with CGWindow
     func axWindowPosition(for element: AXUIElement) -> CGPoint? {
+        // CRITICAL: Check watchdog BEFORE making any AX calls
+        let bundleID = textMonitor.currentContext?.bundleIdentifier ?? "unknown"
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.debug("axWindowPosition: Skipping - watchdog active for \(bundleID)", category: Logger.analysis)
+            return nil
+        }
+
         // Walk up to find the window element
         var windowElement: AXUIElement?
         var currentElement: AXUIElement? = element
@@ -931,6 +968,13 @@ extension AnalysisCoordinator {
     /// AX element position directly (for stability checking)
     /// Returns position in Quartz coordinates (top-left origin)
     func axElementPosition(for element: AXUIElement) -> CGPoint? {
+        // CRITICAL: Check watchdog BEFORE making any AX calls
+        let bundleID = textMonitor.currentContext?.bundleIdentifier ?? "unknown"
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.debug("axElementPosition: Skipping - watchdog active for \(bundleID)", category: Logger.analysis)
+            return nil
+        }
+
         return AccessibilityBridge.getElementPosition(element)
     }
 

@@ -32,6 +32,12 @@ class TextMonitor: ObservableObject {
     /// Debounce timer for text changes
     private var debounceTimer: Timer?
 
+    /// Element pending text extraction (used when defersTextExtraction is true)
+    private var pendingExtractionElement: AXUIElement?
+
+    /// Timer for deferred extraction (separate from regular debounce)
+    private var deferredExtractionTimer: Timer?
+
     /// Default debounce interval in seconds
     private let defaultDebounceInterval: TimeInterval = TimingConstants.defaultDebounce
 
@@ -46,8 +52,14 @@ class TextMonitor: ObservableObject {
             return defaultDebounceInterval
         }
 
-        // Use AppRegistry to determine if app needs typing pause
         let appConfig = AppRegistry.shared.configuration(for: bundleID)
+
+        // Slow app debounce (deferred extraction apps like Outlook)
+        if appConfig.features.defersTextExtraction {
+            return TimingConstants.slowAppDebounce
+        }
+
+        // Chromium debounce (typing pause apps like Slack)
         if appConfig.features.requiresTypingPause {
             return chromiumDebounceInterval
         }
@@ -91,6 +103,15 @@ class TextMonitor: ObservableObject {
         self.currentContext = context
 
         let appElement = AXUIElementCreateApplication(processID)
+
+        // CRITICAL: Set messaging timeout on the app element to prevent freezes
+        // The system-wide timeout doesn't apply to app-specific elements!
+        // Without this, AX calls to slow apps (like Outlook) can block indefinitely.
+        // 1.0s is the industry standard timeout - combined with deferred text extraction for slow apps.
+        let timeoutResult = AXUIElementSetMessagingTimeout(appElement, 1.0)
+        if timeoutResult != .success {
+            Logger.warning("TextMonitor: Failed to set AX timeout for \(appName): \(timeoutResult.rawValue)", category: Logger.accessibility)
+        }
 
         // Enable manual accessibility for Electron apps (and all apps)
         // This is required for Electron apps like Slack, Discord, VS Code, etc.
@@ -159,6 +180,9 @@ class TextMonitor: ObservableObject {
         currentContext = nil
         debounceTimer?.invalidate()
         debounceTimer = nil
+        deferredExtractionTimer?.invalidate()
+        deferredExtractionTimer = nil
+        pendingExtractionElement = nil
     }
 
     /// Monitor the focused UI element
@@ -166,16 +190,26 @@ class TextMonitor: ObservableObject {
         let maxAttempts = RetryConfig.accessibilityAPI.maxAttempts
         Logger.debug("TextMonitor: Getting focused element... (attempt \(retryAttempt + 1)/\(maxAttempts + 1))", category: Logger.accessibility)
 
+        // CRITICAL: Check watchdog before AX calls
+        let bundleID = currentContext?.bundleIdentifier ?? "unknown"
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.debug("TextMonitor: Skipping getFocusedElement - watchdog active for \(bundleID)", category: Logger.accessibility)
+            return
+        }
+
+        // Track AX call with watchdog
+        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXFocusedUIElement")
         var focusedElement: CFTypeRef?
         let error = AXUIElementCopyAttributeValue(
             appElement,
             kAXFocusedUIElementAttribute as CFString,
             &focusedElement
         )
+        AXWatchdog.shared.endCall()
 
         guard error == .success, let element = focusedElement else {
-            // Retry if we haven't reached max attempts
-            if retryAttempt < maxAttempts {
+            // Retry if we haven't reached max attempts AND watchdog isn't active
+            if retryAttempt < maxAttempts && !AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
                 scheduleRetry(attempt: retryAttempt) { [weak self] in
                     self?.monitorFocusedElement(in: appElement, retryAttempt: retryAttempt + 1)
                 }
@@ -282,6 +316,16 @@ class TextMonitor: ObservableObject {
     fileprivate func monitorElement(_ element: AXUIElement, retryAttempt: Int = 0) {
         let maxAttempts = RetryConfig.accessibilityAPI.maxAttempts
         Logger.debug("TextMonitor: monitorElement called (attempt \(retryAttempt + 1)/\(maxAttempts + 1))", category: Logger.accessibility)
+
+        // CRITICAL: Check watchdog before any AX calls
+        let bundleID = currentContext?.bundleIdentifier ?? "unknown"
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.debug("TextMonitor: monitorElement skipping - watchdog active for \(bundleID)", category: Logger.accessibility)
+            return
+        }
+
+        // Set timeout on the element to ensure all subsequent calls are protected
+        AXUIElementSetMessagingTimeout(element, 1.0)
 
         guard let observer = observer else {
             Logger.debug("TextMonitor: No observer available", category: Logger.accessibility)
@@ -496,29 +540,55 @@ class TextMonitor: ObservableObject {
     func extractText(from element: AXUIElement) {
         Logger.debug("TextMonitor: extractText called", category: Logger.accessibility)
 
+        // CRITICAL: Check watchdog at the START before any AX calls
+        let bundleID = currentContext?.bundleIdentifier ?? "unknown"
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.debug("TextMonitor: extractText skipping - watchdog active for \(bundleID)", category: Logger.accessibility)
+            return
+        }
+
         var extractedText: String?
         var alreadyPreprocessed = false
 
         // First, try app-specific extraction via ContentParser
         // This allows apps like Apple Mail to use custom extraction logic
+        // NOTE: Parser's extractText internally makes AX calls - timeout is already set on element
         if let bundleID = currentContext?.bundleIdentifier {
+            AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "parser.extractText")
             let parser = ContentParserFactory.shared.parser(for: bundleID)
-            if let parserText = parser.extractText(from: element) {
+            let parserText = parser.extractText(from: element)
+            AXWatchdog.shared.endCall()
+
+            // Check if watchdog triggered during parser extraction
+            if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+                Logger.debug("TextMonitor: Aborting - watchdog triggered during parser extraction", category: Logger.accessibility)
+                return
+            }
+
+            if let text = parserText {
                 // Check if this parser returns already-preprocessed text
                 alreadyPreprocessed = parser.extractTextReturnsPreprocessed
-                Logger.debug("TextMonitor: Got text from parser (\(parserText.count) chars, preprocessed=\(alreadyPreprocessed))", category: Logger.accessibility)
-                extractedText = parserText
+                Logger.debug("TextMonitor: Got text from parser (\(text.count) chars, preprocessed=\(alreadyPreprocessed))", category: Logger.accessibility)
+                extractedText = text
             }
         }
 
         // Fall back to standard AXValue extraction
         if extractedText == nil {
+            AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXValue")
             var value: CFTypeRef?
             let valueError = AXUIElementCopyAttributeValue(
                 element,
                 kAXValueAttribute as CFString,
                 &value
             )
+            AXWatchdog.shared.endCall()
+
+            // Check if watchdog triggered
+            if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+                Logger.debug("TextMonitor: Aborting - watchdog triggered during AXValue extraction", category: Logger.accessibility)
+                return
+            }
 
             if valueError == .success, let textValue = value as? String, !textValue.isEmpty {
                 Logger.debug("TextMonitor: Got AXValue text (\(textValue.count) chars)", category: Logger.accessibility)
@@ -526,12 +596,14 @@ class TextMonitor: ObservableObject {
             } else {
                 Logger.debug("TextMonitor: AXValue empty or failed (error: \(valueError.rawValue)), trying AXSelectedText", category: Logger.accessibility)
                 // Fallback: try AXSelectedText
+                AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXSelectedText")
                 var selectedText: CFTypeRef?
                 let selectedError = AXUIElementCopyAttributeValue(
                     element,
                     kAXSelectedTextAttribute as CFString,
                     &selectedText
                 )
+                AXWatchdog.shared.endCall()
 
                 if selectedError == .success, let selected = selectedText as? String {
                     Logger.debug("TextMonitor: Got AXSelectedText (\(selected.count) chars)", category: Logger.accessibility)
@@ -604,6 +676,43 @@ class TextMonitor: ObservableObject {
             }
         }
     }
+
+    /// Handle text change with deferred extraction for slow apps.
+    /// Instead of extracting text immediately (which blocks), we store the element
+    /// and wait for typing to pause before making AX calls. This reduces AX calls
+    /// by 5-10x during rapid typing, preventing UI freezes.
+    fileprivate func handleDeferredTextChange(element: AXUIElement) {
+        guard currentContext != nil else { return }
+
+        // Store element for later extraction
+        pendingExtractionElement = element
+
+        // IMMEDIATE: Notify about typing (for hiding overlays)
+        // This uses cached text, no AX calls
+        TypingDetector.shared.notifyTextChange()
+        ChromiumStrategy.notifyTextChange()
+
+        // Invalidate existing timer
+        deferredExtractionTimer?.invalidate()
+
+        // Set new timer - extraction happens after debounce
+        deferredExtractionTimer = Timer.scheduledTimer(
+            withTimeInterval: debounceInterval,
+            repeats: false
+        ) { [weak self] _ in
+            guard let self = self else { return }
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self,
+                      let element = self.pendingExtractionElement else { return }
+
+                // NOW extract text (typing has paused)
+                Logger.debug("TextMonitor: Deferred extraction - typing paused, extracting text now", category: Logger.accessibility)
+                self.extractText(from: element)
+                self.pendingExtractionElement = nil
+            }
+        }
+    }
 }
 
 // MARK: - AX Observer Callback
@@ -624,13 +733,44 @@ private func axObserverCallback(
 
     let monitor = Unmanaged<TextMonitor>.fromOpaque(userData).takeUnretainedValue()
 
+    // CRITICAL: Set timeout on the element BEFORE any AX calls
+    // Elements from callbacks don't inherit timeout from our app element!
+    // Without this, AX calls can block indefinitely on slow apps (Outlook)
+    // Note: This is safe to call from any thread. 1.0s is industry standard timeout.
+    let timeoutResult = AXUIElementSetMessagingTimeout(element, 1.0)
+    if timeoutResult != .success {
+        Logger.debug("axObserverCallback: Failed to set element timeout: \(timeoutResult.rawValue)", category: Logger.accessibility)
+    }
+
     let notificationName = notification as String
 
     // Dispatch to main actor since TextMonitor is @MainActor isolated
     Task { @MainActor in
+        // CRITICAL: Check watchdog BEFORE doing ANYTHING with AX
+        // If this app is blacklisted due to slow AX, skip all processing
+        // Note: currentContext access must happen on MainActor
+        let bundleID = monitor.currentContext?.bundleIdentifier ?? "unknown"
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.debug("axObserverCallback: Skipping - watchdog active for \(bundleID)", category: Logger.accessibility)
+            return
+        }
+
         if notificationName == kAXValueChangedNotification as String {
-            Logger.debug("axObserverCallback: Value changed - extracting text", category: Logger.accessibility)
-            monitor.extractText(from: element)
+            Logger.debug("axObserverCallback: Value changed - checking extraction mode", category: Logger.accessibility)
+
+            // Check if this app uses deferred extraction (for slow AX APIs like Outlook)
+            let appConfig = AppRegistry.shared.configuration(for: bundleID)
+            let shouldDefer = appConfig.features.defersTextExtraction ||
+                              AXWatchdog.shared.shouldDeferExtraction(for: bundleID)
+
+            if shouldDefer {
+                // Deferred path: store element, defer extraction until typing pauses
+                Logger.trace("axObserverCallback: Using deferred extraction for \(bundleID)", category: Logger.accessibility)
+                monitor.handleDeferredTextChange(element: element)
+            } else {
+                // Normal path: extract immediately
+                monitor.extractText(from: element)
+            }
         } else if notificationName == kAXFocusedUIElementChangedNotification as String {
             Logger.debug("axObserverCallback: Focus changed - monitoring new element", category: Logger.accessibility)
             monitor.monitorElement(element)
@@ -719,6 +859,14 @@ extension TextMonitor {
             return nil
         }
 
+        // CRITICAL: Check watchdog to abort early if AX API becomes unresponsive
+        // This prevents tree traversal from freezing when Outlook activates
+        let bundleID = currentContext?.bundleIdentifier ?? "unknown"
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.debug("TextMonitor: Aborting tree traversal - watchdog active for \(bundleID)", category: Logger.accessibility)
+            return nil
+        }
+
         var childrenRef: CFTypeRef?
         let result = AXUIElementCopyAttributeValue(
             element,
@@ -742,10 +890,16 @@ extension TextMonitor {
                 return nil
             }
 
+            // Check watchdog periodically during traversal
+            if elementsChecked % 10 == 0 && AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+                Logger.debug("TextMonitor: Aborting traversal mid-loop - watchdog active", category: Logger.accessibility)
+                return nil
+            }
+
             if isEditableElement(child) {
                 // Additional check: for Word, ensure element is valid content (not toolbar)
-                if let bundleID = currentContext?.bundleIdentifier {
-                    if !isValidContentElement(child, bundleID: bundleID) {
+                if let appBundleID = currentContext?.bundleIdentifier {
+                    if !isValidContentElement(child, bundleID: appBundleID) {
                         Logger.trace("TextMonitor: Skipping element - not valid content for app", category: Logger.accessibility)
                         continue
                     }
@@ -756,6 +910,12 @@ extension TextMonitor {
 
         // Second pass: recursively search children, but skip non-editable containers
         for child in childrenToCheck {
+            // Check watchdog before recursing
+            if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+                Logger.debug("TextMonitor: Aborting recursive traversal - watchdog active", category: Logger.accessibility)
+                return nil
+            }
+
             // Get role to check if we should skip recursing
             var role: CFTypeRef?
             AXUIElementCopyAttributeValue(child, kAXRoleAttribute as CFString, &role)

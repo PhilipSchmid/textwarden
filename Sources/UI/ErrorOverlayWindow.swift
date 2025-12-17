@@ -195,6 +195,15 @@ class ErrorOverlayWindow: NSPanel {
 
         // Check if visual underlines are enabled for this app
         let bundleID = context?.bundleIdentifier ?? "unknown"
+
+        // CRITICAL: Check watchdog BEFORE making any AX calls
+        // If this app is blacklisted or watchdog is busy, skip ALL AX calls in this function
+        // This prevents freezing on apps with slow/hanging AX implementations (like Microsoft Office)
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.debug("ErrorOverlay: Skipping update - watchdog protection active for \(bundleID)", category: Logger.ui)
+            hide()
+            return 0
+        }
         let appConfig = AppRegistry.shared.configuration(for: bundleID)
         let parser = ContentParserFactory.shared.parser(for: bundleID)
 
@@ -245,7 +254,19 @@ class ErrorOverlayWindow: NSPanel {
         var elementFrame: CGRect
 
         // Strategy 1: Try AX API to get text field bounds
-        if let frame = getElementFrameInCocoaCoords(element) {
+        // CRITICAL: Track with watchdog so timeout triggers immediate blacklisting
+        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXPosition/AXSize")
+        let frameResult = getElementFrameInCocoaCoords(element)
+        AXWatchdog.shared.endCall()
+
+        // Abort immediately if watchdog detected slow call
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.warning("ErrorOverlay: Aborting - watchdog triggered during frame query", category: Logger.ui)
+            hide()
+            return 0
+        }
+
+        if let frame = frameResult {
             elementFrame = frame
             Logger.debug("ErrorOverlay: Got text field bounds from AX API: \(elementFrame)", category: Logger.ui)
         }
@@ -296,24 +317,56 @@ class ErrorOverlayWindow: NSPanel {
         Logger.debug("ErrorOverlay: Window positioned at \(elementFrame)", category: Logger.ui)
 
         // Extract full text once for all positioning calculations
-        var textValue: CFTypeRef?
-        let textError = AXUIElementCopyAttributeValue(
-            element,
-            kAXValueAttribute as CFString,
-            &textValue
-        )
+        // Use timeout wrapper to prevent freeze on slow AX APIs
+        // CRITICAL: Track with watchdog so timeout triggers immediate blacklisting
+        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXValue")
+        var fullText: String?
+        let textCompleted = executeWithTimeout(seconds: 1.5) {
+            var textValue: CFTypeRef?
+            let textError = AXUIElementCopyAttributeValue(
+                element,
+                kAXValueAttribute as CFString,
+                &textValue
+            )
+            if textError == .success, let text = textValue as? String {
+                fullText = text
+            }
+        }
+        AXWatchdog.shared.endCall()
 
-        guard textError == .success, let fullText = textValue as? String else {
-            Logger.debug("ErrorOverlay: Could not extract text from element for positioning", category: Logger.ui)
+        // Abort immediately if watchdog detected slow call
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.warning("ErrorOverlay: Aborting - watchdog triggered during text extraction", category: Logger.ui)
             hide()
             return 0
         }
+
+        guard textCompleted, let extractedText = fullText else {
+            if !textCompleted {
+                Logger.warning("ErrorOverlay: AXValue extraction timed out", category: Logger.ui)
+            } else {
+                Logger.debug("ErrorOverlay: Could not extract text from element for positioning", category: Logger.ui)
+            }
+            hide()
+            return 0
+        }
+        let fullTextValue = extractedText
 
 
         // Get visible character range to filter out off-screen errors
         // Note: Some apps (like Mail's WebKit) return Int.max for visibleRange which is invalid
         // Note: Mac Catalyst apps (like Messages) return {0, 0} which means "unsupported"
+        // CRITICAL: Track with watchdog so timeout triggers immediate blacklisting
+        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXVisibleCharacterRange")
         var visibleRange = AccessibilityBridge.getVisibleCharacterRange(element)
+        AXWatchdog.shared.endCall()
+
+        // Abort immediately if watchdog detected slow call (prevents cascading timeouts)
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.warning("ErrorOverlay: Aborting - watchdog triggered during visible range query", category: Logger.ui)
+            hide()
+            return 0
+        }
         if let vr = visibleRange {
             // Sanity check: if location is absurdly large (> 1 billion chars), it's invalid
             // This happens with Mail's WebKit which returns Int64.max
@@ -358,7 +411,7 @@ class ErrorOverlayWindow: NSPanel {
             let geometryResult = parser.resolvePosition(
                 for: errorRange,
                 in: element,
-                text: fullText,
+                text: fullTextValue,
                 actualBundleID: bundleID
             )
 

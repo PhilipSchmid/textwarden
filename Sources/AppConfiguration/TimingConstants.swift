@@ -19,6 +19,11 @@ enum TimingConstants {
     /// Debounce interval for Chromium/Electron apps (1s due to AX quirks)
     static let chromiumDebounce: TimeInterval = 1.0
 
+    /// Debounce interval for apps with slow AX APIs (Outlook, etc.)
+    /// Longer than default to reduce AX call frequency during rapid typing.
+    /// Used when defersTextExtraction is true.
+    static let slowAppDebounce: TimeInterval = 0.8
+
     /// Debounce interval for style analysis (2s to avoid excessive LLM calls)
     static let styleDebounce: TimeInterval = 2.0
 

@@ -6,7 +6,7 @@
 //  Uses AppRegistry to determine which strategies to use for each app.
 //
 
-import Foundation
+import AppKit
 import ApplicationServices
 
 /// Position resolution engine with multiple strategies
@@ -133,14 +133,43 @@ class PositionResolver {
             return cached
         }
 
+        // Check watchdog BEFORE making any AX calls
+        // These pre-strategy AX calls can also hang on misbehaving apps
+        let watchdogActive = AXWatchdog.shared.shouldSkipCalls(for: bundleID)
+
+        // FAIL-FAST: If app is already blacklisted, skip everything immediately
+        if watchdogActive {
+            Logger.debug("PositionResolver: Skipping - watchdog active for \(bundleID)", category: Logger.accessibility)
+            return GeometryResult.unavailable(reason: "AX API unresponsive - skipping positioning")
+        }
+
         // Check visibility BEFORE attempting positioning
-        if !AccessibilityBridge.isRangeVisible(errorRange, in: element) {
+        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXVisibleCharacterRange")
+        let isVisible = AccessibilityBridge.isRangeVisible(errorRange, in: element)
+        AXWatchdog.shared.endCall()
+
+        // FAIL-FAST: If visibility check caused blacklisting (timed out), abort immediately
+        // This prevents wasting 50+ seconds trying strategies that will all fail
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.warning("PositionResolver: AX timeout detected - aborting positioning for \(bundleID)", category: Logger.accessibility)
+            return GeometryResult.unavailable(reason: "AX API unresponsive (Copilot or overlay active?)")
+        }
+
+        if !isVisible {
             Logger.debug("PositionResolver: Range \(errorRange) is not visible - skipping positioning", category: Logger.accessibility)
             return GeometryResult.unavailable(reason: "Range not visible (scrolled out of view)")
         }
 
         // Get edit area frame for validation
+        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXPosition/AXSize")
         let editAreaFrame = AccessibilityBridge.getEditAreaFrame(element)
+        AXWatchdog.shared.endCall()
+
+        // FAIL-FAST: Check again after frame query
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.warning("PositionResolver: AX timeout detected - aborting positioning for \(bundleID)", category: Logger.accessibility)
+            return GeometryResult.unavailable(reason: "AX API unresponsive (Copilot or overlay active?)")
+        }
 
         // Get strategies for this app (filtered and ordered by AppRegistry)
         let strategies = strategiesForApp(bundleID: bundleID)
@@ -148,6 +177,12 @@ class PositionResolver {
         Logger.debug("PositionResolver: Trying \(strategies.count) strategies for bundleID: \(bundleID)", category: Logger.ui)
 
         for strategy in strategies {
+            // FAIL-FAST: Check watchdog before each strategy to catch timeouts early
+            if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+                Logger.warning("PositionResolver: AX timeout during strategy loop - aborting", category: Logger.accessibility)
+                return GeometryResult.unavailable(reason: "AX API became unresponsive during positioning")
+            }
+
             Logger.debug("  Trying strategy: \(strategy.strategyName) (tier: \(strategy.tier.description))", category: Logger.ui)
 
             // Check if strategy can handle this element (technical capability check)

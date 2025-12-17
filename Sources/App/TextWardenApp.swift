@@ -47,6 +47,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Log build information for debugging
         Logger.info("Build Info - Version: \(BuildInfo.fullVersion), Built: \(BuildInfo.buildTimestamp) (\(BuildInfo.buildAge))", category: Logger.lifecycle)
 
+        // CRITICAL: Set global timeout for Accessibility API calls
+        // The default is 6 seconds which causes severe freezing with apps that have slow AX implementations
+        // (e.g., Microsoft Office overlays). Setting to 1.0s is the industry standard and
+        // provides a reasonable upper bound while preventing severe freezes.
+        // When timeout expires, AX calls return kAXErrorCannotComplete instead of blocking indefinitely.
+        // Reference: https://github.com/lwouis/alt-tab-macos uses this same approach.
+        // NOTE: For apps with slow AX (Outlook), we also use deferred text extraction
+        // to reduce the frequency of AX calls during typing - see defersTextExtraction flag.
+        let axTimeout: Float = 1.0
+        let timeoutResult = AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), axTimeout)
+        if timeoutResult == .success {
+            Logger.info("Set global AX messaging timeout to \(axTimeout)s", category: Logger.accessibility)
+        } else {
+            Logger.warning("Failed to set AX messaging timeout: \(timeoutResult.rawValue)", category: Logger.accessibility)
+        }
+
         // Initialize unified logging (Rust → Swift bridge)
         Logger.registerRustLogCallback()
 

@@ -350,6 +350,32 @@ flowchart TB
 **Standard Method:** Directly set `AXValue` attribute (native apps)
 **Browser Method:** Copy to clipboard, paste via Cmd+V (Electron, browsers)
 
+### Deferred Text Extraction
+
+For apps with slow Accessibility APIs (e.g., Outlook), extracting text on every keystroke causes accumulated blocking that freezes the UI. TextWarden uses **deferred text extraction** to reduce AX API load.
+
+**Problem:** Each `AXValueChangedNotification` triggers `extractText()` which makes blocking AX calls. During rapid typing, these accumulate:
+```
+Keystroke → extractText() [blocks] → Keystroke → extractText() [blocks] → ...
+```
+
+**Solution:** For slow apps, defer extraction until typing pauses:
+```
+Keystroke → store element → Keystroke → store element → [pause] → extractText() [once]
+```
+
+**Configuration:**
+- `AppFeatures.defersTextExtraction` - Explicit opt-in for known slow apps (e.g., Outlook)
+- `AXWatchdog.shouldDeferExtraction()` - Dynamic detection based on observed latency
+
+**Dynamic Detection:** `AXWatchdog` tracks AX call latency per app. If average latency exceeds 0.3s over recent calls, deferred extraction activates automatically—no configuration needed.
+
+**Timing:**
+- `TimingConstants.slowAppDebounce` (0.8s) - Debounce interval for deferred extraction
+- Native AX timeout (1.0s) - Industry-standard safety net
+
+This reduces AX calls by 5-10x during rapid typing while keeping all positioning strategies intact.
+
 ## Threading Model
 
 ### Main Thread

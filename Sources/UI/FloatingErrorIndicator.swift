@@ -218,6 +218,16 @@ class FloatingErrorIndicator: NSPanel {
         sourceText: String = ""
     ) {
         Logger.debug("FloatingErrorIndicator: update() called with \(errors.count) errors, \(styleSuggestions.count) style suggestions", category: Logger.ui)
+
+        // CRITICAL: Check watchdog BEFORE making any AX calls
+        // Skip positioning if the app is blacklisted (AX API unresponsive)
+        let bundleID = context?.bundleIdentifier ?? "unknown"
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.debug("FloatingErrorIndicator: Skipping - watchdog active for \(bundleID)", category: Logger.ui)
+            hide()
+            return
+        }
+
         self.errors = errors
         self.styleSuggestions = styleSuggestions
         self.monitoredElement = element

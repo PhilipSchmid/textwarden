@@ -71,6 +71,23 @@ func safeAXValueGetRange(_ value: CFTypeRef) -> CFRange? {
     return range
 }
 
+// MARK: - Timeout Wrapper
+
+/// Execute a closure with a timeout. Returns true if completed within timeout, false if timed out.
+/// The closure runs on a background thread, so the main thread is NOT blocked.
+/// WARNING: If the closure times out, it continues running in the background - use for read-only operations only.
+func executeWithTimeout(seconds: TimeInterval, closure: @escaping () -> Void) -> Bool {
+    let semaphore = DispatchSemaphore(value: 0)
+
+    DispatchQueue.global(qos: .userInitiated).async {
+        closure()
+        semaphore.signal()
+    }
+
+    let result = semaphore.wait(timeout: .now() + seconds)
+    return result == .success
+}
+
 // MARK: - AX Call Watchdog
 
 /// Watchdog that detects and blacklists apps with slow/hanging AX calls.
@@ -102,17 +119,21 @@ final class AXWatchdog {
     // MARK: - Configuration
 
     /// How long an AX call can take before we consider the app "slow" and blacklist it
-    private let hangThreshold: TimeInterval = 3.0
+    /// Set to 0.8s - triggers blacklisting slightly before the 1.0s native timeout returns,
+    /// so subsequent fail-fast checks immediately see the blacklist
+    private let hangThreshold: TimeInterval = 0.8
 
     /// How long to blacklist an app after detecting a hang
     private let blacklistDuration: TimeInterval = 30.0
 
     /// Check interval for the watchdog timer
-    private let checkInterval: TimeInterval = 0.5
+    /// Check every 0.1s to quickly detect hangs (must be less than hangThreshold)
+    private let checkInterval: TimeInterval = 0.1
 
     /// Maximum time to consider the worker "busy" before allowing new calls.
     /// If exceeded, we consider the worker stuck and allow new calls (blacklist handles prevention).
-    private let maxBusyTime: TimeInterval = 5.0
+    /// Set to 1.2s - slightly longer than the 1.0s timeout to account for overhead.
+    private let maxBusyTime: TimeInterval = 1.2
 
     // MARK: - State
 
@@ -134,6 +155,17 @@ final class AXWatchdog {
 
     /// Watchdog timer
     private var watchdogTimer: DispatchSourceTimer?
+
+    // MARK: - Latency Tracking
+
+    /// Latency samples per app for adaptive mode detection
+    private var latencySamples: [String: [TimeInterval]] = [:]
+
+    /// Maximum latency samples to keep per app
+    private let maxLatencySamples = 20
+
+    /// Threshold above which we consider an app "slow" and should defer extraction
+    private let slowAppLatencyThreshold: TimeInterval = 0.3
 
     // MARK: - Initialization
 
@@ -212,7 +244,75 @@ final class AXWatchdog {
         lock.lock()
         defer { lock.unlock() }
 
+        // Record latency for dynamic slow-app detection
+        if let call = activeCall {
+            let duration = Date().timeIntervalSince(call.startTime)
+            recordLatency(duration, for: call.bundleID)
+        }
+
         activeCall = nil
+    }
+
+    // MARK: - Latency Tracking Methods
+
+    /// Record a completed AX call duration for latency tracking
+    private func recordLatency(_ duration: TimeInterval, for bundleID: String) {
+        var samples = latencySamples[bundleID] ?? []
+        samples.append(duration)
+        if samples.count > maxLatencySamples {
+            samples.removeFirst()
+        }
+        latencySamples[bundleID] = samples
+    }
+
+    /// Average latency for an app (returns nil if not enough samples)
+    func averageLatency(for bundleID: String) -> TimeInterval? {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard let samples = latencySamples[bundleID], samples.count >= 3 else { return nil }
+        return samples.reduce(0, +) / Double(samples.count)
+    }
+
+    /// Check if app should use deferred extraction based on observed latency.
+    /// This provides dynamic detection of slow apps even if not explicitly configured.
+    func shouldDeferExtraction(for bundleID: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+
+        // Always defer if blacklisted
+        if let expirationTime = blacklist[bundleID], Date() < expirationTime {
+            return true
+        }
+
+        // Defer if average latency exceeds threshold
+        if let samples = latencySamples[bundleID], samples.count >= 3 {
+            let avgLatency = samples.reduce(0, +) / Double(samples.count)
+            if avgLatency > slowAppLatencyThreshold {
+                Logger.debug("AXWatchdog: Dynamic defer for \(bundleID) - avg latency \(String(format: "%.3f", avgLatency))s > threshold", category: Logger.accessibility)
+                return true
+            }
+        }
+
+        return false
+    }
+
+    /// Explicitly blacklist an app (called when timeout wrappers detect a slow call)
+    /// This allows immediate blacklisting without waiting for the background timer.
+    func blacklistApp(_ bundleID: String, reason: String) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        // Don't log if already blacklisted
+        guard blacklist[bundleID] == nil else { return }
+
+        Logger.warning("AXWatchdog: Blacklisting \(bundleID) - \(reason)", category: Logger.accessibility)
+        blacklist[bundleID] = Date().addingTimeInterval(blacklistDuration)
+
+        // Clear active call if it was for this app
+        if activeCall?.bundleID == bundleID {
+            activeCall = nil
+        }
     }
 }
 
@@ -226,69 +326,70 @@ enum AccessibilityBridge {
     /// Returns the range of characters currently visible on screen
     /// CRITICAL: Check visibility BEFORE attempting any positioning
     static func getVisibleCharacterRange(_ element: AXUIElement) -> NSRange? {
-        var value: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(
-            element,
-            "AXVisibleCharacterRange" as CFString,
-            &value
-        )
+        var result: NSRange?
 
-        guard result == .success, let axValue = value else {
-            Logger.debug("AccessibilityBridge: AXVisibleCharacterRange not available", category: Logger.accessibility)
-            return nil
+        // 1.5s timeout gives buffer beyond native 1.0s timeout for overhead
+        let completed = executeWithTimeout(seconds: 1.5) {
+            var value: CFTypeRef?
+            let axResult = AXUIElementCopyAttributeValue(
+                element,
+                "AXVisibleCharacterRange" as CFString,
+                &value
+            )
+
+            guard axResult == .success, let axValue = value else {
+                Logger.debug("AccessibilityBridge: AXVisibleCharacterRange not available", category: Logger.accessibility)
+                return
+            }
+
+            guard let range = safeAXValueGetRange(axValue) else {
+                Logger.debug("AccessibilityBridge: Could not extract CFRange from AXVisibleCharacterRange", category: Logger.accessibility)
+                return
+            }
+
+            result = NSRange(location: range.location, length: range.length)
         }
 
-        guard let range = safeAXValueGetRange(axValue) else {
-            Logger.debug("AccessibilityBridge: Could not extract CFRange from AXVisibleCharacterRange", category: Logger.accessibility)
-            return nil
+        if !completed {
+            Logger.warning("AccessibilityBridge: getVisibleCharacterRange timed out", category: Logger.accessibility)
         }
 
-        return NSRange(location: range.location, length: range.length)
+        return result
     }
 
     /// Check if a range is within the visible character range
     /// Returns true if range overlaps with visible area, false otherwise
     /// Used to skip positioning for text that's scrolled out of view
+    /// NOTE: getVisibleCharacterRange() has timeout protection built-in
     static func isRangeVisible(_ range: NSRange, in element: AXUIElement) -> Bool {
-        guard let visibleRange = getVisibleCharacterRange(element) else {
-            // If we can't determine visibility, assume it's visible
+        // getVisibleCharacterRange() already has 0.2s timeout wrapper
+        guard let vr = getVisibleCharacterRange(element) else {
+            // If timed out or couldn't determine visibility, assume it's visible
             return true
         }
 
         // Sanity check: if visible range location is absurdly large (> 1 billion chars), it's invalid
         // This happens with Mail's WebKit which returns Int64.max
-        if visibleRange.location > 1_000_000_000 || visibleRange.length > 1_000_000_000 {
-            Logger.debug("AccessibilityBridge: Visible range is invalid (\(visibleRange)), assuming visible", category: Logger.accessibility)
+        if vr.location > 1_000_000_000 || vr.length > 1_000_000_000 {
+            Logger.debug("AccessibilityBridge: Visible range is invalid (\(vr)), assuming visible", category: Logger.accessibility)
             return true
-        }
-
-        // Sanity check: validate against actual text length to catch smaller invalid values
-        var textLengthRef: CFTypeRef?
-        if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &textLengthRef) == .success,
-           let textLength = textLengthRef as? Int,
-           textLength > 0 {
-            // Visible range should not exceed text length
-            if visibleRange.location > textLength || visibleRange.location + visibleRange.length > textLength {
-                Logger.debug("AccessibilityBridge: Visible range \(visibleRange) exceeds text length \(textLength), assuming visible", category: Logger.accessibility)
-                return true
-            }
         }
 
         // Sanity check: if visible range has zero length, the app doesn't properly support this API
         // This happens with Mac Catalyst apps like Messages which return {0, 0}
-        if visibleRange.length == 0 {
-            Logger.debug("AccessibilityBridge: Visible range has zero length (\(visibleRange)), assuming visible", category: Logger.accessibility)
+        if vr.length == 0 {
+            Logger.debug("AccessibilityBridge: Visible range has zero length (\(vr)), assuming visible", category: Logger.accessibility)
             return true
         }
 
         // Check if ranges overlap
         let rangeEnd = range.location + range.length
-        let visibleEnd = visibleRange.location + visibleRange.length
+        let visibleEnd = vr.location + vr.length
 
-        let overlaps = range.location < visibleEnd && rangeEnd > visibleRange.location
+        let overlaps = range.location < visibleEnd && rangeEnd > vr.location
 
         if !overlaps {
-            Logger.debug("AccessibilityBridge: Range \(range) is outside visible range \(visibleRange)", category: Logger.accessibility)
+            Logger.debug("AccessibilityBridge: Range \(range) is outside visible range \(vr)", category: Logger.accessibility)
         }
 
         return overlaps
@@ -957,55 +1058,79 @@ enum AccessibilityBridge {
 
     /// Get element frame in Quartz coordinates
     /// Returns the frame (position + size) of an AXUIElement, or nil if unavailable
+    /// NOTE: Uses timeout to prevent freezing on slow AX implementations
     static func getElementFrame(_ element: AXUIElement) -> CGRect? {
-        var positionValue: CFTypeRef?
-        var sizeValue: CFTypeRef?
+        var result: CGRect?
 
-        let positionResult = AXUIElementCopyAttributeValue(
-            element,
-            kAXPositionAttribute as CFString,
-            &positionValue
-        )
+        // 1.5s timeout gives buffer beyond native 1.0s timeout for overhead
+        let completed = executeWithTimeout(seconds: 1.5) {
+            var positionValue: CFTypeRef?
+            var sizeValue: CFTypeRef?
 
-        let sizeResult = AXUIElementCopyAttributeValue(
-            element,
-            kAXSizeAttribute as CFString,
-            &sizeValue
-        )
+            let positionResult = AXUIElementCopyAttributeValue(
+                element,
+                kAXPositionAttribute as CFString,
+                &positionValue
+            )
 
-        guard positionResult == .success,
-              sizeResult == .success,
-              let position = positionValue,
-              let size = sizeValue else {
-            return nil
+            let sizeResult = AXUIElementCopyAttributeValue(
+                element,
+                kAXSizeAttribute as CFString,
+                &sizeValue
+            )
+
+            guard positionResult == .success,
+                  sizeResult == .success,
+                  let position = positionValue,
+                  let size = sizeValue else {
+                return
+            }
+
+            guard let origin = safeAXValueGetPoint(position),
+                  let rectSize = safeAXValueGetSize(size) else {
+                return
+            }
+
+            result = CGRect(origin: origin, size: rectSize)
         }
 
-        guard let origin = safeAXValueGetPoint(position),
-              let rectSize = safeAXValueGetSize(size) else {
-            return nil
+        if !completed {
+            Logger.warning("AccessibilityBridge: getElementFrame timed out", category: Logger.accessibility)
         }
 
-        return CGRect(origin: origin, size: rectSize)
+        return result
     }
 
     /// Get element position in Quartz coordinates
     /// Returns the position (origin) of an AXUIElement, or nil if unavailable
+    /// NOTE: Uses timeout to prevent freezing on slow AX implementations
     static func getElementPosition(_ element: AXUIElement) -> CGPoint? {
-        var positionValue: CFTypeRef?
+        var result: CGPoint?
 
-        let positionResult = AXUIElementCopyAttributeValue(
-            element,
-            kAXPositionAttribute as CFString,
-            &positionValue
-        )
+        // 1.5s timeout gives buffer beyond native 1.0s timeout for overhead
+        let completed = executeWithTimeout(seconds: 1.5) {
+            var positionValue: CFTypeRef?
 
-        guard positionResult == .success,
-              let position = positionValue,
-              let point = safeAXValueGetPoint(position) else {
-            return nil
+            let positionResult = AXUIElementCopyAttributeValue(
+                element,
+                kAXPositionAttribute as CFString,
+                &positionValue
+            )
+
+            guard positionResult == .success,
+                  let position = positionValue,
+                  let point = safeAXValueGetPoint(position) else {
+                return
+            }
+
+            result = point
         }
 
-        return point
+        if !completed {
+            Logger.warning("AccessibilityBridge: getElementPosition timed out", category: Logger.accessibility)
+        }
+
+        return result
     }
 
     /// Find the window element containing the given element

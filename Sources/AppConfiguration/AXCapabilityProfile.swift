@@ -95,7 +95,8 @@ struct AXCapabilityProfile: Codable {
             childElementTraversal: true,  // Safe default - enables element tree search
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
-            requiresFullReanalysisAfterReplacement: true  // Conservative - safe for all apps
+            requiresFullReanalysisAfterReplacement: true,  // Conservative - safe for all apps
+            defersTextExtraction: false  // Dynamic detection handles slow apps
         )
     }
 

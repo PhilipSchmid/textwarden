@@ -115,6 +115,13 @@ struct AppFeatures: Equatable {
     /// When true, all errors are cleared and fresh analysis is triggered after replacement.
     let requiresFullReanalysisAfterReplacement: Bool
 
+    /// Whether to defer text extraction until typing pauses.
+    /// For apps with slow AX APIs (like Outlook), extracting text on every
+    /// keystroke causes accumulated blocking that freezes the app. When true, text
+    /// extraction is deferred until after a longer debounce interval, reducing
+    /// AX calls by 5-10x during rapid typing.
+    let defersTextExtraction: Bool
+
     static let standard = AppFeatures(
         visualUnderlinesEnabled: true,
         textReplacementMethod: .standard,
@@ -123,7 +130,8 @@ struct AppFeatures: Equatable {
         childElementTraversal: false,
         delaysAXNotifications: false,
         focusBouncesDuringPaste: false,
-        requiresFullReanalysisAfterReplacement: false
+        requiresFullReanalysisAfterReplacement: false,
+        defersTextExtraction: false
     )
 }
 
@@ -143,7 +151,8 @@ extension AppCategory {
                 childElementTraversal: false,
                 delaysAXNotifications: false,
                 focusBouncesDuringPaste: false,
-                requiresFullReanalysisAfterReplacement: false
+                requiresFullReanalysisAfterReplacement: false,
+                defersTextExtraction: false
             )
         case .electron:
             return AppFeatures(
@@ -154,7 +163,8 @@ extension AppCategory {
                 childElementTraversal: true,
                 delaysAXNotifications: false,  // Most Electron apps send notifications immediately
                 focusBouncesDuringPaste: false,
-                requiresFullReanalysisAfterReplacement: true  // Electron byte offsets are fragile
+                requiresFullReanalysisAfterReplacement: true,  // Electron byte offsets are fragile
+                defersTextExtraction: false
             )
         case .browser:
             return AppFeatures(
@@ -165,7 +175,8 @@ extension AppCategory {
                 childElementTraversal: true,
                 delaysAXNotifications: false,
                 focusBouncesDuringPaste: false,
-                requiresFullReanalysisAfterReplacement: true  // Browser byte offsets are fragile
+                requiresFullReanalysisAfterReplacement: true,  // Browser byte offsets are fragile
+                defersTextExtraction: false
             )
         case .custom:
             return .standard
