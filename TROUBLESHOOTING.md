@@ -53,13 +53,13 @@ Then restart TextWarden to see the changes.
 Visual underlines rely on macOS Accessibility APIs to determine character positions. Not all applications expose accurate positioning data.
 
 **Supported applications**: Visual underlines have been tested and calibrated for:
-- Slack
-- Safari and other Chromium-based browsers (Chrome, Edge, Arc, Brave)
-- Apple Mail
-- Apple Messages
-- Notion
+- Slack, Claude, ChatGPT, Perplexity
+- Safari and other Chromium-based browsers (Chrome, Edge, Arc, Brave, Comet)
+- Apple Mail, Apple Messages
+- Telegram, WhatsApp, Webex
+- Microsoft Outlook
 
-For other applications, the floating error indicator (red dot) always works as a fallback. If you'd like visual underlines for a specific app that isn't listed above, please open a [feature request](https://github.com/philipschmid/textwarden/discussions) describing the app and how you use it.
+For other applications (including Notion, Microsoft Teams, Word, PowerPoint), the floating error indicator works as a fallback. If you'd like visual underlines for a specific app that isn't listed above, please open a [feature request](https://github.com/philipschmid/textwarden/discussions) describing the app and how you use it.
 
 **If underlines appear offset in a supported app**:
 
@@ -89,7 +89,7 @@ You can configure the log level in Settings under the Advanced section.
 The easiest way to collect all diagnostic information is to use the built-in export feature:
 
 1. Open TextWarden Settings
-2. Go to the **Advanced** tab
+2. Go to the **Diagnostics** tab
 3. Click **Export Diagnostics**
 4. Save the diagnostic package
 

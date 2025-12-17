@@ -216,7 +216,7 @@ static let myApp = AppConfiguration(
     identifier: "myapp",
     displayName: "My App",
     bundleIDs: ["com.example.myapp"],
-    category: .electron,  // .native, .electron, .browser, .terminal
+    category: .electron,  // .native, .electron, .browser, .custom
     parserType: .generic,
     fontConfig: FontConfig(defaultSize: 14, fontFamily: nil, spacingMultiplier: 1.0),
     horizontalPadding: 8,
@@ -226,7 +226,12 @@ static let myApp = AppConfiguration(
         requiresTypingPause: true,
         supportsFormattedText: false,
         childElementTraversal: true,
-        delaysAXNotifications: false
+        delaysAXNotifications: false,
+        focusBouncesDuringPaste: false,
+        requiresFullReanalysisAfterReplacement: true,
+        defersTextExtraction: false,
+        requiresFrameValidation: false,
+        hasTextMarkerIndexOffset: false
     )
 )
 
@@ -248,7 +253,7 @@ Use Accessibility Inspector (Xcode → Open Developer Tool) to test if the app's
 | `.native` | Standard macOS apps | Full functionality |
 | `.electron` | Electron apps (Slack, VSCode) | May need custom positioning |
 | `.browser` | Web browsers | Underlines usually disabled |
-| `.terminal` | Terminal emulators | Text parsing only |
+| `.custom` | Apps with unique behavior | Fully custom configuration |
 
 ## Code Style
 
