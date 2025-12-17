@@ -356,11 +356,21 @@ sign_update() {
 
     echo -e "${BLUE}Signing update with Sparkle...${NC}" >&2
 
-    local signature=$("$sparkle_bin/sign_update" "$dmg_path" 2>/dev/null)
+    local raw_signature=$("$sparkle_bin/sign_update" "$dmg_path" 2>/dev/null)
 
-    if [[ -z "$signature" ]]; then
+    if [[ -z "$raw_signature" ]]; then
         echo -e "${RED}Failed to sign update${NC}" >&2
         exit 1
+    fi
+
+    # Extract just the base64 signature from Sparkle's output
+    # Format: sparkle:edSignature="<base64>" length="<size>"
+    local signature
+    if [[ "$raw_signature" =~ edSignature=\"([^\"]+)\" ]]; then
+        signature="${BASH_REMATCH[1]}"
+    else
+        # Fallback: use as-is if already just the signature
+        signature="$raw_signature"
     fi
 
     echo -e "${GREEN}Update signed${NC}" >&2
