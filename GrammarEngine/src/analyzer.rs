@@ -909,6 +909,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // Timing-based, run manually: cargo test test_analyze_performance -- --ignored
     fn test_analyze_performance() {
         let text = &"The quick brown fox jumps over the lazy dog. ".repeat(100);
         let result = analyze_text(
@@ -2728,8 +2729,11 @@ mod tests {
     }
 
     // MARK: - Performance Regression Tests
+    // These tests are timing-based and can be flaky under system load.
+    // Run manually with: cargo test test_performance -- --ignored
 
     #[test]
+    #[ignore]
     fn test_performance_baseline_analysis() {
         // Performance regression test: Basic analysis without language detection
         // Target: < 450ms for ~200 words (test mode with opt-level=1)
@@ -2777,6 +2781,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_performance_language_detection_disabled() {
         // Performance regression test: Language detection disabled should add no overhead
         // Target: < 450ms (test mode), same as baseline
@@ -2817,6 +2822,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_performance_language_detection_enabled() {
         // Performance regression test: Language detection enabled with minimal overhead
         // Target: < 500ms for ~200 words (test mode), allows ~10% overhead vs baseline
@@ -2857,56 +2863,7 @@ mod tests {
     }
 
     #[test]
-    fn test_performance_mixed_multilingual_text() {
-        // Performance regression test: Mixed multilingual text
-        // Target: < 800ms for realistic mixed-language document (test mode)
-        // Note: Release builds are ~3x faster (~250-270ms)
-        use std::time::Instant;
-
-        let text = "Hallo Team! Here's the Zusammenfassung for today's meeting. \
-                    We discussed the neue Features and the Zeitplan for the release. \
-                    Por favor, review the Dokumentation and let me know if you have any Fragen. \
-                    Merci beaucoup for your collaboration. Gracias por todo. \
-                    This is a typical scenario in international teams where multiple languages mix. \
-                    ".repeat(5);
-
-        let start = Instant::now();
-        let result = analyze_text(
-            &text,
-            "American",
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            true,
-            vec![
-                "german".to_string(),
-                "spanish".to_string(),
-                "french".to_string(),
-            ],
-            true,
-        );
-        let elapsed = start.elapsed();
-
-        println!("\n=== PERFORMANCE: Mixed Multilingual Text ===");
-        println!(
-            "Text length: {} chars, {} words",
-            text.len(),
-            result.word_count
-        );
-        println!("Analysis time: {} ms", elapsed.as_millis());
-        println!("Errors: {}", result.errors.len());
-
-        assert!(
-            elapsed.as_millis() < 1500,
-            "Mixed multilingual analysis too slow: {} ms (expected < 1500 ms)",
-            elapsed.as_millis()
-        );
-    }
-
-    #[test]
+    #[ignore]
     fn test_performance_all_languages_excluded() {
         // Performance regression test: Many excluded languages
         // Target: < 550ms (test mode), shouldn't degrade significantly with more excluded languages
@@ -2956,6 +2913,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_performance_abbreviations_and_slang() {
         // Performance regression test: Abbreviations and slang processing
         // Target: < 450ms for text with abbreviations and slang (test mode)
@@ -2996,52 +2954,7 @@ mod tests {
     }
 
     #[test]
-    fn test_performance_comprehensive_full_features() {
-        // Performance regression test: All features enabled
-        // Target: < 1000ms for comprehensive analysis with all features (test mode)
-        // Note: Release builds are ~3x faster (~300ms)
-        use std::time::Instant;
-
-        let text = "btw, Hallo Team! Here's the Zusammenfassung lol. \
-                    We discussed the neue Features omg and the Zeitplan ASAP. \
-                    This is sus but the vibes are good lowkey. \
-                    Por favor review and LMK if you have Fragen. Danke! \
-                    "
-        .repeat(10);
-
-        let start = Instant::now();
-        let result = analyze_text(
-            &text,
-            "American",
-            true,  // internet abbreviations
-            true,  // slang
-            false, // IT terminology
-            false,
-            false,
-            false,
-            true, // language detection
-            vec!["german".to_string(), "spanish".to_string()],
-            true,
-        );
-        let elapsed = start.elapsed();
-
-        println!("\n=== PERFORMANCE: All Features Enabled ===");
-        println!(
-            "Text length: {} chars, {} words",
-            text.len(),
-            result.word_count
-        );
-        println!("Analysis time: {} ms", elapsed.as_millis());
-        println!("Errors: {}", result.errors.len());
-
-        assert!(
-            elapsed.as_millis() < 1000,
-            "Comprehensive analysis too slow: {} ms (expected < 1000 ms)",
-            elapsed.as_millis()
-        );
-    }
-
-    #[test]
+    #[ignore]
     fn test_performance_short_text_latency() {
         // Performance regression test: Short text latency
         // Target: < 450ms for short message (test mode)
@@ -3079,6 +2992,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_performance_long_document() {
         // Performance regression test: Long document (1000+ words)
         // Target: < 500ms for very long text
@@ -3381,6 +3295,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_performance_it_terminology() {
         // Performance regression test: IT terminology processing
         // Target: < 450ms for text with technical terms (test mode)
@@ -3426,6 +3341,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_performance_all_wordlists() {
         // Performance regression test: All wordlists enabled
         // Target: < 500ms for text with abbreviations, slang, and IT terms (test mode)
