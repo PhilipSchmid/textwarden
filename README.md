@@ -16,7 +16,7 @@ TextWarden checks your spelling and grammar while you type - in any app on your 
 </p>
 
 > [!WARNING]
-> **Alpha Software**: TextWarden is in early development and you will encounter bugs - some keyboard shortcuts may conflict with specific apps, visual underlines might be misaligned, or certain applications may not work as expected. That said, it's stable enough for daily use and I'd love for you to try it! Your bug reports help make TextWarden better for everyone. Found something broken? [Report it here](#support).
+> **Alpha Software**: TextWarden is in early development and you will encounter bugs - some keyboard shortcuts may conflict with specific apps, visual underlines might be misaligned, or certain applications may not work as expected. Much like printers and projectors that still mysteriously fail on first try after decades of existence, macOS Accessibility APIs and the apps that implement them each have their own quirks that require app-specific tuning. That said, it should be stable enough for daily use and I'd love for you to try it! Your bug reports help make TextWarden better for everyone. Found something broken? [Report it here](#support).
 
 ## Why TextWarden?
 
@@ -24,7 +24,7 @@ TextWarden checks your spelling and grammar while you type - in any app on your 
 Your text stays on your Mac. No cloud servers, no accounts, no data collection. Works completely offline.
 
 **Blazingly Fast**
-Powered by Harper, a high-performance Rust-based grammar engine. Checks complete in milliseconds.
+Powered by Harper, a high-performance Rust-based grammar engine.
 
 **Works Everywhere**
 Integrates with most macOS apps through the Accessibility API - Mail, Notes, Pages, Safari, Slack, and more.
