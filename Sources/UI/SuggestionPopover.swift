@@ -132,7 +132,7 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     /// Check if popover is currently visible
     var isVisible: Bool {
-        return panel?.isVisible == true && currentError != nil
+        return panel?.isVisible == true && (currentError != nil || currentStyleSuggestion != nil)
     }
 
     // MARK: - Initialization
