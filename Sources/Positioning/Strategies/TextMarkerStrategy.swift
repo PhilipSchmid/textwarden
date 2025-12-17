@@ -70,21 +70,58 @@ class TextMarkerStrategy: GeometryProvider {
         // Track AX calls with watchdog
         AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXTextMarkerForIndex")
 
+        // Check if this app needs index offset detection
+        let appConfig = AppRegistry.shared.configuration(for: bundleID)
+        var indexOffset = 0
+
+        // Only probe for index offset if the app is known to have this issue
+        // This avoids extra AX calls for apps that don't need it
+        if appConfig.features.hasTextMarkerIndexOffset {
+            // Detect index offset between AXValue text indexing and TextMarker indexing.
+            // Some apps (like Outlook Copilot) have different text indexing - AXValue may include
+            // extra invisible characters that TextMarker doesn't count.
+            // Probe at the error's actual location for accurate offset detection
+            let probeCandidates = [startIndex, endIndex, max(0, startIndex - 5), min(text.count - 1, endIndex + 5)]
+
+            for probeIndex in probeCandidates {
+                guard probeIndex >= 0 && probeIndex < text.count else { continue }
+
+                if let probeMarker = AccessibilityBridge.requestOpaqueMarker(at: probeIndex, from: element),
+                   let actualProbeIndex = AccessibilityBridge.indexForMarker(probeMarker, in: element),
+                   actualProbeIndex >= 0 && actualProbeIndex < Int.max / 2 {
+                    if actualProbeIndex != probeIndex {
+                        indexOffset = probeIndex - actualProbeIndex
+                        Logger.debug("TextMarkerStrategy: Detected index offset of \(indexOffset) via probe at \(probeIndex) (got \(actualProbeIndex))", category: Logger.ui)
+                    }
+                    break  // Use first successful probe
+                }
+            }
+        }
+
+        // Apply offset to requested indices
+        let adjustedStartIndex = startIndex + indexOffset
+        let adjustedEndIndex = endIndex + indexOffset
+
+        if indexOffset != 0 {
+            Logger.debug("TextMarkerStrategy: Adjusted indices from (\(startIndex),\(endIndex)) to (\(adjustedStartIndex),\(adjustedEndIndex))", category: Logger.ui)
+        }
+
+        // Request markers with adjusted indices
         guard let startMarker = AccessibilityBridge.requestOpaqueMarker(
-            at: startIndex,
+            at: adjustedStartIndex,
             from: element
         ) else {
             AXWatchdog.shared.endCall()
-            Logger.debug("TextMarkerStrategy: Failed to create start marker at index \(startIndex)", category: Logger.ui)
+            Logger.debug("TextMarkerStrategy: Failed to create start marker at index \(adjustedStartIndex)", category: Logger.ui)
             return nil
         }
 
         guard let endMarker = AccessibilityBridge.requestOpaqueMarker(
-            at: endIndex,
+            at: adjustedEndIndex,
             from: element
         ) else {
             AXWatchdog.shared.endCall()
-            Logger.debug("TextMarkerStrategy: Failed to create end marker at index \(endIndex)", category: Logger.ui)
+            Logger.debug("TextMarkerStrategy: Failed to create end marker at index \(adjustedEndIndex)", category: Logger.ui)
             return nil
         }
 

@@ -518,6 +518,19 @@ class AnalysisCoordinator: ObservableObject {
             // Don't schedule hide here - let the popover's own mouse tracking handle it
             // This allows users to freely move from underline to popover without hiding
         }
+
+        // Re-show underlines when frame stabilizes after resize
+        errorOverlay.onFrameStabilized = { [weak self] in
+            guard let self = self else { return }
+            Logger.debug("AnalysisCoordinator: Frame stabilized - clearing position cache and re-showing underlines", category: Logger.ui)
+            // Clear position cache to force fresh position calculations
+            self.positionResolver.clearCache()
+            // Re-show cached errors at new positions
+            if !self.currentErrors.isEmpty,
+               let element = self.textMonitor.monitoredElement {
+                self.showErrorUnderlines(self.currentErrors, element: element)
+            }
+        }
     }
 
     /// Check if two errors are the same (by position)

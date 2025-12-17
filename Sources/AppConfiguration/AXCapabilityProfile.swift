@@ -96,7 +96,9 @@ struct AXCapabilityProfile: Codable {
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: true,  // Conservative - safe for all apps
-            defersTextExtraction: false  // Dynamic detection handles slow apps
+            defersTextExtraction: false,  // Dynamic detection handles slow apps
+            requiresFrameValidation: false,  // Only needed for apps with dynamic frame changes
+            hasTextMarkerIndexOffset: false  // Only needed for apps with invisible characters in AXValue
         )
     }
 

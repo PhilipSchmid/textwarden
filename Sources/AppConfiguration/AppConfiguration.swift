@@ -122,6 +122,19 @@ struct AppFeatures: Equatable {
     /// AX calls by 5-10x during rapid typing.
     let defersTextExtraction: Bool
 
+    /// Whether to continuously validate element frame position.
+    /// For apps with dynamic UI (like Outlook Copilot chat), the element frame can change
+    /// without triggering AX notifications (e.g., when resizing the chat panel).
+    /// When true, a timer periodically checks the frame and hides/re-shows underlines
+    /// when it changes. This is expensive, so only enable for apps that need it.
+    let requiresFrameValidation: Bool
+
+    /// Whether this app has a mismatch between AXValue text indices and TextMarker API indices.
+    /// Some apps (like Outlook Copilot) include invisible characters in AXValue that the
+    /// TextMarker API doesn't count, causing positioning to be offset. When true,
+    /// TextMarkerStrategy probes the actual index mapping and adjusts accordingly.
+    let hasTextMarkerIndexOffset: Bool
+
     static let standard = AppFeatures(
         visualUnderlinesEnabled: true,
         textReplacementMethod: .standard,
@@ -131,7 +144,9 @@ struct AppFeatures: Equatable {
         delaysAXNotifications: false,
         focusBouncesDuringPaste: false,
         requiresFullReanalysisAfterReplacement: false,
-        defersTextExtraction: false
+        defersTextExtraction: false,
+        requiresFrameValidation: false,
+        hasTextMarkerIndexOffset: false
     )
 }
 
@@ -152,7 +167,9 @@ extension AppCategory {
                 delaysAXNotifications: false,
                 focusBouncesDuringPaste: false,
                 requiresFullReanalysisAfterReplacement: false,
-                defersTextExtraction: false
+                defersTextExtraction: false,
+                requiresFrameValidation: false,
+                hasTextMarkerIndexOffset: false
             )
         case .electron:
             return AppFeatures(
@@ -164,7 +181,9 @@ extension AppCategory {
                 delaysAXNotifications: false,  // Most Electron apps send notifications immediately
                 focusBouncesDuringPaste: false,
                 requiresFullReanalysisAfterReplacement: true,  // Electron byte offsets are fragile
-                defersTextExtraction: false
+                defersTextExtraction: false,
+                requiresFrameValidation: false,
+                hasTextMarkerIndexOffset: false
             )
         case .browser:
             return AppFeatures(
@@ -176,7 +195,9 @@ extension AppCategory {
                 delaysAXNotifications: false,
                 focusBouncesDuringPaste: false,
                 requiresFullReanalysisAfterReplacement: true,  // Browser byte offsets are fragile
-                defersTextExtraction: false
+                defersTextExtraction: false,
+                requiresFrameValidation: false,
+                hasTextMarkerIndexOffset: false
             )
         case .custom:
             return .standard

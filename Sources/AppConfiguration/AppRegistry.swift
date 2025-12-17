@@ -130,7 +130,9 @@ extension AppConfiguration {
             delaysAXNotifications: false,  // Slack sends AX notifications immediately
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: true,  // Electron byte offsets are fragile
-            defersTextExtraction: false
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
         )
     )
 
@@ -158,7 +160,9 @@ extension AppConfiguration {
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: true,  // Electron byte offsets are fragile
-            defersTextExtraction: false
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
         )
     )
 
@@ -186,7 +190,9 @@ extension AppConfiguration {
             delaysAXNotifications: true,  // ChatGPT batches AX notifications, needs keyboard detection
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: true,  // Electron byte offsets are fragile
-            defersTextExtraction: false
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
         )
     )
 
@@ -215,7 +221,9 @@ extension AppConfiguration {
             delaysAXNotifications: true,  // Electron app, needs keyboard detection
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: true,  // Electron byte offsets are fragile
-            defersTextExtraction: false
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
         )
     )
 
@@ -248,7 +256,9 @@ extension AppConfiguration {
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: true,  // Electron byte offsets are fragile
-            defersTextExtraction: false
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
         )
     )
 
@@ -316,7 +326,9 @@ extension AppConfiguration {
             delaysAXNotifications: true,  // Notion batches AX notifications, needs keyboard detection
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: true,  // Electron byte offsets are fragile
-            defersTextExtraction: false
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
         )
     )
 
@@ -347,7 +359,9 @@ extension AppConfiguration {
             delaysAXNotifications: false,  // Mail sends AX notifications promptly like Slack
             focusBouncesDuringPaste: true,  // Mail's WebKit fires multiple focus events during Cmd+V
             requiresFullReanalysisAfterReplacement: true,  // WebKit byte offsets are fragile
-            defersTextExtraction: false
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
         )
     )
 
@@ -379,7 +393,9 @@ extension AppConfiguration {
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: true,  // Catalyst byte offsets may be fragile
-            defersTextExtraction: false
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
         )
     )
 
@@ -410,7 +426,9 @@ extension AppConfiguration {
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: false,
-            defersTextExtraction: false
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
         )
     )
 
@@ -443,7 +461,9 @@ extension AppConfiguration {
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: false,  // Word AXValue updates reliably
-            defersTextExtraction: false
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
         )
     )
 
@@ -474,7 +494,9 @@ extension AppConfiguration {
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: false,  // PowerPoint AXValue updates reliably
-            defersTextExtraction: false
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
         )
     )
 
@@ -506,7 +528,9 @@ extension AppConfiguration {
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: false,  // Office apps update AXValue reliably
-            defersTextExtraction: true  // Defer AX calls to prevent freeze with Copilot
+            defersTextExtraction: true,  // Defer AX calls to prevent freeze with Copilot
+            requiresFrameValidation: true,  // Copilot chat panel changes frame dynamically
+            hasTextMarkerIndexOffset: true  // Copilot has invisible characters causing index mismatch
         )
     )
 

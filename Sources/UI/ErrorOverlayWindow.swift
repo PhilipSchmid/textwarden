@@ -29,6 +29,24 @@ class ErrorOverlayWindow: NSPanel {
     /// Track if window is currently visible
     private var isCurrentlyVisible = false
 
+    /// Last known element frame for detecting resize/movement
+    private var lastElementFrame: CGRect?
+
+    /// Timer for periodic frame validation (detects resize/scroll during visibility)
+    private var frameValidationTimer: Timer?
+
+    /// Timestamp when frame last changed (for stabilization detection)
+    private var frameLastChangedAt: Date?
+
+    /// Whether we're waiting for frame to stabilize after hiding
+    private var waitingForFrameStabilization = false
+
+    /// Callback when frame stabilizes after resize (to re-show underlines)
+    var onFrameStabilized: (() -> Void)?
+
+    /// Current bundle ID for app-specific behavior
+    private var currentBundleID: String?
+
     /// Global event monitor for mouse movement
     private var mouseMonitor: Any?
 
@@ -195,6 +213,7 @@ class ErrorOverlayWindow: NSPanel {
 
         // Check if visual underlines are enabled for this app
         let bundleID = context?.bundleIdentifier ?? "unknown"
+        self.currentBundleID = bundleID
 
         // CRITICAL: Check watchdog BEFORE making any AX calls
         // If this app is blacklisted or watchdog is busy, skip ALL AX calls in this function
@@ -277,6 +296,23 @@ class ErrorOverlayWindow: NSPanel {
             Logger.debug("ErrorOverlay: AX API failed for text field bounds", category: Logger.ui)
             Logger.debug("ErrorOverlay: Using mouse cursor fallback: \(elementFrame)", category: Logger.ui)
         }
+
+        // Detect element frame changes (resize, scroll, movement)
+        // Hide underlines immediately when frame changes to avoid stale underlines
+        if let lastFrame = lastElementFrame {
+            let positionChanged = abs(elementFrame.origin.x - lastFrame.origin.x) > 5 ||
+                                  abs(elementFrame.origin.y - lastFrame.origin.y) > 5
+            let sizeChanged = abs(elementFrame.width - lastFrame.width) > 5 ||
+                              abs(elementFrame.height - lastFrame.height) > 5
+
+            if positionChanged || sizeChanged {
+                Logger.trace("ErrorOverlay: Element frame changed - hiding stale underlines (was: \(lastFrame), now: \(elementFrame))", category: Logger.ui)
+                hide()
+                lastElementFrame = elementFrame
+                // Continue processing to show new underlines at correct positions
+            }
+        }
+        lastElementFrame = elementFrame
 
         Logger.debug("ErrorOverlay: Element frame (may include scroll content): \(elementFrame)", category: Logger.ui)
 
@@ -387,6 +423,37 @@ class ErrorOverlayWindow: NSPanel {
         var skippedCount = 0
         var skippedDueToVisibility = 0
 
+        // Detect internal text padding using TextMarker API (most accurate)
+        // TextMarker returns actual visual bounds while LineIndex uses element frame
+        var internalPaddingX: CGFloat = 0
+
+        if fullTextValue.count > 0 {
+            // Use TextMarker API to get the ACTUAL first character position
+            // This is more accurate than AXBoundsForRange which often returns element frame X
+            let startMarker = AccessibilityBridge.requestOpaqueMarker(at: 0, from: element)
+            let endMarker = AccessibilityBridge.requestOpaqueMarker(at: 1, from: element)
+
+            if startMarker == nil {
+                Logger.trace("ErrorOverlay: TextMarker padding detection - startMarker is nil", category: Logger.ui)
+            }
+            if endMarker == nil {
+                Logger.trace("ErrorOverlay: TextMarker padding detection - endMarker is nil", category: Logger.ui)
+            }
+
+            if let start = startMarker, let end = endMarker {
+                if let bounds = AccessibilityBridge.calculateBounds(from: start, to: end, in: element) {
+                    // bounds is in Quartz coords, elementFrame is in Cocoa coords
+                    // Both X coordinates are the same in Quartz vs Cocoa (only Y differs)
+                    let firstCharX = bounds.origin.x
+                    let elementX = originalElementFrame.origin.x
+                    internalPaddingX = firstCharX - elementX
+                    Logger.trace("ErrorOverlay: TextMarker first char bounds: \(bounds), elementX=\(elementX), padding=\(internalPaddingX)", category: Logger.ui)
+                } else {
+                    Logger.trace("ErrorOverlay: TextMarker padding detection - calculateBounds returned nil", category: Logger.ui)
+                }
+            }
+        }
+
         // Clear debug marker (will be set if enabled for parsers with custom bounds)
         underlineView?.firstCharDebugMarker = nil
 
@@ -464,7 +531,13 @@ class ErrorOverlayWindow: NSPanel {
                 // Note: Parsers with custom bounds (getBoundsForRange) already provide
                 // properly converted screen coordinates, so no additional offset needed.
                 let frameForConversion: CGRect = elementFrame
-                let localBounds = convertToLocal(screenBounds, from: frameForConversion)
+                var localBounds = convertToLocal(screenBounds, from: frameForConversion)
+
+                // Apply internal text padding offset if detected
+                // This shifts underlines right to match the actual text position
+                if internalPaddingX > 0 {
+                    localBounds.origin.x += internalPaddingX
+                }
 
                 Logger.debug("ErrorOverlay: Line \(lineIndex) - screen: \(screenBounds), local: \(localBounds)", category: Logger.ui)
 
@@ -550,6 +623,11 @@ class ErrorOverlayWindow: NSPanel {
                 // Use order(.above) instead of orderFrontRegardless() to avoid activating the app
                 order(.above, relativeTo: 0)
                 isCurrentlyVisible = true
+                // Start periodic frame validation only for apps that need it (e.g., Outlook Copilot)
+                // This is expensive, so we don't enable it by default
+                if appConfig.features.requiresFrameValidation {
+                    startFrameValidationTimer()
+                }
             } else {
                 Logger.debug("ErrorOverlay: Updating overlay (already visible, not reordering)", category: Logger.ui)
             }
@@ -572,10 +650,87 @@ class ErrorOverlayWindow: NSPanel {
         // Clear hover state
         hoveredUnderline = nil
         underlineView?.hoveredUnderline = nil
+
+        // Only stop timer if not waiting for frame stabilization
+        // (we need the timer to keep running to detect when resize is done)
+        if !waitingForFrameStabilization {
+            stopFrameValidationTimer()
+        }
+    }
+
+    /// Start periodic frame validation to detect resize/scroll
+    private func startFrameValidationTimer() {
+        stopFrameValidationTimer()
+
+        frameValidationTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
+            self?.validateElementFrame()
+        }
+    }
+
+    /// Stop frame validation timer
+    private func stopFrameValidationTimer() {
+        frameValidationTimer?.invalidate()
+        frameValidationTimer = nil
+    }
+
+    /// Check if element frame has changed and hide underlines if so
+    private func validateElementFrame() {
+        guard let element = monitoredElement,
+              let lastFrame = lastElementFrame else {
+            // No element or frame - stop waiting
+            if waitingForFrameStabilization {
+                waitingForFrameStabilization = false
+                stopFrameValidationTimer()
+            }
+            return
+        }
+
+        // Get current frame (this is a lightweight AX call)
+        guard let currentFrame = getElementFrameInCocoaCoords(element) else {
+            // Element no longer accessible - hide underlines and stop waiting
+            Logger.debug("ErrorOverlay: Frame validation - element not accessible, hiding", category: Logger.ui)
+            hide()
+            waitingForFrameStabilization = false
+            stopFrameValidationTimer()
+            return
+        }
+
+        // Check for significant changes
+        let positionChanged = abs(currentFrame.origin.x - lastFrame.origin.x) > 3 ||
+                              abs(currentFrame.origin.y - lastFrame.origin.y) > 3
+        let sizeChanged = abs(currentFrame.width - lastFrame.width) > 3 ||
+                          abs(currentFrame.height - lastFrame.height) > 3
+
+        if positionChanged || sizeChanged {
+            // Frame changed - update tracking and reset stabilization timer
+            frameLastChangedAt = Date()
+            lastElementFrame = currentFrame
+
+            // IMPORTANT: Set flag BEFORE hide() so timer keeps running
+            waitingForFrameStabilization = true
+
+            if isCurrentlyVisible {
+                Logger.trace("ErrorOverlay: Frame validation detected change - hiding stale underlines", category: Logger.ui)
+                hide()
+            }
+
+        } else if waitingForFrameStabilization {
+            // Frame is stable - check if it's been stable long enough
+            if let lastChanged = frameLastChangedAt,
+               Date().timeIntervalSince(lastChanged) > 0.4 {
+                Logger.trace("ErrorOverlay: Frame stabilized after resize - triggering re-display", category: Logger.ui)
+                waitingForFrameStabilization = false
+                // Don't stop timer - keep monitoring for future changes
+                onFrameStabilized?()
+            }
+        }
+        // Note: Timer keeps running while underlines are visible to detect future changes
+        // It's stopped only in hide() when not waiting for stabilization
     }
 
     /// Clean up resources
     deinit {
+        stopFrameValidationTimer()
         if let monitor = mouseMonitor {
             NSEvent.removeMonitor(monitor)
             mouseMonitor = nil
