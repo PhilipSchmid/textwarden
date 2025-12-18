@@ -39,6 +39,11 @@ struct OnboardingView: View {
 
     private let maxWaitTime: TimeInterval = TimingConstants.maxPermissionWait
 
+    /// Steps that show the large header (logo and titles)
+    private var isLargeHeaderStep: Bool {
+        currentStep == .overview || currentStep == .sponsoring
+    }
+
     init() {
         // Get updater from AppDelegate, with fallback
         if let appDelegate = NSApp.delegate as? AppDelegate {
@@ -63,24 +68,25 @@ struct OnboardingView: View {
             // Scrollable content area
             ScrollView {
                 VStack(spacing: 24) {
-                    // Header
-                    VStack(spacing: 16) {
+                    // Header - larger on overview and sponsoring, compact on other steps
+                    VStack(spacing: isLargeHeaderStep ? 16 : 8) {
                         Image("TextWardenLogo")
                             .resizable()
                             .scaledToFit()
-                            .frame(width: 140, height: 140)
+                            .frame(width: isLargeHeaderStep ? 140 : 80,
+                                   height: isLargeHeaderStep ? 140 : 80)
                             .accessibilityHidden(true) // Decorative
 
                         Text("Welcome to TextWarden")
-                            .font(.largeTitle)
+                            .font(isLargeHeaderStep ? .largeTitle : .title2)
                             .fontWeight(.bold)
                             .accessibilityAddTraits(.isHeader)
 
                         Text("Your Privacy-First Grammar Checker")
-                            .font(.title3)
+                            .font(isLargeHeaderStep ? .title3 : .subheadline)
                             .foregroundColor(.secondary)
                     }
-                    .padding(.top, 20)
+                    .padding(.top, isLargeHeaderStep ? 20 : 8)
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel("Welcome to TextWarden, Your Privacy-First Grammar Checker")
 
@@ -157,7 +163,7 @@ struct OnboardingView: View {
     private var overviewStep: some View {
         VStack(alignment: .leading, spacing: 24) {
             Text("Write with confidence, everywhere.")
-                .font(.title)
+                .font(.title2)
                 .fontWeight(.semibold)
 
             Text("TextWarden is a privacy-first grammar checker that works across all your applications. Catch typos, fix grammar, and improve your writing style — all without your text ever leaving your Mac.")
@@ -179,14 +185,16 @@ struct OnboardingView: View {
     }
 
     private var welcomeStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 20) {
             Text("Setup Required")
-                .font(.headline)
+                .font(.title2)
+                .fontWeight(.semibold)
 
             Text("TextWarden needs Accessibility permissions to check grammar across all your applications.")
+                .font(.title3)
                 .foregroundColor(.secondary)
 
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14) {
                 FeatureRow(icon: "lock.shield.fill", title: "100% Local & Private", description: "All processing on your Mac — no cloud, no data leaves your device")
                 FeatureRow(icon: "sparkles", title: "AI-Powered Style Suggestions", description: "Apple Intelligence rewrites for clarity and tone")
                 FeatureRow(icon: "macwindow.on.rectangle", title: "Works in Every App", description: "Slack, Notion, VS Code, Mail, and thousands more")
@@ -194,18 +202,19 @@ struct OnboardingView: View {
             .padding(.vertical, 8)
 
             Text("This permission allows TextWarden to read text from applications and provide grammar suggestions.")
-                .font(.caption)
+                .font(.body)
                 .foregroundColor(.secondary)
                 .padding(.top, 8)
         }
     }
 
     private var permissionRequestStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 20) {
             Text("Grant Accessibility Permission")
-                .font(.headline)
+                .font(.title2)
+                .fontWeight(.semibold)
 
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14) {
                 StepRow(number: 1, text: "Click 'Open System Settings' below")
                 StepRow(number: 2, text: "Navigate to Privacy & Security → Accessibility")
                 StepRow(number: 3, text: "Find 'TextWarden' in the list and enable it")
@@ -216,16 +225,16 @@ struct OnboardingView: View {
             if isPolling {
                 HStack(spacing: 12) {
                     ProgressView()
-                        .scaleEffect(0.7)
+                        .scaleEffect(0.8)
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Waiting for permission...")
-                            .font(.subheadline)
+                            .font(.body)
                             .foregroundColor(.secondary)
 
                         if showTimeoutWarning {
                             Text("Taking longer than expected. Need help?")
-                                .font(.caption)
+                                .font(.body)
                                 .foregroundColor(.orange)
                         }
                     }
@@ -236,11 +245,11 @@ struct OnboardingView: View {
             if showTimeoutWarning {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Having trouble?")
-                        .font(.subheadline)
+                        .font(.title3)
                         .fontWeight(.semibold)
 
                     Text("• Make sure you're enabling 'TextWarden' in the Accessibility list\n• You may need to unlock the settings pane first\n• Click 'Open System Settings' again to retry")
-                        .font(.caption)
+                        .font(.body)
                         .foregroundColor(.secondary)
                 }
                 .padding(.top, 12)
@@ -249,35 +258,38 @@ struct OnboardingView: View {
     }
 
     private var verificationStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(spacing: 14) {
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 40))
+                    .font(.system(size: 48))
                     .foregroundColor(.green)
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text("Permission Granted!")
-                        .font(.headline)
+                        .font(.title2)
+                        .fontWeight(.semibold)
 
                     Text("Grammar checking is now active")
-                        .font(.subheadline)
+                        .font(.title3)
                         .foregroundColor(.secondary)
                 }
             }
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Try it out:")
-                    .font(.subheadline)
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Why is this permission needed?")
+                    .font(.title3)
                     .fontWeight(.semibold)
 
-                Text("1. Open TextEdit or any text application")
-                Text("2. Type something with a typo, e.g. 'teh' or 'definately'")
-                Text("3. Watch for TextWarden's underline and suggestions")
+                Text("Accessibility access allows TextWarden to read text from any application you're typing in - whether it's an email, a chat message, or a document.")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+
+                Text("TextWarden uses this to detect grammar and spelling errors in real-time, showing suggestions right where you're writing. All processing happens locally on your Mac - your text is never sent anywhere.")
+                    .font(.body)
+                    .foregroundColor(.secondary)
             }
-            .font(.subheadline)
-            .foregroundColor(.secondary)
         }
     }
 
@@ -290,10 +302,11 @@ struct OnboardingView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Startup & Updates")
-                        .font(.headline)
+                        .font(.title3)
+                        .fontWeight(.semibold)
 
                     Text("Configure automatic behavior")
-                        .font(.subheadline)
+                        .font(.body)
                         .foregroundColor(.secondary)
                 }
             }
@@ -308,7 +321,7 @@ struct OnboardingView: View {
                             .font(.body)
                             .fontWeight(.medium)
                         Text("Start TextWarden automatically when you log in")
-                            .font(.subheadline)
+                            .font(.body)
                             .foregroundColor(.secondary)
                     }
                     Spacer()
@@ -325,8 +338,8 @@ struct OnboardingView: View {
                         Text("Automatic Update Checks")
                             .font(.body)
                             .fontWeight(.medium)
-                        Text("Check for new versions periodically")
-                            .font(.subheadline)
+                        Text("Check for new versions when the app launches")
+                            .font(.body)
                             .foregroundColor(.secondary)
                     }
                     Spacer()
@@ -335,8 +348,8 @@ struct OnboardingView: View {
                         .labelsHidden()
                 }
 
-                Text("You can change these settings anytime in Settings → General.")
-                    .font(.subheadline)
+                Text("You can always check for updates manually in Settings → About.")
+                    .font(.body)
                     .foregroundColor(.secondary)
             }
         }
@@ -356,10 +369,11 @@ struct OnboardingView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("AI Style Checking")
-                        .font(.headline)
+                        .font(.title3)
+                        .fontWeight(.semibold)
 
                     Text(appleIntelligenceStatusSubtitle)
-                        .font(.subheadline)
+                        .font(.body)
                         .foregroundColor(.secondary)
                 }
             }
@@ -382,10 +396,11 @@ struct OnboardingView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Language Settings")
-                        .font(.headline)
+                        .font(.title3)
+                        .fontWeight(.semibold)
 
                     Text("Configure dialect and multilingual support")
-                        .font(.subheadline)
+                        .font(.body)
                         .foregroundColor(.secondary)
                 }
             }
@@ -396,11 +411,11 @@ struct OnboardingView: View {
                 // Dialect Selection
                 VStack(alignment: .leading, spacing: 8) {
                     Text("English Dialect")
-                        .font(.subheadline)
+                        .font(.body)
                         .fontWeight(.semibold)
 
                     Text("Choose your preferred spelling style (e.g., \"color\" vs \"colour\").")
-                        .font(.caption)
+                        .font(.body)
                         .foregroundColor(.secondary)
 
                     dialectSelectionPicker
@@ -411,18 +426,18 @@ struct OnboardingView: View {
                 // Multilingual Support
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Multilingual Writing")
-                        .font(.subheadline)
+                        .font(.body)
                         .fontWeight(.semibold)
 
                     Text("If you mix other languages with English, select them below to avoid false positives on foreign phrases like \"Freundliche Grüsse\" or \"Merci beaucoup\".")
-                        .font(.caption)
+                        .font(.body)
                         .foregroundColor(.secondary)
 
                     languageSelectionGrid
                 }
 
                 Text("You can change these settings anytime in Settings → Grammar.")
-                    .font(.caption)
+                    .font(.body)
                     .foregroundColor(.secondary)
             }
         }
@@ -440,7 +455,7 @@ struct OnboardingView: View {
                         Image(systemName: selectedDialect == dialect ? "checkmark.circle.fill" : "circle")
                             .foregroundColor(selectedDialect == dialect ? .accentColor : .secondary)
                         Text(dialect)
-                            .font(.subheadline)
+                            .font(.body)
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
@@ -458,7 +473,7 @@ struct OnboardingView: View {
         // All supported languages from UserPreferences.availableLanguages (excluding English)
         let supportedLanguages = UserPreferences.availableLanguages.filter { $0 != "English" }
 
-        return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
+        return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
             ForEach(supportedLanguages, id: \.self) { language in
                 Button {
                     if selectedLanguages.contains(language) {
@@ -467,16 +482,16 @@ struct OnboardingView: View {
                         selectedLanguages.insert(language)
                     }
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 6) {
                         Image(systemName: selectedLanguages.contains(language) ? "checkmark.circle.fill" : "circle")
                             .foregroundColor(selectedLanguages.contains(language) ? .accentColor : .secondary)
-                            .font(.caption)
+                            .font(.subheadline)
                         Text(language)
-                            .font(.caption)
+                            .font(.subheadline)
                             .lineLimit(1)
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(selectedLanguages.contains(language) ? Color.accentColor.opacity(0.1) : Color.secondary.opacity(0.1))
                     .cornerRadius(6)
@@ -498,10 +513,11 @@ struct OnboardingView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Website Exclusions")
-                        .font(.headline)
+                        .font(.title3)
+                        .fontWeight(.semibold)
 
                     Text("Disable grammar checking on specific sites")
-                        .font(.subheadline)
+                        .font(.body)
                         .foregroundColor(.secondary)
                 }
             }
@@ -518,6 +534,7 @@ struct OnboardingView: View {
                     HStack {
                         TextField("github.com or *.example.com", text: $websiteToExclude)
                             .textFieldStyle(.roundedBorder)
+                            .font(.body)
                             .onSubmit {
                                 addWebsiteToExclusionList()
                             }
@@ -534,7 +551,7 @@ struct OnboardingView: View {
                     }
 
                     Text("Examples: **github.com** (exact domain) or **\\*.example.com** (all subdomains)")
-                        .font(.caption)
+                        .font(.body)
                         .foregroundColor(.secondary)
                 }
 
@@ -542,16 +559,16 @@ struct OnboardingView: View {
                 if !excludedWebsitesDuringOnboarding.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Websites to exclude:")
-                            .font(.caption)
+                            .font(.body)
                             .foregroundColor(.secondary)
 
                         ForEach(excludedWebsitesDuringOnboarding, id: \.self) { website in
                             HStack {
                                 Image(systemName: "globe")
                                     .foregroundColor(.secondary)
-                                    .font(.caption)
+                                    .font(.body)
                                 Text(website)
-                                    .font(.subheadline)
+                                    .font(.body)
                                 Spacer()
                                 Button {
                                     excludedWebsitesDuringOnboarding.removeAll { $0 == website }
@@ -561,8 +578,8 @@ struct OnboardingView: View {
                                 }
                                 .buttonStyle(.plain)
                             }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
                             .background(Color.secondary.opacity(0.1))
                             .cornerRadius(6)
                         }
@@ -570,7 +587,7 @@ struct OnboardingView: View {
                 }
 
                 Text("You can manage website exclusions anytime in Settings → Websites.")
-                    .font(.caption)
+                    .font(.body)
                     .foregroundColor(.secondary)
                     .padding(.top, 4)
             }
@@ -618,10 +635,11 @@ struct OnboardingView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("You're All Set!")
-                        .font(.headline)
+                        .font(.title3)
+                        .fontWeight(.semibold)
 
                     Text("TextWarden is ready to check your writing")
-                        .font(.subheadline)
+                        .font(.body)
                         .foregroundColor(.secondary)
                 }
             }
@@ -636,7 +654,7 @@ struct OnboardingView: View {
                     Text("Look for TextWarden in your menu bar")
                         .font(.body)
                     Text("Click the icon to access settings, pause checking, or view statistics")
-                        .font(.caption)
+                        .font(.body)
                         .foregroundColor(.secondary)
                 }
             }
@@ -649,7 +667,8 @@ struct OnboardingView: View {
             // Support section
             VStack(alignment: .leading, spacing: 12) {
                 Text("Support TextWarden")
-                    .font(.headline)
+                    .font(.title3)
+                    .fontWeight(.semibold)
 
                 Text("TextWarden is a free, open-source project built during evenings and weekends. Your support helps fund new features, bug fixes, and keeps TextWarden ad-free and privacy-focused.")
                     .font(.body)
@@ -674,19 +693,19 @@ struct OnboardingView: View {
                 Spacer()
                 Link(destination: AppURLs.github) {
                     Label("GitHub", systemImage: "arrow.up.forward")
-                        .font(.caption)
+                        .font(.subheadline)
                 }
                 Link(destination: AppURLs.license) {
                     Label("License", systemImage: "arrow.up.forward")
-                        .font(.caption)
+                        .font(.subheadline)
                 }
                 Link(destination: AppURLs.issues) {
                     Label("Report Issue", systemImage: "arrow.up.forward")
-                        .font(.caption)
+                        .font(.subheadline)
                 }
                 Link(destination: AppURLs.discussions) {
                     Label("Feature Requests", systemImage: "arrow.up.forward")
-                        .font(.caption)
+                        .font(.subheadline)
                 }
                 Spacer()
             }
@@ -702,22 +721,21 @@ struct OnboardingView: View {
                 ProgressView()
                     .scaleEffect(0.8)
                 Text("Checking Apple Intelligence availability...")
-                    .font(.subheadline)
+                    .font(.body)
                     .foregroundColor(.secondary)
             }
 
         case .available:
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 16) {
                 Text("Style checking uses Apple Intelligence to suggest rewrites that improve clarity, tone, and readability of your writing - all processed locally on your Mac.")
                     .font(.body)
                     .foregroundColor(.secondary)
 
-                VStack(alignment: .leading, spacing: 14) {
-                    FeatureRow(icon: "sparkles", title: "Style Suggestions", description: "AI rewrites for better clarity and flow")
-                    FeatureRow(icon: "text.quote", title: "Multiple Styles", description: "Concise, Formal, Casual, Business")
-                    FeatureRow(icon: "lock.shield", title: "100% On-Device", description: "Private - nothing leaves your Mac")
+                HStack(alignment: .top, spacing: 16) {
+                    FeatureCard(icon: "sparkles", title: "Style Suggestions", description: "AI rewrites for clarity")
+                    FeatureCard(icon: "text.quote", title: "Multiple Styles", description: "Concise, Formal, Casual")
+                    FeatureCard(icon: "lock.shield", title: "On-Device", description: "Private & local")
                 }
-                .padding(.vertical, 8)
 
                 Divider()
 
@@ -728,7 +746,7 @@ struct OnboardingView: View {
                             .font(.body)
                             .fontWeight(.medium)
                         Text("Get AI-powered suggestions to improve your writing")
-                            .font(.subheadline)
+                            .font(.body)
                             .foregroundColor(.secondary)
                     }
                     Spacer()
@@ -746,8 +764,8 @@ struct OnboardingView: View {
                             Text("Automatic Style Checking")
                                 .font(.body)
                                 .fontWeight(.medium)
-                            Text("Analyze your writing automatically as you type")
-                                .font(.subheadline)
+                            Text("Automatically analyze after you stop typing")
+                                .font(.body)
                                 .foregroundColor(.secondary)
                         }
                         Spacer()
@@ -756,20 +774,20 @@ struct OnboardingView: View {
                             .labelsHidden()
                     }
 
-                    Text("When disabled, use ⌘⌃S to check style manually.")
-                        .font(.caption)
+                    Text("You can always trigger style checking manually via the keyboard shortcut. Select text first to check only that portion, or use without selection to check the entire text field.")
+                        .font(.body)
                         .foregroundColor(.secondary)
                 }
 
                 Text("You can change these settings anytime in Settings → Style.")
-                    .font(.caption)
+                    .font(.body)
                     .foregroundColor(.secondary)
             }
 
         case .notEnabled:
             VStack(alignment: .leading, spacing: 12) {
                 Text("Apple Intelligence is not enabled on your Mac. Enable it to unlock AI-powered style suggestions.")
-                    .font(.subheadline)
+                    .font(.body)
                     .foregroundColor(.secondary)
 
                 VStack(alignment: .leading, spacing: 12) {
@@ -780,18 +798,18 @@ struct OnboardingView: View {
                 .padding(.vertical, 8)
 
                 Text("This is optional - grammar checking works without it.")
-                    .font(.caption)
+                    .font(.body)
                     .foregroundColor(.secondary)
             }
 
         case .notEligible:
             VStack(alignment: .leading, spacing: 12) {
                 Text("Apple Intelligence requires a Mac with Apple Silicon (M1 or later). Style suggestions are not available on this Mac.")
-                    .font(.subheadline)
+                    .font(.body)
                     .foregroundColor(.secondary)
 
                 Text("Grammar and spelling checking work normally without this feature.")
-                    .font(.caption)
+                    .font(.body)
                     .foregroundColor(.secondary)
                     .padding(.top, 8)
             }
@@ -799,11 +817,11 @@ struct OnboardingView: View {
         case .notSupported:
             VStack(alignment: .leading, spacing: 12) {
                 Text("AI style suggestions require macOS 26 (Tahoe) or later. Your current macOS version does not support this feature.")
-                    .font(.subheadline)
+                    .font(.body)
                     .foregroundColor(.secondary)
 
                 Text("Grammar and spelling checking work normally without this feature.")
-                    .font(.caption)
+                    .font(.body)
                     .foregroundColor(.secondary)
                     .padding(.top, 8)
             }
@@ -960,8 +978,14 @@ struct OnboardingView: View {
 
         switch currentStep {
         case .overview:
-            Logger.info("Onboarding: Moving from overview to permission setup...", category: Logger.ui)
-            currentStep = .welcome
+            // If permissions are already granted, skip to verification
+            if permissionManager.isPermissionGranted {
+                Logger.info("Onboarding: Permissions already granted, skipping to verification...", category: Logger.ui)
+                currentStep = .verification
+            } else {
+                Logger.info("Onboarding: Moving from overview to permission setup...", category: Logger.ui)
+                currentStep = .welcome
+            }
 
         case .welcome:
             Logger.info("Onboarding: Requesting Accessibility permission...", category: Logger.permissions)
@@ -1068,7 +1092,10 @@ struct OnboardingView: View {
     }
 
     private func checkPermissionAndUpdateStep() {
-        if permissionManager.isPermissionGranted {
+        // Always show overview first, even if permissions are already granted
+        // The user can proceed through the steps normally
+        // Only skip to verification if we're already past the overview
+        if permissionManager.isPermissionGranted && currentStep != .overview {
             currentStep = .verification
             stopPolling()
         }
@@ -1144,6 +1171,38 @@ private struct FeatureRow: View {
     }
 }
 
+private struct FeatureCard: View {
+    let icon: String
+    let title: String
+    let description: String
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(.accentColor)
+                .accessibilityHidden(true)
+
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .multilineTextAlignment(.center)
+
+            Text(description)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 8)
+        .background(Color.secondary.opacity(0.1))
+        .cornerRadius(10)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title): \(description)")
+    }
+}
+
 private struct StepRow: View {
     let number: Int
     let text: String
@@ -1151,16 +1210,16 @@ private struct StepRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Text("\(number)")
-                .font(.caption)
+                .font(.subheadline)
                 .fontWeight(.bold)
                 .foregroundColor(.white)
-                .frame(width: 24, height: 24)
+                .frame(width: 26, height: 26)
                 .background(Color.accentColor)
                 .clipShape(Circle())
                 .accessibilityHidden(true) // Number badge is visual only
 
             Text(text)
-                .font(.subheadline)
+                .font(.body)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Step \(number): \(text)")
