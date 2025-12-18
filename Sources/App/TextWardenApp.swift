@@ -195,7 +195,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.title = "Welcome to TextWarden"
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false  // We manage the lifecycle manually
-        window.setContentSize(NSSize(width: 580, height: 650))
+        window.setContentSize(NSSize(width: 640, height: 720))
         window.center()
 
         // Store strong reference to prevent premature deallocation

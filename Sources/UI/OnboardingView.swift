@@ -18,6 +18,10 @@ import FoundationModels
 private enum AppURLs {
     static let buyMeACoffee = URL(string: "https://buymeacoffee.com/textwarden")!
     static let appleIntelligenceSettings = URL(string: "x-apple.systempreferences:com.apple.preference.AppleIntelligence-Siri")!
+    static let github = URL(string: "https://github.com/philipschmid/textwarden")!
+    static let license = URL(string: "https://github.com/philipschmid/textwarden/blob/main/LICENSE")!
+    static let issues = URL(string: "https://github.com/philipschmid/textwarden/issues")!
+    static let discussions = URL(string: "https://github.com/philipschmid/textwarden/discussions")!
 }
 
 /// Onboarding view guiding users through Accessibility permission setup
@@ -640,7 +644,7 @@ struct OnboardingView: View {
                 Text("Support TextWarden")
                     .font(.headline)
 
-                Text("TextWarden is a side project built during evenings and weekends. If you find it useful, consider supporting its development.")
+                Text("TextWarden is a free, open-source project built during evenings and weekends. Your support helps fund new features, bug fixes, and keeps TextWarden ad-free and privacy-focused.")
                     .font(.body)
                     .foregroundColor(.secondary)
 
@@ -657,6 +661,21 @@ struct OnboardingView: View {
                     Spacer()
                 }
             }
+
+            // Links section
+            HStack(spacing: 16) {
+                Spacer()
+                Link("GitHub", destination: AppURLs.github)
+                    .font(.caption)
+                Link("License", destination: AppURLs.license)
+                    .font(.caption)
+                Link("Report Issue", destination: AppURLs.issues)
+                    .font(.caption)
+                Link("Feature Requests", destination: AppURLs.discussions)
+                    .font(.caption)
+                Spacer()
+            }
+            .foregroundColor(.secondary)
         }
     }
 
