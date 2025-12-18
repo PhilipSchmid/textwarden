@@ -26,7 +26,7 @@ struct OnboardingView: View {
     /// Access the updater from AppDelegate for auto-update settings
     @ObservedObject private var updaterViewModel: UpdaterViewModel
 
-    @State private var currentStep: OnboardingStep = .welcome
+    @State private var currentStep: OnboardingStep = .overview
     @State private var isPolling = false
     @State private var pollingTimer: Timer?
     @State private var elapsedTime: TimeInterval = 0
@@ -82,6 +82,8 @@ struct OnboardingView: View {
                 // Content based on current step
                 Group {
                     switch currentStep {
+                    case .overview:
+                        overviewStep
                     case .welcome:
                         welcomeStep
                     case .permissionRequest:
@@ -148,6 +150,30 @@ struct OnboardingView: View {
     }
 
     // MARK: - Steps
+
+    private var overviewStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Write with confidence, everywhere.")
+                .font(.title3)
+                .fontWeight(.semibold)
+
+            Text("TextWarden is a privacy-first grammar checker that works across all your applications. Catch typos, fix grammar, and improve your writing style — all without your text ever leaving your Mac.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+
+            VStack(alignment: .leading, spacing: 14) {
+                FeatureRow(icon: "checkmark.circle.fill", title: "Grammar & Spelling", description: "Instant detection of typos, grammar errors, and punctuation issues")
+                FeatureRow(icon: "sparkles", title: "AI Style Suggestions", description: "Apple Intelligence rewrites for clarity, tone, and readability")
+                FeatureRow(icon: "lock.shield.fill", title: "100% Private", description: "Everything runs locally — your text never leaves your device")
+                FeatureRow(icon: "macwindow.on.rectangle", title: "Works Everywhere", description: "Slack, Mail, Notes, browsers, and thousands more apps")
+            }
+            .padding(.vertical, 8)
+
+            Text("Let's get you set up in just a few steps.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
 
     private var welcomeStep: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -884,8 +910,10 @@ struct OnboardingView: View {
 
     private var actionButtonHint: String {
         switch currentStep {
-        case .welcome:
+        case .overview:
             return "Double tap to begin the setup process"
+        case .welcome:
+            return "Double tap to continue with permission setup"
         case .permissionRequest:
             return "Double tap to open System Settings and grant accessibility permission"
         case .verification:
@@ -905,8 +933,10 @@ struct OnboardingView: View {
 
     private var actionButtonTitle: String {
         switch currentStep {
-        case .welcome:
+        case .overview:
             return "Get Started"
+        case .welcome:
+            return "Continue"
         case .permissionRequest:
             return showTimeoutWarning ? "Retry" : "Open System Settings"
         case .verification:
@@ -930,6 +960,10 @@ struct OnboardingView: View {
         Logger.debug("Onboarding: Button clicked at step: \(currentStep)", category: Logger.ui)
 
         switch currentStep {
+        case .overview:
+            Logger.info("Onboarding: Moving from overview to permission setup...", category: Logger.ui)
+            currentStep = .welcome
+
         case .welcome:
             Logger.info("Onboarding: Requesting Accessibility permission...", category: Logger.permissions)
             // Request permission (triggers system dialog)
@@ -1108,6 +1142,7 @@ private struct StepRow: View {
 // MARK: - Onboarding Steps
 
 private enum OnboardingStep {
+    case overview
     case welcome
     case permissionRequest
     case verification
