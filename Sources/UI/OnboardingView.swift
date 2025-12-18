@@ -359,10 +359,11 @@ struct OnboardingView: View {
     @State private var selectedLanguages: Set<String> = []
 
     private var languageSelectionGrid: some View {
-        let commonLanguages = ["German", "French", "Spanish", "Italian", "Portuguese", "Dutch"]
+        // All supported languages from UserPreferences.availableLanguages (excluding English)
+        let supportedLanguages = UserPreferences.availableLanguages.filter { $0 != "English" }
 
         return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-            ForEach(commonLanguages, id: \.self) { language in
+            ForEach(supportedLanguages, id: \.self) { language in
                 Button {
                     if selectedLanguages.contains(language) {
                         selectedLanguages.remove(language)
