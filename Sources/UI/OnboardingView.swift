@@ -23,6 +23,8 @@ private enum AppURLs {
 /// Onboarding view guiding users through Accessibility permission setup
 struct OnboardingView: View {
     @ObservedObject private var permissionManager = PermissionManager.shared
+    /// Access the updater from AppDelegate for auto-update settings
+    @ObservedObject private var updaterViewModel: UpdaterViewModel
 
     @State private var currentStep: OnboardingStep = .welcome
     @State private var isPolling = false
@@ -32,6 +34,16 @@ struct OnboardingView: View {
     @State private var appleIntelligenceStatus: AppleIntelligenceStatus = .checking
 
     private let maxWaitTime: TimeInterval = TimingConstants.maxPermissionWait
+
+    init() {
+        // Get updater from AppDelegate, with fallback
+        if let appDelegate = NSApp.delegate as? AppDelegate {
+            _updaterViewModel = ObservedObject(wrappedValue: appDelegate.updaterViewModel)
+        } else {
+            // Fallback - create temporary instance (shouldn't happen in practice)
+            _updaterViewModel = ObservedObject(wrappedValue: UpdaterViewModel())
+        }
+    }
 
     /// Apple Intelligence availability status for onboarding
     private enum AppleIntelligenceStatus {
@@ -82,6 +94,8 @@ struct OnboardingView: View {
                         appleIntelligenceStep
                     case .languageDetection:
                         languageDetectionStep
+                    case .websiteExclusion:
+                        websiteExclusionStep
                     case .sponsoring:
                         sponsoringStep
                     }
@@ -106,23 +120,13 @@ struct OnboardingView: View {
                     Spacer()
 
                     if currentStep == .launchAtLogin {
-                        Button("Not Now") {
-                            handleSkipLaunchAtLogin()
-                        }
-                        .accessibilityLabel("Skip launch at login")
-                        .accessibilityHint("Double tap to skip this option and finish setup")
-
-                        Button("Enable Launch at Login") {
-                            handleEnableLaunchAtLogin()
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .keyboardShortcut(.defaultAction)
-                        .accessibilityLabel("Enable launch at login")
-                        .accessibilityHint("Double tap to enable TextWarden to start automatically when you log in")
+                        startupAndUpdatesButtons
                     } else if currentStep == .appleIntelligence {
                         appleIntelligenceButtons
                     } else if currentStep == .languageDetection {
                         languageDetectionButtons
+                    } else if currentStep == .websiteExclusion {
+                        websiteExclusionButtons
                     } else if currentStep == .sponsoring {
                         sponsoringButtons
                     } else {
@@ -251,15 +255,15 @@ struct OnboardingView: View {
     private var launchAtLoginStep: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 12) {
-                Image(systemName: "power.circle.fill")
+                Image(systemName: "gearshape.2.fill")
                     .font(.system(size: 40))
                     .foregroundColor(.accentColor)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Launch at Login")
+                    Text("Startup & Updates")
                         .font(.headline)
 
-                    Text("Start TextWarden automatically")
+                    Text("Configure automatic behavior")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -267,23 +271,49 @@ struct OnboardingView: View {
 
             Divider()
 
-            Text("Would you like TextWarden to start automatically when you log in?")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+            VStack(alignment: .leading, spacing: 16) {
+                // Launch at Login
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle(isOn: $enableLaunchAtLogin) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Launch at Login")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            Text("Start TextWarden automatically when you log in")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .toggleStyle(.switch)
+                }
 
-            VStack(alignment: .leading, spacing: 12) {
-                FeatureRow(icon: "checkmark.circle", title: "Always Protected", description: "Grammar checking available immediately")
-                FeatureRow(icon: "bolt.fill", title: "No Manual Launch", description: "TextWarden runs in the background automatically")
-                FeatureRow(icon: "minus.circle", title: "Easy to Disable", description: "Change this setting anytime in Preferences")
+                Divider()
+
+                // Automatic Updates
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle(isOn: $enableAutoUpdates) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Automatic Update Checks")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            Text("Check for new versions periodically")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .toggleStyle(.switch)
+                }
+
+                Text("You can change these settings anytime in Settings → General.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
-            .padding(.vertical, 8)
-
-            Text("You can change this preference later in Settings → General.")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .padding(.top, 8)
         }
     }
+
+    @State private var enableLaunchAtLogin: Bool = false
+    @State private var enableAutoUpdates: Bool = true
+    @State private var enableAutoStyleChecking: Bool = false
 
     private var appleIntelligenceStep: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -319,10 +349,10 @@ struct OnboardingView: View {
                     .foregroundColor(.accentColor)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Multilingual Writing")
+                    Text("Language Settings")
                         .font(.headline)
 
-                    Text("Avoid false positives in other languages")
+                    Text("Configure dialect and multilingual support")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -330,28 +360,62 @@ struct OnboardingView: View {
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 12) {
-                Text("If you write in multiple languages, TextWarden can detect non-English sentences and skip grammar checking for them. This prevents false positives when you include phrases like \"Freundliche Grüsse\" or \"Merci beaucoup\" in your writing.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+            VStack(alignment: .leading, spacing: 16) {
+                // Dialect Selection
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("English Dialect")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
 
-                VStack(alignment: .leading, spacing: 12) {
-                    FeatureRow(icon: "text.bubble", title: "Sentence-Level Detection", description: "Each sentence is analyzed independently")
-                    FeatureRow(icon: "checkmark.circle", title: "No False Positives", description: "Foreign phrases won't be flagged as errors")
-                    FeatureRow(icon: "gear", title: "You Choose Which Languages", description: "Select the languages you commonly use")
+                    Text("Choose your preferred spelling style (e.g., \"color\" vs \"colour\").")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    dialectSelectionPicker
                 }
-                .padding(.vertical, 8)
 
-                Text("Select the languages you regularly mix with English:")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+                Divider()
 
-                languageSelectionGrid
+                // Multilingual Support
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Multilingual Writing")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+
+                    Text("If you mix other languages with English, select them below to avoid false positives on foreign phrases like \"Freundliche Grüsse\" or \"Merci beaucoup\".")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    languageSelectionGrid
+                }
 
                 Text("You can change these settings anytime in Settings → Grammar.")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                    .padding(.top, 4)
+            }
+        }
+    }
+
+    @State private var selectedDialect: String = UserPreferences.shared.selectedDialect
+
+    private var dialectSelectionPicker: some View {
+        HStack(spacing: 12) {
+            ForEach(UserPreferences.availableDialects, id: \.self) { dialect in
+                Button {
+                    selectedDialect = dialect
+                } label: {
+                    HStack {
+                        Image(systemName: selectedDialect == dialect ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(selectedDialect == dialect ? .accentColor : .secondary)
+                        Text(dialect)
+                            .font(.subheadline)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(selectedDialect == dialect ? Color.accentColor.opacity(0.1) : Color.secondary.opacity(0.1))
+                    .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -386,6 +450,121 @@ struct OnboardingView: View {
                 .buttonStyle(.plain)
             }
         }
+    }
+
+    @State private var websiteToExclude: String = ""
+    @State private var excludedWebsitesDuringOnboarding: [String] = []
+
+    private var websiteExclusionStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                Image(systemName: "globe.badge.chevron.backward")
+                    .font(.system(size: 40))
+                    .foregroundColor(.accentColor)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Website Exclusions")
+                        .font(.headline)
+
+                    Text("Disable grammar checking on specific sites")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("TextWarden works in web browsers too. If there are websites where you don't want grammar checking (e.g., code editors, dashboards), you can exclude them here.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
+                // Add website input
+                HStack {
+                    TextField("Enter domain (e.g., github.com)", text: $websiteToExclude)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit {
+                            addWebsiteToExclusionList()
+                        }
+
+                    Button {
+                        addWebsiteToExclusionList()
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundColor(.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(websiteToExclude.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+
+                // List of added websites
+                if !excludedWebsitesDuringOnboarding.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Websites to exclude:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        ForEach(excludedWebsitesDuringOnboarding, id: \.self) { website in
+                            HStack {
+                                Image(systemName: "globe")
+                                    .foregroundColor(.secondary)
+                                    .font(.caption)
+                                Text(website)
+                                    .font(.subheadline)
+                                Spacer()
+                                Button {
+                                    excludedWebsitesDuringOnboarding.removeAll { $0 == website }
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.secondary.opacity(0.1))
+                            .cornerRadius(6)
+                        }
+                    }
+                }
+
+                Text("You can manage website exclusions anytime in Settings → Websites.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 4)
+            }
+        }
+    }
+
+    private func addWebsiteToExclusionList() {
+        let trimmed = websiteToExclude.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !trimmed.isEmpty else { return }
+
+        // Remove protocol prefixes if present
+        var domain = trimmed
+        if domain.hasPrefix("https://") {
+            domain = String(domain.dropFirst(8))
+        } else if domain.hasPrefix("http://") {
+            domain = String(domain.dropFirst(7))
+        }
+
+        // Remove trailing slashes and paths
+        if let slashIndex = domain.firstIndex(of: "/") {
+            domain = String(domain[..<slashIndex])
+        }
+
+        // Remove www. prefix
+        if domain.hasPrefix("www.") {
+            domain = String(domain.dropFirst(4))
+        }
+
+        guard !domain.isEmpty, !excludedWebsitesDuringOnboarding.contains(domain) else {
+            websiteToExclude = ""
+            return
+        }
+
+        excludedWebsitesDuringOnboarding.append(domain)
+        websiteToExclude = ""
     }
 
     private var sponsoringStep: some View {
@@ -450,20 +629,41 @@ struct OnboardingView: View {
 
         case .available:
             VStack(alignment: .leading, spacing: 12) {
-                Text("Would you like to enable AI-powered style suggestions? Apple Intelligence can help improve clarity and readability of your writing.")
+                Text("Style checking uses Apple Intelligence to suggest rewrites that improve clarity, tone, and readability of your writing - all processed locally on your Mac.")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
 
                 VStack(alignment: .leading, spacing: 12) {
-                    FeatureRow(icon: "sparkles", title: "Style Suggestions", description: "Get AI-powered writing improvements")
+                    FeatureRow(icon: "sparkles", title: "Style Suggestions", description: "AI rewrites for better clarity and flow")
                     FeatureRow(icon: "text.quote", title: "Multiple Styles", description: "Concise, Formal, Casual, Business")
-                    FeatureRow(icon: "lock.shield", title: "On-Device", description: "All processing stays on your Mac")
+                    FeatureRow(icon: "lock.shield", title: "100% On-Device", description: "Private - nothing leaves your Mac")
                 }
                 .padding(.vertical, 8)
 
-                Text("You can change this later in Settings → Style.")
+                Divider()
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle(isOn: $enableAutoStyleChecking) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Automatic Style Checking")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            Text("Analyze your writing automatically as you type")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .toggleStyle(.switch)
+
+                    Text("When disabled, use ⌘⌃S to check style manually.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Text("You can change these settings anytime in Settings → Style.")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .padding(.top, 4)
             }
 
         case .notEnabled:
@@ -549,12 +749,16 @@ struct OnboardingView: View {
             Button("Skip") {
                 // Explicitly disable style checking when skipped
                 UserPreferences.shared.enableStyleChecking = false
+                UserPreferences.shared.autoStyleChecking = false
+                Logger.info("Onboarding: Style checking disabled", category: Logger.general)
                 currentStep = .languageDetection
             }
 
             Button("Enable Style Checking") {
                 // Enable style checking in preferences
                 UserPreferences.shared.enableStyleChecking = true
+                UserPreferences.shared.autoStyleChecking = enableAutoStyleChecking
+                Logger.info("Onboarding: Style checking enabled, auto=\(enableAutoStyleChecking)", category: Logger.general)
                 currentStep = .languageDetection
             }
             .buttonStyle(.borderedProminent)
@@ -582,21 +786,54 @@ struct OnboardingView: View {
         }
     }
 
+    private var startupAndUpdatesButtons: some View {
+        Button("Continue") {
+            // Save launch at login setting
+            LaunchAtLogin.isEnabled = enableLaunchAtLogin
+            Logger.info("Onboarding: Launch at login: \(enableLaunchAtLogin)", category: Logger.general)
+
+            // Save auto-update setting
+            updaterViewModel.automaticallyChecksForUpdates = enableAutoUpdates
+            Logger.info("Onboarding: Auto update checks: \(enableAutoUpdates)", category: Logger.general)
+
+            currentStep = .appleIntelligence
+        }
+        .buttonStyle(.borderedProminent)
+        .keyboardShortcut(.defaultAction)
+    }
+
     private var languageDetectionButtons: some View {
-        Group {
+        Button("Continue") {
+            // Save dialect selection
+            UserPreferences.shared.selectedDialect = selectedDialect
+            Logger.info("Onboarding: Selected dialect: \(selectedDialect)", category: Logger.general)
+
+            // Save language detection settings if any languages selected
+            if !selectedLanguages.isEmpty {
+                UserPreferences.shared.enableLanguageDetection = true
+                let languageCodes = selectedLanguages.map { UserPreferences.languageCode(for: $0) }
+                UserPreferences.shared.excludedLanguages = Set(languageCodes)
+                Logger.info("Onboarding: Enabled language detection for: \(selectedLanguages)", category: Logger.general)
+            }
+            currentStep = .websiteExclusion
+        }
+        .buttonStyle(.borderedProminent)
+        .keyboardShortcut(.defaultAction)
+    }
+
+    private var websiteExclusionButtons: some View {
+        HStack {
             Button("Skip") {
-                // Don't enable language detection
                 currentStep = .sponsoring
             }
 
-            Button(selectedLanguages.isEmpty ? "Continue" : "Enable & Continue") {
-                if !selectedLanguages.isEmpty {
-                    // Enable language detection with selected languages
-                    UserPreferences.shared.enableLanguageDetection = true
-                    // Convert language names to codes and save
-                    let languageCodes = selectedLanguages.map { UserPreferences.languageCode(for: $0) }
-                    UserPreferences.shared.excludedLanguages = Set(languageCodes)
-                    Logger.info("Onboarding: Enabled language detection for: \(selectedLanguages)", category: Logger.general)
+            Button("Continue") {
+                // Save website exclusions
+                for website in excludedWebsitesDuringOnboarding {
+                    UserPreferences.shared.disableWebsite(website)
+                }
+                if !excludedWebsitesDuringOnboarding.isEmpty {
+                    Logger.info("Onboarding: Excluded websites: \(excludedWebsitesDuringOnboarding)", category: Logger.general)
                 }
                 currentStep = .sponsoring
             }
@@ -658,6 +895,8 @@ struct OnboardingView: View {
         case .appleIntelligence:
             return "Double tap to continue to language detection setup"
         case .languageDetection:
+            return "Double tap to continue to website exclusions"
+        case .websiteExclusion:
             return "Double tap to continue"
         case .sponsoring:
             return "Double tap to complete setup"
@@ -677,6 +916,8 @@ struct OnboardingView: View {
         case .appleIntelligence:
             return "Continue"
         case .languageDetection:
+            return "Continue"
+        case .websiteExclusion:
             return "Continue"
         case .sponsoring:
             return "Finish Setup"
@@ -720,22 +961,14 @@ struct OnboardingView: View {
             // Handled by separate buttons
             break
 
+        case .websiteExclusion:
+            // Handled by separate buttons
+            break
+
         case .sponsoring:
             // Handled by separate buttons
             break
         }
-    }
-
-    private func handleEnableLaunchAtLogin() {
-        Logger.info("Onboarding: Enabling launch at login...", category: Logger.general)
-        LaunchAtLogin.isEnabled = true
-        currentStep = .appleIntelligence
-    }
-
-    private func handleSkipLaunchAtLogin() {
-        Logger.info("Onboarding: Skipping launch at login...", category: Logger.general)
-        LaunchAtLogin.isEnabled = false
-        currentStep = .appleIntelligence
     }
 
     private func checkAppleIntelligenceStatus() {
@@ -881,6 +1114,7 @@ private enum OnboardingStep {
     case launchAtLogin
     case appleIntelligence
     case languageDetection
+    case websiteExclusion
     case sponsoring
 }
 
