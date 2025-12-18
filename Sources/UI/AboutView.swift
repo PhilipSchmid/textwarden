@@ -24,13 +24,6 @@ struct AboutView: View {
     /// Access the updater from AppDelegate - use ObservedObject for proper updates
     @ObservedObject private var updaterViewModel: UpdaterViewModel
 
-    /// Current year for copyright
-    private var currentYear: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy"
-        return formatter.string(from: Date())
-    }
-
     /// State for copy feedback
     @State private var showCopiedFeedback = false
 
@@ -251,26 +244,6 @@ struct AboutView: View {
                 .padding(.vertical, 4)
             } header: {
                 Text("Support")
-                    .font(.headline)
-            }
-
-            // Legal subsection
-            Section {
-                HStack {
-                    Text("License")
-                    Spacer()
-                    Text("Apache 2.0")
-                        .foregroundColor(.secondary)
-                }
-
-                HStack {
-                    Text("Copyright")
-                    Spacer()
-                    Text("© \(currentYear) Philip Schmid")
-                        .foregroundColor(.secondary)
-                }
-            } header: {
-                Text("Legal")
                     .font(.headline)
             }
         }
