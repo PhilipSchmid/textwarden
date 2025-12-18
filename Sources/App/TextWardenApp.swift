@@ -88,6 +88,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         Logger.info("Set as menu bar app (no dock icon)", category: Logger.lifecycle)
 
+        // Close any default SwiftUI windows that were created by WindowGroup
+        // The WindowGroup in SwiftUI creates a window even with EmptyView - we need to close it
+        for window in NSApp.windows where window.title.isEmpty || window.title == "Window" {
+            Logger.debug("Closing default SwiftUI window: \(window.title.isEmpty ? "(untitled)" : window.title)", category: Logger.ui)
+            window.close()
+        }
+
         // CRITICAL: LSUIElement apps don't receive activation events, so the main run loop
         // doesn't fully "spin" until something creates a Cocoa event. This causes timers,
         // GCD on main queue, and NSWorkspace notifications to be delayed by 30+ seconds.
