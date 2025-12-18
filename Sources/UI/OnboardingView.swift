@@ -59,87 +59,91 @@ struct OnboardingView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // Header
-                VStack(spacing: 12) {
-                    Image("TextWardenLogo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 80, height: 80)
-                        .accessibilityHidden(true) // Decorative
+        VStack(spacing: 0) {
+            // Scrollable content area
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Header
+                    VStack(spacing: 16) {
+                        Image("TextWardenLogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 140, height: 140)
+                            .accessibilityHidden(true) // Decorative
 
-                    Text("Welcome to TextWarden")
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .accessibilityAddTraits(.isHeader)
+                        Text("Welcome to TextWarden")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                            .accessibilityAddTraits(.isHeader)
 
-                    Text("Your Privacy-First Grammar Checker")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.top, 24)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Welcome to TextWarden, Your Privacy-First Grammar Checker")
-
-                Divider()
-
-                // Content based on current step
-                Group {
-                    switch currentStep {
-                    case .overview:
-                        overviewStep
-                    case .welcome:
-                        welcomeStep
-                    case .permissionRequest:
-                        permissionRequestStep
-                    case .verification:
-                        verificationStep
-                    case .launchAtLogin:
-                        launchAtLoginStep
-                    case .appleIntelligence:
-                        appleIntelligenceStep
-                    case .languageDetection:
-                        languageDetectionStep
-                    case .websiteExclusion:
-                        websiteExclusionStep
-                    case .sponsoring:
-                        sponsoringStep
+                        Text("Your Privacy-First Grammar Checker")
+                            .font(.title3)
+                            .foregroundColor(.secondary)
                     }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 24)
+                    .padding(.top, 20)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Welcome to TextWarden, Your Privacy-First Grammar Checker")
 
-                Divider()
+                    Divider()
 
-                // Footer with navigation buttons
-                HStack {
-                    // Back button (shown after overview, except during permission steps)
-                    if canGoBack {
-                        Button("Back") {
-                            goBack()
-                        }
-                        .keyboardShortcut(.escape)
-                    }
-
-                    Spacer()
-
-                    // Cancel button during timeout
-                    if showTimeoutWarning {
-                        Button("Cancel") {
-                            closeOnboardingWindow()
+                    // Content based on current step
+                    Group {
+                        switch currentStep {
+                        case .overview:
+                            overviewStep
+                        case .welcome:
+                            welcomeStep
+                        case .permissionRequest:
+                            permissionRequestStep
+                        case .verification:
+                            verificationStep
+                        case .launchAtLogin:
+                            launchAtLoginStep
+                        case .appleIntelligence:
+                            appleIntelligenceStep
+                        case .languageDetection:
+                            languageDetectionStep
+                        case .websiteExclusion:
+                            websiteExclusionStep
+                        case .sponsoring:
+                            sponsoringStep
                         }
                     }
-
-                    // Continue/action button
-                    navigationButton
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 24)
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 24)
+                .frame(width: 580)
             }
-            .frame(width: 580)
+
+            // Fixed footer with navigation buttons
+            Divider()
+
+            HStack {
+                // Back button (shown after overview, except during permission steps)
+                if canGoBack {
+                    Button("Back") {
+                        goBack()
+                    }
+                    .keyboardShortcut(.escape)
+                }
+
+                Spacer()
+
+                // Cancel button during timeout
+                if showTimeoutWarning {
+                    Button("Cancel") {
+                        closeOnboardingWindow()
+                    }
+                }
+
+                // Continue/action button
+                navigationButton
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
         }
-        .frame(width: 640, height: 720)
+        .frame(width: 640, height: 760)
         .onAppear {
             checkPermissionAndUpdateStep()
         }
@@ -151,16 +155,16 @@ struct OnboardingView: View {
     // MARK: - Steps
 
     private var overviewStep: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 24) {
             Text("Write with confidence, everywhere.")
-                .font(.title2)
+                .font(.title)
                 .fontWeight(.semibold)
 
             Text("TextWarden is a privacy-first grammar checker that works across all your applications. Catch typos, fix grammar, and improve your writing style — all without your text ever leaving your Mac.")
-                .font(.body)
+                .font(.title3)
                 .foregroundColor(.secondary)
 
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 18) {
                 FeatureRow(icon: "checkmark.circle.fill", title: "Grammar & Spelling", description: "Instant detection of typos, grammar errors, and punctuation issues")
                 FeatureRow(icon: "sparkles", title: "AI Style Suggestions", description: "Apple Intelligence rewrites for clarity, tone, and readability")
                 FeatureRow(icon: "lock.shield.fill", title: "100% Private", description: "Everything runs locally — your text never leaves your device")
@@ -169,7 +173,7 @@ struct OnboardingView: View {
             .padding(.vertical, 12)
 
             Text("Let's get you set up in just a few steps.")
-                .font(.subheadline)
+                .font(.body)
                 .foregroundColor(.secondary)
         }
     }
@@ -340,6 +344,7 @@ struct OnboardingView: View {
 
     @State private var enableLaunchAtLogin: Bool = false
     @State private var enableAutoUpdates: Bool = true
+    @State private var enableStyleChecking: Bool = true
     @State private var enableAutoStyleChecking: Bool = false
 
     private var appleIntelligenceStep: some View {
@@ -453,7 +458,7 @@ struct OnboardingView: View {
         // All supported languages from UserPreferences.availableLanguages (excluding English)
         let supportedLanguages = UserPreferences.availableLanguages.filter { $0 != "English" }
 
-        return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+        return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
             ForEach(supportedLanguages, id: \.self) { language in
                 Button {
                     if selectedLanguages.contains(language) {
@@ -462,17 +467,19 @@ struct OnboardingView: View {
                         selectedLanguages.insert(language)
                     }
                 } label: {
-                    HStack {
+                    HStack(spacing: 4) {
                         Image(systemName: selectedLanguages.contains(language) ? "checkmark.circle.fill" : "circle")
                             .foregroundColor(selectedLanguages.contains(language) ? .accentColor : .secondary)
+                            .font(.caption)
                         Text(language)
-                            .font(.subheadline)
-                        Spacer()
+                            .font(.caption)
+                            .lineLimit(1)
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .background(selectedLanguages.contains(language) ? Color.accentColor.opacity(0.1) : Color.secondary.opacity(0.1))
-                    .cornerRadius(8)
+                    .cornerRadius(6)
                 }
                 .buttonStyle(.plain)
             }
@@ -665,17 +672,25 @@ struct OnboardingView: View {
             // Links section
             HStack(spacing: 16) {
                 Spacer()
-                Link("GitHub", destination: AppURLs.github)
-                    .font(.caption)
-                Link("License", destination: AppURLs.license)
-                    .font(.caption)
-                Link("Report Issue", destination: AppURLs.issues)
-                    .font(.caption)
-                Link("Feature Requests", destination: AppURLs.discussions)
-                    .font(.caption)
+                Link(destination: AppURLs.github) {
+                    Label("GitHub", systemImage: "arrow.up.forward")
+                        .font(.caption)
+                }
+                Link(destination: AppURLs.license) {
+                    Label("License", systemImage: "arrow.up.forward")
+                        .font(.caption)
+                }
+                Link(destination: AppURLs.issues) {
+                    Label("Report Issue", systemImage: "arrow.up.forward")
+                        .font(.caption)
+                }
+                Link(destination: AppURLs.discussions) {
+                    Label("Feature Requests", systemImage: "arrow.up.forward")
+                        .font(.caption)
+                }
                 Spacer()
             }
-            .foregroundColor(.secondary)
+            .foregroundColor(.accentColor)
         }
     }
 
@@ -692,7 +707,7 @@ struct OnboardingView: View {
             }
 
         case .available:
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 20) {
                 Text("Style checking uses Apple Intelligence to suggest rewrites that improve clarity, tone, and readability of your writing - all processed locally on your Mac.")
                     .font(.body)
                     .foregroundColor(.secondary)
@@ -706,23 +721,48 @@ struct OnboardingView: View {
 
                 Divider()
 
+                // Enable Style Checking toggle
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Automatic Style Checking")
+                        Text("Enable Style Checking")
                             .font(.body)
                             .fontWeight(.medium)
-                        Text("Analyze your writing automatically as you type")
+                        Text("Get AI-powered suggestions to improve your writing")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
                     Spacer()
-                    Toggle("", isOn: $enableAutoStyleChecking)
+                    Toggle("", isOn: $enableStyleChecking)
                         .toggleStyle(.switch)
                         .labelsHidden()
                 }
 
-                Text("When disabled, use ⌘⌃S to check style manually. You can change these settings anytime in Settings → Style.")
-                    .font(.subheadline)
+                // Automatic Style Checking toggle (only shown if style checking is enabled)
+                if enableStyleChecking {
+                    Divider()
+
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Automatic Style Checking")
+                                .font(.body)
+                                .fontWeight(.medium)
+                            Text("Analyze your writing automatically as you type")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Toggle("", isOn: $enableAutoStyleChecking)
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                    }
+
+                    Text("When disabled, use ⌘⌃S to check style manually.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Text("You can change these settings anytime in Settings → Style.")
+                    .font(.caption)
                     .foregroundColor(.secondary)
             }
 
@@ -798,54 +838,6 @@ struct OnboardingView: View {
         }
     }
 
-    @ViewBuilder
-    private var appleIntelligenceButtons: some View {
-        switch appleIntelligenceStatus {
-        case .checking:
-            Button("Please wait...") {}
-                .disabled(true)
-
-        case .available:
-            Button("Skip") {
-                // Explicitly disable style checking when skipped
-                UserPreferences.shared.enableStyleChecking = false
-                UserPreferences.shared.autoStyleChecking = false
-                Logger.info("Onboarding: Style checking disabled", category: Logger.general)
-                currentStep = .languageDetection
-            }
-
-            Button("Enable Style Checking") {
-                // Enable style checking in preferences
-                UserPreferences.shared.enableStyleChecking = true
-                UserPreferences.shared.autoStyleChecking = enableAutoStyleChecking
-                Logger.info("Onboarding: Style checking enabled, auto=\(enableAutoStyleChecking)", category: Logger.general)
-                currentStep = .languageDetection
-            }
-            .buttonStyle(.borderedProminent)
-            .keyboardShortcut(.defaultAction)
-
-        case .notEligible, .notSupported:
-            Button("Continue") {
-                currentStep = .languageDetection
-            }
-            .buttonStyle(.borderedProminent)
-            .keyboardShortcut(.defaultAction)
-
-        case .notEnabled:
-            Button("Skip") {
-                // Explicitly disable style checking when skipped
-                UserPreferences.shared.enableStyleChecking = false
-                currentStep = .languageDetection
-            }
-
-            Button("Open Settings") {
-                NSWorkspace.shared.open(AppURLs.appleIntelligenceSettings)
-            }
-            .buttonStyle(.borderedProminent)
-            .keyboardShortcut(.defaultAction)
-        }
-    }
-
     /// Close the onboarding window properly
     private func closeOnboardingWindow() {
         Logger.info("Finishing onboarding setup", category: Logger.ui)
@@ -900,14 +892,8 @@ struct OnboardingView: View {
         }
     }
 
-    @ViewBuilder
     private var navigationButton: some View {
-        switch currentStep {
-        case .appleIntelligence:
-            appleIntelligenceButtons
-        default:
-            actionButton
-        }
+        actionButton
     }
 
     private var actionButton: some View {
@@ -1008,8 +994,11 @@ struct OnboardingView: View {
             currentStep = .appleIntelligence
 
         case .appleIntelligence:
-            // Handled by appleIntelligenceButtons (has Skip/Enable options)
-            break
+            // Save style checking settings
+            UserPreferences.shared.enableStyleChecking = enableStyleChecking
+            UserPreferences.shared.autoStyleChecking = enableStyleChecking && enableAutoStyleChecking
+            Logger.info("Onboarding: Style checking: \(enableStyleChecking), auto: \(enableAutoStyleChecking)", category: Logger.general)
+            currentStep = .languageDetection
 
         case .languageDetection:
             // Save dialect selection
@@ -1133,20 +1122,20 @@ private struct FeatureRow: View {
     let description: String
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             Image(systemName: icon)
-                .font(.title3)
+                .font(.title2)
                 .foregroundColor(.accentColor)
-                .frame(width: 24)
+                .frame(width: 28)
                 .accessibilityHidden(true) // Icon is decorative
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.subheadline)
+                    .font(.body)
                     .fontWeight(.semibold)
 
                 Text(description)
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundColor(.secondary)
             }
         }
