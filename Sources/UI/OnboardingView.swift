@@ -80,6 +80,8 @@ struct OnboardingView: View {
                         launchAtLoginStep
                     case .appleIntelligence:
                         appleIntelligenceStep
+                    case .languageDetection:
+                        languageDetectionStep
                     case .sponsoring:
                         sponsoringStep
                     }
@@ -119,6 +121,8 @@ struct OnboardingView: View {
                         .accessibilityHint("Double tap to enable TextWarden to start automatically when you log in")
                     } else if currentStep == .appleIntelligence {
                         appleIntelligenceButtons
+                    } else if currentStep == .languageDetection {
+                        languageDetectionButtons
                     } else if currentStep == .sponsoring {
                         sponsoringButtons
                     } else {
@@ -307,6 +311,82 @@ struct OnboardingView: View {
         }
     }
 
+    private var languageDetectionStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                Image(systemName: "globe")
+                    .font(.system(size: 40))
+                    .foregroundColor(.accentColor)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Multilingual Writing")
+                        .font(.headline)
+
+                    Text("Avoid false positives in other languages")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("If you write in multiple languages, TextWarden can detect non-English sentences and skip grammar checking for them. This prevents false positives when you include phrases like \"Freundliche Grüsse\" or \"Merci beaucoup\" in your writing.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    FeatureRow(icon: "text.bubble", title: "Sentence-Level Detection", description: "Each sentence is analyzed independently")
+                    FeatureRow(icon: "checkmark.circle", title: "No False Positives", description: "Foreign phrases won't be flagged as errors")
+                    FeatureRow(icon: "gear", title: "You Choose Which Languages", description: "Select the languages you commonly use")
+                }
+                .padding(.vertical, 8)
+
+                Text("Select the languages you regularly mix with English:")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+
+                languageSelectionGrid
+
+                Text("You can change these settings anytime in Settings → Grammar.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 4)
+            }
+        }
+    }
+
+    @State private var selectedLanguages: Set<String> = []
+
+    private var languageSelectionGrid: some View {
+        let commonLanguages = ["German", "French", "Spanish", "Italian", "Portuguese", "Dutch"]
+
+        return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+            ForEach(commonLanguages, id: \.self) { language in
+                Button {
+                    if selectedLanguages.contains(language) {
+                        selectedLanguages.remove(language)
+                    } else {
+                        selectedLanguages.insert(language)
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: selectedLanguages.contains(language) ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(selectedLanguages.contains(language) ? .accentColor : .secondary)
+                        Text(language)
+                            .font(.subheadline)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(selectedLanguages.contains(language) ? Color.accentColor.opacity(0.1) : Color.secondary.opacity(0.1))
+                    .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
     private var sponsoringStep: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 12) {
@@ -468,20 +548,20 @@ struct OnboardingView: View {
             Button("Skip") {
                 // Explicitly disable style checking when skipped
                 UserPreferences.shared.enableStyleChecking = false
-                currentStep = .sponsoring
+                currentStep = .languageDetection
             }
 
             Button("Enable Style Checking") {
                 // Enable style checking in preferences
                 UserPreferences.shared.enableStyleChecking = true
-                currentStep = .sponsoring
+                currentStep = .languageDetection
             }
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
 
         case .notEligible, .notSupported:
             Button("Continue") {
-                currentStep = .sponsoring
+                currentStep = .languageDetection
             }
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
@@ -490,11 +570,34 @@ struct OnboardingView: View {
             Button("Skip") {
                 // Explicitly disable style checking when skipped
                 UserPreferences.shared.enableStyleChecking = false
-                currentStep = .sponsoring
+                currentStep = .languageDetection
             }
 
             Button("Open Settings") {
                 NSWorkspace.shared.open(AppURLs.appleIntelligenceSettings)
+            }
+            .buttonStyle(.borderedProminent)
+            .keyboardShortcut(.defaultAction)
+        }
+    }
+
+    private var languageDetectionButtons: some View {
+        Group {
+            Button("Skip") {
+                // Don't enable language detection
+                currentStep = .sponsoring
+            }
+
+            Button(selectedLanguages.isEmpty ? "Continue" : "Enable & Continue") {
+                if !selectedLanguages.isEmpty {
+                    // Enable language detection with selected languages
+                    UserPreferences.shared.enableLanguageDetection = true
+                    // Convert language names to codes and save
+                    let languageCodes = selectedLanguages.map { UserPreferences.languageCode(for: $0) }
+                    UserPreferences.shared.excludedLanguages = Set(languageCodes)
+                    Logger.info("Onboarding: Enabled language detection for: \(selectedLanguages)", category: Logger.general)
+                }
+                currentStep = .sponsoring
             }
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
@@ -552,6 +655,8 @@ struct OnboardingView: View {
         case .launchAtLogin:
             return "Double tap to continue to AI style checking setup"
         case .appleIntelligence:
+            return "Double tap to continue to language detection setup"
+        case .languageDetection:
             return "Double tap to continue"
         case .sponsoring:
             return "Double tap to complete setup"
@@ -569,6 +674,8 @@ struct OnboardingView: View {
         case .launchAtLogin:
             return "Continue"
         case .appleIntelligence:
+            return "Continue"
+        case .languageDetection:
             return "Continue"
         case .sponsoring:
             return "Finish Setup"
@@ -605,6 +712,10 @@ struct OnboardingView: View {
             break
 
         case .appleIntelligence:
+            // Handled by separate buttons
+            break
+
+        case .languageDetection:
             // Handled by separate buttons
             break
 
@@ -768,6 +879,7 @@ private enum OnboardingStep {
     case verification
     case launchAtLogin
     case appleIntelligence
+    case languageDetection
     case sponsoring
 }
 

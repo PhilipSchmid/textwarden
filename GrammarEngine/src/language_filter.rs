@@ -87,44 +87,172 @@ impl LanguageFilter {
     }
 }
 
-/// Split text into sentences
-/// Returns a vector of (start, end) byte positions for each sentence
+/// Split text into sentences/segments for language detection
+/// Handles: punctuation (.!?), paragraph breaks, bullet points, numbered lists
+/// Returns a vector of (start, end) byte positions for each segment
 fn split_into_sentences(text: &str) -> Vec<(usize, usize)> {
     let mut sentences = Vec::new();
     let mut start = 0;
+    let mut i = 0;
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
 
-    for (i, ch) in text.char_indices() {
-        // Sentence terminators
+    while i < chars.len() {
+        let (byte_pos, ch) = chars[i];
+
+        // Check for paragraph break (2+ consecutive newlines)
+        if ch == '\n' {
+            if let Some((_, next_ch)) = chars.get(i + 1) {
+                if *next_ch == '\n' || *next_ch == '\r' {
+                    // End current segment before the paragraph break (only if non-empty content)
+                    if start < byte_pos {
+                        let segment = &text[start..byte_pos];
+                        if !segment.trim().is_empty() {
+                            sentences.push((start, byte_pos));
+                        }
+                    }
+                    // Skip all consecutive newlines/carriage returns
+                    while i < chars.len() && (chars[i].1 == '\n' || chars[i].1 == '\r') {
+                        i += 1;
+                    }
+                    // Start new segment after paragraph break
+                    if i < chars.len() {
+                        start = chars[i].0;
+                    }
+                    continue;
+                }
+            }
+        }
+
+        // Check for bullet points at start of line
+        // Matches: - * • ◦ ▪ ▸ ► ‣ ⁃ followed by space
+        if is_bullet_char(ch) && is_at_line_start(text, byte_pos) {
+            // Look ahead for space after bullet
+            if let Some((_, next_ch)) = chars.get(i + 1) {
+                if next_ch.is_whitespace() {
+                    // End previous segment before bullet
+                    if start < byte_pos {
+                        sentences.push((start, byte_pos));
+                    }
+                    // Start new segment at bullet
+                    start = byte_pos;
+                }
+            }
+        }
+
+        // Check for numbered list items at start of line (1. 2. a. b. etc.)
+        if (ch.is_ascii_digit() || ch.is_ascii_alphabetic()) && is_at_line_start(text, byte_pos) {
+            // Look for pattern: digit/letter followed by . or ) and space
+            if let Some((_, dot_ch)) = chars.get(i + 1) {
+                if *dot_ch == '.' || *dot_ch == ')' {
+                    if let Some((_, space_ch)) = chars.get(i + 2) {
+                        if space_ch.is_whitespace() {
+                            // End previous segment before number
+                            if start < byte_pos {
+                                sentences.push((start, byte_pos));
+                            }
+                            // Start new segment at number
+                            start = byte_pos;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Standard sentence terminators (.!?)
         if ch == '.' || ch == '!' || ch == '?' {
-            // Check if there's more text after this
-            let rest = &text[i + ch.len_utf8()..];
+            // Skip if this is a list marker (1. or a.) at start of line
+            if ch == '.' && i > 0 {
+                let prev_char = chars[i - 1].1;
+                if (prev_char.is_ascii_digit() || prev_char.is_ascii_alphabetic())
+                    && is_at_line_start(text, chars[i - 1].0)
+                {
+                    // This is a list marker, not a sentence end
+                    i += 1;
+                    continue;
+                }
+            }
+
+            let rest = &text[byte_pos + ch.len_utf8()..];
 
             // End of sentence if followed by whitespace or end of text
-            if rest.is_empty() || rest.starts_with(|c: char| c.is_whitespace()) {
-                let end = i + ch.len_utf8();
+            // But not for abbreviations like "Mr." followed by lowercase
+            if rest.is_empty() || is_sentence_boundary(rest) {
+                let end = byte_pos + ch.len_utf8();
                 if start < end {
                     sentences.push((start, end));
                 }
                 // Start next sentence after any whitespace
-                start = i + ch.len_utf8() + rest.len() - rest.trim_start().len();
-                if start >= text.len() {
-                    break;
-                }
+                let trimmed_len = rest.len() - rest.trim_start().len();
+                start = byte_pos + ch.len_utf8() + trimmed_len;
             }
+        }
+
+        i += 1;
+    }
+
+    // Add remaining text as final sentence if there's any non-whitespace content
+    if start < text.len() {
+        let remaining = &text[start..];
+        if !remaining.trim().is_empty() {
+            sentences.push((start, text.len()));
         }
     }
 
-    // Add remaining text as final sentence if there's any
-    if start < text.len() {
-        sentences.push((start, text.len()));
-    }
-
-    // If no sentences were found, treat entire text as one sentence
-    if sentences.is_empty() {
+    // If no sentences were found but there's actual content, treat entire text as one sentence
+    if sentences.is_empty() && !text.trim().is_empty() {
         sentences.push((0, text.len()));
     }
 
     sentences
+}
+
+/// Check if character is a common bullet point marker
+fn is_bullet_char(ch: char) -> bool {
+    matches!(
+        ch,
+        '-' | '*' | '•' | '◦' | '▪' | '▸' | '►' | '‣' | '⁃' | '–' | '—'
+    )
+}
+
+/// Check if position is at the start of a line (after newline or at text start)
+fn is_at_line_start(text: &str, byte_pos: usize) -> bool {
+    if byte_pos == 0 {
+        return true;
+    }
+    // Check if preceded by newline (with optional whitespace)
+    let before = &text[..byte_pos];
+    let trimmed = before.trim_end_matches([' ', '\t']);
+    trimmed.ends_with('\n') || trimmed.ends_with('\r')
+}
+
+/// Check if this looks like a sentence boundary (not an abbreviation)
+fn is_sentence_boundary(rest: &str) -> bool {
+    if rest.is_empty() {
+        return true;
+    }
+
+    let first_non_ws = rest.trim_start().chars().next();
+    match first_non_ws {
+        None => true,
+        Some(ch) => {
+            // Sentence boundary if followed by:
+            // - Uppercase letter (new sentence)
+            // - Newline (paragraph/list item)
+            // - Quote or bracket (quoted sentence)
+            // - Bullet point
+            ch.is_uppercase()
+                || ch == '\n'
+                || ch == '\r'
+                || ch == '"'  // Straight double quote
+                || ch == '\'' // Straight single quote
+                || ch == '\u{201C}' // Left double quote "
+                || ch == '\u{201D}' // Right double quote "
+                || ch == '\u{2018}' // Left single quote '
+                || ch == '\u{2019}' // Right single quote '
+                || is_bullet_char(ch)
+                || ch.is_ascii_digit() // Numbered list
+        }
+    }
 }
 
 /// Convert language string to whichlang Lang enum
@@ -198,8 +326,68 @@ mod tests {
     fn test_split_empty_text() {
         let text = "";
         let sentences = split_into_sentences(text);
-        assert_eq!(sentences.len(), 1);
-        assert_eq!(sentences[0], (0, 0));
+        assert_eq!(sentences.len(), 0, "Empty text should have no sentences");
+    }
+
+    #[test]
+    fn test_split_whitespace_only() {
+        let text = "   \n\n  ";
+        let sentences = split_into_sentences(text);
+        assert_eq!(
+            sentences.len(),
+            0,
+            "Whitespace-only text should have no sentences"
+        );
+    }
+
+    // MARK: - Bullet Point Tests
+
+    #[test]
+    fn test_split_bullet_points() {
+        let text = "- First item\n- Second item\n- Third item";
+        let sentences = split_into_sentences(text);
+        assert_eq!(sentences.len(), 3, "Should split into 3 bullet items");
+    }
+
+    #[test]
+    fn test_split_mixed_bullets() {
+        let text = "• Bullet one\n* Bullet two\n- Bullet three";
+        let sentences = split_into_sentences(text);
+        assert_eq!(sentences.len(), 3, "Should handle different bullet styles");
+    }
+
+    #[test]
+    fn test_split_numbered_list() {
+        let text = "1. First item\n2. Second item\n3. Third item";
+        let sentences = split_into_sentences(text);
+        assert_eq!(sentences.len(), 3, "Should split numbered list");
+    }
+
+    #[test]
+    fn test_split_lettered_list() {
+        let text = "a. First item\nb. Second item\nc. Third item";
+        let sentences = split_into_sentences(text);
+        assert_eq!(sentences.len(), 3, "Should split lettered list");
+    }
+
+    // MARK: - Paragraph Break Tests
+
+    #[test]
+    fn test_split_paragraph_breaks() {
+        let text = "First paragraph.\n\nSecond paragraph.\n\nThird paragraph.";
+        let sentences = split_into_sentences(text);
+        assert_eq!(sentences.len(), 3, "Should split on paragraph breaks");
+    }
+
+    #[test]
+    fn test_split_paragraph_without_punctuation() {
+        let text = "First paragraph\n\nSecond paragraph\n\nThird paragraph";
+        let sentences = split_into_sentences(text);
+        assert_eq!(
+            sentences.len(),
+            3,
+            "Should split paragraphs even without punctuation"
+        );
     }
 
     // MARK: - Basic Filtering Tests
