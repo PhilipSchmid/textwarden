@@ -312,13 +312,62 @@ Logger.debug("AnalysisCoordinator: Started analysis", category: Logger.analysis)
 
 Log volume is tracked in the Diagnostics view (by severity), so avoid excessive logging that could impact performance or storage.
 
+## Commit Messages
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) format for all commit messages:
+
+```
+<type>: <description>
+
+[optional body]
+```
+
+### Types
+
+| Type | Description |
+|------|-------------|
+| `feat` | New feature or functionality |
+| `fix` | Bug fix |
+| `docs` | Documentation only changes |
+| `refactor` | Code change that neither fixes a bug nor adds a feature |
+| `perf` | Performance improvement |
+| `test` | Adding or correcting tests |
+| `chore` | Maintenance tasks, dependencies, build changes |
+| `ci` | CI/CD configuration changes |
+
+### Guidelines
+
+- **Subject line**: Imperative mood, no period, ≤50 characters
+  - Good: `feat: Add Outlook support`
+  - Bad: `Added outlook support.`
+- **Body**: Wrap at 72 characters, explain "why" not "what"
+- **Atomic commits**: One logical change per commit
+
+### Examples
+
+```
+feat: Add Microsoft Outlook support with visual underlines
+
+Implement positioning strategy for Outlook's Copilot chat panel.
+Uses TextMarker API with index offset detection for invisible chars.
+
+fix: Correct underline positioning in Slack
+
+refactor: Extract positioning logic into strategy pattern
+
+docs: Update README with new app support
+
+chore: Update Harper to v0.15.0
+```
+
 ## Submitting Changes
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
 4. Run `make ci-check`
-5. Submit a pull request
+5. Commit using conventional commit format
+6. Submit a pull request
 
 ## Getting Help
 

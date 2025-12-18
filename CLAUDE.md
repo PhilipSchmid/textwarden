@@ -88,41 +88,17 @@ Logger.warning("Failed to get bounds for element: \(elementRole)", category: Log
 - **Always run `make ci-check` and fix all findings before committing**
 - Always sign-off git commits, but not with Claude Code. Also don't mention co-authored by any AI.
 
-### Conventional Commits
+### Conventional Commits (MANDATORY)
 
-Use [Conventional Commits](https://www.conventionalcommits.org/) format for all commit messages:
+**Always use conventional commit format.** See [CONTRIBUTING.md](CONTRIBUTING.md#commit-messages) for full guidelines.
 
-```
-<type>: <description>
+Format: `<type>: <description>` where type is one of:
+- `feat` | `fix` | `docs` | `refactor` | `perf` | `test` | `chore` | `ci`
 
-[optional body]
-
-Signed-off-by: ...
-```
-
-**Types:**
-- `feat`: New feature or functionality
-- `fix`: Bug fix
-- `docs`: Documentation only changes
-- `refactor`: Code change that neither fixes a bug nor adds a feature
-- `perf`: Performance improvement
-- `test`: Adding or correcting tests
-- `chore`: Maintenance tasks, dependencies, build changes
-- `ci`: CI/CD configuration changes
-
-**Guidelines:**
-- Subject line: imperative mood, no period, ≤50 chars (e.g., "Add Outlook support")
-- Body: wrap at 72 chars, explain "why" not "what"
-- Keep commits atomic - one logical change per commit
-
-**Examples:**
-```
-feat: Add Microsoft Outlook support with visual underlines
-fix: Correct underline positioning in Slack
-refactor: Extract positioning logic into strategy pattern
-docs: Update README with new app support
-chore: Update Harper to v0.15.0
-``` 
+Examples:
+- `feat: Add Microsoft Outlook support`
+- `fix: Correct underline positioning in Slack`
+- `docs: Update README with new app support` 
 
 ## Testing
 
