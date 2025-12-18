@@ -634,8 +634,9 @@ do_upload() {
         exit 1
     fi
 
-    # Get last tag for release notes
-    local last_tag=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+    # Get the previous tag (excluding the one we're releasing) for release notes
+    # This finds the most recent tag that isn't the current version
+    local last_tag=$(git tag --sort=-creatordate | grep -v "^v$version$" | head -1)
     local release_notes=$(generate_release_notes "$last_tag" "v$version")
 
     local version_type=$(parse_version_type "$version")
