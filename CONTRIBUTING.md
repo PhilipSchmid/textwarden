@@ -314,12 +314,16 @@ Log volume is tracked in the Diagnostics view (by severity), so avoid excessive 
 
 ## Commit Messages
 
-Use [Conventional Commits](https://www.conventionalcommits.org/) format for all commit messages:
+Use [Conventional Commits](https://www.conventionalcommits.org/) format for all commit messages.
+
+**All commits must be signed off** using `git commit -s` to certify you have the right to submit the code under the project's license ([Developer Certificate of Origin](https://developercertificate.org/)).
 
 ```
 <type>: <description>
 
 [optional body]
+
+Signed-off-by: Your Name <your.email@example.com>
 ```
 
 ### Types
@@ -351,13 +355,13 @@ feat: Add Microsoft Outlook support with visual underlines
 Implement positioning strategy for Outlook's Copilot chat panel.
 Uses TextMarker API with index offset detection for invisible chars.
 
+Signed-off-by: Jane Doe <jane@example.com>
+```
+
+```
 fix: Correct underline positioning in Slack
 
-refactor: Extract positioning logic into strategy pattern
-
-docs: Update README with new app support
-
-chore: Update Harper to v0.15.0
+Signed-off-by: Jane Doe <jane@example.com>
 ```
 
 ## Submitting Changes
