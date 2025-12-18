@@ -203,7 +203,10 @@ class UserPreferences: ObservableObject {
         "com.microsoft.OneDrive",           // OneDrive
         "com.microsoft.autoupdate2",        // Microsoft AutoUpdate
         "com.microsoft.errorreporting",     // Microsoft Error Reporting
-        "com.alienator88.Pearcleaner"       // Pearcleaner
+        "com.alienator88.Pearcleaner",       // Pearcleaner
+        "com.apple.ActivityMonitor",         // Activity Monitor
+        "com.apple.AppStore",                // App Store
+        "com.knollsoft.Rectangle"            // Rectangle
     ]
 
     /// Custom words to ignore
@@ -286,7 +289,10 @@ class UserPreferences: ObservableObject {
         "com.microsoft.VSCode",         // VS Code
         "com.todesktop.230313mzl4w4u92", // Cursor IDE
         "com.exafunction.windsurf",     // Windsurf IDE
-        "com.microsoft.Excel"           // Excel
+        "com.microsoft.Excel",          // Excel
+        "com.apple.ActivityMonitor",    // Activity Monitor
+        "com.apple.AppStore",           // App Store
+        "com.knollsoft.Rectangle"       // Rectangle
     ]
 
     /// Always open settings window in foreground on launch
