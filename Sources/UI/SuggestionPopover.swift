@@ -1473,28 +1473,6 @@ struct StylePopoverContentView: View {
         CGFloat(preferences.suggestionTextSize)
     }
 
-    /// Get confidence icon based on confidence level
-    private func confidenceIcon(for confidence: Float) -> String {
-        if confidence >= 0.9 {
-            return "star.fill"
-        } else if confidence >= 0.7 {
-            return "star.leadinghalf.filled"
-        } else {
-            return "star"
-        }
-    }
-
-    /// Get confidence color based on confidence level
-    private func confidenceColor(for confidence: Float) -> Color {
-        if confidence >= 0.9 {
-            return .yellow
-        } else if confidence >= 0.7 {
-            return .orange
-        } else {
-            return colors.textSecondary
-        }
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let suggestion = popover.currentStyleSuggestion {
@@ -1605,16 +1583,6 @@ struct StylePopoverContentView: View {
                     .accessibilityHint("Double tap to choose a reason for rejecting this suggestion")
 
                     Spacer()
-
-                    // Confidence indicator (moved to right side for better layout)
-                    HStack(spacing: 4) {
-                        Image(systemName: confidenceIcon(for: suggestion.confidence))
-                            .foregroundColor(confidenceColor(for: suggestion.confidence))
-                        Text("\(Int(suggestion.confidence * 100))%")
-                            .font(.system(size: baseTextSize * 0.85))
-                            .foregroundColor(colors.textSecondary)
-                    }
-                    .accessibilityLabel("Confidence: \(Int(suggestion.confidence * 100)) percent")
 
                     // Navigation (show when multiple items total - grammar errors + style suggestions)
                     if popover.totalItemCount > 1 {
