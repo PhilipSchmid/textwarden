@@ -360,9 +360,13 @@ class TextMonitor: ObservableObject {
            AppRegistry.shared.configuration(for: bundleID).parserType == .mail {
             if !MailContentParser.isMailCompositionElement(element) {
                 // If we already have a valid composition element monitored, preserve it
-                // and just ignore this non-composition focus event
+                // and just ignore this non-composition focus event.
+                // IMPORTANT: Don't re-run isMailCompositionElement on the existing element because
+                // checks like AXEditableAncestor and isSettable are focus-dependent and may fail
+                // when focus has temporarily moved to a toolbar or other element.
+                // Instead, just verify the existing element is still a valid text element with content.
                 if let existingElement = monitoredElement,
-                   MailContentParser.isMailCompositionElement(existingElement) {
+                   isStillValidMailCompositionElement(existingElement) {
                     Logger.trace("TextMonitor: Ignoring non-composition Mail focus event - preserving existing composition element", category: Logger.accessibility)
                     return
                 }
@@ -936,6 +940,44 @@ extension TextMonitor {
     private func findEditableChild(in element: AXUIElement, maxDepth: Int = 5, currentDepth: Int = 0) -> AXUIElement? {
         var elementsChecked = 0
         return findEditableChild(in: element, maxDepth: maxDepth, currentDepth: currentDepth, elementsChecked: &elementsChecked)
+    }
+
+    /// Quick check if an already-monitored Mail composition element is still valid.
+    /// This is used to preserve monitoring when focus bounces to toolbars or headers.
+    /// Unlike isMailCompositionElement, this does NOT re-run focus-dependent checks like
+    /// AXEditableAncestor or isSettable, which can fail when focus is temporarily elsewhere.
+    /// Instead, it just verifies the element is still a valid text element (AXWebArea/AXTextArea)
+    /// and can still provide text content.
+    private func isStillValidMailCompositionElement(_ element: AXUIElement) -> Bool {
+        // Check role - must be AXWebArea or AXTextArea
+        var roleRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef) == .success,
+              let role = roleRef as? String else {
+            return false
+        }
+
+        let validRoles = ["AXWebArea", kAXTextAreaRole as String]
+        guard validRoles.contains(role) else {
+            return false
+        }
+
+        // Verify we can still get text content (element is still accessible)
+        // Try AXNumberOfCharacters first (lightweight check)
+        var charCountRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &charCountRef) == .success,
+           let charCount = charCountRef as? Int,
+           charCount > 0 {
+            return true
+        }
+
+        // Fallback: try to get AXValue
+        var valueRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
+           valueRef != nil {
+            return true
+        }
+
+        return false
     }
 
     /// Check if element is an editable text field (not read-only content)

@@ -56,39 +56,43 @@ class MailContentParser: ContentParser {
         // Log available parameterized attributes (once per session) for debugging
         MailContentParser.logAvailableAttributes(element)
 
+        var extractedText: String?
+
         // Try standard AXValue first (might work in some cases)
         var valueRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
            let text = valueRef as? String,
            !text.isEmpty {
             Logger.debug("MailContentParser: extractText - got AXValue (\(text.count) chars)", category: Logger.accessibility)
-            return text
+            extractedText = text
         }
 
         // CRITICAL: Use AXStringForRange to get the EXACT text including newlines.
         // Mail's AXStaticText children do NOT include newline characters, but Mail's
         // AXBoundsForRange uses indices that count newlines. Using AXStringForRange
         // ensures our character indices match Mail's accessibility API exactly.
-        var charCountRef: CFTypeRef?
-        var mailCharCount = 0
-        if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &charCountRef) == .success,
-           let count = charCountRef as? Int {
-            mailCharCount = count
-        } else {
-            Logger.debug("MailContentParser: AXNumberOfCharacters failed, trying with large range", category: Logger.accessibility)
-            mailCharCount = 100_000  // Try with a large range
-        }
+        if extractedText == nil {
+            var charCountRef: CFTypeRef?
+            var mailCharCount = 0
+            if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &charCountRef) == .success,
+               let count = charCountRef as? Int {
+                mailCharCount = count
+            } else {
+                Logger.debug("MailContentParser: AXNumberOfCharacters failed, trying with large range", category: Logger.accessibility)
+                mailCharCount = 100_000  // Try with a large range
+            }
 
-        if mailCharCount > 0 {
-            var range = CFRange(location: 0, length: mailCharCount)
-            if let rangeValue = AXValueCreate(.cfRange, &range) {
-                var stringRef: CFTypeRef?
-                let axResult = AXUIElementCopyParameterizedAttributeValue(element, "AXStringForRange" as CFString, rangeValue, &stringRef)
-                if axResult == .success,
-                   let text = stringRef as? String,
-                   !text.isEmpty {
-                    Logger.debug("MailContentParser: AXStringForRange succeeded (\(text.count) chars)", category: Logger.accessibility)
-                    return text
+            if mailCharCount > 0 {
+                var range = CFRange(location: 0, length: mailCharCount)
+                if let rangeValue = AXValueCreate(.cfRange, &range) {
+                    var stringRef: CFTypeRef?
+                    let axResult = AXUIElementCopyParameterizedAttributeValue(element, "AXStringForRange" as CFString, rangeValue, &stringRef)
+                    if axResult == .success,
+                       let text = stringRef as? String,
+                       !text.isEmpty {
+                        Logger.debug("MailContentParser: AXStringForRange succeeded (\(text.count) chars)", category: Logger.accessibility)
+                        extractedText = text
+                    }
                 }
             }
         }
@@ -96,17 +100,30 @@ class MailContentParser: ContentParser {
         // Fallback: traverse children to find AXStaticText elements
         // Mail's AXWebArea has children: AXGroup -> AXStaticText (one per line)
         // Note: This fallback is less reliable for positioning as it may not include newlines correctly
-        var collectedText: [String] = []
-        MailContentParser.collectTextFromChildren(element, into: &collectedText, depth: 0, maxDepth: 10)
+        if extractedText == nil {
+            var collectedText: [String] = []
+            MailContentParser.collectTextFromChildren(element, into: &collectedText, depth: 0, maxDepth: 10)
 
-        if !collectedText.isEmpty {
-            let fullText = collectedText.joined(separator: "\n")
-            Logger.debug("MailContentParser: extractText - using fallback text extraction (\(fullText.count) chars)", category: Logger.accessibility)
-            return fullText
+            if !collectedText.isEmpty {
+                let fullText = collectedText.joined(separator: "\n")
+                Logger.debug("MailContentParser: extractText - using fallback text extraction (\(fullText.count) chars)", category: Logger.accessibility)
+                extractedText = fullText
+            }
         }
 
-        Logger.debug("MailContentParser: extractText - no text found", category: Logger.accessibility)
-        return nil
+        guard let text = extractedText else {
+            Logger.debug("MailContentParser: extractText - no text found", category: Logger.accessibility)
+            return nil
+        }
+
+        // Strip quoted content from reply/forward emails
+        // Only analyze the user's new text, not quoted previous messages
+        let strippedText = MailContentParser.stripQuotedContent(from: text)
+        if strippedText.count < text.count {
+            Logger.debug("MailContentParser: Stripped quoted content (\(text.count) -> \(strippedText.count) chars)", category: Logger.accessibility)
+        }
+
+        return strippedText.isEmpty ? nil : strippedText
     }
 
     // MARK: - WebKit Attribute Diagnostics
@@ -598,16 +615,66 @@ class MailContentParser: ContentParser {
             return false
         }
 
-        // INCLUDE: Text areas (the main composition body)
+        // Text areas need the same checks as web areas - Mail uses them in both
+        // composition (editable) and preview headers (read-only, e.g., message.header.content)
         if role == kAXTextAreaRole as String {
-            Logger.debug("MailContentParser: Accepting - text area (composition body)", category: Logger.accessibility)
-            return true
+            // Check identifier - reject preview header elements
+            if identifier.contains("header") || identifier.contains("preview") {
+                Logger.debug("MailContentParser: Rejecting - text area in preview header (id: \(identifier))", category: Logger.accessibility)
+                return false
+            }
+
+            // PRIMARY: Check if element has editable ancestor
+            if hasEditableAncestor(element) {
+                Logger.debug("MailContentParser: Accepting - text area has editable ancestor", category: Logger.accessibility)
+                return true
+            }
+
+            // SECONDARY: Check if AXValue is settable
+            var isSettable: DarwinBoolean = false
+            if AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &isSettable) == .success,
+               isSettable.boolValue {
+                Logger.debug("MailContentParser: Accepting - text area AXValue is settable", category: Logger.accessibility)
+                return true
+            }
+
+            // FALLBACK: Check window structure
+            if isInsideCompositionWindow(element) {
+                Logger.debug("MailContentParser: Accepting - text area in composition window", category: Logger.accessibility)
+                return true
+            }
+
+            Logger.debug("MailContentParser: Rejecting - text area is read-only (preview)", category: Logger.accessibility)
+            return false
         }
 
-        // INCLUDE: Web areas (Mail uses WebKit for rich text composition)
+        // Web areas need special handling - Mail uses WebKit for both:
+        // 1. Email composition (editable) - should be checked
+        // 2. Email preview/viewing (read-only) - should NOT be checked
         if role == "AXWebArea" {
-            Logger.debug("MailContentParser: Accepting - web area (rich text composition)", category: Logger.accessibility)
-            return true
+            // PRIMARY CHECK: Use AXEditableAncestor attribute (WebKit exposes this for editable content)
+            // This is the most reliable, language-independent way to detect editable WebAreas
+            if hasEditableAncestor(element) {
+                Logger.debug("MailContentParser: Accepting - web area has editable ancestor (composition)", category: Logger.accessibility)
+                return true
+            }
+
+            // SECONDARY CHECK: Verify AXValue is settable (indicates editable content)
+            var isSettable: DarwinBoolean = false
+            if AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &isSettable) == .success,
+               isSettable.boolValue {
+                Logger.debug("MailContentParser: Accepting - web area AXValue is settable (composition)", category: Logger.accessibility)
+                return true
+            }
+
+            // FALLBACK: Check window structure for main viewer indicators
+            if isInsideCompositionWindow(element) {
+                Logger.debug("MailContentParser: Accepting - web area in composition window (structure check)", category: Logger.accessibility)
+                return true
+            }
+
+            Logger.debug("MailContentParser: Rejecting - web area is read-only (preview/viewer)", category: Logger.accessibility)
+            return false
         }
 
         // Check parent hierarchy to see if we're inside a composition window
@@ -621,11 +688,13 @@ class MailContentParser: ContentParser {
         return false
     }
 
-    /// Check if element is inside a Mail composition window (not main viewer)
+    /// Check if element is NOT inside the main Mail viewer (which has message list + preview pane)
+    /// This is a structural fallback - primary checks use AXEditableAncestor and AXValue settability
+    /// Returns true only if we DON'T find main viewer indicators (split group with message list, sidebar, etc.)
     private static func isInsideCompositionWindow(_ element: AXUIElement) -> Bool {
         var currentElement: AXUIElement? = element
 
-        // Walk up the parent hierarchy (up to 15 levels for Mail's deep hierarchy)
+        // Walk up the parent hierarchy looking for main viewer indicators
         for depth in 0..<15 {
             var parentRef: CFTypeRef?
             guard let current = currentElement,
@@ -634,69 +703,242 @@ class MailContentParser: ContentParser {
                   CFGetTypeID(parent) == AXUIElementGetTypeID() else {
                 break
             }
-            // Safe: type verified by CFGetTypeID check above
             let parentElement = unsafeBitCast(parent, to: AXUIElement.self)
 
-            // Get parent's role
             var parentRole: CFTypeRef?
             AXUIElementCopyAttributeValue(parentElement, kAXRoleAttribute as CFString, &parentRole)
             let parentRoleStr = parentRole as? String ?? ""
 
-            // Get parent's subrole
-            var parentSubrole: CFTypeRef?
-            AXUIElementCopyAttributeValue(parentElement, kAXSubroleAttribute as CFString, &parentSubrole)
-            let parentSubroleStr = parentSubrole as? String ?? ""
-
-            // Get parent's title
-            var parentTitle: CFTypeRef?
-            AXUIElementCopyAttributeValue(parentElement, kAXTitleAttribute as CFString, &parentTitle)
-            let parentTitleStr = (parentTitle as? String)?.lowercased() ?? ""
-
-            // REJECT: If we find an outline (sidebar), we're not in composition
+            // REJECT: Outline = sidebar (folder list)
             if parentRoleStr == "AXOutline" {
-                Logger.debug("MailContentParser: Parent hierarchy contains outline at depth \(depth) - not composition", category: Logger.accessibility)
+                Logger.debug("MailContentParser: Found sidebar (AXOutline) at depth \(depth) - main viewer", category: Logger.accessibility)
                 return false
             }
 
-            // REJECT: If we find a table (message list), we're not in composition
+            // REJECT: Table = message list
             if parentRoleStr == "AXTable" {
-                Logger.debug("MailContentParser: Parent hierarchy contains table at depth \(depth) - not composition", category: Logger.accessibility)
+                Logger.debug("MailContentParser: Found message list (AXTable) at depth \(depth) - main viewer", category: Logger.accessibility)
                 return false
             }
 
-            // ACCEPT: Standard windows with composition-related titles
-            if parentRoleStr == "AXWindow" {
-                // Composition windows often have titles like "New Message", "Re:", "Fwd:", etc.
-                // or in German: "Neue E-Mail", "AW:", "WG:", etc.
-                let compositionIndicators = [
-                    "new message", "neue", "re:", "aw:", "fwd:", "wg:",
-                    "reply", "forward", "antwort", "weiterleiten",
-                    "compose", "draft", "entwurf"
-                ]
-                for indicator in compositionIndicators {
-                    if parentTitleStr.contains(indicator) {
-                        Logger.debug("MailContentParser: Found composition window title '\(parentTitleStr)' at depth \(depth)", category: Logger.accessibility)
-                        return true
-                    }
-                }
-
-                // If we're in a window but it doesn't look like composition,
-                // check if the element is a text area (already accepted) vs sidebar
-                // Don't immediately reject - the window might be untitled new message
-            }
-
-            // ACCEPT: Scroll areas that might contain the message editor
-            // (the composition body is inside a scroll area)
-            if parentRoleStr == "AXScrollArea" && parentSubroleStr != "AXOutlineRow" {
-                // This could be the composition scroll area
-                // Continue checking to see if we're really in composition
+            // REJECT: Split group containing message list = main viewer layout
+            if parentRoleStr == "AXSplitGroup" && splitGroupContainsMessageList(parentElement) {
+                Logger.debug("MailContentParser: Found split group with message list at depth \(depth) - main viewer", category: Logger.accessibility)
+                return false
             }
 
             currentElement = parentElement
         }
 
-        // If we didn't find definitive composition or rejection signals,
-        // rely on the element's own properties (already checked in isMailCompositionElement)
+        // No main viewer indicators found - likely a composition window
+        // Note: Primary editability checks should catch most cases before we get here
+        Logger.debug("MailContentParser: No main viewer indicators found - accepting as composition", category: Logger.accessibility)
+        return true
+    }
+
+    /// Check if element has an editable ancestor (WebKit exposes this for contenteditable areas)
+    /// This is the most reliable way to detect if a WebArea is editable vs read-only
+    private static func hasEditableAncestor(_ element: AXUIElement) -> Bool {
+        // Check AXEditableAncestor - WebKit exposes this for elements inside editable content
+        var editableAncestorRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, "AXEditableAncestor" as CFString, &editableAncestorRef) == .success,
+           editableAncestorRef != nil {
+            Logger.debug("MailContentParser: Element has AXEditableAncestor", category: Logger.accessibility)
+            return true
+        }
+
+        // Also check AXHighestEditableAncestor as a fallback
+        var highestEditableRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, "AXHighestEditableAncestor" as CFString, &highestEditableRef) == .success,
+           highestEditableRef != nil {
+            Logger.debug("MailContentParser: Element has AXHighestEditableAncestor", category: Logger.accessibility)
+            return true
+        }
+
         return false
+    }
+
+    /// Check if a split group contains a message list table (indicating main viewer window)
+    private static func splitGroupContainsMessageList(_ splitGroup: AXUIElement) -> Bool {
+        var childrenRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(splitGroup, kAXChildrenAttribute as CFString, &childrenRef) == .success,
+              let children = childrenRef as? [AXUIElement] else {
+            return false
+        }
+
+        // Check immediate children for a table (shallow search)
+        for child in children {
+            var roleRef: CFTypeRef?
+            AXUIElementCopyAttributeValue(child, kAXRoleAttribute as CFString, &roleRef)
+            if let role = roleRef as? String, role == "AXTable" {
+                return true
+            }
+
+            // Also check one level deeper (split groups can be nested)
+            var grandchildrenRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(child, kAXChildrenAttribute as CFString, &grandchildrenRef) == .success,
+               let grandchildren = grandchildrenRef as? [AXUIElement] {
+                for grandchild in grandchildren {
+                    var grandRoleRef: CFTypeRef?
+                    AXUIElementCopyAttributeValue(grandchild, kAXRoleAttribute as CFString, &grandRoleRef)
+                    if let grandRole = grandRoleRef as? String, grandRole == "AXTable" {
+                        return true
+                    }
+                }
+            }
+        }
+
+        return false
+    }
+
+    // MARK: - Quote Stripping
+
+    /// Strip quoted content from email text to only analyze the user's new message.
+    /// Detects quote attribution lines like "On [date], [person] wrote:" in multiple languages
+    /// and returns only text before the first quote.
+    ///
+    /// Supported languages based on research from email parsing libraries:
+    /// - mail-parser-reply (Python): https://github.com/alfonsrv/mail-parser-reply
+    /// - extended_email_reply_parser (Ruby): https://github.com/fiedl/extended_email_reply_parser
+    /// - EmailReplyParser (PHP): https://github.com/willdurand/EmailReplyParser
+    static func stripQuotedContent(from text: String) -> String {
+        let lines = text.components(separatedBy: .newlines)
+
+        // Quote attribution patterns for languages supported by whichlang
+        // (Arabic, Dutch, English, French, German, Hindi, Italian, Japanese, Korean,
+        // Mandarin, Portuguese, Russian, Spanish, Swedish, Turkish, Vietnamese)
+        // Format: "On [date], [name] wrote:" with language-specific variations
+        // Sources: GitHub email parsing libraries, Apple Mail/Gmail/Outlook localization
+        let quotePatterns: [NSRegularExpression] = {
+            let patterns = [
+                // === ENGLISH ===
+                // "On Dec 14, 2025, at 17:31, John wrote:"
+                #"^On\s+.+\s+wrote\s*:"#,
+
+                // === GERMAN (Deutsch) ===
+                // "Am 14.12.2025 um 17:31 schrieb John:"
+                #"^Am\s+.+\s+schrieb\s*.*:"#,
+
+                // === FRENCH (Français) ===
+                // "Le 14 déc. 2025 à 17:31, John a écrit :"
+                #"^Le\s+.+\s+a\s+[eé]crit\s*:"#,
+
+                // === SPANISH (Español) ===
+                // "El 14 de diciembre de 2025, John escribió:"
+                #"^El\s+.+\s+escribi[oó]\s*:"#,
+
+                // === ITALIAN (Italiano) ===
+                // "Il 14 dic 2025 John ha scritto:"
+                #"^Il\s+.+\s+ha\s+scritto\s*:"#,
+
+                // === PORTUGUESE (Português) ===
+                // "Em 14 de dez de 2025, John escreveu:"
+                #"^(Em|No dia)\s+.+\s+escreveu\s*:"#,
+
+                // === DUTCH (Nederlands) ===
+                // "Op 14 dec 2025 om 17:31 schreef John:"
+                #"^Op\s+.+\s+(schreef|heeft\s+.+\s+geschreven)\s*.*:"#,
+
+                // === SWEDISH (Svenska) ===
+                // "Den 14 dec 2025 kl. 17:31 skrev John:"
+                #"^Den\s+.+\s+skrev\s*.*:"#,
+
+                // === RUSSIAN (Русский) ===
+                // "14 декабря 2025 г. John написал:"
+                #".+\s+написал[аов]?\s*:"#,
+
+                // === TURKISH (Türkçe) ===
+                // "14 Aralık 2025 tarihinde John yazdı:"
+                #".+\s+tarihinde\s+.+\s+yazd[ıi]\s*:"#,
+
+                // === CHINESE (中文) ===
+                // "在 2025年12月14日, John 写道："
+                #".+写道[：:]"#,
+
+                // === JAPANESE (日本語) ===
+                // "[Date] [name] のメッセージ:"
+                #".+のメッセージ\s*:"#,
+
+                // === KOREAN (한국어) ===
+                // "[Date] [name]님이 작성:"
+                #".+님이\s+(작성|썼습니다)\s*.*:"#,
+
+                // === ARABIC (العربية) ===
+                // RTL: "كتب [name] في [date]:"
+                #"كتب\s+.+:"#,
+
+                // === VIETNAMESE (Tiếng Việt) ===
+                // "Vào [date], [name] đã viết:"
+                #"^Vào\s+.+\s+đã viết\s*:"#,
+
+                // === HINDI (हिन्दी) ===
+                // "[Date] को [name] ने लिखा:"
+                #".+\s+ने लिखा\s*:"#,
+
+                // === GENERIC QUOTE MARKERS ===
+                // Traditional quote prefix ">" (all email clients)
+                #"^>\s*"#,
+
+                // === FORWARDED MESSAGE HEADERS ===
+                // English
+                #"^-+\s*(Forwarded|Original)\s+(M|m)essage\s*-+"#,
+                #"^Begin forwarded message\s*:"#,
+
+                // German: "Weitergeleitete Nachricht"
+                #"^-+\s*Weitergeleitete Nachricht\s*-+"#,
+
+                // French: "Message transféré"
+                #"^-+\s*Message transf[eé]r[eé]\s*-+"#,
+
+                // Spanish: "Mensaje reenviado"
+                #"^-+\s*Mensaje reenviado\s*-+"#,
+
+                // Italian: "Messaggio inoltrato"
+                #"^-+\s*Messaggio inoltrato\s*-+"#,
+
+                // Portuguese: "Mensagem encaminhada"
+                #"^-+\s*Mensagem encaminhada\s*-+"#,
+
+                // Dutch: "Doorgestuurd bericht"
+                #"^-+\s*Doorgestuurd bericht\s*-+"#,
+
+                // Russian: "Пересланное сообщение"
+                #"^-+\s*Пересланное сообщение\s*-+"#,
+
+                // === FROM HEADER (appears in forwarded messages) ===
+                // Multiple languages: "From:", "Von:", "De:", "Da:", "Van:", "От:", etc.
+                #"^(From|Von|De|Da|Van|От|Från)\s*:\s+.+@"#
+            ]
+            return patterns.compactMap { try? NSRegularExpression(pattern: $0, options: [.caseInsensitive]) }
+        }()
+
+        var newTextLines: [String] = []
+        var foundQuote = false
+
+        for line in lines {
+            // Check if this line matches any quote pattern
+            let lineRange = NSRange(line.startIndex..., in: line)
+            for pattern in quotePatterns {
+                if pattern.firstMatch(in: line, options: [], range: lineRange) != nil {
+                    foundQuote = true
+                    Logger.debug("MailContentParser: Found quote marker at line: '\(line.prefix(50))...'", category: Logger.accessibility)
+                    break
+                }
+            }
+
+            if foundQuote {
+                break
+            }
+
+            newTextLines.append(line)
+        }
+
+        // Join the lines back together
+        var result = newTextLines.joined(separator: "\n")
+
+        // Trim trailing whitespace/newlines from the user's text
+        result = result.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return result
     }
 }
