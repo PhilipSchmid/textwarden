@@ -1473,6 +1473,28 @@ struct StylePopoverContentView: View {
         CGFloat(preferences.suggestionTextSize)
     }
 
+    /// Get confidence icon based on confidence level
+    private func confidenceIcon(for confidence: Float) -> String {
+        if confidence >= 0.9 {
+            return "star.fill"
+        } else if confidence >= 0.7 {
+            return "star.leadinghalf.filled"
+        } else {
+            return "star"
+        }
+    }
+
+    /// Get confidence color based on confidence level
+    private func confidenceColor(for confidence: Float) -> Color {
+        if confidence >= 0.9 {
+            return .yellow
+        } else if confidence >= 0.7 {
+            return .orange
+        } else {
+            return colors.textSecondary
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let suggestion = popover.currentStyleSuggestion {
@@ -1493,35 +1515,28 @@ struct StylePopoverContentView: View {
                             .tracking(0.6)
                             .accessibilityAddTraits(.isHeader)
 
-                        // Before/After diff view (no dark background)
-                        VStack(alignment: .leading, spacing: 8) {
-                            // Original text
-                            HStack(alignment: .top, spacing: 8) {
-                                Text("Before:")
-                                    .font(.system(size: baseTextSize * 0.85, weight: .medium))
-                                    .foregroundColor(colors.textSecondary)
-                                    .frame(width: 50, alignment: .leading)
-                                Text(suggestion.originalText)
+                        // Unified diff view (shows text once with removed/added highlighting)
+                        ScrollView {
+                            if !suggestion.diff.isEmpty {
+                                StyleDiffView(diff: suggestion.diff, showInline: true)
                                     .font(.system(size: baseTextSize))
-                                    .foregroundColor(.red.opacity(0.85))
-                                    .strikethrough(true, color: .red)
+                                    .textSelection(.enabled)
+                            } else {
+                                // Fallback for suggestions without diff data
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(suggestion.originalText)
+                                        .font(.system(size: baseTextSize))
+                                        .foregroundColor(.red.opacity(0.85))
+                                        .strikethrough(true, color: .red)
+                                    Text(suggestion.suggestedText)
+                                        .font(.system(size: baseTextSize))
+                                        .foregroundColor(.green)
+                                }
                             }
-                            .accessibilityElement(children: .combine)
-                            .accessibilityLabel("Original text: \(suggestion.originalText)")
-
-                            // Suggested text
-                            HStack(alignment: .top, spacing: 8) {
-                                Text("After:")
-                                    .font(.system(size: baseTextSize * 0.85, weight: .medium))
-                                    .foregroundColor(colors.textSecondary)
-                                    .frame(width: 50, alignment: .leading)
-                                Text(suggestion.suggestedText)
-                                    .font(.system(size: baseTextSize))
-                                    .foregroundColor(.green)
-                            }
-                            .accessibilityElement(children: .combine)
-                            .accessibilityLabel("Suggested text: \(suggestion.suggestedText)")
                         }
+                        .frame(maxHeight: 150)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Change from: \(suggestion.originalText), to: \(suggestion.suggestedText)")
 
                         // Explanation
                         Text(suggestion.explanation)
@@ -1586,6 +1601,16 @@ struct StylePopoverContentView: View {
                     .menuStyle(.borderlessButton)
                     .accessibilityLabel("Reject suggestion")
                     .accessibilityHint("Double tap to choose a reason for rejecting this suggestion")
+
+                    // Confidence indicator
+                    HStack(spacing: 4) {
+                        Image(systemName: confidenceIcon(for: suggestion.confidence))
+                            .foregroundColor(confidenceColor(for: suggestion.confidence))
+                        Text("\(Int(suggestion.confidence * 100))%")
+                            .font(.system(size: baseTextSize * 0.85))
+                            .foregroundColor(colors.textSecondary)
+                    }
+                    .accessibilityLabel("Confidence: \(Int(suggestion.confidence * 100)) percent")
 
                     Spacer()
 
