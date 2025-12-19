@@ -6,6 +6,7 @@ This guide explains all the settings available in TextWarden and how they affect
 
 - [Table of Contents](#table-of-contents)
 - [General Settings](#general-settings)
+- [Updates](#updates)
 - [Grammar \& Language](#grammar--language)
 - [Custom Vocabulary](#custom-vocabulary)
 - [Style Checking (Apple Intelligence)](#style-checking-apple-intelligence)
@@ -37,6 +38,53 @@ This guide explains all the settings available in TextWarden and how they affect
 - **Relaxed (500ms)** - Best for slower typists or if you find suggestions distracting
 
 **Recommendation:** Start with Normal. If you find underlines appearing while you're still composing a thought, increase the delay.
+
+---
+
+## Updates
+
+TextWarden uses [Sparkle](https://sparkle-project.org) for secure, automatic updates. Update settings are found in **Preferences → About**.
+
+### How Updates Work
+
+When you check for updates (manually or automatically), TextWarden:
+1. Securely connects to the update server over HTTPS
+2. Downloads an update feed signed with EdDSA cryptographic signatures
+3. Compares your version against available releases
+4. If a newer version is available, shows a dialog with release notes and options to update now or skip
+
+All updates are code-signed by the developer and notarized by Apple, ensuring they haven't been tampered with.
+
+### Automatically Check for Updates
+
+**What it does:** When enabled, TextWarden checks for updates once every 24 hours in the background. If an update is found, you'll see a notification.
+
+**Default:** Disabled (opt-in for privacy)
+
+**Recommendation:** Enable this to stay up to date with bug fixes and new features without having to remember to check manually.
+
+### Include Experimental Releases
+
+**What it does:** Opts you into the experimental update channel, which includes pre-release versions (alpha and beta builds) in addition to stable releases.
+
+**What you'll get:**
+- **Stable channel (default):** Only production releases (e.g., 1.0.0, 1.1.0)
+- **Experimental channel:** Pre-release versions (e.g., 0.1.0-alpha.3, 1.1.0-beta.1) plus stable releases
+
+**When to enable:**
+- You want to try new features before they're officially released
+- You're willing to report bugs and provide feedback
+- You understand that experimental releases may have rough edges
+
+**When to keep disabled:**
+- You prefer stability over new features
+- You rely on TextWarden for critical work
+
+**Note:** Experimental releases go through the same code signing and notarization process as stable releases—they're not less secure, just less tested.
+
+### Manual Update Check
+
+Click **Check for Updates** in the About section to immediately check for available updates. This shows the update dialog if a newer version is available, or confirms you're up to date.
 
 ---
 
