@@ -179,9 +179,17 @@ mdls -name kMDItemCFBundleIdentifier /Applications/AppName.app
 
 ### Adding Default Paused or Hidden Applications
 
-Some applications should be paused or hidden by default because grammar checking isn't useful or causes false positives. Edit `Sources/Models/UserPreferences.swift`:
+Some applications should be paused or hidden by default because grammar checking isn't useful or causes false positives. Edit `Sources/Models/UserPreferences.swift`.
 
-**Hidden by default** - Apps that don't appear in the Applications list (system utilities, background services):
+TextWarden has two levels of default application restrictions:
+
+| Type | Shown in UI | Grammar Checking | User Can Enable |
+|------|-------------|------------------|-----------------|
+| **Hidden** | No (not in Applications list) | Disabled | Yes (unhide first, then enable) |
+| **Paused** | Yes (in Applications list) | Disabled by default | Yes (just enable) |
+
+**Hidden by default** - Apps that don't appear in the Applications list at all. Use this for apps where grammar checking is almost never useful (system utilities, background services, media players). Users can still unhide these apps in Preferences → Applications → "Show Hidden" and then enable grammar checking if they really want to.
+
 ```swift
 static let defaultHiddenApplications: Set<String> = [
     // ... existing entries ...
@@ -189,7 +197,8 @@ static let defaultHiddenApplications: Set<String> = [
 ]
 ```
 
-**Paused by default** - Apps shown in the list but paused (user can enable):
+**Paused by default** - Apps shown in the Applications list but paused initially. Use this for apps where most users don't want grammar checking, but some might (IDEs, spreadsheets, calendars). The app appears in the list with a "Paused" badge, making it easy for users to enable if they want to.
+
 ```swift
 static let defaultPausedApplications: Set<String> = [
     "com.apple.iCal",     // Apple Calendar
@@ -197,13 +206,16 @@ static let defaultPausedApplications: Set<String> = [
 ]
 ```
 
-**Terminal applications** - Special category, always paused to avoid false positives from command output:
+**Terminal applications** - Special category of paused apps. Always paused by default to avoid false positives from command output. Terminals are listed separately because they share a common reason for being paused.
+
 ```swift
 static let terminalApplications: Set<String> = [
     // ... existing entries ...
     "com.example.terminal",  // My Terminal
 ]
 ```
+
+**Note:** An app can be in both `defaultHiddenApplications` and `defaultPausedApplications`. In this case, the app is hidden by default, but if the user unhides it, it will still be paused (they'd need to explicitly enable it).
 
 ### Adding Custom App Behavior
 
