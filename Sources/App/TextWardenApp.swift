@@ -17,16 +17,13 @@ struct TextWardenApp: App {
     @StateObject private var permissionManager = PermissionManager.shared
 
     var body: some Scene {
-        // Menu bar app - minimal dummy scene required by SwiftUI
+        // Menu bar app - use Settings scene as placeholder (doesn't auto-create window)
         // Both settings and onboarding windows are created manually in AppDelegate for full control
         // MenuBarController handles the actual menu bar icon
-        WindowGroup {
+        // Note: WindowGroup always creates a visible window, Settings does not
+        Settings {
             EmptyView()
-                .frame(width: 0, height: 0)
-                .hidden()
         }
-        .windowStyle(.hiddenTitleBar)
-        .defaultSize(width: 0, height: 0)
     }
 }
 
@@ -87,13 +84,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
 
         Logger.info("Set as menu bar app (no dock icon)", category: Logger.lifecycle)
-
-        // Close any default SwiftUI windows that were created by WindowGroup
-        // The WindowGroup in SwiftUI creates a window even with EmptyView - we need to close it
-        for window in NSApp.windows where window.title.isEmpty || window.title == "Window" {
-            Logger.debug("Closing default SwiftUI window: \(window.title.isEmpty ? "(untitled)" : window.title)", category: Logger.ui)
-            window.close()
-        }
 
         // CRITICAL: LSUIElement apps don't receive activation events, so the main run loop
         // doesn't fully "spin" until something creates a Cocoa event. This causes timers,
