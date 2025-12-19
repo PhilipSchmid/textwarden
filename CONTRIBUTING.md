@@ -373,6 +373,39 @@ Signed-off-by: Jane Doe <jane@example.com>
 5. Commit using conventional commit format
 6. Submit a pull request
 
+## Releasing
+
+> **Note**: Releases can only be created by the project maintainer (@PhilipSchmid), as they require a valid Apple Developer account for code signing and notarization.
+
+The release process involves:
+- **Code signing** with a Developer ID certificate
+- **Apple notarization** for Gatekeeper approval
+- **Sparkle signing** for secure auto-updates
+
+### Release Commands
+
+```bash
+# Build and prepare a release
+./Scripts/release.sh release 0.1.0-alpha.3
+
+# Upload a prepared release to GitHub
+./Scripts/release.sh upload 0.1.0-alpha.3
+
+# Generate release notes (for review)
+./Scripts/release.sh notes [FROM_TAG] [TO_TAG]
+
+# Show current version
+./Scripts/release.sh version
+```
+
+### Version Format
+
+TextWarden follows [Semantic Versioning](https://semver.org/) with pre-release identifiers:
+- `0.1.0-alpha.1` - Alpha releases (experimental features)
+- `0.1.0-beta.1` - Beta releases (feature complete, testing)
+- `0.1.0-rc.1` - Release candidates (final testing)
+- `0.1.0` - Stable releases
+
 ## Getting Help
 
 - [GitHub Issues](https://github.com/philipschmid/textwarden/issues) for bugs
