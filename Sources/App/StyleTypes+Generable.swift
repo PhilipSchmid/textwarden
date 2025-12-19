@@ -53,10 +53,18 @@ extension FMStyleSuggestion {
     /// - Parameters:
     ///   - text: The original text that was analyzed (for position calculation)
     ///   - style: The writing style that was used
-    /// - Returns: A StyleSuggestionModel, or nil if the original text wasn't found
+    /// - Returns: A StyleSuggestionModel, or nil if the original text wasn't found or suggestion is invalid
     func toStyleSuggestionModel(in text: String, style: WritingStyle) -> StyleSuggestionModel? {
         // Find the position of the original text in the input
         guard let range = text.range(of: original) else {
+            return nil
+        }
+
+        // Reject suggestions that span multiple list items/bullets
+        // Count newlines in original text - if there's more than one significant paragraph break, reject
+        let newlineCount = original.components(separatedBy: "\n").count - 1
+        if newlineCount >= 2 {
+            Logger.debug("Rejecting style suggestion spanning \(newlineCount + 1) paragraphs (\(original.count) chars)", category: Logger.analysis)
             return nil
         }
 
@@ -211,9 +219,50 @@ extension FMStyleAnalysisResult {
     /// - Parameters:
     ///   - text: The original text that was analyzed
     ///   - style: The writing style that was used
-    /// - Returns: Array of valid StyleSuggestionModel (filtering out any with invalid positions)
+    /// - Returns: Array of valid StyleSuggestionModel (filtering out any with invalid positions and overlapping ranges)
     func toStyleSuggestionModels(in text: String, style: WritingStyle) -> [StyleSuggestionModel] {
-        suggestions.compactMap { $0.toStyleSuggestionModel(in: text, style: style) }
+        // Convert all suggestions to models
+        let allModels = suggestions.compactMap { $0.toStyleSuggestionModel(in: text, style: style) }
+
+        // Filter out overlapping suggestions
+        // When suggestions overlap, keep the first one (by position) and discard overlapping ones
+        return filterOverlappingSuggestions(allModels)
+    }
+
+    /// Filter out suggestions that overlap with each other
+    /// Keeps suggestions in position order, discarding any that overlap with already-kept suggestions
+    private func filterOverlappingSuggestions(_ suggestions: [StyleSuggestionModel]) -> [StyleSuggestionModel] {
+        guard suggestions.count > 1 else { return suggestions }
+
+        // Sort by start position
+        let sorted = suggestions.sorted { $0.originalStart < $1.originalStart }
+
+        var result: [StyleSuggestionModel] = []
+
+        for suggestion in sorted {
+            // Check if this suggestion overlaps with any already-kept suggestion
+            let overlaps = result.contains { existing in
+                rangesOverlap(
+                    start1: existing.originalStart, end1: existing.originalEnd,
+                    start2: suggestion.originalStart, end2: suggestion.originalEnd
+                )
+            }
+
+            if !overlaps {
+                result.append(suggestion)
+            } else {
+                Logger.debug("Filtering overlapping style suggestion at \(suggestion.originalStart)-\(suggestion.originalEnd)", category: Logger.analysis)
+            }
+        }
+
+        return result
+    }
+
+    /// Check if two ranges overlap
+    /// Ranges are [start, end) - end is exclusive
+    private func rangesOverlap(start1: Int, end1: Int, start2: Int, end2: Int) -> Bool {
+        // Two ranges overlap if start1 < end2 AND start2 < end1
+        return start1 < end2 && start2 < end1
     }
 }
 

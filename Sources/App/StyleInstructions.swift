@@ -35,12 +35,15 @@ struct StyleInstructions {
 
         RULES:
         1. The "original" field MUST be an exact verbatim substring from the input text.
-        2. Do not suggest changes to technical terms, proper nouns, or domain-specific jargon.
-        3. Preserve the original meaning - only improve how it's expressed.
-        4. Only suggest changes that meaningfully improve the text.
-        5. Return an empty suggestions list if the text is already well-written.
-        6. Keep explanations brief (1-2 sentences max).
-        7. Focus on one improvement per suggestion - don't combine multiple changes.
+        2. Prefer targeting individual sentences, but combining related sentences is acceptable.
+        3. Never remove important content or meaning - condensing is fine, deletion is not.
+        4. Do not suggest changes to technical terms, proper nouns, or domain-specific jargon.
+        5. Preserve the original meaning - only improve how it's expressed.
+        6. Only suggest changes that meaningfully improve the text.
+        7. Return an empty suggestions list if the text is already well-written.
+        8. Keep explanations brief (maximum 10 words).
+        9. Focus on one improvement per suggestion - don't combine multiple unrelated changes.
+        10. IMPORTANT: Treat each bullet point or list item as a separate unit. Never combine multiple bullet points into a single suggestion.
 
         AVOID suggesting changes for:
         - Correctly spelled words that are uncommon

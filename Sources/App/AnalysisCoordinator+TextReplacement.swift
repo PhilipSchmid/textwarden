@@ -202,8 +202,7 @@ extension AnalysisCoordinator {
 
         // Find the actual position of the original text in the current content
         guard let range = currentText.range(of: suggestion.originalText) else {
-            Logger.debug("Could not find original text in current content, skipping", category: Logger.analysis)
-            // Remove from tracking since we can't apply it
+            Logger.debug("Style replacement: original text not found in current content (\(suggestion.originalText.count) chars)", category: Logger.analysis)
             removeSuggestionFromTracking(suggestion)
             return
         }
@@ -212,7 +211,7 @@ extension AnalysisCoordinator {
         let startIndex = currentText.distance(from: currentText.startIndex, to: range.lowerBound)
         let length = suggestion.originalText.count
 
-        Logger.debug("Found original text at character position \(startIndex), length \(length) (Rust reported \(suggestion.originalStart)-\(suggestion.originalEnd))", category: Logger.analysis)
+        Logger.trace("Style replacement at position \(startIndex)-\(startIndex + length)", category: Logger.analysis)
 
         // Step 1: Save current selection
         var originalSelection: CFTypeRef?
@@ -296,8 +295,11 @@ extension AnalysisCoordinator {
 
         Logger.debug("Using keyboard simulation for style replacement (app: \(context.applicationName))", category: Logger.analysis)
 
-        // For browsers, use the browser-specific approach
-        if context.isBrowser {
+        // For browsers and Electron apps (Slack, Notion), use the browser-specific approach
+        // These apps require child element traversal for proper text selection
+        let isSlack = context.bundleIdentifier == "com.tinyspeck.slackmacgap"
+        let isNotion = context.bundleIdentifier == "notion.id" || context.bundleIdentifier == "com.notion.id"
+        if context.isBrowser || isSlack || isNotion {
             applyStyleBrowserReplacement(for: suggestion, element: element, context: context)
             return
         }
@@ -726,11 +728,28 @@ extension AnalysisCoordinator {
         // Electron apps (Notion, Slack) need child element traversal for selection
         if isNotion || isSlack {
             let appName = isNotion ? "Notion" : "Slack"
-            Logger.debug("\(appName): Looking for text to select (\(targetText.count) chars)", category: Logger.analysis)
+            Logger.trace("\(appName): Looking for text to select (\(targetText.count) chars)", category: Logger.analysis)
 
             // Try to find child element containing the text and select within it
             if let (childElement, offsetInChild) = findChildElementContainingText(targetText, in: element) {
-                var childRange = CFRange(location: offsetInChild, length: targetText.count)
+                // Get the child element's text for UTF-16 conversion
+                // Slack/Notion use Chromium which expects UTF-16 indices, not grapheme clusters
+                var childTextRef: CFTypeRef?
+                guard AXUIElementCopyAttributeValue(childElement, kAXValueAttribute as CFString, &childTextRef) == .success,
+                      let childText = childTextRef as? String else {
+                    Logger.debug("\(appName): Could not get child element text for UTF-16 conversion", category: Logger.analysis)
+                    return false
+                }
+
+                // Convert grapheme indices to UTF-16 indices
+                let utf16Range = TextIndexConverter.graphemeToUTF16Range(
+                    NSRange(location: offsetInChild, length: targetText.count),
+                    in: childText
+                )
+                var childRange = CFRange(location: utf16Range.location, length: utf16Range.length)
+
+                Logger.trace("\(appName): UTF-16 range \(utf16Range.location)-\(utf16Range.location + utf16Range.length) (from grapheme \(offsetInChild)-\(offsetInChild + targetText.count))", category: Logger.analysis)
+
                 guard let childRangeValue = AXValueCreate(.cfRange, &childRange) else {
                     Logger.debug("\(appName): Failed to create AXValue for child range", category: Logger.analysis)
                     return false
@@ -742,9 +761,7 @@ extension AnalysisCoordinator {
                     childRangeValue
                 )
 
-                if childSelectResult == .success {
-                    Logger.debug("\(appName): Selected text in child element (range: \(offsetInChild)-\(offsetInChild + targetText.count))", category: Logger.analysis)
-                } else {
+                if childSelectResult != .success {
                     Logger.debug("\(appName): Child selection failed (\(childSelectResult.rawValue))", category: Logger.analysis)
                 }
                 return true
@@ -894,10 +911,14 @@ extension AnalysisCoordinator {
         var candidates: [(element: AXUIElement, text: String, offset: Int)] = []
         collectTextElements(in: element, depth: 0, maxDepth: 10, candidates: &candidates, targetText: targetText)
 
-        for candidate in candidates {
+        // Sort by text length ascending to prefer most specific (smallest) element
+        // Parent elements contain child text, so smaller = more specific
+        let sortedCandidates = candidates.sorted { $0.text.count < $1.text.count }
+
+        for candidate in sortedCandidates {
             guard let range = candidate.text.range(of: targetText) else { continue }
             let offset = candidate.text.distance(from: candidate.text.startIndex, to: range.lowerBound)
-            Logger.debug("Found target text in child element at offset \(offset)", category: Logger.analysis)
+            Logger.trace("Found target text in child element (size \(candidate.text.count)) at offset \(offset)", category: Logger.analysis)
             return (candidate.element, offset)
         }
 
@@ -930,7 +951,7 @@ extension AnalysisCoordinator {
             // Prefer smaller elements (paragraph-level, not document-level)
             if height > 0 && height < GeometryConstants.maximumLineHeight {
                 candidates.append((element: element, text: text, offset: 0))
-                Logger.debug("Candidate element height=\(height), text length=\(text.count)", category: Logger.analysis)
+                Logger.trace("Candidate element: height=\(Int(height)), length=\(text.count)", category: Logger.analysis)
             }
         }
 
