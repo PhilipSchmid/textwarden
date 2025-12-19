@@ -660,7 +660,7 @@ usage() {
     echo "Commands:"
     echo "  release [VERSION]     Build and prepare release"
     echo "  upload [VERSION]      Upload prepared release to GitHub"
-    echo "  notes [FROM_TAG]      Generate release notes"
+    echo "  notes [FROM_TAG] [TO_TAG]  Generate release notes (TO_TAG defaults to HEAD)"
     echo "  version               Show current version"
     echo ""
     echo "Examples:"
@@ -680,7 +680,7 @@ case "${1:-}" in
         do_upload "$2"
         ;;
     notes)
-        generate_release_notes "$2"
+        generate_release_notes "$2" "$3"
         ;;
     version)
         echo "$(get_version) (build $(get_build))"
