@@ -1582,6 +1582,7 @@ struct StylePopoverContentView: View {
                             )
                     }
                     .buttonStyle(.plain)
+                    .fixedSize()
                     .help("Accept this suggestion")
                     .accessibilityLabel("Accept suggestion")
                     .accessibilityHint("Double tap to accept and apply this style suggestion")
@@ -1599,10 +1600,13 @@ struct StylePopoverContentView: View {
                             .foregroundColor(colors.textSecondary)
                     }
                     .menuStyle(.borderlessButton)
+                    .fixedSize()
                     .accessibilityLabel("Reject suggestion")
                     .accessibilityHint("Double tap to choose a reason for rejecting this suggestion")
 
-                    // Confidence indicator
+                    Spacer()
+
+                    // Confidence indicator (moved to right side for better layout)
                     HStack(spacing: 4) {
                         Image(systemName: confidenceIcon(for: suggestion.confidence))
                             .foregroundColor(confidenceColor(for: suggestion.confidence))
@@ -1611,8 +1615,6 @@ struct StylePopoverContentView: View {
                             .foregroundColor(colors.textSecondary)
                     }
                     .accessibilityLabel("Confidence: \(Int(suggestion.confidence * 100)) percent")
-
-                    Spacer()
 
                     // Navigation (show when multiple items total - grammar errors + style suggestions)
                     if popover.totalItemCount > 1 {
@@ -1689,7 +1691,7 @@ struct StylePopoverContentView: View {
             opacity: preferences.suggestionOpacity
         )
         // Fixed width, vertical sizing to content
-        .frame(width: 380)
+        .frame(width: 420)
         .fixedSize(horizontal: false, vertical: true)
         .colorScheme(effectiveColorScheme)
     }

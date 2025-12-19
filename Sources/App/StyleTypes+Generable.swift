@@ -25,8 +25,9 @@ struct FMStyleSuggestion {
     let suggested: String
 
     @Guide(description: """
-        Brief explanation (1-2 sentences) of why this change improves the text.
-        Focus on the specific improvement, not generic advice.
+        One short sentence explaining why this improves readability.
+        Maximum 10 words. Be direct, no filler words.
+        Example: "Removes redundant phrasing for clarity."
         """)
     let explanation: String
 }
@@ -79,19 +80,128 @@ extension FMStyleSuggestion {
     }
 
     /// Build diff segments showing what changed between original and suggested
+    /// Uses Swift's built-in CollectionDifference with Myers's algorithm
     private func buildDiffSegments(original: String, suggested: String) -> [DiffSegmentModel] {
-        // Simple diff: show original as removed, suggested as added
-        // For more sophisticated diff, could use a proper diff algorithm
-        var segments: [DiffSegmentModel] = []
+        // Normalize quotes before diffing to avoid false positives from smart quotes
+        let normalizedOriginal = normalizeQuotes(original)
+        let normalizedSuggested = normalizeQuotes(suggested)
 
-        if original != suggested {
-            segments.append(DiffSegmentModel(text: original, kind: .removed))
-            segments.append(DiffSegmentModel(text: suggested, kind: .added))
-        } else {
-            segments.append(DiffSegmentModel(text: original, kind: .unchanged))
+        // Split into words, preserving whitespace with each word
+        let originalWords = splitIntoWords(normalizedOriginal)
+        let suggestedWords = splitIntoWords(normalizedSuggested)
+
+        // Use Swift's built-in diff (Myers's algorithm)
+        let diff = suggestedWords.difference(from: originalWords)
+
+        // Build a map of changes by index
+        var removals: Set<Int> = []
+        var insertions: [Int: String] = [:]
+
+        for change in diff {
+            switch change {
+            case .remove(let offset, _, _):
+                removals.insert(offset)
+            case .insert(let offset, let element, _):
+                insertions[offset] = element
+            }
         }
 
-        return segments
+        // Build segments by walking through both arrays
+        var segments: [DiffSegmentModel] = []
+        var origIdx = 0
+        var suggIdx = 0
+
+        while origIdx < originalWords.count || suggIdx < suggestedWords.count {
+            // Handle insertions at current suggested position
+            if let inserted = insertions[suggIdx] {
+                segments.append(DiffSegmentModel(text: inserted, kind: .added))
+                suggIdx += 1
+                continue
+            }
+
+            // Handle removals at current original position
+            if origIdx < originalWords.count && removals.contains(origIdx) {
+                segments.append(DiffSegmentModel(text: originalWords[origIdx], kind: .removed))
+                origIdx += 1
+                continue
+            }
+
+            // Unchanged word
+            if origIdx < originalWords.count && suggIdx < suggestedWords.count {
+                segments.append(DiffSegmentModel(text: suggestedWords[suggIdx], kind: .unchanged))
+                origIdx += 1
+                suggIdx += 1
+            } else {
+                break
+            }
+        }
+
+        // Merge consecutive segments of the same kind
+        return mergeSegments(segments)
+    }
+
+    /// Split text into words, each word includes trailing whitespace
+    private func splitIntoWords(_ text: String) -> [String] {
+        var words: [String] = []
+        var current = ""
+
+        for char in text {
+            if char.isWhitespace {
+                current.append(char)
+            } else {
+                if !current.isEmpty && current.last?.isWhitespace == true {
+                    // Previous was whitespace, start new word but keep whitespace with previous
+                    words.append(current)
+                    current = String(char)
+                } else {
+                    current.append(char)
+                }
+            }
+        }
+
+        if !current.isEmpty {
+            words.append(current)
+        }
+
+        return words
+    }
+
+    /// Merge consecutive segments of the same kind for cleaner display
+    private func mergeSegments(_ segments: [DiffSegmentModel]) -> [DiffSegmentModel] {
+        guard !segments.isEmpty else { return [] }
+
+        var result: [DiffSegmentModel] = []
+        var current = segments[0]
+
+        for segment in segments.dropFirst() {
+            if segment.kind == current.kind {
+                current = DiffSegmentModel(text: current.text + segment.text, kind: current.kind)
+            } else {
+                result.append(current)
+                current = segment
+            }
+        }
+        result.append(current)
+
+        return result
+    }
+
+    /// Normalize smart quotes and other typography to plain ASCII equivalents
+    /// This prevents false diff positives from quote style differences
+    private func normalizeQuotes(_ text: String) -> String {
+        var result = text
+        // Smart single quotes to straight apostrophe
+        result = result.replacingOccurrences(of: "\u{2019}", with: "'")  // Right single quote
+        result = result.replacingOccurrences(of: "\u{2018}", with: "'")  // Left single quote
+        result = result.replacingOccurrences(of: "\u{201B}", with: "'")  // Single high-reversed-9
+        // Smart double quotes to straight quote
+        result = result.replacingOccurrences(of: "\u{201C}", with: "\"") // Left double quote
+        result = result.replacingOccurrences(of: "\u{201D}", with: "\"") // Right double quote
+        result = result.replacingOccurrences(of: "\u{201E}", with: "\"") // Double low-9
+        // Dashes to hyphen
+        result = result.replacingOccurrences(of: "\u{2013}", with: "-")  // En dash
+        result = result.replacingOccurrences(of: "\u{2014}", with: "-")  // Em dash
+        return result
     }
 }
 
