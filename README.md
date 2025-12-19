@@ -147,6 +147,8 @@ TextWarden never sends your text anywhere. All grammar checking and style analys
 
 The majority of TextWarden's code was generated using Anthropic's Claude, with human oversight, review, and testing throughout the development process.
 
+I used [VoiceInk](https://tryvoiceink.com?atp=Ylsxyh&sub1=tw) extensively while developing TextWarden - it saved me countless hours by letting me dictate code comments, documentation, and commit messages instead of typing everything. Like TextWarden, it runs entirely locally on your Mac. (Referral link - helps support TextWarden's development)
+
 ## Credits
 
 Built on excellent open source projects:
