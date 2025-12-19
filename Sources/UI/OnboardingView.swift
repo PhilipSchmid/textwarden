@@ -1030,10 +1030,11 @@ struct OnboardingView: View {
             Logger.info("Onboarding: Selected dialect: \(selectedDialect)", category: Logger.general)
 
             // Save language detection settings if any languages selected
+            // Store display names (e.g., "German") directly - conversion to lowercase codes
+            // happens in AnalysisCoordinator when passing to Rust
             if !selectedLanguages.isEmpty {
                 UserPreferences.shared.enableLanguageDetection = true
-                let languageCodes = selectedLanguages.map { UserPreferences.languageCode(for: $0) }
-                UserPreferences.shared.excludedLanguages = Set(languageCodes)
+                UserPreferences.shared.excludedLanguages = selectedLanguages
                 Logger.info("Onboarding: Enabled language detection for: \(selectedLanguages)", category: Logger.general)
             }
             currentStep = .websiteExclusion
