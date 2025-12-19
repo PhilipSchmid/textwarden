@@ -290,7 +290,10 @@ extension AnalysisCoordinator {
         // Note: Cache is keyed by analyzed text, but we also need full text to match for validity
         let cacheKey = computeStyleCacheKey(text: text)
         if let cached = styleCache[cacheKey], fullText == styleAnalysisSourceText {
-            Logger.debug("Style check: Cache hit, \(cached.count) suggestion(s)", category: Logger.llm)
+            // Filter out suggestions that were already accepted/rejected
+            let filteredCached = cached.filter { !dismissedStyleSuggestionHashes.contains($0.originalText.hashValue) }
+
+            Logger.debug("Style check: Cache hit, \(cached.count) suggestion(s), \(filteredCached.count) after filtering dismissed", category: Logger.llm)
 
             // Update cache access time
             styleCacheMetadata[cacheKey] = StyleCacheMetadata(
@@ -300,13 +303,13 @@ extension AnalysisCoordinator {
 
             // Set flag and show results immediately
             isManualStyleCheckActive = true
-            currentStyleSuggestions = cached
+            currentStyleSuggestions = filteredCached
             styleAnalysisSourceText = fullText
 
             // Show checkmark and results immediately (no spinning needed)
             floatingIndicator.showStyleSuggestionsReady(
-                count: cached.count,
-                styleSuggestions: cached
+                count: filteredCached.count,
+                styleSuggestions: filteredCached
             )
 
             // Clear the flag after the checkmark display period
@@ -356,20 +359,23 @@ extension AnalysisCoordinator {
 
                 let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
 
-                Logger.debug("Style check: Completed in \(latencyMs)ms, \(suggestions.count) suggestion(s)", category: Logger.llm)
+                // Filter out suggestions that were already accepted/rejected
+                let filteredSuggestions = suggestions.filter { !self.dismissedStyleSuggestionHashes.contains($0.originalText.hashValue) }
+
+                Logger.debug("Style check: Completed in \(latencyMs)ms, \(suggestions.count) suggestion(s), \(filteredSuggestions.count) after filtering dismissed", category: Logger.llm)
 
                 // Update statistics
                 self.statistics.recordStyleSuggestions(
-                    count: suggestions.count,
+                    count: filteredSuggestions.count,
                     latencyMs: Double(latencyMs),
                     modelId: "apple-foundation-models",
                     preset: temperaturePresetName
                 )
 
-                self.currentStyleSuggestions = suggestions
+                self.currentStyleSuggestions = filteredSuggestions
                 self.styleAnalysisSourceText = capturedFullText
 
-                // Cache the results for instant access next time
+                // Cache the unfiltered results - filtering happens at display time
                 self.styleCache[cacheKey] = suggestions
                 self.styleCacheMetadata[cacheKey] = StyleCacheMetadata(
                     lastAccessed: Date(),
@@ -379,8 +385,8 @@ extension AnalysisCoordinator {
 
                 // Update indicator to show results (checkmark first, then transition)
                 self.floatingIndicator.showStyleSuggestionsReady(
-                    count: suggestions.count,
-                    styleSuggestions: suggestions
+                    count: filteredSuggestions.count,
+                    styleSuggestions: filteredSuggestions
                 )
 
                 // Clear the flag after the checkmark display period

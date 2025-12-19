@@ -174,6 +174,11 @@ extension AnalysisCoordinator {
             return
         }
 
+        // Set replacement flag to prevent text change handler from clearing style suggestions
+        lastReplacementTime = Date()
+        isApplyingReplacement = true
+        defer { isApplyingReplacement = false }
+
         // Use keyboard automation directly for known Electron apps
         if let context = monitoredContext, context.requiresKeyboardReplacement {
             Logger.debug("Detected Electron app (\(context.applicationName)) - using keyboard automation for style replacement", category: Logger.analysis)
@@ -254,6 +259,14 @@ extension AnalysisCoordinator {
             // Invalidate style cache since text changed
             styleCache.removeAll()
             styleCacheMetadata.removeAll()
+
+            // Update styleAnalysisSourceText to reflect the new text after replacement
+            // This prevents remaining style suggestions from being cleared on next text change
+            let newText = currentText.replacingCharacters(
+                in: range,
+                with: suggestion.suggestedText
+            )
+            styleAnalysisSourceText = newText
 
             // Move cursor after replacement
             var newPosition = CFRange(location: startIndex + suggestion.suggestedText.count, length: 0)
@@ -353,6 +366,17 @@ extension AnalysisCoordinator {
             // Invalidate style cache (not grammar cache - don't trigger re-analysis)
             self?.styleCache.removeAll()
             self?.styleCacheMetadata.removeAll()
+
+            // Update styleAnalysisSourceText to the current text after replacement
+            // This prevents remaining style suggestions from being cleared on next text change
+            if let element = self?.textMonitor.monitoredElement {
+                var textRef: CFTypeRef?
+                let result = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef)
+                if result == .success, let newText = textRef as? String {
+                    self?.styleAnalysisSourceText = newText
+                }
+            }
+
             self?.removeSuggestionFromTracking(suggestion)
             // Note: Don't clear remaining suggestions - we find them by text match, not byte offset
         }
@@ -420,6 +444,17 @@ extension AnalysisCoordinator {
             // Invalidate style cache (not grammar cache - don't trigger re-analysis)
             self?.styleCache.removeAll()
             self?.styleCacheMetadata.removeAll()
+
+            // Update styleAnalysisSourceText to the current text after replacement
+            // This prevents remaining style suggestions from being cleared on next text change
+            if let element = self?.textMonitor.monitoredElement {
+                var textRef: CFTypeRef?
+                let result = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef)
+                if result == .success, let newText = textRef as? String {
+                    self?.styleAnalysisSourceText = newText
+                }
+            }
+
             self?.removeSuggestionFromTracking(suggestion)
             // Note: Don't clear remaining suggestions - we find them by text match, not byte offset
         }
@@ -427,6 +462,9 @@ extension AnalysisCoordinator {
 
     /// Remove an applied style suggestion from tracking and update UI
     func removeSuggestionFromTracking(_ suggestion: StyleSuggestionModel) {
+        // Track this suggestion as dismissed so it won't reappear after re-analysis
+        dismissedStyleSuggestionHashes.insert(suggestion.originalText.hashValue)
+
         // Remove from current suggestions
         currentStyleSuggestions.removeAll { $0.id == suggestion.id }
 

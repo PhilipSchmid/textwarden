@@ -218,6 +218,10 @@ class AnalysisCoordinator: ObservableObject {
     /// Used to invalidate suggestions when the underlying text changes
     var styleAnalysisSourceText: String = ""
 
+    /// Tracks dismissed (accepted or rejected) style suggestions by original text hash
+    /// Prevents the same suggestion from reappearing after re-analysis
+    var dismissedStyleSuggestionHashes: Set<Int> = []
+
     /// Flag to prevent text-change handler from clearing errors during replacement
     /// When true, text changes are expected (we're applying a suggestion) and should not trigger re-analysis
     var isApplyingReplacement: Bool = false
@@ -751,6 +755,7 @@ class AnalysisCoordinator: ObservableObject {
         // During manual style check, preserve results so user sees them when returning
         if !isManualStyleCheckActive {
             currentStyleSuggestions = []  // Clear style suggestions
+            dismissedStyleSuggestionHashes.removeAll()  // Reset dismissed tracking for new context
             styleDebounceTimer?.invalidate()  // Cancel pending style analysis
             styleDebounceTimer = nil
             styleAnalysisGeneration &+= 1  // Invalidate any in-flight analysis
