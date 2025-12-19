@@ -376,25 +376,29 @@ struct StyleSuggestionPopoverContent: View {
 
             Divider()
 
-            // Diff view
-            if !suggestion.diff.isEmpty {
-                CompactDiffView(
-                    original: suggestion.originalText,
-                    suggested: suggestion.suggestedText,
-                    diff: suggestion.diff
-                )
-            } else {
-                BeforeAfterView(
-                    original: suggestion.originalText,
-                    suggested: suggestion.suggestedText
-                )
-            }
+            // Unified diff view (shows text once with red strikethrough/green highlight)
+            // Scrollable for very long suggestions
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    if !suggestion.diff.isEmpty {
+                        StyleDiffView(diff: suggestion.diff, showInline: true)
+                            .font(.callout)
+                            .textSelection(.enabled)
+                    } else {
+                        BeforeAfterView(
+                            original: suggestion.originalText,
+                            suggested: suggestion.suggestedText
+                        )
+                    }
 
-            // Explanation
-            Text(suggestion.explanation)
-                .font(.callout)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                    // Explanation
+                    Text(suggestion.explanation)
+                        .font(.callout)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxHeight: 200)
 
             Divider()
 
