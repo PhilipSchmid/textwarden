@@ -3,6 +3,16 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.1.0-alpha.3</title>
+            <pubDate>Fri, 19 Dec 2025 11:00:09 +0100</pubDate>
+            <sparkle:version>6</sparkle:version>
+            <sparkle:shortVersionString>0.1.0-alpha.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:channel>experimental</sparkle:channel>
+            <description>See GitHub release for details</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-alpha.3/TextWarden-0.1.0-alpha.3.dmg" length="17358843" type="application/octet-stream" sparkle:edSignature="kxeGVTL6glNUpN3Ly8R+n0IvOuRdttJ1T8PFOkrJBkI78gKu11E0LhyTBpVseh77DNTW5hxwlQlprwE9Q0YICA=="/>
+        </item>
+        <item>
             <title>0.1.0-alpha.2</title>
             <pubDate>Wed, 17 Dec 2025 23:47:32 +0100</pubDate>
             <sparkle:version>5</sparkle:version>
