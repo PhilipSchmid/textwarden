@@ -319,7 +319,7 @@ notarize_app() {
 create_dmg() {
     local app_path="$1"
     local version="$2"
-    local dmg_path="$RELEASE_DIR/$APP_NAME-$version.dmg"
+    local dmg_path="$RELEASE_DIR/$APP_NAME-$version-Universal.dmg"
 
     echo -e "${BLUE}Creating DMG...${NC}" >&2
 
@@ -627,7 +627,7 @@ do_upload() {
         version=$(get_version)
     fi
 
-    local dmg_path="$RELEASE_DIR/$APP_NAME-$version.dmg"
+    local dmg_path="$RELEASE_DIR/$APP_NAME-$version-Universal.dmg"
 
     if [[ ! -f "$dmg_path" ]]; then
         echo -e "${RED}DMG not found: $dmg_path${NC}"

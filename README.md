@@ -44,12 +44,15 @@ A small indicator appears when issues are found. Click to see suggestions. Accep
 
 ## Requirements
 
-- Apple Silicon Mac (M1 or later)
 - macOS 26 (Tahoe) or later
+- Any Mac that supports macOS 26 (Intel or Apple Silicon)
+
+> **Note for Intel Mac users**: TextWarden runs on Intel Macs, but **AI-powered style suggestions are not available**. Apple Intelligence requires Apple Silicon (M1 or later) due to the Neural Engine hardware. Grammar and spelling checking work fully on Intel Macs.
 
 ## Getting Started
 
-1. Download the latest version from the [Releases page](https://github.com/philipschmid/textwarden/releases)
+1. Download the latest release from the [Releases page](https://github.com/philipschmid/textwarden/releases)
+   - The DMG is a **Universal binary** that works on both Intel and Apple Silicon Macs
 2. Move TextWarden to your Applications folder and open it
 3. Grant Accessibility permission when prompted (required to read text in other apps)
 4. Start typing - TextWarden works automatically in the background
@@ -124,7 +127,8 @@ To receive early access to new features, enable the **experimental channel** in 
 
 TextWarden is a privacy-focused, local-first tool with certain trade-offs:
 
-- **macOS only** - Currently only available for Apple Silicon Macs (M1 or later). There are no plans to support Windows or Linux - approximately 95% of TextWarden's development effort goes into macOS-specific integration: precise cursor positioning via the Accessibility API, pixel-perfect error underline placement, seamless text replacement that preserves formatting, and per-application behavior tuning. These deep OS integrations don't translate to other platforms.
+- **macOS only** - Available for Intel and Apple Silicon Macs running macOS 26+. There are no plans to support Windows or Linux - approximately 95% of TextWarden's development effort goes into macOS-specific integration: precise cursor positioning via the Accessibility API, pixel-perfect error underline placement, seamless text replacement that preserves formatting, and per-application behavior tuning. These deep OS integrations don't translate to other platforms.
+- **Style suggestions require Apple Silicon** - AI-powered style suggestions use Apple Intelligence, which requires the Neural Engine in M1 chips or later. Intel Macs can use all grammar and spelling features but won't have access to style suggestions.
 - **English only** - Grammar checking limited to English (Harper's current language support)
 - **Accessibility API constraints** - Some apps with custom text rendering may not work correctly
 - **Text formatting** - When applying corrections in some apps, formatting (bold, italic) may not be preserved
