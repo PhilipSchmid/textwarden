@@ -36,6 +36,14 @@ class SlackContentParser: ContentParser {
     /// Cached Quill Delta exclusions
     private var quillDeltaExclusions: [ExclusionRange] = []
 
+    /// Cached Quill Delta JSON for format-preserving replacement
+    /// Updated by clipboard monitoring when user copies from Slack
+    private var cachedQuillDeltaJSON: String?
+
+    /// Plain text corresponding to cached Quill Delta
+    /// Used to verify the cached delta matches current content
+    private var cachedQuillDeltaPlainText: String?
+
     /// Last seen clipboard change count (for monitoring clipboard changes)
     private var lastClipboardChangeCount: Int = 0
 
@@ -93,8 +101,7 @@ class SlackContentParser: ContentParser {
                 Logger.info("SlackContentParser: === End Element Tree ===", category: Logger.analysis)
             }
 
-            // Check for AXCodeStyleGroup subrole (inline code)
-            exclusions.append(contentsOf: detectCodeStyleGroups(in: element, text: text))
+            // Note: AXCodeStyleGroup (inline code) is NOT excluded - we can preserve formatting during replacement
 
             // Check for AXBlockQuoteLevel attribute (blockquotes)
             exclusions.append(contentsOf: detectBlockQuotes(in: element, text: text))
@@ -185,13 +192,26 @@ class SlackContentParser: ContentParser {
                 exclusions.append(ExclusionRange(location: range.location, length: range.length))
             }
 
-            // Check for code font (monospace indicates code)
+            // Check font traits (bold, italic, monospace)
             if let font = attrs[.font] as? NSFont {
                 let fontName = font.fontName.lowercased()
+                let traits = font.fontDescriptor.symbolicTraits
+
+                // Check for bold
+                if traits.contains(.bold) {
+                    Logger.info("SlackContentParser: AXAttributedString: Found BOLD at \(range.location)-\(range.location + range.length)", category: Logger.analysis)
+                }
+
+                // Check for italic
+                if traits.contains(.italic) {
+                    Logger.info("SlackContentParser: AXAttributedString: Found ITALIC at \(range.location)-\(range.location + range.length)", category: Logger.analysis)
+                }
+
+                // Check for monospace (code)
                 if fontName.contains("mono") || fontName.contains("courier") || fontName.contains("menlo") ||
-                   fontName.contains("consolas") || fontName.contains("source code") {
-                    let codeText = attrString.attributedSubstring(from: range).string
-                    Logger.info("SlackContentParser: Found code (font: \(font.fontName)) at \(range.location)-\(range.location + range.length), text: '\(codeText.prefix(30))'", category: Logger.analysis)
+                   fontName.contains("consolas") || fontName.contains("source code") ||
+                   traits.contains(.monoSpace) {
+                    Logger.info("SlackContentParser: AXAttributedString: Found MONOSPACE at \(range.location)-\(range.location + range.length), font: \(font.fontName)", category: Logger.analysis)
                     exclusions.append(ExclusionRange(location: range.location, length: range.length))
                 }
             }
@@ -437,6 +457,16 @@ class SlackContentParser: ContentParser {
         return true
     }
 
+    /// Simulate Select All (Cmd+A) on currently focused element
+    private func simulateSelectAll() -> Bool {
+        return simulateKeyCombo(keyCode: 0, command: true) // 'A' key
+    }
+
+    /// Simulate Copy (Cmd+C) on currently focused element
+    private func simulateCopy() -> Bool {
+        return simulateKeyCombo(keyCode: 8, command: true) // 'C' key
+    }
+
     /// Parse Quill Delta JSON from clipboard and extract exclusion ranges
     /// Handles Slack-specific embedded objects: user, channel, broadcast, emoji, date, link
     private func parseQuillDeltaFromClipboard(text: String) -> [ExclusionRange] {
@@ -465,20 +495,530 @@ class SlackContentParser: ContentParser {
 
         Logger.info("SlackContentParser: Found org.chromium.web-custom-data (\(data.count) bytes)", category: Logger.analysis)
 
-        // Decode as UTF-16LE (Chromium format)
-        guard let content = String(data: data, encoding: .utf16LittleEndian) else {
-            // Try other encodings
-            if let utf8Content = String(data: data, encoding: .utf8) {
-                Logger.debug("SlackContentParser: Decoded as UTF-8 instead of UTF-16LE", category: Logger.analysis)
-                return parseQuillDeltaContent(utf8Content, text: text)
-            }
-            Logger.debug("SlackContentParser: Failed to decode clipboard data", category: Logger.analysis)
-            return emptyResult
+        // Log hex dump of first 64 bytes to understand format
+        let hexPreview = data.prefix(64).map { String(format: "%02x", $0) }.joined(separator: " ")
+        Logger.info("SlackContentParser: Hex preview: \(hexPreview)", category: Logger.analysis)
+
+        // Try to parse as Chromium Pickle format first
+        if let pickleContent = parseChromiumPickle(data) {
+            Logger.info("SlackContentParser: Parsed as Chromium Pickle format", category: Logger.analysis)
+            return parseQuillDeltaContent(pickleContent, text: text)
         }
 
-        Logger.debug("SlackContentParser: Decoded Chromium data (\(content.count) chars)", category: Logger.analysis)
+        // Fallback: Try raw UTF-16LE decode (older format or different Chromium version)
+        if let content = String(data: data, encoding: .utf16LittleEndian) {
+            Logger.info("SlackContentParser: Decoded as raw UTF-16LE (\(content.count) chars)", category: Logger.analysis)
+            return parseQuillDeltaContent(content, text: text)
+        }
 
-        return parseQuillDeltaContent(content, text: text)
+        // Try UTF-8
+        if let utf8Content = String(data: data, encoding: .utf8) {
+            Logger.info("SlackContentParser: Decoded as UTF-8", category: Logger.analysis)
+            return parseQuillDeltaContent(utf8Content, text: text)
+        }
+
+        Logger.debug("SlackContentParser: Failed to decode clipboard data in any format", category: Logger.analysis)
+        return emptyResult
+    }
+
+    // MARK: - Chromium Pickle Parser
+
+    /// Parse Chromium Pickle format to extract Quill Delta JSON
+    /// Pickle format: [uint32 payload_size][uint32 num_entries][entries...]
+    /// Each entry: [uint32 type_len][UTF-16LE type][padding][uint32 value_len][UTF-16LE value][padding]
+    private func parseChromiumPickle(_ data: Data) -> String? {
+        guard data.count >= 8 else {
+            Logger.debug("SlackContentParser: Pickle data too short (\(data.count) bytes)", category: Logger.analysis)
+            return nil
+        }
+
+        var offset = 0
+
+        // Read payload size (header)
+        let payloadSize = data.withUnsafeBytes { ptr -> UInt32 in
+            ptr.load(fromByteOffset: offset, as: UInt32.self)
+        }
+        offset += 4
+
+        Logger.debug("SlackContentParser: Pickle payload size: \(payloadSize), total data: \(data.count)", category: Logger.analysis)
+
+        // Validate payload size
+        guard payloadSize > 0 && payloadSize <= data.count - 4 else {
+            Logger.debug("SlackContentParser: Invalid Pickle payload size, likely not Pickle format", category: Logger.analysis)
+            return nil
+        }
+
+        // Read number of entries
+        let numEntries = data.withUnsafeBytes { ptr -> UInt32 in
+            ptr.load(fromByteOffset: offset, as: UInt32.self)
+        }
+        offset += 4
+
+        Logger.info("SlackContentParser: Pickle has \(numEntries) entries", category: Logger.analysis)
+
+        guard numEntries > 0 && numEntries < 100 else {
+            Logger.debug("SlackContentParser: Invalid num_entries, likely not Pickle format", category: Logger.analysis)
+            return nil
+        }
+
+        // Helper to align to 4-byte boundary
+        func alignTo4(_ currentOffset: Int) -> Int {
+            let remainder = currentOffset % 4
+            return remainder == 0 ? currentOffset : currentOffset + (4 - remainder)
+        }
+
+        // Helper to read uint32
+        func readUInt32(at currentOffset: Int) -> UInt32? {
+            guard currentOffset + 4 <= data.count else { return nil }
+            return data.withUnsafeBytes { ptr -> UInt32 in
+                ptr.load(fromByteOffset: currentOffset, as: UInt32.self)
+            }
+        }
+
+        // Helper to read String16 (UTF-16LE)
+        // Note: Chromium stores CHARACTER count, not byte count, so we multiply by 2
+        func readString16(at currentOffset: Int, charCount: Int) -> String? {
+            let byteCount = charCount * 2  // UTF-16 = 2 bytes per character
+            guard currentOffset + byteCount <= data.count else { return nil }
+            let stringData = data.subdata(in: currentOffset..<(currentOffset + byteCount))
+            return String(data: stringData, encoding: .utf16LittleEndian)
+        }
+
+        // Parse entries
+        for i in 0..<numEntries {
+            // Read type length (in characters, not bytes)
+            guard let typeCharCount = readUInt32(at: offset) else {
+                Logger.debug("SlackContentParser: Pickle entry \(i): failed to read type length", category: Logger.analysis)
+                break
+            }
+            offset += 4
+
+            // Read type string
+            guard let typeStr = readString16(at: offset, charCount: Int(typeCharCount)) else {
+                Logger.debug("SlackContentParser: Pickle entry \(i): failed to read type string", category: Logger.analysis)
+                break
+            }
+            let typeByteLen = Int(typeCharCount) * 2
+            offset += typeByteLen
+            offset = alignTo4(offset)
+
+            Logger.info("SlackContentParser: Pickle entry \(i) type: '\(typeStr)'", category: Logger.analysis)
+
+            // Read value length (in characters, not bytes)
+            guard let valueCharCount = readUInt32(at: offset) else {
+                Logger.debug("SlackContentParser: Pickle entry \(i): failed to read value length", category: Logger.analysis)
+                break
+            }
+            offset += 4
+
+            // Read value string
+            guard let valueStr = readString16(at: offset, charCount: Int(valueCharCount)) else {
+                Logger.debug("SlackContentParser: Pickle entry \(i): failed to read value string", category: Logger.analysis)
+                break
+            }
+            let valueByteLen = Int(valueCharCount) * 2
+            offset += valueByteLen
+            offset = alignTo4(offset)
+
+            Logger.debug("SlackContentParser: Pickle entry \(i) value: \(valueCharCount) chars", category: Logger.analysis)
+
+            // Check if this is Quill Delta
+            if typeStr.lowercased().contains("quill") || typeStr == "Quill.Delta" ||
+               valueStr.contains("\"ops\"") {
+                Logger.info("SlackContentParser: Found Quill Delta in Pickle entry '\(typeStr)'", category: Logger.analysis)
+                return valueStr
+            }
+        }
+
+        Logger.debug("SlackContentParser: No Quill Delta found in Pickle entries", category: Logger.analysis)
+        return nil
+    }
+
+    // MARK: - Chromium Pickle Writer
+
+    /// Build Chromium Pickle format data for clipboard
+    /// Format: [uint32 payload_size][uint32 num_entries][entries...]
+    /// Each entry: [uint32 type_char_count][UTF-16LE type][padding][uint32 value_char_count][UTF-16LE value][padding]
+    func buildChromiumPickle(plainText: String, quillDelta: String) -> Data {
+        var payload = Data()
+
+        // Helper to align data to 4-byte boundary
+        func alignTo4(_ data: inout Data) {
+            let remainder = data.count % 4
+            if remainder != 0 {
+                data.append(Data(repeating: 0, count: 4 - remainder))
+            }
+        }
+
+        // Helper to write uint32
+        func writeUInt32(_ data: inout Data, value: UInt32) {
+            var v = value
+            data.append(Data(bytes: &v, count: 4))
+        }
+
+        // Helper to write String16 (character count + UTF-16LE data)
+        func writeString16(_ data: inout Data, string: String) {
+            guard let utf16Data = string.data(using: .utf16LittleEndian) else {
+                writeUInt32(&data, value: 0)
+                return
+            }
+            // Chromium stores character count, not byte count
+            writeUInt32(&data, value: UInt32(string.count))
+            data.append(utf16Data)
+            alignTo4(&data)
+        }
+
+        // Number of entries (2: plain text + quill delta)
+        writeUInt32(&payload, value: 2)
+
+        // Entry 0: public.utf8-plain-text
+        writeString16(&payload, string: "public.utf8-plain-text")
+        writeString16(&payload, string: plainText)
+
+        // Entry 1: slack/texty (Quill Delta)
+        writeString16(&payload, string: "slack/texty")
+        writeString16(&payload, string: quillDelta)
+
+        // Build final data with header
+        var result = Data()
+        writeUInt32(&result, value: UInt32(payload.count))
+        result.append(payload)
+
+        Logger.debug("SlackContentParser: Built Pickle data: \(result.count) bytes", category: Logger.analysis)
+        return result
+    }
+
+    /// Write format-preserving clipboard data for Slack
+    /// This allows replacing text while preserving bold, italic, code, etc.
+    func writeSlackClipboard(plainText: String, quillDelta: String) {
+        let pickleData = buildChromiumPickle(plainText: plainText, quillDelta: quillDelta)
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+
+        // Write plain text
+        pasteboard.setString(plainText, forType: .string)
+
+        // Write Pickle data with Quill Delta
+        pasteboard.setData(pickleData, forType: Self.chromiumWebCustomDataType)
+
+        Logger.info("SlackContentParser: Wrote clipboard with \(plainText.count) chars plain text and Quill Delta", category: Logger.analysis)
+    }
+
+    /// Verify our Pickle writer produces data that our reader can parse
+    func verifyPickleRoundtrip() -> Bool {
+        let testDelta = """
+        {"ops":[{"insert":"Hello "},{"attributes":{"bold":true},"insert":"BOLD"},{"insert":" world!\\n"}]}
+        """
+        let plainText = "Hello BOLD world!\n"
+
+        // Build Pickle
+        let pickleData = buildChromiumPickle(plainText: plainText, quillDelta: testDelta)
+
+        // Parse it back
+        if let parsedDelta = parseChromiumPickle(pickleData) {
+            let success = parsedDelta == testDelta
+            Logger.info("SlackContentParser: Pickle roundtrip test: \(success ? "PASSED" : "FAILED")", category: Logger.analysis)
+            if !success {
+                Logger.debug("SlackContentParser: Expected: \(testDelta)", category: Logger.analysis)
+                Logger.debug("SlackContentParser: Got: \(parsedDelta)", category: Logger.analysis)
+            }
+            return success
+        } else {
+            Logger.warning("SlackContentParser: Pickle roundtrip test FAILED - could not parse", category: Logger.analysis)
+            return false
+        }
+    }
+
+    /// Test function: Write a test Quill Delta to clipboard for manual testing
+    /// Call this and then paste into Slack to see if formatting is preserved
+    func testWriteQuillDelta() {
+        // First verify our format is correct
+        guard verifyPickleRoundtrip() else {
+            Logger.error("SlackContentParser: Cannot write test - Pickle format verification failed", category: Logger.analysis)
+            return
+        }
+
+        let testDelta = """
+        {"ops":[{"insert":"Hello "},{"attributes":{"bold":true},"insert":"BOLD"},{"insert":" world!\\n"}]}
+        """
+        let plainText = "Hello BOLD world!\n"
+
+        writeSlackClipboard(plainText: plainText, quillDelta: testDelta)
+        Logger.info("SlackContentParser: Test Quill Delta written to clipboard - paste into Slack to verify!", category: Logger.analysis)
+    }
+
+    // MARK: - Format-Preserving Text Replacement
+
+    /// Result of format-preserving replacement attempt
+    enum FormatPreservingResult {
+        case success                    // Successfully applied with formatting preserved
+        case fallbackToPlainText        // Could not preserve formatting, caller should use plain text
+        case failed(String)             // Failed completely, with reason
+    }
+
+    /// Attempt format-preserving text replacement in Slack
+    /// This method:
+    /// 1. Saves clipboard state
+    /// 2. Copies current text (Cmd+A, Cmd+C) to get Quill Delta
+    /// 3. Applies correction to Quill Delta while preserving formatting
+    /// 4. Writes modified Quill Delta to clipboard
+    /// 5. Pastes (Cmd+V)
+    /// 6. Restores clipboard state
+    ///
+    /// Returns .fallbackToPlainText if Quill Delta unavailable, letting caller use standard replacement
+    func applyFormatPreservingReplacement(
+        errorStart: Int,
+        errorEnd: Int,
+        originalText: String,
+        suggestion: String
+    ) async -> FormatPreservingResult {
+
+        Logger.info("SlackContentParser: Attempting format-preserving replacement at \(errorStart)-\(errorEnd)", category: Logger.analysis)
+
+        // Step 1: Save current clipboard state for restoration
+        let savedClipboard = saveClipboardState()
+
+        // Step 2: Try to get Quill Delta - first from cache, then from current clipboard, finally via Cmd+A+C
+        var quillDelta: String?
+        var needsSelectAll = false
+
+        // Strategy A: Check if we have cached Quill Delta that matches current text
+        if let cached = cachedQuillDeltaJSON,
+           let cachedPlainText = cachedQuillDeltaPlainText,
+           cachedPlainText == originalText {
+            Logger.info("SlackContentParser: Using cached Quill Delta (matches current text)", category: Logger.analysis)
+            quillDelta = cached
+        }
+        // Strategy B: Check if current clipboard has Quill Delta for the same text
+        else if let clipboardDelta = getQuillDeltaFromClipboard(),
+                let clipboardPlainText = NSPasteboard.general.string(forType: .string),
+                clipboardPlainText == originalText {
+            Logger.info("SlackContentParser: Using clipboard Quill Delta (matches current text)", category: Logger.analysis)
+            quillDelta = clipboardDelta
+            // Update cache since we found a match
+            cachedQuillDeltaJSON = clipboardDelta
+            cachedQuillDeltaPlainText = clipboardPlainText
+        }
+        // Strategy C: Fall back to Cmd+A + Cmd+C (intrusive but necessary)
+        else {
+            Logger.info("SlackContentParser: No cached Quill Delta, triggering Cmd+A + Cmd+C", category: Logger.analysis)
+            needsSelectAll = true
+
+            // Clear clipboard and select all + copy
+            NSPasteboard.general.clearContents()
+
+            guard simulateSelectAll() else {
+                Logger.warning("SlackContentParser: Cmd+A failed", category: Logger.analysis)
+                restoreClipboardState(savedClipboard)
+                return .fallbackToPlainText
+            }
+
+            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+
+            guard simulateCopy() else {
+                Logger.warning("SlackContentParser: Cmd+C failed", category: Logger.analysis)
+                restoreClipboardState(savedClipboard)
+                return .fallbackToPlainText
+            }
+
+            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+
+            quillDelta = getQuillDeltaFromClipboard()
+
+            // Update cache
+            if let delta = quillDelta,
+               let plainText = NSPasteboard.general.string(forType: .string) {
+                cachedQuillDeltaJSON = delta
+                cachedQuillDeltaPlainText = plainText
+            }
+        }
+
+        // Step 3: Verify we have Quill Delta
+        guard let delta = quillDelta else {
+            Logger.info("SlackContentParser: No Quill Delta found - falling back to plain text replacement", category: Logger.analysis)
+            restoreClipboardState(savedClipboard)
+            return .fallbackToPlainText
+        }
+
+        Logger.debug("SlackContentParser: Got Quill Delta (\(delta.count) chars)", category: Logger.analysis)
+
+        // Step 4: Apply correction to Quill Delta
+        guard let modifiedDelta = applyTextCorrection(
+            to: delta,
+            errorStart: errorStart,
+            errorEnd: errorEnd,
+            suggestion: suggestion
+        ) else {
+            Logger.warning("SlackContentParser: Failed to apply correction to Quill Delta", category: Logger.analysis)
+            restoreClipboardState(savedClipboard)
+            return .fallbackToPlainText
+        }
+
+        // Step 5: Build new plain text with the correction applied
+        let modifiedPlainText = applyPlainTextCorrection(
+            originalText: originalText,
+            errorStart: errorStart,
+            errorEnd: errorEnd,
+            suggestion: suggestion
+        )
+
+        // Step 6: Select all if we haven't already (needed for paste to replace)
+        if !needsSelectAll {
+            Logger.debug("SlackContentParser: Selecting all text for replacement...", category: Logger.analysis)
+            guard simulateSelectAll() else {
+                Logger.warning("SlackContentParser: Cmd+A failed before paste", category: Logger.analysis)
+                restoreClipboardState(savedClipboard)
+                return .fallbackToPlainText
+            }
+            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+        }
+
+        // Step 7: Write modified Quill Delta to clipboard
+        writeSlackClipboard(plainText: modifiedPlainText, quillDelta: modifiedDelta)
+        Logger.debug("SlackContentParser: Wrote modified Quill Delta to clipboard", category: Logger.analysis)
+
+        // Step 8: Paste (Cmd+V) - text should be selected from Cmd+A
+        Logger.debug("SlackContentParser: Pasting (Cmd+V)...", category: Logger.analysis)
+        simulatePaste()
+
+        // Small delay for paste to complete
+        try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+
+        Logger.info("SlackContentParser: Format-preserving replacement completed successfully", category: Logger.analysis)
+
+        // Note: We intentionally don't restore clipboard - the modified text is what we want
+        // The user's original clipboard is gone, but this is expected behavior for corrections
+
+        return .success
+    }
+
+    /// Get Quill Delta JSON from current clipboard
+    private func getQuillDeltaFromClipboard() -> String? {
+        let pasteboard = NSPasteboard.general
+        guard let data = pasteboard.data(forType: Self.chromiumWebCustomDataType) else {
+            return nil
+        }
+
+        // Try Pickle format first
+        if let pickleContent = parseChromiumPickle(data) {
+            return extractQuillDeltaJSON(from: pickleContent)
+        }
+
+        // Fallback to raw UTF-16LE
+        if let content = String(data: data, encoding: .utf16LittleEndian) {
+            return extractQuillDeltaJSON(from: content)
+        }
+
+        return nil
+    }
+
+    /// Apply text correction to Quill Delta JSON while preserving formatting
+    /// Returns nil if the correction cannot be applied safely
+    private func applyTextCorrection(
+        to quillDelta: String,
+        errorStart: Int,
+        errorEnd: Int,
+        suggestion: String
+    ) -> String? {
+
+        guard let jsonData = quillDelta.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              var ops = json["ops"] as? [[String: Any]] else {
+            Logger.debug("SlackContentParser: Failed to parse Quill Delta JSON", category: Logger.analysis)
+            return nil
+        }
+
+        // Build character position map: for each position, which op and offset within op
+        var position = 0
+        var positionMap: [(opIndex: Int, offsetInOp: Int)] = []
+
+        for (opIndex, op) in ops.enumerated() {
+            if let insert = op["insert"] as? String {
+                for i in 0..<insert.count {
+                    positionMap.append((opIndex, i))
+                }
+                position += insert.count
+            } else if op["insert"] is [String: Any] {
+                // Embedded object (emoji, mention, etc.) - counts as 1 position
+                positionMap.append((opIndex, 0))
+                position += 1
+            }
+        }
+
+        // Find which ops contain the error
+        guard errorStart >= 0 && errorEnd <= positionMap.count && errorStart < errorEnd else {
+            Logger.debug("SlackContentParser: Error range \(errorStart)-\(errorEnd) out of bounds (text length: \(positionMap.count))", category: Logger.analysis)
+            return nil
+        }
+
+        let startInfo = positionMap[errorStart]
+        let endInfo = positionMap[errorEnd - 1]
+
+        // For simplicity, only handle single-op corrections for now
+        // (error contained entirely within one insert string)
+        if startInfo.opIndex != endInfo.opIndex {
+            Logger.debug("SlackContentParser: Error spans multiple ops (\(startInfo.opIndex) to \(endInfo.opIndex)) - falling back", category: Logger.analysis)
+            return nil
+        }
+
+        let opIndex = startInfo.opIndex
+        guard var insert = ops[opIndex]["insert"] as? String else {
+            Logger.debug("SlackContentParser: Op \(opIndex) is not a string insert", category: Logger.analysis)
+            return nil
+        }
+
+        // Apply the correction within this op
+        let startOffset = startInfo.offsetInOp
+        let endOffset = endInfo.offsetInOp + 1
+
+        guard let startIndex = insert.index(insert.startIndex, offsetBy: startOffset, limitedBy: insert.endIndex),
+              let endIndex = insert.index(insert.startIndex, offsetBy: endOffset, limitedBy: insert.endIndex),
+              startIndex < endIndex else {
+            Logger.debug("SlackContentParser: Invalid string indices for correction", category: Logger.analysis)
+            return nil
+        }
+
+        insert.replaceSubrange(startIndex..<endIndex, with: suggestion)
+        ops[opIndex]["insert"] = insert
+
+        // Rebuild JSON
+        let modifiedJson: [String: Any] = ["ops": ops]
+        guard let modifiedData = try? JSONSerialization.data(withJSONObject: modifiedJson),
+              let modifiedString = String(data: modifiedData, encoding: .utf8) else {
+            Logger.debug("SlackContentParser: Failed to serialize modified Quill Delta", category: Logger.analysis)
+            return nil
+        }
+
+        Logger.debug("SlackContentParser: Applied correction to Quill Delta op \(opIndex)", category: Logger.analysis)
+        return modifiedString
+    }
+
+    /// Apply correction to plain text
+    private func applyPlainTextCorrection(
+        originalText: String,
+        errorStart: Int,
+        errorEnd: Int,
+        suggestion: String
+    ) -> String {
+        guard errorStart >= 0 && errorEnd <= originalText.count && errorStart < errorEnd else {
+            return originalText
+        }
+
+        guard let startIndex = originalText.index(originalText.startIndex, offsetBy: errorStart, limitedBy: originalText.endIndex),
+              let endIndex = originalText.index(originalText.startIndex, offsetBy: errorEnd, limitedBy: originalText.endIndex),
+              startIndex < endIndex else {
+            return originalText
+        }
+
+        var result = originalText
+        result.replaceSubrange(startIndex..<endIndex, with: suggestion)
+        return result
+    }
+
+    /// Simulate Cmd+V paste
+    private func simulatePaste() {
+        _ = simulateKeyCombo(keyCode: 9, command: true) // 'V' key
     }
 
     /// Parse the Quill Delta content string and extract exclusions
@@ -576,9 +1116,9 @@ class SlackContentParser: ContentParser {
                     }
 
                     // Check for code attribute (inline code)
+                    // NOT excluded - we can preserve code formatting during replacement
                     if let code = attrs["code"] as? Bool, code {
                         Logger.info("SlackContentParser: Quill Delta: Found inline code at \(position)-\(position + insertLength), length: \(insertLength)", category: Logger.analysis)
-                        exclusions.append(ExclusionRange(location: position, length: insertLength))
                     }
 
                     // Check for code-block attribute
@@ -1148,6 +1688,9 @@ class SlackContentParser: ContentParser {
         hasExtractedQuillDelta = false
         quillDeltaExclusions = []
         hasDumpedElementTree = false
+        // Clear cached Quill Delta for format-preserving replacement
+        cachedQuillDeltaJSON = nil
+        cachedQuillDeltaPlainText = nil
         stopClipboardMonitoring()
     }
 
@@ -1197,6 +1740,14 @@ class SlackContentParser: ContentParser {
                     // Clear cached exclusions to force re-evaluation
                     cachedExclusions = []
                     exclusionTextHash = 0
+                }
+
+                // Cache the Quill Delta JSON for format-preserving replacement
+                if let quillJSON = getQuillDeltaFromClipboard(),
+                   let plainText = pasteboard.string(forType: .string) {
+                    cachedQuillDeltaJSON = quillJSON
+                    cachedQuillDeltaPlainText = plainText
+                    Logger.info("SlackContentParser: Cached Quill Delta JSON (\(quillJSON.count) chars) for format-preserving replacement", category: Logger.analysis)
                 }
             }
 

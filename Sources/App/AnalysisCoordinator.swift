@@ -750,6 +750,10 @@ class AnalysisCoordinator: ObservableObject {
                 // Start continuous clipboard monitoring to detect when user copies
                 // This captures Quill Delta data containing mentions, channels, etc.
                 slackParser.startClipboardMonitoring(for: "")
+
+                // Verify our Pickle format is correct (one-time on startup)
+                let roundtripOK = slackParser.verifyPickleRoundtrip()
+                Logger.info("AnalysisCoordinator: Slack Pickle roundtrip test: \(roundtripOK ? "PASSED" : "FAILED")", category: Logger.analysis)
             }
         }
     }

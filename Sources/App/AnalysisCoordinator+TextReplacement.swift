@@ -990,6 +990,46 @@ extension AnalysisCoordinator {
         let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
                                 context.bundleIdentifier == "com.microsoft.Powerpoint" ||
                                 context.bundleIdentifier == "com.microsoft.Outlook"
+
+        // SLACK: Try format-preserving replacement first (preserves bold, italic, code, etc.)
+        if isSlack {
+            if let slackParser = contentParserFactory.parser(for: context.bundleIdentifier) as? SlackContentParser {
+                // Get current text for the replacement
+                var textRef: CFTypeRef?
+                let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef)
+                let currentText = (textResult == .success) ? (textRef as? String) ?? "" : ""
+
+                Logger.info("Slack: Attempting format-preserving replacement for '\(suggestion)'", category: Logger.analysis)
+
+                let result = await slackParser.applyFormatPreservingReplacement(
+                    errorStart: error.start,
+                    errorEnd: error.end,
+                    originalText: currentText,
+                    suggestion: suggestion
+                )
+
+                switch result {
+                case .success:
+                    Logger.info("Slack: Format-preserving replacement succeeded", category: Logger.analysis)
+                    statistics.recordSuggestionApplied(category: error.category)
+                    invalidateCacheAfterReplacement(at: error.start..<error.end)
+                    let lengthDelta = suggestion.count - (error.end - error.start)
+                    removeErrorAndUpdateUI(error, suggestion: suggestion, lengthDelta: lengthDelta)
+                    replacementCompletedAt = Date()
+                    scheduleDelayedReanalysis(startTime: Date())
+                    return
+
+                case .fallbackToPlainText:
+                    Logger.info("Slack: Format-preserving failed, falling back to plain text replacement", category: Logger.analysis)
+                    // Continue to browser replacement below
+
+                case .failed(let reason):
+                    Logger.warning("Slack: Format-preserving failed: \(reason), falling back to plain text", category: Logger.analysis)
+                    // Continue to browser replacement below
+                }
+            }
+        }
+
         if context.isBrowser || isSlack || isClaude || isPerplexity || isChatGPT || isMessages || isMicrosoftOffice || context.isMacCatalystApp {
             await applyBrowserTextReplacementAsync(for: error, with: suggestion, element: element, context: context)
             return

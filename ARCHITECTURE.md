@@ -233,7 +233,7 @@ protocol ContentParser {
 ```
 
 **Why Different Parsers?**
-- **Slack**: Rich text with formatting, needs Quill delta parsing
+- **Slack**: Rich text with formatting, Quill Delta parsing, format-preserving replacement. See [docs/applications/SLACK.md](docs/applications/SLACK.md) for details.
 - **Notion**: Block-based content, special cursor handling
 - **Mail**: Quoted reply handling, signature filtering
 - **Browsers**: Text in web content, special replacement flow
