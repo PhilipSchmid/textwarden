@@ -738,6 +738,20 @@ class AnalysisCoordinator: ObservableObject {
 
         // Start window position monitoring now that we have an element to monitor
         startWindowPositionMonitoring()
+
+        // Start clipboard monitoring for Slack to detect when user copies text with formatting
+        // This allows us to extract Quill Delta data for exclusion detection (mentions, channels, code, etc.)
+        let appConfig = appRegistry.configuration(for: context.bundleIdentifier)
+        if appConfig.parserType == .slack {
+            Logger.info("AnalysisCoordinator: Starting Slack clipboard monitoring", category: Logger.analysis)
+            if let slackParser = contentParserFactory.parser(for: context.bundleIdentifier) as? SlackContentParser {
+                // Log current clipboard contents for debugging
+                slackParser.logClipboardContents()
+                // Start continuous clipboard monitoring to detect when user copies
+                // This captures Quill Delta data containing mentions, channels, etc.
+                slackParser.startClipboardMonitoring(for: "")
+            }
+        }
     }
 
     /// Stop monitoring
@@ -750,6 +764,12 @@ class AnalysisCoordinator: ObservableObject {
         // Clear typing detector state
         typingDetector.currentBundleID = nil
         typingDetector.reset()
+
+        // Reset Slack parser state (clipboard monitoring, exclusion cache)
+        if let context = monitoredContext,
+           let slackParser = contentParserFactory.parser(for: context.bundleIdentifier) as? SlackContentParser {
+            slackParser.resetState()
+        }
 
         // Only clear style state if not in a manual style check
         // During manual style check, preserve results so user sees them when returning
@@ -1306,6 +1326,31 @@ class AnalysisCoordinator: ObservableObject {
                     }
                 }
                 return true
+            }
+        }
+
+        // Filter out Slack-specific exclusions using Quill Delta
+        // This detects: inline code, code blocks, blockquotes, links, mentions, channels
+        if let context = monitoredContext,
+           appRegistry.configuration(for: context.bundleIdentifier).parserType == .slack,
+           let axElement = element,
+           let slackParser = contentParserFactory.parser(for: context.bundleIdentifier) as? SlackContentParser {
+
+            let exclusions = slackParser.extractExclusions(from: axElement, text: sourceText)
+
+            if !exclusions.isEmpty {
+                let beforeCount = filteredErrors.count
+                filteredErrors = filteredErrors.filter { error in
+                    let errorRange = error.start..<error.end
+                    // Check if error overlaps with any exclusion range
+                    for exclusion in exclusions {
+                        if exclusion.overlaps(errorRange) {
+                            return false
+                        }
+                    }
+                    return true
+                }
+                Logger.info("AnalysisCoordinator: Filtered \(beforeCount - filteredErrors.count) errors in Slack exclusion zones", category: Logger.analysis)
             }
         }
 
