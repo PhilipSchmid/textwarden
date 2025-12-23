@@ -36,6 +36,9 @@ class InsertionPointStrategy: GeometryProvider {
 
         Logger.debug("InsertionPointStrategy: Starting for range \(errorRange)", category: Logger.ui)
 
+        // Note: Emoji detection for apps with positioning issues (e.g., Slack) is handled
+        // at PositionResolver level before strategies are called.
+
         // Get element frame - this is our baseline for positioning
         guard let elementFrame = AccessibilityBridge.getElementFrame(element),
               elementFrame.width > 0, elementFrame.height > 0 else {
@@ -160,33 +163,33 @@ class InsertionPointStrategy: GeometryProvider {
         // Our word-wrap simulation often overcounts due to font metric differences
         let adjustedLineHeight = elementFrame.height / CGFloat(estimatedLinesFromHeight)
 
-        // Scale visualLineNumber if simulation overcounts
-        let adjustedVisualLineNumber: Int
-        if totalLineCount > estimatedLinesFromHeight && estimatedLinesFromHeight > 0 {
-            let scaleFactor = CGFloat(estimatedLinesFromHeight) / CGFloat(totalLineCount)
-            adjustedVisualLineNumber = Int(round(CGFloat(visualLineNumber) * scaleFactor))
-            Logger.debug("InsertionPointStrategy: Scaling visualLineNumber from \(visualLineNumber) to \(adjustedVisualLineNumber) (totalLines=\(totalLineCount), estimated=\(estimatedLinesFromHeight))", category: Logger.ui)
-        } else {
-            adjustedVisualLineNumber = visualLineNumber
-        }
+        // Use proportional positioning within the element height
+        // This works because the element height reflects actual rendered content
+        let adjustedVisualLineNumber = CGFloat(visualLineNumber)
 
-        // Calculate Y position - element frame origin is TOP in Quartz coordinates
-        // Use proportional positioning based on adjusted line number vs estimated total lines
-        // This accounts for non-uniform line heights by distributing space proportionally
+        Logger.debug("InsertionPointStrategy: visualLineNumber=\(visualLineNumber), totalLines=\(totalLineCount), estimated=\(estimatedLinesFromHeight)", category: Logger.ui)
+
+        // Calculate Y position using proportional distribution
+        // In Quartz coordinates: Y=0 is at BOTTOM of screen, Y increases upward
+        // - elementFrame.origin.y is the BOTTOM of the element (lower Y)
+        // - elementFrame.origin.y + height is the TOP of the element (higher Y)
+        // In text rendering:
+        // - Line 0 (first line) is at TOP of element (higher Y in Quartz)
+        // - Line N (last line) is at BOTTOM of element (lower Y in Quartz)
+        // So we need to INVERT: line 0 should map to high Y, line N to low Y
         let proportionalY: CGFloat
-        if estimatedLinesFromHeight > 0 {
-            // Calculate Y as a proportion of element height
-            // Leave room for one line at the bottom (don't exceed last line position)
-            let maxLineIndex = CGFloat(estimatedLinesFromHeight - 1)
-            let clampedLineIndex = min(CGFloat(adjustedVisualLineNumber), maxLineIndex)
-            proportionalY = elementFrame.origin.y + (clampedLineIndex / CGFloat(estimatedLinesFromHeight)) * elementFrame.height
+        if totalLineCount > 1 {
+            let linePosition = adjustedVisualLineNumber / CGFloat(totalLineCount - 1)
+            // Invert: (1 - linePosition) puts line 0 at top, line N-1 at bottom
+            proportionalY = elementFrame.origin.y + (1.0 - linePosition) * (elementFrame.height - lineHeight)
         } else {
-            proportionalY = elementFrame.origin.y + (CGFloat(adjustedVisualLineNumber) * adjustedLineHeight)
+            // Single line: position at top of element
+            proportionalY = elementFrame.origin.y + elementFrame.height - lineHeight
         }
 
-        // Add a small upward offset for lines > 0 to better align with text baseline
-        let lineOffset: CGFloat = adjustedVisualLineNumber > 0 ? -2.0 : 0.0
-        let errorY = proportionalY + lineOffset
+        let errorY = proportionalY
+
+        Logger.debug("InsertionPointStrategy: Y calculation - visualLine=\(adjustedVisualLineNumber), totalLines=\(totalLineCount), proportionalY=\(proportionalY)", category: Logger.ui)
 
         // Sanity check: line height should be reasonable
         guard adjustedLineHeight >= 14.0 && adjustedLineHeight <= 50.0 else {
@@ -360,12 +363,27 @@ class InsertionPointStrategy: GeometryProvider {
         // Process each hard line (separated by newlines)
         for (hardLineIndex, hardLine) in hardLines.enumerated() {
             // For each hard line, simulate word wrapping
-            let (wrappedLines, finalLineText) = simulateWordWrap(
+            var (wrappedLines, finalLineText) = simulateWordWrap(
                 text: hardLine,
                 availableWidth: availableWidth,
                 attributes: attributes,
                 multiplier: multiplier
             )
+
+            // EMOJI COMPENSATION: For the first hardLine, if it's close to wrapping but doesn't,
+            // there might be embedded content (emojis) that aren't in AXValue text but add visual width.
+            // This causes extra wrapping that our simulation doesn't account for.
+            // Only apply when: text is 70-100% width AND didn't wrap (wrappedLines == 0)
+            // If text is >100% width, it already wraps naturally - don't double-count.
+            if hardLineIndex == 0 && !hardLine.isEmpty && wrappedLines == 0 {
+                let firstLineWidth = (hardLine as NSString).size(withAttributes: attributes).width
+                let widthUsage = firstLineWidth / availableWidth
+                if widthUsage > 0.70 && widthUsage <= 1.0 {
+                    // First line is close to wrapping but doesn't - emoji might push it over
+                    wrappedLines += 1
+                    Logger.debug("InsertionPointStrategy: Emoji compensation - first line uses \(Int(widthUsage * 100))% width (close to wrap), adding extra wrap", category: Logger.ui)
+                }
+            }
 
             // Track wraps before this hard line (for the final result)
             if hardLineIndex < hardLines.count - 1 {
@@ -379,10 +397,14 @@ class InsertionPointStrategy: GeometryProvider {
             currentHardLineIndex = hardLineIndex
 
             // If this is not the last hard line, the newline moves us to the next visual line
+            // EXCEPTION: Empty hard lines in Slack/Electron apps render as paragraph spacing,
+            // not full empty lines. Don't count them as visual lines.
             if hardLineIndex < hardLines.count - 1 {
-                visualLineNumber += 1
-                // Reset currentLineText - it will be set by the next iteration
-                // (or remain empty if the next line is also empty)
+                if !hardLine.isEmpty {
+                    // Non-empty line followed by newline = move to next visual line
+                    visualLineNumber += 1
+                }
+                // Empty lines (paragraph breaks) don't increment - they're just spacing
             }
         }
 

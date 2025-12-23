@@ -1783,19 +1783,24 @@ class SlackContentParser: ContentParser {
         return !config.features.visualUnderlinesEnabled
     }
 
-    /// Slack's selection API treats newlines as zero-width, but AXValue includes them.
-    /// This is because Slack replaces emojis with \n\n and adds \n for line breaks.
-    /// Each newline needs to be subtracted from position for accurate selection.
+    /// Slack selection API uses the same indices as AXValue - no offset adjustment needed.
+    /// Previously, we tried various offset schemes, but they caused more issues than they solved.
+    /// The X-axis drift for positions after emojis is a Chromium accessibility bug that
+    /// can't be reliably corrected with a simple offset.
     func selectionOffset(at position: Int, in text: String) -> Int {
-        guard position > 0 else { return 0 }
+        return 0
+    }
 
-        let endIndex = min(position, text.count)
-        guard let endStringIndex = text.index(text.startIndex, offsetBy: endIndex, limitedBy: text.endIndex) else {
-            return 0
-        }
+    /// Slack needs UTF-16 conversion for correct emoji handling in Chromium selection APIs.
+    /// Emojis like 😭 are 1 grapheme but 2 UTF-16 code units, causing position drift without conversion.
+    var requiresUTF16Conversion: Bool {
+        return true
+    }
 
-        let prefix = String(text[..<endStringIndex])
-        return prefix.filter { $0 == "\n" }.count
+    /// Slack renders emojis as [AXImage] children that cause text marker position drift.
+    /// When emojis are present, positioning strategies should disable visual underlines.
+    var hasEmbeddedImagePositioningIssues: Bool {
+        return true
     }
 
     /// Diagnostic result from probing Slack's AX capabilities

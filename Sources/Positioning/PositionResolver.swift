@@ -143,6 +143,17 @@ class PositionResolver {
             return GeometryResult.unavailable(reason: "AX API unresponsive - skipping positioning")
         }
 
+        // FAIL-FAST: For apps with embedded image positioning issues (e.g., Slack),
+        // check for emojis and skip ALL positioning when detected.
+        // This prevents unreliable underline placement caused by emoji position drift.
+        if parser.hasEmbeddedImagePositioningIssues {
+            let imageCount = countEmbeddedImages(in: element)
+            if imageCount > 0 {
+                Logger.debug("PositionResolver: Detected \(imageCount) embedded images (emojis) in \(bundleID) - skipping ALL positioning", category: Logger.ui)
+                return GeometryResult.unavailable(reason: "Emojis detected - visual underlines disabled")
+            }
+        }
+
         // Check visibility BEFORE attempting positioning
         AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXVisibleCharacterRange")
         let isVisible = AccessibilityBridge.isRangeVisible(errorRange, in: element)
@@ -254,5 +265,52 @@ class PositionResolver {
         return strategiesForApp(bundleID: bundleID).map {
             (name: $0.strategyName, type: $0.strategyType, tier: $0.tier)
         }
+    }
+
+    // MARK: - Emoji Detection
+
+    /// Count embedded images (emojis) in the element and its descendants.
+    /// In Slack and similar apps, emojis are rendered as [AXImage] children
+    /// that cause text marker position drift.
+    private func countEmbeddedImages(in element: AXUIElement) -> Int {
+        return countEmbeddedImagesRecursive(in: element, depth: 0, maxDepth: 5)
+    }
+
+    /// Recursively count AXImage elements in the accessibility tree
+    private func countEmbeddedImagesRecursive(in element: AXUIElement, depth: Int, maxDepth: Int) -> Int {
+        guard depth < maxDepth else { return 0 }
+
+        var count = 0
+
+        var childrenValue: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(
+            element,
+            kAXChildrenAttribute as CFString,
+            &childrenValue
+        )
+
+        guard result == .success,
+              let children = childrenValue as? [AXUIElement] else {
+            return 0
+        }
+
+        for child in children {
+            var roleValue: CFTypeRef?
+            let roleResult = AXUIElementCopyAttributeValue(
+                child,
+                kAXRoleAttribute as CFString,
+                &roleValue
+            )
+
+            if roleResult == .success,
+               let role = roleValue as? String {
+                if role == "AXImage" {
+                    count += 1
+                }
+                count += countEmbeddedImagesRecursive(in: child, depth: depth + 1, maxDepth: maxDepth)
+            }
+        }
+
+        return count
     }
 }

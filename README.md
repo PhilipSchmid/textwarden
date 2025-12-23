@@ -175,7 +175,7 @@ TextWarden uses the macOS Accessibility API and works with most applications. Vi
 
 | Application | Grammar Checking | Visual Underlines |
 |-------------|-----------------|-------------------|
-| **Slack** | Full | Full |
+| **Slack** | Full | Partial*** |
 | **Claude** | Full | Full |
 | **ChatGPT** | Full | Full |
 | **Perplexity** | Full | Full |
@@ -196,6 +196,8 @@ TextWarden uses the macOS Accessibility API and works with most applications. Vi
 *\*These apps use a floating indicator instead of inline underlines due to accessibility API limitations. Microsoft Word and PowerPoint crash (EXC_BAD_INSTRUCTION in mso99) when querying parameterized accessibility attributes. Notion's block-based structure causes AX text newlines that don't match visual line breaks, making underline positioning unreliable.*
 
 *\*\*PowerPoint exposes only the Notes section via the macOS Accessibility API. Slide text boxes are not accessible programmatically, so grammar checking is limited to speaker notes.*
+
+*\*\*\*Slack visual underlines work correctly for plain text, but are automatically disabled when emojis are present. Slack renders emojis as separate image elements that aren't included in the text content, but Chromium's accessibility APIs count them in position calculations, causing unreliable underline placement. The error indicator badge still works normally.*
 
 > [!NOTE]
 > Terminal apps are not supported as their accessibility APIs typically don't expose text content in a way that's useful for grammar checking.

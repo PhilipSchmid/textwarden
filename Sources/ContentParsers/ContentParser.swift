@@ -130,6 +130,13 @@ protocol ContentParser {
     /// Default is false to preserve existing behavior for apps like Slack.
     var requiresUTF16Conversion: Bool { get }
 
+    /// Whether this app has embedded images (emojis) that cause positioning issues.
+    /// When true, positioning strategies will check for AXImage children and disable
+    /// visual underlines if emojis are detected. This is because some apps (like Slack)
+    /// render emojis as separate AXImage elements that cause text marker position drift.
+    /// Default is false - only apps with known issues should enable this.
+    var hasEmbeddedImagePositioningIssues: Bool { get }
+
     /// Custom bounds calculation for apps with non-standard accessibility APIs.
     /// Override this for apps where standard AXBoundsForRange doesn't work correctly
     /// (e.g., Apple Mail's WebKit which needs single-char queries and coordinate conversion).
@@ -193,6 +200,11 @@ extension ContentParser {
 
     /// Default: no UTF-16 conversion needed (preserves existing behavior for Slack, etc.)
     var requiresUTF16Conversion: Bool {
+        return false
+    }
+
+    /// Default: no embedded image positioning issues
+    var hasEmbeddedImagePositioningIssues: Bool {
         return false
     }
 

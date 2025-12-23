@@ -261,6 +261,57 @@ Each strategy returns a `GeometryResult` with:
 
 The resolver tries strategies in order of reliability and stops at the first valid result.
 
+### Underline Display Logic
+
+Visual underlines are shown conditionally based on several factors. Understanding this decision tree helps debug why underlines may not appear:
+
+```mermaid
+flowchart TD
+    Start["Error detected"] --> G1{"Global underlines<br/>enabled?"}
+    G1 -->|No| Hide["Hide underlines"]
+    G1 -->|Yes| G2{"Per-app underlines<br/>enabled?"}
+    G2 -->|No| Hide
+    G2 -->|Yes| G3{"App config allows<br/>visualUnderlines?"}
+    G3 -->|No| Hide
+    G3 -->|Yes| G4{"Error count ><br/>maxErrorsThreshold?"}
+    G4 -->|Yes| Hide
+    G4 -->|No| G5{"Typing pause required<br/>& currently typing?"}
+    G5 -->|Yes| Hide
+    G5 -->|No| Calc["Calculate position<br/>for each error"]
+    Calc --> G6{"Position confidence<br/>>= 0.5?"}
+    G6 -->|No| Skip["Skip this error"]
+    G6 -->|Yes| G7{"Bounds valid?"}
+    G7 -->|No| Skip
+    G7 -->|Yes| Show["Show underline"]
+
+    style Start fill:#e1f5ff
+    style Hide fill:#ffebee
+    style Skip fill:#fff3e0
+    style Show fill:#e8f5e9
+    style Calc fill:#f3e5f5
+```
+
+**Configuration Points:**
+
+| Setting | Location | Default | Description |
+|---------|----------|---------|-------------|
+| `showUnderlines` | UserPreferences | `true` | Global toggle |
+| Per-app toggle | UserPreferences | `true` | User override per app |
+| `visualUnderlinesEnabled` | AppConfiguration | varies | Technical capability |
+| `maxErrorsForUnderlines` | UserPreferences | `10` | Hide when exceeded |
+| `requiresTypingPause` | AppFeatures | varies | Wait for pause before showing |
+| Confidence threshold | GeometryResult | `0.5` | Minimum for display |
+
+**Why Underlines May Not Appear:**
+
+1. **Too many errors** - When error count exceeds threshold (default 10), all underlines hide
+2. **User is typing** - Apps with `requiresTypingPause` hide underlines during active typing
+3. **Position calculation failed** - Strategy returned nil or low confidence
+4. **Bounds validation failed** - Calculated bounds are unreasonable (too large, negative, etc.)
+5. **Per-app disabled** - User or app config disabled underlines for this app
+
+For app-specific underline behavior, see `docs/applications/` (e.g., [SLACK.md](docs/applications/SLACK.md)).
+
 ### Apple Foundation Models Integration
 
 TextWarden uses Apple's Foundation Models framework (macOS 26+) for AI-powered style suggestions. This replaces the previous mistral.rs-based approach with Apple Intelligence.

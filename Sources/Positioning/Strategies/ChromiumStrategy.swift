@@ -134,6 +134,9 @@ class ChromiumStrategy: GeometryProvider {
         let startIndex = errorRange.location + offset
         let graphemeRange = NSRange(location: startIndex, length: errorRange.length)
 
+        // Note: Emoji detection is handled at PositionResolver level before strategies are called.
+        // Apps with hasEmbeddedImagePositioningIssues=true skip all positioning when emojis are detected.
+
         // Apply app-specific selection offset (e.g., Slack/Claude need newline adjustment)
         let selectionOffset = parser.selectionOffset(at: graphemeRange.location, in: text)
 
@@ -183,6 +186,9 @@ class ChromiumStrategy: GeometryProvider {
         // Save cursor once before first measurement
         saveCursorPosition(element: element)
 
+        // Log the selection range we're about to use
+        Logger.debug("ChromiumStrategy: Setting selection for grapheme range \(graphemeRange) -> selection range \(selectionRange)", category: Logger.analysis)
+
         // Measure bounds using selection-based approach (with emoji offset correction)
         guard var bounds = measureBoundsViaSelection(element: element, range: selectionRange) else {
             Logger.debug("ChromiumStrategy: measureBoundsViaSelection returned nil for range \(selectionRange)", category: Logger.analysis)
@@ -202,6 +208,20 @@ class ChromiumStrategy: GeometryProvider {
         if bounds.height > maxReasonableHeight {
             Logger.debug("ChromiumStrategy: Rejecting bounds - height \(bounds.height)px too large (max: \(maxReasonableHeight)px)", category: Logger.analysis)
             return nil
+        }
+
+        // Validate bounds Y is within element frame (catches emoji-induced position drift)
+        // Emojis in Slack cause Chromium's text markers to be offset from AXValue positions.
+        // When bounds Y is outside the element, it means the position drift is severe.
+        if let elementFrame = AccessibilityBridge.getElementFrame(element) {
+            let tolerance: CGFloat = 50.0  // Allow some tolerance for rounding
+            let minY = elementFrame.origin.y - tolerance
+            let maxY = elementFrame.origin.y + elementFrame.height + tolerance
+
+            if bounds.origin.y < minY || bounds.origin.y > maxY {
+                Logger.debug("ChromiumStrategy: Rejecting bounds - Y \(bounds.origin.y) outside element bounds [\(minY), \(maxY)] (emoji drift?)", category: Logger.analysis)
+                return nil
+            }
         }
 
         // Handle Teams case: position is valid but width is -1 (needs estimation)
@@ -319,10 +339,21 @@ class ChromiumStrategy: GeometryProvider {
 
     /// Measure bounds by setting selection and reading AXBoundsForTextMarkerRange
     private func measureBoundsViaSelection(element: AXUIElement, range: NSRange) -> CGRect? {
+        // Get element frame to detect "whole line" stale bounds
+        let elementFrame = AccessibilityBridge.getElementFrame(element)
+
         var targetRange = CFRange(location: range.location, length: range.length)
         guard let targetValue = AXValueCreate(.cfRange, &targetRange) else {
             Logger.debug("ChromiumStrategy: Failed to create AXValue for range", category: Logger.analysis)
             return nil
+        }
+
+        // First, try to clear selection by setting an empty range at position 0
+        // This helps reset Slack's accessibility state before setting our target selection
+        var emptyRange = CFRange(location: 0, length: 0)
+        if let emptyValue = AXValueCreate(.cfRange, &emptyRange) {
+            AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, emptyValue)
+            usleep(GeometryConstants.chromiumShortDelay)
         }
 
         let setResult = AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, targetValue)
@@ -331,23 +362,25 @@ class ChromiumStrategy: GeometryProvider {
             return nil
         }
 
-        // Wait for Chromium to process selection change
-        usleep(GeometryConstants.chromiumMediumDelay)
+        // Wait for Chromium to process selection change - use longer delay for better reliability
+        usleep(GeometryConstants.chromiumMediumDelay * 3)
 
         // Poll for valid bounds with stale data detection
-        for attempt in 0..<8 {
+        for attempt in 0..<10 {
             if attempt > 0 {
                 usleep(GeometryConstants.chromiumShortDelay)
             }
 
             guard let bounds = readSelectedTextBounds(element: element) else {
-                if attempt == 7 {
-                    Logger.debug("ChromiumStrategy: readSelectedTextBounds returned nil after 8 attempts", category: Logger.analysis)
+                if attempt == 9 {
+                    Logger.debug("ChromiumStrategy: readSelectedTextBounds returned nil after 10 attempts", category: Logger.analysis)
                 }
                 continue
             }
 
-            // Detect stale data (Chromium returning previous selection's bounds)
+            // Detect stale/bogus bounds:
+            // 1. Bounds matching previous measurement exactly (stale)
+            // 2. Bounds width close to element width (likely whole-line bounds)
             let isStaleData = ChromiumStrategy.stateQueue.sync { () -> Bool in
                 if let lastBounds = ChromiumStrategy._lastMeasuredBounds,
                    abs(bounds.origin.x - lastBounds.origin.x) < 1 &&
@@ -361,14 +394,28 @@ class ChromiumStrategy: GeometryProvider {
                 }
             }
 
-            if isStaleData && attempt < 6 { continue }
+            // Also check for "whole line" bounds - width close to element width
+            let isWholeLine: Bool
+            if let frame = elementFrame {
+                // If bounds width is > 80% of element width, it's likely bogus whole-line bounds
+                isWholeLine = bounds.width > frame.width * 0.8
+            } else {
+                isWholeLine = false
+            }
+
+            if (isStaleData || isWholeLine) && attempt < 8 {
+                if isWholeLine {
+                    Logger.debug("ChromiumStrategy: Skipping whole-line bounds \(bounds.width)px on attempt \(attempt)", category: Logger.analysis)
+                }
+                continue
+            }
 
             Logger.debug("ChromiumStrategy: Got bounds \(bounds) on attempt \(attempt)", category: Logger.analysis)
             ChromiumStrategy.stateQueue.sync { ChromiumStrategy._lastMeasuredBounds = bounds }
             return bounds
         }
 
-        Logger.debug("ChromiumStrategy: All 8 attempts failed to get valid bounds", category: Logger.analysis)
+        Logger.debug("ChromiumStrategy: All 10 attempts failed to get valid bounds", category: Logger.analysis)
         return nil
     }
 

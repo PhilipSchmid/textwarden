@@ -203,6 +203,41 @@ If you see "falling back to plain text replacement", check:
 2. Does cached text match current text?
 3. Does error span multiple formatting ops?
 
+## Known Limitations
+
+### Emoji Positioning
+
+Visual underlines are automatically disabled when emojis are present in the text. This is a deliberate trade-off due to a Chromium accessibility limitation.
+
+**Root Cause:**
+- Slack renders emojis as `[AXImage]` elements that are NOT included in `AXValue` text
+- However, Chromium's text marker APIs (`AXSelectedTextMarkerRange`, `AXBoundsForTextMarkerRange`) DO count these embedded images in their position indices
+- This creates a mismatch: when we set selection at position X (based on `AXValue`), Chromium interprets it as a different position because it counts emojis we can't see
+- The position drift increases with each emoji, making correction unreliable
+
+**Detection Method:**
+```swift
+// Compare AXNumberOfCharacters (includes emojis) with text.count (excludes emojis)
+if AXNumberOfCharacters > text.count {
+    // Emojis detected - disable visual underlines
+}
+```
+
+**User Impact:**
+- Error indicator (badge with count) still shows correctly
+- Users can click the indicator to see all errors
+- Grammar corrections still work via the popover
+- Only the inline underlines are hidden
+
+**Why Not Fix It:**
+Various approaches were attempted:
+1. UTF-16 conversion: Didn't help because emojis aren't in the text string
+2. Selection offset adjustment: Can't reliably determine emoji positions
+3. Proportional offset estimation: Too imprecise with multiple emojis
+4. AXNumberOfCharacters comparison: Gives total count but not positions
+
+The Chromium accessibility API doesn't provide a way to map between `AXValue` positions and text marker positions when embedded objects exist.
+
 ## References
 
 - [Quill Delta Format](https://quilljs.com/docs/delta/)
