@@ -848,7 +848,8 @@ class SlackContentParser: ContentParser {
             to: delta,
             errorStart: errorStart,
             errorEnd: errorEnd,
-            suggestion: suggestion
+            suggestion: suggestion,
+            axValueText: originalText
         ) else {
             Logger.warning("SlackContentParser: Failed to apply correction to Quill Delta", category: Logger.analysis)
             restoreClipboardState(savedClipboard)
@@ -885,11 +886,10 @@ class SlackContentParser: ContentParser {
         // Small delay for paste to complete
         try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
 
+        // Restore user's original clipboard content
+        restoreClipboardState(savedClipboard)
+
         Logger.info("SlackContentParser: Format-preserving replacement completed successfully", category: Logger.analysis)
-
-        // Note: We intentionally don't restore clipboard - the modified text is what we want
-        // The user's original clipboard is gone, but this is expected behavior for corrections
-
         return .success
     }
 
@@ -913,13 +913,15 @@ class SlackContentParser: ContentParser {
         return nil
     }
 
-    /// Apply text correction to Quill Delta JSON while preserving formatting
-    /// Returns nil if the correction cannot be applied safely
+    /// Apply text correction to Quill Delta JSON while preserving formatting.
+    /// Uses text search instead of position mapping for robustness.
+    /// Returns nil if the correction cannot be applied safely.
     private func applyTextCorrection(
         to quillDelta: String,
         errorStart: Int,
         errorEnd: Int,
-        suggestion: String
+        suggestion: String,
+        axValueText: String
     ) -> String? {
 
         guard let jsonData = quillDelta.data(using: .utf8),
@@ -929,32 +931,87 @@ class SlackContentParser: ContentParser {
             return nil
         }
 
-        // Build character position map: for each position, which op and offset within op
-        var position = 0
+        // Step 1: Extract the actual error text from AXValue
+        guard errorStart >= 0 && errorEnd <= axValueText.count && errorStart < errorEnd,
+              let axStartIdx = axValueText.index(axValueText.startIndex, offsetBy: errorStart, limitedBy: axValueText.endIndex),
+              let axEndIdx = axValueText.index(axValueText.startIndex, offsetBy: errorEnd, limitedBy: axValueText.endIndex) else {
+            Logger.debug("SlackContentParser: Invalid error range \(errorStart)-\(errorEnd) for AXValue (length: \(axValueText.count))", category: Logger.analysis)
+            return nil
+        }
+        let errorText = String(axValueText[axStartIdx..<axEndIdx])
+
+        // Step 2: Build plain text from Quill Delta and position map
         var positionMap: [(opIndex: Int, offsetInOp: Int)] = []
+        var quillPlainText = ""
 
         for (opIndex, op) in ops.enumerated() {
             if let insert = op["insert"] as? String {
                 for i in 0..<insert.count {
                     positionMap.append((opIndex, i))
                 }
-                position += insert.count
-            } else if op["insert"] is [String: Any] {
-                // Embedded object (emoji, mention, etc.) - counts as 1 position
-                positionMap.append((opIndex, 0))
-                position += 1
+                quillPlainText += insert
             }
+            // Embedded objects (emojis) are skipped - they don't appear in AXValue text
         }
 
-        // Find which ops contain the error
-        guard errorStart >= 0 && errorEnd <= positionMap.count && errorStart < errorEnd else {
-            Logger.debug("SlackContentParser: Error range \(errorStart)-\(errorEnd) out of bounds (text length: \(positionMap.count))", category: Logger.analysis)
+        // Step 3: Get surrounding context from AXValue to help find unique match
+        let contextChars = 15
+        let contextBeforeStart = max(0, errorStart - contextChars)
+        let contextAfterEnd = min(axValueText.count, errorEnd + contextChars)
+
+        let contextBeforeIdx = axValueText.index(axValueText.startIndex, offsetBy: contextBeforeStart)
+        let contextAfterIdx = axValueText.index(axValueText.startIndex, offsetBy: contextAfterEnd)
+
+        let contextBefore = String(axValueText[contextBeforeIdx..<axStartIdx])
+        let contextAfter = String(axValueText[axEndIdx..<contextAfterIdx])
+
+        // Step 4: Search for the error text with context in Quill Delta
+        let searchPattern = contextBefore + errorText + contextAfter
+
+        guard let matchRange = quillPlainText.range(of: searchPattern) else {
+            // Fallback: try searching for just the error text without context
+            guard let simpleRange = quillPlainText.range(of: errorText) else {
+                Logger.debug("SlackContentParser: Error text not found in Quill Delta", category: Logger.analysis)
+                return nil
+            }
+
+            let quillStart = quillPlainText.distance(from: quillPlainText.startIndex, to: simpleRange.lowerBound)
+            let quillEnd = quillPlainText.distance(from: quillPlainText.startIndex, to: simpleRange.upperBound)
+
+            guard quillStart >= 0 && quillEnd <= positionMap.count else {
+                Logger.debug("SlackContentParser: Position out of bounds", category: Logger.analysis)
+                return nil
+            }
+
+            let startInfo = positionMap[quillStart]
+            let endInfo = positionMap[quillEnd - 1]
+
+            return applyToOps(&ops, startInfo: startInfo, endInfo: endInfo, suggestion: suggestion)
+        }
+
+        // Calculate position of error text within the matched pattern
+        let matchStart = quillPlainText.distance(from: quillPlainText.startIndex, to: matchRange.lowerBound)
+        let quillStart = matchStart + contextBefore.count
+        let quillEnd = quillStart + errorText.count
+
+        guard quillStart >= 0 && quillEnd <= positionMap.count && quillStart < quillEnd else {
+            Logger.debug("SlackContentParser: Position out of bounds", category: Logger.analysis)
             return nil
         }
 
-        let startInfo = positionMap[errorStart]
-        let endInfo = positionMap[errorEnd - 1]
+        let startInfo = positionMap[quillStart]
+        let endInfo = positionMap[quillEnd - 1]
 
+        return applyToOps(&ops, startInfo: startInfo, endInfo: endInfo, suggestion: suggestion)
+    }
+
+    /// Helper to apply correction to Quill Delta ops and rebuild JSON
+    private func applyToOps(
+        _ ops: inout [[String: Any]],
+        startInfo: (opIndex: Int, offsetInOp: Int),
+        endInfo: (opIndex: Int, offsetInOp: Int),
+        suggestion: String
+    ) -> String? {
         // For simplicity, only handle single-op corrections for now
         // (error contained entirely within one insert string)
         if startInfo.opIndex != endInfo.opIndex {
@@ -990,7 +1047,6 @@ class SlackContentParser: ContentParser {
             return nil
         }
 
-        Logger.debug("SlackContentParser: Applied correction to Quill Delta op \(opIndex)", category: Logger.analysis)
         return modifiedString
     }
 
