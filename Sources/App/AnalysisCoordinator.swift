@@ -482,35 +482,17 @@ class AnalysisCoordinator: ObservableObject {
                 self.hoverSwitchTimer = nil
                 self.pendingHoverError = nil
             } else {
-                // Different error - delay the switch to give user time to reach the popover
-                Logger.debug("AnalysisCoordinator: Different error - scheduling delayed switch (300ms)", category: Logger.analysis)
-
-                // Cancel any existing timer
+                // Different error - switch immediately for snappy UX
+                Logger.debug("AnalysisCoordinator: Different error - switching immediately", category: Logger.analysis)
                 self.hoverSwitchTimer?.invalidate()
-
-                // Store pending hover info
-                self.pendingHoverError = (error: error, position: position, windowFrame: windowFrame)
-
-                // Schedule delayed switch
-                self.hoverSwitchTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.hoverDelay, repeats: false) { [weak self] _ in
-                    Task { @MainActor [weak self] in
-                        guard let self = self,
-                              let pending = self.pendingHoverError else { return }
-
-                        Logger.debug("AnalysisCoordinator: Delayed switch timer fired - showing new popover", category: Logger.analysis)
-
-                        self.suggestionPopover.show(
-                            error: pending.error,
-                            allErrors: self.currentErrors,
-                            at: pending.position,
-                            constrainToWindow: pending.windowFrame
-                        )
-
-                        // Clear timer and pending state
-                        self.hoverSwitchTimer = nil
-                        self.pendingHoverError = nil
-                    }
-                }
+                self.hoverSwitchTimer = nil
+                self.pendingHoverError = nil
+                self.suggestionPopover.show(
+                    error: error,
+                    allErrors: self.currentErrors,
+                    at: position,
+                    constrainToWindow: windowFrame
+                )
             }
         }
 
