@@ -103,8 +103,7 @@ Examples:
 ## Testing
 
 ```bash
-make build          # Full build only
 make run            # Build AND restart the app (use this for testing!)
 make test           # Run tests
-cargo test          # Rust tests only
+make ci-check       # Run CI checks locally before committing
 ```
