@@ -44,6 +44,11 @@ class SlackStrategy: GeometryProvider {
     private static let underlineHeight: CGFloat = 3.0  // Height for fallback underline rect
     private static let xAdjustment: CGFloat = 0.0      // No adjustment needed - AXBoundsForRange is accurate
 
+    // TextPart cache to avoid rebuilding for each error
+    private var cachedTextParts: [TextPart] = []
+    private var cachedTextHash: Int = 0
+    private var cachedElementFrame: CGRect = .zero
+
     // MARK: - GeometryProvider
 
     func canHandle(element: AXUIElement, bundleID: String) -> Bool {
@@ -81,10 +86,22 @@ class SlackStrategy: GeometryProvider {
         // Get PRIMARY screen height for coordinate conversion
         let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero }
         let primaryScreenHeight = primaryScreen?.frame.height ?? NSScreen.main?.frame.height ?? 1080
-        Logger.debug("SlackStrategy: Primary screen height: \(primaryScreenHeight)", category: Logger.ui)
 
-        // STEP 1: Build TextPart map from AX children
-        let textParts = buildTextPartMap(from: element, fullText: text)
+        // STEP 1: Get or build TextPart map (cached for performance)
+        let textHash = text.hashValue
+        let textParts: [TextPart]
+
+        if textHash == cachedTextHash && elementFrame == cachedElementFrame && !cachedTextParts.isEmpty {
+            // Use cached TextParts
+            textParts = cachedTextParts
+        } else {
+            // Rebuild TextPart map
+            textParts = buildTextPartMap(from: element, fullText: text)
+            cachedTextParts = textParts
+            cachedTextHash = textHash
+            cachedElementFrame = elementFrame
+            Logger.debug("SlackStrategy: Built \(textParts.count) TextParts", category: Logger.ui)
+        }
 
         if textParts.isEmpty {
             Logger.debug("SlackStrategy: No TextParts found - falling back to element-based calculation", category: Logger.ui)
@@ -96,8 +113,6 @@ class SlackStrategy: GeometryProvider {
                 primaryScreenHeight: primaryScreenHeight
             )
         }
-
-        Logger.debug("SlackStrategy: Built \(textParts.count) TextParts", category: Logger.ui)
 
         // STEP 2: Find TextPart(s) that contain the error range
         guard let bounds = findBoundsForRange(originalRange, in: textParts, fullText: text, element: element) else {
