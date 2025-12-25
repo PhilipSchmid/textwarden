@@ -71,13 +71,15 @@ class SlackContentParser: ContentParser {
 
         var exclusions: [ExclusionRange] = []
 
-        // Method 1: Try AXLinkUIElements for direct link access (doesn't work in Chromium but try anyway)
-        let linkExclusions = detectLinksViaAXLinkUIElements(element: element, text: text)
-        exclusions.append(contentsOf: linkExclusions)
-
-        // Method 2: Try AXAttributedStringForTextMarkerRange for formatting attributes
+        // Method 1: Try AXAttributedStringForTextMarkerRange for formatting attributes
+        // Detects: mentions, channels, inline code, block code (via AXBackgroundColor)
         let attributedExclusions = extractFromAttributedString(element: element, text: text)
         exclusions.append(contentsOf: attributedExclusions)
+
+        // Method 2: Detect links via AXLink child elements
+        // Links don't have AXBackgroundColor, they appear as AXLink children in the tree
+        let linkExclusions = detectLinks(in: element, text: text)
+        exclusions.append(contentsOf: linkExclusions)
 
         // Method 3: Check if clipboard already has Quill Delta (from user's previous copy)
         // This is non-intrusive - just reads existing clipboard without modifying it
@@ -91,7 +93,7 @@ class SlackContentParser: ContentParser {
         }
         exclusions.append(contentsOf: quillDeltaExclusions)
 
-        // Method 4: Element tree traversal for additional detection
+        // Method 4: Element tree traversal for additional detection (fallback)
         if exclusions.isEmpty {
             // Dump element tree once for debugging
             if !hasDumpedElementTree {
@@ -101,13 +103,15 @@ class SlackContentParser: ContentParser {
                 Logger.info("SlackContentParser: === End Element Tree ===", category: Logger.analysis)
             }
 
-            // Note: AXCodeStyleGroup (inline code) is NOT excluded - we can preserve formatting during replacement
-
             // Check for AXBlockQuoteLevel attribute (blockquotes)
             exclusions.append(contentsOf: detectBlockQuotes(in: element, text: text))
 
-            // Check for AXLink role (mentions, channels, URLs)
-            exclusions.append(contentsOf: detectLinks(in: element, text: text))
+            // Check for mentions (@user) and channels (#channel) in element tree
+            // These appear as AXStaticText children with @ or # prefixes
+            exclusions.append(contentsOf: detectMentionsAndChannels(in: element, text: text))
+
+            // Check for inline code (AXCodeStyleGroup subrole)
+            exclusions.append(contentsOf: detectCodeStyleGroups(in: element, text: text))
         }
 
         // Cache and return
@@ -123,18 +127,171 @@ class SlackContentParser: ContentParser {
 
     // MARK: - Attributed String Extraction (Primary Method)
 
-    /// Extract exclusions from AXAttributedStringForTextMarkerRange
-    /// This returns an NSAttributedString with formatting attributes like links, fonts, etc.
+    /// Extract exclusions from attributed string using AXBackgroundColor
+    ///
+    /// Slack applies `AXBackgroundColor` to: mentions, channels, inline code, block code.
+    /// Links are detected separately via AXLink child elements (see `detectLinks`).
     private func extractFromAttributedString(element: AXUIElement, text: String) -> [ExclusionRange] {
+        // Try CFRange-based method first (most reliable per testing)
+        let cfRangeExclusions = extractUsingCFRange(element: element, text: text)
+        if !cfRangeExclusions.isEmpty {
+            return cfRangeExclusions
+        }
+
+        // Fallback to text marker range method
+        return extractUsingTextMarkerRange(element: element)
+    }
+
+    /// Extract exclusions using AXAttributedStringForRange (CFRange-based)
+    ///
+    /// Slack applies `AXBackgroundColor` to special content:
+    /// - Mentions (@user): Light blue background
+    /// - Channels (#channel): Light blue background
+    /// - Inline code (backticks): Gray background
+    /// - Block code (triple backticks): Gray background
+    ///
+    /// This method reads the attributed string in chunks and collects all ranges
+    /// with `AXBackgroundColor` set. Links are handled separately via `detectLinks`.
+    private func extractUsingCFRange(element: AXUIElement, text: String) -> [ExclusionRange] {
         var exclusions: [ExclusionRange] = []
 
-        // Get the full text range as a marker range
+        // Get character count from AX API (may differ from text.count due to UTF-16)
+        var charCountRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXNumberOfCharactersAttribute as CFString, &charCountRef) == .success,
+              let charCount = charCountRef as? Int, charCount > 0 else {
+            Logger.debug("SlackContentParser: Could not get AXNumberOfCharacters", category: Logger.analysis)
+            return exclusions
+        }
+
+        // Process text in chunks using adaptive sizing to handle API quirks
+        var offset = 0
+
+        while offset < charCount {
+            let remaining = charCount - offset
+
+            guard let attrString = getAttributedStringAdaptive(element: element, offset: offset, maxLength: remaining) else {
+                // Could not read even with smallest chunk - skip this position
+                offset += 1
+                continue
+            }
+
+            // Extract exclusions from this chunk
+            extractExclusionAttributes(from: attrString, globalOffset: offset, into: &exclusions)
+            offset += attrString.length
+        }
+
+        // Merge adjacent exclusions that were split across chunk boundaries
+        let mergedExclusions = mergeAdjacentExclusions(exclusions)
+
+        if !mergedExclusions.isEmpty {
+            Logger.info("SlackContentParser: CFRange method found \(mergedExclusions.count) exclusions", category: Logger.analysis)
+        }
+
+        return mergedExclusions
+    }
+
+    /// Extract exclusion ranges from an attributed string based on AXBackgroundColor
+    ///
+    /// Slack applies `AXBackgroundColor` to mentions, channels, inline code, and block code.
+    /// Links are detected separately via AXLink child elements (see `extractLinkExclusions`).
+    private func extractExclusionAttributes(
+        from attrString: NSAttributedString,
+        globalOffset: Int,
+        into exclusions: inout [ExclusionRange]
+    ) {
+        let backgroundColorKey = NSAttributedString.Key(rawValue: "AXBackgroundColor")
+        let fullRange = NSRange(location: 0, length: attrString.length)
+
+        // Detect mentions, channels, code blocks via AXBackgroundColor
+        attrString.enumerateAttribute(backgroundColorKey, in: fullRange, options: []) { value, range, _ in
+            guard value != nil else { return }
+
+            let globalLocation = globalOffset + range.location
+            exclusions.append(ExclusionRange(location: globalLocation, length: range.length))
+        }
+    }
+
+    /// Merge adjacent or overlapping exclusion ranges
+    ///
+    /// Since we process text in chunks, a single exclusion (e.g., a long mention)
+    /// may be split across chunk boundaries. This function merges such fragments.
+    ///
+    /// Example:
+    /// - Input:  `[54-69, 94-100, 100-106]` (channel "#development" split at 100)
+    /// - Output: `[54-69, 94-106]` (properly merged)
+    private func mergeAdjacentExclusions(_ exclusions: [ExclusionRange]) -> [ExclusionRange] {
+        guard !exclusions.isEmpty else { return [] }
+
+        let sorted = exclusions.sorted { $0.location < $1.location }
+        var merged: [ExclusionRange] = []
+        var current = sorted[0]
+
+        for next in sorted.dropFirst() {
+            let currentEnd = current.location + current.length
+
+            if next.location <= currentEnd {
+                // Ranges are adjacent or overlapping - merge them
+                let newEnd = max(currentEnd, next.location + next.length)
+                current = ExclusionRange(location: current.location, length: newEnd - current.location)
+            } else {
+                // No overlap - save current and start new
+                merged.append(current)
+                current = next
+            }
+        }
+
+        merged.append(current)
+        return merged
+    }
+
+    /// Adaptive chunk sizes for AXAttributedStringForRange queries
+    ///
+    /// Slack's AX API (Chromium/Electron) has a quirk where `AXAttributedStringForRange`
+    /// fails with error -25212 when ranges extend within ~5 characters of text end.
+    /// Using adaptive sizing, we try progressively smaller chunks until one succeeds.
+    private static let adaptiveChunkSizes = [100, 50, 25, 10, 5, 1]
+
+    /// Get attributed string with adaptive chunk sizing
+    ///
+    /// Tries progressively smaller chunks until one succeeds, handling Slack's API quirks.
+    /// - Parameters:
+    ///   - element: The AX element to query
+    ///   - offset: Starting character offset
+    ///   - maxLength: Maximum number of characters to read
+    /// - Returns: The attributed string, or nil if all chunk sizes fail
+    private func getAttributedStringAdaptive(element: AXUIElement, offset: Int, maxLength: Int) -> NSAttributedString? {
+        for chunkSize in Self.adaptiveChunkSizes {
+            let length = min(chunkSize, maxLength)
+            guard length > 0 else { continue }
+
+            var cfRange = CFRange(location: offset, length: length)
+            guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else { continue }
+
+            var attrStringRef: CFTypeRef?
+            let result = AXUIElementCopyParameterizedAttributeValue(
+                element,
+                kAXAttributedStringForRangeParameterizedAttribute as CFString,
+                rangeValue,
+                &attrStringRef
+            )
+
+            if result == .success, let attrString = attrStringRef as? NSAttributedString {
+                return attrString
+            }
+        }
+
+        return nil
+    }
+
+    /// Extract exclusions using AXAttributedStringForTextMarkerRange (fallback method)
+    private func extractUsingTextMarkerRange(element: AXUIElement) -> [ExclusionRange] {
+        var exclusions: [ExclusionRange] = []
+
         guard let markerRange = getFullTextMarkerRange(element: element) else {
             Logger.debug("SlackContentParser: Could not get text marker range", category: Logger.analysis)
             return exclusions
         }
 
-        // Get attributed string for the range
         var attrStringRef: CFTypeRef?
         let result = AXUIElementCopyParameterizedAttributeValue(
             element,
@@ -148,81 +305,46 @@ class SlackContentParser: ContentParser {
             return exclusions
         }
 
-        Logger.info("SlackContentParser: Got attributed string (\(attrString.length) chars), analyzing attributes...", category: Logger.analysis)
+        Logger.info("SlackContentParser: TextMarkerRange method got attributed string (\(attrString.length) chars)", category: Logger.analysis)
 
-        // First pass: log all unique attribute keys found
-        var allAttributeKeys: Set<String> = []
-        attrString.enumerateAttributes(in: NSRange(location: 0, length: attrString.length), options: []) { attrs, _, _ in
-            for key in attrs.keys {
-                allAttributeKeys.insert(key.rawValue)
+        // Log all unique fonts found for debugging
+        var uniqueFonts: Set<String> = []
+        attrString.enumerateAttribute(.font, in: NSRange(location: 0, length: attrString.length), options: []) { value, _, _ in
+            if let font = value as? NSFont {
+                uniqueFonts.insert(font.fontName)
             }
         }
-        Logger.info("SlackContentParser: Attribute keys found: \(allAttributeKeys.sorted().joined(separator: ", "))", category: Logger.analysis)
+        if !uniqueFonts.isEmpty {
+            Logger.debug("SlackContentParser: Fonts in attributed string: \(uniqueFonts.sorted().joined(separator: ", "))", category: Logger.analysis)
+        }
 
-        // Enumerate attributes to find formatting
+        var addedRanges: Set<NSRange> = []
+
         attrString.enumerateAttributes(in: NSRange(location: 0, length: attrString.length), options: []) { attrs, range, _ in
-            let rangeText = attrString.attributedSubstring(from: range).string
-            // Log non-trivial attributes (skip if just font/paragraph style)
-            let interestingAttrs = attrs.filter { $0.key != .font && $0.key != .paragraphStyle && $0.key != .foregroundColor }
-            if !interestingAttrs.isEmpty {
-                Logger.debug("SlackContentParser: Range \(range.location)-\(range.location + range.length) '\(rangeText.prefix(20))' has: \(interestingAttrs.keys.map { $0.rawValue }.joined(separator: ", "))", category: Logger.analysis)
-            }
+            guard !addedRanges.contains(range) else { return }
 
-            // Check for links (mentions, channels, URLs)
-            if let link = attrs[.link] {
-                let linkText = attrString.attributedSubstring(from: range).string
-                var linkType = "link"
-
-                if let url = link as? URL {
-                    let urlString = url.absoluteString
-                    if urlString.contains("slack://user") || urlString.hasPrefix("@") {
-                        linkType = "mention"
-                    } else if urlString.contains("slack://channel") || urlString.hasPrefix("#") {
-                        linkType = "channel"
-                    }
-                } else if let urlString = link as? String {
-                    if urlString.contains("slack://user") || urlString.hasPrefix("@") {
-                        linkType = "mention"
-                    } else if urlString.contains("slack://channel") || urlString.hasPrefix("#") {
-                        linkType = "channel"
-                    }
+            // Check for AXBackgroundColor (mentions, channels, code blocks)
+            for (key, _) in attrs {
+                if key.rawValue == "AXBackgroundColor" {
+                    exclusions.append(ExclusionRange(location: range.location, length: range.length))
+                    addedRanges.insert(range)
+                    break
                 }
-
-                Logger.info("SlackContentParser: Found \(linkType) at \(range.location)-\(range.location + range.length), text: '\(linkText)'", category: Logger.analysis)
-                exclusions.append(ExclusionRange(location: range.location, length: range.length))
             }
 
-            // Check font traits (bold, italic, monospace)
-            if let font = attrs[.font] as? NSFont {
+            // Also check for monospace font (code blocks use monospace fonts)
+            if !addedRanges.contains(range),
+               let font = attrs[.font] as? NSFont {
                 let fontName = font.fontName.lowercased()
                 let traits = font.fontDescriptor.symbolicTraits
 
-                // Check for bold
-                if traits.contains(.bold) {
-                    Logger.info("SlackContentParser: AXAttributedString: Found BOLD at \(range.location)-\(range.location + range.length)", category: Logger.analysis)
-                }
-
-                // Check for italic
-                if traits.contains(.italic) {
-                    Logger.info("SlackContentParser: AXAttributedString: Found ITALIC at \(range.location)-\(range.location + range.length)", category: Logger.analysis)
-                }
-
-                // Check for monospace (code)
+                // Detect monospace fonts used for code
                 if fontName.contains("mono") || fontName.contains("courier") || fontName.contains("menlo") ||
-                   fontName.contains("consolas") || fontName.contains("source code") ||
+                   fontName.contains("consolas") || fontName.contains("source code") || fontName.contains("fira code") ||
+                   fontName.contains("sf mono") || fontName.contains("jetbrains") ||
                    traits.contains(.monoSpace) {
-                    Logger.info("SlackContentParser: AXAttributedString: Found MONOSPACE at \(range.location)-\(range.location + range.length), font: \(font.fontName)", category: Logger.analysis)
                     exclusions.append(ExclusionRange(location: range.location, length: range.length))
-                }
-            }
-
-            // Check for custom Slack attributes (if any)
-            for (key, _) in attrs {
-                let keyName = key.rawValue.lowercased()
-                if keyName.contains("code") || keyName.contains("quote") || keyName.contains("mention") {
-                    let attrText = attrString.attributedSubstring(from: range).string
-                    Logger.info("SlackContentParser: Found custom attr '\(key.rawValue)' at \(range.location)-\(range.location + range.length), text: '\(attrText.prefix(30))'", category: Logger.analysis)
-                    exclusions.append(ExclusionRange(location: range.location, length: range.length))
+                    addedRanges.insert(range)
                 }
             }
         }
@@ -1171,44 +1293,23 @@ class SlackContentParser: ContentParser {
                         exclusions.append(ExclusionRange(location: position, length: insertLength))
                     }
 
-                    // Check for code attribute (inline code)
-                    // NOT excluded - we can preserve code formatting during replacement
+                    // Check for code attribute (inline code) - excluded from grammar checking
                     if let code = attrs["code"] as? Bool, code {
-                        Logger.info("SlackContentParser: Quill Delta: Found inline code at \(position)-\(position + insertLength), length: \(insertLength)", category: Logger.analysis)
+                        exclusions.append(ExclusionRange(location: position, length: insertLength))
                     }
 
-                    // Check for code-block attribute
+                    // Check for code-block attribute - excluded from grammar checking
                     if attrs["code-block"] != nil {
-                        Logger.info("SlackContentParser: Quill Delta: Found code block at \(position)-\(position + insertLength)", category: Logger.analysis)
                         exclusions.append(ExclusionRange(location: position, length: insertLength))
                     }
 
-                    // Check for blockquote attribute
+                    // Check for blockquote attribute - excluded from grammar checking
                     if attrs["blockquote"] != nil {
-                        Logger.info("SlackContentParser: Quill Delta: Found blockquote at \(position)-\(position + insertLength)", category: Logger.analysis)
                         exclusions.append(ExclusionRange(location: position, length: insertLength))
                     }
 
-                    // Detect text styling (bold, italic, underline, strikethrough)
-                    // These are logged for completeness but NOT excluded - grammar errors should still be flagged
-                    if let bold = attrs["bold"] as? Bool, bold {
-                        Logger.info("SlackContentParser: Quill Delta: Found bold at \(position)-\(position + insertLength), length: \(insertLength)", category: Logger.analysis)
-                    }
-                    if let italic = attrs["italic"] as? Bool, italic {
-                        Logger.info("SlackContentParser: Quill Delta: Found italic at \(position)-\(position + insertLength), length: \(insertLength)", category: Logger.analysis)
-                    }
-                    if let underline = attrs["underline"] as? Bool, underline {
-                        Logger.info("SlackContentParser: Quill Delta: Found underline at \(position)-\(position + insertLength), length: \(insertLength)", category: Logger.analysis)
-                    }
-                    if let strike = attrs["strike"] as? Bool, strike {
-                        Logger.info("SlackContentParser: Quill Delta: Found strikethrough at \(position)-\(position + insertLength), length: \(insertLength)", category: Logger.analysis)
-                    }
-
-                    // Detect list formatting (bullet, ordered)
-                    // Logged for completeness but NOT excluded
-                    if let list = attrs["list"] as? String {
-                        Logger.info("SlackContentParser: Quill Delta: Found list (\(list)) at \(position)-\(position + insertLength)", category: Logger.analysis)
-                    }
+                    // Text styling (bold, italic, underline, strikethrough, lists) is NOT excluded
+                    // Grammar errors should still be flagged in styled text
                 }
 
                 position += insertLength
@@ -1397,66 +1498,6 @@ class SlackContentParser: ContentParser {
         return String(text[start..<endIndex])
     }
 
-    /// Check for AXLinkUIElements attribute (list of link elements)
-    private func detectLinksViaAXLinkUIElements(element: AXUIElement, text: String) -> [ExclusionRange] {
-        var exclusions: [ExclusionRange] = []
-
-        // Try to get link elements directly
-        var linksRef: CFTypeRef?
-        if AXUIElementCopyAttributeValue(element, "AXLinkUIElements" as CFString, &linksRef) == .success,
-           let links = linksRef as? [AXUIElement] {
-            Logger.info("SlackContentParser: Found \(links.count) link elements via AXLinkUIElements", category: Logger.analysis)
-
-            for link in links {
-                // Get link text
-                var valueRef: CFTypeRef?
-                let linkText: String
-                if AXUIElementCopyAttributeValue(link, kAXValueAttribute as CFString, &valueRef) == .success,
-                   let v = valueRef as? String {
-                    linkText = v
-                } else if AXUIElementCopyAttributeValue(link, kAXTitleAttribute as CFString, &valueRef) == .success,
-                          let t = valueRef as? String {
-                    linkText = t
-                } else {
-                    linkText = ""
-                }
-
-                // Get URL
-                var urlRef: CFTypeRef?
-                var linkType = "link"
-                if AXUIElementCopyAttributeValue(link, kAXURLAttribute as CFString, &urlRef) == .success {
-                    let urlString: String
-                    if let u = urlRef as? URL { urlString = u.absoluteString }
-                    else if let u = urlRef as? String { urlString = u }
-                    else { urlString = "" }
-
-                    if urlString.contains("slack://user") {
-                        linkType = "mention"
-                    } else if urlString.contains("slack://channel") {
-                        linkType = "channel"
-                    }
-                }
-
-                if !linkText.isEmpty, let range = text.range(of: linkText) {
-                    let location = text.distance(from: text.startIndex, to: range.lowerBound)
-                    Logger.info("SlackContentParser: AXLinkUIElements: Found \(linkType) '\(linkText)' at \(location)", category: Logger.analysis)
-                    exclusions.append(ExclusionRange(location: location, length: linkText.count))
-                }
-            }
-        } else {
-            Logger.debug("SlackContentParser: AXLinkUIElements not available", category: Logger.analysis)
-        }
-
-        // Also try AXTextLinks
-        var textLinksRef: CFTypeRef?
-        if AXUIElementCopyAttributeValue(element, "AXTextLinks" as CFString, &textLinksRef) == .success,
-           let textLinks = textLinksRef as? [AXUIElement] {
-            Logger.info("SlackContentParser: Found \(textLinks.count) text links via AXTextLinks", category: Logger.analysis)
-        }
-
-        return exclusions
-    }
-
     /// Dump element tree for debugging - shows what AX attributes Slack exposes
     private func dumpElementTree(_ element: AXUIElement, text: String, depth: Int) {
         guard depth < 5 else { return } // Limit depth
@@ -1517,7 +1558,10 @@ class SlackContentParser: ContentParser {
         }
     }
 
-    /// Detect links (mentions, channels, URLs) via AXLink role or URL attributes
+    /// Detect links (URLs) via AXLink role elements
+    ///
+    /// In Slack, links appear as AXLink elements with AXStaticText children containing the URL text.
+    /// This method traverses the element tree, finds AXLink elements, and extracts their text.
     private func detectLinks(in element: AXUIElement, text: String) -> [ExclusionRange] {
         var linkRanges: [ExclusionRange] = []
 
@@ -1527,60 +1571,123 @@ class SlackContentParser: ContentParser {
            let role = roleRef as? String,
            role == "AXLink" {
 
-            // Get link text
+            // Get link text - try direct value first, then check children
             var valueRef: CFTypeRef?
-            let linkText: String
+            var linkText: String = ""
+
             if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
-               let v = valueRef as? String {
+               let v = valueRef as? String, !v.isEmpty {
                 linkText = v
             } else {
-                // Try AXTitle for links
-                var titleRef: CFTypeRef?
-                if AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef) == .success,
-                   let t = titleRef as? String {
-                    linkText = t
-                } else {
-                    linkText = ""
-                }
+                // AXLink often has empty value; look at child AXStaticText for the URL
+                linkText = getLinkTextFromChildren(element)
             }
 
-            // Get URL to determine type
-            var urlRef: CFTypeRef?
-            var linkType = "link"
-            if AXUIElementCopyAttributeValue(element, kAXURLAttribute as CFString, &urlRef) == .success {
-                let urlString: String
-                if let u = urlRef as? URL { urlString = u.absoluteString }
-                else if let u = urlRef as? String { urlString = u }
-                else { urlString = "" }
-
-                if urlString.contains("slack://user") || urlString.contains("@") {
-                    linkType = "mention"
-                } else if urlString.contains("slack://channel") || urlString.contains("#") {
-                    linkType = "channel"
-                }
-            }
-
-            if !linkText.isEmpty {
+            // Only detect actual URLs, not mentions/channels (those have AXBackgroundColor)
+            if !linkText.isEmpty && (linkText.hasPrefix("http://") || linkText.hasPrefix("https://")) {
                 // Find position of link text in parent text
                 if let range = text.range(of: linkText) {
                     let location = text.distance(from: text.startIndex, to: range.lowerBound)
                     let length = linkText.count
-                    Logger.info("SlackContentParser: Found \(linkType) at \(location)-\(location + length), text: '\(linkText)'", category: Logger.analysis)
                     linkRanges.append(ExclusionRange(location: location, length: length))
                 }
             }
         }
 
-        // Recurse into children
-        var childrenRef: CFTypeRef?
-        if AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-           let children = childrenRef as? [AXUIElement] {
-            for child in children {
-                linkRanges.append(contentsOf: detectLinks(in: child, text: text))
+        // Recurse into children (but don't process children of AXLink since we handle them above)
+        var roleRef2: CFTypeRef?
+        let isLink = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef2) == .success &&
+                     (roleRef2 as? String) == "AXLink"
+
+        if !isLink {
+            var childrenRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
+               let children = childrenRef as? [AXUIElement] {
+                for child in children {
+                    linkRanges.append(contentsOf: detectLinks(in: child, text: text))
+                }
             }
         }
 
         return linkRanges
+    }
+
+    /// Get link text from AXStaticText children of an AXLink element
+    private func getLinkTextFromChildren(_ element: AXUIElement) -> String {
+        var childrenRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
+              let children = childrenRef as? [AXUIElement] else {
+            return ""
+        }
+
+        for child in children {
+            var roleRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(child, kAXRoleAttribute as CFString, &roleRef) == .success,
+               let role = roleRef as? String,
+               role == "AXStaticText" {
+
+                var valueRef: CFTypeRef?
+                if AXUIElementCopyAttributeValue(child, kAXValueAttribute as CFString, &valueRef) == .success,
+                   let value = valueRef as? String, !value.isEmpty {
+                    return value
+                }
+            }
+
+            // Recurse into nested children
+            let nestedText = getLinkTextFromChildren(child)
+            if !nestedText.isEmpty {
+                return nestedText
+            }
+        }
+
+        return ""
+    }
+
+    /// Detect mentions (@user) and channels (#channel) in element tree
+    /// These appear as AXStaticText children with @ or # prefixes
+    private func detectMentionsAndChannels(in element: AXUIElement, text: String) -> [ExclusionRange] {
+        var exclusions: [ExclusionRange] = []
+
+        // Get child elements
+        var childrenRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
+              let children = childrenRef as? [AXUIElement] else {
+            return exclusions
+        }
+
+        for child in children {
+            // Check if this is an AXStaticText element
+            var roleRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(child, kAXRoleAttribute as CFString, &roleRef) == .success,
+               let role = roleRef as? String,
+               role == "AXStaticText" {
+
+                // Get the value
+                var valueRef: CFTypeRef?
+                if AXUIElementCopyAttributeValue(child, kAXValueAttribute as CFString, &valueRef) == .success,
+                   let value = valueRef as? String,
+                   !value.isEmpty {
+
+                    // Check for mention or channel prefix
+                    let isMention = value.hasPrefix("@") && value.count > 1 && !value.contains("@.")  // Exclude email-like patterns
+                    let isChannel = value.hasPrefix("#") && value.count > 1
+
+                    if isMention || isChannel {
+                        // Find this text in the parent text
+                        if let range = text.range(of: value) {
+                            let location = text.distance(from: text.startIndex, to: range.lowerBound)
+                            let length = value.count
+                            exclusions.append(ExclusionRange(location: location, length: length))
+                        }
+                    }
+                }
+            }
+
+            // Recurse into children
+            exclusions.append(contentsOf: detectMentionsAndChannels(in: child, text: text))
+        }
+
+        return exclusions
     }
 
     /// Detect inline code using AXCodeStyleGroup subrole

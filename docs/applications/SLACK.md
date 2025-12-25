@@ -7,8 +7,53 @@ This document describes how TextWarden handles Slack's rich text formatting, inc
 Slack uses [Quill Delta](https://quilljs.com/docs/delta/) format internally to represent rich text. When copying text from Slack, the formatting information is stored in the clipboard using Chromium's custom data format (`org.chromium.web-custom-data`).
 
 TextWarden leverages this to:
-1. Detect exclusion zones (mentions, links, code blocks, blockquotes)
+1. Detect exclusion zones (mentions, channels, code blocks, blockquotes, links) via Accessibility APIs
 2. Apply grammar corrections while preserving formatting (bold, italic, inline code, etc.)
+
+## Exclusion Detection via Accessibility APIs
+
+TextWarden uses multiple AX APIs to detect content that should be excluded from grammar checking:
+
+### AXBackgroundColor Detection
+
+Slack applies `AXBackgroundColor` attributes to styled content, which TextWarden detects via `AXAttributedStringForRange`:
+
+- **Mentions** (@user): Light blue background
+- **Channels** (#channel): Light blue background
+- **Inline code**: Gray background (backticks)
+- **Block code**: Gray background (triple backticks)
+
+### Link Detection via AXLink Elements
+
+Links (URLs) don't have `AXBackgroundColor` in Slack. Instead, they appear as `AXLink` child elements in the accessibility tree. TextWarden traverses the element tree to find these:
+
+```
+[AXTextArea]
+  └─ [AXLink]
+       └─ [AXStaticText] value: "https://example.com"
+```
+
+The link text is extracted from the `AXStaticText` child and matched against the main text to determine the exclusion range.
+
+### Adaptive Chunk Sizing
+
+Slack's AX API has a quirk where `AXAttributedStringForRange` fails with error -25212 when ranges extend near the text end. TextWarden handles this with adaptive chunk sizing:
+
+```swift
+let chunkSizes = [100, 50, 25, 10, 5, 1]
+// Try progressively smaller chunks until one succeeds
+```
+
+This ensures reliable detection even for edge cases near text boundaries.
+
+### Range Merging
+
+Since chunks may split exclusion zones, TextWarden merges adjacent ranges after collection:
+
+```
+Before merge: [54-69, 94-100, 100-106]  // #development split at chunk boundary
+After merge:  [54-69, 94-106]           // Properly merged
+```
 
 ## Quill Delta Format
 
@@ -38,16 +83,14 @@ Slack uses embedded objects and attributes for special content. Some are **exclu
 - **Channels**: `{"insert": {"slackmention": {"id": "C456", "label": "#channel"}}}`
 - **Emoji**: `{"insert": {"slackemoji": {"name": "smile"}}}`
 - **Links**: `{"insert": "text", "attributes": {"link": "https://..."}}`
+- **Inline code**: `{"attributes": {"code": true}, "insert": "text"}`
 - **Code blocks**: `{"attributes": {"code-block": true}, ...}`
 - **Blockquotes**: `{"attributes": {"blockquote": true}, ...}`
 
 **Checked with formatting preserved:**
 - **Bold**: `{"attributes": {"bold": true}, "insert": "text"}`
 - **Italic**: `{"attributes": {"italic": true}, "insert": "text"}`
-- **Inline code**: `{"attributes": {"code": true}, "insert": "text"}`
 - **Strikethrough**: `{"attributes": {"strike": true}, "insert": "text"}`
-
-Inline code is checked because users often use it for emphasis on regular text, not just actual code.
 
 ## Chromium Pickle Format
 
@@ -181,6 +224,10 @@ Plain text replacement works correctly but strips formatting from the entire mes
 ## Implementation Files
 
 - `Sources/ContentParsers/SlackContentParser.swift`: Content parsing and text replacement
+  - `extractUsingCFRange()`: AXBackgroundColor-based exclusion detection
+  - `detectLinks()`: Link detection via AXLink child elements
+  - `getAttributedStringAdaptive()`: Adaptive chunk sizing for AX API
+  - `mergeAdjacentExclusions()`: Merge fragmented exclusion ranges
   - `parseChromiumPickle()`: Pickle parser
   - `buildChromiumPickle()`: Pickle writer
   - `applyFormatPreservingReplacement()`: Main replacement logic
@@ -193,6 +240,25 @@ Plain text replacement works correctly but strips formatting from the entire mes
   - `calculateFallbackGeometry()`: Font measurement fallback
 
 ## Debugging
+
+### Exclusion Detection
+
+Exclusion detection logs summary information without revealing user content:
+
+```
+SlackContentParser: Extracting exclusions via Accessibility APIs
+SlackContentParser: CFRange method found 5 exclusions
+SlackContentParser: Detected 6 total exclusion ranges
+AnalysisCoordinator: Filtered 6 errors in Slack exclusion zones
+```
+
+If exclusions aren't being detected:
+1. Is the content actually styled? (mentions should show blue background in Slack)
+2. Check for AX API errors in logs (error -25212 = range issue)
+3. Verify `AXNumberOfCharacters` matches expected text length
+4. For links: check if AXLink elements appear in the element tree dump
+
+### Format-Preserving Replacement
 
 Enable debug logging to see format-preserving replacement in action:
 

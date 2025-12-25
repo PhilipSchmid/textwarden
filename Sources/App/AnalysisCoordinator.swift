@@ -1367,7 +1367,10 @@ class AnalysisCoordinator: ObservableObject {
                     }
                     return true
                 }
-                Logger.info("AnalysisCoordinator: Filtered \(beforeCount - filteredErrors.count) errors in Slack exclusion zones", category: Logger.analysis)
+                let filteredCount = beforeCount - filteredErrors.count
+                if filteredCount > 0 {
+                    Logger.info("AnalysisCoordinator: Filtered \(filteredCount) errors in Slack exclusion zones", category: Logger.analysis)
+                }
             }
         }
 
