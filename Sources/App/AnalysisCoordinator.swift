@@ -529,8 +529,8 @@ class AnalysisCoordinator: ObservableObject {
                 self.pendingHoverError = nil
             }
 
-            // Don't schedule hide here - let the popover's own mouse tracking handle it
-            // This allows users to freely move from underline to popover without hiding
+            // Schedule popover hide with delay - if user moves into popover, it will cancel
+            SuggestionPopover.shared.scheduleHide()
         }
 
         // Re-show underlines when frame stabilizes after resize

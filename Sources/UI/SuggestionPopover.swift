@@ -1173,7 +1173,6 @@ class PopoverTrackingView: NSView {
 
     override func mouseExited(with event: NSEvent) {
         Logger.trace("Popover: Mouse EXITED tracking view", category: Logger.ui)
-        // Schedule hide after 1 second when mouse leaves
         popover?.scheduleHide()
     }
 }
