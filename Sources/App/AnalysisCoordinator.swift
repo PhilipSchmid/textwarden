@@ -158,6 +158,9 @@ class AnalysisCoordinator: ObservableObject {
     /// Global scroll wheel event monitor
     var scrollWheelMonitor: Any?
 
+    /// Coordinator for app-specific position refresh triggers (e.g., Slack click-based refresh)
+    let positionRefreshCoordinator = PositionRefreshCoordinator()
+
     /// Hover switching timer - delays popover switching when hovering from one error to another
     var hoverSwitchTimer: Timer?
     /// Pending error waiting for delayed hover switch
@@ -274,6 +277,7 @@ class AnalysisCoordinator: ObservableObject {
         setupPopoverCallbacks()
         setupOverlayCallbacks()
         setupScrollWheelMonitor()
+        setupPositionRefreshCoordinator()
         setupTypingCallback()
         // Window position monitoring will be started when we begin monitoring an app
     }
@@ -335,11 +339,12 @@ class AnalysisCoordinator: ObservableObject {
     /// Clean up resources (timers, event monitors)
     /// Called during app termination for explicit cleanup since deinit won't be called for singletons
     func cleanup() {
-        // Clean up event monitor
+        // Clean up event monitors
         if let monitor = scrollWheelMonitor {
             NSEvent.removeMonitor(monitor)
             scrollWheelMonitor = nil
         }
+        positionRefreshCoordinator.stopMonitoring()
 
         // Invalidate all timers to prevent memory leaks
         windowPositionTimer?.invalidate()
@@ -387,6 +392,11 @@ class AnalysisCoordinator: ObservableObject {
             }
         }
         Logger.debug("Scroll wheel monitor installed", category: Logger.analysis)
+    }
+
+    /// Setup position refresh coordinator for app-specific refresh triggers
+    private func setupPositionRefreshCoordinator() {
+        positionRefreshCoordinator.delegate = self
     }
 
     /// Setup popover callbacks
@@ -735,6 +745,9 @@ class AnalysisCoordinator: ObservableObject {
             appName: context.applicationName
         )
         Logger.debug("AnalysisCoordinator: textMonitor.startMonitoring completed", category: Logger.analysis)
+
+        // Start position refresh coordinator for apps that need click-based position updates
+        positionRefreshCoordinator.startMonitoring(bundleID: context.bundleIdentifier)
 
         // Start window position monitoring now that we have an element to monitor
         startWindowPositionMonitoring()
@@ -1610,6 +1623,24 @@ extension AnalysisCoordinator {
         case .warning: return 2
         case .info: return 1
         }
+    }
+}
+
+// MARK: - PositionRefreshDelegate
+
+extension AnalysisCoordinator: PositionRefreshDelegate {
+    /// Called when positions should be recalculated (e.g., after click in Slack)
+    func positionRefreshRequested() {
+        guard let element = textMonitor.monitoredElement,
+              !currentErrors.isEmpty else { return }
+
+        Logger.debug("AnalysisCoordinator: Position refresh requested - clearing cache", category: Logger.ui)
+
+        // Clear position cache to force fresh position calculations
+        positionResolver.clearCache()
+
+        // Re-show underlines at new positions
+        showErrorUnderlines(currentErrors, element: element)
     }
 }
 

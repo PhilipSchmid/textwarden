@@ -6,7 +6,7 @@ This folder contains detailed documentation for applications that require specia
 
 | Application | Description |
 |-------------|-------------|
-| [SLACK.md](SLACK.md) | Quill Delta format, Chromium Pickle, format-preserving replacement |
+| [SLACK.md](SLACK.md) | Quill Delta format, Chromium Pickle, format-preserving replacement, positioning strategy |
 
 ## Adding New Documentation
 

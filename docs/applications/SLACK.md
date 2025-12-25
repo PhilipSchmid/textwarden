@@ -180,12 +180,17 @@ Plain text replacement works correctly but strips formatting from the entire mes
 
 ## Implementation Files
 
-- `Sources/ContentParsers/SlackContentParser.swift`: Main implementation
+- `Sources/ContentParsers/SlackContentParser.swift`: Content parsing and text replacement
   - `parseChromiumPickle()`: Pickle parser
   - `buildChromiumPickle()`: Pickle writer
   - `applyFormatPreservingReplacement()`: Main replacement logic
   - `applyTextCorrection()`: Quill Delta modification
   - `checkClipboardForQuillDelta()`: Clipboard monitoring
+
+- `Sources/Positioning/Strategies/SlackStrategy.swift`: Underline positioning
+  - `buildTextPartMap()`: AX tree traversal for text runs
+  - `calculateSubElementBounds()`: AXBoundsForRange on child elements
+  - `calculateFallbackGeometry()`: Font measurement fallback
 
 ## Debugging
 
@@ -203,40 +208,31 @@ If you see "falling back to plain text replacement", check:
 2. Does cached text match current text?
 3. Does error span multiple formatting ops?
 
-## Known Limitations
+## Positioning Strategy
 
-### Emoji Positioning
+TextWarden uses a dedicated positioning strategy for Slack (`SlackStrategy`) that provides pixel-perfect underline positioning.
 
-Visual underlines are automatically disabled when emojis are present in the text. This is a deliberate trade-off due to a Chromium accessibility limitation.
+### Technical Approach
 
-**Root Cause:**
-- Slack renders emojis as `[AXImage]` elements that are NOT included in `AXValue` text
-- However, Chromium's text marker APIs (`AXSelectedTextMarkerRange`, `AXBoundsForTextMarkerRange`) DO count these embedded images in their position indices
-- This creates a mismatch: when we set selection at position X (based on `AXValue`), Chromium interprets it as a different position because it counts emojis we can't see
-- The position drift increases with each emoji, making correction unreliable
+Slack's main `AXTextArea` element doesn't support standard `AXBoundsForRange` queries (returns invalid data). However, child `AXStaticText` elements DO support `AXBoundsForRange` with local range offsets.
 
-**Detection Method:**
-```swift
-// Compare AXNumberOfCharacters (includes emojis) with text.count (excludes emojis)
-if AXNumberOfCharacters > text.count {
-    // Emojis detected - disable visual underlines
-}
-```
+**Strategy:**
+1. Traverse the AX children tree to find all `AXStaticText` elements (text runs)
+2. Build a TextPart map: character ranges → visual frames + element references
+3. For each error, find the overlapping TextPart(s)
+4. Query `AXBoundsForRange` on the child element with local range offset
+5. Fall back to font measurement only if AX query fails
 
-**User Impact:**
-- Error indicator (badge with count) still shows correctly
-- Users can click the indicator to see all errors
-- Grammar corrections still work via the popover
-- Only the inline underlines are hidden
+### Click-Based Position Recheck
 
-**Why Not Fix It:**
-Various approaches were attempted:
-1. UTF-16 conversion: Didn't help because emojis aren't in the text string
-2. Selection offset adjustment: Can't reliably determine emoji positions
-3. Proportional offset estimation: Too imprecise with multiple emojis
-4. AXNumberOfCharacters comparison: Gives total count but not positions
+Slack's AX tree updates asynchronously after user interactions. TextWarden monitors mouse clicks and triggers a debounced position recheck (200ms delay) to ensure underlines stay aligned when the user navigates or edits text.
 
-The Chromium accessibility API doesn't provide a way to map between `AXValue` positions and text marker positions when embedded objects exist.
+### Emoji Handling
+
+Emojis in Slack are rendered as `[AXImage]` elements. The positioning strategy handles this gracefully:
+- TextPart mapping naturally excludes non-text elements
+- Bounds queries on text runs return accurate positions regardless of surrounding emojis
+- Visual underlines remain accurate in text containing emojis
 
 ## References
 

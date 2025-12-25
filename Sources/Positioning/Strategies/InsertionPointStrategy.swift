@@ -36,9 +36,6 @@ class InsertionPointStrategy: GeometryProvider {
 
         Logger.debug("InsertionPointStrategy: Starting for range \(errorRange)", category: Logger.ui)
 
-        // Note: Emoji detection for apps with positioning issues (e.g., Slack) is handled
-        // at PositionResolver level before strategies are called.
-
         // Get element frame - this is our baseline for positioning
         guard let elementFrame = AccessibilityBridge.getElementFrame(element),
               elementFrame.width > 0, elementFrame.height > 0 else {

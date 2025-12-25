@@ -120,7 +120,7 @@ extension AppConfiguration {
             spacingMultiplier: 0.97
         ),
         horizontalPadding: 12,
-        preferredStrategies: [.chromium, .textMarker, .rangeBounds, .elementTree, .lineIndex],
+        preferredStrategies: [.slack],  // Dedicated strategy only - returns unavailable on failure (no fallback)
         features: AppFeatures(
             visualUnderlinesEnabled: true,
             textReplacementMethod: .browserStyle,

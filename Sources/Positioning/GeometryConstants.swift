@@ -109,6 +109,12 @@ enum GeometryConstants {
     /// Short UI update delay (5ms)
     static let shortUIDelay: UInt32 = 5_000
 
+    // MARK: - Slack-Specific Constants
+
+    /// Debounce interval for Slack click-based recheck (milliseconds)
+    /// Prevents excessive recalculation while allowing timely updates
+    static let slackRecheckDebounceMs: Int = 200
+
     // MARK: - Validation Helpers
 
     /// Check if bounds represent a valid single-line text region

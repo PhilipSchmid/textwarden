@@ -2,7 +2,7 @@
 //  ChromiumStrategy.swift
 //  TextWarden
 //
-//  Positioning strategy for Chromium-based apps (Slack, MS Teams, etc.)
+//  Positioning strategy for Chromium-based apps (MS Teams, etc.)
 //  Chromium's standard AXBoundsForRange returns invalid values, so we use the
 //  AXSelectedTextMarkerRange + AXBoundsForTextMarkerRange approach instead.
 //
@@ -13,12 +13,14 @@ import ApplicationServices
 
 /// Chromium-based app positioning strategy
 ///
-/// Works with Slack (Electron), MS Teams (Edge WebView2), and other Chromium apps.
+/// Works with MS Teams (Edge WebView2) and other Chromium apps.
 /// Uses selection-based marker range positioning which requires cursor manipulation.
 /// To avoid interfering with typing, we cache bounds and only update when:
 /// - Text content changes
 /// - Element frame changes (resize, line wrap)
 /// - Formatting changes (bold, italic, code, etc.)
+///
+/// Note: Slack has its own dedicated SlackStrategy for better positioning accuracy.
 class ChromiumStrategy: GeometryProvider {
 
     var strategyName: String { "Chromium" }
@@ -59,8 +61,7 @@ class ChromiumStrategy: GeometryProvider {
 
     /// Bundle IDs of Chromium-based apps that use this strategy
     private static let chromiumBundleIDs: Set<String> = [
-        "com.tinyspeck.slackmacgap",  // Slack
-        "com.microsoft.teams2"         // Microsoft Teams
+        "com.microsoft.teams2"  // Microsoft Teams
     ]
 
     // MARK: - Public Interface
@@ -137,7 +138,7 @@ class ChromiumStrategy: GeometryProvider {
         // Note: Emoji detection is handled at PositionResolver level before strategies are called.
         // Apps with hasEmbeddedImagePositioningIssues=true skip all positioning when emojis are detected.
 
-        // Apply app-specific selection offset (e.g., Slack/Claude need newline adjustment)
+        // Apply app-specific selection offset (e.g., Claude needs newline adjustment)
         let selectionOffset = parser.selectionOffset(at: graphemeRange.location, in: text)
 
         // Calculate selection range based on app requirements
@@ -195,7 +196,7 @@ class ChromiumStrategy: GeometryProvider {
             return nil
         }
 
-        // Validate bounds aren't unreasonably large (catches Slack's bogus bounds for special formatting)
+        // Validate bounds aren't unreasonably large (catches bogus bounds for special formatting)
         // A typical character is ~8-12px wide, so max ~15px per char is generous
         let maxReasonableWidth = CGFloat(errorRange.length) * 15.0 + 50.0
         let maxReasonableHeight: CGFloat = 30.0  // Single line text should be ~18-22px
@@ -211,7 +212,7 @@ class ChromiumStrategy: GeometryProvider {
         }
 
         // Validate bounds Y is within element frame (catches emoji-induced position drift)
-        // Emojis in Slack cause Chromium's text markers to be offset from AXValue positions.
+        // Emojis in Chromium apps cause text markers to be offset from AXValue positions.
         // When bounds Y is outside the element, it means the position drift is severe.
         if let elementFrame = AccessibilityBridge.getElementFrame(element) {
             let tolerance: CGFloat = 50.0  // Allow some tolerance for rounding
@@ -349,7 +350,7 @@ class ChromiumStrategy: GeometryProvider {
         }
 
         // First, try to clear selection by setting an empty range at position 0
-        // This helps reset Slack's accessibility state before setting our target selection
+        // This helps reset Chromium's accessibility state before setting our target selection
         var emptyRange = CFRange(location: 0, length: 0)
         if let emptyValue = AXValueCreate(.cfRange, &emptyRange) {
             AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, emptyValue)

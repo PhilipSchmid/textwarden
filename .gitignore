@@ -7,6 +7,9 @@
 # Internal planning and specification documents
 specs/**/
 
+# Research and investigation files (temporary)
+.research/
+
 # macOS
 .DS_Store
 .AppleDouble

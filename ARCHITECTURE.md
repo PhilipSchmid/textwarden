@@ -98,9 +98,11 @@ Sources/
 │   ├── GeometryProvider.swift                    # Strategy protocol
 │   ├── GeometryConstants.swift                   # Bounds validation constants
 │   ├── PositionCache.swift                       # Position caching
+│   ├── PositionRefreshCoordinator.swift          # App-specific refresh triggers
 │   ├── TypingDetector.swift                      # Detects typing pauses
 │   ├── TextAnchor.swift                          # Text anchor utilities
 │   └── Strategies/                               # Positioning algorithms
+│       ├── SlackStrategy.swift                   # Dedicated Slack positioning
 │       ├── RangeBoundsStrategy.swift             # AXBoundsForRange
 │       ├── LineIndexStrategy.swift               # Line + offset calculation
 │       ├── TextMarkerStrategy.swift              # AXTextMarker APIs

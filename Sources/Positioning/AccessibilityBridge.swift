@@ -700,25 +700,30 @@ enum AccessibilityBridge {
             return nil
         }
 
-        Logger.debug("  AXBoundsForTextMarkerRange succeeded, checking boundsValue...", category: Logger.accessibility)
+        Logger.debug("  AXBoundsForTextMarkerRange succeeded", category: Logger.accessibility)
 
-        if let bv = boundsValue {
-            let typeID = CFGetTypeID(bv)
-            let axValueTypeID = AXValueGetTypeID()
-            Logger.debug("  boundsValue typeID: \(typeID), AXValue typeID: \(axValueTypeID), match: \(typeID == axValueTypeID)", category: Logger.accessibility)
-        } else {
-            Logger.debug("  boundsValue is nil even though result was success!", category: Logger.accessibility)
+        // Debug: Check if boundsValue is nil
+        let isNil = boundsValue == nil
+        Logger.debug("  boundsValue isNil=\(isNil)", category: Logger.accessibility)
+
+        guard let bv = boundsValue else {
+            Logger.debug("  FAILED: boundsValue is nil", category: Logger.accessibility)
+            return nil
         }
 
-        guard let axValue = boundsValue,
-              CFGetTypeID(axValue) == AXValueGetTypeID() else {
-            Logger.debug("  FAILED at type validation - boundsValue is not an AXValue", category: Logger.accessibility)
+        let typeID = CFGetTypeID(bv)
+        let axValueTypeID = AXValueGetTypeID()
+        let typeMatch = (typeID == axValueTypeID)
+        Logger.debug("  boundsValue typeID=\(typeID), AXValue typeID=\(axValueTypeID), match=\(typeMatch)", category: Logger.accessibility)
+
+        guard typeMatch else {
+            Logger.debug("  FAILED: boundsValue is not an AXValue type", category: Logger.accessibility)
             return nil
         }
 
         Logger.debug("  Type validation passed, extracting CGRect from AXValue...", category: Logger.accessibility)
 
-        guard let rect = safeAXValueGetRect(axValue) else {
+        guard let rect = safeAXValueGetRect(bv) else {
             Logger.debug("  FAILED at CGRect extraction from AXValue", category: Logger.accessibility)
             return nil
         }
