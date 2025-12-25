@@ -130,6 +130,12 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Callback when mouse enters popover (for cancelling delayed switches)
     var onMouseEntered: (() -> Void)?
 
+    /// Callback when popover is hidden (for clearing locked highlight)
+    var onPopoverHidden: (() -> Void)?
+
+    /// Callback when current error changes (for updating locked highlight)
+    var onCurrentErrorChanged: ((GrammarErrorModel?) -> Void)?
+
     /// Check if popover is currently visible
     var isVisible: Bool {
         return panel?.isVisible == true && (currentError != nil || currentStyleSuggestion != nil)
@@ -195,6 +201,9 @@ class SuggestionPopover: NSObject, ObservableObject {
         self.currentStyleSuggestion = nil
         self.allStyleSuggestions = []
         self.currentStyleIndex = 0
+
+        // Notify about current error change (for locked highlight)
+        onCurrentErrorChanged?(self.currentError)
 
         showPanelAtPosition(position, constrainToWindow: constrainToWindow)
     }
@@ -332,6 +341,9 @@ class SuggestionPopover: NSObject, ObservableObject {
         // Any attempt to call activate() would FIGHT with the app's natural activation,
         // causing delays and making apps temporarily unclickable (especially on macOS 14+
         // where activateIgnoringOtherApps is deprecated and ignored).
+
+        // Notify that popover was hidden (for clearing locked highlight)
+        onPopoverHidden?()
 
         Logger.trace("SuggestionPopover.performHide() - AFTER - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
     }
@@ -572,6 +584,9 @@ class SuggestionPopover: NSObject, ObservableObject {
         // Safe access with bounds check
         currentError = allErrors.indices.contains(currentIndex) ? allErrors[currentIndex] : nil
 
+        // Notify about current error change (for locked highlight)
+        onCurrentErrorChanged?(currentError)
+
         // Rebuild content view from scratch for clean rendering
         rebuildContentView()
     }
@@ -582,6 +597,9 @@ class SuggestionPopover: NSObject, ObservableObject {
         currentIndex = (currentIndex - 1 + allErrors.count) % allErrors.count
         // Safe access with bounds check
         currentError = allErrors.indices.contains(currentIndex) ? allErrors[currentIndex] : nil
+
+        // Notify about current error change (for locked highlight)
+        onCurrentErrorChanged?(currentError)
 
         // Rebuild content view from scratch for clean rendering
         rebuildContentView()
@@ -940,12 +958,16 @@ class SuggestionPopover: NSObject, ObservableObject {
             self.currentError = error
             self.currentStyleSuggestion = nil
             self.currentIndex = 0
+            // Notify about current error change (for locked highlight)
+            onCurrentErrorChanged?(error)
 
         case .style(let suggestion):
             self.mode = .styleSuggestion
             self.currentStyleSuggestion = suggestion
             self.currentError = nil
             self.currentStyleIndex = 0
+            // Clear locked highlight when showing style suggestion
+            onCurrentErrorChanged?(nil)
         }
 
         showPanelAtPosition(position, constrainToWindow: constrainToWindow)
@@ -997,6 +1019,8 @@ class SuggestionPopover: NSObject, ObservableObject {
             if let errorIndex = allErrors.firstIndex(where: { $0.start == error.start && $0.end == error.end }) {
                 currentIndex = errorIndex
             }
+            // Notify about current error change (for locked highlight)
+            onCurrentErrorChanged?(error)
 
         case .style(let suggestion):
             mode = .styleSuggestion
@@ -1006,6 +1030,8 @@ class SuggestionPopover: NSObject, ObservableObject {
             if let styleIndex = allStyleSuggestions.firstIndex(where: { $0.id == suggestion.id }) {
                 currentStyleIndex = styleIndex
             }
+            // Clear locked highlight when showing style suggestion
+            onCurrentErrorChanged?(nil)
         }
 
         rebuildContentView()

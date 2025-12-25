@@ -448,6 +448,16 @@ class AnalysisCoordinator: ObservableObject {
                 self.pendingHoverError = nil
             }
         }
+
+        // Handle popover hidden - clear locked highlight
+        suggestionPopover.onPopoverHidden = { [weak self] in
+            self?.errorOverlay.setLockedHighlight(for: nil)
+        }
+
+        // Handle current error changed - update locked highlight
+        suggestionPopover.onCurrentErrorChanged = { [weak self] error in
+            self?.errorOverlay.setLockedHighlight(for: error)
+        }
     }
 
     /// Setup overlay callbacks for hover-based popup

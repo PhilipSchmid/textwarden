@@ -23,8 +23,11 @@ class ErrorOverlayWindow: NSPanel {
     /// Underline view
     private var underlineView: UnderlineView?
 
-    /// Currently hovered error underline
+    /// Currently hovered error underline (from mouse position)
     private var hoveredUnderline: ErrorUnderline?
+
+    /// Locked highlight - persists while popover is open (independent of mouse position)
+    private var lockedHighlightError: GrammarErrorModel?
 
     /// Track if window is currently visible
     private var isCurrentlyVisible = false
@@ -651,11 +654,33 @@ class ErrorOverlayWindow: NSPanel {
         hoveredUnderline = nil
         underlineView?.hoveredUnderline = nil
 
+        // Clear locked highlight
+        lockedHighlightError = nil
+        underlineView?.lockedHighlightUnderline = nil
+
         // Only stop timer if not waiting for frame stabilization
         // (we need the timer to keep running to detect when resize is done)
         if !waitingForFrameStabilization {
             stopFrameValidationTimer()
         }
+    }
+
+    // MARK: - Highlight Control
+
+    /// Lock highlight on a specific error (persists while popover is open)
+    func setLockedHighlight(for error: GrammarErrorModel?) {
+        lockedHighlightError = error
+
+        if let error = error {
+            // Find the underline for this error
+            let matchingUnderline = underlineView?.underlines.first { underline in
+                underline.error.start == error.start && underline.error.end == error.end
+            }
+            underlineView?.lockedHighlightUnderline = matchingUnderline
+        } else {
+            underlineView?.lockedHighlightUnderline = nil
+        }
+        underlineView?.needsDisplay = true
     }
 
     /// Start periodic frame validation to detect resize/scroll
@@ -1179,6 +1204,7 @@ class UnderlineView: NSView {
     var styleUnderlines: [StyleUnderline] = []
     var hoveredUnderline: ErrorUnderline?
     var hoveredStyleUnderline: StyleUnderline?
+    var lockedHighlightUnderline: ErrorUnderline?  // Persists while popover is open
     var allowsClickPassThrough: Bool = false
     var firstCharDebugMarker: CGRect?  // For coordinate debugging (first char position)
 
@@ -1212,11 +1238,13 @@ class UnderlineView: NSView {
         // Clear background
         context.clear(bounds)
 
-        // Draw highlight for hovered underline first (behind the underlines)
+        // Draw highlight for hovered or locked underline first (behind the underlines)
+        // Priority: hovered > locked (mouse hover takes precedence)
         // For multi-line underlines, highlight all lines
-        if let hovered = hoveredUnderline {
-            for lineBounds in hovered.allDrawingBounds {
-                drawHighlight(in: context, bounds: lineBounds, color: hovered.color)
+        let highlightUnderline = hoveredUnderline ?? lockedHighlightUnderline
+        if let highlighted = highlightUnderline {
+            for lineBounds in highlighted.allDrawingBounds {
+                drawHighlight(in: context, bounds: lineBounds, color: highlighted.color)
             }
         }
 
