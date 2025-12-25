@@ -249,7 +249,8 @@ class SlackContentParser: ContentParser {
     /// Slack's AX API (Chromium/Electron) has a quirk where `AXAttributedStringForRange`
     /// fails with error -25212 when ranges extend within ~5 characters of text end.
     /// Using adaptive sizing, we try progressively smaller chunks until one succeeds.
-    private static let adaptiveChunkSizes = [100, 50, 25, 10, 5, 1]
+    /// Start with larger chunks for better performance, fall back to smaller on failure.
+    private static let adaptiveChunkSizes = [200, 100, 50, 25, 10, 5, 1]
 
     /// Get attributed string with adaptive chunk sizing
     ///
@@ -1561,16 +1562,29 @@ class SlackContentParser: ContentParser {
     /// Detect links (URLs) via AXLink role elements
     ///
     /// In Slack, links appear as AXLink elements with AXStaticText children containing the URL text.
-    /// This method traverses the element tree, finds AXLink elements, and extracts their text.
+    /// This method traverses the element tree (limited depth for performance), finds AXLink elements,
+    /// and extracts their text.
     private func detectLinks(in element: AXUIElement, text: String) -> [ExclusionRange] {
+        return detectLinksRecursive(in: element, text: text, depth: 0)
+    }
+
+    /// Maximum depth for link detection tree traversal
+    /// Links in Slack are typically at depth 1-3 (AXTextArea → AXGroup? → AXLink → AXStaticText)
+    private static let maxLinkDetectionDepth = 5
+
+    private func detectLinksRecursive(in element: AXUIElement, text: String, depth: Int) -> [ExclusionRange] {
+        // Limit recursion depth for performance
+        guard depth < Self.maxLinkDetectionDepth else { return [] }
+
         var linkRanges: [ExclusionRange] = []
 
-        // Check if this element is a link
+        // Get role once (avoid duplicate AX calls)
         var roleRef: CFTypeRef?
-        if AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef) == .success,
-           let role = roleRef as? String,
-           role == "AXLink" {
+        let role: String? = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef) == .success
+            ? roleRef as? String : nil
 
+        // Check if this element is a link
+        if role == "AXLink" {
             // Get link text - try direct value first, then check children
             var valueRef: CFTypeRef?
             var linkText: String = ""
@@ -1592,20 +1606,16 @@ class SlackContentParser: ContentParser {
                     linkRanges.append(ExclusionRange(location: location, length: length))
                 }
             }
+            // Don't recurse into AXLink children - we already extracted the text
+            return linkRanges
         }
 
-        // Recurse into children (but don't process children of AXLink since we handle them above)
-        var roleRef2: CFTypeRef?
-        let isLink = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef2) == .success &&
-                     (roleRef2 as? String) == "AXLink"
-
-        if !isLink {
-            var childrenRef: CFTypeRef?
-            if AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-               let children = childrenRef as? [AXUIElement] {
-                for child in children {
-                    linkRanges.append(contentsOf: detectLinks(in: child, text: text))
-                }
+        // Recurse into children
+        var childrenRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
+           let children = childrenRef as? [AXUIElement] {
+            for child in children {
+                linkRanges.append(contentsOf: detectLinksRecursive(in: child, text: text, depth: depth + 1))
             }
         }
 
