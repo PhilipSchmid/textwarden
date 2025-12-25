@@ -41,7 +41,7 @@ class SlackStrategy: GeometryProvider {
     private static let slackFontSize: CGFloat = 15.0
 
     // Underline visual constants
-    private static let underlineHeight: CGFloat = 3.0  // Height for fallback underline rect
+    private static let underlineHeight: CGFloat = 2.0  // Height for fallback underline rect
     private static let xAdjustment: CGFloat = 0.0      // No adjustment needed - AXBoundsForRange is accurate
 
     // TextPart cache to avoid rebuilding for each error

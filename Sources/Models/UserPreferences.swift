@@ -681,7 +681,7 @@ class UserPreferences: ObservableObject {
         self.appTheme = "System"
         self.overlayTheme = "System"
         self.showUnderlines = true
-        self.underlineThickness = 3.0
+        self.underlineThickness = 2.0
         self.maxErrorsForUnderlines = 10
         self.indicatorPosition = "Bottom Right"
 
@@ -806,7 +806,7 @@ class UserPreferences: ObservableObject {
             self.overlayTheme = "System"
         }
         self.showUnderlines = defaults.object(forKey: Keys.showUnderlines) as? Bool ?? true
-        self.underlineThickness = defaults.object(forKey: Keys.underlineThickness) as? Double ?? 3.0
+        self.underlineThickness = defaults.object(forKey: Keys.underlineThickness) as? Double ?? 2.0
         self.maxErrorsForUnderlines = defaults.object(forKey: Keys.maxErrorsForUnderlines) as? Int ?? 10
         self.indicatorPosition = defaults.string(forKey: Keys.indicatorPosition) ?? "Bottom Right"
 
