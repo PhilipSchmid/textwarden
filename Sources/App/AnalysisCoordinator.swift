@@ -700,6 +700,69 @@ class AnalysisCoordinator: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // Monitor global pause state changes - hide overlays when paused, re-analyze when resumed
+        UserPreferences.shared.$pauseDuration
+            .dropFirst() // Skip initial value to avoid hiding on launch
+            .sink { [weak self] duration in
+                guard let self = self else { return }
+                if duration != .active {
+                    Logger.info("AnalysisCoordinator: Global pause activated (\(duration.rawValue)) - hiding overlays", category: Logger.analysis)
+                    self.hideAllOverlays()
+                    self.suggestionPopover.hide()
+                    self.floatingIndicator.hide()
+                } else {
+                    // Resumed - trigger re-analysis to show errors again
+                    Logger.info("AnalysisCoordinator: Global pause deactivated - triggering re-analysis", category: Logger.analysis)
+                    self.triggerReanalysis()
+                }
+            }
+            .store(in: &cancellables)
+
+        // Monitor app-specific pause state changes - hide overlays if current app is paused
+        // Track previous pause states to detect resume (key removal = resume)
+        var previousAppPauses: [String: PauseDuration] = UserPreferences.shared.appPauseDurations
+        UserPreferences.shared.$appPauseDurations
+            .dropFirst() // Skip initial value
+            .sink { [weak self] pauseDurations in
+                guard let self = self,
+                      let currentBundleID = self.monitoredContext?.bundleIdentifier else {
+                    previousAppPauses = pauseDurations
+                    return
+                }
+
+                let wasCurrentAppPaused = previousAppPauses[currentBundleID] != nil
+                let isCurrentAppNowPaused = pauseDurations[currentBundleID] != nil
+
+                if let appPause = pauseDurations[currentBundleID], appPause != .active {
+                    // App is now paused
+                    Logger.info("AnalysisCoordinator: App-specific pause activated for \(currentBundleID) (\(appPause.rawValue)) - hiding overlays", category: Logger.analysis)
+                    self.hideAllOverlays()
+                    self.suggestionPopover.hide()
+                    self.floatingIndicator.hide()
+                } else if wasCurrentAppPaused && !isCurrentAppNowPaused {
+                    // App was paused, but key was removed (means it's now active)
+                    Logger.info("AnalysisCoordinator: App-specific pause deactivated for \(currentBundleID) - triggering re-analysis", category: Logger.analysis)
+                    self.triggerReanalysis()
+                }
+
+                previousAppPauses = pauseDurations
+            }
+            .store(in: &cancellables)
+
+        // Monitor disabled applications - hide overlays if current app is disabled
+        UserPreferences.shared.$disabledApplications
+            .dropFirst() // Skip initial value
+            .sink { [weak self] disabledApps in
+                guard let self = self,
+                      let currentBundleID = self.monitoredContext?.bundleIdentifier else { return }
+                // Check if the currently monitored app was just disabled
+                if disabledApps.contains(currentBundleID) {
+                    Logger.info("AnalysisCoordinator: App disabled for \(currentBundleID) - hiding overlays and stopping monitoring", category: Logger.analysis)
+                    self.stopMonitoring()
+                }
+            }
+            .store(in: &cancellables)
+
         // CRITICAL FIX: Check if there's already an active application
         if let currentApp = applicationTracker.activeApplication {
             Logger.debug("AnalysisCoordinator: Found existing active application: \(currentApp.applicationName) (\(currentApp.bundleIdentifier))", category: Logger.analysis)
