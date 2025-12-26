@@ -123,6 +123,16 @@ struct GeneralPreferencesView: View {
 
             // MARK: Appearance Settings Group
             Section {
+                Picker("Position:", selection: $preferences.suggestionPosition) {
+                    ForEach(UserPreferences.suggestionPositions, id: \.self) { position in
+                        Text(position).tag(position)
+                    }
+                }
+                .help("Choose where suggestion popovers appear relative to text")
+
+                Toggle("Show on hover", isOn: $preferences.enableHoverPopover)
+                    .help("Automatically show suggestions when hovering over underlines or the error indicator")
+
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text("Transparency:")
@@ -131,11 +141,21 @@ struct GeneralPreferencesView: View {
                             .foregroundColor(.secondary)
                     }
                     Slider(value: $preferences.suggestionOpacity, in: 0.2...1.0, step: 0.05)
-
-                    Text("Adjust the background transparency of suggestion popovers")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
                 }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Text size:")
+                        Spacer()
+                        Text(String(format: "%.0fpt", preferences.suggestionTextSize))
+                            .foregroundColor(.secondary)
+                    }
+                    Slider(value: $preferences.suggestionTextSize, in: 10.0...20.0, step: 1.0)
+                }
+
+                Text("Position: Where the popover appears (Auto adjusts based on screen space). Show on hover: When disabled, click underlines or the indicator to show suggestions.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             } header: {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 8) {
@@ -155,41 +175,6 @@ struct GeneralPreferencesView: View {
                         .font(.headline)
                         .padding(.top, 8)
                 }
-            }
-
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Text size:")
-                        Spacer()
-                        Text(String(format: "%.0fpt", preferences.suggestionTextSize))
-                            .foregroundColor(.secondary)
-                    }
-                    Slider(value: $preferences.suggestionTextSize, in: 10.0...20.0, step: 1.0)
-
-                    Text("Font size for suggestion text")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            } header: {
-                Text("Typography")
-                    .font(.headline)
-            }
-
-            Section {
-                Picker("Position:", selection: $preferences.suggestionPosition) {
-                    ForEach(UserPreferences.suggestionPositions, id: \.self) { position in
-                        Text(position).tag(position)
-                    }
-                }
-                .help("Choose where suggestions appear relative to text")
-
-                Text("Auto: Choose position based on available space")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            } header: {
-                Text("Layout")
-                    .font(.headline)
             }
 
             Section {
@@ -266,10 +251,7 @@ struct GeneralPreferencesView: View {
                 }
                 .help("Choose the default position for new applications. Drag the indicator to customize per-app positions.")
 
-                Toggle("Show popover on hover", isOn: $preferences.enableHoverPopover)
-                    .help("Show the suggestion popover when hovering over underlines or the error indicator")
-
-                Text("Default position for the floating error indicator badge. Positions are remembered per application after you drag the indicator. When hover is disabled, click the indicator or underlines to show suggestions.")
+                Text("Default position for the floating error indicator badge. You can drag the indicator to any position along the window border, and positions are remembered per application.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             } header: {
