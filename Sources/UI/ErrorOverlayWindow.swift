@@ -189,8 +189,19 @@ class ErrorOverlayWindow: NSPanel {
 
                 Logger.debug("ErrorOverlay: Popup anchor - underline bounds: \(underlineBounds), screen: \(screenLocation)", category: Logger.ui)
 
-                // Only trigger hover callback if hover popover is enabled
-                if UserPreferences.shared.enableHoverPopover {
+                // Only trigger hover callback if:
+                // 1. Hover popover is enabled in settings
+                // 2. Mouse is not already over the popover
+                // 3. Popover is not already showing this same error
+                let popover = SuggestionPopover.shared
+                let isMouseOverPopover = popover.containsPoint(mouseLocation)
+                let isSameErrorAlreadyShowing = popover.isVisible &&
+                    popover.currentError?.start == newHoveredUnderline.error.start &&
+                    popover.currentError?.end == newHoveredUnderline.error.end
+
+                if UserPreferences.shared.enableHoverPopover &&
+                   !isMouseOverPopover &&
+                   !isSameErrorAlreadyShowing {
                     let appWindowFrame = self.getApplicationWindowFrame()
                     self.onErrorHover?(newHoveredUnderline.error, screenLocation, appWindowFrame)
                 }
@@ -200,7 +211,11 @@ class ErrorOverlayWindow: NSPanel {
                     self.hoveredUnderline = nil
                     underlineView.hoveredUnderline = nil
                     underlineView.needsDisplay = true
-                    self.onHoverEnd?()
+                    // Only trigger hover end if mouse is not over the popover
+                    // (prevents closing popover when mouse moves from underline to popover)
+                    if !SuggestionPopover.shared.containsPoint(mouseLocation) {
+                        self.onHoverEnd?()
+                    }
                 }
             }
         }
