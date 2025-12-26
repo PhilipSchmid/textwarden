@@ -101,7 +101,7 @@ class FloatingErrorIndicator: NSPanel {
 
         let indicatorView = IndicatorView(frame: initialFrame)
         indicatorView.onClicked = { [weak self] in
-            self?.showErrors()
+            self?.togglePopover()
         }
         indicatorView.onHover = { [weak self] isHovering in
             // Only trigger hover behavior if hover popover is enabled
@@ -867,6 +867,17 @@ class FloatingErrorIndicator: NSPanel {
         Logger.debug("FloatingErrorIndicator: showPopoverFromKeyboard - showing popover", category: Logger.ui)
         showErrors()
         return true
+    }
+
+    /// Toggle popover visibility (show if hidden, hide if showing)
+    private func togglePopover() {
+        if SuggestionPopover.shared.isVisible {
+            Logger.debug("FloatingErrorIndicator: togglePopover - hiding visible popover", category: Logger.ui)
+            SuggestionPopover.shared.hide()
+        } else {
+            Logger.debug("FloatingErrorIndicator: togglePopover - showing popover", category: Logger.ui)
+            showErrors()
+        }
     }
 
     /// Show errors/suggestions popover
