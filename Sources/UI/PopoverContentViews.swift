@@ -389,12 +389,13 @@ struct UnifiedPopoverContentView: View {
     }
 }
 
-/// SwiftUI content view for popover
+/// SwiftUI content view for error popover - Compact design with vertical suggestions
 struct PopoverContentView: View {
     @ObservedObject var popover: SuggestionPopover
     @ObservedObject var preferences = UserPreferences.shared
     @Environment(\.dynamicTypeSize) var dynamicTypeSize
     @Environment(\.colorScheme) var systemColorScheme
+    @State private var hoveredSuggestion: String?
 
     /// Effective color scheme based on user preference (overlay theme for popovers)
     private var effectiveColorScheme: ColorScheme {
@@ -435,342 +436,210 @@ struct PopoverContentView: View {
         return error.category == "Readability" && validSuggestions.count == 2
     }
 
+    /// Format category for display (e.g., "Spelling" -> "Spelling mistake")
+    private func formatCategory(_ category: String) -> String {
+        switch category.lowercased() {
+        case "spelling":
+            return "Spelling mistake"
+        case "capitalization":
+            return "Capitalization"
+        case "grammar":
+            return "Grammar"
+        case "punctuation":
+            return "Punctuation"
+        case "readability":
+            return "Readability"
+        case "style":
+            return "Style suggestion"
+        default:
+            return category
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let error = popover.currentError {
-                // Main content with category indicator and message
-                HStack(alignment: .top, spacing: 10) {
-                    // Subtle category indicator
+                let validSuggestions = error.suggestions.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                let isAIRephrase = error.category == "Readability" && validSuggestions.count == 2
+                let isLoadingAI = error.category == "Readability" &&
+                    error.message.lowercased().contains("words long") &&
+                    validSuggestions.isEmpty
+
+                // Header row with category and close button
+                HStack(alignment: .center, spacing: 6) {
+                    // Category indicator dot
                     Circle()
                         .fill(colors.categoryColor(for: error.category))
                         .frame(width: 6, height: 6)
-                        .padding(.top, 8)
-                        .accessibilityLabel("Category: \(error.category)")
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        // Filter out empty and whitespace-only suggestions (computed early for conditional display)
-                        // Empty suggestions mean "delete this" - don't show empty buttons
-                        let validSuggestions = error.suggestions.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                    // Category label
+                    Text(formatCategory(error.category))
+                        .font(.system(size: captionTextSize, weight: .medium))
+                        .foregroundColor(colors.textSecondary)
+                        .lineLimit(1)
 
-                        // Check if we have actionable suggestions (not AI rephrase which shows differently)
-                        let isAIRephrase = error.category == "Readability" && validSuggestions.count == 2
-                        let hasRegularSuggestions = !validSuggestions.isEmpty && !isAIRephrase
+                    Spacer()
 
-                        // Clean category label
-                        Text(error.category.uppercased())
-                            .font(.system(size: captionTextSize, weight: .semibold, design: .rounded))
-                            .foregroundColor(colors.textSecondary)
-                            .tracking(0.6)
-                            .accessibilityLabel("Category: \(error.category)")
-
-                        // Show error message only when there are no actionable suggestions
-                        // When suggestions exist, the sentence context makes the issue clear
-                        if !hasRegularSuggestions {
-                            Text(error.message)
-                                .font(.system(size: bodyTextSize))
-                                .foregroundColor(colors.textPrimary)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .accessibilityLabel("Error: \(error.message)")
-                        }
-
-                        // Show sentence context with highlighted error word(s)
-                        // Uses bodyTextSize to respect typography setting
-                        if !popover.sourceText.isEmpty {
-                            SentenceContextView(
-                                sourceText: popover.sourceText,
-                                error: error,
-                                allErrors: popover.allErrors,
-                                colors: colors,
-                                textSize: bodyTextSize
-                            )
-                        }
-
-                        // Check if this is a readability error awaiting AI suggestion
-                        let isLoadingAI = error.category == "Readability" &&
-                            error.message.lowercased().contains("words long") &&
-                            validSuggestions.isEmpty
-
-                        if isLoadingAI {
-                            // Show loading indicator while AI generates suggestion
-                            HStack(spacing: 12) {
-                                ProgressView()
-                                    .scaleEffect(0.85)
-                                    .tint(Color.purple)
-                                Text("Generating AI suggestion...")
-                                    .font(.system(size: bodyTextSize))
-                                    .foregroundColor(colors.textSecondary)
-                                    .italic()
-                            }
-                            .padding(.top, 4)
-                            .accessibilityLabel("Generating AI suggestion, please wait")
-
-                        } else if isAIRephrase {
-                            let originalText = validSuggestions[0]
-                            let rephraseText = validSuggestions[1]
-
-                            // Show AI rephrase in before/after format like style suggestions
-                            VStack(alignment: .leading, spacing: 8) {
-                                // Original text
-                                HStack(alignment: .top, spacing: 8) {
-                                    Text("Before:")
-                                        .font(.system(size: bodyTextSize * 0.85, weight: .medium))
-                                        .foregroundColor(colors.textSecondary)
-                                        .frame(width: 50, alignment: .leading)
-                                    Text(originalText)
-                                        .font(.system(size: bodyTextSize))
-                                        .foregroundColor(.red.opacity(0.85))
-                                        .strikethrough(true, color: .red)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                .accessibilityElement(children: .combine)
-                                .accessibilityLabel("Original text: \(originalText)")
-
-                                // AI suggested text
-                                HStack(alignment: .top, spacing: 8) {
-                                    Text("After:")
-                                        .font(.system(size: bodyTextSize * 0.85, weight: .medium))
-                                        .foregroundColor(colors.textSecondary)
-                                        .frame(width: 50, alignment: .leading)
-                                    Text(rephraseText)
-                                        .font(.system(size: bodyTextSize))
-                                        .foregroundColor(.green)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                .accessibilityElement(children: .combine)
-                                .accessibilityLabel("Suggested text: \(rephraseText)")
-                            }
-                            .padding(.vertical, 4)
-
-                            // Accept button for AI suggestion
-                            Button(action: {
-                                popover.applySuggestion(rephraseText)
-                            }) {
-                                Label("Apply AI Suggestion", systemImage: "sparkles")
-                                    .font(.system(size: bodyTextSize, weight: .medium))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 8)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 7)
-                                            .fill(popover.isProcessing ? Color.purple.opacity(0.5) : Color.purple)
-                                    )
-                                    .shadow(color: Color.purple.opacity(0.25), radius: 4, x: 0, y: 2)
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(popover.isProcessing)
-                            .keyboardShortcut("1", modifiers: .command)
-                            .help("Apply AI suggestion (⌘1)")
-                            .accessibilityLabel("Apply AI rephrase suggestion")
-                            .accessibilityHint("Double tap to replace the long sentence with AI-improved version")
-
-                        } else if !validSuggestions.isEmpty {
-                            // Standard suggestion buttons (for regular grammar errors)
-                            // Use FlowLayout to wrap buttons if they don't fit in one row
-                            FlowLayout(spacing: 6) {
-                                ForEach(Array(validSuggestions.prefix(3).enumerated()), id: \.offset) { index, suggestion in
-                                    Button(action: {
-                                        popover.applySuggestion(suggestion)
-                                    }) {
-                                        Text(suggestion)
-                                            .font(.system(size: bodyTextSize, weight: .medium))
-                                            .foregroundColor(.white)
-                                            .fixedSize(horizontal: true, vertical: false)  // Never truncate
-                                            .padding(.horizontal, 8)  // Reduced from 10 to fit more buttons
-                                            .padding(.vertical, 6)
-                                            .background(
-                                                RoundedRectangle(cornerRadius: 7)
-                                                    .fill(popover.isProcessing ? colors.primary.opacity(0.5) : colors.primary)
-                                            )
-                                            .shadow(color: colors.primary.opacity(0.25), radius: 4, x: 0, y: 2)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .disabled(popover.isProcessing)
-                                    .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
-                                    .help("Apply suggestion (⌘\(index + 1))")
-                                    .accessibilityLabel("Apply suggestion: \(suggestion)")
-                                    .accessibilityHint("Double tap to apply this suggestion")
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    // Clean close button - aligned to top, doesn't push content up
+                    // Close button
                     Button(action: { popover.hide() }) {
                         Image(systemName: "xmark")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(size: 9, weight: .medium))
                             .foregroundColor(colors.textSecondary)
-                            .frame(width: 20, height: 20)
-                            .background(colors.backgroundRaised)
-                            .cornerRadius(4)
+                            .frame(width: 16, height: 16)
                     }
                     .buttonStyle(.plain)
                     .keyboardShortcut(.escape, modifiers: .option)
-                    .help("Close (⌥Esc)")
-                    .accessibilityLabel("Close suggestion popover")
+                    .help("Close")
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 18)
+                .padding(.horizontal, 10)
+                .padding(.top, 8)
+                .padding(.bottom, 4)
 
-                // Bottom action bar with subtle border
-                Divider()
-                    .background(colors.border)
-
-                HStack(spacing: 12) {
-                    // Ignore button - Light blue accent
-                    Button(action: { popover.dismissError() }) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 7)
-                                .fill(
-                                    Color(
-                                        hue: 215/360,
-                                        saturation: 0.30,
-                                        brightness: effectiveColorScheme == .dark ? 0.18 : 0.93
-                                    )
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 7)
-                                        .strokeBorder(
-                                            Color(hue: 215/360, saturation: 0.40, brightness: effectiveColorScheme == .dark ? 0.30 : 0.80),
-                                            lineWidth: 1
-                                        )
-                                )
-                                .frame(width: 34, height: 34)
-                            Image(systemName: "eye.slash")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(
-                                    Color(hue: 215/360, saturation: 0.70, brightness: effectiveColorScheme == .dark ? 0.75 : 0.45)
-                                )
+                // Content area
+                VStack(alignment: .leading, spacing: 2) {
+                    if isLoadingAI {
+                        // Loading indicator for AI suggestion
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                                .tint(Color.purple)
+                            Text("Generating suggestion...")
+                                .font(.system(size: bodyTextSize - 1))
+                                .foregroundColor(colors.textSecondary)
+                                .italic()
                         }
-                    }
-                    .buttonStyle(.plain)
-                    .help("Ignore this error")
-                    .accessibilityLabel("Ignore this error")
-                    .accessibilityHint("Double tap to dismiss this error for this session")
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
 
-                    // Ignore Rule button - Medium blue accent
-                    Button(action: { popover.ignoreRule() }) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 7)
-                                .fill(
-                                    Color(
-                                        hue: 215/360,
-                                        saturation: 0.35,
-                                        brightness: effectiveColorScheme == .dark ? 0.20 : 0.91
-                                    )
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 7)
-                                        .strokeBorder(
-                                            Color(hue: 215/360, saturation: 0.45, brightness: effectiveColorScheme == .dark ? 0.35 : 0.75),
-                                            lineWidth: 1
-                                        )
-                                )
-                                .frame(width: 34, height: 34)
-                            Image(systemName: "nosign")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(
-                                    Color(hue: 215/360, saturation: 0.75, brightness: effectiveColorScheme == .dark ? 0.70 : 0.40)
-                                )
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .help("Never show this rule again")
-                    .accessibilityLabel("Never show this rule")
-                    .accessibilityHint("Double tap to permanently ignore this grammar rule")
+                    } else if isAIRephrase {
+                        // AI rephrase - show before/after
+                        let originalText = validSuggestions[0]
+                        let rephraseText = validSuggestions[1]
 
-                    if error.category == "Spelling" {
-                        Button(action: { popover.addToDictionary() }) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 7)
-                                    .fill(
-                                        Color(
-                                            hue: 215/360,
-                                            saturation: 0.50,
-                                            brightness: effectiveColorScheme == .dark ? 0.25 : 0.88
-                                        )
-                                    )
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 7)
-                                            .strokeBorder(colors.primary.opacity(0.5), lineWidth: 1)
-                                    )
-                                    .frame(width: 34, height: 34)
-                                Image(systemName: "plus")
-                                    .font(.system(size: 15, weight: .semibold))
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(originalText)
+                                .font(.system(size: bodyTextSize - 1))
+                                .foregroundColor(.red.opacity(0.8))
+                                .strikethrough(true, color: .red.opacity(0.6))
+                                .lineLimit(2)
+
+                            Button(action: { popover.applySuggestion(rephraseText) }) {
+                                Text(rephraseText)
+                                    .font(.system(size: bodyTextSize, weight: .medium))
                                     .foregroundColor(colors.primary)
+                                    .lineLimit(3)
+                            }
+                            .buttonStyle(.plain)
+                            .keyboardShortcut("1", modifiers: .command)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+
+                    } else if !validSuggestions.isEmpty {
+                        // Vertical list of clickable suggestions
+                        ForEach(Array(validSuggestions.prefix(5).enumerated()), id: \.offset) { index, suggestion in
+                            Button(action: { popover.applySuggestion(suggestion) }) {
+                                Text(suggestion)
+                                    .font(.system(size: bodyTextSize, weight: .medium))
+                                    .foregroundColor(colors.primary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .fill(hoveredSuggestion == suggestion ? colors.primary.opacity(0.2) : Color.clear)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(popover.isProcessing)
+                            .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
+                            .help("Apply suggestion (⌘\(index + 1))")
+                            .onHover { isHovered in
+                                hoveredSuggestion = isHovered ? suggestion : nil
                             }
                         }
+
+                    } else {
+                        // No suggestions - show the error message
+                        Text(error.message)
+                            .font(.system(size: bodyTextSize - 1))
+                            .foregroundColor(colors.textPrimary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                    }
+                }
+
+                // Action bar with icon buttons and navigation
+                Divider()
+                    .padding(.top, 4)
+
+                HStack(spacing: 6) {
+                    // Ignore button
+                    Button(action: { popover.dismissError() }) {
+                        Image(systemName: "eye.slash")
+                            .font(.system(size: 12))
+                            .foregroundColor(colors.textSecondary)
+                            .frame(width: 22, height: 22)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Ignore")
+
+                    // Ignore Rule button
+                    Button(action: { popover.ignoreRule() }) {
+                        Image(systemName: "nosign")
+                            .font(.system(size: 12))
+                            .foregroundColor(colors.textSecondary)
+                            .frame(width: 22, height: 22)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Ignore rule")
+
+                    // Add to Dictionary (for spelling only)
+                    if error.category == "Spelling" {
+                        Button(action: { popover.addToDictionary() }) {
+                            Image(systemName: "text.badge.plus")
+                                .font(.system(size: 12))
+                                .foregroundColor(colors.textSecondary)
+                                .frame(width: 22, height: 22)
+                        }
                         .buttonStyle(.plain)
-                        .help("Add this word to your personal dictionary")
-                        .accessibilityLabel("Add to dictionary")
-                        .accessibilityHint("Double tap to add this word to your personal dictionary")
+                        .help("Add to dictionary")
                     }
 
                     Spacer()
 
-                    // Navigation controls (show when multiple items total - grammar errors + style suggestions)
+                    // Navigation controls
                     if popover.totalItemCount > 1 {
                         Text("\(popover.unifiedIndex + 1) of \(popover.totalItemCount)")
-                            .font(.system(size: captionTextSize, weight: .semibold))
-                            .foregroundColor(
-                                Color(hue: 215/360, saturation: 0.65, brightness: effectiveColorScheme == .dark ? 0.80 : 0.50)
-                            )
-                            .accessibilityLabel("Error \(popover.unifiedIndex + 1) of \(popover.totalItemCount)")
+                            .font(.system(size: captionTextSize - 1, weight: .medium))
+                            .foregroundColor(colors.textSecondary.opacity(0.7))
 
-                        HStack(spacing: 6) {
+                        HStack(spacing: 2) {
                             Button(action: { popover.previousUnifiedItem() }) {
                                 Image(systemName: "chevron.left")
-                                    .font(.system(size: 13, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .frame(width: 26, height: 26)
-                                    .background(
-                                        LinearGradient(
-                                            colors: [
-                                                Color(hue: 215/360, saturation: 0.70, brightness: effectiveColorScheme == .dark ? 0.60 : 0.55),
-                                                Color(hue: 215/360, saturation: 0.75, brightness: effectiveColorScheme == .dark ? 0.50 : 0.48)
-                                            ],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    .cornerRadius(6)
-                                    .shadow(color: colors.primary.opacity(0.2), radius: 2, x: 0, y: 1)
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(colors.textSecondary)
+                                    .frame(width: 18, height: 18)
                             }
                             .buttonStyle(.plain)
                             .keyboardShortcut(.upArrow, modifiers: [])
-                            .help("Previous (↑)")
-                            .accessibilityLabel("Previous error")
-                            .accessibilityHint("Double tap to go to the previous error")
+                            .help("Previous")
 
                             Button(action: { popover.nextUnifiedItem() }) {
                                 Image(systemName: "chevron.right")
-                                    .font(.system(size: 13, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .frame(width: 26, height: 26)
-                                    .background(
-                                        LinearGradient(
-                                            colors: [
-                                                Color(hue: 215/360, saturation: 0.70, brightness: effectiveColorScheme == .dark ? 0.60 : 0.55),
-                                                Color(hue: 215/360, saturation: 0.75, brightness: effectiveColorScheme == .dark ? 0.50 : 0.48)
-                                            ],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    .cornerRadius(6)
-                                    .shadow(color: colors.primary.opacity(0.2), radius: 2, x: 0, y: 1)
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(colors.textSecondary)
+                                    .frame(width: 18, height: 18)
                             }
                             .buttonStyle(.plain)
                             .keyboardShortcut(.downArrow, modifiers: [])
-                            .help("Next (↓)")
-                            .accessibilityLabel("Next error")
-                            .accessibilityHint("Double tap to go to the next error")
+                            .help("Next")
                         }
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 16)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+
             } else {
                 Text("No errors to display")
                     .foregroundColor(colors.textSecondary)
@@ -778,15 +647,11 @@ struct PopoverContentView: View {
                     .accessibilityLabel("No grammar errors to display")
             }
         }
-        // Apply Liquid Glass styling (macOS 26-inspired frosted glass effect)
-        .liquidGlass(
-            style: .regular,
-            tint: .blue,
-            cornerRadius: 14,
-            opacity: preferences.suggestionOpacity
-        )
-        // Fixed width based on content type, vertical sizing to content
-        .frame(width: isAIRephraseError ? 500 : 380)
+        // Solid background (system shadow provided by NSPanel)
+        .background(colors.background)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        // Narrower width for compact design, AI rephrase needs more space
+        .frame(width: isAIRephraseError ? 300 : 200)
         .fixedSize(horizontal: false, vertical: true)
         .colorScheme(effectiveColorScheme)
         .accessibilityElement(children: .contain)
