@@ -62,6 +62,9 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Event monitor for mouse clicks outside popover
     private var clickOutsideMonitor: Any?
 
+    /// Time when popover was hidden by outside click (used to debounce underline clicks)
+    var lastClickOutsideHideTime: Date?
+
     /// Current mode (grammar or style)
     @Published private(set) var mode: PopoverMode = .grammarError
 
@@ -385,6 +388,9 @@ class SuggestionPopover: NSObject, ObservableObject {
             // CRITICAL: Cancel any pending auto-hide timer
             self.hideTimer?.invalidate()
             self.hideTimer = nil
+
+            // Record the time so ErrorOverlay click handler can debounce
+            self.lastClickOutsideHideTime = Date()
 
             self.hide()
         }
