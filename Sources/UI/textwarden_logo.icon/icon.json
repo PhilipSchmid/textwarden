@@ -1,6 +1,6 @@
 {
   "fill" : {
-    "automatic-gradient" : "display-p3:0.81312,0.67004,0.50022,1.00000",
+    "automatic-gradient" : "srgb:0.41038,0.56104,0.52958,1.00000",
     "orientation" : {
       "start" : {
         "x" : 0.5,
@@ -16,33 +16,16 @@
     {
       "layers" : [
         {
-          "blend-mode-specializations" : [
-            {
-              "value" : "normal"
-            },
-            {
-              "appearance" : "dark",
-              "value" : "darken"
-            }
-          ],
-          "fill" : "none",
-          "glass-specializations" : [
-            {
-              "value" : false
-            },
-            {
-              "appearance" : "dark",
-              "value" : true
-            },
-            {
-              "appearance" : "tinted",
-              "value" : true
-            }
-          ],
-          "hidden" : false,
-          "image-name" : "textwarden_logo.svg",
+          "glass" : false,
+          "image-name" : "textwarden_logo 2.svg",
           "name" : "textwarden_logo",
-          "opacity" : 1
+          "position" : {
+            "scale" : 0.33,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
         }
       ],
       "shadow" : {

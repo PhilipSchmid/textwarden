@@ -10,9 +10,9 @@ import Cocoa
 struct TextWardenIcon {
     /// Create the TextWarden menu bar icon (monochrome template for menu bar)
     static func create(size: NSSize = NSSize(width: 22, height: 22)) -> NSImage {
-        // Load logo from asset catalog
-        guard let logo = NSImage(named: "TextWardenLogo") else {
-            Logger.warning("TextWardenLogo asset not found for menubar icon, using fallback", category: Logger.ui)
+        // Load feather logo from asset catalog for menubar
+        guard let logo = NSImage(named: "FeatherLogo") else {
+            Logger.warning("FeatherLogo asset not found for menubar icon, using fallback", category: Logger.ui)
             return createFallbackMenuBarIcon(size: size)
         }
 
@@ -42,9 +42,9 @@ struct TextWardenIcon {
 
     /// Create disabled menu bar icon with strikethrough line
     static func createDisabled(size: NSSize = NSSize(width: 22, height: 22)) -> NSImage {
-        // Load logo from asset catalog
-        guard let logo = NSImage(named: "TextWardenLogo") else {
-            Logger.warning("TextWardenLogo asset not found for menubar icon, using fallback", category: Logger.ui)
+        // Load feather logo from asset catalog for menubar
+        guard let logo = NSImage(named: "FeatherLogo") else {
+            Logger.warning("FeatherLogo asset not found for menubar icon, using fallback", category: Logger.ui)
             return createFallbackMenuBarIconDisabled(size: size)
         }
 
