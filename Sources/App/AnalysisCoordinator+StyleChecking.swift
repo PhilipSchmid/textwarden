@@ -291,9 +291,12 @@ extension AnalysisCoordinator {
         let cacheKey = computeStyleCacheKey(text: text)
         if let cached = styleCache[cacheKey], fullText == styleAnalysisSourceText {
             // Filter out suggestions that were already accepted/rejected
-            let filteredCached = cached.filter { !dismissedStyleSuggestionHashes.contains($0.originalText.hashValue) }
+            var filteredCached = cached.filter { !dismissedStyleSuggestionHashes.contains($0.originalText.hashValue) }
 
-            Logger.debug("Style check: Cache hit, \(cached.count) suggestion(s), \(filteredCached.count) after filtering dismissed", category: Logger.llm)
+            // Filter out suggestions that overlap with grammar errors (to avoid duplicating spelling/grammar fixes)
+            filteredCached = filterStyleSuggestionsNotOverlappingGrammarErrors(filteredCached, grammarErrors: currentErrors)
+
+            Logger.debug("Style check: Cache hit, \(cached.count) suggestion(s), \(filteredCached.count) after filtering", category: Logger.llm)
 
             // Update cache access time
             styleCacheMetadata[cacheKey] = StyleCacheMetadata(
@@ -360,9 +363,14 @@ extension AnalysisCoordinator {
                 let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
 
                 // Filter out suggestions that were already accepted/rejected
-                let filteredSuggestions = suggestions.filter { !self.dismissedStyleSuggestionHashes.contains($0.originalText.hashValue) }
+                var filteredSuggestions = suggestions.filter { !self.dismissedStyleSuggestionHashes.contains($0.originalText.hashValue) }
 
-                Logger.debug("Style check: Completed in \(latencyMs)ms, \(suggestions.count) suggestion(s), \(filteredSuggestions.count) after filtering dismissed", category: Logger.llm)
+                // Filter out suggestions that overlap with grammar errors (to avoid duplicating spelling/grammar fixes)
+                let beforeGrammarFilter = filteredSuggestions.count
+                filteredSuggestions = self.filterStyleSuggestionsNotOverlappingGrammarErrors(filteredSuggestions, grammarErrors: self.currentErrors)
+                let removedByGrammarFilter = beforeGrammarFilter - filteredSuggestions.count
+
+                Logger.debug("Style check: Completed in \(latencyMs)ms, \(suggestions.count) suggestion(s), \(filteredSuggestions.count) after filtering (\(removedByGrammarFilter) overlapped grammar errors)", category: Logger.llm)
 
                 // Update statistics
                 self.statistics.recordStyleSuggestions(
@@ -520,6 +528,35 @@ extension AnalysisCoordinator {
     ) {
         // Auto AI enhancement for readability errors is disabled
         // Users can manually trigger style checking which uses FoundationModelsEngine
+    }
+
+    // MARK: - Style Suggestion Filtering
+
+    /// Filter out style suggestions that overlap with existing grammar errors.
+    /// This prevents duplicate suggestions where the style engine suggests fixing
+    /// spelling/grammar issues that Harper has already flagged.
+    func filterStyleSuggestionsNotOverlappingGrammarErrors(
+        _ suggestions: [StyleSuggestionModel],
+        grammarErrors: [GrammarErrorModel]
+    ) -> [StyleSuggestionModel] {
+        guard !grammarErrors.isEmpty else { return suggestions }
+
+        return suggestions.filter { suggestion in
+            // Check if this style suggestion overlaps with any grammar error
+            let suggestionRange = suggestion.originalStart..<suggestion.originalEnd
+
+            for error in grammarErrors {
+                let errorRange = error.start..<error.end
+
+                // Check for overlap
+                if suggestionRange.overlaps(errorRange) {
+                    Logger.debug("Style filter: Removing suggestion overlapping grammar error at \(error.start)-\(error.end)", category: Logger.llm)
+                    return false
+                }
+            }
+
+            return true
+        }
     }
 }
 
