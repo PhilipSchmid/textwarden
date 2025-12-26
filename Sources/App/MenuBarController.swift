@@ -19,6 +19,9 @@ class MenuBarController: NSObject, NSMenuDelegate {
     /// The app to show in the menu - captured when button is clicked (BEFORE menu opens)
     private var menuTargetApp: NSRunningApplication?
 
+    /// Window controller for milestone celebration cards
+    private var milestoneCardController: MilestoneCardWindowController?
+
     override init() {
         super.init()
         MenuBarController.shared = self
@@ -66,6 +69,12 @@ class MenuBarController: NSObject, NSMenuDelegate {
         // Capture the frontmost app before our app potentially becomes active
         menuTargetApp = NSWorkspace.shared.frontmostApplication
 
+        // Check for pending milestones first
+        if let milestone = MilestoneManager.shared.checkForMilestones() {
+            showMilestoneCard(milestone, from: sender)
+            return
+        }
+
         // Rebuild menu with the captured app
         createMenu()
 
@@ -74,7 +83,44 @@ class MenuBarController: NSObject, NSMenuDelegate {
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: buttonBounds.height), in: sender)
     }
 
+    /// Show a milestone celebration card near the menu bar button
+    private func showMilestoneCard(_ milestone: Milestone, from button: NSStatusBarButton, isPreview: Bool = false) {
+        guard let window = button.window else { return }
 
+        // Get the button's frame in screen coordinates
+        let buttonFrameInWindow = button.convert(button.bounds, to: nil)
+        let buttonFrameOnScreen = window.convertToScreen(buttonFrameInWindow)
+
+        // Create controller if needed
+        if milestoneCardController == nil {
+            milestoneCardController = MilestoneCardWindowController()
+        }
+
+        milestoneCardController?.showMilestoneCard(milestone, near: buttonFrameOnScreen, isPreview: isPreview)
+        Logger.info("Showing milestone card: \(milestone.id) (preview: \(isPreview))", category: Logger.ui)
+    }
+
+    /// Show a preview milestone card for troubleshooting purposes
+    /// This shows a sample milestone regardless of actual user statistics
+    func showMilestonePreview() {
+        guard let button = statusItem?.button else {
+            Logger.warning("Cannot show milestone preview: no status item button", category: Logger.ui)
+            return
+        }
+
+        let previewMilestone = MilestoneManager.shared.createPreviewMilestone()
+        showMilestoneCard(previewMilestone, from: button, isPreview: true)
+    }
+
+    /// Show a specific milestone card (e.g., on app startup for overdue milestones)
+    func showMilestone(_ milestone: Milestone) {
+        guard let button = statusItem?.button else {
+            Logger.warning("Cannot show milestone: no status item button", category: Logger.ui)
+            return
+        }
+
+        showMilestoneCard(milestone, from: button, isPreview: false)
+    }
 
     private func createMenu() {
         menu = NSMenu()

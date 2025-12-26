@@ -172,7 +172,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     self?.openSettingsWindow()
                 }
             }
+
+            // Check for pending milestones on startup (e.g., after system restart)
+            // Delay to ensure menu bar is fully initialized
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                Task { @MainActor in
+                    self?.checkForStartupMilestone()
+                }
+            }
         }
+    }
+
+    /// Check for and show any pending milestone on app startup
+    @MainActor
+    private func checkForStartupMilestone() {
+        guard let milestone = MilestoneManager.shared.checkForMilestones() else {
+            Logger.debug("No pending milestones on startup", category: Logger.ui)
+            return
+        }
+
+        Logger.info("Found pending milestone on startup: \(milestone.id)", category: Logger.ui)
+        menuBarController?.showMilestone(milestone)
     }
 
     @objc func openOnboardingWindow() {

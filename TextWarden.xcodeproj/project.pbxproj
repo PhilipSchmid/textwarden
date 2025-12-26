@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D40C16252EFFCB1F00DFCA4A /* ConfettiSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = D4CONF1022F0E000000000002 /* ConfettiSwiftUI */; };
 		D421EA852ED4DE3400B327EB /* UserStatisticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D421EA842ED4DE3400B327EB /* UserStatisticsTests.swift */; };
 		D48CD6972EDF31D9004B9B44 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = D48CD6982EDF31D9004B9B44 /* Sparkle */; };
 		D48EA19C2ED3B90E00CC5B73 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = D48EA1252ED3B88E00CC5B73 /* LaunchAtLogin */; };
@@ -54,6 +55,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D40C16252EFFCB1F00DFCA4A /* ConfettiSwiftUI in Frameworks */,
 				D48EA28C2ED3BACB00CC5B73 /* KeyboardShortcuts in Frameworks */,
 				D48EA19C2ED3B90E00CC5B73 /* LaunchAtLogin in Frameworks */,
 				D48CD6972EDF31D9004B9B44 /* Sparkle in Frameworks */,
@@ -130,6 +132,7 @@
 				D48EA1252ED3B88E00CC5B73 /* LaunchAtLogin */,
 				D48EA2152ED3B9D900CC5B73 /* KeyboardShortcuts */,
 				D48CD6982EDF31D9004B9B44 /* Sparkle */,
+				D4CONF1022F0E000000000002 /* ConfettiSwiftUI */,
 			);
 			productName = TextWarden;
 			productReference = E8AC081A2EC11FBB008E37E6 /* TextWarden.app */;
@@ -167,6 +170,7 @@
 				D48EA1242ED3B88E00CC5B73 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */,
 				D48EA2142ED3B9D900CC5B73 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 				D48CD6962EDF31D9004B9B44 /* XCRemoteSwiftPackageReference "Sparkle" */,
+				D4CONF1012F0E000000000001 /* XCRemoteSwiftPackageReference "ConfettiSwiftUI" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E8AC081B2EC11FBB008E37E6 /* Products */;
@@ -600,6 +604,14 @@
 				minimumVersion = 2.0.0;
 			};
 		};
+		D4CONF1012F0E000000000001 /* XCRemoteSwiftPackageReference "ConfettiSwiftUI" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/simibac/ConfettiSwiftUI";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -617,6 +629,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D48EA2142ED3B9D900CC5B73 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
 			productName = KeyboardShortcuts;
+		};
+		D4CONF1022F0E000000000002 /* ConfettiSwiftUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D4CONF1012F0E000000000001 /* XCRemoteSwiftPackageReference "ConfettiSwiftUI" */;
+			productName = ConfettiSwiftUI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

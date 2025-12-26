@@ -259,6 +259,29 @@ class UserStatistics: ObservableObject {
     private var logPersistBatchCounter = 0
     private let logSampleInterval: TimeInterval = 60  // Aggregate logs per minute
 
+    // MARK: - Milestone Card Statistics
+
+    /// Number of times user clicked "Buy me a coffee" on milestone card
+    @Published var milestoneSupportClicks: Int {
+        didSet {
+            defaults.set(milestoneSupportClicks, forKey: Keys.milestoneSupportClicks)
+        }
+    }
+
+    /// Number of times user clicked "Maybe Later" on milestone card
+    @Published var milestoneDismissClicks: Int {
+        didSet {
+            defaults.set(milestoneDismissClicks, forKey: Keys.milestoneDismissClicks)
+        }
+    }
+
+    /// Number of times user clicked "Don't show milestone celebrations"
+    @Published var milestoneDisableClicks: Int {
+        didSet {
+            defaults.set(milestoneDisableClicks, forKey: Keys.milestoneDisableClicks)
+        }
+    }
+
     // MARK: - LLM Style Checking Statistics
 
     /// Total style suggestions shown
@@ -739,6 +762,11 @@ class UserStatistics: ObservableObject {
         self.appLaunchTimestamp = Date()
         self.appLaunchHistory = []
 
+        // Milestone Card defaults
+        self.milestoneSupportClicks = 0
+        self.milestoneDismissClicks = 0
+        self.milestoneDisableClicks = 0
+
         // LLM Style Checking defaults
         self.styleSuggestionsShown = 0
         self.styleSuggestionsAccepted = 0
@@ -797,6 +825,11 @@ class UserStatistics: ObservableObject {
            let history = try? decoder.decode([Date].self, from: data) {
             self.appLaunchHistory = history
         }
+
+        // Load Milestone Card statistics
+        self.milestoneSupportClicks = defaults.integer(forKey: Keys.milestoneSupportClicks)
+        self.milestoneDismissClicks = defaults.integer(forKey: Keys.milestoneDismissClicks)
+        self.milestoneDisableClicks = defaults.integer(forKey: Keys.milestoneDisableClicks)
 
         // Load LLM style checking statistics
         self.styleSuggestionsShown = defaults.integer(forKey: Keys.styleSuggestionsShown)
@@ -1504,6 +1537,11 @@ class UserStatistics: ObservableObject {
         suggestionActions = []
         appLaunchTimestamp = Date()
 
+        // Reset milestone card statistics
+        milestoneSupportClicks = 0
+        milestoneDismissClicks = 0
+        milestoneDisableClicks = 0
+
         // Reset style statistics
         styleSuggestionsShown = 0
         styleSuggestionsAccepted = 0
@@ -1533,6 +1571,11 @@ class UserStatistics: ObservableObject {
         static let appLaunchHistory = "statistics.appLaunchHistory"
         static let resourceSamples = "statistics.resourceSamples"
         static let logVolumeSamples = "statistics.logVolumeSamples"
+
+        // Milestone Card
+        static let milestoneSupportClicks = "statistics.milestoneSupportClicks"
+        static let milestoneDismissClicks = "statistics.milestoneDismissClicks"
+        static let milestoneDisableClicks = "statistics.milestoneDisableClicks"
 
         // LLM Style Checking
         static let styleSuggestionsShown = "statistics.styleSuggestionsShown"

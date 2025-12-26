@@ -204,6 +204,11 @@ struct StatisticsSnapshot: Codable {
     let activeDaysCount: Int
     let currentStreak: Int
 
+    // Milestone card interaction stats (not shown in UI, for analytics)
+    let milestoneSupportClicks: Int
+    let milestoneDismissClicks: Int
+    let milestoneDisableClicks: Int
+
     // Cumulative metrics
     let improvementRate: Double
     let averageErrorsPer100Words: Double
@@ -251,6 +256,9 @@ struct StatisticsSnapshot: Codable {
             sessionCount: stats.sessionCount,
             activeDaysCount: stats.activeDays.count,
             currentStreak: stats.currentStreak,
+            milestoneSupportClicks: stats.milestoneSupportClicks,
+            milestoneDismissClicks: stats.milestoneDismissClicks,
+            milestoneDisableClicks: stats.milestoneDisableClicks,
             improvementRate: stats.improvementRate,
             averageErrorsPer100Words: stats.averageErrorsPer100Words,
             categoryBreakdown: stats.categoryBreakdown,

@@ -581,6 +581,22 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    // MARK: - Milestones & Donation Prompts
+
+    /// Set of milestone IDs that have been shown to the user
+    @Published var shownMilestones: Set<String> {
+        didSet {
+            persist(shownMilestones, forKey: Keys.shownMilestones)
+        }
+    }
+
+    /// User has permanently disabled milestone prompts
+    @Published var milestonesDisabled: Bool {
+        didSet {
+            defaults.set(milestonesDisabled, forKey: Keys.milestonesDisabled)
+        }
+    }
+
     // MARK: - LLM Style Checking
 
     /// Enable LLM-powered style suggestions
@@ -705,6 +721,10 @@ class UserPreferences: ObservableObject {
         self.showDebugBorderCGWindowCoords = false
         self.showDebugBorderCocoaCoords = false
         self.showDebugCharacterMarkers = false
+
+        // Milestones
+        self.shownMilestones = []
+        self.milestonesDisabled = false
 
         // LLM Style Checking
         self.enableStyleChecking = false  // Off by default
@@ -831,6 +851,13 @@ class UserPreferences: ObservableObject {
         self.showDebugBorderCGWindowCoords = defaults.object(forKey: Keys.showDebugBorderCGWindowCoords) as? Bool ?? false
         self.showDebugBorderCocoaCoords = defaults.object(forKey: Keys.showDebugBorderCocoaCoords) as? Bool ?? false
         self.showDebugCharacterMarkers = defaults.object(forKey: Keys.showDebugCharacterMarkers) as? Bool ?? false
+
+        // Milestones
+        if let data = defaults.data(forKey: Keys.shownMilestones),
+           let set = try? decoder.decode(Set<String>.self, from: data) {
+            self.shownMilestones = set
+        }
+        self.milestonesDisabled = defaults.object(forKey: Keys.milestonesDisabled) as? Bool ?? false
 
         // LLM Style Checking
         self.enableStyleChecking = defaults.object(forKey: Keys.enableStyleChecking) as? Bool ?? false
@@ -1261,6 +1288,10 @@ class UserPreferences: ObservableObject {
 
         // Onboarding
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
+
+        // Milestones
+        static let shownMilestones = "shownMilestones"
+        static let milestonesDisabled = "milestonesDisabled"
 
         // LLM Style Checking
         static let enableStyleChecking = "enableStyleChecking"
