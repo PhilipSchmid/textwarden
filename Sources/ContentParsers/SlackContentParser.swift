@@ -616,11 +616,7 @@ class SlackContentParser: ContentParser {
             return emptyResult
         }
 
-        Logger.info("SlackContentParser: Found org.chromium.web-custom-data (\(data.count) bytes)", category: Logger.analysis)
-
-        // Log hex dump of first 64 bytes to understand format
-        let hexPreview = data.prefix(64).map { String(format: "%02x", $0) }.joined(separator: " ")
-        Logger.info("SlackContentParser: Hex preview: \(hexPreview)", category: Logger.analysis)
+        Logger.debug("SlackContentParser: Found org.chromium.web-custom-data (\(data.count) bytes)", category: Logger.analysis)
 
         // Try to parse as Chromium Pickle format first
         if let pickleContent = parseChromiumPickle(data) {
@@ -1726,10 +1722,10 @@ class SlackContentParser: ContentParser {
                     if let range = text.range(of: codeText) {
                         let location = text.distance(from: text.startIndex, to: range.lowerBound)
                         let length = codeText.count
-                        Logger.info("SlackContentParser: Found inline code at \(location)-\(location + length), text: '\(codeText.prefix(50))'", category: Logger.analysis)
+                        Logger.debug("SlackContentParser: Found inline code at \(location)-\(location + length) (\(codeText.count) chars)", category: Logger.analysis)
                         codeRanges.append(ExclusionRange(location: location, length: length))
                     } else {
-                        Logger.debug("SlackContentParser: Found inline code but text not found in parent: '\(codeText.prefix(50))'", category: Logger.analysis)
+                        Logger.debug("SlackContentParser: Found inline code but text not found in parent (\(codeText.count) chars)", category: Logger.analysis)
                     }
                 } else {
                     Logger.debug("SlackContentParser: Found AXCodeStyleGroup but no text content", category: Logger.analysis)

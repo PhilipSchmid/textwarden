@@ -999,7 +999,7 @@ extension AnalysisCoordinator {
                 let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef)
                 let currentText = (textResult == .success) ? (textRef as? String) ?? "" : ""
 
-                Logger.info("Slack: Attempting format-preserving replacement for '\(suggestion)'", category: Logger.analysis)
+                Logger.info("Slack: Attempting format-preserving replacement (\(suggestion.count) chars)", category: Logger.analysis)
 
                 let result = await slackParser.applyFormatPreservingReplacement(
                     errorStart: error.start,
