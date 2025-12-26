@@ -174,7 +174,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         menu?.addItem(NSMenuItem.separator())
     }
 
-    /// Add utility menu items (Preferences, About, Quit)
+    /// Add utility menu items (Preferences, Quit)
     private func addUtilityMenuItems() {
         // Preferences
         let preferencesItem = NSMenuItem(
@@ -184,33 +184,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
         )
         preferencesItem.target = self
         menu?.addItem(preferencesItem)
-
-        // About
-        let aboutItem = NSMenuItem(
-            title: "About TextWarden",
-            action: #selector(showAbout),
-            keyEquivalent: ""
-        )
-        aboutItem.target = self
-        menu?.addItem(aboutItem)
-
-        // Check for Updates
-        let updateItem = NSMenuItem(
-            title: "Check for Updates",
-            action: #selector(checkForUpdates),
-            keyEquivalent: ""
-        )
-        updateItem.target = self
-        menu?.addItem(updateItem)
-
-        // Help
-        let helpItem = NSMenuItem(
-            title: "TextWarden Help",
-            action: #selector(showHelp),
-            keyEquivalent: "?"
-        )
-        helpItem.target = self
-        menu?.addItem(helpItem)
 
         menu?.addItem(NSMenuItem.separator())
 
@@ -358,45 +331,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
         NSApp.sendAction(#selector(AppDelegate.openSettingsWindow(selectedTab:)), to: nil, from: self)
 
         Logger.debug("Sent openSettingsWindow action for General tab", category: Logger.ui)
-    }
-
-    @objc private func showAbout() {
-        Logger.debug("showAbout() called - ActivationPolicy: \(NSApp.activationPolicy().rawValue)", category: Logger.ui)
-
-        // Use type-safe enum to ensure correct tab is selected even if tabs are reordered
-        PreferencesWindowController.shared.selectTab(.about)
-
-        Logger.debug("Switching to .regular mode", category: Logger.ui)
-
-        // Switch to regular mode temporarily
-        NSApp.setActivationPolicy(.regular)
-
-        Logger.debug("setActivationPolicy(.regular) completed - ActivationPolicy: \(NSApp.activationPolicy().rawValue)", category: Logger.ui)
-
-        // Use NSApp.sendAction to open settings with About tab
-        NSApp.sendAction(#selector(AppDelegate.openSettingsWindow(selectedTab:)), to: nil, from: self)
-
-        Logger.debug("Sent openSettingsWindow action for About tab", category: Logger.ui)
-    }
-
-    @objc private func showHelp() {
-        Logger.debug("showHelp() called", category: Logger.ui)
-        NSApp.showHelp(nil)
-    }
-
-    @objc private func checkForUpdates() {
-        Logger.debug("checkForUpdates() called", category: Logger.ui)
-
-        // Get the AppDelegate to access the updater
-        guard let appDelegate = NSApp.delegate as? AppDelegate else { return }
-
-        // Trigger update check and show About tab
-        Task { @MainActor in
-            appDelegate.updaterViewModel.checkForUpdates()
-        }
-
-        // Also show the About page
-        showAbout()
     }
 
     @objc private func quitApp() {
