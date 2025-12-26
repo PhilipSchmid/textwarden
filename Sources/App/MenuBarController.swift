@@ -176,18 +176,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
     /// Add utility menu items (Preferences, About, Quit)
     private func addUtilityMenuItems() {
-        let errorCount = AnalysisCoordinator.shared.errors().count
-        if errorCount > 0 {
-            let errorItem = NSMenuItem(
-                title: "Show \(errorCount) Grammar \(errorCount == 1 ? "Issue" : "Issues")...",
-                action: #selector(showCurrentErrors),
-                keyEquivalent: ""
-            )
-            errorItem.target = self
-            menu?.addItem(errorItem)
-            menu?.addItem(NSMenuItem.separator())
-        }
-
         // Preferences
         let preferencesItem = NSMenuItem(
             title: "Preferences...",
@@ -389,23 +377,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
         NSApp.sendAction(#selector(AppDelegate.openSettingsWindow(selectedTab:)), to: nil, from: self)
 
         Logger.debug("Sent openSettingsWindow action for About tab", category: Logger.ui)
-    }
-
-    @objc private func showCurrentErrors() {
-        let errors = AnalysisCoordinator.shared.errors()
-        guard let firstError = errors.first else { return }
-
-        // Position near menu bar icon since we don't have text field position
-        if let button = statusItem?.button {
-            let buttonFrame = button.window?.convertToScreen(button.convert(button.bounds, to: nil)) ?? .zero
-            let position = NSPoint(x: buttonFrame.midX, y: buttonFrame.minY)
-
-            SuggestionPopover.shared.show(
-                error: firstError,
-                allErrors: errors,
-                at: position
-            )
-        }
     }
 
     @objc private func showHelp() {
