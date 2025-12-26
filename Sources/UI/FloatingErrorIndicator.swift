@@ -942,27 +942,28 @@ class FloatingErrorIndicator: NSPanel {
         let leftSpacing: CGFloat = UIConstants.popoverLeftSpacing
         let rightSpacing: CGFloat = UIConstants.popoverRightSpacing
 
+        // For indicator-triggered popover, position anchor closer to get popover near indicator
+        // The SuggestionPopover will center horizontally and add vertical spacing
         switch indicatorPosition {
         case "Top Left":
-            // Indicator at top-left → popover to right and slightly below
-            return CGPoint(x: indicatorFrame.maxX + leftSpacing, y: indicatorFrame.midY - 20)
+            // Indicator at top-left → popover below-right of indicator
+            return CGPoint(x: indicatorFrame.maxX + leftSpacing, y: indicatorFrame.minY)
         case "Top Right":
-            // Indicator at top-right → popover to left and slightly below
-            return CGPoint(x: indicatorFrame.minX - rightSpacing, y: indicatorFrame.midY - 20)
+            // Indicator at top-right → popover below-left of indicator
+            return CGPoint(x: indicatorFrame.minX - rightSpacing, y: indicatorFrame.minY)
         case "Center Left":
-            // Indicator at center-left → popover to the right
-            return CGPoint(x: indicatorFrame.maxX + leftSpacing, y: indicatorFrame.midY)
+            // Indicator at center-left → popover to the right, vertically centered
+            return CGPoint(x: indicatorFrame.maxX + leftSpacing, y: indicatorFrame.midY + 75)
         case "Center Right":
-            // Indicator at center-right → popover to the left
-            return CGPoint(x: indicatorFrame.minX - rightSpacing, y: indicatorFrame.midY)
+            // Indicator at center-right → popover to the left, vertically centered
+            return CGPoint(x: indicatorFrame.minX - rightSpacing, y: indicatorFrame.midY + 75)
         case "Bottom Left":
-            // Indicator at bottom-left → popover to right and slightly above
-            return CGPoint(x: indicatorFrame.maxX + leftSpacing, y: indicatorFrame.midY + 20)
+            // Indicator at bottom-left → popover above-right of indicator
+            return CGPoint(x: indicatorFrame.maxX + leftSpacing, y: indicatorFrame.maxY + 150)
         case "Bottom Right":
-            // Indicator at bottom-right → popover to left and slightly above
-            return CGPoint(x: indicatorFrame.minX - rightSpacing, y: indicatorFrame.midY + 20)
+            // Indicator at bottom-right → popover above-left of indicator
+            return CGPoint(x: indicatorFrame.minX - rightSpacing, y: indicatorFrame.maxY + 150)
         default:
-            // Default to above indicator (old behavior)
             return CGPoint(x: indicatorFrame.midX, y: indicatorFrame.maxY + 10)
         }
     }

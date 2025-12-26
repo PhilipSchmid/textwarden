@@ -27,11 +27,10 @@ enum UIConstants {
     /// Enlarged size during drag
     static let indicatorDragSize: CGFloat = 45
 
-    /// Popover spacing from indicator (left side, accounts for popover width)
-    static let popoverLeftSpacing: CGFloat = 400
-
-    /// Popover spacing from indicator (right side)
-    static let popoverRightSpacing: CGFloat = 30
+    /// Popover spacing from indicator (accounts for ~200px popover width + centering)
+    /// Formula: gap + popoverWidth/2, where gap is visual spacing desired
+    static let popoverLeftSpacing: CGFloat = 110   // 10px gap + 100px (half of ~200px popover)
+    static let popoverRightSpacing: CGFloat = 110  // 10px gap + 100px (half of ~200px popover)
 
     // MARK: - Underlines
 
