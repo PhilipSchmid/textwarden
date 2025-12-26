@@ -211,7 +211,9 @@ class UserPreferences: ObservableObject {
         // Developer tools
         "com.apple.AccessibilityInspector",  // Accessibility Inspector
         "com.apple.IconComposer",            // Icon Composer
-        "com.apple.helpviewer"               // Help Viewer
+        "com.apple.helpviewer",              // Help Viewer
+        // Design tools
+        "com.canva.CanvaDesktop"             // Canva
     ]
 
     /// Custom words to ignore
