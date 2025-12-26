@@ -1,6 +1,6 @@
 {
   "fill" : {
-    "automatic-gradient" : "srgb:0.41038,0.56104,0.52958,1.00000",
+    "automatic-gradient" : "extended-gray:0.92344,1.00000",
     "orientation" : {
       "start" : {
         "x" : 0.5,
@@ -17,13 +17,13 @@
       "layers" : [
         {
           "glass" : false,
-          "image-name" : "textwarden_logo 2.svg",
-          "name" : "textwarden_logo",
+          "image-name" : "textwarden_feather_logo.svg",
+          "name" : "textwarden_feather_logo",
           "position" : {
-            "scale" : 0.33,
+            "scale" : 1.15,
             "translation-in-points" : [
-              0,
-              0
+              -18.964816238493995,
+              -5.380886610093057
             ]
           }
         }
