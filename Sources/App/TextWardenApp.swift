@@ -581,7 +581,8 @@ extension AppDelegate: NSWindowDelegate {
 
                 Logger.debug("Keyboard shortcut: Previous suggestion", category: Logger.ui)
 
-                SuggestionPopover.shared.previousError()
+                // Use unified navigation to cycle through both grammar errors and style suggestions
+                SuggestionPopover.shared.previousUnifiedItem()
             }
         }
 
@@ -594,7 +595,8 @@ extension AppDelegate: NSWindowDelegate {
 
                 Logger.debug("Keyboard shortcut: Next suggestion", category: Logger.ui)
 
-                SuggestionPopover.shared.nextError()
+                // Use unified navigation to cycle through both grammar errors and style suggestions
+                SuggestionPopover.shared.nextUnifiedItem()
             }
         }
 
