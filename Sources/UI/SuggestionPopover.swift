@@ -144,6 +144,12 @@ class SuggestionPopover: NSObject, ObservableObject {
         return panel?.isVisible == true && (currentError != nil || currentStyleSuggestion != nil)
     }
 
+    /// Check if a screen point is within the popover's frame
+    func containsPoint(_ screenPoint: CGPoint) -> Bool {
+        guard isVisible, let panel = panel else { return false }
+        return panel.frame.contains(screenPoint)
+    }
+
     // MARK: - Initialization
 
     private override init() {
@@ -440,6 +446,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         // Make panel background transparent so SwiftUI content's opacity works
         panel?.backgroundColor = .clear
         panel?.isOpaque = false
+        panel?.hasShadow = true  // System shadow (SwiftUI shadow gets clipped by masksToBounds)
         // CRITICAL: Prevent this panel from affecting app activation
         panel?.hidesOnDeactivate = false
         panel?.worksWhenModal = false
@@ -490,7 +497,7 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         // Calculate available space in all directions
         let padding: CGFloat = 20  // General padding
-        let verticalSpacing: CGFloat = 40  // Space between underline and popover
+        let verticalSpacing: CGFloat = 25  // Space between anchor point and popover
         let roomAbove = constraintFrame.maxY - cursorPosition.y
         let roomBelow = cursorPosition.y - constraintFrame.minY
         let roomLeft = cursorPosition.x - constraintFrame.minX
@@ -1686,8 +1693,7 @@ struct StylePopoverContentView: View {
         .liquidGlass(
             style: .regular,
             tint: .purple,
-            cornerRadius: 14,
-            opacity: preferences.suggestionOpacity
+            cornerRadius: 14
         )
         // Fixed width, vertical sizing to content
         .frame(width: 420)
