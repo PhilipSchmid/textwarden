@@ -1469,6 +1469,10 @@ class AnalysisCoordinator: ObservableObject {
         currentErrors = filteredErrors
 
         showErrorUnderlines(filteredErrors, element: element)
+
+        // Sync the popover's error list with the canonical list
+        // This ensures the popover shows the correct count after re-analysis
+        suggestionPopover.syncErrors(filteredErrors)
     }
 
     /// Timer for Electron layout stabilization delay

@@ -704,6 +704,41 @@ class SuggestionPopover: NSObject, ObservableObject {
         Logger.debug("Popover: Rebuilt content - \(width) x \(height)", category: Logger.ui)
     }
 
+    // MARK: - Error Synchronization
+
+    /// Synchronize the popover's error list with the canonical error list from the coordinator.
+    /// Called after re-analysis to ensure the popover shows the correct error count.
+    /// - Parameter errors: The current canonical list of grammar errors
+    func syncErrors(_ errors: [GrammarErrorModel]) {
+        guard isVisible else { return }
+
+        // Don't sync while actively processing a suggestion - the popover manages
+        // its own state during apply/dismiss/ignore operations
+        guard !isProcessing else {
+            Logger.debug("Popover: Skipping sync while processing", category: Logger.ui)
+            return
+        }
+
+        let previousCount = allErrors.count
+        allErrors = errors
+
+        // Adjust currentIndex if needed
+        if currentIndex >= allErrors.count {
+            currentIndex = max(0, allErrors.count - 1)
+        }
+
+        // Update currentError
+        if allErrors.isEmpty {
+            hide()
+        } else {
+            currentError = allErrors.indices.contains(currentIndex) ? allErrors[currentIndex] : allErrors.first
+            if previousCount != allErrors.count {
+                Logger.debug("Popover: Synced errors (\(previousCount) -> \(allErrors.count))", category: Logger.ui)
+                rebuildContentView()
+            }
+        }
+    }
+
     // MARK: - Grammar Error Actions
 
     /// Apply suggestion
