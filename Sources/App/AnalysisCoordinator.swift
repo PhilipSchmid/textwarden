@@ -166,6 +166,9 @@ class AnalysisCoordinator: ObservableObject {
     /// Pending error waiting for delayed hover switch
     var pendingHoverError: (error: GrammarErrorModel, position: CGPoint, windowFrame: CGRect?)?
 
+    /// Time when popover was last closed via click (used to debounce rapid click events)
+    var lastClickCloseTime: Date?
+
     /// Time when last suggestion was applied programmatically
     /// Used to suppress typing detection briefly after applying a suggestion
     /// (prevents paste-triggered AX notifications from hiding overlays)
@@ -523,6 +526,40 @@ class AnalysisCoordinator: ObservableObject {
 
             // Schedule popover hide with delay - if user moves into popover, it will cancel
             SuggestionPopover.shared.scheduleHide()
+        }
+
+        // Handle click on underline - toggle popover (show if hidden, hide if showing same error)
+        errorOverlay.onErrorClick = { [weak self] error, position, windowFrame in
+            guard let self = self else { return }
+
+            Logger.debug("AnalysisCoordinator: onErrorClick - error at \(error.start)-\(error.end)", category: Logger.analysis)
+
+            // Debounce: ignore click if popover was just hidden by its own click-outside handler
+            // This prevents the race condition where both monitors receive the same click event
+            if let lastClose = self.suggestionPopover.lastClickOutsideHideTime,
+               Date().timeIntervalSince(lastClose) < 0.3 {
+                Logger.debug("AnalysisCoordinator: Ignoring click - popover just closed by click outside", category: Logger.analysis)
+                return
+            }
+
+            // Check if popover is showing the same error - if so, hide it (toggle behavior)
+            if self.suggestionPopover.isVisible && self.isSameError(error, as: self.suggestionPopover.currentError) {
+                Logger.debug("AnalysisCoordinator: Click on same error - hiding popover (toggle)", category: Logger.analysis)
+                self.lastClickCloseTime = Date()
+                self.suggestionPopover.hide()
+                self.errorOverlay.setLockedHighlight(for: nil)
+            } else {
+                // Different error or popover not showing - show this error
+                Logger.debug("AnalysisCoordinator: Click - showing popover for error", category: Logger.analysis)
+                self.suggestionPopover.show(
+                    error: error,
+                    allErrors: self.currentErrors,
+                    at: position,
+                    constrainToWindow: windowFrame
+                )
+                // Lock highlight on clicked error
+                self.errorOverlay.setLockedHighlight(for: error)
+            }
         }
 
         // Re-show underlines when frame stabilizes after resize
