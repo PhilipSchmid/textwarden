@@ -135,16 +135,6 @@ struct GeneralPreferencesView: View {
 
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("Transparency:")
-                        Spacer()
-                        Text(String(format: "%.0f%%", preferences.suggestionOpacity * 100))
-                            .foregroundColor(.secondary)
-                    }
-                    Slider(value: $preferences.suggestionOpacity, in: 0.2...1.0, step: 0.05)
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
                         Text("Text size:")
                         Spacer()
                         Text(String(format: "%.0fpt", preferences.suggestionTextSize))
