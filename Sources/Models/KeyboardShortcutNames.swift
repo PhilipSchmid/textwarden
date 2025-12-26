@@ -12,18 +12,18 @@ extension KeyboardShortcuts.Name {
     // MARK: - Global Controls
 
     /// Toggle TextWarden on/off globally ("T" for TextWarden)
-    static let toggleTextWarden = Self("toggleTextWarden", default: .init(.t, modifiers: [.command, .control]))
+    static let toggleTextWarden = Self("toggleTextWarden", default: .init(.t, modifiers: [.option, .control]))
 
     /// Trigger style check on current text
-    static let runStyleCheck = Self("runStyleCheck", default: .init(.s, modifiers: [.command, .control]))
+    static let runStyleCheck = Self("runStyleCheck", default: .init(.s, modifiers: [.option, .control]))
 
     /// Fix all errors that have exactly one suggestion (obvious fixes) - "A" for Apply All
-    static let fixAllObvious = Self("fixAllObvious", default: .init(.a, modifiers: [.command, .control]))
+    static let fixAllObvious = Self("fixAllObvious", default: .init(.a, modifiers: [.option, .control]))
 
     // MARK: - Suggestion Popover
 
     /// Toggle suggestion popover (show if hidden, hide if shown) - "G" for Grammar
-    static let showSuggestionPopover = Self("showSuggestionPopover", default: .init(.g, modifiers: [.command, .control]))
+    static let showSuggestionPopover = Self("showSuggestionPopover", default: .init(.g, modifiers: [.option, .control]))
 
     /// Accept the currently selected suggestion
     static let acceptSuggestion = Self("acceptSuggestion", default: .init(.tab))

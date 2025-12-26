@@ -456,7 +456,7 @@ extension AppDelegate: NSWindowDelegate {
 
     /// Setup global keyboard shortcuts using KeyboardShortcuts package
     private func setupKeyboardShortcuts() {
-        // Toggle TextWarden (Cmd+Ctrl+T by default)
+        // Toggle TextWarden (Option+Control+T by default)
         KeyboardShortcuts.onKeyUp(for: .toggleTextWarden) {
             Task { @MainActor in
                 let preferences = UserPreferences.shared
@@ -489,7 +489,7 @@ extension AppDelegate: NSWindowDelegate {
             }
         }
 
-        // Run style check on current text (Cmd+Shift+S by default)
+        // Run style check on current text (Option+Control+S by default)
         KeyboardShortcuts.onKeyUp(for: .runStyleCheck) {
             Task { @MainActor in
                 let preferences = UserPreferences.shared
@@ -502,7 +502,7 @@ extension AppDelegate: NSWindowDelegate {
             }
         }
 
-        // Fix all obvious errors (Cmd+Ctrl+A by default - "A" for Apply All)
+        // Fix all obvious errors (Option+Control+A by default - "A" for Apply All)
         // Applies all single-suggestion fixes at once
         KeyboardShortcuts.onKeyUp(for: .fixAllObvious) {
             Task { @MainActor in
@@ -518,7 +518,7 @@ extension AppDelegate: NSWindowDelegate {
             }
         }
 
-        // Toggle suggestion popover (Cmd+Ctrl+. by default)
+        // Toggle suggestion popover (Option+Control+G by default)
         KeyboardShortcuts.onKeyUp(for: .showSuggestionPopover) {
             Task { @MainActor in
                 let preferences = UserPreferences.shared
