@@ -191,7 +191,7 @@ class ErrorOverlayWindow: NSPanel {
 
                 // Only trigger hover callback if:
                 // 1. Hover popover is enabled in settings
-                // 2. Mouse is not already over the popover
+                // 2. Mouse is not over the popover (underline is not hidden by popover)
                 // 3. Popover is not already showing this same error
                 let popover = SuggestionPopover.shared
                 let isMouseOverPopover = popover.containsPoint(mouseLocation)
