@@ -182,9 +182,11 @@ class ErrorOverlayWindow: NSPanel {
 
                 Logger.debug("ErrorOverlay: Popup anchor - underline bounds: \(underlineBounds), screen: \(screenLocation)", category: Logger.ui)
 
-                let appWindowFrame = self.getApplicationWindowFrame()
-
-                self.onErrorHover?(newHoveredUnderline.error, screenLocation, appWindowFrame)
+                // Only trigger hover callback if hover popover is enabled
+                if UserPreferences.shared.enableHoverPopover {
+                    let appWindowFrame = self.getApplicationWindowFrame()
+                    self.onErrorHover?(newHoveredUnderline.error, screenLocation, appWindowFrame)
+                }
             } else {
                 // Clear hovered state
                 if self.hoveredUnderline != nil {

@@ -540,6 +540,13 @@ class UserPreferences: ObservableObject {
         "Bottom Right"
     ]
 
+    /// Enable hover-to-show popover behavior
+    @Published var enableHoverPopover: Bool {
+        didSet {
+            defaults.set(enableHoverPopover, forKey: Keys.enableHoverPopover)
+        }
+    }
+
     // MARK: - Diagnostics
 
     /// Show debug border for text field bounds (red box)
@@ -689,6 +696,7 @@ class UserPreferences: ObservableObject {
         self.underlineThickness = 2.0
         self.maxErrorsForUnderlines = 10
         self.indicatorPosition = "Bottom Right"
+        self.enableHoverPopover = true
 
         // Diagnostics
         self.showDebugBorderTextFieldBounds = false
@@ -814,6 +822,7 @@ class UserPreferences: ObservableObject {
         self.underlineThickness = defaults.object(forKey: Keys.underlineThickness) as? Double ?? 2.0
         self.maxErrorsForUnderlines = defaults.object(forKey: Keys.maxErrorsForUnderlines) as? Int ?? 10
         self.indicatorPosition = defaults.string(forKey: Keys.indicatorPosition) ?? "Bottom Right"
+        self.enableHoverPopover = defaults.object(forKey: Keys.enableHoverPopover) as? Bool ?? true
 
         // Diagnostics
         self.showDebugBorderTextFieldBounds = defaults.object(forKey: Keys.showDebugBorderTextFieldBounds) as? Bool ?? false
@@ -1240,6 +1249,7 @@ class UserPreferences: ObservableObject {
         static let underlineThickness = "underlineThickness"
         static let maxErrorsForUnderlines = "maxErrorsForUnderlines"
         static let indicatorPosition = "indicatorPosition"
+        static let enableHoverPopover = "enableHoverPopover"
 
         // Diagnostics
         static let showDebugBorderTextFieldBounds = "showDebugBorderTextFieldBounds"

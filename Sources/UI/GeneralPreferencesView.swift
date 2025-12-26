@@ -266,7 +266,10 @@ struct GeneralPreferencesView: View {
                 }
                 .help("Choose the default position for new applications. Drag the indicator to customize per-app positions.")
 
-                Text("Default position for the floating error indicator badge. Positions are remembered per application after you drag the indicator.")
+                Toggle("Show popover on hover", isOn: $preferences.enableHoverPopover)
+                    .help("Show the suggestion popover when hovering over underlines or the error indicator")
+
+                Text("Default position for the floating error indicator badge. Positions are remembered per application after you drag the indicator. When hover is disabled, click the indicator or underlines to show suggestions.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             } header: {

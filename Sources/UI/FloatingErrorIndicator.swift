@@ -104,6 +104,8 @@ class FloatingErrorIndicator: NSPanel {
             self?.showErrors()
         }
         indicatorView.onHover = { [weak self] isHovering in
+            // Only trigger hover behavior if hover popover is enabled
+            guard UserPreferences.shared.enableHoverPopover else { return }
             if isHovering {
                 self?.showErrors()
             } else {
