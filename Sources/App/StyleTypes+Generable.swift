@@ -20,6 +20,7 @@ struct FMStyleSuggestion {
 
     @Guide(description: """
         The improved version of the phrase.
+        MUST be different from original - never return identical text.
         Must maintain the same meaning while improving style.
         """)
     let suggested: String
@@ -55,8 +56,21 @@ extension FMStyleSuggestion {
     ///   - style: The writing style that was used
     /// - Returns: A StyleSuggestionModel, or nil if the original text wasn't found or suggestion is invalid
     func toStyleSuggestionModel(in text: String, style: WritingStyle) -> StyleSuggestionModel? {
+        // Log the raw AI response for debugging
+        Logger.debug("Style suggestion - original: '\(original)', suggested: '\(suggested)', explanation: '\(explanation)'", category: Logger.analysis)
+
+        // Reject suggestions where original and suggested are identical (no actual change)
+        // This handles AI hallucinations where it detects an issue but doesn't provide a real fix
+        let normalizedOriginal = original.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedSuggested = suggested.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalizedOriginal == normalizedSuggested {
+            Logger.debug("Style suggestion rejected - original and suggested text are identical (AI hallucination)", category: Logger.analysis)
+            return nil
+        }
+
         // Find the position of the original text in the input
         guard let range = text.range(of: original) else {
+            Logger.debug("Style suggestion rejected - original text not found in input", category: Logger.analysis)
             return nil
         }
 
@@ -73,6 +87,13 @@ extension FMStyleSuggestion {
 
         // Build diff segments
         let diff = buildDiffSegments(original: original, suggested: suggested)
+
+        // Log diff segments for debugging
+        let diffDescription = diff.map { segment -> String in
+            let kindStr = segment.kind == .added ? "+" : (segment.kind == .removed ? "-" : "=")
+            return "[\(kindStr)'\(segment.text)']"
+        }.joined(separator: " ")
+        Logger.debug("Style suggestion diff: \(diffDescription)", category: Logger.analysis)
 
         return StyleSuggestionModel(
             id: UUID().uuidString,
