@@ -199,6 +199,7 @@ class UserPreferences: ObservableObject {
         "com.electron.dockerdesktop",       // Docker Desktop
         "com.apple.dt.Xcode",               // Xcode
         "com.grammarly.ProjectLlama",       // Grammarly
+        "org.languagetool.desktop",         // LanguageTool
         "org.inkscape.Inkscape",            // Inkscape
         "com.microsoft.OneDrive",           // OneDrive
         "com.microsoft.autoupdate2",        // Microsoft AutoUpdate
@@ -206,7 +207,11 @@ class UserPreferences: ObservableObject {
         "com.alienator88.Pearcleaner",       // Pearcleaner
         "com.apple.ActivityMonitor",         // Activity Monitor
         "com.apple.AppStore",                // App Store
-        "com.knollsoft.Rectangle"            // Rectangle
+        "com.knollsoft.Rectangle",           // Rectangle
+        // Developer tools
+        "com.apple.AccessibilityInspector",  // Accessibility Inspector
+        "com.apple.IconComposer",            // Icon Composer
+        "com.apple.helpviewer"               // Help Viewer
     ]
 
     /// Custom words to ignore
