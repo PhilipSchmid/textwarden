@@ -522,33 +522,38 @@ struct PopoverContentView: View {
                     validSuggestions.isEmpty
 
                 // Header row with category and close button
-                HStack(alignment: .center, spacing: 6) {
-                    // Category indicator dot
+                HStack(alignment: .center, spacing: 8) {
+                    // Category indicator dot with subtle glow
                     Circle()
                         .fill(colors.categoryColor(for: error.category))
-                        .frame(width: 6, height: 6)
+                        .frame(width: 8, height: 8)
+                        .shadow(color: colors.categoryColor(for: error.category).opacity(0.4), radius: 3, x: 0, y: 0)
 
                     // Category label
                     Text(formatCategory(error.category))
-                        .font(.system(size: captionTextSize, weight: .medium))
-                        .foregroundColor(colors.textSecondary)
+                        .font(.system(size: captionTextSize, weight: .semibold))
+                        .foregroundColor(colors.textPrimary.opacity(0.85))
                         .lineLimit(1)
 
                     Spacer()
 
-                    // Close button (no tooltip needed - X is universally understood)
+                    // Close button with hover effect
                     Button(action: { popover.hide() }) {
                         Image(systemName: "xmark")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundColor(colors.textSecondary)
-                            .frame(width: 16, height: 16)
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundColor(colors.textTertiary)
+                            .frame(width: 18, height: 18)
+                            .background(
+                                Circle()
+                                    .fill(colors.backgroundRaised.opacity(0.01))
+                            )
                     }
                     .buttonStyle(.plain)
                     .keyboardShortcut(.escape, modifiers: .option)
                 }
-                .padding(.horizontal, 10)
-                .padding(.top, 8)
-                .padding(.bottom, 4)
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
+                .padding(.bottom, 6)
 
                 // Content area
                 VStack(alignment: .leading, spacing: 2) {
@@ -591,18 +596,18 @@ struct PopoverContentView: View {
                         .padding(.vertical, 4)
 
                     } else if !validSuggestions.isEmpty {
-                        // Vertical list of clickable suggestions
+                        // Vertical list of clickable suggestions with Tahoe-style hover
                         ForEach(Array(validSuggestions.prefix(5).enumerated()), id: \.offset) { index, suggestion in
                             Button(action: { popover.applySuggestion(suggestion) }) {
                                 Text(suggestion)
                                     .font(.system(size: bodyTextSize, weight: .medium))
-                                    .foregroundColor(colors.primary)
+                                    .foregroundColor(hoveredSuggestion == suggestion ? colors.primary : colors.textPrimary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
+                                    .padding(.vertical, 6)
                                     .background(
-                                        RoundedRectangle(cornerRadius: 4)
-                                            .fill(hoveredSuggestion == suggestion ? colors.primary.opacity(0.2) : Color.clear)
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .fill(hoveredSuggestion == suggestion ? colors.primary.opacity(0.12) : Color.clear)
                                     )
                             }
                             .buttonStyle(.plain)
@@ -610,7 +615,9 @@ struct PopoverContentView: View {
                             .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
                             .help("Apply suggestion (⌘\(index + 1))")
                             .onHover { isHovered in
-                                hoveredSuggestion = isHovered ? suggestion : nil
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    hoveredSuggestion = isHovered ? suggestion : nil
+                                }
                             }
                         }
 
@@ -624,10 +631,7 @@ struct PopoverContentView: View {
                     }
                 }
 
-                // Action bar with icon buttons and navigation
-                Divider()
-                    .padding(.top, 4)
-
+                // Action bar with icon buttons and navigation (subtle background)
                 HStack(spacing: 6) {
                     // Ignore button
                     Button(action: { popover.dismissError() }) {
@@ -663,8 +667,8 @@ struct PopoverContentView: View {
 
                     Spacer()
 
-                    // Navigation controls
-                    if popover.totalItemCount > 1 {
+                    // Navigation controls - only shown when popover opened from indicator
+                    if popover.openedFromIndicator && popover.totalItemCount > 1 {
                         Text("\(popover.unifiedIndex + 1) of \(popover.totalItemCount)")
                             .font(.system(size: captionTextSize - 1, weight: .medium))
                             .foregroundColor(colors.textSecondary.opacity(0.7))
@@ -692,8 +696,17 @@ struct PopoverContentView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: 0,
+                        bottomLeadingRadius: 10,
+                        bottomTrailingRadius: 10,
+                        topTrailingRadius: 0
+                    )
+                    .fill(colors.backgroundElevated.opacity(0.5))
+                )
 
             } else {
                 Text("No errors to display")
@@ -702,13 +715,35 @@ struct PopoverContentView: View {
                     .accessibilityLabel("No grammar errors to display")
             }
         }
-        // Solid background with rounded corners (not using clipShape to allow tooltips to extend beyond)
+        // Tahoe-style background: subtle gradient with refined border
         .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(colors.background)
+            ZStack {
+                // Gradient background
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(
+                        LinearGradient(
+                            colors: [colors.backgroundGradientTop, colors.backgroundGradientBottom],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                // Subtle inner border for definition
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [
+                                colors.border.opacity(0.5),
+                                colors.border.opacity(0.2)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 0.5
+                    )
+            }
         )
         // Narrower width for compact design, AI rephrase needs more space
-        .frame(width: isAIRephraseError ? 300 : 200)
+        .frame(width: isAIRephraseError ? 300 : 220)
         .fixedSize(horizontal: false, vertical: true)
         .colorScheme(effectiveColorScheme)
         .accessibilityElement(children: .contain)

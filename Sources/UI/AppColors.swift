@@ -28,11 +28,11 @@ struct AppColors {
     /// Primary background (darkest in dark mode, lightest in light mode)
     var background: Color {
         colorScheme == .dark
-            ? Color(hue: 0, saturation: 0, brightness: 0.14)  // Slightly lighter for Sequoia feel
+            ? Color(hue: 0, saturation: 0, brightness: 0.14)  // Slightly lighter for Tahoe feel
             : Color(hue: 0, saturation: 0, brightness: 0.98)  // 98% lightness - very light
     }
 
-    /// Gradient background for elevated popovers (Sequoia style)
+    /// Gradient background for elevated popovers (Tahoe style)
     var backgroundGradientTop: Color {
         colorScheme == .dark
             ? Color(hue: 0, saturation: 0, brightness: 0.18)  // Lighter at top

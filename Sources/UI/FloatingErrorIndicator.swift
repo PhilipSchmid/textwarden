@@ -891,47 +891,16 @@ class FloatingErrorIndicator: NSPanel {
         // Get window frame for constraining popover position
         let windowFrame: CGRect? = monitoredElement.flatMap { getVisibleWindowFrame(for: $0) }
 
-        // Decide which popover to show based on mode
-        if mode.hasErrors && mode.hasStyleSuggestions {
-            // Both errors and style suggestions - use unified cycling
-            Logger.debug("FloatingErrorIndicator: Showing unified popover (errors=\(errors.count), styleSuggestions=\(styleSuggestions.count)) at \(position)", category: Logger.ui)
-            SuggestionPopover.shared.showUnified(
-                errors: errors,
-                styleSuggestions: styleSuggestions,
-                at: position,
-                constrainToWindow: windowFrame,
-                sourceText: sourceText
-            )
-        } else if mode.hasStyleSuggestions {
-            // Style suggestions only - show style popover
-            guard let firstSuggestion = styleSuggestions.first else {
-                Logger.debug("FloatingErrorIndicator: No style suggestions to show", category: Logger.ui)
-                return
-            }
-
-            Logger.debug("FloatingErrorIndicator: Showing style suggestion popover at \(position), constrainTo: \(String(describing: windowFrame))", category: Logger.ui)
-            SuggestionPopover.shared.show(
-                styleSuggestion: firstSuggestion,
-                allSuggestions: styleSuggestions,
-                at: position,
-                constrainToWindow: windowFrame
-            )
-        } else if mode.hasErrors {
-            // Errors only - show grammar popover
-            guard let firstError = errors.first else {
-                Logger.debug("FloatingErrorIndicator: No errors to show", category: Logger.ui)
-                return
-            }
-
-            Logger.debug("FloatingErrorIndicator: Showing grammar popover at \(position), constrainTo: \(String(describing: windowFrame))", category: Logger.ui)
-            SuggestionPopover.shared.show(
-                error: firstError,
-                allErrors: errors,
-                at: position,
-                constrainToWindow: windowFrame,
-                sourceText: sourceText
-            )
-        }
+        // Always use showUnified() from indicator - this sets openedFromIndicator=true
+        // which prevents auto-hide when mouse leaves the popover
+        Logger.debug("FloatingErrorIndicator: Showing unified popover (errors=\(errors.count), styleSuggestions=\(styleSuggestions.count)) at \(position)", category: Logger.ui)
+        SuggestionPopover.shared.showUnified(
+            errors: errors,
+            styleSuggestions: styleSuggestions,
+            at: position,
+            constrainToWindow: windowFrame,
+            sourceText: sourceText
+        )
     }
 
     /// Calculate popover position that points inward from the indicator

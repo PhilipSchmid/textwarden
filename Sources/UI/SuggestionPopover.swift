@@ -99,6 +99,10 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Incrementing this causes SwiftUI to treat the view as completely new
     @Published var rebuildCounter: Int = 0
 
+    /// Flag to indicate popover was opened from indicator click (not hover)
+    /// When true, the popover persists until explicitly dismissed and shows navigation controls
+    @Published private(set) var openedFromIndicator: Bool = false
+
     /// All unified items (grammar errors + style suggestions) sorted by position
     var unifiedItems: [PopoverItem] {
         var items: [PopoverItem] = []
@@ -195,6 +199,9 @@ class SuggestionPopover: NSObject, ObservableObject {
         // DEBUG: Log activation policy BEFORE showing
         Logger.debug("SuggestionPopover.show() - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
 
+        // Mark as hover-triggered - popover auto-hides when mouse leaves
+        self.openedFromIndicator = false
+
         self.mode = .grammarError
         self.allErrors = allErrors
         self.sourceText = sourceText
@@ -225,6 +232,9 @@ class SuggestionPopover: NSObject, ObservableObject {
     ///   - constrainToWindow: Optional window frame to constrain popover positioning
     func show(styleSuggestion suggestion: StyleSuggestionModel, allSuggestions: [StyleSuggestionModel], at position: CGPoint, constrainToWindow: CGRect? = nil) {
         Logger.debug("SuggestionPopover.show(styleSuggestion:) - showing style suggestion", category: Logger.ui)
+
+        // Mark as hover-triggered - popover auto-hides when mouse leaves
+        self.openedFromIndicator = false
 
         self.mode = .styleSuggestion
         self.currentStyleSuggestion = suggestion
@@ -300,6 +310,13 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     /// Schedule hiding of popover with a delay
     func scheduleHide() {
+        // Don't auto-hide popovers opened from the indicator
+        // They should stay visible until explicitly dismissed (click outside, X button, etc.)
+        guard !openedFromIndicator else {
+            Logger.debug("Popover: Skipping auto-hide - opened from indicator", category: Logger.ui)
+            return
+        }
+
         // Cancel any existing timer
         hideTimer?.invalidate()
 
@@ -341,6 +358,9 @@ class SuggestionPopover: NSObject, ObservableObject {
         currentStyleSuggestion = nil
         allStyleSuggestions = []
         currentStyleIndex = 0
+
+        // Reset indicator flag
+        openedFromIndicator = false
 
         hideTimer = nil
 
@@ -706,10 +726,12 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     // MARK: - Error Synchronization
 
-    /// Synchronize the popover's error list with the canonical error list from the coordinator.
-    /// Called after re-analysis to ensure the popover shows the correct error count.
-    /// - Parameter errors: The current canonical list of grammar errors
-    func syncErrors(_ errors: [GrammarErrorModel]) {
+    /// Synchronize the popover's error and style suggestion lists with the canonical lists from the coordinator.
+    /// Called after re-analysis to ensure the popover shows the correct counts.
+    /// - Parameters:
+    ///   - errors: The current canonical list of grammar errors
+    ///   - styleSuggestions: The current canonical list of style suggestions
+    func syncErrors(_ errors: [GrammarErrorModel], styleSuggestions: [StyleSuggestionModel] = []) {
         guard isVisible else { return }
 
         // Don't sync while actively processing a suggestion - the popover manages
@@ -719,23 +741,34 @@ class SuggestionPopover: NSObject, ObservableObject {
             return
         }
 
-        let previousCount = allErrors.count
+        let previousErrorCount = allErrors.count
+        let previousStyleCount = allStyleSuggestions.count
         allErrors = errors
+        allStyleSuggestions = styleSuggestions
 
         // Adjust currentIndex if needed
         if currentIndex >= allErrors.count {
             currentIndex = max(0, allErrors.count - 1)
         }
 
-        // Update currentError
-        if allErrors.isEmpty {
-            hide()
-        } else {
-            currentError = allErrors.indices.contains(currentIndex) ? allErrors[currentIndex] : allErrors.first
-            if previousCount != allErrors.count {
-                Logger.debug("Popover: Synced errors (\(previousCount) -> \(allErrors.count))", category: Logger.ui)
-                rebuildContentView()
+        // Update currentError if in grammar mode
+        if mode == .grammarError {
+            if allErrors.isEmpty && allStyleSuggestions.isEmpty {
+                hide()
+            } else if allErrors.isEmpty {
+                // Switch to style mode if no errors left but style suggestions exist
+                mode = .styleSuggestion
+                currentError = nil
+                currentStyleSuggestion = allStyleSuggestions.first
+            } else {
+                currentError = allErrors.indices.contains(currentIndex) ? allErrors[currentIndex] : allErrors.first
             }
+        }
+
+        let totalChanged = previousErrorCount != allErrors.count || previousStyleCount != allStyleSuggestions.count
+        if totalChanged {
+            Logger.debug("Popover: Synced items (errors: \(previousErrorCount) -> \(allErrors.count), style: \(previousStyleCount) -> \(allStyleSuggestions.count))", category: Logger.ui)
+            rebuildContentView()
         }
     }
 
@@ -915,6 +948,7 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     /// Accept current style suggestion
     func acceptStyleSuggestion() {
+        Logger.debug("Style popover: Accept clicked", category: Logger.ui)
         guard let suggestion = currentStyleSuggestion else { return }
 
         onAcceptStyleSuggestion?(suggestion)
@@ -993,6 +1027,9 @@ class SuggestionPopover: NSObject, ObservableObject {
     func showUnified(errors: [GrammarErrorModel], styleSuggestions: [StyleSuggestionModel], at position: CGPoint, constrainToWindow: CGRect? = nil, sourceText: String = "") {
         Logger.debug("SuggestionPopover.showUnified - errors=\(errors.count), styleSuggestions=\(styleSuggestions.count)", category: Logger.ui)
 
+        // Mark as opened from indicator - popover persists until explicitly dismissed
+        self.openedFromIndicator = true
+
         // Store both collections for unified cycling
         self.allErrors = errors
         self.allStyleSuggestions = styleSuggestions
@@ -1036,7 +1073,11 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Wraps around to the first item when at the end
     func nextUnifiedItem() {
         let items = unifiedItems
-        guard !items.isEmpty else { return }
+        Logger.debug("Popover: nextUnifiedItem called, items.count=\(items.count), current unifiedIndex=\(unifiedIndex)", category: Logger.ui)
+        guard !items.isEmpty else {
+            Logger.debug("Popover: nextUnifiedItem - no items, returning", category: Logger.ui)
+            return
+        }
 
         if unifiedIndex >= items.count - 1 {
             // Wrap around to beginning
@@ -1051,7 +1092,11 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Wraps around to the last item when at the beginning
     func previousUnifiedItem() {
         let items = unifiedItems
-        guard !items.isEmpty else { return }
+        Logger.debug("Popover: previousUnifiedItem called, items.count=\(items.count), current unifiedIndex=\(unifiedIndex)", category: Logger.ui)
+        guard !items.isEmpty else {
+            Logger.debug("Popover: previousUnifiedItem - no items, returning", category: Logger.ui)
+            return
+        }
 
         if unifiedIndex <= 0 {
             // Wrap around to end
@@ -1233,6 +1278,12 @@ class PopoverTrackingView: NSView {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    // CRITICAL: Accept first mouse click without requiring panel activation
+    // This allows buttons to be clicked immediately in non-activating panels
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        return true
     }
 
     private func setupTracking() {
@@ -1558,96 +1609,98 @@ struct StylePopoverContentView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let suggestion = popover.currentStyleSuggestion {
-                // Header with sparkle icon
-                HStack(alignment: .top, spacing: 16) {
-                    // Purple sparkle indicator for style
+                // Header row with category and close button (Tahoe style)
+                HStack(alignment: .center, spacing: 8) {
+                    // Purple indicator dot with subtle glow
                     Circle()
                         .fill(Color.purple)
-                        .frame(width: 6, height: 6)
-                        .padding(.top, 8)
-                        .accessibilityHidden(true) // Decorative
+                        .frame(width: 8, height: 8)
+                        .shadow(color: Color.purple.opacity(0.4), radius: 3, x: 0, y: 0)
+                        .accessibilityHidden(true)
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        // Header label only (no navigation here)
-                        Text("STYLE SUGGESTION")
-                            .font(.system(size: baseTextSize * 0.85, weight: .semibold, design: .rounded))
-                            .foregroundColor(colors.textSecondary)
-                            .tracking(0.6)
-                            .accessibilityAddTraits(.isHeader)
+                    // Header label
+                    Text("Style suggestion")
+                        .font(.system(size: baseTextSize * 0.85, weight: .semibold))
+                        .foregroundColor(colors.textPrimary.opacity(0.85))
+                        .accessibilityAddTraits(.isHeader)
 
-                        // Unified diff view (shows text once with removed/added highlighting)
-                        ScrollView {
-                            if !suggestion.diff.isEmpty {
-                                StyleDiffView(diff: suggestion.diff, showInline: true)
-                                    .font(.system(size: baseTextSize))
-                                    .textSelection(.enabled)
-                            } else {
-                                // Fallback for suggestions without diff data
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(suggestion.originalText)
-                                        .font(.system(size: baseTextSize))
-                                        .foregroundColor(.red.opacity(0.85))
-                                        .strikethrough(true, color: .red)
-                                    Text(suggestion.suggestedText)
-                                        .font(.system(size: baseTextSize))
-                                        .foregroundColor(.green)
-                                }
-                            }
-                        }
-                        .frame(maxHeight: 150)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityLabel("Change from: \(suggestion.originalText), to: \(suggestion.suggestedText)")
+                    Spacer()
 
-                        // Explanation
-                        Text(suggestion.explanation)
-                            .font(.system(size: baseTextSize))
-                            .foregroundColor(colors.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityLabel("Explanation: \(suggestion.explanation)")
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    // Close button - no VStack wrapper to prevent pushing content up
+                    // Close button
                     Button(action: { popover.hide() }) {
                         Image(systemName: "xmark")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(colors.textSecondary)
-                            .frame(width: 20, height: 20)
-                            .background(colors.backgroundRaised)
-                            .cornerRadius(4)
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundColor(colors.textTertiary)
+                            .frame(width: 18, height: 18)
                     }
                     .buttonStyle(.plain)
                     .help("Close (⌥Esc)")
                     .accessibilityLabel("Close style suggestion")
-                    .accessibilityHint("Double tap to close this suggestion")
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 18)
+                .padding(.horizontal, 14)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
 
-                // Bottom action bar
-                Divider()
-                    .background(colors.border)
+                // Content area
+                VStack(alignment: .leading, spacing: 10) {
+                    // Unified diff view (shows text once with removed/added highlighting)
+                    ScrollView {
+                        if !suggestion.diff.isEmpty {
+                            StyleDiffView(diff: suggestion.diff, showInline: true)
+                                .font(.system(size: baseTextSize))
+                                .textSelection(.enabled)
+                        } else {
+                            // Fallback for suggestions without diff data
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(suggestion.originalText)
+                                    .font(.system(size: baseTextSize))
+                                    .foregroundColor(.red.opacity(0.85))
+                                    .strikethrough(true, color: .red)
+                                Text(suggestion.suggestedText)
+                                    .font(.system(size: baseTextSize))
+                                    .foregroundColor(.green)
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 150)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Change from: \(suggestion.originalText), to: \(suggestion.suggestedText)")
 
-                HStack(spacing: 12) {
-                    // Accept button - Purple accent
+                    // Explanation
+                    Text(suggestion.explanation)
+                        .font(.system(size: baseTextSize * 0.9))
+                        .foregroundColor(colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityLabel("Explanation: \(suggestion.explanation)")
+                }
+                .padding(.horizontal, 14)
+                .padding(.bottom, 10)
+
+                // Bottom action bar (Tahoe style with rounded bottom corners)
+
+                HStack(spacing: 8) {
+                    // Accept button - subtle style with purple text
                     Button(action: { popover.acceptStyleSuggestion() }) {
-                        Label("Accept", systemImage: "checkmark.circle.fill")
-                            .font(.system(size: baseTextSize, weight: .medium))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 7)
-                                    .fill(Color.purple)
-                            )
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 11, weight: .semibold))
+                            Text("Accept")
+                                .font(.system(size: baseTextSize * 0.9, weight: .medium))
+                        }
+                        .foregroundColor(Color.purple)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.purple.opacity(0.12))
+                        )
                     }
                     .buttonStyle(.plain)
                     .fixedSize()
                     .help("Accept this suggestion")
                     .accessibilityLabel("Accept suggestion")
-                    .accessibilityHint("Double tap to accept and apply this style suggestion")
 
-                    // Reject menu
+                    // Reject menu - subtle style
                     Menu {
                         ForEach(SuggestionRejectionCategory.allCases, id: \.self) { category in
                             Button(category.displayName) {
@@ -1655,77 +1708,69 @@ struct StylePopoverContentView: View {
                             }
                         }
                     } label: {
-                        Label("Reject", systemImage: "xmark.circle")
-                            .font(.system(size: baseTextSize, weight: .medium))
-                            .foregroundColor(colors.textSecondary)
+                        HStack(spacing: 4) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 11, weight: .medium))
+                            Text("Reject")
+                                .font(.system(size: baseTextSize * 0.9, weight: .medium))
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 8, weight: .semibold))
+                        }
+                        .foregroundColor(colors.textSecondary)
                     }
                     .menuStyle(.borderlessButton)
                     .fixedSize()
                     .accessibilityLabel("Reject suggestion")
-                    .accessibilityHint("Double tap to choose a reason for rejecting this suggestion")
 
                     Spacer()
 
-                    // Navigation (show when multiple items total - grammar errors + style suggestions)
-                    if popover.totalItemCount > 1 {
+                    // Navigation controls - only shown when popover opened from indicator
+                    if popover.openedFromIndicator && popover.totalItemCount > 1 {
                         Text("\(popover.unifiedIndex + 1) of \(popover.totalItemCount)")
-                            .font(.system(size: baseTextSize * 0.85, weight: .semibold))
-                            .foregroundColor(
-                                Color(hue: 280/360, saturation: 0.65, brightness: effectiveColorScheme == .dark ? 0.80 : 0.50)
-                            )
+                            .font(.system(size: baseTextSize * 0.8))
+                            .foregroundColor(colors.textSecondary)
                             .accessibilityLabel("Suggestion \(popover.unifiedIndex + 1) of \(popover.totalItemCount)")
 
-                        HStack(spacing: 6) {
-                            Button(action: { popover.previousUnifiedItem() }) {
+                        HStack(spacing: 2) {
+                            Button(action: {
+                                Logger.debug("Style popover: Previous button action", category: Logger.ui)
+                                popover.previousUnifiedItem()
+                            }) {
                                 Image(systemName: "chevron.left")
-                                    .font(.system(size: 13, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .frame(width: 26, height: 26)
-                                    .background(
-                                        LinearGradient(
-                                            colors: [
-                                                Color(hue: 280/360, saturation: 0.70, brightness: effectiveColorScheme == .dark ? 0.60 : 0.55),
-                                                Color(hue: 280/360, saturation: 0.75, brightness: effectiveColorScheme == .dark ? 0.50 : 0.48)
-                                            ],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    .cornerRadius(6)
-                                    .shadow(color: Color.purple.opacity(0.2), radius: 2, x: 0, y: 1)
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(colors.textSecondary)
+                                    .frame(width: 18, height: 18)
                             }
                             .buttonStyle(.plain)
-                            .help("Previous")
-                            .accessibilityLabel("Previous suggestion")
-                            .accessibilityHint("Double tap to go to the previous suggestion")
+                            .keyboardShortcut(.upArrow, modifiers: [])
+                            .hoverTooltip("Previous")
 
-                            Button(action: { popover.nextUnifiedItem() }) {
+                            Button(action: {
+                                Logger.debug("Style popover: Next button action", category: Logger.ui)
+                                popover.nextUnifiedItem()
+                            }) {
                                 Image(systemName: "chevron.right")
-                                    .font(.system(size: 13, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .frame(width: 26, height: 26)
-                                    .background(
-                                        LinearGradient(
-                                            colors: [
-                                                Color(hue: 280/360, saturation: 0.70, brightness: effectiveColorScheme == .dark ? 0.60 : 0.55),
-                                                Color(hue: 280/360, saturation: 0.75, brightness: effectiveColorScheme == .dark ? 0.50 : 0.48)
-                                            ],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    .cornerRadius(6)
-                                    .shadow(color: Color.purple.opacity(0.2), radius: 2, x: 0, y: 1)
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(colors.textSecondary)
+                                    .frame(width: 18, height: 18)
                             }
                             .buttonStyle(.plain)
-                            .help("Next")
-                            .accessibilityLabel("Next suggestion")
-                            .accessibilityHint("Double tap to go to the next suggestion")
+                            .keyboardShortcut(.downArrow, modifiers: [])
+                            .hoverTooltip("Next")
                         }
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 16)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: 0,
+                        bottomLeadingRadius: 10,
+                        bottomTrailingRadius: 10,
+                        topTrailingRadius: 0
+                    )
+                    .fill(colors.backgroundElevated.opacity(0.5))
+                )
             } else {
                 Text("No style suggestions to display")
                     .foregroundColor(colors.textSecondary)
@@ -1733,14 +1778,35 @@ struct StylePopoverContentView: View {
                     .accessibilityLabel("No style suggestions to display")
             }
         }
-        // Apply Liquid Glass styling with purple tint (macOS 26-inspired)
-        .liquidGlass(
-            style: .regular,
-            tint: .purple,
-            cornerRadius: 14
+        // Tahoe-style background: subtle gradient with refined border
+        .background(
+            ZStack {
+                // Gradient background
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(
+                        LinearGradient(
+                            colors: [colors.backgroundGradientTop, colors.backgroundGradientBottom],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                // Subtle inner border for definition
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [
+                                colors.border.opacity(0.5),
+                                colors.border.opacity(0.2)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 0.5
+                    )
+            }
         )
         // Fixed width, vertical sizing to content
-        .frame(width: 420)
+        .frame(width: 380)
         .fixedSize(horizontal: false, vertical: true)
         .colorScheme(effectiveColorScheme)
     }
