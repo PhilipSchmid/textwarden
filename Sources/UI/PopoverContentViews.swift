@@ -8,6 +8,62 @@
 
 import SwiftUI
 
+// MARK: - Hover Tooltip
+
+/// Custom tooltip modifier for buttons in non-activating panels where .help() doesn't work
+struct HoverTooltipModifier: ViewModifier {
+    let text: String
+    @State private var isHovering = false
+    @State private var showTooltip = false
+    @State private var hoverTask: Task<Void, Never>?
+
+    func body(content: Content) -> some View {
+        content
+            .onHover { hovering in
+                isHovering = hovering
+                hoverTask?.cancel()
+
+                if hovering {
+                    // Show tooltip after delay
+                    hoverTask = Task {
+                        try? await Task.sleep(nanoseconds: 600_000_000) // 0.6s delay
+                        if !Task.isCancelled {
+                            await MainActor.run {
+                                showTooltip = true
+                            }
+                        }
+                    }
+                } else {
+                    showTooltip = false
+                }
+            }
+            .overlay(alignment: .top) {
+                if showTooltip {
+                    Text(text)
+                        .font(.system(size: 11))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.black.opacity(0.85))
+                        )
+                        .offset(y: -28)
+                        .fixedSize()
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                        .zIndex(1000)
+                }
+            }
+            .animation(.easeInOut(duration: 0.15), value: showTooltip)
+    }
+}
+
+extension View {
+    func hoverTooltip(_ text: String) -> some View {
+        modifier(HoverTooltipModifier(text: text))
+    }
+}
+
 // MARK: - Unified Content View
 
 /// Unified content view that switches between grammar and style suggestion content
@@ -480,7 +536,7 @@ struct PopoverContentView: View {
 
                     Spacer()
 
-                    // Close button
+                    // Close button (no tooltip needed - X is universally understood)
                     Button(action: { popover.hide() }) {
                         Image(systemName: "xmark")
                             .font(.system(size: 9, weight: .medium))
@@ -489,7 +545,6 @@ struct PopoverContentView: View {
                     }
                     .buttonStyle(.plain)
                     .keyboardShortcut(.escape, modifiers: .option)
-                    .help("Close")
                 }
                 .padding(.horizontal, 10)
                 .padding(.top, 8)
@@ -582,7 +637,7 @@ struct PopoverContentView: View {
                             .frame(width: 22, height: 22)
                     }
                     .buttonStyle(.plain)
-                    .help("Ignore")
+                    .hoverTooltip("Ignore")
 
                     // Ignore Rule button
                     Button(action: { popover.ignoreRule() }) {
@@ -592,7 +647,7 @@ struct PopoverContentView: View {
                             .frame(width: 22, height: 22)
                     }
                     .buttonStyle(.plain)
-                    .help("Ignore rule")
+                    .hoverTooltip("Ignore rule")
 
                     // Add to Dictionary (for spelling only)
                     if error.category == "Spelling" {
@@ -603,7 +658,7 @@ struct PopoverContentView: View {
                                 .frame(width: 22, height: 22)
                         }
                         .buttonStyle(.plain)
-                        .help("Add to dictionary")
+                        .hoverTooltip("Add to dictionary")
                     }
 
                     Spacer()
@@ -623,7 +678,7 @@ struct PopoverContentView: View {
                             }
                             .buttonStyle(.plain)
                             .keyboardShortcut(.upArrow, modifiers: [])
-                            .help("Previous")
+                            .hoverTooltip("Previous")
 
                             Button(action: { popover.nextUnifiedItem() }) {
                                 Image(systemName: "chevron.right")
@@ -633,7 +688,7 @@ struct PopoverContentView: View {
                             }
                             .buttonStyle(.plain)
                             .keyboardShortcut(.downArrow, modifiers: [])
-                            .help("Next")
+                            .hoverTooltip("Next")
                         }
                     }
                 }
@@ -647,9 +702,11 @@ struct PopoverContentView: View {
                     .accessibilityLabel("No grammar errors to display")
             }
         }
-        // Solid background (system shadow provided by NSPanel)
-        .background(colors.background)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        // Solid background with rounded corners (not using clipShape to allow tooltips to extend beyond)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(colors.background)
+        )
         // Narrower width for compact design, AI rephrase needs more space
         .frame(width: isAIRephraseError ? 300 : 200)
         .fixedSize(horizontal: false, vertical: true)
