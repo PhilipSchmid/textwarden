@@ -59,6 +59,12 @@ class ErrorOverlayWindow: NSPanel {
     /// Callback when hover ends
     var onHoverEnd: (() -> Void)?
 
+    /// Callback when user clicks on an error underline (includes window frame for smart positioning)
+    var onErrorClick: ((GrammarErrorModel, CGPoint, CGRect?) -> Void)?
+
+    /// Global event monitor for mouse clicks
+    private var clickMonitor: Any?
+
     // MARK: - Initialization
 
     init() {
@@ -95,8 +101,9 @@ class ErrorOverlayWindow: NSPanel {
         self.contentView = view
         self.underlineView = view
 
-        // Setup global mouse monitor for hover detection
+        // Setup global mouse monitors for hover detection and click handling
         setupGlobalMouseMonitor()
+        setupGlobalClickMonitor()
     }
 
     override var canBecomeKey: Bool {
@@ -199,6 +206,57 @@ class ErrorOverlayWindow: NSPanel {
         }
 
         Logger.debug("ErrorOverlay: Global mouse monitor set up", category: Logger.ui)
+    }
+
+    /// Setup global click monitor for click-to-show-popover
+    private func setupGlobalClickMonitor() {
+        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            guard let self = self else { return }
+
+            // Only process if window is visible
+            guard self.isCurrentlyVisible else { return }
+
+            let mouseLocation = NSEvent.mouseLocation
+
+            // Check if click is within our window bounds
+            guard self.frame.contains(mouseLocation) else { return }
+
+            // Convert to window-local coordinates (flipped for UnderlineView)
+            let windowOrigin = self.frame.origin
+            let windowHeight = self.frame.height
+            let cocoaLocalY = mouseLocation.y - windowOrigin.y
+            let flippedLocalY = windowHeight - cocoaLocalY
+            let localPoint = CGPoint(
+                x: mouseLocation.x - windowOrigin.x,
+                y: flippedLocalY
+            )
+
+            Logger.trace("ErrorOverlay: Click at screen: \(mouseLocation), window-local (flipped): \(localPoint)", category: Logger.ui)
+
+            // Check if clicking on any underline
+            guard let underlineView = self.underlineView else { return }
+
+            if let clickedUnderline = underlineView.underlines.first(where: { $0.bounds.contains(localPoint) }) {
+                Logger.debug("ErrorOverlay: Clicked on error at bounds: \(clickedUnderline.bounds)", category: Logger.ui)
+
+                // Convert underline bounds to screen coordinates for popup positioning
+                let underlineBounds = clickedUnderline.drawingBounds
+                let localX = underlineBounds.midX
+                let localY = underlineBounds.maxY
+
+                let screenLocation = CGPoint(
+                    x: windowOrigin.x + localX,
+                    y: windowOrigin.y + (windowHeight - localY)
+                )
+
+                Logger.debug("ErrorOverlay: Click popup anchor - underline bounds: \(underlineBounds), screen: \(screenLocation)", category: Logger.ui)
+
+                let appWindowFrame = self.getApplicationWindowFrame()
+                self.onErrorClick?(clickedUnderline.error, screenLocation, appWindowFrame)
+            }
+        }
+
+        Logger.debug("ErrorOverlay: Global click monitor set up", category: Logger.ui)
     }
 
     // MARK: - Overlay Updates
@@ -761,6 +819,10 @@ class ErrorOverlayWindow: NSPanel {
         if let monitor = mouseMonitor {
             NSEvent.removeMonitor(monitor)
             mouseMonitor = nil
+        }
+        if let monitor = clickMonitor {
+            NSEvent.removeMonitor(monitor)
+            clickMonitor = nil
         }
     }
 
