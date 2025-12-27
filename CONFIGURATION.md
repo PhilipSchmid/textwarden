@@ -27,18 +27,6 @@ This guide explains all the settings available in TextWarden and how they affect
 
 **Recommendation:** Enable this for always-on grammar checking without having to remember to launch the app.
 
-### Analysis Delay
-
-**What it does:** Controls how long TextWarden waits after you stop typing before analyzing your text.
-
-**Options:**
-- **Instant (50ms)** - Fastest feedback, may feel intrusive while typing quickly
-- **Fast (150ms)** - Good balance for most users
-- **Normal (300ms)** - Default, waits for natural pauses
-- **Relaxed (500ms)** - Best for slower typists or if you find suggestions distracting
-
-**Recommendation:** Start with Normal. If you find underlines appearing while you're still composing a thought, increase the delay.
-
 ---
 
 ## Updates

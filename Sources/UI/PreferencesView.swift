@@ -94,67 +94,7 @@ struct SpellCheckingView: View {
             // MARK: Grammar Categories Group
             FilteringPreferencesContent(preferences: preferences)
 
-            // MARK: Harper Settings Group
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .center) {
-                        Text("Analysis delay:")
-
-                        Spacer()
-
-                        AnalysisDelayTextField(preferences: preferences)
-
-                        Text("ms")
-                            .foregroundColor(.secondary)
-                    }
-
-                    Text("Delay before analyzing text after you stop typing")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    if preferences.analysisDelayMs < 10 {
-                        HStack(spacing: 4) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.orange)
-                            Text("Value too low - recommended minimum is 10ms")
-                                .font(.caption2)
-                                .foregroundColor(.orange)
-                        }
-                    } else if preferences.analysisDelayMs > 500 {
-                        HStack(spacing: 4) {
-                            Image(systemName: "info.circle.fill")
-                                .foregroundColor(.blue)
-                            Text("High values may feel less responsive")
-                                .font(.caption2)
-                                .foregroundColor(.blue)
-                        }
-                    } else {
-                        Text("Recommended: 10-100ms for responsiveness, 200-500ms to reduce CPU usage")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            } header: {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "gearshape.2.fill")
-                            .font(.title2)
-                            .foregroundColor(.accentColor)
-                        Text("Harper Settings")
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                    }
-
-                    Text("Configure the Harper grammar engine performance and language options")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Text("Performance")
-                        .font(.headline)
-                        .padding(.top, 8)
-                }
-            }
-
+            // MARK: Language Settings
             Section {
                 Picker("English dialect:", selection: $preferences.selectedDialect) {
                     ForEach(UserPreferences.availableDialects, id: \.self) { dialect in

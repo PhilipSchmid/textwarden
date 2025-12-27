@@ -390,9 +390,8 @@ struct ApplicationState: Codable {
 
 /// Complete settings dump for diagnostic reports
 struct SettingsDump: Codable {
-    // Launch & Analysis
+    // Launch
     let autoStart: Bool
-    let analysisDelayMs: Int
 
     // Language & Grammar
     let selectedDialect: String
@@ -433,7 +432,6 @@ struct SettingsDump: Codable {
     static func from(_ preferences: UserPreferences, shortcuts: [String: String] = [:]) -> SettingsDump {
         return SettingsDump(
             autoStart: LaunchAtLogin.isEnabled,
-            analysisDelayMs: preferences.analysisDelayMs,
             selectedDialect: preferences.selectedDialect,
             enabledCategories: Array(preferences.enabledCategories).sorted(),
             enableLanguageDetection: preferences.enableLanguageDetection,

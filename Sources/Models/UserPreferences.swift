@@ -238,13 +238,6 @@ class UserPreferences: ObservableObject {
         }
     }
 
-    /// Analysis delay in milliseconds (for performance tuning)
-    @Published var analysisDelayMs: Int {
-        didSet {
-            defaults.set(analysisDelayMs, forKey: Keys.analysisDelayMs)
-        }
-    }
-
     /// Enabled grammar check categories (e.g., "Spelling", "Grammar", "Style")
     @Published var enabledCategories: Set<String> {
         didSet {
@@ -676,7 +669,6 @@ class UserPreferences: ObservableObject {
         self.customDictionary = []
         self.ignoredRules = []
         self.ignoredErrorTexts = []
-        self.analysisDelayMs = 20
         self.enabledCategories = UserPreferences.allCategories // All categories enabled by default
         self.openInForeground = false
 
@@ -784,8 +776,6 @@ class UserPreferences: ObservableObject {
            let set = try? decoder.decode(Set<String>.self, from: data) {
             self.ignoredErrorTexts = set
         }
-
-        self.analysisDelayMs = defaults.object(forKey: Keys.analysisDelayMs) as? Int ?? 20
 
         if let data = defaults.data(forKey: Keys.enabledCategories),
            let set = try? decoder.decode(Set<String>.self, from: data) {
@@ -1197,7 +1187,6 @@ class UserPreferences: ObservableObject {
         // as it's useful to remember which apps have been used
         customDictionary = []
         ignoredRules = []
-        analysisDelayMs = 20
         enabledCategories = UserPreferences.allCategories
         selectedDialect = "American"
         enableInternetAbbreviations = true
@@ -1233,7 +1222,6 @@ class UserPreferences: ObservableObject {
         static let customDictionary = "customDictionary"
         static let ignoredRules = "ignoredRules"
         static let ignoredErrorTexts = "ignoredErrorTexts"
-        static let analysisDelayMs = "analysisDelayMs"
         static let enabledCategories = "enabledCategories"
         static let openInForeground = "openInForeground"
 
