@@ -180,6 +180,8 @@ TextWarden is a side project built during evenings and weekends. If you find it 
 
 <a href="https://buymeacoffee.com/textwarden"><img src="Assets/bmc-button-black.png" alt="Buy Me a Coffee" height="40"></a>
 
+**Tip:** If you have an open issue or feature request, include the GitHub link in your message - supporters' requests get prioritized!
+
 ## Troubleshooting
 
 See the [Troubleshooting Guide](TROUBLESHOOTING.md) for help with common problems and how to collect diagnostic information.
