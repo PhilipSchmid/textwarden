@@ -222,7 +222,7 @@ TextWarden uses the macOS Accessibility API and works with most applications. Vi
 - **Feature requests**: Use [GitHub Discussions](https://github.com/philipschmid/textwarden/discussions)
 - **Questions**: Check existing discussions or start a new one
 
-For support beyond what's available through GitHub, contact [sales@textwarden.io](mailto:sales@textwarden.io).
+For enterprise licensing arrangements or if best-effort community support isn't sufficient, contact [sales@textwarden.io](mailto:sales@textwarden.io).
 
 ## License
 
