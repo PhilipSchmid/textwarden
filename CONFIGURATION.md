@@ -347,7 +347,6 @@ These settings are found in **Preferences → Diagnostics**.
 1. Check that TextWarden is running (look for the menu bar icon)
 2. Verify the app isn't paused (icon should not show a pause indicator)
 3. Ensure the current application isn't in the paused list
-4. Try increasing the analysis delay if you're typing very quickly
 
 **Too many suggestions:**
 1. Disable grammar categories that don't apply to your writing
