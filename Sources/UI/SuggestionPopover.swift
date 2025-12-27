@@ -842,6 +842,9 @@ class SuggestionPopover: NSObject, ObservableObject {
                 // Safe access with bounds check
                 self.currentError = self.allErrors.indices.contains(self.currentIndex) ? self.allErrors[self.currentIndex] : nil
 
+                // Notify about current error change (for updating locked highlight)
+                self.onCurrentErrorChanged?(self.currentError)
+
                 if self.currentError == nil {
                     self.hide()
                 } else {
