@@ -137,7 +137,12 @@ TextWarden is a privacy-focused, local-first tool with certain trade-offs:
 
 ### Looking for More?
 
-If you need cross-platform support (Windows, Linux, iOS, Android), grammar checking in languages other than English, or a more polished experience with commercial support, consider [Grammarly](https://www.grammarly.com). They offer an excellent product with broad application support and a refined user experience that has been developed over many years. TextWarden focuses specifically on privacy and local processing, which comes with the trade-offs mentioned above.
+If you need cross-platform support (Windows, Linux, iOS, Android), grammar checking in languages other than English, or a more polished experience with commercial support, consider:
+
+- **[Grammarly](https://www.grammarly.com)** - Excellent product with broad application support and a refined user experience developed over many years
+- **[LanguageTool](https://languagetool.org/)** - Open-source grammar checker with support for 30+ languages, available as browser extensions and desktop apps
+
+TextWarden focuses specifically on privacy and local processing, which comes with the trade-offs mentioned above.
 
 ## Privacy
 
@@ -153,9 +158,17 @@ The TextWarden logo was created with [Recraft](https://www.recraft.ai/) - an ama
 
 ## Credits
 
-Built on excellent open source projects:
+### Harper - The Grammar Engine
 
-- [Harper](https://github.com/Automattic/harper) - Fast, privacy-focused grammar checker
+TextWarden is powered by [Harper](https://writewithharper.com/), an open-source grammar checker built in Rust by Automattic. Harper is what makes TextWarden fast and private - it runs entirely on your device without sending text to any server.
+
+If you need grammar checking **inside your browser** with full support for rich text editors, form fields, and web apps, check out [Harper's Chrome Extension](https://writewithharper.com/). Unlike TextWarden (which uses macOS Accessibility APIs from outside the browser), Harper's extension runs directly in the browser with full DOM and JavaScript access - this means better integration with complex web applications like Google Docs, Gmail compose, and other rich text editors.
+
+- **Harper Website**: [writewithharper.com](https://writewithharper.com/)
+- **Harper Source Code**: [github.com/Automattic/harper](https://github.com/Automattic/harper)
+
+### Other Open Source Projects
+
 - [swift-bridge](https://github.com/chinedufn/swift-bridge) - Rust/Swift interoperability
 - [whichlang](https://github.com/quickwit-oss/whichlang) - Language detection
 - [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) - Global keyboard shortcuts for macOS
