@@ -15,6 +15,11 @@ class OutlookContentParser: ContentParser {
     let bundleIdentifier: String = "com.microsoft.Outlook"
     let parserName: String = "Microsoft Outlook"
 
+    /// Configuration from AppRegistry
+    private var config: AppConfiguration {
+        AppRegistry.shared.configuration(for: bundleIdentifier)
+    }
+
     func detectUIContext(element: AXUIElement) -> String? {
         if OutlookContentParser.isComposeElement(element) {
             return "compose"
@@ -23,16 +28,19 @@ class OutlookContentParser: ContentParser {
     }
 
     func estimatedFontSize(context: String?) -> CGFloat {
-        // Outlook compose typically uses 11-12pt
-        return 12.0
+        return config.fontConfig.defaultSize
     }
 
     func spacingMultiplier(context: String?) -> CGFloat {
-        return 1.0
+        return config.fontConfig.spacingMultiplier
     }
 
     func horizontalPadding(context: String?) -> CGFloat {
-        return 4.0
+        return config.horizontalPadding
+    }
+
+    func fontFamily(context: String?) -> String? {
+        return config.fontConfig.fontFamily
     }
 
     /// Custom text extraction for Microsoft Outlook
