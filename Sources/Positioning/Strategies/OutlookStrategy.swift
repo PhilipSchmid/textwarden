@@ -11,6 +11,7 @@
 //
 //  Unlike Slack's editor, Outlook's AX APIs return valid bounds for both element types.
 //  We use AXBoundsForRange directly, with tree traversal as a fallback if needed.
+//  Returns nil on failure to let FontMetricsStrategy handle fallback via ContentParser config.
 //
 
 import AppKit
@@ -33,14 +34,6 @@ class OutlookStrategy: GeometryProvider {
     var tierPriority: Int { 5 }
 
     private static let outlookBundleID = "com.microsoft.Outlook"
-
-    // Outlook's default compose font (Aptos, 12pt with 1.5x spacing)
-    private static let outlookFontSize: CGFloat = 12.0
-    private static let outlookSpacingMultiplier: CGFloat = 1.5
-
-    // Underline visual constants
-    private static let underlineHeight: CGFloat = 2.0
-    private static let xAdjustment: CGFloat = 0.0
 
     // TextPart cache to avoid rebuilding for each error
     private var cachedTextParts: [OutlookTextPart] = []
@@ -285,35 +278,17 @@ class OutlookStrategy: GeometryProvider {
         }
 
         if textParts.isEmpty {
-            Logger.debug("OutlookStrategy: No TextParts found - falling back to font metrics", category: Logger.ui)
-            return calculateFontMetricsFallback(
-                errorRange: errorRange,
-                element: element,
-                text: text,
-                elementFrame: elementFrame,
-                primaryScreenHeight: primaryScreenHeight
-            )
+            Logger.debug("OutlookStrategy: No TextParts found - letting chain continue to FontMetricsStrategy", category: Logger.ui)
+            return nil
         }
 
         // Find TextPart(s) that contain the error range
         guard let bounds = findBoundsForRange(errorRange, in: textParts, fullText: text, element: element) else {
-            Logger.debug("OutlookStrategy: Could not find TextPart for range \(errorRange)", category: Logger.ui)
-            return calculateFontMetricsFallback(
-                errorRange: errorRange,
-                element: element,
-                text: text,
-                elementFrame: elementFrame,
-                primaryScreenHeight: primaryScreenHeight
-            )
+            Logger.debug("OutlookStrategy: Could not find TextPart for range \(errorRange) - letting chain continue", category: Logger.ui)
+            return nil
         }
 
-        // Apply adjustments
-        let quartzBounds = CGRect(
-            x: bounds.origin.x + Self.xAdjustment,
-            y: bounds.origin.y,
-            width: bounds.width,
-            height: bounds.height
-        )
+        let quartzBounds = bounds
 
         // Validate bounds are within element
         let elementBottom = elementFrame.origin.y + elementFrame.height
@@ -464,7 +439,9 @@ class OutlookStrategy: GeometryProvider {
     }
 
     /// Calculate bounds for error within a single TextPart
-    private func calculateSubElementBounds(targetRange: NSRange, in part: OutlookTextPart, element: AXUIElement) -> CGRect {
+    /// Uses AXBoundsForRange on the child element for pixel-perfect positioning
+    /// Returns nil if AX query fails - let FontMetricsStrategy handle fallback
+    private func calculateSubElementBounds(targetRange: NSRange, in part: OutlookTextPart, element: AXUIElement) -> CGRect? {
         let offsetInPart = targetRange.location - part.range.location
         let errorLength = min(targetRange.location + targetRange.length, part.range.location + part.range.length) - targetRange.location
 
@@ -476,13 +453,9 @@ class OutlookStrategy: GeometryProvider {
             }
         }
 
-        // Fallback: use font measurement
-        Logger.debug("OutlookStrategy: AXBoundsForRange failed, falling back to font measurement", category: Logger.ui)
-        return calculateSubElementBoundsWithFontMeasurement(
-            offsetInPart: offsetInPart,
-            errorLength: errorLength,
-            part: part
-        )
+        // AXBoundsForRange failed - return nil to let chain continue to FontMetricsStrategy
+        Logger.debug("OutlookStrategy: AXBoundsForRange on child failed - letting chain continue", category: Logger.ui)
+        return nil
     }
 
     /// Get bounds for a range within a child element using AXBoundsForRange
@@ -512,121 +485,6 @@ class OutlookStrategy: GeometryProvider {
         }
 
         return bounds
-    }
-
-    // Font measurement fallback - use Outlook's font configuration
-    private static let fontScaleFactor: CGFloat = 0.97
-
-    /// Fallback calculation using font measurement
-    private func calculateSubElementBoundsWithFontMeasurement(
-        offsetInPart: Int,
-        errorLength: Int,
-        part: OutlookTextPart
-    ) -> CGRect {
-        let font = NSFont(name: "Aptos", size: Self.outlookFontSize) ?? NSFont.systemFont(ofSize: Self.outlookFontSize)
-        let attrs: [NSAttributedString.Key: Any] = [.font: font]
-
-        // Calculate X offset using font measurement
-        let textBeforeError: String
-        if let startIdx = part.text.index(part.text.startIndex, offsetBy: offsetInPart, limitedBy: part.text.endIndex) {
-            textBeforeError = String(part.text[..<startIdx])
-        } else {
-            textBeforeError = ""
-        }
-        let measuredXOffset = (textBeforeError as NSString).size(withAttributes: attrs).width
-        let xOffset = measuredXOffset * Self.outlookSpacingMultiplier * Self.fontScaleFactor
-
-        // Calculate error width
-        let errorText: String
-        if let startIdx = part.text.index(part.text.startIndex, offsetBy: offsetInPart, limitedBy: part.text.endIndex),
-           let endIdx = part.text.index(part.text.startIndex, offsetBy: min(offsetInPart + errorLength, part.text.count), limitedBy: part.text.endIndex) {
-            errorText = String(part.text[startIdx..<endIdx])
-        } else {
-            errorText = ""
-        }
-        let measuredErrorWidth = (errorText as NSString).size(withAttributes: attrs).width
-        let errorWidth = max(measuredErrorWidth * Self.outlookSpacingMultiplier * Self.fontScaleFactor, 20.0)
-
-        Logger.debug("OutlookStrategy: Font measurement fallback - offset=\(offsetInPart) xOffset=\(String(format: "%.1f", xOffset))", category: Logger.ui)
-
-        return CGRect(
-            x: part.frame.origin.x + xOffset,
-            y: part.frame.origin.y,
-            width: errorWidth,
-            height: part.frame.height
-        )
-    }
-
-    // MARK: - Font Metrics Fallback
-
-    /// Fallback when tree traversal fails completely
-    private func calculateFontMetricsFallback(
-        errorRange: NSRange,
-        element: AXUIElement,
-        text: String,
-        elementFrame: CGRect,
-        primaryScreenHeight: CGFloat
-    ) -> GeometryResult? {
-
-        let font = NSFont(name: "Aptos", size: Self.outlookFontSize) ?? NSFont.systemFont(ofSize: Self.outlookFontSize)
-        let attrs: [NSAttributedString.Key: Any] = [.font: font]
-
-        // Find line start for X calculation
-        let lineStartIndex = findLineStart(in: text, at: errorRange.location)
-
-        guard let lineStartIdx = text.index(text.startIndex, offsetBy: lineStartIndex, limitedBy: text.endIndex),
-              let errorStartIdx = text.index(text.startIndex, offsetBy: errorRange.location, limitedBy: text.endIndex) else {
-            return GeometryResult.unavailable(reason: "Invalid string index")
-        }
-
-        let linePrefix = String(text[lineStartIdx..<errorStartIdx])
-        let linePrefixWidth = (linePrefix as NSString).size(withAttributes: attrs).width * Self.outlookSpacingMultiplier
-
-        // Calculate error width
-        let errorEndIndex = min(errorRange.location + errorRange.length, text.count)
-        guard let errorEndIdx = text.index(text.startIndex, offsetBy: errorEndIndex, limitedBy: text.endIndex) else {
-            return GeometryResult.unavailable(reason: "Invalid error range")
-        }
-        let errorText = String(text[errorStartIdx..<errorEndIdx])
-        let errorWidth = max((errorText as NSString).size(withAttributes: attrs).width * Self.outlookSpacingMultiplier, 20.0)
-
-        // Calculate Y from line number
-        let lineNumber = countNewlines(in: text, before: errorRange.location)
-        let lineHeight: CGFloat = 22.0  // Outlook default line height
-        let topPadding: CGFloat = 8.0
-        let horizontalPadding: CGFloat = 20.0  // Outlook compose has left margin with sparkle icon
-
-        let quartzX = elementFrame.origin.x + horizontalPadding + linePrefixWidth + Self.xAdjustment
-        let quartzY = elementFrame.origin.y + topPadding + (CGFloat(lineNumber) * lineHeight) + lineHeight - Self.underlineHeight
-
-        let quartzBounds = CGRect(x: quartzX, y: quartzY, width: errorWidth, height: Self.underlineHeight)
-
-        // Validate
-        let elementBottom = elementFrame.origin.y + elementFrame.height
-        guard quartzBounds.origin.y >= elementFrame.origin.y - 5 &&
-              quartzBounds.origin.y <= elementBottom + 5 else {
-            return GeometryResult.unavailable(reason: "Y position outside element bounds")
-        }
-
-        // Convert to Cocoa
-        let cocoaY = primaryScreenHeight - quartzBounds.origin.y - quartzBounds.height
-        let cocoaBounds = CGRect(x: quartzBounds.origin.x, y: cocoaY, width: quartzBounds.width, height: quartzBounds.height)
-
-        guard CoordinateMapper.validateBounds(cocoaBounds) else {
-            return GeometryResult.unavailable(reason: "Invalid final bounds")
-        }
-
-        Logger.debug("OutlookStrategy: Body SUCCESS (font-metrics) - bounds: \(cocoaBounds)", category: Logger.ui)
-
-        return GeometryResult(
-            bounds: cocoaBounds,
-            confidence: GeometryConstants.mediumConfidence,
-            strategy: strategyName,
-            metadata: [
-                "api": "font-metrics-fallback",
-                "element_type": "AXTextArea"
-            ]
-        )
     }
 
     // MARK: - AX Helpers
@@ -668,30 +526,5 @@ class OutlookStrategy: GeometryProvider {
         var frame = CGRect.zero
         AXValueGetValue(fRef as! AXValue, .cgRect, &frame)
         return frame
-    }
-
-    // MARK: - Line Calculation Helpers
-
-    private func countNewlines(in text: String, before index: Int) -> Int {
-        guard index > 0 else { return 0 }
-        let searchEnd = min(index, text.count)
-        guard let searchEndIdx = text.index(text.startIndex, offsetBy: searchEnd, limitedBy: text.endIndex) else {
-            return 0
-        }
-        let prefix = text[..<searchEndIdx]
-        return prefix.filter { $0 == "\n" }.count
-    }
-
-    private func findLineStart(in text: String, at index: Int) -> Int {
-        guard index > 0 else { return 0 }
-        let searchEnd = min(index, text.count)
-        guard let searchEndIdx = text.index(text.startIndex, offsetBy: searchEnd, limitedBy: text.endIndex) else {
-            return 0
-        }
-        let prefix = text[..<searchEndIdx]
-        if let lastNewline = prefix.lastIndex(of: "\n") {
-            return text.distance(from: text.startIndex, to: lastNewline) + 1
-        }
-        return 0
     }
 }
