@@ -674,7 +674,10 @@ struct PopoverContentView: View {
                             .foregroundColor(colors.textSecondary.opacity(0.7))
 
                         HStack(spacing: 2) {
-                            Button(action: { popover.previousUnifiedItem() }) {
+                            Button(action: {
+                                Logger.trace("Grammar popover: Previous button clicked", category: Logger.ui)
+                                popover.previousUnifiedItem()
+                            }) {
                                 Image(systemName: "chevron.left")
                                     .font(.system(size: 10, weight: .semibold))
                                     .foregroundColor(colors.textSecondary)
@@ -684,7 +687,10 @@ struct PopoverContentView: View {
                             .keyboardShortcut(.upArrow, modifiers: [])
                             .hoverTooltip("Previous")
 
-                            Button(action: { popover.nextUnifiedItem() }) {
+                            Button(action: {
+                                Logger.trace("Grammar popover: Next button clicked", category: Logger.ui)
+                                popover.nextUnifiedItem()
+                            }) {
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 10, weight: .semibold))
                                     .foregroundColor(colors.textSecondary)
