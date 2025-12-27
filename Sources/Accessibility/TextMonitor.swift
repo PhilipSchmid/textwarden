@@ -185,6 +185,24 @@ class TextMonitor: ObservableObject {
         pendingExtractionElement = nil
     }
 
+    /// Clear current monitoring and hide overlays without fully stopping
+    /// Used when focus changes to an invalid element (e.g., sent message in WebEx)
+    private func clearMonitoringAndHideOverlays() {
+        // Remove observer from current element
+        if let observer = observer, let previousElement = monitoredElement {
+            AXObserverRemoveNotification(observer, previousElement, kAXValueChangedNotification as CFString)
+        }
+        monitoredElement = nil
+        currentText = ""
+
+        // Notify with empty text to hide overlays
+        if let context = currentContext {
+            onTextChange?("", context)
+        }
+
+        Logger.debug("TextMonitor: Cleared monitoring and hid overlays", category: Logger.accessibility)
+    }
+
     /// Monitor the focused UI element
     private func monitorFocusedElement(in appElement: AXUIElement, retryAttempt: Int = 0) {
         let maxAttempts = RetryConfig.accessibilityAPI.maxAttempts
@@ -279,6 +297,15 @@ class TextMonitor: ObservableObject {
 
             // Note: PowerPoint Notes section uses standard AXTextArea and is found by normal monitoring
             // Slide text boxes are not accessible via macOS Accessibility API
+
+            // For apps with explicit content filters (WebEx, Outlook, etc.), don't monitor
+            // invalid elements - clear overlays and return instead
+            if let bundleID = currentContext?.bundleIdentifier,
+               !isValidContentElement(axElement, bundleID: bundleID) {
+                Logger.debug("TextMonitor: Invalid element for \(bundleID) - clearing and not monitoring", category: Logger.accessibility)
+                clearMonitoringAndHideOverlays()
+                return
+            }
 
             Logger.debug("TextMonitor: No suitable field found, will monitor focused element anyway", category: Logger.accessibility)
         }
@@ -448,6 +475,17 @@ class TextMonitor: ObservableObject {
                         return
                     }
                 }
+            }
+        }
+
+        // App-specific element filtering via ContentParser
+        // Apps like WebEx need to filter out non-compose elements (sent messages, etc.)
+        if let bundleID = currentContext?.bundleIdentifier {
+            let parser = ContentParserFactory.shared.parser(for: bundleID)
+            if !parser.shouldMonitorElement(element) {
+                Logger.debug("TextMonitor: Parser rejected element for \(bundleID) - clearing monitoring", category: Logger.accessibility)
+                clearMonitoringAndHideOverlays()
+                return
             }
         }
 
@@ -762,6 +800,29 @@ private func axObserverCallback(
         if notificationName == kAXValueChangedNotification as String {
             Logger.debug("axObserverCallback: Value changed - checking extraction mode", category: Logger.accessibility)
 
+            // CRITICAL: Verify the notification came from the element we're monitoring
+            // Some apps (like WebEx) fire AXValueChanged from non-compose elements (sent messages)
+            // when user clicks on them. We must ignore these to avoid analyzing wrong text.
+            guard let monitored = monitor.monitoredElement else {
+                Logger.debug("axObserverCallback: No monitored element, ignoring value change", category: Logger.accessibility)
+                return
+            }
+
+            // Check if notification element matches monitored element
+            // Note: AXUIElement equality compares by reference, but elements from the same
+            // UI component should match. For safety, also validate it's a valid content element.
+            let notificationElementMatches = CFEqual(element, monitored)
+
+            if !notificationElementMatches {
+                // Additional check: is this a valid content element for this app?
+                // This catches cases where user clicks on non-compose areas
+                if !monitor.isValidContentElement(element, bundleID: bundleID) {
+                    Logger.debug("axObserverCallback: Ignoring AXValueChanged from invalid element (not monitored element, not valid content)", category: Logger.accessibility)
+                    return
+                }
+                Logger.trace("axObserverCallback: AXValueChanged from different but valid element", category: Logger.accessibility)
+            }
+
             // Check if this app uses deferred extraction (for slow AX APIs like Outlook)
             let appConfig = AppRegistry.shared.configuration(for: bundleID)
             let shouldDefer = appConfig.features.defersTextExtraction ||
@@ -1075,7 +1136,7 @@ extension TextMonitor {
 
     /// Check if element is valid content for the specific app (not toolbar/UI element)
     /// Some apps like Word return toolbar elements as focused even though they're technically editable
-    private func isValidContentElement(_ element: AXUIElement, bundleID: String) -> Bool {
+    func isValidContentElement(_ element: AXUIElement, bundleID: String) -> Bool {
         // Word-specific check: filter out toolbar/ribbon elements
         if bundleID == "com.microsoft.Word" {
             let isDocument = WordContentParser.isDocumentElement(element)
@@ -1102,6 +1163,9 @@ extension TextMonitor {
             }
             return isCompose
         }
+
+        // Note: WebEx filtering is handled by ContentParser.shouldMonitorElement()
+        // which is called earlier in monitorElement()
 
         // For other apps, assume the element is valid
         return true

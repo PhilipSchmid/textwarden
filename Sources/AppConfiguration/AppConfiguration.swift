@@ -32,6 +32,7 @@ enum ParserType {
     case word
     case powerpoint
     case outlook
+    case webex
 }
 
 // MARK: - Strategy Type
@@ -40,6 +41,7 @@ enum ParserType {
 enum StrategyType: String, CaseIterable {
     case slack      // Dedicated strategy for Slack's Quill editor
     case outlook    // Dedicated strategy for Microsoft Outlook compose
+    case webex      // Dedicated strategy for Cisco WebEx chat
     case chromium   // Selection-based marker range positioning for Chromium apps (Slack, Teams, etc.)
     case textMarker
     case rangeBounds

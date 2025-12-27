@@ -97,6 +97,7 @@ final class AppRegistry {
         register(.word)
         register(.powerpoint)
         register(.outlook)
+        register(.webex)
         // Note: .default is not registered, used as fallback
         // Note: Terminal apps are not supported (hidden by default in UserPreferences)
     }
@@ -530,6 +531,37 @@ extension AppConfiguration {
             defersTextExtraction: true,  // Defer AX calls to prevent freeze with Copilot
             requiresFrameValidation: true,  // Copilot chat panel changes frame dynamically
             hasTextMarkerIndexOffset: true  // Copilot has invisible characters causing index mismatch
+        )
+    )
+
+    // MARK: - Cisco WebEx
+
+    static let webex = AppConfiguration(
+        identifier: "webex",
+        displayName: "Cisco WebEx",
+        bundleIDs: ["Cisco-Systems.Spark"],
+        category: .native,
+        parserType: .webex,
+        fontConfig: FontConfig(
+            defaultSize: 14,
+            fontFamily: nil,  // System font
+            spacingMultiplier: 1.0
+        ),
+        horizontalPadding: 8,
+        // WebEx uses standard Cocoa text views - AXBoundsForRange works directly
+        preferredStrategies: [.webex],
+        features: AppFeatures(
+            visualUnderlinesEnabled: true,
+            textReplacementMethod: .standard,
+            requiresTypingPause: true,  // Wait for typing pause to avoid flagging incomplete words
+            supportsFormattedText: false,
+            childElementTraversal: false,
+            delaysAXNotifications: false,
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: false,
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
         )
     )
 

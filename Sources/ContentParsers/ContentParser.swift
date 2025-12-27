@@ -137,6 +137,13 @@ protocol ContentParser {
     /// Default is false - only apps with known issues should enable this.
     var hasEmbeddedImagePositioningIssues: Bool { get }
 
+    /// Check if the given element should be monitored for text changes.
+    /// Used to filter out non-editable areas like sent messages in chat apps.
+    /// Default returns true - override for apps that need to filter certain elements.
+    /// - Parameter element: The AXUIElement to check
+    /// - Returns: True if the element should be monitored, false to skip it
+    func shouldMonitorElement(_ element: AXUIElement) -> Bool
+
     /// Custom bounds calculation for apps with non-standard accessibility APIs.
     /// Override this for apps where standard AXBoundsForRange doesn't work correctly
     /// (e.g., Apple Mail's WebKit which needs single-char queries and coordinate conversion).
@@ -206,6 +213,11 @@ extension ContentParser {
     /// Default: no embedded image positioning issues
     var hasEmbeddedImagePositioningIssues: Bool {
         return false
+    }
+
+    /// Default: monitor all elements (no filtering)
+    func shouldMonitorElement(_ element: AXUIElement) -> Bool {
+        return true
     }
 
     /// Default: no custom bounds calculation, return nil to use standard API

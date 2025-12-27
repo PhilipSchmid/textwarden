@@ -41,6 +41,7 @@ class PositionResolver {
             // Tier: Precise
             SlackStrategy(),  // Dedicated strategy for Slack - highest priority
             OutlookStrategy(),  // Dedicated strategy for Outlook compose
+            WebExStrategy(),  // Dedicated strategy for Cisco WebEx chat
             ChromiumStrategy(),
             TextMarkerStrategy(),
             RangeBoundsStrategy(),

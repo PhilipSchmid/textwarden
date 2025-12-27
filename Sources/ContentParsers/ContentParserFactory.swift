@@ -32,7 +32,8 @@ final class ContentParserFactory {
             .mail: MailContentParser(),
             .word: WordContentParser(),
             .powerpoint: PowerPointContentParser(),
-            .outlook: OutlookContentParser()
+            .outlook: OutlookContentParser(),
+            .webex: WebExContentParser()
         ]
 
         Logger.info("ContentParserFactory: Initialized with \(parsersByType.count) parser types", category: Logger.analysis)
