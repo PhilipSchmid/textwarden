@@ -18,23 +18,7 @@ class RangeBoundsStrategy: GeometryProvider {
     var tier: StrategyTier { .precise }
     var tierPriority: Int { 20 }
 
-    func canHandle(element: AXUIElement, bundleID: String) -> Bool {
-        // Microsoft Outlook: AXTextArea (compose body) returns garbage from AXBoundsForRange
-        // (2px width at wrong position), but AXTextField (subject) works fine.
-        // Reject AXTextArea for Outlook to avoid broken underlines in the body.
-        if bundleID == "com.microsoft.Outlook" {
-            var roleRef: CFTypeRef?
-            AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
-            if let role = roleRef as? String, role == kAXTextAreaRole as String {
-                Logger.debug("RangeBoundsStrategy: Skipping Outlook AXTextArea (known broken AX API)", category: Logger.accessibility)
-                return false
-            }
-        }
-
-        // Works for most native macOS apps
-        // May fail for Electron apps, but serves as reliable fallback
-        return true
-    }
+    // Uses default canHandle (returns true) - works for most native macOS apps
 
     func calculateGeometry(
         errorRange: NSRange,

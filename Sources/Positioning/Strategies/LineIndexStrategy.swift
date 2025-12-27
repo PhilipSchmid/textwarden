@@ -20,10 +20,7 @@ class LineIndexStrategy: GeometryProvider {
     var tier: StrategyTier { .reliable }
     var tierPriority: Int { 10 }
 
-    func canHandle(element: AXUIElement, bundleID: String) -> Bool {
-        // Universal approach - fails gracefully if APIs aren't supported
-        return true
-    }
+    // Uses default canHandle (returns true) - universal approach, fails gracefully
 
     func calculateGeometry(
         errorRange: NSRange,

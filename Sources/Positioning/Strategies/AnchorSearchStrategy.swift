@@ -24,10 +24,7 @@ class AnchorSearchStrategy: GeometryProvider {
     // Maximum distance to probe from error position
     private let maxProbeDistance = 50
 
-    func canHandle(element: AXUIElement, bundleID: String) -> Bool {
-        // Universal strategy
-        return true
-    }
+    // Uses default canHandle (returns true) - universal strategy
 
     func calculateGeometry(
         errorRange: NSRange,

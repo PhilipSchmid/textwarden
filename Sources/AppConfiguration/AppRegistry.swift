@@ -514,14 +514,13 @@ extension AppConfiguration {
             spacingMultiplier: 1.5  // Aptos font renders wider than system font metrics
         ),
         horizontalPadding: 20,  // Outlook compose has left margin with sparkle icon
-        // Outlook's subject field (AXTextField) supports visual underlines via RangeBounds.
-        // The compose body (AXTextArea) may have issues with parameterized AX queries like Word,
-        // but we enable underlines and let the strategy system handle failures gracefully.
-        // Text replacement needs browser-style (selection + keyboard paste) like other Office apps.
-        preferredStrategies: [.rangeBounds, .textMarker, .lineIndex, .fontMetrics],
+        // Outlook uses a dedicated strategy that handles both subject field (AXTextField) and
+        // compose body (AXTextArea). AXBoundsForRange works on both, with tree traversal fallback.
+        // Text replacement needs browser-style to preserve formatting (AXSetValue strips rich text).
+        preferredStrategies: [.outlook],
         features: AppFeatures(
             visualUnderlinesEnabled: true,
-            textReplacementMethod: .browserStyle,  // Standard AX setValue doesn't work
+            textReplacementMethod: .browserStyle,  // AXSetValue works but strips formatting
             requiresTypingPause: false,
             supportsFormattedText: true,
             childElementTraversal: false,

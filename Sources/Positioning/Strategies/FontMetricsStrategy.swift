@@ -18,10 +18,7 @@ class FontMetricsStrategy: GeometryProvider {
     var tier: StrategyTier { .estimated }
     var tierPriority: Int { 10 }
 
-    func canHandle(element: AXUIElement, bundleID: String) -> Bool {
-        // Always available as estimation fallback
-        return true
-    }
+    // Uses default canHandle (returns true) - always available as fallback
 
     func calculateGeometry(
         errorRange: NSRange,

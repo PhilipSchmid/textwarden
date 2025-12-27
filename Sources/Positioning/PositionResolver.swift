@@ -40,6 +40,7 @@ class PositionResolver {
         let strategies: [GeometryProvider] = [
             // Tier: Precise
             SlackStrategy(),  // Dedicated strategy for Slack - highest priority
+            OutlookStrategy(),  // Dedicated strategy for Outlook compose
             ChromiumStrategy(),
             TextMarkerStrategy(),
             RangeBoundsStrategy(),

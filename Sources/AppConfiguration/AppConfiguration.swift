@@ -39,6 +39,7 @@ enum ParserType {
 /// Identifies a positioning strategy
 enum StrategyType: String, CaseIterable {
     case slack      // Dedicated strategy for Slack's Quill editor
+    case outlook    // Dedicated strategy for Microsoft Outlook compose
     case chromium   // Selection-based marker range positioning for Chromium apps (Slack, Teams, etc.)
     case textMarker
     case rangeBounds
