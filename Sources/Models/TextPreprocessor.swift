@@ -62,6 +62,75 @@ struct TextPreprocessor {
         return ranges
     }
 
+    // MARK: - List Marker Exclusion
+
+    /// Exclude list markers and their alignment spacing from grammar checking.
+    ///
+    /// Handles various list formats found in chat apps and text editors:
+    /// - Bullet markers: •, ◦, ▪, ▸, -, *, +
+    /// - Numbered lists: 1. 2. 10. or 1) 2) or (1) (2)
+    /// - Letter lists: a. b. A. B. or a) b) or (a) (b)
+    /// - Roman numerals: i. ii. iii. I. II. III.
+    /// - Checkboxes: [ ] [x] [X]
+    ///
+    /// Matches markers at line start (with optional leading whitespace for indented lists)
+    /// followed by whitespace (space or tab) used for alignment.
+    static func excludeListMarkers(from text: String) -> [ExclusionRange] {
+        var ranges: [ExclusionRange] = []
+
+        // Unicode bullet characters - synced with GrammarEngine/src/language_filter.rs is_bullet_char()
+        // U+2022 • BULLET, U+25E6 ◦ WHITE BULLET, U+25AA ▪ BLACK SMALL SQUARE
+        // U+25B8 ▸ BLACK RIGHT-POINTING SMALL TRIANGLE, U+25BA ► BLACK RIGHT-POINTING POINTER
+        // U+2023 ‣ TRIANGULAR BULLET, U+2043 ⁃ HYPHEN BULLET
+        // U+2013 – EN DASH, U+2014 — EM DASH (used as bullets in some apps)
+        // U+25CB ○ WHITE CIRCLE, U+25CF ● BLACK CIRCLE
+        let bulletChars = "•◦▪▸►‣⁃○●–—\\-\\*\\+"
+
+        let patterns = [
+            // Bullet markers: bullet char + whitespace (space or tab)
+            // Matches: "• item", "- item", "* item", "	• item" (indented)
+            "^[ \\t]*[\(bulletChars)][ \\t]+",
+
+            // Numbered lists: digits + period/paren + whitespace
+            // Matches: "1. item", "10. item", "1) item", "(1) item"
+            "^[ \\t]*\\(?\\d{1,3}[.)][ \\t]+",
+
+            // Letter lists: single letter + period/paren + whitespace
+            // Matches: "a. item", "A. item", "a) item", "(a) item"
+            "^[ \\t]*\\(?[a-zA-Z][.)][ \\t]+",
+
+            // Roman numerals (lowercase): i, ii, iii, iv, v, vi, vii, viii, ix, x, xi, xii
+            // Matches: "i. item", "iv. item", "xii. item"
+            "^[ \\t]*(?:x{0,1}i{1,3}|i?v|vi{0,3}|ix|x{1,2}i{0,2})[.)\\t][ \\t]+",
+
+            // Roman numerals (uppercase): I, II, III, IV, V, VI, VII, VIII, IX, X, XI, XII
+            "^[ \\t]*(?:X{0,1}I{1,3}|I?V|VI{0,3}|IX|X{1,2}I{0,2})[.)\\t][ \\t]+",
+
+            // Checkbox markers: [ ] or [x] or [X] followed by space
+            // Matches: "[ ] todo", "[x] done", "[X] done"
+            "^[ \\t]*\\[[xX ]\\][ \\t]+",
+        ]
+
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.anchorsMatchLines]) else {
+                continue
+            }
+
+            let nsRange = NSRange(text.startIndex..., in: text)
+            let matches = regex.matches(in: text, options: [], range: nsRange)
+
+            for match in matches {
+                if let range = Range(match.range, in: text) {
+                    let location = text.distance(from: text.startIndex, to: range.lowerBound)
+                    let length = text.distance(from: range.lowerBound, to: range.upperBound)
+                    ranges.append(ExclusionRange(location: location, length: length))
+                }
+            }
+        }
+
+        return ranges
+    }
+
     // MARK: - File Path Exclusion
 
     /// Exclude file paths from grammar checking
@@ -103,14 +172,15 @@ struct TextPreprocessor {
 
         cleanedText = excludeInlineCode(from: cleanedText)
 
-        // Track URL ranges (don't remove, just mark for exclusion)
+        // Track ranges to exclude from error reporting (don't remove, just mark)
         let urlRanges = excludeURLs(from: text)
         let filePathRanges = excludeFilePaths(from: text)
+        let listMarkerRanges = excludeListMarkers(from: text)
 
         return PreprocessedText(
             original: text,
             cleaned: cleanedText,
-            exclusionRanges: urlRanges + filePathRanges
+            exclusionRanges: urlRanges + filePathRanges + listMarkerRanges
         )
     }
 

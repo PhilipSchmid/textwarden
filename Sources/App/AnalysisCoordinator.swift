@@ -1449,6 +1449,25 @@ class AnalysisCoordinator: ObservableObject {
             }
         }
 
+        // Filter out general exclusions (list markers) for all apps
+        let listMarkerExclusions = TextPreprocessor.excludeListMarkers(from: sourceText)
+        if !listMarkerExclusions.isEmpty {
+            let beforeCount = filteredErrors.count
+            filteredErrors = filteredErrors.filter { error in
+                let errorRange = error.start..<error.end
+                for exclusion in listMarkerExclusions {
+                    if exclusion.overlaps(errorRange) {
+                        return false
+                    }
+                }
+                return true
+            }
+            let filteredCount = beforeCount - filteredErrors.count
+            if filteredCount > 0 {
+                Logger.debug("AnalysisCoordinator: Filtered \(filteredCount) errors in list markers", category: Logger.analysis)
+            }
+        }
+
         // Filter out Slack-specific exclusions using Quill Delta
         // This detects: inline code, code blocks, blockquotes, links, mentions, channels
         if let context = monitoredContext,
