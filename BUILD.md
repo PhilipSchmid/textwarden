@@ -6,7 +6,7 @@ The Xcode project is **fully configured** and ready to build. No manual setup re
 
 ### What's Been Configured:
 
-- ✅ Xcode project with macOS App target (macOS 15.7+)
+- ✅ Xcode project with macOS App target (macOS 26+)
 - ✅ Source files organized in `Sources/` directory
 - ✅ Rust grammar engine in `GrammarEngine/`
 - ✅ Build script phase: "Build Rust Grammar Engine" (runs before Swift compilation)

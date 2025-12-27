@@ -295,10 +295,10 @@ TextWarden supports global keyboard shortcuts that work in any application.
 
 | Action | Default | Description |
 |--------|---------|-------------|
-| Toggle TextWarden | ⌘⌃T | Enable/disable grammar checking globally |
-| Run Style Check | ⌘⌃S | Trigger manual style analysis |
-| Fix All Obvious | ⌘⌃A | Apply all single-suggestion fixes at once |
-| Show Suggestions | ⌘⌃G | Toggle the suggestion popover |
+| Toggle TextWarden | ⌥⌃T | Enable/disable grammar checking globally |
+| Run Style Check | ⌥⌃S | Trigger manual style analysis |
+| Fix All Obvious | ⌥⌃A | Apply all single-suggestion fixes at once |
+| Show Suggestions | ⌥⌃G | Toggle the suggestion popover |
 | Accept Suggestion | Tab | Apply the current suggestion |
 | Dismiss Suggestion | ⌥Esc | Dismiss without applying |
 | Previous Suggestion | ⌥← | Navigate to previous error |
@@ -317,7 +317,7 @@ TextWarden supports global keyboard shortcuts that work in any application.
 **Tip:** Choose shortcuts that don't conflict with your most-used applications.
 
 **Known Conflicts:**
-- **Apple Mail**: `⌘⌃A` (Fix All Obvious) conflicts with Mail's "Archive" shortcut. Consider using `⌘⌥A` or another combination if you use Mail frequently.
+- **Apple Mail**: `⌥⌃A` (Fix All Obvious) may conflict with some application shortcuts. Consider customizing if needed.
 
 ---
 

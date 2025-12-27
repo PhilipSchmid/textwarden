@@ -82,7 +82,7 @@ Beyond rule-based grammar checking, TextWarden offers intelligent style suggesti
 
 Style analysis can be triggered in two ways:
 
-- **Keyboard shortcut**: Press `Cmd+Control+S` (customizable) to run a style check on demand
+- **Keyboard shortcut**: Press `Option+Control+S` (customizable) to run a style check on demand
 - **Automatic**: Enable automatic style checking in Settings to analyze text as you type
 
 When using the keyboard shortcut with text selected, only the selected portion is analyzed. Without a selection, the entire text field is analyzed.
@@ -147,7 +147,9 @@ TextWarden never sends your text anywhere. All grammar checking and style analys
 
 The majority of TextWarden's code was generated using Anthropic's Claude, with human oversight, review, and testing throughout the development process.
 
-I used [VoiceInk](https://tryvoiceink.com?atp=Ylsxyh&sub1=tw) extensively while developing TextWarden - it saved me countless hours by letting me dictate code comments, documentation, and commit messages instead of typing everything. Like TextWarden, it runs entirely locally on your Mac. (Referral link - helps support TextWarden's development)
+I used [VoiceInk](https://tryvoiceink.com?atp=Ylsxyh&sub1=tw) extensively while developing TextWarden - it saved me countless hours by letting me dictate AI prompts, documentation, and commit messages instead of typing everything. Like TextWarden, it runs entirely locally on your Mac. (Referral link - helps support TextWarden's development)
+
+The TextWarden logo was created with [Recraft](https://www.recraft.ai/) - an amazing AI image generation tool with background removal, image vectorization, and more. Highly recommended for creating app icons and design assets.
 
 ## Credits
 
@@ -158,6 +160,7 @@ Built on excellent open source projects:
 - [whichlang](https://github.com/quickwit-oss/whichlang) - Language detection
 - [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) - Global keyboard shortcuts for macOS
 - [LaunchAtLogin-Modern](https://github.com/sindresorhus/LaunchAtLogin-Modern) - Launch at login functionality
+- [ConfettiSwiftUI](https://github.com/simibac/ConfettiSwiftUI) - Confetti animations
 
 ## Support the Project
 
