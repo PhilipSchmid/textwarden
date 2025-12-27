@@ -13,7 +13,7 @@
 //  2. Build a TextPart map: character ranges → visual frames + element references
 //  3. For each error, find the overlapping TextPart(s)
 //  4. Query AXBoundsForRange on the child element with local range offset
-//  5. Fall back to font measurement only if AX query fails
+//  5. Return nil on failure to let FontMetricsStrategy handle fallback via ContentParser config
 //
 
 import AppKit
@@ -36,13 +36,6 @@ class SlackStrategy: GeometryProvider {
     var tierPriority: Int { 0 }
 
     private static let slackBundleID = "com.tinyspeck.slackmacgap"
-
-    // Slack's fixed font size (verified via AXAttributedStringForRange)
-    private static let slackFontSize: CGFloat = 15.0
-
-    // Underline visual constants
-    private static let underlineHeight: CGFloat = 2.0  // Height for fallback underline rect
-    private static let xAdjustment: CGFloat = 0.0      // No adjustment needed - AXBoundsForRange is accurate
 
     // TextPart cache to avoid rebuilding for each error
     private var cachedTextParts: [TextPart] = []
@@ -104,26 +97,14 @@ class SlackStrategy: GeometryProvider {
         }
 
         if textParts.isEmpty {
-            Logger.debug("SlackStrategy: No TextParts found - falling back to element-based calculation", category: Logger.ui)
-            return calculateFallbackGeometry(
-                errorRange: originalRange,
-                element: element,
-                text: text,
-                elementFrame: elementFrame,
-                primaryScreenHeight: primaryScreenHeight
-            )
+            Logger.debug("SlackStrategy: No TextParts found - letting chain continue to FontMetricsStrategy", category: Logger.ui)
+            return nil
         }
 
         // STEP 2: Find TextPart(s) that contain the error range
         guard let bounds = findBoundsForRange(originalRange, in: textParts, fullText: text, element: element) else {
-            Logger.debug("SlackStrategy: Could not find TextPart for range \(originalRange)", category: Logger.ui)
-            return calculateFallbackGeometry(
-                errorRange: originalRange,
-                element: element,
-                text: text,
-                elementFrame: elementFrame,
-                primaryScreenHeight: primaryScreenHeight
-            )
+            Logger.debug("SlackStrategy: Could not find TextPart for range \(originalRange) - letting chain continue", category: Logger.ui)
+            return nil
         }
 
         Logger.debug("SlackStrategy: TextPart bounds (Quartz): \(bounds)", category: Logger.ui)
@@ -131,12 +112,7 @@ class SlackStrategy: GeometryProvider {
         // STEP 3: Use full text bounds (not just underline height)
         // This allows the highlight to cover the full word when hovering
         // The overlay will draw the underline at the bottom of these bounds
-        let quartzBounds = CGRect(
-            x: bounds.origin.x + Self.xAdjustment,
-            y: bounds.origin.y,
-            width: bounds.width,
-            height: bounds.height
-        )
+        let quartzBounds = bounds
 
         // STEP 4: Validate bounds are within element
         let elementBottom = elementFrame.origin.y + elementFrame.height
@@ -294,8 +270,8 @@ class SlackStrategy: GeometryProvider {
 
     /// Calculate bounds for error within a single TextPart
     /// Uses AXBoundsForRange on the child element for pixel-perfect positioning
-    /// Falls back to font measurement if the API call fails
-    private func calculateSubElementBounds(targetRange: NSRange, in part: TextPart, element: AXUIElement) -> CGRect {
+    /// Returns nil if AX query fails - let FontMetricsStrategy handle fallback
+    private func calculateSubElementBounds(targetRange: NSRange, in part: TextPart, element: AXUIElement) -> CGRect? {
         let offsetInPart = targetRange.location - part.range.location
         let errorLength = min(targetRange.location + targetRange.length, part.range.location + part.range.length) - targetRange.location
 
@@ -309,13 +285,9 @@ class SlackStrategy: GeometryProvider {
             }
         }
 
-        // Fallback: use font measurement (should rarely be needed now)
-        Logger.debug("SlackStrategy: AXBoundsForRange failed, falling back to font measurement", category: Logger.ui)
-        return calculateSubElementBoundsWithFontMeasurement(
-            offsetInPart: offsetInPart,
-            errorLength: errorLength,
-            part: part
-        )
+        // AXBoundsForRange failed - return nil to let chain continue to FontMetricsStrategy
+        Logger.debug("SlackStrategy: AXBoundsForRange on child failed - letting chain continue", category: Logger.ui)
+        return nil
     }
 
     /// Get bounds for a range within a child element using AXBoundsForRange
@@ -345,117 +317,6 @@ class SlackStrategy: GeometryProvider {
         }
 
         return bounds
-    }
-
-    // Font measurement fallback - used when AXBoundsForRange fails
-    private static let fontScaleFactor: CGFloat = 0.97
-
-    /// Fallback calculation using font measurement
-    private func calculateSubElementBoundsWithFontMeasurement(
-        offsetInPart: Int,
-        errorLength: Int,
-        part: TextPart
-    ) -> CGRect {
-        let font = NSFont.systemFont(ofSize: Self.slackFontSize)
-        let attrs: [NSAttributedString.Key: Any] = [.font: font]
-
-        // Calculate X offset using font measurement with fixed scale factor
-        let textBeforeError: String
-        if let startIdx = part.text.index(part.text.startIndex, offsetBy: offsetInPart, limitedBy: part.text.endIndex) {
-            textBeforeError = String(part.text[..<startIdx])
-        } else {
-            textBeforeError = ""
-        }
-        let measuredXOffset = (textBeforeError as NSString).size(withAttributes: attrs).width
-        let xOffset = measuredXOffset * Self.fontScaleFactor
-
-        // Calculate error width similarly
-        let errorText: String
-        if let startIdx = part.text.index(part.text.startIndex, offsetBy: offsetInPart, limitedBy: part.text.endIndex),
-           let endIdx = part.text.index(part.text.startIndex, offsetBy: min(offsetInPart + errorLength, part.text.count), limitedBy: part.text.endIndex) {
-            errorText = String(part.text[startIdx..<endIdx])
-        } else {
-            errorText = ""
-        }
-        let measuredErrorWidth = (errorText as NSString).size(withAttributes: attrs).width
-        let errorWidth = max(measuredErrorWidth * Self.fontScaleFactor, 20.0)
-
-        Logger.debug("SlackStrategy: Font measurement fallback - offset=\(offsetInPart) xOffset=\(String(format: "%.1f", xOffset))", category: Logger.ui)
-
-        return CGRect(
-            x: part.frame.origin.x + xOffset,
-            y: part.frame.origin.y,
-            width: errorWidth,
-            height: part.frame.height
-        )
-    }
-
-    // MARK: - Fallback Calculation
-
-    /// Fallback when TextPart tree traversal fails (e.g., empty editor)
-    private func calculateFallbackGeometry(
-        errorRange: NSRange,
-        element: AXUIElement,
-        text: String,
-        elementFrame: CGRect,
-        primaryScreenHeight: CGFloat
-    ) -> GeometryResult? {
-
-        let font = NSFont.systemFont(ofSize: Self.slackFontSize)
-        let attrs: [NSAttributedString.Key: Any] = [.font: font]
-
-        // Find line start for X calculation
-        let lineStartIndex = findLineStart(in: text, at: errorRange.location)
-
-        guard let lineStartIdx = text.index(text.startIndex, offsetBy: lineStartIndex, limitedBy: text.endIndex),
-              let errorStartIdx = text.index(text.startIndex, offsetBy: errorRange.location, limitedBy: text.endIndex) else {
-            return GeometryResult.unavailable(reason: "Invalid string index")
-        }
-
-        let linePrefix = String(text[lineStartIdx..<errorStartIdx])
-        let linePrefixWidth = (linePrefix as NSString).size(withAttributes: attrs).width
-
-        // Calculate error width
-        let errorEndIndex = min(errorRange.location + errorRange.length, text.count)
-        guard let errorEndIdx = text.index(text.startIndex, offsetBy: errorEndIndex, limitedBy: text.endIndex) else {
-            return GeometryResult.unavailable(reason: "Invalid error range")
-        }
-        let errorText = String(text[errorStartIdx..<errorEndIdx])
-        let errorWidth = max((errorText as NSString).size(withAttributes: attrs).width, 20.0)
-
-        // Calculate Y from line number
-        let lineNumber = countNewlines(in: text, before: errorRange.location)
-        let lineHeight: CGFloat = 22.0
-        let topPadding: CGFloat = 8.0
-
-        let quartzX = elementFrame.origin.x + linePrefixWidth + Self.xAdjustment
-        let quartzY = elementFrame.origin.y + topPadding + (CGFloat(lineNumber) * lineHeight) + lineHeight - Self.underlineHeight
-
-        let quartzBounds = CGRect(x: quartzX, y: quartzY, width: errorWidth, height: Self.underlineHeight)
-
-        // Validate
-        let elementBottom = elementFrame.origin.y + elementFrame.height
-        guard quartzBounds.origin.y >= elementFrame.origin.y - 5 &&
-              quartzBounds.origin.y <= elementBottom + 5 else {
-            return GeometryResult.unavailable(reason: "Y position outside element bounds")
-        }
-
-        // Convert to Cocoa
-        let cocoaY = primaryScreenHeight - quartzBounds.origin.y - quartzBounds.height
-        let cocoaBounds = CGRect(x: quartzBounds.origin.x, y: cocoaY, width: quartzBounds.width, height: quartzBounds.height)
-
-        guard CoordinateMapper.validateBounds(cocoaBounds) else {
-            return GeometryResult.unavailable(reason: "Invalid final bounds")
-        }
-
-        Logger.debug("SlackStrategy: SUCCESS (fallback) - bounds: \(cocoaBounds)", category: Logger.ui)
-
-        return GeometryResult(
-            bounds: cocoaBounds,
-            confidence: GeometryConstants.mediumConfidence,
-            strategy: strategyName,
-            metadata: ["api": "calculated-fallback"]
-        )
     }
 
     // MARK: - AX Helpers
@@ -497,30 +358,5 @@ class SlackStrategy: GeometryProvider {
         var frame = CGRect.zero
         AXValueGetValue(fRef as! AXValue, .cgRect, &frame)
         return frame
-    }
-
-    // MARK: - Line Calculation Helpers
-
-    private func countNewlines(in text: String, before index: Int) -> Int {
-        guard index > 0 else { return 0 }
-        let searchEnd = min(index, text.count)
-        guard let searchEndIdx = text.index(text.startIndex, offsetBy: searchEnd, limitedBy: text.endIndex) else {
-            return 0
-        }
-        let prefix = text[..<searchEndIdx]
-        return prefix.filter { $0 == "\n" }.count
-    }
-
-    private func findLineStart(in text: String, at index: Int) -> Int {
-        guard index > 0 else { return 0 }
-        let searchEnd = min(index, text.count)
-        guard let searchEndIdx = text.index(text.startIndex, offsetBy: searchEnd, limitedBy: text.endIndex) else {
-            return 0
-        }
-        let prefix = text[..<searchEndIdx]
-        if let lastNewline = prefix.lastIndex(of: "\n") {
-            return text.distance(from: text.startIndex, to: lastNewline) + 1
-        }
-        return 0
     }
 }
