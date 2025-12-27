@@ -107,11 +107,47 @@ struct SpellCheckingView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             } header: {
-                Text("Language")
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "globe")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                        Text("Language")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+
+                    Text("Configure language and dialect settings for grammar checking")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Text("Dialect")
+                        .font(.headline)
+                        .padding(.top, 8)
+                }
             }
 
-            // MARK: Custom Dictionary Group
+            // MARK: Custom Vocabulary Group Header
+            Section {
+                EmptyView()
+            } header: {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "text.book.closed.fill")
+                            .font(.title2)
+                            .foregroundColor(.accentColor)
+                        Text("Custom Vocabulary")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+
+                    Text("Add words to prevent false positives and configure language detection")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            // MARK: Custom Dictionary Content
             CustomVocabularyContent(
                 vocabulary: vocabulary,
                 preferences: preferences,
