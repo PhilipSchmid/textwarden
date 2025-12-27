@@ -137,12 +137,12 @@ TextWarden is a privacy-focused, local-first tool with certain trade-offs:
 
 ### Looking for More?
 
-If you need cross-platform support (Windows, Linux, iOS, Android), grammar checking in languages other than English, or a more polished experience with commercial support, consider:
+If you need cross-platform support (Windows, Linux, iOS, Android), grammar checking in languages other than English, consider:
 
 - **[Grammarly](https://www.grammarly.com)** - Excellent product with broad application support and a refined user experience developed over many years
-- **[LanguageTool](https://languagetool.org/)** - Open-source grammar checker with support for 30+ languages, available as browser extensions and desktop apps
+- **[LanguageTool](https://languagetool.org/)** - "Open-source" grammar checker with support for 30+ languages, available as browser extensions and desktop apps
 
-TextWarden focuses specifically on privacy and local processing, which comes with the trade-offs mentioned above.
+TextWarden focuses specifically on privacy, local processing, and full transparency as an open-source project - which comes with the trade-offs mentioned above.
 
 ## Privacy
 
