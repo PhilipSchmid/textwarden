@@ -364,6 +364,13 @@ pub fn analyze_text(
                 _ => ErrorSeverity::Info,
             };
 
+            // Deduplicate suggestions while preserving order
+            // (Harper may return the same suggestion multiple times from different rules)
+            {
+                let mut seen = std::collections::HashSet::new();
+                suggestions.retain(|s| seen.insert(s.clone()));
+            }
+
             GrammarError {
                 start: span.start,
                 end: span.end,
