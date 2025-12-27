@@ -1379,10 +1379,11 @@ class AnalysisCoordinator: ObservableObject {
             !dismissedRules.contains(error.lintId)
         }
 
-        // Filter by custom vocabulary
-        // Skip errors that contain words from the user's custom dictionary
+        // Filter by custom vocabulary and macOS system dictionary
+        // Skip errors that contain words from the user's custom dictionary or macOS learned words
         // Note: error.start/end are Unicode scalar indices from Harper
         let vocabulary = customVocabulary
+        let useMacOSDictionary = userPreferences.enableMacOSDictionary
         let sourceScalarCount = sourceText.unicodeScalars.count
         filteredErrors = filteredErrors.filter { error in
             // Extract error text from source using scalar indices
@@ -1394,7 +1395,17 @@ class AnalysisCoordinator: ObservableObject {
 
             let errorText = String(sourceText[startIndex..<endIndex])
 
-            return !vocabulary.containsAnyWord(in: errorText)
+            // Check custom vocabulary
+            if vocabulary.containsAnyWord(in: errorText) {
+                return false
+            }
+
+            // Check macOS system dictionary if enabled
+            if useMacOSDictionary && MacOSDictionary.shared.containsAnyWord(in: errorText) {
+                return false
+            }
+
+            return true
         }
 
         // Filter by globally ignored error texts

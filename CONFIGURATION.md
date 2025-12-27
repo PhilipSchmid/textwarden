@@ -136,6 +136,18 @@ TextWarden includes optional word lists you can enable:
 
 **Recommendation:** Enable the lists matching your typical writing context. Developers might enable IT Terminology; social media managers might enable Internet Abbreviations and Gen Z Slang.
 
+### macOS System Dictionary
+
+**What it does:** Respects words you've already taught to macOS via "Learn Spelling" in other apps (like Safari, Mail, or Pages). This avoids having to add the same words twice.
+
+**How it works:** TextWarden checks each flagged word against macOS's spell checker to see if you've previously learned it.
+
+**Note:** This is read-only. Words you add via TextWarden go into TextWarden's own Custom Dictionary (below), not the macOS system dictionary.
+
+**Default:** Enabled
+
+**Recommendation:** Keep enabled to automatically respect words you've already taught to macOS. Disable only if you want TextWarden to use a completely separate dictionary.
+
 ---
 
 ## Style Checking (Apple Intelligence)

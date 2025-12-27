@@ -473,6 +473,7 @@ private struct CustomVocabularyContent: View {
                         .foregroundColor(.secondary)
                         .padding(.leading, 20)
                 }
+
             } header: {
                 Text("Predefined Wordlists")
                     .font(.headline)
@@ -532,6 +533,19 @@ private struct CustomVocabularyContent: View {
                 }
             } header: {
                 Text("Language Detection")
+                    .font(.headline)
+            }
+
+            // MARK: - System Dictionary Section
+            Section {
+                Toggle("Import macOS learned words", isOn: $preferences.enableMacOSDictionary)
+                    .help("Respect words you've added via 'Learn Spelling' in other macOS apps")
+
+                Text("Respects words learned via 'Learn Spelling' in Safari, Mail, Pages, etc.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } header: {
+                Text("System Dictionary")
                     .font(.headline)
             }
 

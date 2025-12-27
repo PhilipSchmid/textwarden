@@ -379,6 +379,13 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Import words from macOS system dictionary (words added via "Learn Spelling" in other apps)
+    @Published var enableMacOSDictionary: Bool {
+        didSet {
+            defaults.set(enableMacOSDictionary, forKey: Keys.enableMacOSDictionary)
+        }
+    }
+
     // MARK: - Language Detection
 
     /// Enable detection and filtering of non-English words
@@ -680,6 +687,7 @@ class UserPreferences: ObservableObject {
         self.enableBrandNames = true
         self.enablePersonNames = true
         self.enableLastNames = true
+        self.enableMacOSDictionary = true  // Uses NSSpellChecker API, no special permissions
         self.enableLanguageDetection = false  // Opt-in feature
         self.excludedLanguages = []
 
@@ -793,6 +801,7 @@ class UserPreferences: ObservableObject {
         self.enableBrandNames = defaults.object(forKey: Keys.enableBrandNames) as? Bool ?? true
         self.enablePersonNames = defaults.object(forKey: Keys.enablePersonNames) as? Bool ?? true
         self.enableLastNames = defaults.object(forKey: Keys.enableLastNames) as? Bool ?? true
+        self.enableMacOSDictionary = defaults.object(forKey: Keys.enableMacOSDictionary) as? Bool ?? true
         self.enableLanguageDetection = defaults.object(forKey: Keys.enableLanguageDetection) as? Bool ?? false
         if let data = defaults.data(forKey: Keys.excludedLanguages),
            let set = try? decoder.decode(Set<String>.self, from: data) {
@@ -1195,6 +1204,7 @@ class UserPreferences: ObservableObject {
         enableBrandNames = true
         enablePersonNames = true
         enableLastNames = true
+        enableMacOSDictionary = true
         keyboardShortcutsEnabled = true
         suggestionOpacity = 0.80
         suggestionTextSize = 13.0
@@ -1233,6 +1243,7 @@ class UserPreferences: ObservableObject {
         static let enableBrandNames = "enableBrandNames"
         static let enablePersonNames = "enablePersonNames"
         static let enableLastNames = "enableLastNames"
+        static let enableMacOSDictionary = "enableMacOSDictionary"
         static let enableLanguageDetection = "enableLanguageDetection"
         static let excludedLanguages = "excludedLanguages"
 

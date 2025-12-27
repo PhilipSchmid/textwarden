@@ -58,6 +58,7 @@ protocol UserPreferencesProviding: AnyObject {
     var enableBrandNames: Bool { get }
     var enablePersonNames: Bool { get }
     var enableLastNames: Bool { get }
+    var enableMacOSDictionary: Bool { get }
     var enableLanguageDetection: Bool { get }
     var excludedLanguages: Set<String> { get }
 
