@@ -124,12 +124,6 @@ Click **Check for Updates** in the About section to immediately check for availa
 
 **Recommendation:** Enable all categories initially. Disable specific ones only if they generate too many unwanted suggestions for your writing style.
 
-### Sentence Start Capitalization
-
-**What it does:** Flags sentences that don't start with a capital letter.
-
-**Recommendation:** Disable if you frequently write in contexts where lowercase starts are intentional (code comments, chat messages, etc.).
-
 ---
 
 ## Custom Vocabulary

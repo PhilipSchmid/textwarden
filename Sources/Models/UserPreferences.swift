@@ -402,16 +402,6 @@ class UserPreferences: ObservableObject {
         }
     }
 
-    // MARK: - TextWarden Enhancements
-
-    /// Enable sentence-start capitalization (TextWarden enhancement to Harper's suggestions)
-    /// When enabled, ensures suggestions at sentence starts are properly capitalized
-    @Published var enableSentenceStartCapitalization: Bool {
-        didSet {
-            defaults.set(enableSentenceStartCapitalization, forKey: Keys.enableSentenceStartCapitalization)
-        }
-    }
-
     /// Available languages for detection (from whichlang library)
     static let availableLanguages = [
         "Arabic", "Dutch", "English", "French", "German",
@@ -819,9 +809,6 @@ class UserPreferences: ObservableObject {
             self.excludedLanguages = set
         }
 
-        // TextWarden Enhancements
-        self.enableSentenceStartCapitalization = defaults.object(forKey: Keys.enableSentenceStartCapitalization) as? Bool ?? true
-
         // Keyboard Shortcuts
         self.keyboardShortcutsEnabled = defaults.object(forKey: Keys.keyboardShortcutsEnabled) as? Bool ?? true
 
@@ -1219,7 +1206,6 @@ class UserPreferences: ObservableObject {
         enableBrandNames = true
         enablePersonNames = true
         enableLastNames = true
-        enableSentenceStartCapitalization = true
         keyboardShortcutsEnabled = true
         suggestionOpacity = 0.80
         suggestionTextSize = 13.0
@@ -1261,9 +1247,6 @@ class UserPreferences: ObservableObject {
         static let enableLastNames = "enableLastNames"
         static let enableLanguageDetection = "enableLanguageDetection"
         static let excludedLanguages = "excludedLanguages"
-
-        // TextWarden Enhancements
-        static let enableSentenceStartCapitalization = "enableSentenceStartCapitalization"
 
         // Keyboard Shortcuts
         static let keyboardShortcutsEnabled = "keyboardShortcutsEnabled"

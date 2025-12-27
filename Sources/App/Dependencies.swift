@@ -39,8 +39,7 @@ protocol GrammarAnalyzing: Sendable {
         enablePersonNames: Bool,
         enableLastNames: Bool,
         enableLanguageDetection: Bool,
-        excludedLanguages: [String],
-        enableSentenceStartCapitalization: Bool
+        excludedLanguages: [String]
     ) -> GrammarAnalysisResult
 }
 
@@ -61,7 +60,6 @@ protocol UserPreferencesProviding: AnyObject {
     var enableLastNames: Bool { get }
     var enableLanguageDetection: Bool { get }
     var excludedLanguages: Set<String> { get }
-    var enableSentenceStartCapitalization: Bool { get }
 
     // Filtering settings
     var enabledCategories: Set<String> { get }

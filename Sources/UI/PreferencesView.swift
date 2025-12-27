@@ -328,15 +328,6 @@ private struct FilteringPreferencesContent: View {
                     .font(.headline)
             }
 
-            // TextWarden Enhancements
-            Section {
-                Toggle("Sentence-Start Capitalization", isOn: $preferences.enableSentenceStartCapitalization)
-                    .help("Automatically capitalize suggestions at the beginning of sentences")
-            } header: {
-                Text("TextWarden Enhancements")
-                    .font(.headline)
-            }
-
             Section {
                 if preferences.ignoredRules.isEmpty {
                     HStack {
@@ -910,15 +901,6 @@ struct FilteringPreferencesView: View {
                     .help("Check for any other grammar issues that don't fit neatly into other categories")
             } header: {
                 Text("Advanced")
-                    .font(.headline)
-            }
-
-            // TextWarden Enhancements
-            Section {
-                Toggle("Sentence-Start Capitalization", isOn: $preferences.enableSentenceStartCapitalization)
-                    .help("Automatically capitalize suggestions at the beginning of sentences")
-            } header: {
-                Text("TextWarden Enhancements")
                     .font(.headline)
             }
 

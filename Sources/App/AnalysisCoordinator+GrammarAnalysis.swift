@@ -27,7 +27,6 @@ extension AnalysisCoordinator {
         let enableLastNames: Bool
         let enableLanguageDetection: Bool
         let excludedLanguages: [String]
-        let enableSentenceStartCapitalization: Bool
     }
 
     /// Capture grammar preferences on main thread before async dispatch
@@ -41,8 +40,7 @@ extension AnalysisCoordinator {
             enablePersonNames: userPreferences.enablePersonNames,
             enableLastNames: userPreferences.enableLastNames,
             enableLanguageDetection: userPreferences.enableLanguageDetection,
-            excludedLanguages: Array(userPreferences.excludedLanguages.map { UserPreferences.languageCode(for: $0) }),
-            enableSentenceStartCapitalization: userPreferences.enableSentenceStartCapitalization
+            excludedLanguages: Array(userPreferences.excludedLanguages.map { UserPreferences.languageCode(for: $0) })
         )
     }
 
@@ -122,7 +120,6 @@ extension AnalysisCoordinator {
         let enableLastNames = userPreferences.enableLastNames
         let enableLanguageDetection = userPreferences.enableLanguageDetection
         let excludedLanguages = Array(userPreferences.excludedLanguages.map { UserPreferences.languageCode(for: $0) })
-        let enableSentenceStartCapitalization = userPreferences.enableSentenceStartCapitalization
 
         // Capture grammar engine reference before async dispatch
         let grammarEngineRef = grammarEngine
@@ -142,8 +139,7 @@ extension AnalysisCoordinator {
                 enablePersonNames: enablePersonNames,
                 enableLastNames: enableLastNames,
                 enableLanguageDetection: enableLanguageDetection,
-                excludedLanguages: excludedLanguages,
-                enableSentenceStartCapitalization: enableSentenceStartCapitalization
+                excludedLanguages: excludedLanguages
             )
 
             DispatchQueue.main.async { [weak self] in
@@ -198,8 +194,7 @@ extension AnalysisCoordinator {
                 enablePersonNames: config.enablePersonNames,
                 enableLastNames: config.enableLastNames,
                 enableLanguageDetection: config.enableLanguageDetection,
-                excludedLanguages: config.excludedLanguages,
-                enableSentenceStartCapitalization: config.enableSentenceStartCapitalization
+                excludedLanguages: config.excludedLanguages
             )
 
             Logger.debug("AnalysisCoordinator: Harper returned \(grammarResult.errors.count) error(s)", category: Logger.analysis)

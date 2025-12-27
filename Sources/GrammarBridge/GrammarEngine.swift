@@ -27,7 +27,6 @@ import Foundation
     ///   - enableLastNames: Enable recognition of surnames/last names
     ///   - enableLanguageDetection: Enable detection and filtering of non-English words
     ///   - excludedLanguages: Array of language codes to exclude (e.g., ["spanish", "german"])
-    ///   - enableSentenceStartCapitalization: Enable capitalization of suggestions at sentence starts
     /// - Returns: Result containing analysis result or error
     @objc public func analyzeText(
         _ text: String,
@@ -39,8 +38,7 @@ import Foundation
         enablePersonNames: Bool,
         enableLastNames: Bool,
         enableLanguageDetection: Bool = false,
-        excludedLanguages: [String] = [],
-        enableSentenceStartCapitalization: Bool = true
+        excludedLanguages: [String] = []
     ) -> GrammarAnalysisResult {
         // Call FFI function with all parameters
         // Convert Swift strings to RustString and create RustVec for language list
@@ -51,6 +49,7 @@ import Foundation
             rustVec.push(value: RustString(lang))
         }
 
+        // Sentence-start capitalization is always enabled (improves suggestion quality)
         let ffiResult = analyze_text(
             rustText,
             rustDialect,
@@ -62,7 +61,7 @@ import Foundation
             enableLastNames,
             enableLanguageDetection,
             rustVec,
-            enableSentenceStartCapitalization
+            true  // enableSentenceStartCapitalization - always on
         )
 
         // Convert FFI result to Swift model
@@ -82,7 +81,6 @@ import Foundation
     ///   - enableLastNames: Enable recognition of surnames/last names
     ///   - enableLanguageDetection: Enable detection and filtering of non-English words
     ///   - excludedLanguages: Array of language codes to exclude (e.g., ["spanish", "german"])
-    ///   - enableSentenceStartCapitalization: Enable capitalization of suggestions at sentence starts
     /// - Returns: Analysis result
     @available(macOS 10.15, *)
     public func analyzeText(
@@ -95,10 +93,9 @@ import Foundation
         enablePersonNames: Bool,
         enableLastNames: Bool,
         enableLanguageDetection: Bool = false,
-        excludedLanguages: [String] = [],
-        enableSentenceStartCapitalization: Bool = true
+        excludedLanguages: [String] = []
     ) async -> GrammarAnalysisResult {
-        await Task.detached(priority: .userInitiated) { [text, dialect, enableInternetAbbrev, enableGenZSlang, enableITTerminology, enableBrandNames, enablePersonNames, enableLastNames, enableLanguageDetection, excludedLanguages, enableSentenceStartCapitalization] in
+        await Task.detached(priority: .userInitiated) { [text, dialect, enableInternetAbbrev, enableGenZSlang, enableITTerminology, enableBrandNames, enablePersonNames, enableLastNames, enableLanguageDetection, excludedLanguages] in
             // Call FFI function directly in detached task
             // Convert Swift strings to RustString and create RustVec for language list
             let rustText = RustString(text)
@@ -108,6 +105,7 @@ import Foundation
                 rustVec.push(value: RustString(lang))
             }
 
+            // Sentence-start capitalization is always enabled (improves suggestion quality)
             let ffiResult = analyze_text(
                 rustText,
                 rustDialect,
@@ -119,7 +117,7 @@ import Foundation
                 enableLastNames,
                 enableLanguageDetection,
                 rustVec,
-                enableSentenceStartCapitalization
+                true  // enableSentenceStartCapitalization - always on
             )
             return GrammarAnalysisResult(ffiResult: ffiResult)
         }.value
@@ -142,8 +140,7 @@ import Foundation
             enablePersonNames: true,
             enableLastNames: true,
             enableLanguageDetection: false,
-            excludedLanguages: [],
-            enableSentenceStartCapitalization: true
+            excludedLanguages: []
         )
     }
 
@@ -164,8 +161,7 @@ import Foundation
             enablePersonNames: true,
             enableLastNames: true,
             enableLanguageDetection: false,
-            excludedLanguages: [],
-            enableSentenceStartCapitalization: true
+            excludedLanguages: []
         )
     }
 
@@ -185,8 +181,7 @@ import Foundation
             enablePersonNames: true,
             enableLastNames: true,
             enableLanguageDetection: false,
-            excludedLanguages: [],
-            enableSentenceStartCapitalization: true
+            excludedLanguages: []
         )
     }
 
@@ -208,8 +203,7 @@ import Foundation
             enablePersonNames: true,
             enableLastNames: true,
             enableLanguageDetection: false,
-            excludedLanguages: [],
-            enableSentenceStartCapitalization: true
+            excludedLanguages: []
         )
     }
 }
