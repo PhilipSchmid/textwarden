@@ -154,6 +154,12 @@ class OutlookContentParser: ContentParser {
 
     /// Check if the element appears to be a toolbar/ribbon control
     private static func isToolbarElement(role: String, subrole: String, description: String, identifier: String, title: String, value: String) -> Bool {
+        // AXTextArea is always a text editing area, never a toolbar control
+        // (even if description/title contains keywords like "message copilot")
+        if role == kAXTextAreaRole as String {
+            return false
+        }
+
         let toolbarRoles = ["AXToolbar", "AXGroup", "AXButton", "AXCheckBox", "AXRadioButton"]
         if toolbarRoles.contains(role) && !role.contains("Text") {
             return true

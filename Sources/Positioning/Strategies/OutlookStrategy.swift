@@ -186,10 +186,10 @@ class OutlookStrategy: GeometryProvider {
 
         Logger.debug("OutlookStrategy: Compose body - trying AXBoundsForRange", category: Logger.ui)
 
-        // Convert grapheme cluster indices to UTF-16 for the accessibility API
-        let utf16Range = TextIndexConverter.graphemeToUTF16Range(errorRange, in: text)
-
-        var cfRange = CFRange(location: utf16Range.location, length: utf16Range.length)
+        // Outlook's AXBoundsForRange uses grapheme cluster indices, NOT UTF-16
+        // (Unlike Safari/WebKit which uses UTF-16)
+        // Using grapheme indices directly for correct positioning
+        var cfRange = CFRange(location: errorRange.location, length: errorRange.length)
         guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else {
             return nil
         }
