@@ -6,6 +6,10 @@
 //  Some apps (like Slack) have AX trees that update asynchronously after user interactions,
 //  requiring position recalculation after clicks or other events.
 //
+//  Also monitors formatting changes that affect text layout without changing content:
+//  - Keyboard shortcuts (Cmd+B, Cmd+I, Cmd+U)
+//  - Toolbar button clicks (Bold, Italic, Underline buttons)
+//
 
 import AppKit
 
@@ -27,8 +31,14 @@ class PositionRefreshCoordinator {
     /// Global mouse click monitor
     private var mouseClickMonitor: Any?
 
+    /// Global keyboard monitor for formatting shortcuts
+    private var keyboardMonitor: Any?
+
     /// Debounce work item for click-based refresh
     private var refreshWorkItem: DispatchWorkItem?
+
+    /// Formatting shortcut key codes: B=11, I=34, U=32
+    private static let formattingKeyCodes: Set<UInt16> = [11, 34, 32]
 
     // MARK: - Lifecycle
 
@@ -41,8 +51,11 @@ class PositionRefreshCoordinator {
     /// Start monitoring for position refresh triggers for the given app
     /// - Parameter bundleID: The bundle identifier of the app to monitor
     func startMonitoring(bundleID: String) {
+        let needsClick = Self.needsClickBasedRefresh(bundleID: bundleID)
+        let needsFormatting = Self.needsFormattingRefresh(bundleID: bundleID)
+
         // Only set up monitors for apps that need them
-        guard Self.needsClickBasedRefresh(bundleID: bundleID) else {
+        guard needsClick || needsFormatting else {
             stopMonitoring()
             return
         }
@@ -54,9 +67,15 @@ class PositionRefreshCoordinator {
 
         stopMonitoring()
         monitoredBundleID = bundleID
-        setupMouseClickMonitor()
 
-        Logger.debug("PositionRefreshCoordinator: Started monitoring for \(bundleID)", category: Logger.ui)
+        if needsClick {
+            setupMouseClickMonitor()
+        }
+        if needsFormatting {
+            setupKeyboardMonitor()
+        }
+
+        Logger.debug("PositionRefreshCoordinator: Started monitoring for \(bundleID) (click: \(needsClick), formatting: \(needsFormatting))", category: Logger.ui)
     }
 
     /// Stop monitoring for position refresh triggers
@@ -64,6 +83,10 @@ class PositionRefreshCoordinator {
         if let monitor = mouseClickMonitor {
             NSEvent.removeMonitor(monitor)
             mouseClickMonitor = nil
+        }
+        if let monitor = keyboardMonitor {
+            NSEvent.removeMonitor(monitor)
+            keyboardMonitor = nil
         }
         refreshWorkItem?.cancel()
         refreshWorkItem = nil
@@ -74,15 +97,27 @@ class PositionRefreshCoordinator {
 
     /// Check if an app needs click-based position refresh
     /// - Parameter bundleID: The bundle identifier to check
-    /// - Returns: true if the app's AX tree updates asynchronously after clicks
+    /// - Returns: true if the app needs position refresh after clicks (async AX updates or formatting buttons)
     private static func needsClickBasedRefresh(bundleID: String) -> Bool {
         switch bundleID {
         case "com.tinyspeck.slackmacgap":
             // Slack's Electron-based editor updates AX tree asynchronously
             return true
         default:
-            return false
+            // Apps that support formatted text need click-based refresh for toolbar buttons
+            // (Bold, Italic, Underline buttons that aren't detected via keyboard shortcuts)
+            let config = AppRegistry.shared.configuration(for: bundleID)
+            return config.features.supportsFormattedText
         }
+    }
+
+    /// Check if an app needs formatting shortcut refresh
+    /// - Parameter bundleID: The bundle identifier to check
+    /// - Returns: true if the app supports rich text formatting that can shift text layout
+    private static func needsFormattingRefresh(bundleID: String) -> Bool {
+        // Use AppFeatures to determine if the app supports formatted text
+        let config = AppRegistry.shared.configuration(for: bundleID)
+        return config.features.supportsFormattedText
     }
 
     /// Get the debounce delay for position refresh (milliseconds)
@@ -93,7 +128,8 @@ class PositionRefreshCoordinator {
         case "com.tinyspeck.slackmacgap":
             return GeometryConstants.slackRecheckDebounceMs
         default:
-            return 200
+            // Formatting button clicks need a bit more delay for layout to stabilize
+            return 250
         }
     }
 
@@ -103,6 +139,66 @@ class PositionRefreshCoordinator {
     private func setupMouseClickMonitor() {
         mouseClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { [weak self] _ in
             self?.handleMouseClick()
+        }
+    }
+
+    /// Setup global keyboard monitor for formatting shortcuts
+    private func setupKeyboardMonitor() {
+        keyboardMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            self?.handleKeyDown(event)
+        }
+    }
+
+    /// Handle key down events - check for formatting shortcuts
+    private func handleKeyDown(_ event: NSEvent) {
+        // Capture event properties before dispatching (NSEvent is not thread-safe)
+        let keyCode = event.keyCode
+        let modifierFlags = event.modifierFlags
+
+        // Only interested in Cmd+key combinations
+        guard modifierFlags.contains(.command) else { return }
+
+        // Check if this is a formatting shortcut (Cmd+B, Cmd+I, Cmd+U)
+        guard Self.formattingKeyCodes.contains(keyCode) else { return }
+
+        // Dispatch to main thread for thread-safe access
+        DispatchQueue.main.async { [weak self] in
+            self?.handleFormattingShortcut()
+        }
+    }
+
+    /// Handle formatting shortcut - trigger position refresh
+    private func handleFormattingShortcut() {
+        guard let bundleID = monitoredBundleID else { return }
+
+        Logger.debug("PositionRefreshCoordinator: Formatting shortcut detected - scheduling position refresh", category: Logger.ui)
+
+        // All checks for replacement mode happen on MainActor
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+
+            // Skip refresh if in replacement mode
+            if AnalysisCoordinator.shared.isInReplacementMode {
+                return
+            }
+
+            // Cancel any pending refresh
+            self.refreshWorkItem?.cancel()
+
+            // Schedule refresh with short delay to let layout update
+            let workItem = DispatchWorkItem { [weak self] in
+                Task { @MainActor in
+                    guard !AnalysisCoordinator.shared.isInReplacementMode else { return }
+                    self?.delegate?.positionRefreshRequested()
+                }
+            }
+            self.refreshWorkItem = workItem
+
+            // Use slightly longer delay for formatting (layout needs to stabilize)
+            DispatchQueue.main.asyncAfter(
+                deadline: .now() + .milliseconds(Self.refreshDebounceMs(for: bundleID) + 50),
+                execute: workItem
+            )
         }
     }
 
