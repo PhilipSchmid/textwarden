@@ -42,6 +42,7 @@ enum StrategyType: String, CaseIterable {
     case slack      // Dedicated strategy for Slack's Quill editor
     case outlook    // Dedicated strategy for Microsoft Outlook compose
     case webex      // Dedicated strategy for Cisco WebEx chat
+    case mail       // Dedicated strategy for Apple Mail's WebKit compose
     case chromium   // Selection-based marker range positioning for Chromium apps (Slack, Teams, etc.)
     case textMarker
     case rangeBounds

@@ -347,10 +347,9 @@ extension AppConfiguration {
             spacingMultiplier: 1.0
         ),
         horizontalPadding: 4,
-        // Mail uses WebKit for composition - needs different strategies and text replacement
-        // WebKit elements don't support standard AX bounds queries reliably
+        // Mail uses WebKit for composition - dedicated MailStrategy handles WebKit bounds
         // Text replacement needs browser-style (selection + paste) because AXValue is read-only
-        preferredStrategies: [.textMarker, .rangeBounds, .lineIndex],
+        preferredStrategies: [.mail],
         features: AppFeatures(
             visualUnderlinesEnabled: true,
             textReplacementMethod: .browserStyle,  // WebKit needs selection + paste

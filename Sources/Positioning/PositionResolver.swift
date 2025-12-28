@@ -42,6 +42,7 @@ class PositionResolver {
             SlackStrategy(),  // Dedicated strategy for Slack - highest priority
             OutlookStrategy(),  // Dedicated strategy for Outlook compose
             WebExStrategy(),  // Dedicated strategy for Cisco WebEx chat
+            MailStrategy(),  // Dedicated strategy for Apple Mail's WebKit compose
             ChromiumStrategy(),
             TextMarkerStrategy(),
             RangeBoundsStrategy(),

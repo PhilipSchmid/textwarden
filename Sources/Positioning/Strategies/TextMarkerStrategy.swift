@@ -26,16 +26,6 @@ class TextMarkerStrategy: GeometryProvider {
     }
 
     func canHandle(element: AXUIElement, bundleID: String) -> Bool {
-        // CRITICAL: Do NOT use TextMarkerStrategy for Apple Mail!
-        // Mail's WebKit returns different coordinates for AXBoundsForTextMarkerRange vs AXBoundsForRange.
-        // AXBoundsForTextMarkerRange returns bounds that are offset from visual text position,
-        // while AXBoundsForRange returns correct visual coordinates.
-        // RangeBoundsStrategy uses AXBoundsForRange and works correctly for Mail.
-        if bundleID == "com.apple.mail" {
-            Logger.debug("TextMarkerStrategy: Skipping for Mail - use RangeBoundsStrategy instead", category: Logger.ui)
-            return false
-        }
-
         // Check if we should skip AX calls (blacklisted or worker busy)
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
             Logger.debug("TextMarkerStrategy: Skipping \(bundleID) - watchdog protection active", category: Logger.ui)

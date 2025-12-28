@@ -148,7 +148,8 @@ class RangeBoundsStrategy: GeometryProvider {
     // MARK: - Custom Parser Bounds
 
     /// Calculate geometry using parser's custom bounds calculation.
-    /// Used for apps with non-standard accessibility APIs (e.g., Mail's WebKit).
+    /// Fallback for apps with dedicated strategies (e.g., Mail uses MailStrategy first).
+    /// If the dedicated strategy fails, this provides a secondary path via the parser.
     /// Gets start and end character bounds separately to avoid multi-char range bugs.
     private func calculateCustomParserGeometry(
         adjustedRange: NSRange,
