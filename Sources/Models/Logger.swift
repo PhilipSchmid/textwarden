@@ -58,10 +58,29 @@ struct Logger {
 
     // MARK: - Stderr Fallback
 
+    /// Track consecutive file logging failures to avoid spamming stderr
+    private static var consecutiveFailures = 0
+    private static let maxConsecutiveFailureReports = 3
+
     /// Log to stderr when file logging fails (avoids infinite recursion)
+    /// Rate-limited to avoid spamming stderr on persistent failures
     private static func logToStderr(_ message: String) {
+        consecutiveFailures += 1
+
+        // Only report first few failures, then go quiet until success
+        guard consecutiveFailures <= maxConsecutiveFailureReports else { return }
+
         let timestamp = dateFormatter.string(from: Date())
-        fputs("[\(timestamp)] [Logger] \(message)\n", stderr)
+        if consecutiveFailures == maxConsecutiveFailureReports {
+            fputs("[\(timestamp)] [Logger] \(message) (suppressing further errors)\n", stderr)
+        } else {
+            fputs("[\(timestamp)] [Logger] \(message)\n", stderr)
+        }
+    }
+
+    /// Reset failure counter after successful write
+    private static func resetFailureCounter() {
+        consecutiveFailures = 0
     }
 
     // MARK: - Configuration
@@ -121,21 +140,38 @@ struct Logger {
         customLogFilePath = nil
     }
 
-    /// Ensure log directory exists
-    private static func ensureLogDirectoryExists() {
+    /// Ensure log directory exists and is writable
+    /// Returns true if directory exists and is writable, false otherwise
+    @discardableResult
+    private static func ensureLogDirectoryExists() -> Bool {
         let logPath = logFilePath
         let directory = (logPath as NSString).deletingLastPathComponent
 
-        if !FileManager.default.fileExists(atPath: directory) {
-            do {
-                try FileManager.default.createDirectory(
-                    atPath: directory,
-                    withIntermediateDirectories: true,
-                    attributes: nil
-                )
-            } catch {
+        if FileManager.default.fileExists(atPath: directory) {
+            // Directory exists - check if writable
+            if FileManager.default.isWritableFile(atPath: directory) {
+                return true
+            } else {
+                logToStderr("Log directory exists but is not writable: \(directory)")
+                return false
+            }
+        }
+
+        // Directory doesn't exist - try to create it
+        do {
+            try FileManager.default.createDirectory(
+                atPath: directory,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+            return true
+        } catch let error as NSError {
+            if error.domain == NSCocoaErrorDomain && error.code == NSFileWriteNoPermissionError {
+                logToStderr("Permission denied creating log directory: \(directory)")
+            } else {
                 logToStderr("Failed to create log directory '\(directory)': \(error.localizedDescription)")
             }
+            return false
         }
     }
 
@@ -228,15 +264,22 @@ struct Logger {
         // Ensure log directory exists (only check once when path changes)
         if cachedLogPath != logPath {
             ensureLogDirectoryExists()
-            cachedFileHandle = nil  // Reset handle when path changes
+            invalidateFileHandle()
             cachedLogPath = logPath
+        }
+
+        // Check if file was deleted externally - invalidate stale handle
+        // This is the key fix: detect when file no longer exists and recreate it
+        if cachedFileHandle != nil && !FileManager.default.fileExists(atPath: logPath) {
+            invalidateFileHandle()
+            ensureLogDirectoryExists()  // Directory might have been deleted too
         }
 
         // Check if we need to rotate logs (check periodically, not every write)
         if let attrs = try? FileManager.default.attributesOfItem(atPath: logPath),
            let fileSize = attrs[.size] as? Int64,
            fileSize > maxLogFileSize {
-            cachedFileHandle = nil  // Close handle before rotation
+            invalidateFileHandle()
             rotateLogs()
         }
 
@@ -244,29 +287,94 @@ struct Logger {
 
         // Get or create the cached file handle
         if cachedFileHandle == nil {
-            let fileURL = URL(fileURLWithPath: logPath)
-            if FileManager.default.fileExists(atPath: logPath) {
-                do {
-                    cachedFileHandle = try FileHandle(forWritingTo: fileURL)
-                    cachedFileHandle?.seekToEndOfFile()
-                } catch {
-                    logToStderr("Failed to open log file for writing: \(error.localizedDescription)")
-                }
-            } else {
-                // Create the file
-                do {
-                    try data.write(to: fileURL)
-                    cachedFileHandle = try FileHandle(forWritingTo: fileURL)
-                    cachedFileHandle?.seekToEndOfFile()
-                    return  // Already wrote the data
-                } catch {
-                    logToStderr("Failed to create log file '\(logPath)': \(error.localizedDescription)")
-                }
+            cachedFileHandle = createFileHandle(at: logPath, initialData: data)
+            if cachedFileHandle != nil {
+                return  // Initial data was already written during file creation
             }
         }
 
         // Write using cached handle
-        cachedFileHandle?.write(data)
+        if let handle = cachedFileHandle {
+            do {
+                try handle.write(contentsOf: data)
+                resetFailureCounter()  // Success - reset error rate limiting
+            } catch {
+                // Write failed - file may have been deleted during write
+                // Invalidate handle and try to recreate on next write
+                logToStderr("Write failed, will recreate file: \(error.localizedDescription)")
+                invalidateFileHandle()
+            }
+        }
+    }
+
+    /// Safely close and invalidate the cached file handle
+    private static func invalidateFileHandle() {
+        if let handle = cachedFileHandle {
+            try? handle.close()
+        }
+        cachedFileHandle = nil
+    }
+
+    /// Create a new file handle, creating the file if needed
+    /// Returns the handle, or nil if creation failed
+    private static func createFileHandle(at path: String, initialData: Data) -> FileHandle? {
+        let fileURL = URL(fileURLWithPath: path)
+        let directory = (path as NSString).deletingLastPathComponent
+
+        // Check directory write permissions
+        if !FileManager.default.isWritableFile(atPath: directory) {
+            logToStderr("Log directory not writable: \(directory)")
+            return nil
+        }
+
+        if FileManager.default.fileExists(atPath: path) {
+            // Check file write permissions
+            if !FileManager.default.isWritableFile(atPath: path) {
+                logToStderr("Log file not writable: \(path)")
+                return nil
+            }
+
+            // File exists - open for appending
+            do {
+                let handle = try FileHandle(forWritingTo: fileURL)
+                try handle.seekToEnd()
+                resetFailureCounter()
+                return handle
+            } catch let error as NSError {
+                if error.domain == NSCocoaErrorDomain && error.code == NSFileNoSuchFileError {
+                    // File was deleted between exists check and open - fall through to create
+                } else {
+                    logToStderr("Failed to open log file: \(error.localizedDescription)")
+                    return nil
+                }
+            }
+        }
+
+        // File doesn't exist - create it with initial data
+        do {
+            try initialData.write(to: fileURL, options: .atomic)
+            let handle = try FileHandle(forWritingTo: fileURL)
+            try handle.seekToEnd()
+            resetFailureCounter()
+            return handle
+        } catch let error as NSError {
+            // Provide specific error message for common permission issues
+            if error.domain == NSCocoaErrorDomain {
+                switch error.code {
+                case NSFileWriteNoPermissionError:
+                    logToStderr("Permission denied creating log file: \(path)")
+                case NSFileWriteOutOfSpaceError:
+                    logToStderr("Disk full, cannot create log file")
+                case NSFileWriteVolumeReadOnlyError:
+                    logToStderr("Volume is read-only, cannot create log file")
+                default:
+                    logToStderr("Failed to create log file '\(path)': \(error.localizedDescription)")
+                }
+            } else {
+                logToStderr("Failed to create log file '\(path)': \(error.localizedDescription)")
+            }
+            return nil
+        }
     }
 
     private static func rotateLogs() {
