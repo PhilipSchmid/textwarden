@@ -107,7 +107,7 @@ struct MilestoneCardView: View {
             .padding(20)
             .frame(width: 300)
             .background(.regularMaterial)
-            .cornerRadius(16)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
             .shadow(color: .black.opacity(0.2), radius: 20, x: 0, y: 10)
 
             // Confetti cannons from bottom corners
@@ -153,11 +153,31 @@ struct MilestoneCardView: View {
             .padding(.horizontal, 10)
             .allowsHitTesting(false)
         }
+        .clipShape(RoundedRectangle(cornerRadius: 16))
         .onAppear {
             // Trigger confetti on appear
             confettiTrigger += 1
         }
+        .background(Color.clear)
     }
+}
+
+/// Wrapper to ensure transparent background in NSHostingController
+struct TransparentBackgroundView<Content: View>: NSViewRepresentable {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let hostingView = NSHostingView(rootView: content)
+        hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = .clear
+        return hostingView
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
 // MARK: - Window Controller
@@ -210,7 +230,26 @@ class MilestoneCardWindowController {
         window.isOpaque = false
         window.backgroundColor = .clear
         window.level = .popUpMenu
-        window.hasShadow = true
+        window.hasShadow = false  // We'll use the SwiftUI shadow instead
+
+        // Make the hosting view and its layer hierarchy transparent
+        if let hostingView = hostingController?.view {
+            hostingView.wantsLayer = true
+            hostingView.layer?.backgroundColor = .clear
+
+            // Also clear any sublayers that might have backgrounds
+            func clearBackgrounds(in layer: CALayer) {
+                layer.backgroundColor = .clear
+                layer.sublayers?.forEach { clearBackgrounds(in: $0) }
+            }
+            if let layer = hostingView.layer {
+                clearBackgrounds(in: layer)
+            }
+        }
+
+        // Remove the default window content view background
+        window.contentView?.wantsLayer = true
+        window.contentView?.layer?.backgroundColor = .clear
 
         // Position below the menu bar button
         if let contentSize = hostingController?.view.fittingSize {
