@@ -7,8 +7,8 @@
 # Internal planning and specification documents
 specs/**/
 
-# Research and investigation files (temporary)
-.research/
+# Research and investigation files (temporary, never commit)
+research/
 
 # macOS
 .DS_Store
