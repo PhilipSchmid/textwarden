@@ -207,6 +207,23 @@ class SlackStrategy: GeometryProvider {
                                     textParts.append(TextPart(text: nestedText, range: foundRange, frame: nestedFrame, element: nestedRun))
                                     searchStart = foundRange.location + foundRange.length
                                 }
+                            } else if nestedRole == "AXGroup" {
+                                // Handle deeper nesting (e.g., bold + italic)
+                                if let deeperRuns = getChildren(nestedRun) {
+                                    for deeperRun in deeperRuns {
+                                        let deeperRole = getRole(deeperRun)
+                                        let deeperFrame = getFrame(deeperRun)
+                                        let deeperText = getText(deeperRun)
+
+                                        if deeperRole == "AXStaticText" && !deeperText.isEmpty &&
+                                           deeperFrame.width > 0 && deeperFrame.height > 0 {
+                                            if let foundRange = findTextRange(deeperText, in: fullText, startingAt: searchStart) {
+                                                textParts.append(TextPart(text: deeperText, range: foundRange, frame: deeperFrame, element: deeperRun))
+                                                searchStart = foundRange.location + foundRange.length
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

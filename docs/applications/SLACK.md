@@ -146,25 +146,35 @@ For text "Hello **BOLD** world!":
 
 ## Format-Preserving Replacement
 
-When applying a grammar correction in Slack, TextWarden preserves formatting by:
+When applying a grammar correction in Slack, TextWarden preserves formatting through a partial-selection approach that targets only the error word, not the entire message.
 
-1. **Getting the Quill Delta** (in priority order):
-   - Cached Quill Delta from clipboard monitoring
-   - Current clipboard content (if matches current text)
-   - Trigger Cmd+A + Cmd+C (fallback, more intrusive)
+### Child Element Selection (Critical Implementation Detail)
 
-2. **Applying the correction** to the Quill Delta JSON:
-   - Find the op containing the error
-   - Replace text within that op
-   - Attributes (bold, italic, etc.) remain attached to the op
+Slack's `AXTextArea` root element ignores `AXSelectedTextRange` attribute changes - setting selection on it returns success but has no effect. However, child elements (`AXStaticText`) DO respect selection changes.
 
-3. **Writing back to clipboard**:
-   - Build new Pickle with corrected Quill Delta
+**The approach:**
+
+1. **Find child element containing the error text**:
+   - Traverse the accessibility tree to find `AXStaticText` children
+   - Sort by element height (prefer smaller paragraph-level elements over document-level)
+   - Find the element containing the target error text
+
+2. **Select within the child element**:
+   - Calculate the UTF-16 offset of the error within the child element's text
+   - Set `AXSelectedTextRange` on the child element (not the root)
+   - Validate selection via `AXSelectedText` to confirm the correct text is selected
+
+3. **Copy selected text to get formatting**:
+   - Cmd+C to copy the selected word
+   - Extract Quill Delta from clipboard to get formatting attributes (bold, italic, etc.)
+
+4. **Create replacement with formatting**:
+   - Build new Quill Delta with the suggestion text and extracted formatting
    - Write both plain text and Pickle to clipboard
 
-4. **Pasting**:
-   - Cmd+A to select all
-   - Cmd+V to paste (Slack reads the Pickle and preserves formatting)
+5. **Paste replacement**:
+   - Cmd+V to paste (replaces selection with formatted text)
+   - Formatting is preserved because the new Quill Delta includes the same attributes
 
 ### Example: Correcting "errror" to "error" in Bold Text
 
@@ -193,18 +203,7 @@ TextWarden monitors the clipboard while Slack is active. When the user copies te
 3. Parse Pickle and extract Quill Delta JSON
 4. Cache both the JSON and corresponding plain text
 
-This cached data is used for format-preserving replacement, avoiding the need to trigger Cmd+A + Cmd+C.
-
-### Cache Matching
-
-Before using cached Quill Delta, TextWarden verifies the plain text matches:
-```swift
-if cachedQuillDeltaPlainText == currentText {
-    // Safe to use cached delta
-}
-```
-
-If the text has changed (user edited after copying), the cache is stale and we fall back to Cmd+A + Cmd+C.
+This cached data is used for format-preserving replacement.
 
 ## Fallback Behavior
 
@@ -212,14 +211,13 @@ Format-preserving replacement gracefully degrades:
 
 | Scenario | Behavior |
 |----------|----------|
-| Cached Quill Delta matches | Use cache (fastest, non-intrusive) |
-| Clipboard has matching Quill Delta | Use clipboard (non-intrusive) |
-| No Quill Delta available | Trigger Cmd+A + Cmd+C |
-| Error spans multiple ops | Fall back to plain text |
+| Child element selection + copy succeeds | Format preserved (optimal path) |
+| Child element not found | Fall back to plain text |
+| Selection validation fails | Fall back to plain text |
 | Pickle parsing fails | Fall back to plain text |
 | Any other failure | Fall back to plain text |
 
-Plain text replacement works correctly but strips formatting from the entire message. Format-preserving replacement is best-effort.
+Plain text replacement works correctly but formatting is lost for the replaced word only. The rest of the message retains formatting since we use partial selection.
 
 ## Implementation Files
 
@@ -230,14 +228,15 @@ Plain text replacement works correctly but strips formatting from the entire mes
   - `mergeAdjacentExclusions()`: Merge fragmented exclusion ranges
   - `parseChromiumPickle()`: Pickle parser
   - `buildChromiumPickle()`: Pickle writer
-  - `applyFormatPreservingReplacement()`: Main replacement logic
-  - `applyTextCorrection()`: Quill Delta modification
+  - `applyFormatPreservingReplacement()`: Main replacement logic using child element selection
+  - `findChildElementContainingText()`: Find child element for partial selection
+  - `collectTextElements()`: Traverse AX tree to find text elements
+  - `extractFormattingForText()`: Extract formatting attributes from Quill Delta
   - `checkClipboardForQuillDelta()`: Clipboard monitoring
 
 - `Sources/Positioning/Strategies/SlackStrategy.swift`: Underline positioning
   - `buildTextPartMap()`: AX tree traversal for text runs
   - `calculateSubElementBounds()`: AXBoundsForRange on child elements
-  - `calculateFallbackGeometry()`: Font measurement fallback
 
 ## Debugging
 
@@ -263,16 +262,18 @@ If exclusions aren't being detected:
 Enable debug logging to see format-preserving replacement in action:
 
 ```
-SlackContentParser: Cached Quill Delta JSON (110 chars) for format-preserving replacement
-SlackContentParser: Using cached Quill Delta (matches current text)
-SlackContentParser: Applied correction to Quill Delta op 1
-SlackContentParser: Format-preserving replacement completed successfully
+SlackContentParser: Attempting partial-selection replacement at 0-5
+SlackContentParser: Found target text in child element (size 32) at offset 0
+SlackContentParser: Child selection validated - text matches 'errror'
+SlackContentParser: Got Quill Delta from clipboard
+SlackContentParser: Extracted formatting: ["bold": 1]
+SlackContentParser: Replacement completed successfully
 ```
 
-If you see "falling back to plain text replacement", check:
-1. Is Quill Delta on clipboard? (Copy from Slack first)
-2. Does cached text match current text?
-3. Does error span multiple formatting ops?
+If you see "fallbackToPlainText", check the logs for:
+1. "Could not find child element" - The text element wasn't found in the AX tree
+2. "Child selection validation failed" - Selection was set but wrong text was selected
+3. "Could not get child element text" - AX API failed to read child element's text
 
 ## Positioning Strategy
 

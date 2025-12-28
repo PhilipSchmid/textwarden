@@ -441,59 +441,6 @@ class SlackContentParser: ContentParser {
         return exclusionText.hasPrefix("@") || exclusionText.hasPrefix("#") || exclusionText.hasPrefix("http")
     }
 
-    /// Extract exclusions from Quill Delta via fast clipboard operation
-    /// This is imperceptible to user (<50ms total) with full clipboard/selection restoration
-    private func extractQuillDeltaExclusions(element: AXUIElement, text: String) -> [ExclusionRange] {
-        var exclusions: [ExclusionRange] = []
-
-        let startTime = DispatchTime.now()
-
-        // Step 1: Save current state
-        let savedClipboard = saveClipboardState()
-        let savedSelection = saveSelectionState(element: element)
-
-        defer {
-            // Step 4: Restore state
-            restoreSelectionState(element: element, state: savedSelection)
-            restoreClipboardState(savedClipboard)
-
-            let elapsed = Double(DispatchTime.now().uptimeNanoseconds - startTime.uptimeNanoseconds) / 1_000_000
-            Logger.debug("SlackContentParser: Quill Delta extraction took \(String(format: "%.1f", elapsed))ms", category: Logger.analysis)
-        }
-
-        // Step 2: Clear clipboard and trigger copy
-        NSPasteboard.general.clearContents()
-        let initialChangeCount = NSPasteboard.general.changeCount
-
-        // Select all using AX action or key event
-        let selectAllResult = performSelectAll(element: element)
-        Logger.debug("SlackContentParser: Select all result: \(selectAllResult)", category: Logger.analysis)
-
-        // Brief delay for selection to register
-        usleep(30_000) // 30ms
-
-        // Copy using AX action or key event
-        let copyResult = performCopy(element: element)
-        Logger.debug("SlackContentParser: Copy result: \(copyResult)", category: Logger.analysis)
-
-        // Brief delay for clipboard to populate
-        usleep(50_000) // 50ms
-
-        // Check if clipboard changed
-        let newChangeCount = NSPasteboard.general.changeCount
-        Logger.debug("SlackContentParser: Clipboard change count: \(initialChangeCount) -> \(newChangeCount)", category: Logger.analysis)
-
-        // Log what's on clipboard
-        if let types = NSPasteboard.general.types {
-            Logger.debug("SlackContentParser: Clipboard types: \(types.map { $0.rawValue }.joined(separator: ", "))", category: Logger.analysis)
-        }
-
-        // Step 3: Parse Quill Delta from clipboard
-        exclusions = parseQuillDeltaFromClipboard(text: text)
-
-        return exclusions
-    }
-
     /// Save current clipboard state for restoration
     private func saveClipboardState() -> [(NSPasteboard.PasteboardType, Data)] {
         let pasteboard = NSPasteboard.general
@@ -578,16 +525,6 @@ class SlackContentParser: ContentParser {
         keyUp.post(tap: .cghidEventTap)
 
         return true
-    }
-
-    /// Simulate Select All (Cmd+A) on currently focused element
-    private func simulateSelectAll() -> Bool {
-        return simulateKeyCombo(keyCode: 0, command: true) // 'A' key
-    }
-
-    /// Simulate Copy (Cmd+C) on currently focused element
-    private func simulateCopy() -> Bool {
-        return simulateKeyCombo(keyCode: 8, command: true) // 'C' key
     }
 
     /// Parse Quill Delta JSON from clipboard and extract exclusion ranges
@@ -821,6 +758,12 @@ class SlackContentParser: ContentParser {
         // Write Pickle data with Quill Delta
         pasteboard.setData(pickleData, forType: Self.chromiumWebCustomDataType)
 
+        // Log what we wrote
+        if let types = pasteboard.types {
+            let typeList = types.map { $0.rawValue }.joined(separator: ", ")
+            Logger.debug("SlackContentParser: WROTE clipboard types: \(typeList)", category: Logger.analysis)
+        }
+
         Logger.info("SlackContentParser: Wrote clipboard with \(plainText.count) chars plain text and Quill Delta", category: Logger.analysis)
     }
 
@@ -876,139 +819,148 @@ class SlackContentParser: ContentParser {
         case failed(String)             // Failed completely, with reason
     }
 
-    /// Attempt format-preserving text replacement in Slack
-    /// This method:
-    /// 1. Saves clipboard state
-    /// 2. Copies current text (Cmd+A, Cmd+C) to get Quill Delta
-    /// 3. Applies correction to Quill Delta while preserving formatting
-    /// 4. Writes modified Quill Delta to clipboard
-    /// 5. Pastes (Cmd+V)
-    /// 6. Restores clipboard state
-    ///
-    /// Returns .fallbackToPlainText if Quill Delta unavailable, letting caller use standard replacement
+    /// Attempt format-preserving text replacement in Slack.
+    /// Uses Quill Delta modification to preserve rich text formatting (bold, italic, code, etc.).
     func applyFormatPreservingReplacement(
         errorStart: Int,
         errorEnd: Int,
         originalText: String,
-        suggestion: String
+        suggestion: String,
+        element: AXUIElement
     ) async -> FormatPreservingResult {
 
-        Logger.info("SlackContentParser: Attempting format-preserving replacement at \(errorStart)-\(errorEnd)", category: Logger.analysis)
+        Logger.info("SlackContentParser: Attempting partial-selection replacement at \(errorStart)-\(errorEnd)", category: Logger.analysis)
 
-        // Step 1: Save current clipboard state for restoration
+        // Step 1: Save clipboard for restoration
         let savedClipboard = saveClipboardState()
 
-        // Step 2: Try to get Quill Delta - first from cache, then from current clipboard, finally via Cmd+A+C
-        var quillDelta: String?
-        var needsSelectAll = false
-
-        // Strategy A: Check if we have cached Quill Delta that matches current text
-        if let cached = cachedQuillDeltaJSON,
-           let cachedPlainText = cachedQuillDeltaPlainText,
-           cachedPlainText == originalText {
-            Logger.info("SlackContentParser: Using cached Quill Delta (matches current text)", category: Logger.analysis)
-            quillDelta = cached
-        }
-        // Strategy B: Check if current clipboard has Quill Delta for the same text
-        else if let clipboardDelta = getQuillDeltaFromClipboard(),
-                let clipboardPlainText = NSPasteboard.general.string(forType: .string),
-                clipboardPlainText == originalText {
-            Logger.info("SlackContentParser: Using clipboard Quill Delta (matches current text)", category: Logger.analysis)
-            quillDelta = clipboardDelta
-            // Update cache since we found a match
-            cachedQuillDeltaJSON = clipboardDelta
-            cachedQuillDeltaPlainText = clipboardPlainText
-        }
-        // Strategy C: Fall back to Cmd+A + Cmd+C (intrusive but necessary)
-        else {
-            Logger.info("SlackContentParser: No cached Quill Delta, triggering Cmd+A + Cmd+C", category: Logger.analysis)
-            needsSelectAll = true
-
-            // Clear clipboard and select all + copy
-            NSPasteboard.general.clearContents()
-
-            guard simulateSelectAll() else {
-                Logger.warning("SlackContentParser: Cmd+A failed", category: Logger.analysis)
-                restoreClipboardState(savedClipboard)
-                return .fallbackToPlainText
-            }
-
-            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
-
-            guard simulateCopy() else {
-                Logger.warning("SlackContentParser: Cmd+C failed", category: Logger.analysis)
-                restoreClipboardState(savedClipboard)
-                return .fallbackToPlainText
-            }
-
-            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
-
-            quillDelta = getQuillDeltaFromClipboard()
-
-            // Update cache
-            if let delta = quillDelta,
-               let plainText = NSPasteboard.general.string(forType: .string) {
-                cachedQuillDeltaJSON = delta
-                cachedQuillDeltaPlainText = plainText
-            }
-        }
-
-        // Step 3: Verify we have Quill Delta
-        guard let delta = quillDelta else {
-            Logger.info("SlackContentParser: No Quill Delta found - falling back to plain text replacement", category: Logger.analysis)
+        // Step 2: Convert Harper's Unicode scalar indices to proper string indices
+        guard let startStringIdx = TextIndexConverter.scalarIndexToStringIndex(errorStart, in: originalText),
+              let endStringIdx = TextIndexConverter.scalarIndexToStringIndex(errorEnd, in: originalText),
+              startStringIdx < endStringIdx else {
+            Logger.warning("SlackContentParser: Invalid error range \(errorStart)-\(errorEnd) (scalar indices)", category: Logger.analysis)
             restoreClipboardState(savedClipboard)
             return .fallbackToPlainText
         }
 
-        Logger.debug("SlackContentParser: Got Quill Delta (\(delta.count) chars)", category: Logger.analysis)
+        let expectedErrorText = String(originalText[startStringIdx..<endStringIdx])
+        Logger.debug("SlackContentParser: Expected error text: '\(expectedErrorText)'", category: Logger.analysis)
 
-        // Step 4: Apply correction to Quill Delta
-        guard let modifiedDelta = applyTextCorrection(
-            to: delta,
-            errorStart: errorStart,
-            errorEnd: errorEnd,
-            suggestion: suggestion,
-            axValueText: originalText
-        ) else {
-            Logger.warning("SlackContentParser: Failed to apply correction to Quill Delta", category: Logger.analysis)
+        Logger.debug("SlackContentParser: Scalar range \(errorStart)-\(errorEnd) -> grapheme range for child element", category: Logger.analysis)
+
+        // Step 3: Find child element containing the error text and select within it
+        // CRITICAL: Slack ignores AXSelectedTextRange on root element, but child elements work!
+        Logger.debug("SlackContentParser: Step 3 - Finding child element containing '\(expectedErrorText)'", category: Logger.analysis)
+
+        guard let (childElement, offsetInChild) = findChildElementContainingText(expectedErrorText, in: element) else {
+            Logger.warning("SlackContentParser: Could not find child element containing error text", category: Logger.analysis)
             restoreClipboardState(savedClipboard)
             return .fallbackToPlainText
         }
 
-        // Step 5: Build new plain text with the correction applied
-        let modifiedPlainText = applyPlainTextCorrection(
-            originalText: originalText,
-            errorStart: errorStart,
-            errorEnd: errorEnd,
-            suggestion: suggestion
+        // Get child element's text for UTF-16 conversion
+        var childTextRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(childElement, kAXValueAttribute as CFString, &childTextRef) == .success,
+              let childText = childTextRef as? String else {
+            Logger.warning("SlackContentParser: Could not get child element text", category: Logger.analysis)
+            restoreClipboardState(savedClipboard)
+            return .fallbackToPlainText
+        }
+
+        // Convert to UTF-16 indices within child element
+        let childUtf16Range = TextIndexConverter.graphemeToUTF16Range(
+            NSRange(location: offsetInChild, length: expectedErrorText.count),
+            in: childText
         )
+        var cfRange = CFRange(location: childUtf16Range.location, length: childUtf16Range.length)
 
-        // Step 6: Select all if we haven't already (needed for paste to replace)
-        if !needsSelectAll {
-            Logger.debug("SlackContentParser: Selecting all text for replacement...", category: Logger.analysis)
-            guard simulateSelectAll() else {
-                Logger.warning("SlackContentParser: Cmd+A failed before paste", category: Logger.analysis)
+        Logger.debug("SlackContentParser: Found in child at UTF-16 \(childUtf16Range.location)-\(childUtf16Range.location + childUtf16Range.length)", category: Logger.analysis)
+
+        guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else {
+            Logger.warning("SlackContentParser: Failed to create CFRange value", category: Logger.analysis)
+            restoreClipboardState(savedClipboard)
+            return .fallbackToPlainText
+        }
+
+        // Select within child element
+        let setResult = AXUIElementSetAttributeValue(childElement, kAXSelectedTextRangeAttribute as CFString, rangeValue)
+        if setResult != .success {
+            Logger.warning("SlackContentParser: Child element selection failed: \(setResult.rawValue)", category: Logger.analysis)
+        }
+        try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+
+        // Step 4: Validate selection on child element
+        Logger.debug("SlackContentParser: Step 4 - Validating child element selection", category: Logger.analysis)
+        var selectedTextRef: CFTypeRef?
+        let copyResult = AXUIElementCopyAttributeValue(childElement, kAXSelectedTextAttribute as CFString, &selectedTextRef)
+
+        var selectionValid = false
+        if copyResult == .success, let selectedText = selectedTextRef as? String {
+            Logger.debug("SlackContentParser: Child AXSelectedText: '\(selectedText)' (length: \(selectedText.count))", category: Logger.analysis)
+            if selectedText == expectedErrorText {
+                selectionValid = true
+                Logger.info("SlackContentParser: Child selection validated - text matches '\(expectedErrorText)'", category: Logger.analysis)
+            } else if !selectedText.isEmpty {
+                Logger.warning("SlackContentParser: Child selection MISMATCH: '\(selectedText)' vs expected '\(expectedErrorText)'", category: Logger.analysis)
+            }
+        }
+
+        // If selection failed, abort
+        if !selectionValid {
+            Logger.warning("SlackContentParser: Child selection validation failed - aborting", category: Logger.analysis)
+            restoreClipboardState(savedClipboard)
+            return .fallbackToPlainText
+        }
+
+        // Step 5: Copy to get formatting (selection is valid)
+        Logger.debug("SlackContentParser: Step 5 - Copying selected word to get formatting", category: Logger.analysis)
+        _ = simulateKeyCombo(keyCode: 8, command: true)  // Cmd+C
+        try? await Task.sleep(nanoseconds: 100_000_000) // 100ms for clipboard to populate
+
+        // Extract formatting from the copied Quill Delta
+        var formatting: [String: Any]?
+        if let quillDelta = getQuillDeltaFromClipboard() {
+            Logger.debug("SlackContentParser: Got Quill Delta from clipboard", category: Logger.analysis)
+            formatting = extractFormattingForText(expectedErrorText, from: quillDelta)
+            if formatting == nil {
+                formatting = extractFormattingAtPosition(0, from: quillDelta)
+            }
+            if let fmt = formatting {
+                Logger.info("SlackContentParser: Extracted formatting: \(fmt)", category: Logger.analysis)
+            }
+        }
+
+        // Step 6: Re-validate selection after copy (copy might have deselected)
+        Logger.debug("SlackContentParser: Step 6 - Re-validating selection after copy", category: Logger.analysis)
+        let revalidateResult = AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &selectedTextRef)
+        if revalidateResult == .success, let reselectedText = selectedTextRef as? String {
+            if reselectedText != expectedErrorText {
+                Logger.warning("SlackContentParser: Selection lost after copy - aborting", category: Logger.analysis)
                 restoreClipboardState(savedClipboard)
                 return .fallbackToPlainText
             }
-            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
         }
 
-        // Step 7: Write modified Quill Delta to clipboard
-        writeSlackClipboard(plainText: modifiedPlainText, quillDelta: modifiedDelta)
-        Logger.debug("SlackContentParser: Wrote modified Quill Delta to clipboard", category: Logger.analysis)
+        // Step 7: Write clipboard with suggestion
+        Logger.debug("SlackContentParser: Step 7 - Writing clipboard (formatting: \(formatting != nil))", category: Logger.analysis)
+        if let fmt = formatting {
+            let quillDelta = createQuillDelta(text: suggestion, attributes: fmt)
+            writeSlackClipboard(plainText: suggestion, quillDelta: quillDelta)
+            Logger.info("SlackContentParser: Set clipboard with formatting", category: Logger.analysis)
+        } else {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(suggestion, forType: .string)
+        }
 
-        // Step 8: Paste (Cmd+V) - text should be selected from Cmd+A
-        Logger.debug("SlackContentParser: Pasting (Cmd+V)...", category: Logger.analysis)
+        // Step 8: Paste - only if selection was validated
+        Logger.debug("SlackContentParser: Step 8 - Pasting replacement", category: Logger.analysis)
         simulatePaste()
 
-        // Small delay for paste to complete
         try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
-
-        // Restore user's original clipboard content
         restoreClipboardState(savedClipboard)
 
-        Logger.info("SlackContentParser: Format-preserving replacement completed successfully", category: Logger.analysis)
+        Logger.info("SlackContentParser: Replacement completed successfully", category: Logger.analysis)
         return .success
     }
 
@@ -1032,9 +984,119 @@ class SlackContentParser: ContentParser {
         return nil
     }
 
+    // MARK: - Quill Delta Formatting Preservation
+
+    /// Extract formatting attributes by finding text content in Quill Delta JSON.
+    /// This is more reliable than position-based lookup for fragmented Delta structures
+    /// (e.g., text between @mentions, links, etc. which create separate small ops).
+    private func extractFormattingForText(_ searchText: String, from quillDeltaJSON: String) -> [String: Any]? {
+        guard let data = quillDeltaJSON.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let ops = json["ops"] as? [[String: Any]] else {
+            return nil
+        }
+
+        // Search for the error text in ops
+        for op in ops {
+            guard let insert = op["insert"] as? String else { continue }
+
+            // Check if this op contains the search text
+            if insert.contains(searchText) {
+                if let attributes = op["attributes"] as? [String: Any], !attributes.isEmpty {
+                    // Filter to only inline formatting
+                    let inlineAttributes = attributes.filter { key, _ in
+                        !Self.blockLevelAttributeKeys.contains(key)
+                    }
+                    if !inlineAttributes.isEmpty {
+                        Logger.debug("SlackContentParser: Text '\(searchText)' found in op with text '\(String(insert.prefix(30)))'", category: Logger.analysis)
+                        return inlineAttributes
+                    }
+                }
+            }
+        }
+
+        // Not found or no formatting
+        return nil
+    }
+
+    /// Extract formatting attributes at a character position from Quill Delta JSON.
+    /// Returns a dictionary of attributes (e.g., ["bold": true, "italic": true]) or nil if no formatting.
+    private func extractFormattingAtPosition(_ position: Int, from quillDeltaJSON: String) -> [String: Any]? {
+        guard let data = quillDeltaJSON.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let ops = json["ops"] as? [[String: Any]] else {
+            Logger.debug("SlackContentParser: extractFormattingAtPosition - failed to parse JSON", category: Logger.analysis)
+            return nil
+        }
+
+        Logger.debug("SlackContentParser: Looking for formatting at position \(position), Quill Delta has \(ops.count) ops", category: Logger.analysis)
+
+        var currentPos = 0
+        for (index, op) in ops.enumerated() {
+            guard let insert = op["insert"] else { continue }
+
+            // Calculate the length of this insert
+            let insertLength: Int
+            let insertPreview: String
+            if let text = insert as? String {
+                insertLength = text.unicodeScalars.count
+                insertPreview = String(text.prefix(30))
+            } else {
+                // Embedded objects (images, etc.) count as 1
+                insertLength = 1
+                insertPreview = "[object]"
+            }
+
+            let hasAttrs = op["attributes"] != nil
+            Logger.trace("SlackContentParser: Op \(index): pos \(currentPos)-\(currentPos + insertLength), hasAttrs=\(hasAttrs), text='\(insertPreview)'", category: Logger.analysis)
+
+            // Check if position falls within this op
+            if position >= currentPos && position < currentPos + insertLength {
+                // Found the op containing our position
+                Logger.debug("SlackContentParser: Position \(position) found in op \(index) (range \(currentPos)-\(currentPos + insertLength))", category: Logger.analysis)
+                if let attributes = op["attributes"] as? [String: Any], !attributes.isEmpty {
+                    // Filter to only inline formatting (not block-level like list, blockquote)
+                    let inlineAttributes = attributes.filter { key, _ in
+                        !Self.blockLevelAttributeKeys.contains(key)
+                    }
+                    return inlineAttributes.isEmpty ? nil : inlineAttributes
+                }
+                Logger.debug("SlackContentParser: Op has no inline attributes", category: Logger.analysis)
+                return nil
+            }
+
+            currentPos += insertLength
+        }
+
+        Logger.debug("SlackContentParser: Position \(position) not found in any op (total length: \(currentPos))", category: Logger.analysis)
+        return nil
+    }
+
+    /// Create a Quill Delta JSON string for text with optional formatting attributes.
+    /// - Parameters:
+    ///   - text: The text to insert
+    ///   - attributes: Optional formatting attributes (e.g., ["bold": true])
+    /// - Returns: Quill Delta JSON string
+    private func createQuillDelta(text: String, attributes: [String: Any]?) -> String {
+        var op: [String: Any] = ["insert": text]
+        if let attrs = attributes, !attrs.isEmpty {
+            op["attributes"] = attrs
+        }
+
+        let delta: [String: Any] = ["ops": [op]]
+
+        guard let data = try? JSONSerialization.data(withJSONObject: delta),
+              let jsonString = String(data: data, encoding: .utf8) else {
+            // Fallback to simple format
+            return "{\"ops\":[{\"insert\":\"\(escapeForJSON(text))\"}]}"
+        }
+
+        return jsonString
+    }
+
     /// Apply text correction to Quill Delta JSON while preserving formatting.
-    /// Uses text search instead of position mapping for robustness.
-    /// Returns nil if the correction cannot be applied safely.
+    /// Uses direct string replacement to preserve exact JSON structure (key ordering, whitespace).
+    /// JSONSerialization changes key order which breaks Slack's parser.
     private func applyTextCorrection(
         to quillDelta: String,
         errorStart: Int,
@@ -1042,13 +1104,6 @@ class SlackContentParser: ContentParser {
         suggestion: String,
         axValueText: String
     ) -> String? {
-
-        guard let jsonData = quillDelta.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-              var ops = json["ops"] as? [[String: Any]] else {
-            Logger.debug("SlackContentParser: Failed to parse Quill Delta JSON", category: Logger.analysis)
-            return nil
-        }
 
         // Step 1: Extract the actual error text from AXValue
         guard errorStart >= 0 && errorEnd <= axValueText.count && errorStart < errorEnd,
@@ -1059,114 +1114,162 @@ class SlackContentParser: ContentParser {
         }
         let errorText = String(axValueText[axStartIdx..<axEndIdx])
 
-        // Step 2: Build plain text from Quill Delta and position map
-        var positionMap: [(opIndex: Int, offsetInOp: Int)] = []
-        var quillPlainText = ""
+        // Step 2: Escape the error text and suggestion for JSON string matching
+        let jsonEscapedError = escapeForJSON(errorText)
+        let jsonEscapedSuggestion = escapeForJSON(suggestion)
 
-        for (opIndex, op) in ops.enumerated() {
-            if let insert = op["insert"] as? String {
-                for i in 0..<insert.count {
-                    positionMap.append((opIndex, i))
-                }
-                quillPlainText += insert
-            }
-            // Embedded objects (emojis) are skipped - they don't appear in AXValue text
-        }
-
-        // Step 3: Get surrounding context from AXValue to help find unique match
-        let contextChars = 15
-        let contextBeforeStart = max(0, errorStart - contextChars)
-        let contextAfterEnd = min(axValueText.count, errorEnd + contextChars)
-
-        let contextBeforeIdx = axValueText.index(axValueText.startIndex, offsetBy: contextBeforeStart)
-        let contextAfterIdx = axValueText.index(axValueText.startIndex, offsetBy: contextAfterEnd)
-
-        let contextBefore = String(axValueText[contextBeforeIdx..<axStartIdx])
-        let contextAfter = String(axValueText[axEndIdx..<contextAfterIdx])
-
-        // Step 4: Search for the error text with context in Quill Delta
-        let searchPattern = contextBefore + errorText + contextAfter
-
-        guard let matchRange = quillPlainText.range(of: searchPattern) else {
-            // Fallback: try searching for just the error text without context
-            guard let simpleRange = quillPlainText.range(of: errorText) else {
-                Logger.debug("SlackContentParser: Error text not found in Quill Delta", category: Logger.analysis)
-                return nil
-            }
-
-            let quillStart = quillPlainText.distance(from: quillPlainText.startIndex, to: simpleRange.lowerBound)
-            let quillEnd = quillPlainText.distance(from: quillPlainText.startIndex, to: simpleRange.upperBound)
-
-            guard quillStart >= 0 && quillEnd <= positionMap.count else {
-                Logger.debug("SlackContentParser: Position out of bounds", category: Logger.analysis)
-                return nil
-            }
-
-            let startInfo = positionMap[quillStart]
-            let endInfo = positionMap[quillEnd - 1]
-
-            return applyToOps(&ops, startInfo: startInfo, endInfo: endInfo, suggestion: suggestion)
-        }
-
-        // Calculate position of error text within the matched pattern
-        let matchStart = quillPlainText.distance(from: quillPlainText.startIndex, to: matchRange.lowerBound)
-        let quillStart = matchStart + contextBefore.count
-        let quillEnd = quillStart + errorText.count
-
-        guard quillStart >= 0 && quillEnd <= positionMap.count && quillStart < quillEnd else {
-            Logger.debug("SlackContentParser: Position out of bounds", category: Logger.analysis)
+        // Step 3: Find the error text within an "insert":"..." value in the raw JSON
+        guard let errorRange = findInsertValue(jsonEscapedError, in: quillDelta) else {
+            Logger.debug("SlackContentParser: Error text '\(errorText)' not found in Quill Delta JSON", category: Logger.analysis)
             return nil
         }
 
-        let startInfo = positionMap[quillStart]
-        let endInfo = positionMap[quillEnd - 1]
+        // Step 4: Replace directly in the original JSON string (preserves structure exactly)
+        var modifiedDelta = quillDelta
+        modifiedDelta.replaceSubrange(errorRange, with: jsonEscapedSuggestion)
 
-        return applyToOps(&ops, startInfo: startInfo, endInfo: endInfo, suggestion: suggestion)
+        Logger.info("SlackContentParser: Applied correction via direct string replacement", category: Logger.analysis)
+        return modifiedDelta
     }
 
-    /// Helper to apply correction to Quill Delta ops and rebuild JSON
-    private func applyToOps(
-        _ ops: inout [[String: Any]],
-        startInfo: (opIndex: Int, offsetInOp: Int),
-        endInfo: (opIndex: Int, offsetInOp: Int),
-        suggestion: String
-    ) -> String? {
-        // For simplicity, only handle single-op corrections for now
-        // (error contained entirely within one insert string)
-        if startInfo.opIndex != endInfo.opIndex {
-            Logger.debug("SlackContentParser: Error spans multiple ops (\(startInfo.opIndex) to \(endInfo.opIndex)) - falling back", category: Logger.analysis)
-            return nil
+    /// Block-level attribute keys that should be stripped from Quill Delta.
+    /// These cause Slack to re-apply block formatting when pasting after Cmd+A.
+    private static let blockLevelAttributeKeys: Set<String> = [
+        "list",         // Bullet/numbered list formatting
+        "blockquote",   // Block quotes
+        "code-block",   // Code blocks (not inline code)
+    ]
+
+    /// Strip block-level attributes from Quill Delta to prevent formatting from being re-applied.
+    /// Uses proper JSON parsing instead of fragile regex.
+    ///
+    /// When pasting Quill Delta with block attributes after Cmd+A, Slack applies those block
+    /// formats to everything. By removing these attributes, we preserve inline formatting
+    /// (bold, italic, code, strike, link) while the block structure remains intact.
+    private func stripBlockLevelAttributes(from delta: String) -> String {
+        guard let data = delta.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let ops = json["ops"] as? [[String: Any]] else {
+            // If parsing fails, return original (don't break anything)
+            Logger.debug("SlackContentParser: Could not parse delta for attribute stripping", category: Logger.analysis)
+            return delta
         }
 
-        let opIndex = startInfo.opIndex
-        guard var insert = ops[opIndex]["insert"] as? String else {
-            Logger.debug("SlackContentParser: Op \(opIndex) is not a string insert", category: Logger.analysis)
-            return nil
+        var strippedAny = false
+        var modifiedOps: [[String: Any]] = []
+
+        for var op in ops {
+            if var attrs = op["attributes"] as? [String: Any] {
+                // Remove block-level attributes
+                for key in Self.blockLevelAttributeKeys {
+                    if attrs.removeValue(forKey: key) != nil {
+                        strippedAny = true
+                    }
+                }
+
+                // Keep attributes only if non-empty (preserves inline formatting)
+                if attrs.isEmpty {
+                    op.removeValue(forKey: "attributes")
+                } else {
+                    op["attributes"] = attrs
+                }
+            }
+            modifiedOps.append(op)
         }
 
-        // Apply the correction within this op
-        let startOffset = startInfo.offsetInOp
-        let endOffset = endInfo.offsetInOp + 1
-
-        guard let startIndex = insert.index(insert.startIndex, offsetBy: startOffset, limitedBy: insert.endIndex),
-              let endIndex = insert.index(insert.startIndex, offsetBy: endOffset, limitedBy: insert.endIndex),
-              startIndex < endIndex else {
-            Logger.debug("SlackContentParser: Invalid string indices for correction", category: Logger.analysis)
-            return nil
+        if !strippedAny {
+            Logger.debug("SlackContentParser: No block-level attributes to strip", category: Logger.analysis)
+            return delta  // No changes needed
         }
 
-        insert.replaceSubrange(startIndex..<endIndex, with: suggestion)
-        ops[opIndex]["insert"] = insert
-
-        // Rebuild JSON
-        let modifiedJson: [String: Any] = ["ops": ops]
-        guard let modifiedData = try? JSONSerialization.data(withJSONObject: modifiedJson),
-              let modifiedString = String(data: modifiedData, encoding: .utf8) else {
-            Logger.debug("SlackContentParser: Failed to serialize modified Quill Delta", category: Logger.analysis)
-            return nil
+        // Serialize back to JSON
+        let result: [String: Any] = ["ops": modifiedOps]
+        guard let resultData = try? JSONSerialization.data(withJSONObject: result),
+              let resultString = String(data: resultData, encoding: .utf8) else {
+            Logger.warning("SlackContentParser: Failed to serialize modified delta", category: Logger.analysis)
+            return delta
         }
 
-        return modifiedString
+        Logger.info("SlackContentParser: Stripped block-level attributes from Quill Delta", category: Logger.analysis)
+        Logger.debug("SlackContentParser: BEFORE strip: \(delta.prefix(500))...", category: Logger.analysis)
+        Logger.debug("SlackContentParser: AFTER strip: \(resultString.prefix(500))...", category: Logger.analysis)
+        return resultString
+    }
+
+    /// Escape a string for JSON (handles quotes, backslashes, control characters)
+    private func escapeForJSON(_ string: String) -> String {
+        var result = ""
+        for char in string {
+            switch char {
+            case "\"": result += "\\\""
+            case "\\": result += "\\\\"
+            case "\n": result += "\\n"
+            case "\r": result += "\\r"
+            case "\t": result += "\\t"
+            default: result.append(char)
+            }
+        }
+        return result
+    }
+
+    /// Find the range of a value within an "insert":"value" pattern in JSON.
+    /// Returns the range of the search text within the value (not including quotes).
+    private func findInsertValue(_ searchText: String, in json: String) -> Range<String.Index>? {
+        var searchStart = json.startIndex
+
+        while let insertKeyRange = json.range(of: "\"insert\":", range: searchStart..<json.endIndex) {
+            // Find what comes after "insert":
+            guard insertKeyRange.upperBound < json.endIndex else { break }
+
+            // Skip whitespace
+            var valueStart = insertKeyRange.upperBound
+            while valueStart < json.endIndex && json[valueStart].isWhitespace {
+                valueStart = json.index(after: valueStart)
+            }
+
+            guard valueStart < json.endIndex else { break }
+
+            // Check if this is a string value (starts with ")
+            if json[valueStart] == "\"" {
+                // Find the closing quote (handle escaped quotes)
+                let contentStart = json.index(after: valueStart)
+                var pos = contentStart
+
+                while pos < json.endIndex {
+                    if json[pos] == "\\" {
+                        // Skip escaped character
+                        pos = json.index(after: pos)
+                        if pos < json.endIndex {
+                            pos = json.index(after: pos)
+                        }
+                    } else if json[pos] == "\"" {
+                        // Found closing quote - check if search text is in this value
+                        let valueContent = String(json[contentStart..<pos])
+
+                        if let matchRange = valueContent.range(of: searchText) {
+                            // Convert to range in original JSON string
+                            let matchStartOffset = valueContent.distance(from: valueContent.startIndex, to: matchRange.lowerBound)
+                            let matchEndOffset = valueContent.distance(from: valueContent.startIndex, to: matchRange.upperBound)
+
+                            guard let globalStart = json.index(contentStart, offsetBy: matchStartOffset, limitedBy: json.endIndex),
+                                  let globalEnd = json.index(contentStart, offsetBy: matchEndOffset, limitedBy: json.endIndex) else {
+                                break
+                            }
+
+                            return globalStart..<globalEnd
+                        }
+                        break
+                    } else {
+                        pos = json.index(after: pos)
+                    }
+                }
+            }
+
+            // Move to search after this insert
+            searchStart = insertKeyRange.upperBound
+        }
+
+        return nil
     }
 
     /// Apply correction to plain text
@@ -1194,6 +1297,68 @@ class SlackContentParser: ContentParser {
     /// Simulate Cmd+V paste
     private func simulatePaste() {
         _ = simulateKeyCombo(keyCode: 9, command: true) // 'V' key
+    }
+
+    // MARK: - Child Element Selection (for format-preserving replacement)
+
+    /// Find the child element containing the target text and return the offset within that element
+    /// Slack ignores AXSelectedTextRange on root element, but child elements work!
+    private func findChildElementContainingText(_ targetText: String, in element: AXUIElement) -> (AXUIElement, Int)? {
+        var candidates: [(element: AXUIElement, text: String, offset: Int)] = []
+        collectTextElements(in: element, depth: 0, maxDepth: 10, candidates: &candidates, targetText: targetText)
+
+        // Sort by text length ascending to prefer most specific (smallest) element
+        let sortedCandidates = candidates.sorted { $0.text.count < $1.text.count }
+
+        for candidate in sortedCandidates {
+            guard let range = candidate.text.range(of: targetText) else { continue }
+            let offset = candidate.text.distance(from: candidate.text.startIndex, to: range.lowerBound)
+            Logger.debug("SlackContentParser: Found target text in child element (size \(candidate.text.count)) at offset \(offset)", category: Logger.analysis)
+            return (candidate.element, offset)
+        }
+
+        return nil
+    }
+
+    /// Collect child text elements for element tree traversal
+    private func collectTextElements(
+        in element: AXUIElement,
+        depth: Int,
+        maxDepth: Int,
+        candidates: inout [(element: AXUIElement, text: String, offset: Int)],
+        targetText: String
+    ) {
+        guard depth < maxDepth else { return }
+
+        var textValue: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textValue) == .success,
+           let text = textValue as? String,
+           text.contains(targetText) {
+
+            var sizeValue: CFTypeRef?
+            var height: CGFloat = 0
+            if AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
+               let sv = sizeValue,
+               CFGetTypeID(sv) == AXValueGetTypeID() {
+                var size = CGSize.zero
+                AXValueGetValue(sv as! AXValue, .cgSize, &size)
+                height = size.height
+            }
+
+            // Prefer smaller elements (paragraph-level, not document-level)
+            if height > 0 && height < 100 {
+                candidates.append((element: element, text: text, offset: 0))
+                Logger.trace("SlackContentParser: Candidate element: height=\(Int(height)), length=\(text.count)", category: Logger.analysis)
+            }
+        }
+
+        var childrenValue: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenValue) == .success,
+           let children = childrenValue as? [AXUIElement] {
+            for child in children.prefix(100) {
+                collectTextElements(in: child, depth: depth + 1, maxDepth: maxDepth, candidates: &candidates, targetText: targetText)
+            }
+        }
     }
 
     /// Parse the Quill Delta content string and extract exclusions
