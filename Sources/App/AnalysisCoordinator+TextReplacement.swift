@@ -638,30 +638,6 @@ extension AnalysisCoordinator {
         }
     }
 
-    /// WebKit-specific cache invalidation that only clears position cache, not errors.
-    /// Used when removeErrorAndUpdateUI already handled error adjustments.
-    /// This just clears the position cache so underlines are recalculated at new positions.
-    func invalidateCacheAfterReplacementForWebKit(at range: Range<Int>) {
-        Logger.trace("WebKit cache invalidation: clearing position cache only", category: Logger.analysis)
-
-        // Clear position cache - geometry is now stale since text positions shifted
-        positionResolver.clearCache()
-
-        // Hide overlays temporarily while we recalculate positions
-        errorOverlay.hide()
-
-        // Clear previousText so the next text change triggers analysis
-        previousText = ""
-
-        // DON'T clear currentErrors - removeErrorAndUpdateUI already handled that
-        // DON'T call textMonitor.extractText - we already have the correct errors
-        // Just need to recalculate underline positions for remaining errors
-        if let element = textMonitor.monitoredElement, !currentErrors.isEmpty {
-            Logger.trace("WebKit cache invalidation: refreshing \(currentErrors.count) remaining errors", category: Logger.analysis)
-            showErrorUnderlines(currentErrors, element: element)
-        }
-    }
-
     /// Find the Paste menu item in the application's menu bar
     /// Returns the AXUIElement for the Paste menu item, or nil if not found
     func findPasteMenuItem(in appElement: AXUIElement) -> AXUIElement? {
@@ -1157,14 +1133,10 @@ extension AnalysisCoordinator {
             return
         }
 
-        // Fallback: selection + paste
-        Logger.debug("Mail: AXReplaceRangeWithText failed, falling back to selection + paste", category: Logger.analysis)
+        // Fallback: selection + keyboard typing (preserves formatting)
+        // Using keyboard typing instead of paste preserves the formatting of the selected text
+        Logger.debug("Mail: AXReplaceRangeWithText failed, falling back to selection + keyboard typing", category: Logger.analysis)
         let _ = MailContentParser.selectTextForReplacement(range: range, in: element)
-
-        let pasteboard = NSPasteboard.general
-        let originalString = pasteboard.string(forType: .string)
-        pasteboard.clearContents()
-        pasteboard.setString(suggestion, forType: .string)
 
         // Activate Mail
         if let mailApp = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.mail").first {
@@ -1173,17 +1145,20 @@ extension AnalysisCoordinator {
 
         try? await Task.sleep(nanoseconds: UInt64(TimingConstants.shortDelay * 1_000_000_000))
 
-        pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
+        // Type the replacement text directly - this inherits the formatting from the selection
+        typeTextDirectly(suggestion)
+
+        // Wait for typing to complete (longer for longer text)
+        let typingDelay = Double(suggestion.count) * 0.01 + 0.1
+        try? await Task.sleep(nanoseconds: UInt64(typingDelay * 1_000_000_000))
+
         statistics.recordSuggestionApplied(category: currentError.category)
+        // Follow Slack's pattern: clear cache, reset typing detector, then update UI
+        // This ensures underlines and highlight remain visible for the next error
+        positionResolver.clearCache()
+        TypingDetector.shared.reset()
         removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
-        invalidateCacheAfterReplacementForWebKit(at: currentError.start..<currentError.end)
 
-        try? await Task.sleep(nanoseconds: UInt64(TimingConstants.shortDelay * 1_000_000_000))
-
-        if let original = originalString {
-            pasteboard.clearContents()
-            pasteboard.setString(original, forType: .string)
-        }
         replacementCompletedAt = Date()
         scheduleDelayedReanalysis(startTime: Date())
     }

@@ -275,44 +275,20 @@ class MailContentParser: ContentParser {
         return nil
     }
 
-    /// Replace text in Mail using AXReplaceRangeWithText (the WebKit accessibility API)
+    /// Replace text in Mail using accessibility APIs
+    /// NOTE: Mail's WebKit AX APIs are broken - they return success but don't actually work.
+    /// Testing shows:
+    /// - AXReplaceRangeWithText: fails with -25212 (kAXErrorNoValue)
+    /// - AXSelectedText: returns success but doesn't actually change the text
+    /// This method always returns false to force fallback to keyboard typing.
     static func replaceText(
         range: NSRange,
         with replacement: String,
         in element: AXUIElement
     ) -> Bool {
-        Logger.info("MailContentParser: replaceText range \(range.location)-\(range.location + range.length) with '\(replacement)'", category: Logger.accessibility)
-
-        // Convert grapheme cluster indices to UTF-16 for Mail's accessibility API
-        let utf16Range = convertToUTF16Range(range, in: element)
-        Logger.debug("MailContentParser: replaceText UTF-16 conversion: grapheme [\(range.location), \(range.length)] -> UTF-16 [\(utf16Range.location), \(utf16Range.length)]", category: Logger.accessibility)
-
-        // Method 1: AXReplaceRangeWithText - the proper API for WebKit
-        // Parameter is an array: [CFRange, String]
-        var cfRange = CFRange(location: utf16Range.location, length: utf16Range.length)
-        guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else {
-            Logger.debug("MailContentParser: Failed to create CFRange", category: Logger.accessibility)
-            return false
-        }
-
-        let params = [rangeValue, replacement as CFString] as CFArray
-
-        var resultValue: CFTypeRef?
-        let result = AXUIElementCopyParameterizedAttributeValue(
-            element,
-            "AXReplaceRangeWithText" as CFString,
-            params,
-            &resultValue
-        )
-
-        if result == .success {
-            Logger.info("MailContentParser: AXReplaceRangeWithText succeeded!", category: Logger.accessibility)
-            return true
-        }
-
-        Logger.debug("MailContentParser: AXReplaceRangeWithText failed: \(result.rawValue)", category: Logger.accessibility)
-
-        // Return false so caller can use selection + paste fallback
+        Logger.info("MailContentParser: replaceText - Mail's AX APIs are broken, using keyboard fallback", category: Logger.accessibility)
+        // Mail's WebKit AX APIs don't work for text replacement.
+        // Return false to force the keyboard typing fallback which preserves formatting.
         return false
     }
 
