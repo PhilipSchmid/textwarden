@@ -80,6 +80,9 @@ class AnalysisCoordinator: ObservableObject {
     /// Typing detector
     let typingDetector: TypingDetecting
 
+    /// Text replacement coordinator
+    let textReplacementCoordinator: TextReplacementCoordinating
+
     /// Suggestion popover
     let suggestionPopover: SuggestionPopover
 
@@ -172,7 +175,12 @@ class AnalysisCoordinator: ObservableObject {
     /// Time when last suggestion was applied programmatically
     /// Used to suppress typing detection briefly after applying a suggestion
     /// (prevents paste-triggered AX notifications from hiding overlays)
-    var lastReplacementTime: Date?
+    var lastReplacementTime: Date? {
+        didSet {
+            // Keep thread-safe version in sync
+            updateThreadSafeReplacementTime()
+        }
+    }
 
     /// Time when a conversation switch was detected in a Mac Catalyst chat app
     /// Used to prevent validateCurrentText() from racing with handleConversationSwitchInChatApp()
@@ -232,6 +240,36 @@ class AnalysisCoordinator: ObservableObject {
     /// When true, text changes are expected (we're applying a suggestion) and should not trigger re-analysis
     var isApplyingReplacement: Bool = false
 
+    /// Returns true if we're in the middle of a replacement OR within the grace period after
+    /// Use this to prevent hiding underlines/clearing highlight during and immediately after replacement
+    var isInReplacementMode: Bool {
+        if isApplyingReplacement { return true }
+        guard let lastTime = lastReplacementTime else { return false }
+        return Date().timeIntervalSince(lastTime) < TimingConstants.replacementGracePeriod
+    }
+
+    // MARK: - Thread-Safe Replacement Mode Check
+
+    /// Thread-safe storage for last replacement time (for non-MainActor access)
+    private static let replacementTimeLock = NSLock()
+    nonisolated(unsafe) private static var _threadSafeLastReplacementTime: Date?
+
+    /// Thread-safe check if we're in replacement mode
+    /// Can be called from any thread (e.g., from PositionResolver)
+    nonisolated static var isInReplacementModeThreadSafe: Bool {
+        replacementTimeLock.lock()
+        defer { replacementTimeLock.unlock() }
+        guard let lastTime = _threadSafeLastReplacementTime else { return false }
+        return Date().timeIntervalSince(lastTime) < TimingConstants.replacementGracePeriod
+    }
+
+    /// Update the thread-safe replacement time to match the MainActor version
+    private func updateThreadSafeReplacementTime() {
+        Self.replacementTimeLock.lock()
+        Self._threadSafeLastReplacementTime = lastReplacementTime
+        Self.replacementTimeLock.unlock()
+    }
+
     /// Timestamp when replacement completed in an app with focus bounce behavior.
     /// Some apps (like Mail's WebKit) fire multiple AXFocusedUIElementChanged notifications
     /// during paste, causing the monitored element to temporarily become nil.
@@ -273,6 +311,7 @@ class AnalysisCoordinator: ObservableObject {
         self.statistics = dependencies.statistics
         self.contentParserFactory = dependencies.contentParserFactory
         self.typingDetector = dependencies.typingDetector
+        self.textReplacementCoordinator = dependencies.textReplacementCoordinator
         self.suggestionPopover = dependencies.suggestionPopover
         self.floatingIndicator = dependencies.floatingIndicator
 
@@ -1343,7 +1382,8 @@ class AnalysisCoordinator: ObservableObject {
     }
 
     /// Apply filters based on user preferences - internal for extension access
-    func applyFilters(to errors: [GrammarErrorModel], sourceText: String, element: AXUIElement?) {
+    /// - Parameter isFromReplacementUI: If true, this call is from `removeErrorAndUpdateUI` and should not be skipped during replacement mode
+    func applyFilters(to errors: [GrammarErrorModel], sourceText: String, element: AXUIElement?, isFromReplacementUI: Bool = false) {
         Logger.debug("AnalysisCoordinator: applyFilters called with \(errors.count) errors", category: Logger.analysis)
 
         var filteredErrors = errors
@@ -1496,9 +1536,17 @@ class AnalysisCoordinator: ObservableObject {
             }
         }
 
+        // During replacement mode, skip updating currentErrors from re-analysis
+        // because re-analysis has stale data (positions before adjustment).
+        // Only allow updates from removeErrorAndUpdateUI which has correct adjusted positions.
+        if isInReplacementMode && !isFromReplacementUI {
+            Logger.debug("AnalysisCoordinator: Skipping currentErrors update during replacement mode (from re-analysis)", category: Logger.analysis)
+            return
+        }
+
         currentErrors = filteredErrors
 
-        showErrorUnderlines(filteredErrors, element: element)
+        showErrorUnderlines(filteredErrors, element: element, isFromReplacementUI: isFromReplacementUI)
 
         // Sync the popover's error and style suggestion lists with the canonical lists
         // This ensures the popover shows the correct counts after re-analysis
@@ -1509,8 +1557,16 @@ class AnalysisCoordinator: ObservableObject {
     private var electronLayoutTimer: Timer?
 
     /// Show visual underlines for errors - internal for extension access
-    func showErrorUnderlines(_ errors: [GrammarErrorModel], element: AXUIElement?) {
-        Logger.debug("AnalysisCoordinator: showErrorUnderlines called with \(errors.count) errors", category: Logger.analysis)
+    /// - Parameter isFromReplacementUI: If true, this call is from `removeErrorAndUpdateUI` and should not be skipped during replacement mode
+    func showErrorUnderlines(_ errors: [GrammarErrorModel], element: AXUIElement?, isFromReplacementUI: Bool = false) {
+        Logger.debug("AnalysisCoordinator: showErrorUnderlines called with \(errors.count) errors, isFromReplacementUI: \(isFromReplacementUI)", category: Logger.analysis)
+
+        // During replacement mode, skip calls from re-analysis (async completion with stale data)
+        // Only allow calls from removeErrorAndUpdateUI which has the correct updated error list
+        if isInReplacementMode && !isFromReplacementUI {
+            Logger.debug("AnalysisCoordinator: Skipping showErrorUnderlines during replacement mode (from re-analysis)", category: Logger.analysis)
+            return
+        }
 
         // Don't show overlays during window movement or when window is off-screen
         // This prevents stale positions from being cached during the debounce period

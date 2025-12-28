@@ -283,8 +283,9 @@ class ErrorOverlayWindow: NSPanel {
     ///   - element: The AX element containing the text
     ///   - context: Application context
     ///   - sourceText: The text that was analyzed (used to detect if text has changed)
+    ///   - bypassTypingCheck: If true, skip the typing pause check (used after applying replacements)
     @discardableResult
-    func update(errors: [GrammarErrorModel], element: AXUIElement, context: ApplicationContext?, sourceText: String? = nil) -> Int {
+    func update(errors: [GrammarErrorModel], element: AXUIElement, context: ApplicationContext?, sourceText: String? = nil, bypassTypingCheck: Bool = false) -> Int {
         Logger.debug("ErrorOverlay: update() called with \(errors.count) errors", category: Logger.ui)
         self.errors = errors
         self.monitoredElement = element
@@ -307,7 +308,10 @@ class ErrorOverlayWindow: NSPanel {
         // For apps with typing pause: Hide underlines while typing to avoid misplacement
         // The floating error indicator will still show the error count
         // TypingDetector tracks typing state for all apps via TypingDetector.shared.notifyTextChange()
-        if appConfig.features.requiresTypingPause && TypingDetector.shared.isCurrentlyTyping {
+        // Skip this check when in replacement mode (during replacement OR in grace period after)
+        // This prevents hiding underlines and clearing lockedHighlightError while navigating errors
+        let isInReplacementMode = AnalysisCoordinator.shared.isInReplacementMode
+        if appConfig.features.requiresTypingPause && TypingDetector.shared.isCurrentlyTyping && !bypassTypingCheck && !isInReplacementMode {
             Logger.debug("ErrorOverlay: Hiding underlines during typing (\(appConfig.displayName))", category: Logger.ui)
             hide()
             // Return 0 underlines but errors will still be counted by the indicator
@@ -692,6 +696,15 @@ class ErrorOverlayWindow: NSPanel {
         }
 
         underlineView?.underlines = underlines
+
+        // Re-apply locked highlight if one was set (underlines may have been recreated)
+        if let lockedError = lockedHighlightError {
+            let matchingUnderline = underlines.first { underline in
+                underline.error.start == lockedError.start && underline.error.end == lockedError.end
+            }
+            underlineView?.lockedHighlightUnderline = matchingUnderline
+        }
+
         underlineView?.needsDisplay = true
 
         if !underlines.isEmpty {
@@ -729,8 +742,12 @@ class ErrorOverlayWindow: NSPanel {
         hoveredUnderline = nil
         underlineView?.hoveredUnderline = nil
 
-        // Clear locked highlight
-        lockedHighlightError = nil
+        // Clear locked highlight - but preserve during replacement mode
+        // so it can be re-applied when underlines are recreated
+        let isInReplacementMode = AnalysisCoordinator.shared.isInReplacementMode
+        if !isInReplacementMode {
+            lockedHighlightError = nil
+        }
         underlineView?.lockedHighlightUnderline = nil
 
         // Only stop timer if not waiting for frame stabilization

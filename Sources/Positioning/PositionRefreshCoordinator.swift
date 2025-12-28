@@ -111,15 +111,27 @@ class PositionRefreshCoordinator {
         guard let bundleID = monitoredBundleID else { return }
 
         // Debounce to let the app's DOM/AX tree stabilize after click
-        DispatchQueue.main.async { [weak self] in
+        // All checks for replacement mode happen on MainActor
+        Task { @MainActor [weak self] in
             guard let self = self else { return }
+
+            // Skip refresh if in replacement mode (during replacement or grace period after)
+            // Clicking on a suggestion triggers this, but we don't want to refresh
+            // until after the replacement completes and positions are adjusted
+            if AnalysisCoordinator.shared.isInReplacementMode {
+                return
+            }
 
             // Cancel any pending refresh
             self.refreshWorkItem?.cancel()
 
             // Schedule new refresh
             let workItem = DispatchWorkItem { [weak self] in
-                self?.delegate?.positionRefreshRequested()
+                Task { @MainActor in
+                    // Check again before executing (replacement may have started during delay)
+                    guard !AnalysisCoordinator.shared.isInReplacementMode else { return }
+                    self?.delegate?.positionRefreshRequested()
+                }
             }
             self.refreshWorkItem = workItem
 

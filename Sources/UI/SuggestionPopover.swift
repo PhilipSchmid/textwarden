@@ -95,6 +95,9 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Flag to prevent rapid-fire suggestion applications (race condition protection)
     @Published var isProcessing: Bool = false
 
+    /// Flag to prevent sync during navigation (prevents race condition with rebuildContentView)
+    private var isNavigating: Bool = false
+
     /// Counter to force SwiftUI view identity reset on rebuild
     /// Incrementing this causes SwiftUI to treat the view as completely new
     @Published var rebuildCounter: Int = 0
@@ -427,7 +430,8 @@ class SuggestionPopover: NSObject, ObservableObject {
         // Create appropriate content view based on mode
         let contentView = UnifiedPopoverContentView(popover: self)
 
-        let hostingView = NSHostingView(rootView: contentView)
+        // Use FirstMouseHostingView to ensure buttons work immediately in non-activating panel
+        let hostingView = FirstMouseHostingView(rootView: contentView)
         // Force initial layout
         hostingView.needsLayout = true
         hostingView.layoutSubtreeIfNeeded()
@@ -658,6 +662,33 @@ class SuggestionPopover: NSObject, ObservableObject {
         }
     }
 
+    /// Sync popover's errors with coordinator's currentErrors after replacement.
+    /// The popover and coordinator adjust positions independently during replacement,
+    /// which can cause them to get out of sync. This re-syncs by index.
+    func syncErrorsAfterReplacement(_ coordinatorErrors: [GrammarErrorModel]) {
+        guard isVisible else { return }
+
+        allErrors = coordinatorErrors
+
+        // Clamp index to valid range
+        if currentIndex >= allErrors.count {
+            currentIndex = max(0, allErrors.count - 1)
+        }
+
+        // Update current error to the one at the (possibly adjusted) index
+        if allErrors.indices.contains(currentIndex) {
+            let newCurrent = allErrors[currentIndex]
+            if currentError?.start != newCurrent.start || currentError?.end != newCurrent.end {
+                Logger.debug("SuggestionPopover: syncErrorsAfterReplacement - updated position from \(currentError?.start ?? -1)-\(currentError?.end ?? -1) to \(newCurrent.start)-\(newCurrent.end)", category: Logger.ui)
+                currentError = newCurrent
+                onCurrentErrorChanged?(currentError)
+            }
+        } else if allErrors.isEmpty {
+            currentError = nil
+            hide()
+        }
+    }
+
     // MARK: - View Rebuild
 
     /// Rebuild the content view from scratch for clean rendering
@@ -673,9 +704,9 @@ class SuggestionPopover: NSObject, ObservableObject {
         // Remove old hosting view completely
         trackingView.subviews.forEach { $0.removeFromSuperview() }
 
-        // Create fresh content view
+        // Create fresh content view with FirstMouseHostingView for immediate button responsiveness
         let contentView = UnifiedPopoverContentView(popover: self)
-        let hostingView = NSHostingView(rootView: contentView)
+        let hostingView = FirstMouseHostingView(rootView: contentView)
 
         // KEY INSIGHT: Don't set frames manually. Let SwiftUI size itself naturally.
         // 1. Create hosting view with a large temporary frame so SwiftUI isn't constrained
@@ -741,6 +772,19 @@ class SuggestionPopover: NSObject, ObservableObject {
             return
         }
 
+        // Don't sync while navigating - prevents race condition
+        guard !isNavigating else {
+            Logger.debug("Popover: Skipping sync while navigating", category: Logger.ui)
+            return
+        }
+
+        // Don't sync during replacement mode - syncErrorsAfterReplacement has already
+        // updated the popover state, and re-analysis sync could reset it incorrectly
+        guard !AnalysisCoordinator.shared.isInReplacementMode else {
+            Logger.debug("Popover: Skipping sync during replacement mode", category: Logger.ui)
+            return
+        }
+
         let previousErrorCount = allErrors.count
         let previousStyleCount = allStyleSuggestions.count
         allErrors = errors
@@ -778,6 +822,11 @@ class SuggestionPopover: NSObject, ObservableObject {
     func applySuggestion(_ suggestion: String) {
         Logger.debug("Popover: applySuggestion called", category: Logger.ui)
 
+        // CRITICAL: Set lastReplacementTime IMMEDIATELY to prevent position refresh
+        // The click that triggered this also triggers PositionRefreshCoordinator's mouse monitor,
+        // and we need isInReplacementMode to be true BEFORE the refresh is scheduled
+        AnalysisCoordinator.shared.lastReplacementTime = Date()
+
         guard let error = currentError else {
             Logger.debug("Popover: No currentError - cannot apply suggestion", category: Logger.ui)
             return
@@ -793,20 +842,21 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         isProcessing = true
 
-        // Calculate position shift for remaining errors (needed for completion handler)
-        let originalLength = error.end - error.start
-        let newLength = suggestion.count
-        let lengthDelta = newLength - originalLength
-
         // Call the replacement asynchronously
         Task { @MainActor [weak self] in
             guard let self = self else { return }
 
             await self.onApplySuggestion?(error, suggestion)
 
+            // NOTE: The coordinator's syncErrorsAfterReplacement has already:
+            // 1. Updated allErrors with adjusted positions (error removed, positions shifted)
+            // 2. Updated currentError to the next error
+            // 3. Called onCurrentErrorChanged to update the highlight
+            //
+            // We should NOT adjust positions here as that would double-adjust them.
+            // Just update the local sourceText and handle UI state.
+
             // Update sourceText to reflect the applied correction
-            // Use TextIndexConverter to convert Harper's Unicode scalar indices to Swift String.Index
-            // Harper uses Rust char indices (Unicode scalars), but Swift String uses grapheme clusters
             if !self.sourceText.isEmpty,
                error.start <= error.end,
                let startIndex = TextIndexConverter.scalarIndexToStringIndex(error.start, in: self.sourceText),
@@ -815,43 +865,12 @@ class SuggestionPopover: NSObject, ObservableObject {
                 self.sourceText.replaceSubrange(startIndex..<endIndex, with: suggestion)
             }
 
-            // Move to next error or hide
-            if self.allErrors.count > 1 {
-                // Remove the current error
-                self.allErrors.removeAll { $0.start == error.start && $0.end == error.end }
-
-                // Adjust positions of subsequent errors
-                self.allErrors = self.allErrors.map { err in
-                    if err.start >= error.end {
-                        return GrammarErrorModel(
-                            start: err.start + lengthDelta,
-                            end: err.end + lengthDelta,
-                            message: err.message,
-                            severity: err.severity,
-                            category: err.category,
-                            lintId: err.lintId,
-                            suggestions: err.suggestions
-                        )
-                    }
-                    return err
-                }
-
-                if self.currentIndex >= self.allErrors.count {
-                    self.currentIndex = 0
-                }
-                // Safe access with bounds check
-                self.currentError = self.allErrors.indices.contains(self.currentIndex) ? self.allErrors[self.currentIndex] : nil
-
-                // Notify about current error change (for updating locked highlight)
-                self.onCurrentErrorChanged?(self.currentError)
-
-                if self.currentError == nil {
-                    self.hide()
-                } else {
-                    self.rebuildContentView()
-                }
-            } else {
+            // Check if we should hide or continue showing
+            if self.allErrors.isEmpty {
                 self.hide()
+            } else {
+                // Rebuild to show the next error (currentError was already updated by syncErrorsAfterReplacement)
+                self.rebuildContentView()
             }
 
             self.isProcessing = false
@@ -1028,7 +1047,8 @@ class SuggestionPopover: NSObject, ObservableObject {
     ///   - constrainToWindow: Optional window frame to constrain popover positioning
     ///   - sourceText: Source text for context display
     func showUnified(errors: [GrammarErrorModel], styleSuggestions: [StyleSuggestionModel], at position: CGPoint, constrainToWindow: CGRect? = nil, sourceText: String = "") {
-        Logger.debug("SuggestionPopover.showUnified - errors=\(errors.count), styleSuggestions=\(styleSuggestions.count)", category: Logger.ui)
+        let startTime = Date()
+        Logger.info("SuggestionPopover.showUnified START - errors=\(errors.count), styleSuggestions=\(styleSuggestions.count)", category: Logger.ui)
 
         // Mark as opened from indicator - popover persists until explicitly dismissed
         self.openedFromIndicator = true
@@ -1068,6 +1088,9 @@ class SuggestionPopover: NSObject, ObservableObject {
         }
 
         showPanelAtPosition(position, constrainToWindow: constrainToWindow)
+
+        let elapsed = Date().timeIntervalSince(startTime)
+        Logger.info("SuggestionPopover.showUnified COMPLETE - took \(String(format: "%.3f", elapsed))s", category: Logger.ui)
     }
 
     // MARK: - Unified Navigation
@@ -1075,8 +1098,12 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Navigate to the next item in the unified list (grammar errors + style suggestions)
     /// Wraps around to the first item when at the end
     func nextUnifiedItem() {
+        // Prevent syncErrors() from modifying data during navigation
+        isNavigating = true
+        defer { isNavigating = false }
+
         let items = unifiedItems
-        Logger.debug("Popover: nextUnifiedItem called, items.count=\(items.count), current unifiedIndex=\(unifiedIndex)", category: Logger.ui)
+        Logger.debug("Popover: nextUnifiedItem called, items.count=\(items.count), unifiedIndex=\(unifiedIndex)", category: Logger.ui)
         guard !items.isEmpty else {
             Logger.debug("Popover: nextUnifiedItem - no items, returning", category: Logger.ui)
             return
@@ -1094,8 +1121,12 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Navigate to the previous item in the unified list
     /// Wraps around to the last item when at the beginning
     func previousUnifiedItem() {
+        // Prevent syncErrors() from modifying data during navigation
+        isNavigating = true
+        defer { isNavigating = false }
+
         let items = unifiedItems
-        Logger.debug("Popover: previousUnifiedItem called, items.count=\(items.count), current unifiedIndex=\(unifiedIndex)", category: Logger.ui)
+        Logger.debug("Popover: previousUnifiedItem called, items.count=\(items.count), unifiedIndex=\(unifiedIndex)", category: Logger.ui)
         guard !items.isEmpty else {
             Logger.debug("Popover: previousUnifiedItem - no items, returning", category: Logger.ui)
             return
@@ -1113,7 +1144,12 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Show the item at the given unified index
     private func showUnifiedItem(at index: Int) {
         let items = unifiedItems
-        guard index >= 0 && index < items.count else { return }
+        guard index >= 0 && index < items.count else {
+            Logger.debug("Popover: showUnifiedItem - invalid index \(index), items.count=\(items.count)", category: Logger.ui)
+            return
+        }
+
+        Logger.debug("Popover: showUnifiedItem at index \(index)", category: Logger.ui)
 
         switch items[index] {
         case .grammar(let error):
@@ -1124,6 +1160,7 @@ class SuggestionPopover: NSObject, ObservableObject {
             if let errorIndex = allErrors.firstIndex(where: { $0.start == error.start && $0.end == error.end }) {
                 currentIndex = errorIndex
             }
+            Logger.debug("Popover: Switched to grammar error at \(error.start)-\(error.end), currentIndex=\(currentIndex)", category: Logger.ui)
             // Notify about current error change (for locked highlight)
             onCurrentErrorChanged?(error)
 
@@ -1135,6 +1172,7 @@ class SuggestionPopover: NSObject, ObservableObject {
             if let styleIndex = allStyleSuggestions.firstIndex(where: { $0.id == suggestion.id }) {
                 currentStyleIndex = styleIndex
             }
+            Logger.debug("Popover: Switched to style suggestion, currentStyleIndex=\(currentStyleIndex)", category: Logger.ui)
             // Clear locked highlight when showing style suggestion
             onCurrentErrorChanged?(nil)
         }
@@ -1257,6 +1295,17 @@ extension SuggestionPopover {
 
         let frame = screen.visibleFrame
         return CGPoint(x: frame.midX, y: frame.midY)
+    }
+}
+
+// MARK: - First Mouse Hosting View
+
+/// Custom NSHostingView that accepts first mouse clicks in non-activating panels.
+/// Standard NSHostingView doesn't accept first mouse, causing SwiftUI buttons
+/// to be unresponsive until the panel is clicked once to "activate" it.
+class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        return true
     }
 }
 

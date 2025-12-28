@@ -130,8 +130,10 @@ class PositionResolver {
             textHash: text.hashValue
         )
 
-        // Check cache first
-        if let cached = cache.get(key: cacheKey) {
+        // Check cache first - but skip during replacement mode because
+        // Electron/WebKit AX trees update asynchronously, so cached bounds
+        // from immediately after replacement may be stale
+        if !AnalysisCoordinator.isInReplacementModeThreadSafe, let cached = cache.get(key: cacheKey) {
             Logger.debug("PositionResolver: Using cached result for \(cacheKey.description)", category: Logger.accessibility)
             return cached
         }

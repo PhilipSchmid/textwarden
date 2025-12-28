@@ -143,6 +143,8 @@ protocol ContentParserProviding {
     func parser(for bundleID: String) -> ContentParser
 }
 
+// Note: TextReplacementCoordinating is defined in TextReplacementCoordinator.swift
+
 /// Protocol for typing detection
 @MainActor
 protocol TypingDetecting: AnyObject {
@@ -165,6 +167,7 @@ extension PositionResolver: PositionResolving {}
 extension UserStatistics: StatisticsTracking {}
 extension ContentParserFactory: ContentParserProviding {}
 extension TypingDetector: TypingDetecting {}
+// Note: TextReplacementCoordinator conforms to TextReplacementCoordinating in its own file
 
 // UserPreferences conformance (needs explicit declaration due to static method)
 extension UserPreferences: UserPreferencesProviding {}
@@ -195,6 +198,7 @@ struct DependencyContainer {
     let statistics: StatisticsTracking
     let contentParserFactory: ContentParserProviding
     let typingDetector: TypingDetecting
+    let textReplacementCoordinator: TextReplacementCoordinating
 
     // UI components (concrete types - less commonly mocked)
     let suggestionPopover: SuggestionPopover
@@ -214,6 +218,7 @@ struct DependencyContainer {
         statistics: UserStatistics.shared,
         contentParserFactory: ContentParserFactory.shared,
         typingDetector: TypingDetector.shared,
+        textReplacementCoordinator: TextReplacementCoordinator(),
         suggestionPopover: .shared,
         floatingIndicator: .shared
     )
@@ -231,6 +236,7 @@ struct DependencyContainer {
         statistics: StatisticsTracking,
         contentParserFactory: ContentParserProviding,
         typingDetector: TypingDetecting,
+        textReplacementCoordinator: TextReplacementCoordinating,
         suggestionPopover: SuggestionPopover,
         floatingIndicator: FloatingErrorIndicator
     ) {
@@ -246,6 +252,7 @@ struct DependencyContainer {
         self.statistics = statistics
         self.contentParserFactory = contentParserFactory
         self.typingDetector = typingDetector
+        self.textReplacementCoordinator = textReplacementCoordinator
         self.suggestionPopover = suggestionPopover
         self.floatingIndicator = floatingIndicator
     }

@@ -67,9 +67,27 @@ extension AnalysisCoordinator {
         // Don't hide the popover here - let it manage its own visibility
         // The popover automatically advances to the next error or hides itself
 
+        // Reset typing detector so underlines show immediately after replacement
+        // (replacement triggers text changes which set isCurrentlyTyping=true)
+        TypingDetector.shared.reset()
+
         // Update the overlay and indicator immediately
+        // Pass isFromReplacementUI: true so this call isn't skipped during replacement mode
         let sourceText = currentSegment?.content ?? ""
-        applyFilters(to: currentErrors, sourceText: sourceText, element: textMonitor.monitoredElement)
+        applyFilters(to: currentErrors, sourceText: sourceText, element: textMonitor.monitoredElement, isFromReplacementUI: true)
+
+        // Sync popover's errors with our updated currentErrors
+        // The popover and coordinator adjust positions independently during replacement,
+        // which can cause them to get out of sync. This ensures they match.
+        suggestionPopover.syncErrorsAfterReplacement(currentErrors)
+
+        // Now re-sync the highlight with the (now correct) popover error
+        if let currentPopoverError = suggestionPopover.currentError {
+            Logger.debug("removeErrorAndUpdateUI: Setting highlight for error at \(currentPopoverError.start)-\(currentPopoverError.end)", category: Logger.analysis)
+            errorOverlay.setLockedHighlight(for: currentPopoverError)
+        } else {
+            Logger.debug("removeErrorAndUpdateUI: No current popover error to highlight", category: Logger.analysis)
+        }
 
         // Update lastAnalyzedText to reflect the replacement
         // This prevents validateCurrentText from thinking text changed (triggering re-analysis/hiding)
@@ -87,6 +105,75 @@ extension AnalysisCoordinator {
 
         Logger.debug("removeErrorAndUpdateUI: UI updated, remaining errors: \(currentErrors.count)", category: Logger.analysis)
     }
+
+    // MARK: - New Coordinator-Based Replacement
+
+    /// Apply text replacement using the new TextReplacementCoordinator.
+    /// This is the simplified, declarative approach based on app configuration.
+    /// Currently used alongside the legacy method for incremental migration.
+    @MainActor
+    func applyReplacementViaCoordinator(for error: GrammarErrorModel, with suggestion: String) async -> Bool {
+        Logger.debug("applyReplacementViaCoordinator called - error range: \(error.start)-\(error.end)", category: Logger.analysis)
+
+        guard let element = textMonitor.monitoredElement else {
+            Logger.debug("No monitored element for text replacement", category: Logger.analysis)
+            return false
+        }
+
+        guard let context = monitoredContext else {
+            Logger.debug("No monitored context for text replacement", category: Logger.analysis)
+            return false
+        }
+
+        // Get current text from element
+        var textRef: CFTypeRef?
+        let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef)
+        guard textResult == .success, let currentText = textRef as? String else {
+            Logger.debug("Could not get current text for replacement", category: Logger.analysis)
+            return false
+        }
+
+        // Get app configuration
+        let appConfig = appRegistry.configuration(for: context.bundleIdentifier)
+
+        // Set replacement flag
+        lastReplacementTime = Date()
+        isApplyingReplacement = true
+        defer { isApplyingReplacement = false }
+
+        // Execute replacement via coordinator
+        let result = await textReplacementCoordinator.replace(
+            error: error,
+            suggestion: suggestion,
+            element: element,
+            currentText: currentText,
+            appConfig: appConfig
+        )
+
+        // Handle result
+        switch result {
+        case .success, .unverified:
+            // Record statistics
+            statistics.recordSuggestionApplied(category: error.category)
+
+            // Calculate length delta for position adjustment
+            let lengthDelta = TextReplacementCoordinator.lengthDelta(for: error, suggestion: suggestion)
+
+            // Update UI and adjust positions
+            removeErrorAndUpdateUI(error, suggestion: suggestion, lengthDelta: lengthDelta)
+
+            // Invalidate cache
+            invalidateCacheAfterReplacement(at: error.start..<error.end)
+
+            return true
+
+        case .failed(let error):
+            Logger.warning("Replacement via coordinator failed: \(error)", category: Logger.analysis)
+            return false
+        }
+    }
+
+    // MARK: - Legacy Replacement Methods (to be removed after migration)
 
     /// Apply text replacement for error (async version)
     @MainActor
@@ -1005,17 +1092,25 @@ extension AnalysisCoordinator {
                     errorStart: error.start,
                     errorEnd: error.end,
                     originalText: currentText,
-                    suggestion: suggestion
+                    suggestion: suggestion,
+                    element: element
                 )
 
                 switch result {
                 case .success:
                     Logger.info("Slack: Format-preserving replacement succeeded", category: Logger.analysis)
                     statistics.recordSuggestionApplied(category: error.category)
-                    invalidateCacheAfterReplacement(at: error.start..<error.end)
+                    // For format-preserving replacement, we know exactly what changed.
+                    // Don't do full re-analysis - just clear position cache and adjust errors.
+                    // Full re-analysis would clear currentErrors and break popover/highlight sync.
+                    positionResolver.clearCache()
                     let lengthDelta = suggestion.count - (error.end - error.start)
+                    // Reset typing detector so underlines show immediately after replacement
+                    // (paste triggers text change which sets isCurrentlyTyping=true)
+                    TypingDetector.shared.reset()
                     removeErrorAndUpdateUI(error, suggestion: suggestion, lengthDelta: lengthDelta)
                     replacementCompletedAt = Date()
+                    // Schedule delayed reanalysis to catch any issues, but don't force immediate re-analysis
                     scheduleDelayedReanalysis(startTime: Date())
                     return
 
@@ -1532,6 +1627,17 @@ extension AnalysisCoordinator {
         // Check if this app requires full re-analysis (Electron, WebKit, browsers)
         // These apps have fragile byte offsets that become invalid when text shifts
         if appConfig.features.requiresFullReanalysisAfterReplacement {
+            // IMPORTANT: If we're in replacement mode, removeErrorAndUpdateUI has already:
+            // - Removed the fixed error
+            // - Adjusted positions of remaining errors
+            // - Updated the popover and locked highlight
+            // Don't undo that work! Just schedule delayed re-analysis to verify.
+            if isInReplacementMode {
+                Logger.trace("Cache invalidation: in replacement mode, scheduling delayed re-analysis", category: Logger.analysis)
+                scheduleDelayedReanalysis(startTime: Date())
+                return
+            }
+
             Logger.trace("Cache invalidation: full re-analysis required for \(appConfig.displayName)", category: Logger.analysis)
             // Clear ALL errors and force complete re-analysis
             currentErrors.removeAll()

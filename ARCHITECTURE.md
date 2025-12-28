@@ -114,6 +114,16 @@ Sources/
 │       ├── OriginStrategy.swift                  # Origin-based positioning
 │       └── Legacy/                               # Deprecated (reference only)
 │
+├── TextReplacement/                              # Text replacement operations
+│   ├── TextReplacementCoordinator.swift          # Main entry point, routes by method
+│   ├── ReplacementContext.swift                  # Context object with resolved indices
+│   ├── ReplacementResult.swift                   # Result types for operations
+│   ├── Methods/                                  # Replacement method implementations
+│   │   ├── StandardReplacement.swift             # AX API setValue (native apps)
+│   │   └── KeyboardReplacement.swift             # Clipboard + paste (Electron/browser)
+│   └── Infrastructure/                           # Shared components
+│       └── ReplacementValidator.swift            # Text validation before replace
+│
 ├── AppConfiguration/                             # Per-application settings
 │   ├── AppRegistry.swift                         # Single source of truth for configs
 │   ├── AppConfiguration.swift                    # Configuration data model
@@ -262,6 +272,48 @@ Each strategy returns a `GeometryResult` with:
 - `strategy: String` - Which strategy produced the result
 
 The resolver tries strategies in order of reliability and stops at the first valid result.
+
+### Text Replacement
+
+Declarative system for applying text corrections. Located in `Sources/TextReplacement/`.
+
+**Architecture:**
+
+```mermaid
+flowchart LR
+    AC["AnalysisCoordinator"] --> TRC["TextReplacementCoordinator"]
+    TRC --> RV["ReplacementValidator"]
+    RV -->|valid| Route{"Route by<br/>AppConfig"}
+    Route -->|.standard| SR["StandardReplacement<br/><i>AX API setValue</i>"]
+    Route -->|.browserStyle| KR["KeyboardReplacement<br/><i>Clipboard + paste</i>"]
+```
+
+**Key Design Decisions:**
+
+1. **Only 2 Replacement Methods** - Apps either support AX API setValue (`.standard`) or need keyboard simulation (`.browserStyle`). No per-app replacers.
+
+2. **Declarative Configuration** - Method selection via `AppFeatures.textReplacementMethod` in AppRegistry, not runtime detection.
+
+3. **Always Validate** - Before every replacement, verify text at position matches expected error text. Prevents wrong replacements when text has shifted.
+
+4. **Index System Awareness** - Automatically converts Harper's Unicode scalar indices to:
+   - UTF-16 for Electron/browser/WebKit apps (JavaScript-based)
+   - Grapheme clusters for native macOS apps
+
+**Components:**
+
+| Component | Purpose |
+|-----------|---------|
+| `ReplacementContext` | Data object with resolved indices for target app |
+| `ReplacementValidator` | Validates element, bounds, and text match |
+| `StandardReplacement` | Direct AX API for native apps (Telegram, WebEx) |
+| `KeyboardReplacement` | Clipboard + paste for Electron/browser apps |
+
+**Flow:**
+1. Build `ReplacementContext` with resolved indices
+2. Validate text at position matches expected
+3. Route to appropriate method based on app config
+4. Update UI and clear position cache on success
 
 ### Underline Display Logic
 
