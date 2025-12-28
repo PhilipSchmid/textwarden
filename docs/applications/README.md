@@ -6,7 +6,9 @@ This folder contains detailed documentation for applications that require specia
 
 | Application | Description |
 |-------------|-------------|
-| [SLACK.md](SLACK.md) | Quill Delta format, Chromium Pickle, format-preserving replacement, positioning strategy |
+| [OUTLOOK.md](OUTLOOK.md) | Microsoft Outlook compose windows, AXBoundsForRange positioning, browser-style replacement |
+| [SLACK.md](SLACK.md) | Quill Delta format, Chromium Pickle, child element selection, format-preserving replacement |
+| [WEBEX.md](WEBEX.md) | Cisco WebEx chat, compose area detection, UTF-16 conversion for emoji support |
 
 ## Adding New Documentation
 
