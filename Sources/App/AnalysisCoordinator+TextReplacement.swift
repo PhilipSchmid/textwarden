@@ -205,6 +205,17 @@ extension AnalysisCoordinator {
             return
         }
 
+        // Check if app config requires browser-style replacement (e.g., Pages, Word)
+        // Some native apps report AX API success but don't actually change the text
+        if let context = monitoredContext {
+            let appConfig = appRegistry.configuration(for: context.bundleIdentifier)
+            if appConfig.features.textReplacementMethod == .browserStyle {
+                Logger.debug("App config requires browser-style replacement for \(context.applicationName)", category: Logger.analysis)
+                await applyTextReplacementViaKeyboardAsync(for: error, with: suggestion, element: element)
+                return
+            }
+        }
+
         // For native macOS apps, try AX API first (it's faster and preserves formatting)
         var textRef: CFTypeRef?
         let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef)
@@ -860,10 +871,21 @@ extension AnalysisCoordinator {
                 // Convert grapheme indices to UTF-16 indices for AX selection
                 // Required for: Mac Catalyst apps, Chromium-based browsers (like Comet), and any app using UTF-16 offsets
                 // Emojis and other multi-codepoint characters cause offset issues without this conversion
+                // Skip for native macOS apps (Microsoft Office) which use grapheme indices
+                // Note: Pages is handled via the Office-style replacement path for better reliability
+                let isNativeApp = context.bundleIdentifier == "com.microsoft.Word" ||
+                                  context.bundleIdentifier == "com.microsoft.Powerpoint" ||
+                                  context.bundleIdentifier == "com.microsoft.Outlook"
                 let startIndex = currentText.distance(from: currentText.startIndex, to: textRange.lowerBound)
-                let utf16Range = TextIndexConverter.graphemeToUTF16Range(NSRange(location: startIndex, length: targetText.count), in: currentText)
-                var calculatedRange = CFRange(location: utf16Range.location, length: utf16Range.length)
-                Logger.debug("Browser selection: Converted range from grapheme [\(startIndex), \(targetText.count)] to UTF-16 [\(utf16Range.location), \(utf16Range.length)]", category: Logger.analysis)
+                var calculatedRange: CFRange
+                if isNativeApp {
+                    calculatedRange = CFRange(location: startIndex, length: targetText.count)
+                    Logger.debug("Native app selection: Using grapheme range [\(startIndex), \(targetText.count)]", category: Logger.analysis)
+                } else {
+                    let utf16Range = TextIndexConverter.graphemeToUTF16Range(NSRange(location: startIndex, length: targetText.count), in: currentText)
+                    calculatedRange = CFRange(location: utf16Range.location, length: utf16Range.length)
+                    Logger.debug("Browser selection: Converted range from grapheme [\(startIndex), \(targetText.count)] to UTF-16 [\(utf16Range.location), \(utf16Range.length)]", category: Logger.analysis)
+                }
 
                 guard let rangeValue = AXValueCreate(.cfRange, &calculatedRange) else {
                     Logger.debug("Failed to create AXValue for range", category: Logger.analysis)
@@ -886,11 +908,12 @@ extension AnalysisCoordinator {
 
             // Convert fallback range to UTF-16 if we have the text
             // Required for browsers and Mac Catalyst apps that use UTF-16 offsets
-            // Skip for Microsoft Office: findOfficeErrorPosition already returns UTF-16 positions
-            let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
-                                    context.bundleIdentifier == "com.microsoft.Powerpoint" ||
-                                    context.bundleIdentifier == "com.microsoft.Outlook"
-            if let text = currentText, !isMicrosoftOffice {
+            // Skip for native macOS apps (Microsoft Office) which use grapheme indices
+            // Note: Pages is handled via the Office-style replacement path
+            let isNativeAppForFallback = context.bundleIdentifier == "com.microsoft.Word" ||
+                                         context.bundleIdentifier == "com.microsoft.Powerpoint" ||
+                                         context.bundleIdentifier == "com.microsoft.Outlook"
+            if let text = currentText, !isNativeAppForFallback {
                 let graphemeRange = NSRange(location: range.location, length: range.length)
                 let utf16Range = TextIndexConverter.graphemeToUTF16Range(graphemeRange, in: text)
                 range = CFRange(location: utf16Range.location, length: utf16Range.length)
@@ -1103,7 +1126,11 @@ extension AnalysisCoordinator {
             }
         }
 
-        if context.isBrowser || isSlack || isTeams || isClaude || isPerplexity || isChatGPT || isMessages || isMicrosoftOffice || context.isMacCatalystApp {
+        // Check if app config requires browser-style replacement
+        let appConfig = appRegistry.configuration(for: context.bundleIdentifier)
+        let usesBrowserStyleReplacement = appConfig.features.textReplacementMethod == .browserStyle
+
+        if context.isBrowser || isSlack || isTeams || isClaude || isPerplexity || isChatGPT || isMessages || isMicrosoftOffice || context.isMacCatalystApp || usesBrowserStyleReplacement {
             await applyBrowserTextReplacementAsync(for: error, with: suggestion, element: element, context: context)
             return
         }
@@ -1175,19 +1202,21 @@ extension AnalysisCoordinator {
         let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
                                 context.bundleIdentifier == "com.microsoft.Powerpoint" ||
                                 context.bundleIdentifier == "com.microsoft.Outlook"
+        let isPages = context.bundleIdentifier == "com.apple.iWork.Pages"
+        let usesOfficeStyleReplacement = isMicrosoftOffice || isPages
 
         // Find error text and position based on app type
-        let (errorText, fallbackRange, currentError) = isMicrosoftOffice
+        let (errorText, fallbackRange, currentError) = usesOfficeStyleReplacement
             ? findOfficeErrorPosition(error: error, suggestion: suggestion, element: element)
             : findBrowserErrorPosition(error: error)
 
         let targetText = errorText.isEmpty ? suggestion : errorText
 
-        // Microsoft Office: use clipboard paste with explicit element focus
-        // Direct AX replacement (AXSelectedText) reports success but doesn't actually work in PowerPoint
+        // Microsoft Office and Pages: use clipboard paste with explicit element focus
+        // Direct AX replacement (AXSelectedText) reports success but doesn't actually work
         // We need to: 1) Focus the element, 2) Set selection, 3) Activate app, 4) Paste via keyboard
-        if isMicrosoftOffice, let range = fallbackRange {
-            Logger.debug("Office: Using focused clipboard replacement at \(range.location)-\(range.location + range.length)", category: Logger.analysis)
+        if usesOfficeStyleReplacement, let range = fallbackRange {
+            Logger.debug("Office-style: Using focused clipboard replacement at \(range.location)-\(range.location + range.length) for \(context.applicationName)", category: Logger.analysis)
 
             // Step 1: Focus the specific element (Notes area in PowerPoint, document in Word)
             let focusResult = AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue)

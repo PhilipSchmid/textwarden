@@ -93,6 +93,7 @@ final class AppRegistry {
         register(.notion)
         register(.mail)
         register(.messages)
+        register(.pages)
         register(.whatsapp)
         register(.telegram)
         register(.word)
@@ -394,6 +395,38 @@ extension AppConfiguration {
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: true,  // Catalyst byte offsets may be fragile
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
+        )
+    )
+
+    // MARK: - Apple Pages
+
+    static let pages = AppConfiguration(
+        identifier: "pages",
+        displayName: "Apple Pages",
+        bundleIDs: ["com.apple.iWork.Pages"],
+        category: .native,
+        parserType: .generic,
+        fontConfig: FontConfig(
+            defaultSize: 12,
+            fontFamily: nil,  // System font
+            spacingMultiplier: 1.0
+        ),
+        horizontalPadding: 0,
+        // Pages uses standard AXTextArea with reliable AXBoundsForRange for positioning.
+        // RangeBoundsStrategy handles this well. No dedicated strategy needed.
+        preferredStrategies: [.rangeBounds, .lineIndex, .fontMetrics],
+        features: AppFeatures(
+            visualUnderlinesEnabled: true,
+            textReplacementMethod: .browserStyle,  // Standard AX setValue reports success but doesn't work
+            requiresTypingPause: false,
+            supportsFormattedText: true,
+            childElementTraversal: false,
+            delaysAXNotifications: false,
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: false,  // Native app with reliable AXValue
             defersTextExtraction: false,
             requiresFrameValidation: false,
             hasTextMarkerIndexOffset: false
