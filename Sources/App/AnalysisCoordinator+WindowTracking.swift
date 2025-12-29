@@ -451,7 +451,7 @@ extension AnalysisCoordinator {
         lastConversationSwitchTime = Date()
 
         // Capture the text BEFORE clearing state - we'll use this to detect if text actually changed
-        // WhatsApp's accessibility API is notorious for returning stale text after conversation switches
+        // Some messenger apps (WhatsApp) may return stale text after conversation switches
         let textBeforeSwitch = lastAnalyzedText
 
         // Hide all overlays
@@ -468,10 +468,9 @@ extension AnalysisCoordinator {
         lastAnalyzedText = ""
         previousText = ""  // Clear previousText so handleTextChange will process the text
 
-        // Use longer delay for WhatsApp - its accessibility API is slower to update after conversation switch
-        // The API may return stale text from the previous conversation if we read too quickly
+        // Get app-specific delay from MessengerBehavior
         let bundleID = textMonitor.currentContext?.bundleIdentifier ?? ""
-        let delay: TimeInterval = bundleID == "net.whatsapp.WhatsApp" ? 0.5 : 0.2
+        let delay = MessengerBehavior.conversationSwitchDelay(for: bundleID)
 
         // Trigger fresh analysis after a delay (let the UI settle)
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
@@ -484,11 +483,14 @@ extension AnalysisCoordinator {
                 return
             }
 
-            // For WhatsApp: if the text hasn't changed, the accessibility API is still returning stale data
-            // Don't trigger re-analysis with the same text - it would just show the same errors
-            // The user will trigger fresh analysis when they actually interact with the new conversation
-            if context.bundleIdentifier == "net.whatsapp.WhatsApp" && text == textBeforeSwitch {
-                Logger.debug("WhatsApp: Text unchanged after conversation switch (\(text.count) chars) - skipping re-analysis (stale AX data)", category: Logger.analysis)
+            // Check for stale AX data using MessengerBehavior
+            // Apps like WhatsApp may return unchanged text after conversation switch
+            if MessengerBehavior.isTextLikelyStale(
+                currentText: text,
+                previousText: textBeforeSwitch,
+                bundleID: context.bundleIdentifier
+            ) {
+                Logger.debug("Messenger: Text unchanged after conversation switch (\(text.count) chars) - skipping re-analysis (stale AX data)", category: Logger.analysis)
                 return
             }
 
