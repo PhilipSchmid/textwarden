@@ -754,7 +754,9 @@ enum AccessibilityBridge {
         _ range: CFRange,
         in element: AXUIElement
     ) -> CGRect? {
-        guard let rangeValue = AXValueCreate(.cfRange, withUnsafePointer(to: range) { $0 }) else {
+        // Create range value using var (same as working standalone script)
+        var cfRange = range
+        guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else {
             Logger.debug("Failed to create AXValue for CFRange", category: Logger.accessibility)
             return nil
         }
@@ -768,7 +770,13 @@ enum AccessibilityBridge {
         )
 
         guard result == .success else {
-            Logger.debug("Failed to get bounds for range: AXError \(result.rawValue)", category: Logger.accessibility)
+            // Debug: Log element details to compare with working script
+            var pid: pid_t = 0
+            AXUIElementGetPid(element, &pid)
+            var roleRef: CFTypeRef?
+            AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
+            let role = roleRef as? String ?? "unknown"
+            Logger.debug("AXBoundsForRange failed: error \(result.rawValue), pid=\(pid), role=\(role), range=(\(range.location),\(range.length))", category: Logger.accessibility)
             return nil
         }
 
@@ -1456,7 +1464,8 @@ enum AccessibilityBridge {
 
     /// Try to get bounds for a range, returning nil on failure
     private static func tryGetBoundsForRange(_ range: CFRange, in element: AXUIElement) -> CGRect? {
-        guard let rangeValue = AXValueCreate(.cfRange, withUnsafePointer(to: range) { $0 }) else {
+        var cfRange = range
+        guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else {
             return nil
         }
 
