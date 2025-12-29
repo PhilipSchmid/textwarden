@@ -41,6 +41,7 @@ enum ParserType {
 enum StrategyType: String, CaseIterable {
     case slack      // Dedicated strategy for Slack's Quill editor
     case teams      // Dedicated strategy for Microsoft Teams' WebView2 compose
+    case notion     // Dedicated strategy for Notion's block-based editor
     case outlook    // Dedicated strategy for Microsoft Outlook compose
     case webex      // Dedicated strategy for Cisco WebEx chat
     case mail       // Dedicated strategy for Apple Mail's WebKit compose

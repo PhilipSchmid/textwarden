@@ -200,19 +200,21 @@ TextWarden uses the macOS Accessibility API and works with most applications. Vi
 | **Chrome, Comet** | Full | Full |
 | **Apple Mail** | Full | Full |
 | **Apple Messages** | Full | Full |
-| **Notion** | Full | Indicator only* |
+| **Notion** | Full | Partial** |
 | **Telegram** | Full | Full |
 | **WhatsApp** | Full | Full |
 | **Webex** | Full | Full |
 | **Microsoft Word** | Full | Indicator only* |
-| **Microsoft PowerPoint** | Notes only** | Indicator only* |
+| **Microsoft PowerPoint** | Notes only*** | Indicator only* |
 | **Microsoft Outlook** | Full | Full |
 | **Microsoft Excel** | Not supported | N/A |
 | **Microsoft Teams** | Full | Full |
 
-*\*These apps use a floating indicator instead of inline underlines due to accessibility API limitations. Microsoft Word and PowerPoint crash (EXC_BAD_INSTRUCTION in mso99) when querying parameterized accessibility attributes. Notion's block-based structure causes AX text newlines that don't match visual line breaks, making underline positioning unreliable.*
+*\*These apps use a floating indicator instead of inline underlines due to accessibility API limitations. Microsoft Word and PowerPoint crash (EXC_BAD_INSTRUCTION in mso99) when querying parameterized accessibility attributes.*
 
-*\*\*PowerPoint exposes only the Notes section via the macOS Accessibility API. Slide text boxes are not accessible programmatically, so grammar checking is limited to speaker notes.*
+*\*\*Notion: Underlines appear for ~50% of text blocks. Due to Notion's React/Electron virtualization, some blocks aren't exposed in the accessibility tree. Errors in virtualized blocks show in the indicator count but without underlines. Shift+Enter (soft breaks) work; Enter (new blocks) may not. See [Notion documentation](docs/applications/NOTION.md) for details.*
+
+*\*\*\*PowerPoint exposes only the Notes section via the macOS Accessibility API. Slide text boxes are not accessible programmatically, so grammar checking is limited to speaker notes.*
 
 > [!NOTE]
 > Terminal apps are not supported as their accessibility APIs typically don't expose text content in a way that's useful for grammar checking.

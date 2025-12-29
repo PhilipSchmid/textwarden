@@ -314,14 +314,15 @@ extension AppConfiguration {
             spacingMultiplier: 1.0
         ),
         horizontalPadding: 0,
-        // Notion's block-based structure causes AX text to have newlines that don't match
-        // visual line breaks (each block may be on its own AX line). Standard AX bounds APIs
-        // return unreliable results. Visual underlines disabled; floating indicator works.
-        preferredStrategies: [],
+        // Notion is Chromium/Electron-based like Slack and Teams. The same child element
+        // tree traversal approach works: parent AXTextArea's AXBoundsForRange returns
+        // invalid results, but child AXStaticText elements DO support AXBoundsForRange
+        // with local character ranges for precise positioning.
+        preferredStrategies: [.notion],
         features: AppFeatures(
-            visualUnderlinesEnabled: false,  // Disabled due to unreliable Notion AX positioning
+            visualUnderlinesEnabled: true,  // Enabled - NotionStrategy uses child element bounds
             textReplacementMethod: .browserStyle,
-            requiresTypingPause: true,
+            requiresTypingPause: true,  // Wait for typing pause before querying AX tree
             supportsFormattedText: false,
             childElementTraversal: true,
             delaysAXNotifications: true,  // Notion batches AX notifications, needs keyboard detection
