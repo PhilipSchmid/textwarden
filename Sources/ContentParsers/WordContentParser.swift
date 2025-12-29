@@ -47,8 +47,8 @@ class WordContentParser: ContentParser {
         Logger.debug("WordContentParser: extractText called for element with role: \(role)", category: Logger.accessibility)
 
         // Use AXValue to get the document text
-        // Note: We intentionally avoid AXStringForRange for Word as it causes Word to crash
-        // (EXC_BAD_INSTRUCTION in mso99 when handling parameterized attribute queries)
+        // Note: AXValue is preferred for simple text extraction as it's faster than AXStringForRange.
+        // AXBoundsForRange and AXStringForRange work reliably on Word 16.104+ (tested Dec 2024).
         var valueRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
            let text = valueRef as? String,

@@ -43,6 +43,7 @@ class PositionResolver {
             TeamsStrategy(),  // Dedicated strategy for Teams - same tree traversal approach
             NotionStrategy(),  // Dedicated strategy for Notion - same tree traversal approach
             OutlookStrategy(),  // Dedicated strategy for Outlook compose
+            WordStrategy(),  // Dedicated strategy for Word documents
             WebExStrategy(),  // Dedicated strategy for Cisco WebEx chat
             MailStrategy(),  // Dedicated strategy for Apple Mail's WebKit compose
             ChromiumStrategy(),

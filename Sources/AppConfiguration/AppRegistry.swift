@@ -482,14 +482,14 @@ extension AppConfiguration {
             spacingMultiplier: 1.0
         ),
         horizontalPadding: 4,
-        // Word's mso99 framework crashes (EXC_BAD_INSTRUCTION) on any parameterized
-        // accessibility attribute query (AXBoundsForRange, AXStringForRange, etc.).
-        // Visual underlines disabled; floating error indicator still works for corrections.
-        // Word's AXTextArea doesn't support standard AX setValue for text replacement,
-        // so we use browser-style replacement (selection + keyboard paste).
-        preferredStrategies: [],
+        // Word uses a dedicated strategy for positioning. AXBoundsForRange works reliably
+        // on Word 16.104+ (tested Dec 2024). Word's AXTextArea is a flat element with all
+        // text content - no child elements like Outlook's compose body.
+        // Text replacement needs browser-style (selection + keyboard paste) as standard
+        // AX setValue doesn't work reliably for Word.
+        preferredStrategies: [.word],
         features: AppFeatures(
-            visualUnderlinesEnabled: false,  // Disabled due to Word crashing on parameterized AX APIs
+            visualUnderlinesEnabled: true,
             textReplacementMethod: .browserStyle,  // Standard AX setValue doesn't work for Word
             requiresTypingPause: false,
             supportsFormattedText: true,

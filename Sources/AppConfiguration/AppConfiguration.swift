@@ -43,6 +43,7 @@ enum StrategyType: String, CaseIterable {
     case teams      // Dedicated strategy for Microsoft Teams' WebView2 compose
     case notion     // Dedicated strategy for Notion's block-based editor
     case outlook    // Dedicated strategy for Microsoft Outlook compose
+    case word       // Dedicated strategy for Microsoft Word documents
     case webex      // Dedicated strategy for Cisco WebEx chat
     case mail       // Dedicated strategy for Apple Mail's WebKit compose
     case chromium   // Selection-based marker range positioning for Chromium apps (Slack, Teams, etc.)

@@ -204,13 +204,13 @@ TextWarden uses the macOS Accessibility API and works with most applications. Vi
 | **Telegram** | Full | Full |
 | **WhatsApp** | Full | Full |
 | **Webex** | Full | Full |
-| **Microsoft Word** | Full | Indicator only* |
+| **Microsoft Word** | Full | Full |
 | **Microsoft PowerPoint** | Notes only*** | Indicator only* |
 | **Microsoft Outlook** | Full | Full |
 | **Microsoft Excel** | Not supported | N/A |
 | **Microsoft Teams** | Full | Full |
 
-*\*These apps use a floating indicator instead of inline underlines due to accessibility API limitations. Microsoft Word and PowerPoint crash (EXC_BAD_INSTRUCTION in mso99) when querying parameterized accessibility attributes.*
+*\*PowerPoint uses a floating indicator instead of inline underlines due to accessibility API limitations (crashes on parameterized accessibility attribute queries).*
 
 *\*\*Notion: Underlines appear for ~50% of text blocks. Due to Notion's React/Electron virtualization, some blocks aren't exposed in the accessibility tree. Errors in virtualized blocks show in the indicator count but without underlines. Shift+Enter (soft breaks) work; Enter (new blocks) may not. See [Notion documentation](docs/applications/NOTION.md) for details.*
 
