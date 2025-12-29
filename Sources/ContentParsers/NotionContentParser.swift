@@ -2,36 +2,24 @@
 //  NotionContentParser.swift
 //  TextWarden
 //
-//  Content parser for Notion (Electron-based app)
-//  Uses cursor position as anchor for reliable error positioning in Electron apps.
+//  Content parser for Notion (Electron-based app).
+//  Handles text preprocessing to filter out UI elements before analysis.
 //
-//  Positioning Strategy:
-//  - Use AXSelectedTextRange to get cursor position
-//  - Get bounds for cursor/selection as reliable anchor
-//  - Calculate error positions relative to cursor
-//  - Fall back to element frame + text measurement when AX APIs fail
-//  - Filter out Notion UI elements from text before analysis
+//  Positioning is handled by NotionStrategy, which traverses the AX tree
+//  to find AXStaticText children with working AXBoundsForRange queries
+//  (same approach as Slack and Teams).
 //
 
 import Foundation
 import AppKit
 
-/// Notion-specific content parser using cursor-anchored positioning
+/// Notion-specific content parser for text preprocessing
 class NotionContentParser: ContentParser {
 
     // MARK: - Properties
 
     let bundleIdentifier: String
     let parserName = "Notion"
-
-    /// DEVELOPMENT FLAG: Force showing underlines even with unreliable positioning
-    /// Best practice: Hide underlines rather than show them at wrong positions
-    static var forceShowUnderlines = true
-
-    /// Diagnostic result from probing Notion's AX capabilities
-    /// Populated on first positioning attempt
-    private static var diagnosticResult: NotionDiagnosticResult?
-    private static var hasRunDiagnostic = false
 
     /// UI elements that Notion includes in AX text but should be filtered
     /// These are detected via exact match or prefix matching
@@ -63,13 +51,37 @@ class NotionContentParser: ContentParser {
         "notion-toggle-block",
     ]
 
+    /// Role descriptions that ARE allowed (include list approach)
+    /// Only text inside these container types will be analyzed for grammar errors.
+    /// This is more robust than an exclude list because unknown block types
+    /// (lists, tables, code blocks with AX elements, etc.) are automatically excluded.
+    ///
+    /// NOTE: Code blocks are virtualized (no AX element) so they're handled separately
+    /// via the U+200B marker detection in preprocessText().
+    private static let allowedContainerRoleDescriptions: Set<String> = [
+        "",                     // Empty - some elements don't have roleDesc
+        "group",                // Generic containers
+        "text entry area",      // Text blocks
+        "heading",              // Headers (H1, H2, H3)
+        "text",                 // AXStaticText elements
+    ]
+
+    /// Bullet characters used in Notion lists
+    /// These appear as separate lines/characters in the fullText
+    private static let bulletCharacters: Set<Character> = [
+        "\u{2022}",  // • Bullet
+        "\u{25AA}",  // ▪ Black Small Square
+        "\u{25E6}",  // ◦ White Bullet
+        "\u{2023}",  // ‣ Triangular Bullet
+        "\u{2043}",  // ⁃ Hyphen Bullet
+    ]
+
     /// Offset of actual content within the full AX text
     /// Used to map error positions from preprocessed text back to original
     private(set) var uiElementOffset: Int = 0
 
-    /// Cache for cursor position to avoid repeated AX calls
-    private var cachedCursorInfo: (position: Int, frame: NSRect, timestamp: Date)?
-    private let cursorCacheTimeout: TimeInterval = TimingConstants.cursorCacheTimeout
+    /// Ranges of text to skip (from blockquotes, etc.) - detected from AX tree
+    private var skipRanges: [NSRange] = []
 
     // MARK: - Initialization
 
@@ -86,6 +98,7 @@ class NotionContentParser: ContentParser {
 
     /// Check if a string is emoji-only (page icons, decorative elements)
     /// Notion page icons are typically single grapheme clusters that aren't alphanumeric
+    /// NOTE: U+200B (zero-width space) is NOT considered emoji - it's used as a code block marker
     private func isEmojiOnlyLine(_ line: String) -> Bool {
         guard !line.isEmpty else { return false }
 
@@ -100,6 +113,10 @@ class NotionContentParser: ContentParser {
             // Skip variation selectors and other invisible modifiers
             if scalar.value >= 0xFE00 && scalar.value <= 0xFE0F { continue }
             if scalar.value >= 0xE0100 && scalar.value <= 0xE01EF { continue }
+
+            // U+200B (zero-width space) is used as a code block boundary marker
+            // Don't treat it as emoji/UI element - let code block detection handle it
+            if scalar.value == 0x200B { return false }
 
             // Check if this is a letter or digit
             if CharacterSet.letters.contains(scalar) || CharacterSet.decimalDigits.contains(scalar) {
@@ -134,7 +151,7 @@ class NotionContentParser: ContentParser {
         if isEmojiOnlyLine(trimmed) { return true }
 
         // Strip leading emoji/symbols and check for known UI elements
-        // This handles cases like "📓Add icon" where emoji prefixes the UI text
+        // This handles cases like "page icon+Add icon" where emoji prefixes the UI text
         let strippedLine = stripLeadingNonAlphanumeric(trimmed)
 
         // Check both original trimmed and stripped versions against UI elements
@@ -146,7 +163,55 @@ class NotionContentParser: ContentParser {
         }
     }
 
-    /// Preprocess Notion text to filter out UI elements
+    /// Check if a line is a code block boundary marker (zero-width space)
+    /// Notion uses U+200B after code blocks
+    /// NOTE: U+200B is in CharacterSet.whitespaces, so we can't use trimmingCharacters
+    private func isCodeBlockBoundary(_ line: String) -> Bool {
+        guard !line.isEmpty else { return false }
+
+        // Check if line contains at least one U+200B and ONLY whitespace/U+200B characters
+        var hasZeroWidthSpace = false
+        for scalar in line.unicodeScalars {
+            if scalar.value == 0x200B {
+                hasZeroWidthSpace = true
+            } else if !CharacterSet.whitespaces.contains(scalar) {
+                // Found a non-whitespace, non-U+200B character
+                return false
+            }
+        }
+        return hasZeroWidthSpace
+    }
+
+    /// Check if a line is a bullet character (used in bulleted lists)
+    /// Notion uses various bullet characters that appear as separate lines in fullText
+    private func isBulletLine(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.count == 1, let char = trimmed.first else { return false }
+        return Self.bulletCharacters.contains(char)
+    }
+
+    /// Check if a line is a numbered list marker (e.g., "1.", "2.", "10.")
+    /// Notion uses numbers followed by period for numbered lists
+    private func isNumberedListMarker(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return false }
+
+        // Check if it matches pattern: one or more digits followed by a period
+        // e.g., "1.", "2.", "10.", "123."
+        guard trimmed.last == "." else { return false }
+        let withoutPeriod = trimmed.dropLast()
+        return !withoutPeriod.isEmpty && withoutPeriod.allSatisfy { $0.isNumber }
+    }
+
+    /// Preprocess Notion text to filter out UI elements and code blocks
+    /// IMPORTANT: Only filter LEADING and TRAILING UI elements, not middle ones.
+    /// Middle filtering causes position drift because textReplacementOffset only
+    /// tracks leading removed characters. TextPart-based positioning needs
+    /// consistent character offsets between filtered and full text.
+    ///
+    /// Code blocks are identified by the pattern: content line followed by U+200B line.
+    /// We replace code block content with empty lines (preserving positions) so errors
+    /// in code blocks don't get reported.
     func preprocessText(_ text: String) -> String? {
         guard !text.isEmpty else { return nil }
 
@@ -168,6 +233,7 @@ class NotionContentParser: ContentParser {
         self.uiElementOffset = removedChars
 
         // Also remove trailing UI elements (like placeholders at the end)
+        // Trailing removal doesn't affect position mapping since errors come before
         while let lastLine = lines.last {
             if isUIElementLine(lastLine) {
                 lines.removeLast()
@@ -176,21 +242,105 @@ class NotionContentParser: ContentParser {
             }
         }
 
-        // Also filter UI elements from MIDDLE of content (e.g., placeholder on focused empty line)
-        // Replace with empty line to preserve line count for position mapping
-        lines = lines.map { line in
-            return isUIElementLine(line) ? "" : line
+        // Filter code blocks: lines followed by U+200B are code block content
+        // Replace with newlines to preserve character positions while preventing
+        // grammar checking of code content (newlines avoid Harper "multiple spaces" warnings)
+        var codeBlocksFiltered = 0
+        for i in 0..<lines.count {
+            // Check if next line is a code block boundary (U+200B)
+            if i + 1 < lines.count {
+                let nextLine = lines[i + 1]
+                if isCodeBlockBoundary(nextLine) {
+                    Logger.trace("NotionContentParser: Code block at line \(i), U+200B boundary at line \(i+1)", category: Logger.ui)
+                    // This line is code block content - replace with newlines to preserve length
+                    let originalLength = lines[i].count
+                    lines[i] = String(repeating: "\n", count: originalLength)
+                    codeBlocksFiltered += 1
+                }
+            }
         }
 
-        let filteredText = lines.joined(separator: "\n")
+        // Filter bulleted list items: bullet character followed by list item content
+        // Structure: line N is "•" (bullet), line N+1 is the list item text
+        var bulletListsFiltered = 0
+        for i in 0..<lines.count {
+            if isBulletLine(lines[i]) {
+                // Replace bullet line with newlines
+                lines[i] = String(repeating: "\n", count: lines[i].count)
+                // Replace the following line (list item content) with newlines
+                if i + 1 < lines.count {
+                    let originalLength = lines[i + 1].count
+                    lines[i + 1] = String(repeating: "\n", count: originalLength)
+                    Logger.trace("NotionContentParser: Filtered bullet list item at line \(i+1)", category: Logger.ui)
+                }
+                bulletListsFiltered += 1
+            }
+        }
 
-        if removedChars > 0 || text.count != filteredText.count {
-            Logger.debug("NotionContentParser: Filtered UI elements, original: \(text.count) chars, remaining: \(filteredText.count) chars, leading offset: \(removedChars)", category: Logger.ui)
+        // Filter numbered list items: number marker (e.g., "1.") followed by list item content
+        // Structure: line N is "1." (number), line N+1 is the list item text
+        var numberedListsFiltered = 0
+        for i in 0..<lines.count {
+            if isNumberedListMarker(lines[i]) {
+                // Replace number marker line with newlines
+                lines[i] = String(repeating: "\n", count: lines[i].count)
+                // Replace the following line (list item content) with newlines
+                if i + 1 < lines.count {
+                    let originalLength = lines[i + 1].count
+                    lines[i + 1] = String(repeating: "\n", count: originalLength)
+                    Logger.trace("NotionContentParser: Filtered numbered list item at line \(i+1)", category: Logger.ui)
+                }
+                numberedListsFiltered += 1
+            }
+        }
+
+        // Also replace the U+200B boundary lines with same-length newlines
+        // IMPORTANT: Must preserve character count to avoid position drift
+        lines = lines.map { line in
+            if isCodeBlockBoundary(line) {
+                // Replace U+200B chars with newlines (same count) to preserve positions
+                return String(repeating: "\n", count: line.count)
+            }
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            return trimmed.isEmpty ? "" : line
+        }
+
+        var filteredText = lines.joined(separator: "\n")
+
+        // Apply skip ranges (blockquotes detected from AX tree)
+        // These positions are in the ORIGINAL text coordinates, so we need to adjust
+        // by subtracting the leading offset (removedChars) to get filtered text positions
+        //
+        // We replace with newlines instead of spaces to avoid Harper flagging
+        // "multiple consecutive spaces" errors. Newlines are normal between paragraphs.
+        var skipRangesApplied = 0
+        for skipRange in skipRanges {
+            // Convert original text position to filtered text position
+            let adjustedLocation = skipRange.location - removedChars
+            guard adjustedLocation >= 0 && adjustedLocation + skipRange.length <= filteredText.count else {
+                continue
+            }
+
+            // Replace skip range with newlines (preserves character positions, avoids Harper space warnings)
+            guard let startIdx = filteredText.index(filteredText.startIndex, offsetBy: adjustedLocation, limitedBy: filteredText.endIndex),
+                  let endIdx = filteredText.index(startIdx, offsetBy: skipRange.length, limitedBy: filteredText.endIndex) else {
+                continue
+            }
+
+            let replacement = String(repeating: "\n", count: skipRange.length)
+            filteredText.replaceSubrange(startIdx..<endIdx, with: replacement)
+            skipRangesApplied += 1
+        }
+
+        if removedChars > 0 || codeBlocksFiltered > 0 || bulletListsFiltered > 0 || numberedListsFiltered > 0 || skipRangesApplied > 0 {
+            Logger.debug("NotionContentParser: Filtered leading UI: \(removedChars), code blocks: \(codeBlocksFiltered), bullet lists: \(bulletListsFiltered), numbered lists: \(numberedListsFiltered), skip ranges: \(skipRangesApplied), remaining: \(filteredText.count) chars", category: Logger.ui)
         }
 
         // Return nil if nothing left after filtering
         return filteredText.isEmpty ? nil : filteredText
     }
+
+    // MARK: - UI Context Detection
 
     func detectUIContext(element: AXUIElement) -> String? {
         // Try to get role description to identify Notion block type
@@ -227,13 +377,7 @@ class NotionContentParser: ContentParser {
         return "page-content"
     }
 
-    // MARK: - Content Detection
-
-    /// Check if an element is a Notion content block (vs UI chrome)
-    private func isContentBlock(roleDescription: String?) -> Bool {
-        guard let roleDesc = roleDescription else { return false }
-        return Self.notionContentBlockTypes.contains { roleDesc.contains($0) }
-    }
+    // MARK: - Font Configuration
 
     func estimatedFontSize(context: String?) -> CGFloat {
         // Font sizes based on Notion's actual rendering
@@ -253,11 +397,11 @@ class NotionContentParser: ContentParser {
     }
 
     func horizontalPadding(context: String?) -> CGFloat {
-        return 0.0  // Padding handled in position calculation
+        return 0.0  // Padding handled by strategy
     }
 
     var disablesVisualUnderlines: Bool {
-        return false  // Enable underlines - we have cursor-anchored positioning
+        return false  // Underlines enabled - NotionStrategy handles positioning
     }
 
     /// Notion's extractText returns preprocessed text (UI elements already filtered)
@@ -279,598 +423,201 @@ class NotionContentParser: ContentParser {
             return nil
         }
 
-        // Return preprocessed text (with UI elements filtered)
+        // Detect skip ranges from AX tree (blockquotes, etc.)
+        skipRanges = detectSkipRanges(element: element, fullText: text)
+
+        // Return preprocessed text (with UI elements and skip ranges filtered)
         return preprocessText(text)
     }
 
-    // MARK: - Bounds Adjustment
+    // MARK: - AX Tree Traversal for Skip Ranges
 
-    /// Bounds adjustment using cursor position as anchor
-    /// IMPORTANT: errorRange is based on FILTERED text positions.
-    /// When calling AX APIs, we must add uiElementOffset to get original text positions.
-    func adjustBounds(
-        element: AXUIElement,
-        errorRange: NSRange,
-        textBeforeError: String,
-        errorText: String,
-        fullText: String
-    ) -> AdjustedBounds? {
-        // Run comprehensive diagnostic ONCE to discover what AX APIs work
-        if !Self.hasRunDiagnostic {
-            Self.hasRunDiagnostic = true
-            Self.diagnosticResult = AccessibilityBridge.runNotionDiagnostic(element)
+    /// Detect text ranges that should be skipped (blockquotes, etc.) by traversing AX tree
+    private func detectSkipRanges(element: AXUIElement, fullText: String) -> [NSRange] {
+        var ranges: [NSRange] = []
+        var searchStart = 0
 
-            if let result = Self.diagnosticResult {
-                Logger.info("NOTION DIAGNOSTIC SUMMARY:", category: Logger.analysis)
-                Logger.info("  Best method: \(result.bestMethodDescription)", category: Logger.analysis)
-                Logger.info("  Has working method: \(result.hasWorkingMethod)", category: Logger.analysis)
-                Logger.info("  Working range bounds: \(result.workingRangeBounds.count)", category: Logger.analysis)
-                Logger.info("  Line bounds: \(result.lineBounds.count)", category: Logger.analysis)
-                Logger.info("  Children with bounds: \(result.childrenWithBounds.count)", category: Logger.analysis)
-            }
-        }
-
-        // Convert filtered text position to original text position for AX API calls
-        let originalRange = NSRange(
-            location: errorRange.location + uiElementOffset,
-            length: errorRange.length
+        collectSkipRanges(
+            from: element,
+            fullText: fullText,
+            searchStart: &searchStart,
+            into: &ranges,
+            insideDisallowedBlock: false,
+            depth: 0
         )
 
-        // CRITICAL FIX: Extract errorText using ORIGINAL position from RAW text
-        // The passed errorText is wrong - it was extracted using preprocessed position from raw text
-        // Use safe index operations to prevent crashes on out-of-bounds access
-        let correctedErrorText: String
-        let originalStart = originalRange.location
-        let originalEnd = originalRange.location + originalRange.length
-        if originalStart >= 0, originalStart < originalEnd,
-           let startIdx = fullText.index(fullText.startIndex, offsetBy: originalStart, limitedBy: fullText.endIndex),
-           let endIdx = fullText.index(fullText.startIndex, offsetBy: originalEnd, limitedBy: fullText.endIndex),
-           startIdx <= endIdx {
-            correctedErrorText = String(fullText[startIdx..<endIdx])
-        } else {
-            correctedErrorText = errorText // Fallback to passed value
+        if !ranges.isEmpty {
+            Logger.debug("NotionContentParser: Detected \(ranges.count) skip ranges from AX tree", category: Logger.ui)
         }
 
-        Logger.debug("NotionContentParser: adjustBounds for range \(errorRange) (original: \(originalRange)), errorText='\(correctedErrorText)', offset=\(uiElementOffset)", category: Logger.ui)
+        return ranges
+    }
 
-        // Strategy 1: Try to get cursor frame as anchor
-        // Cursor position is in original text coordinates
-        if let cursorAnchor = getCursorAnchorInfo(element: element) {
-            // Adjust cursor position to filtered text coordinates for line calculations
-            let adjustedCursorPosition = max(0, cursorAnchor.position - uiElementOffset)
-            let adjustedCursorAnchor = CursorAnchorInfo(
-                position: adjustedCursorPosition,
-                frame: cursorAnchor.frame,
-                lineNumber: cursorAnchor.lineNumber,
-                columnOffset: cursorAnchor.columnOffset
-            )
+    /// Check if an element has a "Tick box" in nearby ancestor siblings or their children.
+    /// Notion's AX structure places "Tick box" inside a sibling group:
+    ///   AXGroup (todo row container)
+    ///   ├── AXGroup (checkbox container)
+    ///   │   └── Tick box  <-- need to find this
+    ///   ├── AXTextArea
+    ///   │   └── AXStaticText (text content) <-- we're here
+    /// So we need to check siblings AND their immediate children.
+    private func hasTodoSibling(_ element: AXUIElement) -> Bool {
+        var current = element
 
-            if let result = calculatePositionFromCursorAnchor(
-                cursorAnchor: adjustedCursorAnchor,
-                errorRange: errorRange,
-                textBeforeError: textBeforeError,
-                errorText: correctedErrorText,  // Use corrected text
-                fullText: fullText,
-                element: element
-            ) {
-                return result
+        // Check up to 3 levels of ancestors
+        for _ in 0..<3 {
+            // Get parent of current
+            var parentRef: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentRef) == .success,
+                  let pRef = parentRef,
+                  CFGetTypeID(pRef) == AXUIElementGetTypeID() else {
+                return false
+            }
+            // Safe: type verified above
+            let parent = unsafeBitCast(pRef, to: AXUIElement.self)
+
+            // Get siblings at this level (parent's children)
+            if let siblings = getChildren(parent) {
+                for sibling in siblings {
+                    // Check if sibling is a Tick box
+                    let siblingRoleDesc = getRoleDescription(sibling)
+                    if siblingRoleDesc == "Tick box" {
+                        return true
+                    }
+
+                    // Check sibling's children (Tick box might be nested one level)
+                    if let siblingChildren = getChildren(sibling) {
+                        for child in siblingChildren {
+                            let childRoleDesc = getRoleDescription(child)
+                            if childRoleDesc == "Tick box" {
+                                return true
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Move up to check next level
+            current = parent
+        }
+        return false
+    }
+
+    /// Recursively traverse AX tree to find skip ranges (using allow-list approach)
+    /// Text is only analyzed if ALL ancestors have allowed roleDescriptions.
+    /// Once we hit a non-allowed container, everything below it is skipped.
+    /// Also detects todo items via sibling "Tick box" relationship.
+    private func collectSkipRanges(
+        from element: AXUIElement,
+        fullText: String,
+        searchStart: inout Int,
+        into ranges: inout [NSRange],
+        insideDisallowedBlock: Bool,
+        depth: Int
+    ) {
+        // Prevent infinite recursion
+        guard depth < 15 else { return }
+
+        let roleDesc = getRoleDescription(element)
+
+        // Check if this element's roleDescription is in our allow list
+        // If not, everything below it should be skipped
+        let isDisallowed = !Self.allowedContainerRoleDescriptions.contains(roleDesc)
+        var shouldSkip = insideDisallowedBlock || isDisallowed
+
+        if isDisallowed && !insideDisallowedBlock {
+            Logger.trace("NotionContentParser: Found disallowed container roleDesc='\(roleDesc)'", category: Logger.ui)
+        }
+
+        // Get text content if this is a text element
+        let text = getText(element)
+
+        // Check for todo item context: if this text element has a "Tick box" sibling
+        // This handles Notion's structure where Tick box is sibling, not parent
+        if !shouldSkip && !text.isEmpty && hasTodoSibling(element) {
+            shouldSkip = true
+        }
+
+        // Debug: log when we're inside a disallowed block and have text
+        if insideDisallowedBlock && !text.isEmpty && text.count < 100 {
+            Logger.trace("NotionContentParser: Inside disallowed block, found text '\(text.prefix(30))...' roleDesc='\(roleDesc)'", category: Logger.ui)
+        }
+
+        if shouldSkip && !text.isEmpty {
+            // Find this text in fullText and mark as skip range
+            if let range = findTextRange(text, in: fullText, startingAt: searchStart) {
+                ranges.append(range)
+                searchStart = range.location + range.length
+                Logger.trace("NotionContentParser: Skip range for '\(text.prefix(30))...' at \(range) (roleDesc='\(roleDesc)')", category: Logger.ui)
+            } else if let range = findTextRange(text, in: fullText, startingAt: 0) {
+                // Try from beginning if not found from searchStart
+                let alreadyCovered = ranges.contains { $0.location == range.location }
+                if !alreadyCovered {
+                    ranges.append(range)
+                    Logger.trace("NotionContentParser: Skip range for '\(text.prefix(30))...' at \(range) (from start)", category: Logger.ui)
+                }
+            } else {
+                // Debug: log when text isn't found in fullText
+                Logger.trace("NotionContentParser: Could not find '\(text.prefix(30))...' in fullText (searchStart=\(searchStart))", category: Logger.ui)
             }
         }
 
-        // Strategy 2: Try direct AX bounds for the error range (use original position)
-        if let axBounds = AccessibilityBridge.getBoundsForRange(originalRange, in: element) {
-            Logger.debug("NotionContentParser: Got valid AX bounds: \(axBounds)", category: Logger.ui)
-            return AdjustedBounds(
-                position: NSPoint(x: axBounds.origin.x, y: axBounds.origin.y),
-                errorWidth: axBounds.width,
-                confidence: 0.85,
-                uiContext: detectUIContext(element: element),
-                debugInfo: "Notion AX bounds (direct)"
+        // Recurse into children
+        guard let children = getChildren(element) else { return }
+
+        for child in children {
+            collectSkipRanges(
+                from: child,
+                fullText: fullText,
+                searchStart: &searchStart,
+                into: &ranges,
+                insideDisallowedBlock: shouldSkip,
+                depth: depth + 1
             )
         }
+    }
 
-        // Strategy 3: Graceful degradation
-        // The element frame + paragraph-based fallback doesn't work reliably for Notion
-        // because Notion's AX text has newlines that don't correspond to visual line breaks
-        // (each block may be on its own AX line even if visually on the same line).
-        // It's better to hide underlines than show them at wrong positions.
-        Logger.debug("NotionContentParser: AX APIs failed, returning unavailable for graceful degradation", category: Logger.ui)
+    /// Find text range in full text
+    private func findTextRange(_ substring: String, in text: String, startingAt: Int) -> NSRange? {
+        guard startingAt < text.count,
+              let searchStartIdx = text.index(text.startIndex, offsetBy: startingAt, limitedBy: text.endIndex) else {
+            return nil
+        }
+
+        let searchRange = searchStartIdx..<text.endIndex
+        if let foundRange = text.range(of: substring, range: searchRange) {
+            let location = text.distance(from: text.startIndex, to: foundRange.lowerBound)
+            return NSRange(location: location, length: substring.count)
+        }
         return nil
     }
 
-    // MARK: - Cursor Anchor Approach
+    // MARK: - AX Helpers
 
-    /// Structure to hold cursor/insertion point information
-    private struct CursorAnchorInfo {
-        let position: Int           // Character position of cursor
-        let frame: NSRect           // Screen frame of cursor (from AXBoundsForRange)
-        let lineNumber: Int         // Line number of cursor
-        let columnOffset: Int       // Column offset on current line
+    private func getText(_ element: AXUIElement) -> String {
+        var textRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef) == .success,
+              let text = textRef as? String else {
+            return ""
+        }
+        return text
     }
 
-    /// Get cursor position and frame as anchor point
-    private func getCursorAnchorInfo(element: AXUIElement) -> CursorAnchorInfo? {
-        // Get selected text range (cursor position)
-        var selectedRangeValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(
-            element,
-            kAXSelectedTextRangeAttribute as CFString,
-            &selectedRangeValue
-        ) == .success,
-              let rangeRef = selectedRangeValue,
-              let selectedRange = safeAXValueGetRange(rangeRef) else {
-            Logger.debug("NotionContentParser: Failed to get AXSelectedTextRange", category: Logger.ui)
+    private func getRoleDescription(_ element: AXUIElement) -> String {
+        var roleDescRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXRoleDescriptionAttribute as CFString, &roleDescRef) == .success,
+              let roleDesc = roleDescRef as? String else {
+            return ""
+        }
+        return roleDesc
+    }
+
+    private func getChildren(_ element: AXUIElement) -> [AXUIElement]? {
+        var childrenRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
+              let children = childrenRef as? [AXUIElement] else {
             return nil
         }
-
-        let cursorPosition = selectedRange.location
-        Logger.debug("NotionContentParser: Cursor at position \(cursorPosition)", category: Logger.ui)
-
-        // Try to get insertion point line number
-        var insertionLineValue: CFTypeRef?
-        if AXUIElementCopyAttributeValue(element, "AXInsertionPointLineNumber" as CFString, &insertionLineValue) == .success {
-            if let lineNum = insertionLineValue {
-                Logger.debug("NotionContentParser: AXInsertionPointLineNumber = \(lineNum)", category: Logger.ui)
-            }
-        }
-
-        // Try to get bounds for cursor position using multiple strategies
-        var cursorFrame: NSRect?
-
-        // First try: AXInsertionPointFrame - primary method for cursor position
-        var insertionPointValue: CFTypeRef?
-        if AXUIElementCopyAttributeValue(element, "AXInsertionPointFrame" as CFString, &insertionPointValue) == .success,
-           let axValue = insertionPointValue,
-           let frame = safeAXValueGetRect(axValue) {
-            // Validate frame - check for Chromium's invalid (0,0,0,0) or (0, screenHeight, 0, 0) bug
-            if frame.width > 0 || (frame.height > 0 && frame.height < GeometryConstants.conservativeMaxLineHeight) {
-                cursorFrame = frame
-                Logger.debug("NotionContentParser: Got cursor frame from AXInsertionPointFrame: \(frame)", category: Logger.ui)
-            } else {
-                Logger.debug("NotionContentParser: AXInsertionPointFrame returned invalid frame: \(frame)", category: Logger.ui)
-            }
-        }
-
-        // Second try: bounds for single character at cursor
-        if cursorFrame == nil {
-            if let bounds = getBoundsForPosition(element: element, position: cursorPosition, length: 1) {
-                cursorFrame = bounds
-                Logger.debug("NotionContentParser: Got cursor frame from single char: \(bounds)", category: Logger.ui)
-            }
-        }
-
-        // Third try: bounds for character before cursor (if cursor is not at start)
-        if cursorFrame == nil && cursorPosition > 0 {
-            if let bounds = getBoundsForPosition(element: element, position: cursorPosition - 1, length: 1) {
-                // Adjust X to be at the end of the character
-                let adjustedFrame = NSRect(
-                    x: bounds.origin.x + bounds.width,
-                    y: bounds.origin.y,
-                    width: 1,
-                    height: bounds.height
-                )
-                cursorFrame = adjustedFrame
-                Logger.debug("NotionContentParser: Got cursor frame from prev char: \(adjustedFrame)", category: Logger.ui)
-            }
-        }
-
-        // Log visible character range for debugging
-        if cursorFrame == nil {
-            var visibleRangeValue: CFTypeRef?
-            if AXUIElementCopyAttributeValue(element, kAXVisibleCharacterRangeAttribute as CFString, &visibleRangeValue) == .success,
-               let rangeRef = visibleRangeValue,
-               let visibleRange = safeAXValueGetRange(rangeRef) {
-                Logger.debug("NotionContentParser: Visible character range: \(visibleRange.location)-\(visibleRange.location + visibleRange.length)", category: Logger.ui)
-            }
-        }
-
-        guard let frame = cursorFrame else {
-            Logger.debug("NotionContentParser: Could not get cursor frame from any AX API", category: Logger.ui)
-            return nil
-        }
-
-        // Calculate line number and column for cursor
-        var fullText: CFTypeRef?
-        AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &fullText)
-        let text = (fullText as? String) ?? ""
-
-        let textBeforeCursor = String(text.prefix(cursorPosition))
-        let linesBeforeCursor = textBeforeCursor.components(separatedBy: "\n")
-        let lineNumber = linesBeforeCursor.count - 1
-        let columnOffset = linesBeforeCursor.last?.count ?? 0
-
-        return CursorAnchorInfo(
-            position: cursorPosition,
-            frame: frame,
-            lineNumber: lineNumber,
-            columnOffset: columnOffset
-        )
+        return children
     }
-
-    /// Calculate error position relative to cursor anchor
-    private func calculatePositionFromCursorAnchor(
-        cursorAnchor: CursorAnchorInfo,
-        errorRange: NSRange,
-        textBeforeError: String,
-        errorText: String,
-        fullText: String,
-        element: AXUIElement
-    ) -> AdjustedBounds? {
-        let context = detectUIContext(element: element)
-        let fontSize = estimatedFontSize(context: context)
-        let font = NSFont.systemFont(ofSize: fontSize)
-        let attributes: [NSAttributedString.Key: Any] = [.font: font]
-
-        // Calculate error position relative to cursor
-        let errorLineOffset = calculateLineOffset(
-            from: cursorAnchor.position,
-            to: errorRange.location,
-            in: fullText
-        )
-
-        // Calculate X offset from cursor
-        let cursorLineText = getLineText(at: cursorAnchor.position, in: fullText)
-        _ = getLineText(at: errorRange.location, in: fullText)  // Used for context validation
-
-        let textBeforeErrorOnLine = getTextBeforePositionOnLine(
-            position: errorRange.location,
-            in: fullText
-        )
-
-        // Calculate error width with a small buffer for Chromium rendering differences
-        // NSFont measurement can underestimate compared to Chromium's text rendering
-        let measuredWidth = (errorText as NSString).size(withAttributes: attributes).width
-        let errorWidth = max(measuredWidth * 1.05, 20.0)  // 5% buffer for rendering variance
-
-        // Calculate Y position
-        // Each line is approximately lineHeight pixels apart
-        let lineHeight: CGFloat = fontSize * 1.5  // Notion uses ~1.5 line height
-        let yOffset = CGFloat(errorLineOffset) * lineHeight
-
-        // Calculate X position
-        // If on same line as cursor, calculate relative X offset
-        // If on different line, calculate from line start
-        var xPosition: CGFloat
-        var yPosition: CGFloat
-
-        if errorLineOffset == 0 {
-            // Same line as cursor - calculate X offset from cursor
-            let charsBetween = errorRange.location - cursorAnchor.position
-            if charsBetween >= 0 {
-                // Error is after cursor
-                let textBetween = String(fullText.dropFirst(cursorAnchor.position).prefix(charsBetween))
-                let offsetWidth = (textBetween as NSString).size(withAttributes: attributes).width
-                xPosition = cursorAnchor.frame.origin.x + offsetWidth
-            } else {
-                // Error is before cursor
-                let textBetween = String(fullText.dropFirst(errorRange.location).prefix(-charsBetween))
-                let offsetWidth = (textBetween as NSString).size(withAttributes: attributes).width
-                xPosition = cursorAnchor.frame.origin.x - offsetWidth
-            }
-            yPosition = cursorAnchor.frame.origin.y
-        } else {
-            // Different line - need to estimate X from line start
-            let textBeforeWidth = (textBeforeErrorOnLine as NSString).size(withAttributes: attributes).width
-
-            // Estimate line start X from element frame or cursor
-            if let elementFrame = AccessibilityBridge.getElementFrame(element) {
-                // Notion content area starts about 96px from left edge typically
-                let contentPadding: CGFloat = 96.0
-                xPosition = elementFrame.origin.x + contentPadding + textBeforeWidth
-            } else {
-                // Fall back to cursor X minus its column offset
-                let cursorColumnWidth = (cursorLineText.prefix(cursorAnchor.columnOffset) as NSString).size(withAttributes: attributes).width
-                let lineStartX = cursorAnchor.frame.origin.x - cursorColumnWidth
-                xPosition = lineStartX + textBeforeWidth
-            }
-            yPosition = cursorAnchor.frame.origin.y + yOffset
-        }
-
-        let confidence: Double = errorLineOffset == 0 ? 0.80 : 0.70
-
-        Logger.debug("NotionContentParser: Cursor anchor result - x: \(xPosition), y: \(yPosition), lineOffset: \(errorLineOffset)", category: Logger.ui)
-
-        return AdjustedBounds(
-            position: NSPoint(x: xPosition, y: yPosition),
-            errorWidth: errorWidth,
-            confidence: confidence,
-            uiContext: context,
-            debugInfo: "Notion cursor-anchored (lineOffset: \(errorLineOffset))"
-        )
-    }
-
-    // MARK: - Helper Methods
-
-    /// Get bounds for a specific position and length
-    private func getBoundsForPosition(element: AXUIElement, position: Int, length: Int) -> CGRect? {
-        var boundsValue: CFTypeRef?
-        var axRange = CFRange(location: position, length: length)
-        guard let rangeValue = AXValueCreate(.cfRange, &axRange) else {
-            return nil
-        }
-
-        let result = AXUIElementCopyParameterizedAttributeValue(
-            element,
-            kAXBoundsForRangeParameterizedAttribute as CFString,
-            rangeValue,
-            &boundsValue
-        )
-
-        guard result == .success,
-              let bv = boundsValue,
-              let bounds = safeAXValueGetRect(bv) else {
-            return nil
-        }
-
-        // Basic validation
-        guard bounds.width >= 0 && bounds.height > GeometryConstants.minimumBoundsSize && bounds.height < GeometryConstants.conservativeMaxLineHeight else {
-            return nil
-        }
-
-        return bounds
-    }
-
-    /// Calculate line offset between two positions
-    private func calculateLineOffset(from: Int, to: Int, in text: String) -> Int {
-        let start = min(from, to)
-        let end = max(from, to)
-
-        guard end <= text.count else { return 0 }
-
-        // Safe string slicing to handle UTF-16/character count mismatches
-        guard let startIndex = text.index(text.startIndex, offsetBy: start, limitedBy: text.endIndex),
-              let endIndex = text.index(text.startIndex, offsetBy: end, limitedBy: text.endIndex),
-              startIndex <= endIndex else {
-            return 0
-        }
-        let textBetween = String(text[startIndex..<endIndex])
-
-        let newlineCount = textBetween.filter { $0 == "\n" }.count
-
-        return from <= to ? newlineCount : -newlineCount
-    }
-
-    /// Get the text of the line containing the given position
-    private func getLineText(at position: Int, in text: String) -> String {
-        guard position <= text.count else { return "" }
-
-        let textBefore = String(text.prefix(position))
-        let lines = textBefore.components(separatedBy: "\n")
-        let currentLineStart = lines.dropLast().joined(separator: "\n").count + (lines.count > 1 ? 1 : 0)
-
-        // Find line end
-        let remaining = String(text.dropFirst(currentLineStart))
-        if let newlineIndex = remaining.firstIndex(of: "\n") {
-            return String(remaining[..<newlineIndex])
-        }
-        return remaining
-    }
-
-    /// Get text before position on the current line
-    private func getTextBeforePositionOnLine(position: Int, in text: String) -> String {
-        guard position <= text.count else { return "" }
-
-        let textBefore = String(text.prefix(position))
-        let lines = textBefore.components(separatedBy: "\n")
-        return lines.last ?? ""
-    }
-
-    // MARK: - Fallback: Element Frame + Text Measurement
-
-    /// Calculate position using element frame and SCROLL-AWARE paragraph positioning
-    /// Key insight: correctScrollableFieldBoundingRects
-    /// Must account for scroll position using AXVisibleCharacterRange
-    /// Note: Returns position in Quartz coordinates (Y from top of screen)
-    ///
-    /// Calculate offsets relative to visible area for scroll-aware positioning
-    /// rather than absolute text position. Notion's content is centered in a
-    /// column that's about 60-70% of the element width.
-    private func calculatePositionFromElementFrame(
-        element: AXUIElement,
-        errorRange: NSRange,
-        textBeforeError: String,
-        errorText: String,
-        fullText: String
-    ) -> AdjustedBounds? {
-        let context = detectUIContext(element: element)
-        let fontSize = estimatedFontSize(context: context)
-        let font = NSFont.systemFont(ofSize: fontSize)
-        let attributes: [NSAttributedString.Key: Any] = [.font: font]
-
-        let errorWidth = max((errorText as NSString).size(withAttributes: attributes).width, 20.0)
-
-        guard let elementFrame = AccessibilityBridge.getElementFrame(element) else {
-            Logger.debug("NotionContentParser: Element frame fallback - no frame available", category: Logger.ui)
-            return nil
-        }
-
-        // CRITICAL: Get visible character range for scroll-aware positioning
-        // Use AXVisibleCharacterRange to handle scroll position correctly
-        var visibleRangeValue: CFTypeRef?
-        var visibleRange: CFRange?
-        if AXUIElementCopyAttributeValue(element, kAXVisibleCharacterRangeAttribute as CFString, &visibleRangeValue) == .success,
-           let rangeRef = visibleRangeValue,
-           let range = safeAXValueGetRange(rangeRef) {
-            visibleRange = range
-            Logger.debug("NotionContentParser: Visible character range: \(range.location)-\(range.location + range.length)", category: Logger.ui)
-        }
-
-        // IMPORTANT: errorRange is in PREPROCESSED text coordinates
-        // fullText is the ORIGINAL text from AX element
-        let originalPosition = errorRange.location + uiElementOffset
-
-        // Check if error is visible (within visible character range)
-        // If not visible, we can't accurately position it
-        if let visible = visibleRange {
-            let visibleEnd = visible.location + visible.length
-            if originalPosition < visible.location || originalPosition >= visibleEnd {
-                Logger.debug("NotionContentParser: Error at \(originalPosition) is outside visible range \(visible.location)-\(visibleEnd), skipping", category: Logger.ui)
-                return nil
-            }
-        }
-
-        // Extract paragraphs (non-empty, non-UI lines) and count blank lines between them
-        let allLines = fullText.components(separatedBy: "\n")
-        var paragraphs: [(text: String, startOffset: Int, isTitle: Bool, blankLinesBefore: Int)] = []
-        var currentOffset = 0
-        var isFirstContent = true
-        var consecutiveBlankLines = 0
-
-        for line in allLines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            let isUI = Self.notionUIElements.contains(where: { trimmed.hasPrefix($0) })
-            let isBlank = trimmed.isEmpty
-
-            if isBlank && !isFirstContent {
-                // Count blank lines between content paragraphs
-                consecutiveBlankLines += 1
-            } else if !isUI && !isBlank {
-                paragraphs.append((text: line, startOffset: currentOffset, isTitle: isFirstContent, blankLinesBefore: consecutiveBlankLines))
-                isFirstContent = false
-                consecutiveBlankLines = 0
-            }
-            currentOffset += line.count + 1  // +1 for newline
-        }
-
-        Logger.debug("NotionContentParser: Paragraph analysis:", category: Logger.ui)
-        for (idx, para) in paragraphs.enumerated() {
-            Logger.debug("  Para \(idx): offset=\(para.startOffset), isTitle=\(para.isTitle), blanksBefore=\(para.blankLinesBefore), textLen=\(para.text.count)", category: Logger.ui)
-        }
-
-        // Find which paragraph contains the error
-        var errorParagraphIndex = 0
-        var positionInParagraph = 0
-        for (idx, para) in paragraphs.enumerated() {
-            let paraEnd = para.startOffset + para.text.count
-            if originalPosition >= para.startOffset && originalPosition < paraEnd {
-                errorParagraphIndex = idx
-                positionInParagraph = originalPosition - para.startOffset
-                break
-            } else if originalPosition >= paraEnd && idx < paragraphs.count - 1 {
-                errorParagraphIndex = idx + 1
-            }
-        }
-
-        Logger.debug("NotionContentParser: Error at original pos \(originalPosition), in paragraph \(errorParagraphIndex), posInPara=\(positionInParagraph)", category: Logger.ui)
-
-        // SCROLL-AWARE LAYOUT CALCULATION
-        // Calculate which paragraph is at the TOP of the visible area
-        var firstVisibleParagraphIndex = 0
-        var isScrolled = false  // Track if page is scrolled past title
-
-        if let visible = visibleRange {
-            for (idx, para) in paragraphs.enumerated() {
-                let paraEnd = para.startOffset + para.text.count
-                if visible.location < paraEnd {
-                    firstVisibleParagraphIndex = idx
-                    break
-                }
-            }
-            // If first visible is not the title (index 0), page is scrolled
-            isScrolled = firstVisibleParagraphIndex > 0 || (visible.location > 0 && !paragraphs.isEmpty && visible.location > paragraphs[0].startOffset)
-        }
-
-        Logger.debug("NotionContentParser: First visible paragraph index: \(firstVisibleParagraphIndex), isScrolled: \(isScrolled)", category: Logger.ui)
-
-        // DYNAMIC LAYOUT CALCULATION
-        let elementWidth = elementFrame.size.width
-
-        // Content column is approximately centered with ~708px max width
-        let contentColumnWidth: CGFloat = min(708.0, elementWidth * 0.85)
-        let contentLeftMargin = (elementWidth - contentColumnWidth) / 2.0
-
-        // Vertical offsets - Notion uses consistent spacing
-        // These values are calibrated to match Notion's actual rendering
-        // CRITICAL: These must match Notion's actual pixel layout
-        //
-        // Measured from actual AXStaticText frames:
-        // - Title at Y=287, height=95, so bottom at 382
-        // - First body at Y=406
-        // - Gap between title bottom and first body = 406 - 382 = 24px
-        //
-        // The underline should appear at the BASELINE of text (just below where letters sit).
-        // We calculate position to the baseline, then TextMeasurementStrategy creates bounds
-        // from (baseline - textHeight) to baseline, so the underline draws at the bottom.
-        let bodyLineHeight: CGFloat = 26.0      // Body line height (~16pt font * 1.625)
-        let paragraphSpacing: CGFloat = 4.0     // Spacing between consecutive body paragraphs
-        let titleLineHeight: CGFloat = 47.5     // Title line height (95px / 2 lines ≈ 47.5)
-        let titleTopOffset: CGFloat = 116.0     // Distance from element top to title TOP (287 - 171 = 116)
-        let titleToBodyGap: CGFloat = 24.0      // Gap between title bottom and first body paragraph TOP
-
-        // CRITICAL: Calculate Y offset relative to visible area
-        var yOffset: CGFloat = 0.0
-
-        // If not scrolled and title is visible, start with title offset
-        let startParagraphIndex: Int
-        if !isScrolled && firstVisibleParagraphIndex == 0 {
-            // Page is at top - add title top offset
-            startParagraphIndex = 0
-            yOffset = titleTopOffset
-        } else {
-            // Page is scrolled - position relative to first visible paragraph
-            startParagraphIndex = firstVisibleParagraphIndex
-            yOffset = 0.0
-        }
-
-        // Calculate offset from start paragraph to error paragraph
-        // CRITICAL: In Notion, newlines in AX text don't render as visual blank lines.
-        // The gap between paragraphs is CSS spacing, handled by paragraphSpacing.
-        // Only titleToBodyGap is special (larger gap after title).
-        for i in startParagraphIndex..<errorParagraphIndex {
-            if i < paragraphs.count {
-                if paragraphs[i].isTitle {
-                    let titleText = paragraphs[i].text
-                    let titleWidth = (titleText as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 30.0)]).width
-                    let wrappedLines = max(1, Int(ceil(titleWidth / contentColumnWidth)))
-                    yOffset += CGFloat(wrappedLines) * titleLineHeight + titleToBodyGap
-                } else {
-                    // Body paragraphs: line height + small CSS spacing between paragraphs
-                    yOffset += bodyLineHeight + paragraphSpacing
-                }
-            }
-        }
-
-        // Add small top margin for visible content area when scrolled
-        let visibleAreaTopMargin: CGFloat = isScrolled ? 12.0 : 0.0
-
-        Logger.debug("NotionContentParser: Scroll-aware layout - firstVisiblePara=\(firstVisibleParagraphIndex), errorPara=\(errorParagraphIndex), yOffset=\(yOffset)", category: Logger.ui)
-        Logger.debug("NotionContentParser: Dynamic layout - elementWidth=\(elementWidth), contentLeftMargin=\(contentLeftMargin), contentColumnWidth=\(contentColumnWidth)", category: Logger.ui)
-
-        // Calculate X position - text before error in current paragraph
-        let currentParaText = errorParagraphIndex < paragraphs.count ? paragraphs[errorParagraphIndex].text : ""
-        let textBeforeInPara = String(currentParaText.prefix(positionInParagraph))
-        let textBeforeWidth = (textBeforeInPara as NSString).size(withAttributes: attributes).width
-
-        // Determine line height for current paragraph (title vs body)
-        let isErrorInTitle = errorParagraphIndex < paragraphs.count && paragraphs[errorParagraphIndex].isTitle
-        let currentLineHeight = isErrorInTitle ? titleLineHeight : bodyLineHeight
-
-        // Final positions (in Quartz coordinates - Y from screen top)
-        // CRITICAL: Return BASELINE position, not TOP or BOTTOM of line
-        // TextMeasurementStrategy expects baseline and subtracts errorHeight to get bounds
-        // yOffset gives us the TOP of the text row, so add ~80% of lineHeight to get BASELINE
-        // The baseline is where the bottom of letters (excluding descenders) sit
-        let xPosition = elementFrame.origin.x + contentLeftMargin + textBeforeWidth
-        let yPosition = elementFrame.origin.y + visibleAreaTopMargin + yOffset + (currentLineHeight * 0.80)
-
-        Logger.debug("NotionContentParser: Scroll-aware positioning - para=\(errorParagraphIndex), yOffset=\(yOffset), lineHeight=\(currentLineHeight), x=\(xPosition), y=\(yPosition)", category: Logger.ui)
-
-        // GRACEFUL DEGRADATION:
-        // Element frame + hardcoded layout is unreliable. Return low confidence unless debug flag is set.
-        // Principle: It's better to hide underlines than show them at incorrect positions.
-        let confidence: Double = Self.forceShowUnderlines ? 0.65 : 0.30
-
-        if !Self.forceShowUnderlines {
-            Logger.debug("NotionContentParser: Using graceful degradation (confidence=0.30) - set NotionContentParser.forceShowUnderlines=true to override", category: Logger.ui)
-        }
-
-        return AdjustedBounds(
-            position: NSPoint(x: xPosition, y: yPosition),
-            errorWidth: errorWidth,
-            confidence: confidence,
-            uiContext: context,
-            debugInfo: "Notion scroll-aware (para: \(errorParagraphIndex), firstVisible: \(firstVisibleParagraphIndex), leftMargin: \(Int(contentLeftMargin)), gracefulDegradation: \(!Self.forceShowUnderlines))"
-        )
-    }
-
 }
