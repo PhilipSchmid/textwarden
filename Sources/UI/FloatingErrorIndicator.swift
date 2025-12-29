@@ -176,6 +176,9 @@ class FloatingErrorIndicator: NSPanel {
             // Handle snap positioning with corrected position
             self.handleDragEnd(at: newFrame.origin)
         }
+        indicatorView.onRightClicked = { [weak self] event in
+            self?.showContextMenu(with: event)
+        }
         self.indicatorView = indicatorView
         self.contentView = indicatorView
 
@@ -936,6 +939,250 @@ class FloatingErrorIndicator: NSPanel {
             return CGPoint(x: indicatorFrame.midX, y: indicatorFrame.maxY + 10)
         }
     }
+
+    // MARK: - Context Menu
+
+    /// Show context menu for pause options
+    private func showContextMenu(with event: NSEvent) {
+        Logger.debug("FloatingErrorIndicator: showContextMenu", category: Logger.ui)
+
+        // Hide suggestion popover when showing context menu
+        SuggestionPopover.shared.hide()
+
+        let menu = NSMenu()
+
+        // Global pause options
+        addGlobalPauseItems(to: menu)
+
+        // App-specific pause options (if we have a context)
+        if let ctx = context, ctx.bundleIdentifier != "io.textwarden.TextWarden" {
+            menu.addItem(NSMenuItem.separator())
+            addAppSpecificPauseItems(to: menu, context: ctx)
+        }
+
+        // Preferences
+        menu.addItem(NSMenuItem.separator())
+        let preferencesItem = NSMenuItem(
+            title: "Preferences",
+            action: #selector(openPreferences),
+            keyEquivalent: ""
+        )
+        preferencesItem.target = self
+        menu.addItem(preferencesItem)
+
+        // Show menu at mouse location
+        guard let indicatorView = indicatorView else { return }
+        let locationInView = indicatorView.convert(event.locationInWindow, from: nil)
+        menu.popUp(positioning: nil, at: locationInView, in: indicatorView)
+    }
+
+    /// Add global pause menu items
+    private func addGlobalPauseItems(to menu: NSMenu) {
+        let preferences = UserPreferences.shared
+
+        // Header
+        let headerItem = NSMenuItem(title: "Grammar Checking:", action: nil, keyEquivalent: "")
+        headerItem.isEnabled = false
+        menu.addItem(headerItem)
+
+        // Active option
+        let activeItem = NSMenuItem(
+            title: "Active",
+            action: #selector(setGlobalPauseActive),
+            keyEquivalent: ""
+        )
+        activeItem.target = self
+        activeItem.state = preferences.pauseDuration == .active ? .on : .off
+        menu.addItem(activeItem)
+
+        // Pause for 1 Hour
+        let oneHourItem = NSMenuItem(
+            title: "Paused for 1 Hour",
+            action: #selector(setGlobalPauseOneHour),
+            keyEquivalent: ""
+        )
+        oneHourItem.target = self
+        oneHourItem.state = preferences.pauseDuration == .oneHour ? .on : .off
+        menu.addItem(oneHourItem)
+
+        // Pause for 24 Hours
+        let twentyFourHoursItem = NSMenuItem(
+            title: "Paused for 24 Hours",
+            action: #selector(setGlobalPauseTwentyFourHours),
+            keyEquivalent: ""
+        )
+        twentyFourHoursItem.target = self
+        twentyFourHoursItem.state = preferences.pauseDuration == .twentyFourHours ? .on : .off
+        menu.addItem(twentyFourHoursItem)
+
+        // Pause Indefinitely
+        let indefiniteItem = NSMenuItem(
+            title: "Paused Until Resumed",
+            action: #selector(setGlobalPauseIndefinite),
+            keyEquivalent: ""
+        )
+        indefiniteItem.target = self
+        indefiniteItem.state = preferences.pauseDuration == .indefinite ? .on : .off
+        menu.addItem(indefiniteItem)
+
+        // Show resume time if paused with duration
+        if (preferences.pauseDuration == .oneHour || preferences.pauseDuration == .twentyFourHours),
+           let until = preferences.pausedUntil {
+            let formatter = DateFormatter()
+            formatter.timeStyle = .short
+            let timeString = formatter.string(from: until)
+            let resumeItem = NSMenuItem(title: "  Will resume at \(timeString)", action: nil, keyEquivalent: "")
+            resumeItem.isEnabled = false
+            menu.addItem(resumeItem)
+        }
+    }
+
+    /// Add app-specific pause menu items
+    private func addAppSpecificPauseItems(to menu: NSMenu, context: ApplicationContext) {
+        let preferences = UserPreferences.shared
+        let bundleID = context.bundleIdentifier
+        let appName = context.applicationName
+
+        // Header with app name
+        let headerItem = NSMenuItem(title: "\(appName):", action: nil, keyEquivalent: "")
+        headerItem.isEnabled = false
+        menu.addItem(headerItem)
+
+        let currentPause = preferences.getPauseDuration(for: bundleID)
+
+        // Active for this app
+        let activeItem = NSMenuItem(
+            title: "Active",
+            action: #selector(setAppPauseActive(_:)),
+            keyEquivalent: ""
+        )
+        activeItem.target = self
+        activeItem.representedObject = bundleID
+        activeItem.state = currentPause == .active ? .on : .off
+        menu.addItem(activeItem)
+
+        // Pause for 1 Hour for this app
+        let oneHourItem = NSMenuItem(
+            title: "Paused for 1 Hour",
+            action: #selector(setAppPauseOneHour(_:)),
+            keyEquivalent: ""
+        )
+        oneHourItem.target = self
+        oneHourItem.representedObject = bundleID
+        oneHourItem.state = currentPause == .oneHour ? .on : .off
+        menu.addItem(oneHourItem)
+
+        // Pause for 24 Hours for this app
+        let twentyFourHoursItem = NSMenuItem(
+            title: "Paused for 24 Hours",
+            action: #selector(setAppPauseTwentyFourHours(_:)),
+            keyEquivalent: ""
+        )
+        twentyFourHoursItem.target = self
+        twentyFourHoursItem.representedObject = bundleID
+        twentyFourHoursItem.state = currentPause == .twentyFourHours ? .on : .off
+        menu.addItem(twentyFourHoursItem)
+
+        // Pause Indefinitely for this app
+        let indefiniteItem = NSMenuItem(
+            title: "Paused Until Resumed",
+            action: #selector(setAppPauseIndefinite(_:)),
+            keyEquivalent: ""
+        )
+        indefiniteItem.target = self
+        indefiniteItem.representedObject = bundleID
+        indefiniteItem.state = currentPause == .indefinite ? .on : .off
+        menu.addItem(indefiniteItem)
+
+        // Show resume time if paused with duration for this app
+        if (currentPause == .oneHour || currentPause == .twentyFourHours),
+           let until = preferences.getPausedUntil(for: bundleID) {
+            let formatter = DateFormatter()
+            formatter.timeStyle = .short
+            let timeString = formatter.string(from: until)
+            let resumeItem = NSMenuItem(title: "  Will resume at \(timeString)", action: nil, keyEquivalent: "")
+            resumeItem.isEnabled = false
+            menu.addItem(resumeItem)
+        }
+    }
+
+    // MARK: - Global Pause Actions
+
+    @objc private func setGlobalPauseActive() {
+        UserPreferences.shared.pauseDuration = .active
+        MenuBarController.shared?.setIconState(.active)
+        // Trigger re-analysis to show errors immediately
+        AnalysisCoordinator.shared.triggerReanalysis()
+        Logger.debug("FloatingErrorIndicator: Grammar checking enabled globally", category: Logger.ui)
+    }
+
+    @objc private func setGlobalPauseOneHour() {
+        setGlobalPause(.oneHour)
+    }
+
+    @objc private func setGlobalPauseTwentyFourHours() {
+        setGlobalPause(.twentyFourHours)
+    }
+
+    @objc private func setGlobalPauseIndefinite() {
+        setGlobalPause(.indefinite)
+    }
+
+    private func setGlobalPause(_ duration: PauseDuration) {
+        UserPreferences.shared.pauseDuration = duration
+        MenuBarController.shared?.setIconState(.inactive)
+        // Hide all overlays immediately
+        hide()
+        SuggestionPopover.shared.hide()
+        AnalysisCoordinator.shared.hideAllOverlays()
+        Logger.debug("FloatingErrorIndicator: Grammar checking paused globally (\(duration.rawValue))", category: Logger.ui)
+    }
+
+    // MARK: - App-Specific Pause Actions
+
+    @objc private func setAppPauseActive(_ sender: NSMenuItem) {
+        guard let bundleID = sender.representedObject as? String else { return }
+        UserPreferences.shared.setPauseDuration(for: bundleID, duration: .active)
+        // Trigger re-analysis to show errors immediately
+        AnalysisCoordinator.shared.triggerReanalysis()
+        Logger.debug("FloatingErrorIndicator: Grammar checking enabled for \(bundleID)", category: Logger.ui)
+    }
+
+    @objc private func setAppPauseOneHour(_ sender: NSMenuItem) {
+        guard let bundleID = sender.representedObject as? String else { return }
+        setAppPause(for: bundleID, duration: .oneHour)
+    }
+
+    @objc private func setAppPauseTwentyFourHours(_ sender: NSMenuItem) {
+        guard let bundleID = sender.representedObject as? String else { return }
+        setAppPause(for: bundleID, duration: .twentyFourHours)
+    }
+
+    @objc private func setAppPauseIndefinite(_ sender: NSMenuItem) {
+        guard let bundleID = sender.representedObject as? String else { return }
+        setAppPause(for: bundleID, duration: .indefinite)
+    }
+
+    private func setAppPause(for bundleID: String, duration: PauseDuration) {
+        UserPreferences.shared.setPauseDuration(for: bundleID, duration: duration)
+        // Hide all overlays immediately for this app
+        hide()
+        SuggestionPopover.shared.hide()
+        AnalysisCoordinator.shared.hideAllOverlays()
+        Logger.debug("FloatingErrorIndicator: Grammar checking paused for \(bundleID) (\(duration.rawValue))", category: Logger.ui)
+    }
+
+    // MARK: - Preferences Action
+
+    @objc private func openPreferences() {
+        Logger.debug("FloatingErrorIndicator: openPreferences", category: Logger.ui)
+
+        // Switch to regular mode temporarily
+        NSApp.setActivationPolicy(.regular)
+
+        // Use NSApp.sendAction to open settings
+        NSApp.sendAction(#selector(AppDelegate.openSettingsWindow(selectedTab:)), to: nil, from: self)
+    }
 }
 
 /// Display mode for the indicator view
@@ -960,6 +1207,7 @@ private class IndicatorView: NSView {
     }
     var ringColor: NSColor = .systemRed
     var onClicked: (() -> Void)?
+    var onRightClicked: ((NSEvent) -> Void)?
     var onHover: ((Bool) -> Void)?
     var onDragStart: (() -> Void)?
     var onDragEnd: ((CGPoint) -> Void)?
@@ -1422,6 +1670,11 @@ private class IndicatorView: NSView {
 
         // Redraw to show count instead of dots
         needsDisplay = true
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        Logger.debug("IndicatorView: rightMouseDown", category: Logger.ui)
+        onRightClicked?(event)
     }
 
     override func mouseEntered(with event: NSEvent) {

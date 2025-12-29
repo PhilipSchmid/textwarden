@@ -224,7 +224,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
     private func addUtilityMenuItems() {
         // Preferences
         let preferencesItem = NSMenuItem(
-            title: "Preferences...",
+            title: "Preferences",
             action: #selector(openPreferences),
             keyEquivalent: ","
         )
