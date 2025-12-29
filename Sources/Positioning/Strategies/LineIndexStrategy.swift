@@ -144,15 +144,29 @@ class LineIndexStrategy: GeometryProvider {
         Logger.debug("LineIndexStrategy: textBeforeErrorInLine=\(textBeforeErrorInLine.count) chars, errorText=\(errorText.count) chars", category: Logger.ui)
 
         // Calculate widths using font measurement
-        // Try to detect the actual font from the element for accurate measurement
-        let font = detectFont(from: element, parser: parser)
-        let attributes: [NSAttributedString.Key: Any] = [.font: font]
-
-        // textBeforeWidth determines X position - don't apply multiplier to avoid shifting start position
-        let textBeforeWidth = (textBeforeErrorInLine as NSString).size(withAttributes: attributes).width
-        // Apply spacing multiplier only to error width for apps with non-standard text rendering
+        // Try to get attributed string for accurate measurement of formatted text
+        let textBeforeWidth: CGFloat
+        let rawErrorWidth: CGFloat
         let multiplier = parser.spacingMultiplier(context: nil)
-        let rawErrorWidth = (errorText as NSString).size(withAttributes: attributes).width * multiplier
+
+        // Try to use attributed string measurement for accuracy with formatted text (bold, italic)
+        if let attrMeasurements = measureUsingAttributedString(
+            element: element,
+            lineStartUTF16: lineStartUTF16,
+            textBeforeLength: textBeforeErrorInLine.count,
+            errorText: errorText,
+            parser: parser
+        ) {
+            textBeforeWidth = attrMeasurements.textBeforeWidth
+            rawErrorWidth = attrMeasurements.errorWidth * multiplier
+            Logger.debug("LineIndexStrategy: Using attributed string measurement", category: Logger.ui)
+        } else {
+            // Fallback to basic font measurement
+            let font = detectFont(from: element, parser: parser, at: originalLocationUTF16)
+            let attributes: [NSAttributedString.Key: Any] = [.font: font]
+            textBeforeWidth = (textBeforeErrorInLine as NSString).size(withAttributes: attributes).width
+            rawErrorWidth = (errorText as NSString).size(withAttributes: attributes).width * multiplier
+        }
         // Minimum width proportional to character count (roughly 4px per char) to handle narrow chars like "I"
         // Old fixed minimum of 20px was too wide for short narrow-char errors like "I I"
         let minWidth = max(CGFloat(errorText.count) * 4.0, 8.0)
@@ -282,12 +296,76 @@ class LineIndexStrategy: GeometryProvider {
         return bounds
     }
 
+    // MARK: - Attributed String Measurement
+
+    /// Measurement results from attributed string
+    private struct AttributedMeasurements {
+        let textBeforeWidth: CGFloat
+        let errorWidth: CGFloat
+    }
+
+    /// Measure text widths using AXAttributedStringForRange for accurate formatted text measurement
+    /// This handles bold, italic, and other formatted text correctly
+    private func measureUsingAttributedString(
+        element: AXUIElement,
+        lineStartUTF16: Int,
+        textBeforeLength: Int,
+        errorText: String,
+        parser: ContentParser
+    ) -> AttributedMeasurements? {
+        // Get attributed string for the text before error
+        let textBeforeWidth: CGFloat
+        if textBeforeLength > 0 {
+            var cfRange = CFRange(location: lineStartUTF16, length: textBeforeLength)
+            guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else { return nil }
+
+            var attrStringValue: CFTypeRef?
+            let result = AXUIElementCopyParameterizedAttributeValue(
+                element,
+                "AXAttributedStringForRange" as CFString,
+                rangeValue,
+                &attrStringValue
+            )
+
+            guard result == .success,
+                  let attrString = attrStringValue as? NSAttributedString else {
+                return nil
+            }
+
+            textBeforeWidth = attrString.size().width
+        } else {
+            textBeforeWidth = 0
+        }
+
+        // Get attributed string for the error text
+        let errorStartUTF16 = lineStartUTF16 + textBeforeLength
+        var errorRange = CFRange(location: errorStartUTF16, length: errorText.utf16.count)
+        guard let errorRangeValue = AXValueCreate(.cfRange, &errorRange) else { return nil }
+
+        var errorAttrStringValue: CFTypeRef?
+        let errorResult = AXUIElementCopyParameterizedAttributeValue(
+            element,
+            "AXAttributedStringForRange" as CFString,
+            errorRangeValue,
+            &errorAttrStringValue
+        )
+
+        guard errorResult == .success,
+              let errorAttrString = errorAttrStringValue as? NSAttributedString else {
+            return nil
+        }
+
+        let errorWidth = errorAttrString.size().width
+
+        return AttributedMeasurements(textBeforeWidth: textBeforeWidth, errorWidth: errorWidth)
+    }
+
     // MARK: - Font Detection
 
     /// Detect the font being used in the element for accurate text measurement
-    private func detectFont(from element: AXUIElement, parser: ContentParser) -> NSFont {
-        // Try to get font info from attributed string at position 0
-        if let font = getAttributedStringFontInfo(from: element, at: 0) {
+    private func detectFont(from element: AXUIElement, parser: ContentParser, at position: Int = 0) -> NSFont {
+        // Try to get font info from attributed string at the specified position
+        if let font = getAttributedStringFontInfo(from: element, at: position) {
             Logger.debug("LineIndexStrategy: Detected font '\(font.fontName)' size \(font.pointSize)", category: Logger.ui)
             return font
         }
