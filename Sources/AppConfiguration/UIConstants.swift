@@ -37,8 +37,8 @@ enum UIConstants {
     /// Default underline thickness
     static let underlineThickness: CGFloat = 2.0
 
-    /// Underline vertical offset from baseline
-    static let underlineOffset: CGFloat = 2.0
+    /// Underline vertical offset from baseline (smaller = closer to text)
+    static let underlineOffset: CGFloat = 1.0
 
     // MARK: - Position Validation
 

@@ -1436,8 +1436,9 @@ class UnderlineView: NSView {
 
         // Draw straight line below the text
         // View uses flipped coordinates (top-left origin): minY is top, maxY is bottom
-        // Position the line below the text, offset by thickness to avoid covering text
-        let offset = max(2.0, thickness / 2.0) // Minimum 2pt offset, or half thickness
+        // Position the line just below the text baseline (bounds.maxY is bottom of text bounds)
+        // Offset accounts for half the line thickness to prevent overlapping text descenders
+        let offset = thickness / 2.0  // Half thickness keeps line close but not overlapping
         let y = bounds.maxY + offset  // In flipped coords, maxY is the bottom edge
 
         let path = CGMutablePath()
@@ -1459,7 +1460,8 @@ class UnderlineView: NSView {
         context.setLineDash(phase: 0, lengths: [4.0, 3.0])
 
         // Draw dotted line below the text
-        let offset = max(2.0, thickness / 2.0)
+        // Offset accounts for half the line thickness to prevent overlapping text descenders
+        let offset = thickness / 2.0  // Half thickness keeps line close but not overlapping
         let y = bounds.maxY + offset
 
         let path = CGMutablePath()
