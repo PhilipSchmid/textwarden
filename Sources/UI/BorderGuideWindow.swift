@@ -1,12 +1,12 @@
 import AppKit
 
 /// Border guide window that shows the valid placement area during indicator dragging
-/// The placement area is a 1.5cm (~43pt) wide band around the window edge
+/// The placement area is ~86pt wide band around the window edge
 class BorderGuideWindow: NSPanel {
     private var borderView: GradientBorderView?
 
-    /// Border width in points (1.5cm ≈ 43 points)
-    static let borderWidth: CGFloat = 43.0
+    /// Border width in points
+    static let borderWidth: CGFloat = 100.0
 
     init() {
         super.init(
@@ -28,19 +28,47 @@ class BorderGuideWindow: NSPanel {
 
     private func setupBorderView() {
         let view = GradientBorderView()
-        view.borderColor = NSColor(red: 139/255.0, green: 69/255.0, blue: 19/255.0, alpha: 1.0) // Brown
+        view.borderColor = Self.themeBasedColor()
         view.borderWidth = Self.borderWidth
         self.contentView = view
         self.borderView = view
     }
 
-    /// Show border around the specified frame with optional color
-    func showBorder(around frame: CGRect, color: NSColor = .systemBlue) {
+    /// Get color based on the current overlay theme preference
+    /// Uses colors that contrast with typical window backgrounds while staying elegant
+    private static func themeBasedColor() -> NSColor {
+        let overlayTheme = UserPreferences.shared.overlayTheme
+
+        let isDark: Bool
+        switch overlayTheme {
+        case "Light":
+            isDark = false
+        case "Dark":
+            isDark = true
+        default: // "System"
+            isDark = UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
+        }
+
+        if isDark {
+            // Dark mode: Lighter gray to contrast with dark window backgrounds
+            // Subtle warm tint for elegance
+            return NSColor(hue: 30/360, saturation: 0.03, brightness: 0.45, alpha: 1.0)
+        } else {
+            // Light mode: Darker gray to contrast with light window backgrounds
+            // Subtle cool tint matching popover style
+            return NSColor(hue: 220/360, saturation: 0.04, brightness: 0.75, alpha: 1.0)
+        }
+    }
+
+    /// Show border around the specified frame using theme-based color
+    func showBorder(around frame: CGRect, color: NSColor? = nil) {
         Logger.debug("BorderGuideWindow.showBorder: Received frame = \(frame)", category: Logger.ui)
 
         // No need to expand frame - the gradient is drawn inward
         setFrame(frame, display: true)
-        borderView?.borderColor = color
+
+        // Use provided color or theme-based color
+        borderView?.borderColor = color ?? Self.themeBasedColor()
         borderView?.borderWidth = Self.borderWidth
 
         Logger.debug("BorderGuideWindow.showBorder: After setFrame, self.frame = \(self.frame)", category: Logger.ui)
@@ -71,7 +99,7 @@ class BorderGuideWindow: NSPanel {
 /// Solid color at the outer edge, fading to transparent toward the center
 /// Uses rounded rectangles matching macOS window corner radius
 private class GradientBorderView: NSView {
-    var borderColor: NSColor = NSColor(red: 139/255.0, green: 69/255.0, blue: 19/255.0, alpha: 1.0) {
+    var borderColor: NSColor = .gray {
         didSet {
             needsDisplay = true
         }
@@ -107,7 +135,7 @@ private class GradientBorderView: NSView {
 
         // Draw the gradient border using concentric rounded rectangles
         // This creates a smooth fade from edge to center while respecting corner radius
-        let steps = 20  // Number of gradient steps for smooth appearance
+        let steps = 100  // High number of steps for smooth gradient without visible banding
         let stepSize = borderWidth / CGFloat(steps)
 
         for i in 0..<steps {

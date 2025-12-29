@@ -143,9 +143,8 @@ class FloatingErrorIndicator: NSPanel {
                let windowFrame = self.getVisibleWindowFrame(for: element) {
                 Logger.debug("Showing border guide with frame: \(windowFrame)", category: Logger.ui)
 
-                // Use brown color (TextWarden logo color) for border guide
-                let brownColor = NSColor(red: 139/255.0, green: 69/255.0, blue: 19/255.0, alpha: 1.0)
-                self.borderGuide.showBorder(around: windowFrame, color: brownColor)
+                // Use theme-based color matching the popover background
+                self.borderGuide.showBorder(around: windowFrame)
             } else {
                 Logger.debug("Cannot show border guide - element=\(String(describing: self.monitoredElement))", category: Logger.ui)
             }
