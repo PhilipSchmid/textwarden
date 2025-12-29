@@ -186,7 +186,7 @@ extension AppConfiguration {
         features: AppFeatures(
             visualUnderlinesEnabled: true,
             textReplacementMethod: .browserStyle,
-            requiresTypingPause: true,
+            requiresTypingPause: false,  // Uses rangeBounds (direct AX API), no cursor manipulation needed
             supportsFormattedText: false,
             childElementTraversal: true,
             delaysAXNotifications: true,  // ChatGPT batches AX notifications, needs keyboard detection
@@ -217,7 +217,7 @@ extension AppConfiguration {
         features: AppFeatures(
             visualUnderlinesEnabled: true,
             textReplacementMethod: .browserStyle,
-            requiresTypingPause: true,
+            requiresTypingPause: false,  // Uses anchorSearch (direct AX API), no cursor manipulation needed
             supportsFormattedText: false,
             childElementTraversal: true,
             delaysAXNotifications: true,  // Electron app, needs keyboard detection
