@@ -93,6 +93,7 @@ final class AppRegistry {
         register(.notion)
         register(.mail)
         register(.messages)
+        register(.whatsapp)
         register(.telegram)
         register(.word)
         register(.powerpoint)
@@ -398,6 +399,40 @@ extension AppConfiguration {
         )
     )
 
+    // MARK: - WhatsApp
+
+    static let whatsapp = AppConfiguration(
+        identifier: "whatsapp",
+        displayName: "WhatsApp",
+        bundleIDs: ["net.whatsapp.WhatsApp"],
+        category: .custom,
+        parserType: .generic,
+        fontConfig: FontConfig(
+            defaultSize: 14,
+            fontFamily: nil,
+            spacingMultiplier: 1.0
+        ),
+        horizontalPadding: 5,
+        // WhatsApp is a Mac Catalyst app with similar behavior to Messages.
+        // Uses the same strategy chain for positioning.
+        // Known issue: AX API may return stale text after conversation switch.
+        // See MessengerBehavior for special handling of stale data.
+        preferredStrategies: [.textMarker, .rangeBounds, .lineIndex, .insertionPoint, .fontMetrics],
+        features: AppFeatures(
+            visualUnderlinesEnabled: true,
+            textReplacementMethod: .browserStyle,  // Catalyst apps need keyboard-based replacement
+            requiresTypingPause: false,
+            supportsFormattedText: false,
+            childElementTraversal: false,
+            delaysAXNotifications: false,
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: true,  // Catalyst byte offsets may be fragile
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
+        )
+    )
+
     // MARK: - Telegram
 
     static let telegram = AppConfiguration(
@@ -412,10 +447,11 @@ extension AppConfiguration {
             spacingMultiplier: 1.0
         ),
         horizontalPadding: 0,
-        // Telegram is a native macOS app with a custom text view:
-        // - AXBoundsForRange fails (unsupported), so RangeBoundsStrategy won't work
-        // - LineIndexStrategy works and provides usable coordinates
-        preferredStrategies: [.lineIndex, .fontMetrics],
+        // Telegram is a native macOS app with a custom text view.
+        // AXBoundsForRange works and provides pixel-perfect positioning.
+        // Note: AXNumberOfCharacters uses UTF-16 units, so emoji handling
+        // requires UTF-16 index conversion (handled by RangeBoundsStrategy).
+        preferredStrategies: [.rangeBounds, .lineIndex, .fontMetrics],
         features: AppFeatures(
             visualUnderlinesEnabled: true,
             textReplacementMethod: .standard,
