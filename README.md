@@ -15,8 +15,8 @@ TextWarden checks your spelling and grammar while you type - in any app on your 
   </a>
 </p>
 
-> [!WARNING]
-> **Alpha Software**: TextWarden is in early development and you will encounter bugs. For example, some visual underlines might be misaligned, some suggestions might not be perfect, or certain applications may not work as expected. Much like printers and projectors that still mysteriously fail on first try after decades of existence, macOS Accessibility APIs and the apps that implement them each have their own quirks that require app-specific tuning. That said, it should be stable enough for daily use and I'd love for you to try it! Your bug reports help make TextWarden better for everyone. Found something broken? [Report it here](#support).
+> [!NOTE]
+> **Beta Software**: TextWarden is in active development and you may encounter bugs. For example, some visual underlines might be misaligned, some suggestions might not be perfect, or certain applications may not work as expected. Much like printers and projectors that still mysteriously fail on first try after decades of existence, macOS Accessibility APIs and the apps that implement them each have their own quirks that require app-specific tuning. That said, it should be stable enough for daily use and I'd love for you to try it! Your bug reports help make TextWarden better for everyone. Found something broken? [Report it here](#support).
 
 ## Why TextWarden?
 

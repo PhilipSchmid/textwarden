@@ -107,3 +107,26 @@ make run            # Build AND restart the app (use this for testing!)
 make test           # Run tests
 make ci-check       # Run CI checks locally before committing
 ```
+
+## Releasing
+
+Use the makefile targets to create releases. The release process handles building, code signing, notarization, DMG creation, appcast updates, and GitHub release creation.
+
+```bash
+make release-alpha VERSION=X.Y.Z-alpha.N   # Alpha release (experimental)
+make release-beta VERSION=X.Y.Z-beta.N     # Beta release (experimental channel)
+make release-rc VERSION=X.Y.Z-rc.N         # Release candidate (experimental)
+make release VERSION=X.Y.Z                 # Production release (stable channel)
+```
+
+After a release is prepared:
+```bash
+git push && git push --tags                # Push commits and tags
+make release-upload VERSION=X.Y.Z-beta.N   # Upload DMG to GitHub releases
+```
+
+Version format follows semver with pre-release suffixes:
+- `0.1.0-alpha.1` → Early testing, expect breaking changes
+- `0.1.0-beta.1` → Feature complete, bug fixes only
+- `0.1.0-rc.1` → Release candidate, final testing
+- `0.1.0` → Stable production release
