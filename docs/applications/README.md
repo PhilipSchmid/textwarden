@@ -7,10 +7,13 @@ This folder contains detailed documentation for applications that require specia
 | Application | Description |
 |-------------|-------------|
 | [MAIL.md](MAIL.md) | Apple Mail WebKit compose, TextMarker-based positioning, keyboard-based format-preserving replacement |
+| [MESSAGES.md](MESSAGES.md) | Apple Messages Mac Catalyst app, conversation switch detection, browser-style replacement |
 | [OUTLOOK.md](OUTLOOK.md) | Microsoft Outlook compose windows, AXBoundsForRange positioning, browser-style replacement |
 | [SLACK.md](SLACK.md) | Quill Delta format, Chromium Pickle, child element selection, format-preserving replacement |
 | [TEAMS.md](TEAMS.md) | Microsoft Teams Chromium-based compose, child element tree traversal, formatting exclusions |
+| [TELEGRAM.md](TELEGRAM.md) | Telegram native macOS app, LineIndex positioning, standard AX text replacement |
 | [WEBEX.md](WEBEX.md) | Cisco WebEx chat, compose area detection, UTF-16 conversion for emoji support |
+| [WHATSAPP.md](WHATSAPP.md) | WhatsApp Mac Catalyst app, stale AX data handling, conversation switch detection |
 
 ## Adding New Documentation
 
