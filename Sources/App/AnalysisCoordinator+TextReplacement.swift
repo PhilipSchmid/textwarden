@@ -704,6 +704,7 @@ extension AnalysisCoordinator {
     ) -> Bool {
         let isNotion = context.bundleIdentifier == "notion.id" || context.bundleIdentifier == "com.notion.id"
         let isSlack = context.bundleIdentifier == "com.tinyspeck.slackmacgap"
+        let isTeams = context.bundleIdentifier == "com.microsoft.teams2"
         let isClaude = context.bundleIdentifier == "com.anthropic.claudefordesktop"
         let isMail = context.bundleIdentifier == "com.apple.mail"
 
@@ -788,9 +789,9 @@ extension AnalysisCoordinator {
             return true
         }
 
-        // Electron apps (Notion, Slack) need child element traversal for selection
-        if isNotion || isSlack {
-            let appName = isNotion ? "Notion" : "Slack"
+        // Electron apps (Notion, Slack, Teams) need child element traversal for selection
+        if isNotion || isSlack || isTeams {
+            let appName = isNotion ? "Notion" : (isSlack ? "Slack" : "Teams")
             Logger.trace("\(appName): Looking for text to select (\(targetText.count) chars)", category: Logger.analysis)
 
             // Try to find child element containing the text and select within it
@@ -1046,6 +1047,7 @@ extension AnalysisCoordinator {
 
         // SPECIAL HANDLING FOR BROWSERS, ELECTRON APPS, MICROSOFT OFFICE, AND MAC CATALYST APPS
         let isSlack = context.bundleIdentifier == "com.tinyspeck.slackmacgap"
+        let isTeams = context.bundleIdentifier == "com.microsoft.teams2"
         let isClaude = context.bundleIdentifier == "com.anthropic.claudefordesktop"
         let isPerplexity = context.bundleIdentifier == "ai.perplexity.mac"
         let isChatGPT = context.bundleIdentifier == "com.openai.chat"
@@ -1101,7 +1103,7 @@ extension AnalysisCoordinator {
             }
         }
 
-        if context.isBrowser || isSlack || isClaude || isPerplexity || isChatGPT || isMessages || isMicrosoftOffice || context.isMacCatalystApp {
+        if context.isBrowser || isSlack || isTeams || isClaude || isPerplexity || isChatGPT || isMessages || isMicrosoftOffice || context.isMacCatalystApp {
             await applyBrowserTextReplacementAsync(for: error, with: suggestion, element: element, context: context)
             return
         }
@@ -1242,6 +1244,29 @@ extension AnalysisCoordinator {
         }
 
         _ = selectTextForReplacement(targetText: targetText, fallbackRange: fallbackRange, element: element, context: context)
+
+        // Teams: Validate selection before paste to prevent wrong placement for scrolled-out content
+        let isTeams = context.bundleIdentifier == "com.microsoft.teams2"
+        if isTeams && !targetText.isEmpty {
+            // Small delay for selection to take effect
+            try? await Task.sleep(nanoseconds: 50_000_000)  // 50ms
+
+            // Check if selection matches expected text
+            var selectedTextRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &selectedTextRef) == .success,
+               let selectedText = selectedTextRef as? String {
+                if selectedText != targetText {
+                    Logger.warning("Teams: Selection mismatch (got \(selectedText.count) chars, expected \(targetText.count) chars) - error may be scrolled out of view, aborting", category: Logger.analysis)
+                    SuggestionPopover.shared.showStatusMessage("Scroll to see this error first")
+                    return
+                }
+                Logger.debug("Teams: Selection validated (\(targetText.count) chars)", category: Logger.analysis)
+            } else {
+                Logger.warning("Teams: Could not validate selection - aborting to prevent wrong placement", category: Logger.analysis)
+                SuggestionPopover.shared.showStatusMessage("Scroll to see this error first")
+                return
+            }
+        }
 
         // Perform clipboard-based replacement
         await performClipboardReplacement(

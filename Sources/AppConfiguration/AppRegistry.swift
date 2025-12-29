@@ -242,16 +242,15 @@ extension AppConfiguration {
             spacingMultiplier: 1.0
         ),
         horizontalPadding: 0,
-        // Teams WebView2 accessibility APIs are fundamentally broken for character positioning:
-        // - AXBoundsForRange returns (0, y, 0, 0) - no X position or width
-        // - AXBoundsForTextMarkerRange returns window frame, not character bounds
-        // - Child element frames don't correspond to visual text positions
-        // Visual underlines disabled; floating error indicator still works for corrections.
-        preferredStrategies: [],
+        // Teams' main AXTextArea doesn't support AXBoundsForRange, BUT child AXStaticText
+        // elements DO support it - same pattern as Slack (both are Chromium-based).
+        // TeamsStrategy traverses the AX tree to find AXStaticText children and queries
+        // AXBoundsForRange on them directly for precise positioning.
+        preferredStrategies: [.teams],  // Dedicated strategy using child element traversal
         features: AppFeatures(
-            visualUnderlinesEnabled: false,  // Disabled due to broken WebView2 AX APIs
+            visualUnderlinesEnabled: true,  // Enabled - TeamsStrategy uses child element bounds
             textReplacementMethod: .browserStyle,
-            requiresTypingPause: false,  // No need to wait - not querying position APIs
+            requiresTypingPause: true,  // Wait for typing pause before querying AX tree
             supportsFormattedText: true,
             childElementTraversal: true,
             delaysAXNotifications: false,

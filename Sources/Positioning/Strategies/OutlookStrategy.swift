@@ -40,6 +40,15 @@ class OutlookStrategy: GeometryProvider {
     private var cachedTextHash: Int = 0
     private var cachedElementFrame: CGRect = .zero
 
+    // MARK: - Cache Management
+
+    /// Clear internal cache (called when formatting changes)
+    func clearInternalCache() {
+        cachedTextParts = []
+        cachedTextHash = 0
+        cachedElementFrame = .zero
+    }
+
     // MARK: - GeometryProvider
 
     func canHandle(element: AXUIElement, bundleID: String) -> Bool {

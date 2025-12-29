@@ -1508,14 +1508,23 @@ class AnalysisCoordinator: ObservableObject {
             }
         }
 
-        // Filter out Slack-specific exclusions using Quill Delta
-        // This detects: inline code, code blocks, blockquotes, links, mentions, channels
+        // Filter out exclusions for Slack and Teams (code blocks, blockquotes, links, mentions)
+        // Both are Chromium-based and use AX attribute detection for formatted content
         if let context = monitoredContext,
-           appRegistry.configuration(for: context.bundleIdentifier).parserType == .slack,
-           let axElement = element,
-           let slackParser = contentParserFactory.parser(for: context.bundleIdentifier) as? SlackContentParser {
+           let axElement = element {
+            let parserType = appRegistry.configuration(for: context.bundleIdentifier).parserType
+            var exclusions: [ExclusionRange] = []
 
-            let exclusions = slackParser.extractExclusions(from: axElement, text: sourceText)
+            // Slack exclusions
+            if parserType == .slack,
+               let slackParser = contentParserFactory.parser(for: context.bundleIdentifier) as? SlackContentParser {
+                exclusions = slackParser.extractExclusions(from: axElement, text: sourceText)
+            }
+            // Teams exclusions
+            else if parserType == .teams,
+                    let teamsParser = contentParserFactory.parser(for: context.bundleIdentifier) as? TeamsContentParser {
+                exclusions = teamsParser.extractExclusions(from: axElement, text: sourceText)
+            }
 
             if !exclusions.isEmpty {
                 let beforeCount = filteredErrors.count
@@ -1531,7 +1540,7 @@ class AnalysisCoordinator: ObservableObject {
                 }
                 let filteredCount = beforeCount - filteredErrors.count
                 if filteredCount > 0 {
-                    Logger.info("AnalysisCoordinator: Filtered \(filteredCount) errors in Slack exclusion zones", category: Logger.analysis)
+                    Logger.info("AnalysisCoordinator: Filtered \(filteredCount) errors in \(parserType == .slack ? "Slack" : "Teams") exclusion zones", category: Logger.analysis)
                 }
             }
         }
@@ -1826,6 +1835,17 @@ extension AnalysisCoordinator: PositionRefreshDelegate {
 
         // Re-show underlines at new positions
         showErrorUnderlines(currentErrors, element: element)
+    }
+
+    /// Called when underlines should be hidden temporarily (e.g., during scroll)
+    func hideUnderlinesRequested() {
+        Logger.debug("AnalysisCoordinator: Hide underlines requested (scroll)", category: Logger.ui)
+
+        // Hide the overlay (clears underlines)
+        errorOverlay.hide()
+
+        // Clear position cache since positions are now stale
+        positionResolver.clearCache()
     }
 }
 

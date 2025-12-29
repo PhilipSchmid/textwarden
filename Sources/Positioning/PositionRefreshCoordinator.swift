@@ -17,6 +17,9 @@ import AppKit
 protocol PositionRefreshDelegate: AnyObject {
     /// Called when positions should be recalculated for the current element
     func positionRefreshRequested()
+
+    /// Called when underlines should be hidden temporarily (e.g., during scroll)
+    func hideUnderlinesRequested()
 }
 
 /// Coordinates app-specific position refresh triggers
@@ -34,8 +37,14 @@ class PositionRefreshCoordinator {
     /// Global keyboard monitor for formatting shortcuts
     private var keyboardMonitor: Any?
 
+    /// Global scroll wheel monitor
+    private var scrollMonitor: Any?
+
     /// Debounce work item for click-based refresh
     private var refreshWorkItem: DispatchWorkItem?
+
+    /// Debounce work item for scroll-based hide
+    private var scrollHideWorkItem: DispatchWorkItem?
 
     /// Formatting shortcut key codes: B=11, I=34, U=32
     private static let formattingKeyCodes: Set<UInt16> = [11, 34, 32]
@@ -53,9 +62,10 @@ class PositionRefreshCoordinator {
     func startMonitoring(bundleID: String) {
         let needsClick = Self.needsClickBasedRefresh(bundleID: bundleID)
         let needsFormatting = Self.needsFormattingRefresh(bundleID: bundleID)
+        let needsScroll = Self.needsScrollBasedRefresh(bundleID: bundleID)
 
         // Only set up monitors for apps that need them
-        guard needsClick || needsFormatting else {
+        guard needsClick || needsFormatting || needsScroll else {
             stopMonitoring()
             return
         }
@@ -74,8 +84,11 @@ class PositionRefreshCoordinator {
         if needsFormatting {
             setupKeyboardMonitor()
         }
+        if needsScroll {
+            setupScrollMonitor()
+        }
 
-        Logger.debug("PositionRefreshCoordinator: Started monitoring for \(bundleID) (click: \(needsClick), formatting: \(needsFormatting))", category: Logger.ui)
+        Logger.debug("PositionRefreshCoordinator: Started monitoring for \(bundleID) (click: \(needsClick), formatting: \(needsFormatting), scroll: \(needsScroll))", category: Logger.ui)
     }
 
     /// Stop monitoring for position refresh triggers
@@ -88,8 +101,14 @@ class PositionRefreshCoordinator {
             NSEvent.removeMonitor(monitor)
             keyboardMonitor = nil
         }
+        if let monitor = scrollMonitor {
+            NSEvent.removeMonitor(monitor)
+            scrollMonitor = nil
+        }
         refreshWorkItem?.cancel()
         refreshWorkItem = nil
+        scrollHideWorkItem?.cancel()
+        scrollHideWorkItem = nil
         monitoredBundleID = nil
     }
 
@@ -120,6 +139,20 @@ class PositionRefreshCoordinator {
         return config.features.supportsFormattedText
     }
 
+    /// Check if an app needs scroll-based position refresh/hide
+    /// - Parameter bundleID: The bundle identifier to check
+    /// - Returns: true if the app has scrollable compose areas where underlines become stale
+    private static func needsScrollBasedRefresh(bundleID: String) -> Bool {
+        switch bundleID {
+        case "com.tinyspeck.slackmacgap", "com.microsoft.teams2":
+            // Slack and Teams have scrollable compose areas
+            // Underlines become misaligned when content scrolls
+            return true
+        default:
+            return false
+        }
+    }
+
     /// Get the debounce delay for position refresh (milliseconds)
     /// - Parameter bundleID: The bundle identifier
     /// - Returns: Debounce delay in milliseconds
@@ -146,6 +179,50 @@ class PositionRefreshCoordinator {
     private func setupKeyboardMonitor() {
         keyboardMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             self?.handleKeyDown(event)
+        }
+    }
+
+    /// Setup global scroll wheel monitor
+    private func setupScrollMonitor() {
+        scrollMonitor = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel) { [weak self] _ in
+            self?.handleScroll()
+        }
+    }
+
+    /// Handle scroll event - hide immediately, redraw only after scrolling fully stops
+    private func handleScroll() {
+        guard monitoredBundleID != nil else { return }
+
+        // Dispatch to main thread for thread-safe access
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+
+            // Skip if in replacement mode
+            if AnalysisCoordinator.shared.isInReplacementMode {
+                return
+            }
+
+            // Hide underlines immediately when scroll starts
+            self.delegate?.hideUnderlinesRequested()
+
+            // Cancel any pending scroll refresh - we'll reschedule
+            self.scrollHideWorkItem?.cancel()
+
+            // Schedule refresh only after scrolling has fully stabilized
+            let workItem = DispatchWorkItem { [weak self] in
+                Task { @MainActor in
+                    guard !AnalysisCoordinator.shared.isInReplacementMode else { return }
+                    self?.delegate?.positionRefreshRequested()
+                }
+            }
+            self.scrollHideWorkItem = workItem
+
+            // Wait 300ms after last scroll event before refreshing
+            // This ensures scrolling has fully stopped
+            DispatchQueue.main.asyncAfter(
+                deadline: .now() + .milliseconds(300),
+                execute: workItem
+            )
         }
     }
 

@@ -208,7 +208,7 @@ TextWarden uses the macOS Accessibility API and works with most applications. Vi
 | **Microsoft PowerPoint** | Notes only** | Indicator only* |
 | **Microsoft Outlook** | Full | Full |
 | **Microsoft Excel** | Not supported | N/A |
-| **Microsoft Teams** | Full | Indicator only* |
+| **Microsoft Teams** | Full | Full |
 
 *\*These apps use a floating indicator instead of inline underlines due to accessibility API limitations. Microsoft Word and PowerPoint crash (EXC_BAD_INSTRUCTION in mso99) when querying parameterized accessibility attributes. Notion's block-based structure causes AX text newlines that don't match visual line breaks, making underline positioning unreliable.*
 

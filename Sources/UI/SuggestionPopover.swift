@@ -106,6 +106,12 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// When true, the popover persists until explicitly dismissed and shows navigation controls
     @Published private(set) var openedFromIndicator: Bool = false
 
+    /// Status message to display briefly (e.g., when an action fails)
+    @Published var statusMessage: String?
+
+    /// Timer for auto-hiding status message
+    private var statusMessageTimer: Timer?
+
     /// All unified items (grammar errors + style suggestions) sorted by position
     var unifiedItems: [PopoverItem] {
         var items: [PopoverItem] = []
@@ -753,6 +759,37 @@ class SuggestionPopover: NSObject, ObservableObject {
         panel.display()
 
         Logger.debug("Popover: Rebuilt content - \(width) x \(height)", category: Logger.ui)
+    }
+
+    // MARK: - Status Messages
+
+    /// Show a temporary status message in the popover
+    /// - Parameters:
+    ///   - message: The message to display
+    ///   - duration: How long to show the message (default 3 seconds)
+    func showStatusMessage(_ message: String, duration: TimeInterval = 3.0) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+
+            // Cancel any existing timer
+            self.statusMessageTimer?.invalidate()
+
+            // Set the message
+            self.statusMessage = message
+            Logger.trace("Popover: Showing status message", category: Logger.ui)
+
+            // Rebuild content to resize popover for the new message
+            self.rebuildContentView()
+
+            // Auto-hide after duration
+            self.statusMessageTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
+                DispatchQueue.main.async {
+                    self?.statusMessage = nil
+                    // Rebuild again when message is hidden to shrink popover
+                    self?.rebuildContentView()
+                }
+            }
+        }
     }
 
     // MARK: - Error Synchronization

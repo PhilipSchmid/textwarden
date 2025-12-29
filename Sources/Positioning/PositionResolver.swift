@@ -40,6 +40,7 @@ class PositionResolver {
         let strategies: [GeometryProvider] = [
             // Tier: Precise
             SlackStrategy(),  // Dedicated strategy for Slack - highest priority
+            TeamsStrategy(),  // Dedicated strategy for Teams - same tree traversal approach
             OutlookStrategy(),  // Dedicated strategy for Outlook compose
             WebExStrategy(),  // Dedicated strategy for Cisco WebEx chat
             MailStrategy(),  // Dedicated strategy for Apple Mail's WebKit compose
@@ -243,9 +244,15 @@ class PositionResolver {
 
     // MARK: - Cache Management
 
-    /// Clear position cache
+    /// Clear position cache and strategy internal caches
     func clearCache() {
         cache.clear()
+
+        // Also clear internal caches of all strategies
+        // This is important when AX tree structure changes (e.g., formatting changes)
+        for strategy in allStrategies {
+            strategy.clearInternalCache()
+        }
     }
 
     /// Get cache statistics

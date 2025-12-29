@@ -1,19 +1,20 @@
 //
-//  SlackStrategy.swift
+//  TeamsStrategy.swift
 //  TextWarden
 //
-//  Dedicated positioning strategy for Slack's Electron-based Quill editor.
+//  Dedicated positioning strategy for Microsoft Teams' WebView2-based chat compose.
 //
 //  APPROACH:
-//  Slack's main AXTextArea doesn't support standard AXBoundsForRange queries (returns garbage).
+//  Teams' main AXTextArea doesn't support standard AXBoundsForRange queries (returns garbage).
 //  However, child AXStaticText elements DO support AXBoundsForRange with local ranges.
+//  This is the exact same pattern as Slack (both are Chromium-based Electron apps).
 //
 //  Strategy:
 //  1. Traverse AX children tree to find all AXStaticText elements (text runs)
 //  2. Build a TextPart map: character ranges → visual frames + element references
 //  3. For each error, find the overlapping TextPart(s)
 //  4. Query AXBoundsForRange on the child element with local range offset
-//  5. Return nil on failure to let FontMetricsStrategy handle fallback via ContentParser config
+//  5. Return nil on failure to let FontMetricsStrategy handle fallback
 //
 
 import AppKit
@@ -27,15 +28,15 @@ private struct TextPart {
     let element: AXUIElement    // Reference to query AXBoundsForRange directly
 }
 
-/// Dedicated Slack positioning using AX tree traversal for bounds
-class SlackStrategy: GeometryProvider {
+/// Dedicated Teams positioning using AX tree traversal for bounds
+class TeamsStrategy: GeometryProvider {
 
-    var strategyName: String { "Slack" }
-    var strategyType: StrategyType { .slack }
+    var strategyName: String { "Teams" }
+    var strategyType: StrategyType { .teams }
     var tier: StrategyTier { .precise }
     var tierPriority: Int { 0 }
 
-    private static let slackBundleID = "com.tinyspeck.slackmacgap"
+    private static let teamsBundleID = "com.microsoft.teams2"
 
     // TextPart cache to avoid rebuilding for each error
     private var cachedTextParts: [TextPart] = []
@@ -54,10 +55,10 @@ class SlackStrategy: GeometryProvider {
     // MARK: - GeometryProvider
 
     func canHandle(element: AXUIElement, bundleID: String) -> Bool {
-        guard bundleID == Self.slackBundleID else { return false }
+        guard bundleID == Self.teamsBundleID else { return false }
 
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
-            Logger.debug("SlackStrategy: Skipping - watchdog protection active", category: Logger.ui)
+            Logger.debug("TeamsStrategy: Skipping - watchdog protection active", category: Logger.ui)
             return false
         }
 
@@ -71,7 +72,7 @@ class SlackStrategy: GeometryProvider {
         parser: ContentParser
     ) -> GeometryResult? {
 
-        Logger.debug("SlackStrategy: Calculating for range \(errorRange) in text length \(text.count)", category: Logger.ui)
+        Logger.trace("TeamsStrategy: Calculating for range \(errorRange) in text length \(text.count)", category: Logger.ui)
 
         // Convert filtered coordinates to original coordinates
         let offset = parser.textReplacementOffset
@@ -79,11 +80,11 @@ class SlackStrategy: GeometryProvider {
 
         // Get element frame for validation
         guard let elementFrame = AccessibilityBridge.getElementFrame(element) else {
-            Logger.debug("SlackStrategy: Could not get element frame", category: Logger.ui)
+            Logger.debug("TeamsStrategy: Could not get element frame", category: Logger.ui)
             return GeometryResult.unavailable(reason: "Could not get element frame")
         }
 
-        Logger.debug("SlackStrategy: Element frame (Quartz): \(elementFrame)", category: Logger.ui)
+        Logger.trace("TeamsStrategy: Element frame (Quartz): \(elementFrame)", category: Logger.ui)
 
         // Get PRIMARY screen height for coordinate conversion
         let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero }
@@ -102,33 +103,36 @@ class SlackStrategy: GeometryProvider {
             cachedTextParts = textParts
             cachedTextHash = textHash
             cachedElementFrame = elementFrame
-            Logger.debug("SlackStrategy: Built \(textParts.count) TextParts", category: Logger.ui)
+            Logger.trace("TeamsStrategy: Built \(textParts.count) TextParts", category: Logger.ui)
         }
 
         if textParts.isEmpty {
-            Logger.debug("SlackStrategy: No TextParts found - letting chain continue to FontMetricsStrategy", category: Logger.ui)
-            return nil
+            Logger.debug("TeamsStrategy: No TextParts found - returning unavailable", category: Logger.ui)
+            return GeometryResult.unavailable(reason: "No TextParts found in Teams AX tree")
         }
 
         // STEP 2: Find TextPart(s) that contain the error range
         guard let bounds = findBoundsForRange(originalRange, in: textParts, fullText: text, element: element) else {
-            Logger.debug("SlackStrategy: Could not find TextPart for range \(originalRange) - letting chain continue", category: Logger.ui)
-            return nil
+            Logger.debug("TeamsStrategy: Could not find TextPart for range \(originalRange) - returning unavailable", category: Logger.ui)
+            return GeometryResult.unavailable(reason: "No TextPart overlapping error range")
         }
 
-        Logger.debug("SlackStrategy: TextPart bounds (Quartz): \(bounds)", category: Logger.ui)
+        Logger.trace("TeamsStrategy: TextPart bounds (Quartz): \(bounds)", category: Logger.ui)
 
         // STEP 3: Use full text bounds (not just underline height)
         // This allows the highlight to cover the full word when hovering
         // The overlay will draw the underline at the bottom of these bounds
         let quartzBounds = bounds
 
-        // STEP 4: Validate bounds are within element
+        // STEP 4: Validate bounds are within element frame
+        // Teams' AXBoundsForRange sometimes returns coordinates for scrolled-out content
+        // or in a different coordinate space. Reject these to avoid wrong underlines.
         let elementBottom = elementFrame.origin.y + elementFrame.height
-        guard quartzBounds.origin.y >= elementFrame.origin.y - 10 &&
-              quartzBounds.origin.y <= elementBottom + 10 else {
-            Logger.debug("SlackStrategy: Bounds Y \(quartzBounds.origin.y) outside element (\(elementFrame.origin.y) to \(elementBottom))", category: Logger.ui)
-            return GeometryResult.unavailable(reason: "Y position outside element bounds")
+        guard quartzBounds.origin.y >= elementFrame.origin.y - 20 &&
+              quartzBounds.origin.y <= elementBottom + 20 &&
+              quartzBounds.height > 0 && quartzBounds.height < 100 else {
+            Logger.debug("TeamsStrategy: Bounds validation failed - Y=\(quartzBounds.origin.y) not in [\(elementFrame.origin.y)-20, \(elementBottom)+20]", category: Logger.ui)
+            return GeometryResult.unavailable(reason: "Bounds outside visible element area")
         }
 
         // STEP 5: Convert to Cocoa coordinates
@@ -140,14 +144,14 @@ class SlackStrategy: GeometryProvider {
             height: quartzBounds.height
         )
 
-        Logger.debug("SlackStrategy: Cocoa bounds: \(cocoaBounds)", category: Logger.ui)
+        Logger.trace("TeamsStrategy: Cocoa bounds: \(cocoaBounds)", category: Logger.ui)
 
         guard CoordinateMapper.validateBounds(cocoaBounds) else {
-            Logger.debug("SlackStrategy: Final bounds validation failed", category: Logger.ui)
+            Logger.debug("TeamsStrategy: Final bounds validation failed", category: Logger.ui)
             return GeometryResult.unavailable(reason: "Invalid final bounds")
         }
 
-        Logger.debug("SlackStrategy: SUCCESS (textpart-tree) - bounds: \(cocoaBounds)", category: Logger.ui)
+        Logger.debug("TeamsStrategy: SUCCESS (textpart-tree) - bounds: \(cocoaBounds)", category: Logger.ui)
 
         return GeometryResult(
             bounds: cocoaBounds,
@@ -162,85 +166,66 @@ class SlackStrategy: GeometryProvider {
 
     // MARK: - TextPart Tree Building
 
-    /// Build TextPart map by traversing AX children
-    /// Slack's editor has: AXTextArea (root) → AXGroup (paragraphs) → AXStaticText/AXGroup (text runs)
-    /// Uses string search to find exact positions instead of manual offset tracking
+    /// Maximum recursion depth for tree traversal (prevents infinite loops)
+    private static let maxTreeDepth = 10
+
+    /// Build TextPart map by recursively traversing entire AX tree
+    /// Teams uses various nesting for blockquotes, code blocks, etc.
+    /// This recursive approach handles arbitrary nesting depths.
     private func buildTextPartMap(from element: AXUIElement, fullText: String) -> [TextPart] {
         var textParts: [TextPart] = []
-        var searchStart = 0  // Where to start searching for next TextPart
+        var searchStart = 0
 
-        // Get children (paragraphs/lines)
-        guard let paragraphs = getChildren(element) else {
-            return []
-        }
+        // Recursively collect all AXStaticText elements from the tree
+        collectTextParts(from: element, fullText: fullText, searchStart: &searchStart, into: &textParts, depth: 0)
 
-        for paragraph in paragraphs {
-            // Get grandchildren (text runs within this paragraph)
-            guard let textRuns = getChildren(paragraph) else {
-                // Paragraph might have text directly
-                let paragraphText = getText(paragraph)
-                if !paragraphText.isEmpty {
-                    let frame = getFrame(paragraph)
-                    if frame.width > 0 && frame.height > 0 {
-                        if let foundRange = findTextRange(paragraphText, in: fullText, startingAt: searchStart) {
-                            textParts.append(TextPart(text: paragraphText, range: foundRange, frame: frame, element: paragraph))
-                            searchStart = foundRange.location + foundRange.length
-                        }
-                    }
-                }
-                continue
-            }
-
-            for textRun in textRuns {
-                let role = getRole(textRun)
-                let frame = getFrame(textRun)
-                let runText = getText(textRun)
-
-                if role == "AXStaticText" && !runText.isEmpty && frame.width > 0 && frame.height > 0 {
-                    // Direct text run - find its position by string search
-                    if let foundRange = findTextRange(runText, in: fullText, startingAt: searchStart) {
-                        textParts.append(TextPart(text: runText, range: foundRange, frame: frame, element: textRun))
-                        searchStart = foundRange.location + foundRange.length
-                    }
-                } else if role == "AXGroup" {
-                    // Could be formatting group (bold, italic, code) - check for text inside
-                    if let nestedRuns = getChildren(textRun) {
-                        for nestedRun in nestedRuns {
-                            let nestedRole = getRole(nestedRun)
-                            let nestedFrame = getFrame(nestedRun)
-                            let nestedText = getText(nestedRun)
-
-                            if nestedRole == "AXStaticText" && !nestedText.isEmpty &&
-                               nestedFrame.width > 0 && nestedFrame.height > 0 {
-                                if let foundRange = findTextRange(nestedText, in: fullText, startingAt: searchStart) {
-                                    textParts.append(TextPart(text: nestedText, range: foundRange, frame: nestedFrame, element: nestedRun))
-                                    searchStart = foundRange.location + foundRange.length
-                                }
-                            } else if nestedRole == "AXGroup" {
-                                // Handle deeper nesting (e.g., bold + italic)
-                                if let deeperRuns = getChildren(nestedRun) {
-                                    for deeperRun in deeperRuns {
-                                        let deeperRole = getRole(deeperRun)
-                                        let deeperFrame = getFrame(deeperRun)
-                                        let deeperText = getText(deeperRun)
-
-                                        if deeperRole == "AXStaticText" && !deeperText.isEmpty &&
-                                           deeperFrame.width > 0 && deeperFrame.height > 0 {
-                                            if let foundRange = findTextRange(deeperText, in: fullText, startingAt: searchStart) {
-                                                textParts.append(TextPart(text: deeperText, range: foundRange, frame: deeperFrame, element: deeperRun))
-                                                searchStart = foundRange.location + foundRange.length
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
+        Logger.trace("TeamsStrategy: Collected \(textParts.count) TextParts from tree", category: Logger.ui)
         return textParts
+    }
+
+    /// Recursively traverse AX tree and collect TextParts
+    private func collectTextParts(
+        from element: AXUIElement,
+        fullText: String,
+        searchStart: inout Int,
+        into textParts: inout [TextPart],
+        depth: Int
+    ) {
+        // Prevent infinite recursion
+        guard depth < Self.maxTreeDepth else { return }
+
+        let role = getRole(element)
+        let text = getText(element)
+        let frame = getFrame(element)
+
+        // If this is an AXStaticText with valid bounds, add it as a TextPart
+        if role == "AXStaticText" && !text.isEmpty && frame.width > 0 && frame.height > 0 {
+            // Try to find text starting from searchStart
+            if let foundRange = findTextRange(text, in: fullText, startingAt: searchStart) {
+                textParts.append(TextPart(text: text, range: foundRange, frame: frame, element: element))
+                searchStart = foundRange.location + foundRange.length
+            }
+            // If not found from searchStart, try from beginning (handles out-of-order AX tree)
+            else if let foundRange = findTextRange(text, in: fullText, startingAt: 0) {
+                // Only add if we haven't already added a TextPart covering this range
+                let alreadyCovered = textParts.contains { part in
+                    part.range.location == foundRange.location && part.range.length == foundRange.length
+                }
+                if !alreadyCovered {
+                    textParts.append(TextPart(text: text, range: foundRange, frame: frame, element: element))
+                }
+            }
+            // AXStaticText is a leaf - don't recurse further
+            return
+        }
+
+        // Recurse into children for all container types
+        // This handles: AXGroup, AXList, blockquote wrappers, code block wrappers, etc.
+        guard let children = getChildren(element) else { return }
+
+        for child in children {
+            collectTextParts(from: child, fullText: fullText, searchStart: &searchStart, into: &textParts, depth: depth + 1)
+        }
     }
 
     /// Find the range of a substring starting from a given position
@@ -274,7 +259,7 @@ class SlackStrategy: GeometryProvider {
         }
 
         if overlappingParts.isEmpty {
-            Logger.debug("SlackStrategy: No TextPart found overlapping range \(targetRange)", category: Logger.ui)
+            Logger.trace("TeamsStrategy: No TextPart found overlapping range \(targetRange)", category: Logger.ui)
             return nil
         }
 
@@ -290,7 +275,7 @@ class SlackStrategy: GeometryProvider {
             unionBounds = unionBounds.union(part.frame)
         }
 
-        Logger.debug("SlackStrategy: Unioned \(overlappingParts.count) TextParts for range \(targetRange)", category: Logger.ui)
+        Logger.trace("TeamsStrategy: Unioned \(overlappingParts.count) TextParts for range \(targetRange)", category: Logger.ui)
         return unionBounds
     }
 
@@ -306,13 +291,13 @@ class SlackStrategy: GeometryProvider {
         if let bounds = getBoundsForRange(location: offsetInPart, length: errorLength, in: part.element) {
             // Validate bounds are reasonable
             if bounds.width > 0 && bounds.height > 0 && bounds.height < 50 {
-                Logger.debug("SlackStrategy: AXBoundsForRange on child SUCCESS: \(bounds)", category: Logger.ui)
+                Logger.trace("TeamsStrategy: AXBoundsForRange on child SUCCESS: \(bounds)", category: Logger.ui)
                 return bounds
             }
         }
 
         // AXBoundsForRange failed - return nil to let chain continue to FontMetricsStrategy
-        Logger.debug("SlackStrategy: AXBoundsForRange on child failed - letting chain continue", category: Logger.ui)
+        Logger.trace("TeamsStrategy: AXBoundsForRange on child failed - letting chain continue", category: Logger.ui)
         return nil
     }
 

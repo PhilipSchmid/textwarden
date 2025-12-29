@@ -71,6 +71,10 @@ protocol GeometryProvider {
         text: String,
         parser: ContentParser
     ) -> GeometryResult?
+
+    /// Clear any internal caches maintained by this strategy
+    /// Called when external events (like formatting changes) invalidate cached state
+    func clearInternalCache()
 }
 
 // MARK: - Default Implementation
@@ -82,6 +86,9 @@ extension GeometryProvider {
     /// Default canHandle returns true (works for most elements)
     /// Strategies with specific requirements should override this
     func canHandle(element: AXUIElement, bundleID: String) -> Bool { true }
+
+    /// Default implementation - no cache to clear
+    func clearInternalCache() {}
 }
 
 // MARK: - Geometry Result

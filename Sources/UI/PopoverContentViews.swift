@@ -555,6 +555,28 @@ struct PopoverContentView: View {
                 .padding(.top, 10)
                 .padding(.bottom, 6)
 
+                // Status message (shown when action fails)
+                if let statusMessage = popover.statusMessage {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(.orange)
+                        Text(statusMessage)
+                            .font(.system(size: captionTextSize))
+                            .foregroundColor(colors.textSecondary)
+                            .lineLimit(2)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.orange.opacity(0.1))
+                    )
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 4)
+                }
+
                 // Content area
                 VStack(alignment: .leading, spacing: 2) {
                     if isLoadingAI {
