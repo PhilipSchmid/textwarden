@@ -703,7 +703,7 @@ class UserPreferences: ObservableObject {
         self.showUnderlines = true
         self.underlineThickness = 2.0
         self.maxErrorsForUnderlines = 10
-        self.indicatorPosition = "Bottom Right"
+        self.indicatorPosition = "Center Right"
         self.enableHoverPopover = true
 
         // Diagnostics
@@ -829,7 +829,7 @@ class UserPreferences: ObservableObject {
         self.showUnderlines = defaults.object(forKey: Keys.showUnderlines) as? Bool ?? true
         self.underlineThickness = defaults.object(forKey: Keys.underlineThickness) as? Double ?? 2.0
         self.maxErrorsForUnderlines = defaults.object(forKey: Keys.maxErrorsForUnderlines) as? Int ?? 10
-        self.indicatorPosition = defaults.string(forKey: Keys.indicatorPosition) ?? "Bottom Right"
+        self.indicatorPosition = defaults.string(forKey: Keys.indicatorPosition) ?? "Center Right"
         self.enableHoverPopover = defaults.object(forKey: Keys.enableHoverPopover) as? Bool ?? true
 
         // Diagnostics
@@ -1214,7 +1214,7 @@ class UserPreferences: ObservableObject {
         showUnderlines = true
         underlineThickness = 3.0
         maxErrorsForUnderlines = 10
-        indicatorPosition = "Bottom Right"
+        indicatorPosition = "Center Right"
     }
 
     // MARK: - UserDefaults Keys
