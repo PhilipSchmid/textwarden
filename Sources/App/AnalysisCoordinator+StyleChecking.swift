@@ -438,6 +438,49 @@ extension AnalysisCoordinator {
         return value
     }
 
+    /// Regenerate a style suggestion to get an alternative
+    @available(macOS 26.0, *)
+    func regenerateStyleSuggestion(_ suggestion: StyleSuggestionModel) async -> StyleSuggestionModel? {
+        Logger.debug("AnalysisCoordinator: Regenerating style suggestion for '\(suggestion.originalText.prefix(30))...'", category: Logger.analysis)
+
+        // Get the source text from the suggestion or current analysis
+        let sourceText = !styleAnalysisSourceText.isEmpty ? styleAnalysisSourceText : (currentText() ?? suggestion.originalText)
+
+        // Create engine on demand
+        let fmEngine = FoundationModelsEngine()
+        fmEngine.checkAvailability()
+
+        guard fmEngine.status.isAvailable else {
+            Logger.warning("Apple Intelligence: Not available for regeneration - \(fmEngine.status.userMessage)", category: Logger.llm)
+            return nil
+        }
+
+        do {
+            let newSuggestion = try await fmEngine.regenerateStyleSuggestion(
+                originalText: sourceText,
+                previousSuggestion: suggestion,
+                style: suggestion.style,
+                customVocabulary: Array(UserPreferences.shared.customDictionary)
+            )
+
+            if let newSuggestion = newSuggestion {
+                Logger.debug("AnalysisCoordinator: Regeneration successful - new suggestion: '\(newSuggestion.suggestedText.prefix(30))...'", category: Logger.analysis)
+
+                // Update the tracking
+                if let index = currentStyleSuggestions.firstIndex(where: { $0.id == suggestion.id }) {
+                    currentStyleSuggestions[index] = newSuggestion
+                }
+            } else {
+                Logger.debug("AnalysisCoordinator: Regeneration returned no different suggestion", category: Logger.analysis)
+            }
+
+            return newSuggestion
+        } catch {
+            Logger.error("AnalysisCoordinator: Regeneration failed - \(error.localizedDescription)", category: Logger.analysis)
+            return nil
+        }
+    }
+
     /// Currently selected text from monitored element, if any
     /// Returns nil if no text is selected (cursor only) or if selection cannot be retrieved
     private func selectedText() -> String? {
@@ -557,6 +600,88 @@ extension AnalysisCoordinator {
 
             return true
         }
+    }
+
+    // MARK: - Text Generation Context
+
+    /// Extract context for text generation from the current monitored element
+    /// Uses windowed extraction for large documents to keep context manageable
+    func extractGenerationContext() -> GenerationContext {
+        guard let element = textMonitor.monitoredElement else {
+            Logger.debug("AnalysisCoordinator: extractGenerationContext - no monitored element", category: Logger.analysis)
+            return .empty
+        }
+
+        // Check for selected text first
+        let selection = selectedText()
+        if let selected = selection, !selected.isEmpty {
+            Logger.debug("AnalysisCoordinator: extractGenerationContext - using selection (\(selected.count) chars)", category: Logger.analysis)
+            return GenerationContext(
+                selectedText: selected,
+                surroundingText: currentText(),
+                fullTextLength: currentText()?.count ?? 0,
+                cursorPosition: nil,
+                source: .selection
+            )
+        }
+
+        // No selection - get text around cursor
+        guard let fullText = currentText(), !fullText.isEmpty else {
+            Logger.debug("AnalysisCoordinator: extractGenerationContext - no text available", category: Logger.analysis)
+            return .empty
+        }
+
+        // Get cursor position
+        let cursorPos = getCursorPosition(element: element) ?? 0
+
+        // For small documents, use full text
+        if fullText.count <= 2000 {
+            Logger.debug("AnalysisCoordinator: extractGenerationContext - using full document (\(fullText.count) chars)", category: Logger.analysis)
+            return GenerationContext(
+                selectedText: nil,
+                surroundingText: fullText,
+                fullTextLength: fullText.count,
+                cursorPosition: cursorPos,
+                source: .documentStart
+            )
+        }
+
+        // For large documents, extract window around cursor
+        // 1000 chars before, 500 chars after
+        let windowStart = max(0, cursorPos - 1000)
+        let windowEnd = min(fullText.count, cursorPos + 500)
+
+        // Safe index operations
+        guard let startIdx = fullText.index(fullText.startIndex, offsetBy: windowStart, limitedBy: fullText.endIndex),
+              let endIdx = fullText.index(fullText.startIndex, offsetBy: windowEnd, limitedBy: fullText.endIndex),
+              startIdx < endIdx else {
+            return GenerationContext(
+                selectedText: nil,
+                surroundingText: nil,
+                fullTextLength: fullText.count,
+                cursorPosition: cursorPos,
+                source: .none
+            )
+        }
+
+        let window = String(fullText[startIdx..<endIdx])
+        Logger.debug("AnalysisCoordinator: extractGenerationContext - using window (\(window.count) chars around cursor)", category: Logger.analysis)
+
+        return GenerationContext(
+            selectedText: nil,
+            surroundingText: window,
+            fullTextLength: fullText.count,
+            cursorPosition: cursorPos,
+            source: .cursorWindow
+        )
+    }
+
+    /// Get cursor position from element
+    private func getCursorPosition(element: AXUIElement) -> Int? {
+        guard let range = AccessibilityBridge.getSelectedTextRange(element) else {
+            return nil
+        }
+        return range.location
     }
 }
 

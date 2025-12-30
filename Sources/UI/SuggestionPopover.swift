@@ -134,6 +134,15 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Callback for rejecting style suggestion (style mode)
     var onRejectStyleSuggestion: ((StyleSuggestionModel, SuggestionRejectionCategory) -> Void)?
 
+    /// Callback for regenerating style suggestion (to get alternative)
+    var onRegenerateStyleSuggestion: ((StyleSuggestionModel) async -> StyleSuggestionModel?)?
+
+    /// Flag indicating style suggestion is being regenerated
+    @Published var isRegenerating: Bool = false
+
+    /// Track regeneration count per suggestion (keyed by suggestion ID) - for logging only
+    var regenerationCounts: [String: Int] = [:]
+
     /// Callback for dismissing error
     var onDismissError: ((GrammarErrorModel) -> Void)?
 
@@ -444,8 +453,8 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         // Let SwiftUI determine the size based on content
         let fittingSize = hostingView.fittingSize
-        // Auto-scale: min 320px, max 550px width to accommodate longer messages and future LLM suggestions
-        let width = min(max(fittingSize.width, 320), 550)
+        // Auto-scale: min 380px, max 550px width to accommodate buttons and style suggestions
+        let width = min(max(fittingSize.width, 380), 550)
         // Auto-scale height with reasonable max to prevent massive popovers
         let height = min(fittingSize.height, 400)
 
@@ -498,7 +507,7 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     /// Position panel near cursor
     /// - Parameters:
-    ///   - cursorPosition: The screen position for the popover
+    ///   - cursorPosition: The screen position for the popover (anchor point when from indicator)
     ///   - constrainToWindow: Optional window frame to constrain positioning (keeps popover inside app window)
     private func positionPanel(at cursorPosition: CGPoint, constrainToWindow: CGRect? = nil) {
         guard let panel = panel else { return }
@@ -510,40 +519,33 @@ class SuggestionPopover: NSObject, ObservableObject {
         Logger.debug("Popover: Input cursor position (screen): \(cursorPosition)", category: Logger.ui)
 
         let panelSize = panel.frame.size
-        let preferences = UserPreferences.shared
+        let padding: CGFloat = 20
 
         // Use constrainToWindow if provided, otherwise use screen frame
         let constraintFrame = constrainToWindow ?? screen.visibleFrame
 
-        if let windowFrame = constrainToWindow {
-            Logger.debug("Popover: Using window constraint: \(windowFrame)", category: Logger.ui)
-        } else {
-            Logger.debug("Popover: Using screen frame: \(screen.visibleFrame)", category: Logger.ui)
+        // When opened from indicator, use anchor-based positioning for consistency
+        if openedFromIndicator {
+            positionPanelFromIndicator(at: cursorPosition, panelSize: panelSize, constraintFrame: constraintFrame, padding: padding)
+            return
         }
+
+        // For underline hovers, use the original positioning logic
+        let preferences = UserPreferences.shared
+        let verticalSpacing: CGFloat = 25
 
         Logger.debug("Popover: Panel size: \(panelSize), Constraint frame: \(constraintFrame)", category: Logger.ui)
 
-        Logger.debug("Popover: Cursor position: \(cursorPosition)", category: Logger.ui)
-
         // Calculate available space in all directions
-        let padding: CGFloat = 20  // General padding
-        let verticalSpacing: CGFloat = 25  // Space between anchor point and popover
         let roomAbove = constraintFrame.maxY - cursorPosition.y
         let roomBelow = cursorPosition.y - constraintFrame.minY
-        let roomLeft = cursorPosition.x - constraintFrame.minX
-        let roomRight = constraintFrame.maxX - cursorPosition.x
-
-        Logger.debug("Popover: Room - Above: \(roomAbove), Below: \(roomBelow), Left: \(roomLeft), Right: \(roomRight)", category: Logger.ui)
 
         // Dynamically adjust panel width if it would exceed available space
         var adjustedPanelSize = panelSize
         let totalHorizontalRoom = constraintFrame.width - padding * 2
         if panelSize.width > totalHorizontalRoom {
-            adjustedPanelSize.width = max(320, totalHorizontalRoom)  // Minimum 320px, or available space
+            adjustedPanelSize.width = max(320, totalHorizontalRoom)
 
-            Logger.debug("Popover: Reducing width from \(panelSize.width) to \(adjustedPanelSize.width) (available: \(totalHorizontalRoom))", category: Logger.ui)
-
-            // Resize panel and content views
             if let trackingView = panel.contentView as? PopoverTrackingView,
                let hostingView = trackingView.subviews.first {
                 hostingView.frame = NSRect(x: 0, y: 0, width: adjustedPanelSize.width, height: adjustedPanelSize.height)
@@ -552,64 +554,69 @@ class SuggestionPopover: NSObject, ObservableObject {
             }
         }
 
-        // Determine vertical positioning
-        // For underline hover, prefer BELOW so we don't cover the text being corrected
+        // Determine vertical positioning - prefer BELOW for underline hovers
         var shouldPositionAbove: Bool
         switch preferences.suggestionPosition {
         case "Above":
             shouldPositionAbove = true
         case "Below":
             shouldPositionAbove = false
-        default: // "Auto"
-            // Prefer BELOW the underline to avoid covering the error
-            // Only go above if there's no room below
+        default:
             shouldPositionAbove = roomBelow < adjustedPanelSize.height + verticalSpacing + padding
             if shouldPositionAbove && roomAbove < adjustedPanelSize.height + verticalSpacing + padding {
-                // Neither direction has enough room - choose the one with more space
                 shouldPositionAbove = roomAbove > roomBelow
             }
         }
 
-        Logger.debug("Popover: shouldPositionAbove: \(shouldPositionAbove)", category: Logger.ui)
-
-        // Calculate vertical position with proper spacing
         var origin = CGPoint.zero
         if shouldPositionAbove {
             origin.y = cursorPosition.y + verticalSpacing
         } else {
             origin.y = cursorPosition.y - adjustedPanelSize.height - verticalSpacing
         }
-
-        // Horizontal positioning: prefer CENTERED over the underline
-        // Center the popover horizontally on the cursor position
         origin.x = cursorPosition.x - adjustedPanelSize.width / 2
 
-        Logger.debug("Popover: Initial position: \(origin)", category: Logger.ui)
+        // Clamp to bounds
+        origin.x = max(constraintFrame.minX + padding, min(origin.x, constraintFrame.maxX - adjustedPanelSize.width - padding))
+        origin.y = max(constraintFrame.minY + padding, min(origin.y, constraintFrame.maxY - adjustedPanelSize.height - padding))
 
-        // Final bounds check to ensure panel stays fully within constraint frame
-        // Horizontal clamping - ensure popover stays within bounds
-        if origin.x < constraintFrame.minX + padding {
-            origin.x = constraintFrame.minX + padding
-            Logger.debug("Popover: Clamped to minX: \(origin.x)", category: Logger.ui)
-        }
-        if origin.x + adjustedPanelSize.width > constraintFrame.maxX - padding {
-            // Clamp to right edge, but don't push past left edge
-            let rightClamped = constraintFrame.maxX - adjustedPanelSize.width - padding
-            origin.x = max(constraintFrame.minX + padding, rightClamped)
-            Logger.debug("Popover: Clamped to maxX: rightClamped=\(rightClamped), final=\(origin.x)", category: Logger.ui)
+        Logger.debug("Popover: Final position: \(origin)", category: Logger.ui)
+        panel.setFrameOrigin(origin)
+    }
+
+    /// Position panel using anchor-based positioning when opened from indicator
+    /// This ensures consistent positioning with other indicator popovers (TextGenerationPopover)
+    private func positionPanelFromIndicator(at anchorPoint: CGPoint, panelSize: NSSize, constraintFrame: CGRect, padding: CGFloat) {
+        guard let panel = panel else { return }
+
+        var origin = CGPoint.zero
+
+        // Use the stored open direction from the indicator (no re-detection needed)
+        // This ensures all popovers open consistently based on the indicator's edge position
+        switch indicatorOpenDirection {
+        case .left:
+            // Indicator on right edge → popover opens to the left
+            origin.x = anchorPoint.x - panelSize.width
+            origin.y = anchorPoint.y - panelSize.height / 2
+        case .right:
+            // Indicator on left edge → popover opens to the right
+            origin.x = anchorPoint.x
+            origin.y = anchorPoint.y - panelSize.height / 2
+        case .top:
+            // Indicator at bottom → popover opens above
+            origin.x = anchorPoint.x - panelSize.width / 2
+            origin.y = anchorPoint.y
+        case .bottom:
+            // Indicator at top → popover opens below
+            origin.x = anchorPoint.x - panelSize.width / 2
+            origin.y = anchorPoint.y - panelSize.height
         }
 
-        // Vertical clamping (ensure entire panel is visible)
-        if origin.y < constraintFrame.minY + padding {
-            origin.y = constraintFrame.minY + padding
-            Logger.debug("Popover: Clamped to minY: \(origin.y)", category: Logger.ui)
-        }
-        if origin.y + adjustedPanelSize.height > constraintFrame.maxY - padding {
-            origin.y = constraintFrame.maxY - adjustedPanelSize.height - padding
-            Logger.debug("Popover: Clamped to maxY: \(origin.y)", category: Logger.ui)
-        }
+        // Clamp to screen bounds
+        origin.x = max(constraintFrame.minX + padding, min(origin.x, constraintFrame.maxX - panelSize.width - padding))
+        origin.y = max(constraintFrame.minY + padding, min(origin.y, constraintFrame.maxY - panelSize.height - padding))
 
-        Logger.debug("Popover: Final position: \(origin), will show at: (\(origin.x), \(origin.y)) to (\(origin.x + adjustedPanelSize.width), \(origin.y + adjustedPanelSize.height))", category: Logger.ui)
+        Logger.debug("Popover: Indicator anchor positioning - direction: \(indicatorOpenDirection), final: \(origin)", category: Logger.ui)
         panel.setFrameOrigin(origin)
     }
 
@@ -733,7 +740,7 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         // Step 4: Get the ACTUAL size SwiftUI wants
         let fittingSize = hostingView.fittingSize
-        let width = min(max(fittingSize.width, 320), 550)
+        let width = min(max(fittingSize.width, 380), 550)
         let height = min(fittingSize.height, 400)
 
         Logger.debug("Popover rebuildContentView: fittingSize=\(fittingSize), final=\(width)x\(height)", category: Logger.ui)
@@ -1028,6 +1035,31 @@ class SuggestionPopover: NSObject, ObservableObject {
         moveToNextStyleSuggestion()
     }
 
+    /// Regenerate current style suggestion to get an alternative
+    func regenerateStyleSuggestion() {
+        guard let suggestion = currentStyleSuggestion else { return }
+
+        isRegenerating = true
+        let currentCount = regenerationCounts[suggestion.id] ?? 0
+        regenerationCounts[suggestion.id] = currentCount + 1
+        Logger.debug("Style popover: Regenerating suggestion \(suggestion.id), attempt \(currentCount + 1)", category: Logger.ui)
+
+        Task { @MainActor in
+            if let newSuggestion = await onRegenerateStyleSuggestion?(suggestion) {
+                // Replace current suggestion with new one in the list
+                if let index = allStyleSuggestions.firstIndex(where: { $0.id == suggestion.id }) {
+                    allStyleSuggestions[index] = newSuggestion
+                    currentStyleSuggestion = newSuggestion
+                    // Transfer regeneration count to new suggestion
+                    regenerationCounts[newSuggestion.id] = regenerationCounts[suggestion.id]
+                    regenerationCounts.removeValue(forKey: suggestion.id)
+                    rebuildContentView()
+                }
+            }
+            isRegenerating = false
+        }
+    }
+
     /// Navigate to next style suggestion
     func nextStyleSuggestion() {
         guard !allStyleSuggestions.isEmpty,
@@ -1083,12 +1115,18 @@ class SuggestionPopover: NSObject, ObservableObject {
     ///   - position: Screen position for the popover
     ///   - constrainToWindow: Optional window frame to constrain popover positioning
     ///   - sourceText: Source text for context display
-    func showUnified(errors: [GrammarErrorModel], styleSuggestions: [StyleSuggestionModel], at position: CGPoint, constrainToWindow: CGRect? = nil, sourceText: String = "") {
+    /// Stored open direction from indicator - used for positioning from indicator clicks
+    private var indicatorOpenDirection: PopoverOpenDirection = .top
+
+    func showUnified(errors: [GrammarErrorModel], styleSuggestions: [StyleSuggestionModel], at position: CGPoint, openDirection: PopoverOpenDirection = .top, constrainToWindow: CGRect? = nil, sourceText: String = "") {
         let startTime = Date()
         Logger.info("SuggestionPopover.showUnified START - errors=\(errors.count), styleSuggestions=\(styleSuggestions.count)", category: Logger.ui)
 
         // Mark as opened from indicator - popover persists until explicitly dismissed
         self.openedFromIndicator = true
+
+        // Store open direction for positioning
+        self.indicatorOpenDirection = openDirection
 
         // Store both collections for unified cycling
         self.allErrors = errors
@@ -1811,6 +1849,28 @@ struct StylePopoverContentView: View {
                     .fixedSize()
                     .accessibilityLabel("Reject suggestion")
 
+                    // Try Another button - regenerate style suggestion
+                    Button(action: { popover.regenerateStyleSuggestion() }) {
+                        HStack(spacing: 4) {
+                            if popover.isRegenerating {
+                                ProgressView()
+                                    .scaleEffect(0.6)
+                                    .frame(width: 11, height: 11)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            Text("Retry")
+                                .font(.system(size: baseTextSize * 0.9, weight: .medium))
+                        }
+                        .foregroundColor(colors.textSecondary)
+                    }
+                    .buttonStyle(.plain)
+                    .fixedSize()
+                    .disabled(popover.isRegenerating)
+                    .help("Generate alternative suggestion")
+                    .accessibilityLabel("Retry suggestion")
+
                     Spacer()
 
                     // Navigation controls - only shown when popover opened from indicator
@@ -1895,7 +1955,7 @@ struct StylePopoverContentView: View {
             }
         )
         // Fixed width, vertical sizing to content
-        .frame(width: 380)
+        .frame(width: 400)
         .fixedSize(horizontal: false, vertical: true)
         .colorScheme(effectiveColorScheme)
     }

@@ -1,7 +1,55 @@
 // StyleTypes+Generable.swift
-// Foundation Models @Generable types for style analysis
+// Foundation Models @Generable types for style analysis and text generation
 
 import Foundation
+
+// MARK: - Text Generation Context Types
+
+/// Source of context for text generation
+enum ContextSource {
+    case selection       // User selected text
+    case cursorWindow    // Window around cursor
+    case documentStart   // Beginning of document (short docs)
+    case none            // No context available
+}
+
+/// Context extraction result for text generation
+struct GenerationContext {
+    let selectedText: String?       // If user has selection
+    let surroundingText: String?    // Text window around cursor
+    let fullTextLength: Int         // Total document length
+    let cursorPosition: Int?        // Cursor position in document
+    let source: ContextSource       // Where context came from
+
+    /// Whether any context is available
+    var hasContext: Bool {
+        selectedText != nil || surroundingText != nil
+    }
+
+    /// A preview of the context for display (truncated)
+    var preview: String {
+        if let selected = selectedText, !selected.isEmpty {
+            let truncated = selected.prefix(100)
+            return truncated.count < selected.count ? "\(truncated)..." : String(truncated)
+        }
+        if let surrounding = surroundingText, !surrounding.isEmpty {
+            let truncated = surrounding.prefix(100)
+            return truncated.count < surrounding.count ? "\(truncated)..." : String(truncated)
+        }
+        return ""
+    }
+
+    /// Empty context
+    static var empty: GenerationContext {
+        GenerationContext(
+            selectedText: nil,
+            surroundingText: nil,
+            fullTextLength: 0,
+            cursorPosition: nil,
+            source: .none
+        )
+    }
+}
 
 #if canImport(FoundationModels)
 import FoundationModels
@@ -284,6 +332,21 @@ extension FMStyleAnalysisResult {
         // Two ranges overlap if start1 < end2 AND start2 < end1
         return start1 < end2 && start2 < end1
     }
+}
+
+// MARK: - Text Generation @Generable Types
+
+/// Result of text generation from Foundation Models
+@available(macOS 26.0, *)
+@Generable
+struct FMTextGenerationResult {
+    @Guide(description: """
+        The generated text based on the user's instruction and context.
+        This should be ready to insert directly into the document.
+        Match the writing style specified in the prompt.
+        Do not include explanations or meta-commentary - just the text to insert.
+        """)
+    let generatedText: String
 }
 
 #endif
