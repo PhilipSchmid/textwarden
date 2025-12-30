@@ -21,16 +21,30 @@ enum UIConstants {
 
     // MARK: - Floating Indicator
 
-    /// Size of the floating error indicator
-    static let indicatorSize: CGFloat = 40
+    /// Size of the floating error indicator (circular mode)
+    static let indicatorSize: CGFloat = 36
 
     /// Enlarged size during drag
-    static let indicatorDragSize: CGFloat = 45
+    static let indicatorDragSize: CGFloat = 41
 
-    /// Popover spacing from indicator (accounts for ~200px popover width + centering)
+    // MARK: - Capsule Indicator (when style checking enabled)
+
+    /// Height of each section in the capsule indicator
+    static let capsuleSectionHeight: CGFloat = 28
+
+    /// Width of the capsule indicator (narrow vertical capsule)
+    static let capsuleWidth: CGFloat = 28
+
+    /// Corner radius for capsule indicator (half of capsuleWidth for rounded ends)
+    static let capsuleCornerRadius: CGFloat = 14
+
+    /// Spacing between sections in the capsule (seamless for unified look)
+    static let capsuleSectionSpacing: CGFloat = 0
+
+    /// Popover spacing from indicator (accounts for ~400px popover width + centering)
     /// Formula: gap + popoverWidth/2, where gap is visual spacing desired
-    static let popoverLeftSpacing: CGFloat = 110   // 10px gap + 100px (half of ~200px popover)
-    static let popoverRightSpacing: CGFloat = 110  // 10px gap + 100px (half of ~200px popover)
+    static let popoverLeftSpacing: CGFloat = 215   // 15px gap + 200px (half of ~400px popover)
+    static let popoverRightSpacing: CGFloat = 215  // 15px gap + 200px (half of ~400px popover)
 
     // MARK: - Underlines
 

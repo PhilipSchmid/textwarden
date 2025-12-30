@@ -17,22 +17,37 @@ class IndicatorPositionStore {
         let xPercent: Double  // 0.0-1.0 from left edge
         let yPercent: Double  // 0.0-1.0 from bottom edge
 
-        /// Convert to absolute position within given bounds
+        /// Convert to absolute position within given bounds (square indicator)
         func toAbsolute(in bounds: CGRect, indicatorSize: CGFloat) -> CGPoint {
-            let x = bounds.minX + (bounds.width - indicatorSize) * xPercent
-            let y = bounds.minY + (bounds.height - indicatorSize) * yPercent
+            return toAbsolute(in: bounds, width: indicatorSize, height: indicatorSize)
+        }
+
+        /// Convert to absolute position within given bounds (rectangular indicator)
+        func toAbsolute(in bounds: CGRect, width: CGFloat, height: CGFloat) -> CGPoint {
+            let x = bounds.minX + (bounds.width - width) * xPercent
+            let y = bounds.minY + (bounds.height - height) * yPercent
             return CGPoint(x: x, y: y)
         }
 
-        /// Create from absolute position within bounds
+        /// Create from absolute position within bounds (square indicator)
         static func from(
             absolutePosition: CGPoint,
             in bounds: CGRect,
             indicatorSize: CGFloat
         ) -> PercentagePosition {
+            return from(absolutePosition: absolutePosition, in: bounds, width: indicatorSize, height: indicatorSize)
+        }
+
+        /// Create from absolute position within bounds (rectangular indicator)
+        static func from(
+            absolutePosition: CGPoint,
+            in bounds: CGRect,
+            width: CGFloat,
+            height: CGFloat
+        ) -> PercentagePosition {
             // Calculate position as percentage of available space
-            let xPercent = (absolutePosition.x - bounds.minX) / (bounds.width - indicatorSize)
-            let yPercent = (absolutePosition.y - bounds.minY) / (bounds.height - indicatorSize)
+            let xPercent = (absolutePosition.x - bounds.minX) / (bounds.width - width)
+            let yPercent = (absolutePosition.y - bounds.minY) / (bounds.height - height)
 
             // Clamp to 0.0-1.0 range
             let clampedX = max(0.0, min(1.0, xPercent))

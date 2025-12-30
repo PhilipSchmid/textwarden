@@ -10,6 +10,276 @@ import Cocoa
 import AppKit
 import Combine
 
+// MARK: - Capsule Indicator Enums
+
+/// Section types in the capsule indicator
+enum CapsuleSectionType: Int, CaseIterable {
+    case grammar = 0      // Upper section
+    case style = 1        // Middle section
+    case textGeneration = 2  // Lower section (future)
+}
+
+/// Visual state per section
+enum SectionDisplayState: Equatable {
+    // Grammar states
+    case grammarCount(Int)      // Show error count
+    case grammarSuccess         // Green tick (0 errors, stays visible)
+
+    // Style states
+    case styleIdle              // Sparkle icon, ready to check (no animation)
+    case styleLoading           // Sparkle with spinning border
+    case styleCount(Int)        // Show suggestion count
+    case styleSuccess           // Checkmark (0 suggestions after check)
+
+    // Text generation states
+    case textGenIdle            // Pen icon, ready
+    case textGenActive          // Generating animation
+
+    case hidden                 // Section not visible
+}
+
+/// Complete state for a section
+struct CapsuleSectionState {
+    let type: CapsuleSectionType
+    var displayState: SectionDisplayState
+    var isHovered: Bool
+    var ringColor: NSColor
+
+    init(type: CapsuleSectionType, displayState: SectionDisplayState = .hidden, isHovered: Bool = false, ringColor: NSColor = .gray) {
+        self.type = type
+        self.displayState = displayState
+        self.isHovered = isHovered
+        self.ringColor = ringColor
+    }
+}
+
+/// Indicator shape mode
+enum IndicatorShape {
+    case circle   // Grammar-only mode (when style checking disabled)
+    case capsule  // Grammar + Style mode (when style checking enabled)
+}
+
+/// Capsule orientation based on indicator position
+enum CapsuleOrientation {
+    case vertical    // Sections stacked top to bottom (for side attachment)
+    case horizontal  // Sections arranged left to right (for top/bottom attachment)
+
+    /// Determine orientation based on indicator position preference
+    static func from(position: String) -> CapsuleOrientation {
+        // Top and Bottom positions → horizontal capsule
+        // Center positions → vertical capsule
+        if position.hasPrefix("Top") || position.hasPrefix("Bottom") {
+            return .horizontal
+        } else {
+            return .vertical
+        }
+    }
+}
+
+/// Direction a popover opens from the indicator (shared across all popovers)
+enum PopoverOpenDirection {
+    case left   // Popover opens to the left of indicator
+    case right  // Popover opens to the right of indicator
+    case top    // Popover opens above indicator
+    case bottom // Popover opens below indicator
+}
+
+// MARK: - Capsule State Manager
+
+/// Manages state for all sections of the capsule indicator
+@MainActor
+class CapsuleStateManager {
+    var grammarState: CapsuleSectionState
+    var styleState: CapsuleSectionState
+    var textGenState: CapsuleSectionState
+    var hoveredSection: CapsuleSectionType?
+
+    init() {
+        grammarState = CapsuleSectionState(type: .grammar)
+        styleState = CapsuleSectionState(type: .style)
+        textGenState = CapsuleSectionState(type: .textGeneration)
+    }
+
+    /// Current indicator shape based on style checking preference
+    var indicatorShape: IndicatorShape {
+        return UserPreferences.shared.enableStyleChecking ? .capsule : .circle
+    }
+
+    /// Current capsule orientation based on indicator position
+    /// This is the default orientation from preferences; actual orientation should be determined
+    /// from the real indicator position relative to window bounds
+    var capsuleOrientation: CapsuleOrientation {
+        return CapsuleOrientation.from(position: UserPreferences.shared.indicatorPosition)
+    }
+
+    /// Determine orientation from percentage position
+    /// Returns vertical for side edges (left/right), horizontal for top/bottom edges
+    static func orientationFromPercentagePosition(_ pos: IndicatorPositionStore.PercentagePosition) -> CapsuleOrientation {
+        // Use 15% threshold for edge detection to be more forgiving
+        let sideEdgeThreshold: CGFloat = 0.15
+        let topBottomThreshold: CGFloat = 0.12
+
+        let isOnLeftEdge = pos.xPercent < sideEdgeThreshold
+        let isOnRightEdge = pos.xPercent > (1.0 - sideEdgeThreshold)
+        let isOnTopEdge = pos.yPercent > (1.0 - topBottomThreshold)
+        let isOnBottomEdge = pos.yPercent < topBottomThreshold
+
+        Logger.debug("CapsuleStateManager: Position x=\(pos.xPercent), y=\(pos.yPercent) → left=\(isOnLeftEdge), right=\(isOnRightEdge), top=\(isOnTopEdge), bottom=\(isOnBottomEdge)", category: Logger.ui)
+
+        // If on left or right edge, use vertical orientation
+        if isOnLeftEdge || isOnRightEdge {
+            return .vertical
+        }
+        // If on top or bottom edge, use horizontal orientation
+        if isOnTopEdge || isOnBottomEdge {
+            return .horizontal
+        }
+        // Default to vertical for corner cases
+        return .vertical
+    }
+
+    /// Get all visible sections in display order (top to bottom)
+    var visibleSections: [CapsuleSectionState] {
+        var sections: [CapsuleSectionState] = []
+
+        // Grammar section is always visible when there are errors or as success state
+        if grammarState.displayState != .hidden {
+            sections.append(grammarState)
+        }
+
+        // Style section is visible when style checking is enabled
+        if styleState.displayState != .hidden {
+            sections.append(styleState)
+        }
+
+        // Text generation section (future)
+        if textGenState.displayState != .hidden {
+            sections.append(textGenState)
+        }
+
+        return sections
+    }
+
+    /// Calculate total height of the capsule indicator based on orientation
+    var capsuleHeight: CGFloat {
+        let sections = visibleSections
+        guard sections.count > 1 else {
+            // Single section - use circle size
+            return UIConstants.indicatorSize
+        }
+
+        switch capsuleOrientation {
+        case .vertical:
+            // Multiple sections stacked vertically
+            let sectionCount = CGFloat(sections.count)
+            let totalHeight = (sectionCount * UIConstants.capsuleSectionHeight) +
+                ((sectionCount - 1) * UIConstants.capsuleSectionSpacing)
+            return totalHeight
+        case .horizontal:
+            // Fixed height for horizontal capsule
+            return UIConstants.capsuleSectionHeight
+        }
+    }
+
+    /// Calculate total width of the capsule indicator based on orientation
+    var capsuleWidth: CGFloat {
+        let sections = visibleSections
+        guard sections.count > 1 else {
+            // Single section - use circle size
+            return UIConstants.indicatorSize
+        }
+
+        switch capsuleOrientation {
+        case .vertical:
+            // Fixed width for vertical capsule
+            return UIConstants.capsuleWidth
+        case .horizontal:
+            // Multiple sections arranged horizontally
+            let sectionCount = CGFloat(sections.count)
+            let totalWidth = (sectionCount * UIConstants.capsuleSectionHeight) +  // Section size is square
+                ((sectionCount - 1) * UIConstants.capsuleSectionSpacing)
+            return totalWidth
+        }
+    }
+
+    /// Update grammar section state based on errors
+    func updateGrammar(errors: [GrammarErrorModel]) {
+        if errors.isEmpty {
+            // Show success state (green tick) instead of hiding
+            grammarState.displayState = .grammarSuccess
+            grammarState.ringColor = .systemGreen
+        } else {
+            grammarState.displayState = .grammarCount(errors.count)
+            grammarState.ringColor = colorForErrors(errors)
+        }
+    }
+
+    /// Update style section state based on suggestions
+    /// - Parameters:
+    ///   - suggestions: Current style suggestions
+    ///   - isLoading: Whether style check is in progress
+    ///   - hasChecked: Whether a style check has been completed (show success only if checked with no findings)
+    func updateStyle(suggestions: [StyleSuggestionModel], isLoading: Bool, hasChecked: Bool = false) {
+        if isLoading {
+            styleState.displayState = .styleLoading
+            styleState.ringColor = .purple
+        } else if suggestions.isEmpty {
+            if hasChecked {
+                // Style check completed with no findings - show success
+                styleState.displayState = .styleSuccess
+                styleState.ringColor = .purple
+            } else {
+                // No style check yet - show sparkle (ready state, no animation)
+                styleState.displayState = .styleIdle
+                styleState.ringColor = .purple
+            }
+        } else {
+            styleState.displayState = .styleCount(suggestions.count)
+            styleState.ringColor = .purple
+        }
+    }
+
+    /// Update text generation section state
+    /// - Parameter isGenerating: Whether text generation is in progress
+    func updateTextGeneration(isGenerating: Bool) {
+        if isGenerating {
+            textGenState.displayState = .textGenActive
+            textGenState.ringColor = .systemBlue
+        } else {
+            // Always show idle state when style checking is enabled (text gen available)
+            if UserPreferences.shared.enableStyleChecking {
+                textGenState.displayState = .textGenIdle
+                textGenState.ringColor = .systemBlue
+            } else {
+                textGenState.displayState = .hidden
+            }
+        }
+    }
+
+    /// Set hover state for a section
+    func setHovered(_ section: CapsuleSectionType?) {
+        hoveredSection = section
+        grammarState.isHovered = section == .grammar
+        styleState.isHovered = section == .style
+        textGenState.isHovered = section == .textGeneration
+    }
+
+    /// Get color for grammar errors based on severity
+    private func colorForErrors(_ errors: [GrammarErrorModel]) -> NSColor {
+        if errors.contains(where: { $0.category == "Spelling" || $0.category == "Typo" }) {
+            return .systemRed
+        } else if errors.contains(where: {
+            $0.category == "Grammar" || $0.category == "Agreement" || $0.category == "Punctuation"
+        }) {
+            return .systemOrange
+        } else {
+            return .systemBlue
+        }
+    }
+}
+
+// MARK: - Indicator Mode
+
 /// Display mode for the floating indicator
 enum IndicatorMode {
     case errors([GrammarErrorModel])
@@ -69,8 +339,17 @@ class FloatingErrorIndicator: NSPanel {
     /// Application context
     private var context: ApplicationContext?
 
-    /// Custom view for drawing the indicator
+    /// Custom view for drawing the circular indicator (grammar-only mode)
     private var indicatorView: IndicatorView?
+
+    /// Custom view for drawing the capsule indicator (grammar + style mode)
+    private var capsuleIndicatorView: CapsuleIndicatorView?
+
+    /// State manager for capsule indicator sections
+    private let capsuleStateManager = CapsuleStateManager()
+
+    /// Current indicator shape
+    private var currentShape: IndicatorShape = .circle
 
     /// Border guide window for drag feedback
     private let borderGuide = BorderGuideWindow()
@@ -78,10 +357,14 @@ class FloatingErrorIndicator: NSPanel {
     /// Cancellables for Combine subscriptions
     private var cancellables = Set<AnyCancellable>()
 
+    /// Callback to request style analysis from AnalysisCoordinator
+    var onRequestStyleCheck: (() -> Void)?
+
     // MARK: - Initialization
 
     private init() {
-        let initialFrame = NSRect(x: 0, y: 0, width: 40, height: 40)
+        let size = UIConstants.indicatorSize
+        let initialFrame = NSRect(x: 0, y: 0, width: size, height: size)
 
         super.init(
             contentRect: initialFrame,
@@ -209,6 +492,416 @@ class FloatingErrorIndicator: NSPanel {
                 }
             }
             .store(in: &cancellables)
+
+        // Observe global pause state changes to hide indicator when globally paused
+        UserPreferences.shared.$pauseDuration
+            .dropFirst()  // Skip initial value
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newDuration in
+                guard let self = self else { return }
+
+                if newDuration == .indefinite {
+                    Logger.debug("FloatingErrorIndicator: Global pause set to indefinite - hiding indicator", category: Logger.ui)
+                    self.hide()
+                    SuggestionPopover.shared.hide()
+                }
+            }
+            .store(in: &cancellables)
+
+        // Observe style checking preference changes to switch indicator shape
+        UserPreferences.shared.$enableStyleChecking
+            .dropFirst()  // Skip initial value
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] enableStyleChecking in
+                guard let self = self else { return }
+
+                let newShape: IndicatorShape = enableStyleChecking ? .capsule : .circle
+                if newShape != self.currentShape {
+                    Logger.debug("FloatingErrorIndicator: Style checking changed to \(enableStyleChecking) - transitioning to \(newShape)", category: Logger.ui)
+                    self.transitionToShape(newShape)
+                }
+            }
+            .store(in: &cancellables)
+    }
+
+    // MARK: - Shape Transition
+
+    /// Transition to the specified indicator shape
+    private func transitionToShape(_ shape: IndicatorShape) {
+        guard shape != currentShape else { return }
+
+        Logger.debug("FloatingErrorIndicator: Transitioning from \(currentShape) to \(shape)", category: Logger.ui)
+
+        // Hide popover during transition
+        SuggestionPopover.shared.hide()
+
+        // Remove current view
+        indicatorView?.removeFromSuperview()
+        capsuleIndicatorView?.removeFromSuperview()
+
+        currentShape = shape
+
+        // Create and setup new view
+        switch shape {
+        case .circle:
+            setupCircularIndicator()
+        case .capsule:
+            setupCapsuleIndicator()
+        }
+
+        // Resize window for new shape
+        resizeWindowForCurrentShape()
+
+        // Reposition if visible
+        if isVisible, let element = monitoredElement {
+            positionIndicator(for: element)
+        }
+    }
+
+    /// Setup the circular indicator view
+    private func setupCircularIndicator() {
+        let size = UIConstants.indicatorSize
+        let frame = NSRect(x: 0, y: 0, width: size, height: size)
+
+        let view = IndicatorView(frame: frame)
+        view.onClicked = { [weak self] in
+            self?.togglePopover()
+        }
+        view.onHover = { [weak self] isHovering in
+            guard UserPreferences.shared.enableHoverPopover else { return }
+            if isHovering {
+                self?.showErrors()
+            } else {
+                SuggestionPopover.shared.scheduleHide()
+            }
+        }
+        view.onDragStart = { [weak self] in
+            self?.handleDragStart()
+        }
+        view.onDragEnd = { [weak self] finalPosition in
+            self?.handleDragEndWithPosition(finalPosition)
+        }
+        view.onRightClicked = { [weak self] event in
+            self?.showContextMenu(with: event)
+        }
+
+        self.indicatorView = view
+        self.contentView = view
+        self.capsuleIndicatorView = nil
+    }
+
+    /// Setup the capsule indicator view
+    private func setupCapsuleIndicator() {
+        let width = capsuleStateManager.capsuleWidth
+        let height = capsuleStateManager.capsuleHeight
+
+        let frame = NSRect(x: 0, y: 0, width: width, height: height)
+
+        let view = CapsuleIndicatorView(frame: frame)
+        view.orientation = capsuleStateManager.capsuleOrientation
+        view.onSectionClicked = { [weak self] sectionType in
+            self?.handleSectionClicked(sectionType)
+        }
+        view.onHover = { [weak self] sectionType in
+            guard UserPreferences.shared.enableHoverPopover else { return }
+            if let section = sectionType {
+                self?.showSectionPopover(section)
+            } else {
+                // Hide both popovers when hover ends
+                SuggestionPopover.shared.scheduleHide()
+                TextGenerationPopover.shared.scheduleHide()
+            }
+        }
+        view.onDragStart = { [weak self] in
+            self?.handleDragStart()
+        }
+        view.onDragMove = { [weak self] currentPosition in
+            self?.handleDragMove(at: currentPosition)
+        }
+        view.onDragEnd = { [weak self] finalPosition in
+            self?.handleDragEndWithPosition(finalPosition)
+        }
+        view.onRightClicked = { [weak self] event in
+            self?.showContextMenu(with: event)
+        }
+
+        // Set initial sections
+        updateCapsuleSections()
+        view.sections = capsuleStateManager.visibleSections
+
+        self.capsuleIndicatorView = view
+        self.contentView = view
+        self.indicatorView = nil
+    }
+
+    /// Resize the window for the current shape
+    private func resizeWindowForCurrentShape() {
+        let newSize: NSSize
+        switch currentShape {
+        case .circle:
+            newSize = NSSize(width: UIConstants.indicatorSize, height: UIConstants.indicatorSize)
+        case .capsule:
+            let width = capsuleStateManager.capsuleWidth
+            let height = capsuleStateManager.capsuleHeight
+            newSize = NSSize(width: width, height: height)
+            // Update orientation on the view
+            capsuleIndicatorView?.orientation = capsuleStateManager.capsuleOrientation
+        }
+
+        var newFrame = frame
+        newFrame.size = newSize
+        setFrame(newFrame, display: true)
+    }
+
+    /// Handle drag start (shared between circular and capsule)
+    private func handleDragStart() {
+        Logger.debug("onDragStart triggered!", category: Logger.ui)
+
+        SuggestionPopover.shared.hide()
+
+        // Enlarge indicator to show it's being dragged
+        // Use the VIEW's current orientation, not preference-based dimensions
+        let currentFrame = self.frame
+        let normalWidth: CGFloat
+        let normalHeight: CGFloat
+
+        if currentShape == .circle {
+            normalWidth = UIConstants.indicatorSize
+            normalHeight = UIConstants.indicatorSize
+        } else if let viewOrientation = capsuleIndicatorView?.orientation {
+            let sectionCount = CGFloat(max(capsuleStateManager.visibleSections.count, 1))
+            switch viewOrientation {
+            case .vertical:
+                normalWidth = UIConstants.capsuleWidth
+                normalHeight = sectionCount * UIConstants.capsuleSectionHeight
+            case .horizontal:
+                normalWidth = sectionCount * UIConstants.capsuleSectionHeight
+                normalHeight = UIConstants.capsuleSectionHeight
+            }
+        } else {
+            normalWidth = UIConstants.indicatorSize
+            normalHeight = UIConstants.indicatorSize
+        }
+
+        let enlargeAmount: CGFloat = 5.0  // Enlarge by 5pt in each dimension
+
+        // Adjust origin to keep indicator centered while enlarging
+        let newFrame = NSRect(
+            x: currentFrame.origin.x - enlargeAmount / 2,
+            y: currentFrame.origin.y - enlargeAmount / 2,
+            width: normalWidth + enlargeAmount,
+            height: normalHeight + enlargeAmount
+        )
+        self.setFrame(newFrame, display: true)
+
+        self.alphaValue = 0.85
+        self.orderFrontRegardless()
+        self.level = .popUpMenu + 2
+
+        if let element = self.monitoredElement,
+           let windowFrame = self.getVisibleWindowFrame(for: element) {
+            self.borderGuide.showBorder(around: windowFrame)
+        }
+    }
+
+    /// Handle drag movement - orientation is determined at drag end, not during drag
+    /// This avoids visual glitches from orientation/size mismatches during movement
+    private func handleDragMove(at currentPosition: CGPoint) {
+        // Intentionally empty - orientation change happens at drag end in handleDragEnd
+        // This callback exists for future use if needed (e.g., edge proximity feedback)
+    }
+
+    /// Handle drag end (shared between circular and capsule)
+    private func handleDragEndWithPosition(_ finalPosition: CGPoint) {
+        // Restore visual state
+        self.alphaValue = 1.0
+        self.level = .popUpMenu + 1
+        self.borderGuide.hide()
+
+        // Use the drop position directly (finalPosition is the frame origin during drag)
+        // This preserves the edge position where the user dropped the indicator
+        let dropX = finalPosition.x
+        let dropY = finalPosition.y
+
+        // For capsules, determine final orientation FIRST based on drop position relative to monitored window
+        if currentShape == .capsule,
+           let element = monitoredElement,
+           let windowFrame = getVisibleWindowFrame(for: element) {
+            // Use center of current frame for orientation calculation
+            let centerX = dropX + frame.width / 2
+            let centerY = dropY + frame.height / 2
+            let xPercent = (centerX - windowFrame.minX) / windowFrame.width
+            let yPercent = (centerY - windowFrame.minY) / windowFrame.height
+            let percentPos = IndicatorPositionStore.PercentagePosition(xPercent: xPercent, yPercent: yPercent)
+            let targetOrientation = CapsuleStateManager.orientationFromPercentagePosition(percentPos)
+
+            Logger.debug("FloatingErrorIndicator: Drop position x=\(xPercent), y=\(yPercent) → orientation=\(targetOrientation)", category: Logger.ui)
+
+            // Update orientation on view BEFORE calculating dimensions
+            capsuleIndicatorView?.orientation = targetOrientation
+        }
+
+        // Now calculate dimensions based on the FINAL orientation
+        let normalWidth: CGFloat
+        let normalHeight: CGFloat
+
+        if currentShape == .circle {
+            normalWidth = UIConstants.indicatorSize
+            normalHeight = UIConstants.indicatorSize
+        } else if let viewOrientation = capsuleIndicatorView?.orientation {
+            let sectionCount = CGFloat(max(capsuleStateManager.visibleSections.count, 1))
+            switch viewOrientation {
+            case .vertical:
+                normalWidth = UIConstants.capsuleWidth
+                normalHeight = sectionCount * UIConstants.capsuleSectionHeight
+            case .horizontal:
+                normalWidth = sectionCount * UIConstants.capsuleSectionHeight
+                normalHeight = UIConstants.capsuleSectionHeight
+            }
+        } else {
+            normalWidth = UIConstants.indicatorSize
+            normalHeight = UIConstants.indicatorSize
+        }
+
+        // Calculate size delta from enlarged drag frame to normal size
+        let sizeDeltaX = frame.width - normalWidth
+        let sizeDeltaY = frame.height - normalHeight
+
+        // Position frame at drop location, adjusting for size change to keep center stable
+        let newFrame = NSRect(
+            x: dropX + sizeDeltaX / 2,
+            y: dropY + sizeDeltaY / 2,
+            width: normalWidth,
+            height: normalHeight
+        )
+        self.setFrame(newFrame, display: true)
+
+        // Handle snap positioning and save (no more orientation changes here)
+        self.handleDragEnd(at: newFrame.origin)
+    }
+
+    /// Update capsule sections based on current errors and style suggestions
+    private func updateCapsuleSections() {
+        capsuleStateManager.updateGrammar(errors: errors)
+        capsuleStateManager.updateStyle(suggestions: styleSuggestions, isLoading: false)
+        capsuleStateManager.updateTextGeneration(isGenerating: false)
+    }
+
+    /// Handle section click in capsule mode
+    private func handleSectionClicked(_ sectionType: CapsuleSectionType) {
+        Logger.debug("FloatingErrorIndicator: Section clicked: \(sectionType)", category: Logger.ui)
+
+        switch sectionType {
+        case .grammar:
+            showGrammarPopover()
+        case .style:
+            showStylePopover()
+        case .textGeneration:
+            showTextGenerationPopover()
+        }
+    }
+
+    /// Show popover for specific section
+    private func showSectionPopover(_ sectionType: CapsuleSectionType) {
+        switch sectionType {
+        case .grammar:
+            showGrammarPopover()
+        case .style:
+            showStylePopover()
+        case .textGeneration:
+            showTextGenerationPopover()
+        }
+    }
+
+    /// Show grammar-only popover
+    private func showGrammarPopover() {
+        Logger.debug("FloatingErrorIndicator: showGrammarPopover - errors=\(errors.count)", category: Logger.ui)
+
+        // Close other popovers first
+        TextGenerationPopover.shared.hide()
+
+        let indicatorFrame = frame
+        let anchor = calculatePopoverAnchor(for: indicatorFrame)
+        let windowFrame: CGRect? = monitoredElement.flatMap { getVisibleWindowFrame(for: $0) }
+
+        SuggestionPopover.shared.showUnified(
+            errors: errors,
+            styleSuggestions: [],  // Grammar only
+            at: anchor.anchorPoint,
+            openDirection: anchor.edge,
+            constrainToWindow: windowFrame,
+            sourceText: sourceText
+        )
+    }
+
+    /// Show style-only popover, or trigger style check if no suggestions yet
+    private func showStylePopover() {
+        Logger.debug("FloatingErrorIndicator: showStylePopover - styleSuggestions=\(styleSuggestions.count)", category: Logger.ui)
+
+        // Close other popovers first
+        TextGenerationPopover.shared.hide()
+
+        // If no style suggestions yet and not currently loading, trigger a style check
+        if styleSuggestions.isEmpty && capsuleStateManager.styleState.displayState != .styleLoading {
+            Logger.debug("FloatingErrorIndicator: No style suggestions, requesting style check", category: Logger.ui)
+            setStyleLoading(true)
+            onRequestStyleCheck?()
+            return
+        }
+
+        // Show popover with existing suggestions (or empty if still loading)
+        let indicatorFrame = frame
+        let anchor = calculatePopoverAnchor(for: indicatorFrame)
+        let windowFrame: CGRect? = monitoredElement.flatMap { getVisibleWindowFrame(for: $0) }
+
+        SuggestionPopover.shared.showUnified(
+            errors: [],  // Style only
+            styleSuggestions: styleSuggestions,
+            at: anchor.anchorPoint,
+            openDirection: anchor.edge,
+            constrainToWindow: windowFrame,
+            sourceText: sourceText
+        )
+    }
+
+    /// Set style section loading state
+    func setStyleLoading(_ loading: Bool) {
+        Logger.debug("FloatingErrorIndicator: setStyleLoading(\(loading)), capsuleIndicatorView=\(capsuleIndicatorView != nil)", category: Logger.ui)
+        if loading {
+            capsuleStateManager.styleState.displayState = .styleLoading
+            capsuleStateManager.styleState.ringColor = .purple
+        } else if styleSuggestions.isEmpty {
+            capsuleStateManager.styleState.displayState = .styleIdle
+            capsuleStateManager.styleState.ringColor = .purple
+        } else {
+            capsuleStateManager.styleState.displayState = .styleCount(styleSuggestions.count)
+            capsuleStateManager.styleState.ringColor = .purple
+        }
+        let visibleSections = capsuleStateManager.visibleSections
+        Logger.debug("FloatingErrorIndicator: Updating capsule with \(visibleSections.count) sections, styleState=\(capsuleStateManager.styleState.displayState)", category: Logger.ui)
+        capsuleIndicatorView?.sections = visibleSections
+        capsuleIndicatorView?.needsDisplay = true
+    }
+
+    /// Callback to get generation context from AnalysisCoordinator
+    var onRequestGenerationContext: (() -> GenerationContext)?
+
+    /// Show text generation popover
+    private func showTextGenerationPopover() {
+        Logger.debug("FloatingErrorIndicator: Showing text generation popover", category: Logger.ui)
+
+        // Close other popovers first
+        SuggestionPopover.shared.hide()
+
+        // Get context from AnalysisCoordinator
+        let context = onRequestGenerationContext?() ?? .empty
+
+        // Calculate popover position (same logic as grammar/style popovers)
+        let indicatorFrame = frame
+        let anchor = calculatePopoverAnchor(for: indicatorFrame)
+
+        // Show the popover with explicit direction
+        TextGenerationPopover.shared.show(at: anchor.anchorPoint, direction: anchor.edge, context: context)
     }
 
     // MARK: - Public API
@@ -222,6 +915,12 @@ class FloatingErrorIndicator: NSPanel {
         sourceText: String = ""
     ) {
         Logger.debug("FloatingErrorIndicator: update() called with \(errors.count) errors, \(styleSuggestions.count) style suggestions", category: Logger.ui)
+
+        // Skip showing indicator when globally paused indefinitely
+        if UserPreferences.shared.pauseDuration == .indefinite {
+            Logger.debug("FloatingErrorIndicator: Skipping - globally paused indefinitely", category: Logger.ui)
+            return
+        }
 
         // CRITICAL: Check watchdog BEFORE making any AX calls
         // Skip positioning if the app is blacklisted (AX API unresponsive)
@@ -253,17 +952,31 @@ class FloatingErrorIndicator: NSPanel {
             return
         }
 
-        // Configure indicator view based on mode
-        if mode.hasStyleSuggestions && !mode.hasErrors {
-            // Style suggestions only - show count with purple ring (same as grammar errors)
-            indicatorView?.displayMode = .count(styleSuggestions.count)
-            indicatorView?.ringColor = .purple
-        } else if mode.hasErrors {
-            // Errors present (possibly with style suggestions) - show error count
-            indicatorView?.displayMode = .count(errors.count)
-            indicatorView?.ringColor = colorForErrors(errors)
+        // Ensure correct shape is active
+        let expectedShape: IndicatorShape = UserPreferences.shared.enableStyleChecking ? .capsule : .circle
+        if currentShape != expectedShape {
+            transitionToShape(expectedShape)
         }
-        indicatorView?.needsDisplay = true
+
+        // Configure indicator view based on mode and shape
+        if currentShape == .capsule {
+            // Capsule mode - update sections
+            updateCapsuleSections()
+            capsuleIndicatorView?.sections = capsuleStateManager.visibleSections
+            capsuleIndicatorView?.needsDisplay = true
+        } else {
+            // Circular mode
+            if mode.hasStyleSuggestions && !mode.hasErrors {
+                // Style suggestions only - show count with purple ring (same as grammar errors)
+                indicatorView?.displayMode = .count(styleSuggestions.count)
+                indicatorView?.ringColor = .purple
+            } else if mode.hasErrors {
+                // Errors present (possibly with style suggestions) - show error count
+                indicatorView?.displayMode = .count(errors.count)
+                indicatorView?.ringColor = colorForErrors(errors)
+            }
+            indicatorView?.needsDisplay = true
+        }
 
         // Position in bottom-right of text field
         positionIndicator(for: element)
@@ -287,6 +1000,13 @@ class FloatingErrorIndicator: NSPanel {
         sourceText: String = ""
     ) {
         Logger.debug("FloatingErrorIndicator: updateWithContext() called with \(errors.count) errors, \(styleSuggestions.count) style suggestions", category: Logger.ui)
+
+        // Skip showing indicator when globally paused indefinitely
+        if UserPreferences.shared.pauseDuration == .indefinite {
+            Logger.debug("FloatingErrorIndicator: Skipping - globally paused indefinitely", category: Logger.ui)
+            return
+        }
+
         self.errors = errors
         self.styleSuggestions = styleSuggestions
         self.context = context
@@ -342,8 +1062,6 @@ class FloatingErrorIndicator: NSPanel {
 
         Logger.debug("FloatingErrorIndicator: Using visible window frame (by PID): \(visibleFrame)", category: Logger.ui)
 
-        let indicatorSize: CGFloat = UIConstants.indicatorSize
-
         // Check for per-app stored position first
         var percentagePos: IndicatorPositionStore.PercentagePosition?
         if let bundleID = context?.bundleIdentifier {
@@ -362,9 +1080,32 @@ class FloatingErrorIndicator: NSPanel {
             Logger.debug("FloatingErrorIndicator: Using default position from preferences", category: Logger.ui)
         }
 
-        // Convert percentage to absolute position
-        let position = resolvedPosition.toAbsolute(in: visibleFrame, indicatorSize: indicatorSize)
-        let finalFrame = NSRect(x: position.x, y: position.y, width: indicatorSize, height: indicatorSize)
+        // Calculate dimensions based on shape and ACTUAL position-based orientation
+        let indicatorWidth: CGFloat
+        let indicatorHeight: CGFloat
+
+        if currentShape == .capsule {
+            // Determine orientation from actual stored/resolved position
+            let orientation = CapsuleStateManager.orientationFromPercentagePosition(resolvedPosition)
+            capsuleIndicatorView?.orientation = orientation
+
+            let sectionCount = CGFloat(max(capsuleStateManager.visibleSections.count, 1))
+            switch orientation {
+            case .vertical:
+                indicatorWidth = UIConstants.capsuleWidth
+                indicatorHeight = sectionCount * UIConstants.capsuleSectionHeight
+            case .horizontal:
+                indicatorWidth = sectionCount * UIConstants.capsuleSectionHeight
+                indicatorHeight = UIConstants.capsuleSectionHeight
+            }
+        } else {
+            indicatorWidth = UIConstants.indicatorSize
+            indicatorHeight = UIConstants.indicatorSize
+        }
+
+        // Convert percentage to absolute position (use width for X, height for Y)
+        let position = resolvedPosition.toAbsolute(in: visibleFrame, width: indicatorWidth, height: indicatorHeight)
+        let finalFrame = NSRect(x: position.x, y: position.y, width: indicatorWidth, height: indicatorHeight)
 
         Logger.debug("FloatingErrorIndicator: Positioning at \(finalFrame)", category: Logger.ui)
         setFrame(finalFrame, display: true)
@@ -428,13 +1169,34 @@ class FloatingErrorIndicator: NSPanel {
     /// Show spinning indicator for style check in progress
     func showStyleCheckInProgress(element: AXUIElement, context: ApplicationContext?) {
         Logger.debug("FloatingErrorIndicator: showStyleCheckInProgress()", category: Logger.ui)
+
+        // Skip showing indicator when globally paused indefinitely
+        if UserPreferences.shared.pauseDuration == .indefinite {
+            Logger.debug("FloatingErrorIndicator: Skipping - globally paused indefinitely", category: Logger.ui)
+            return
+        }
+
         self.monitoredElement = element
         self.context = context
 
-        // Show spinning indicator with purple ring
-        indicatorView?.displayMode = .spinning
-        indicatorView?.ringColor = .purple
-        indicatorView?.needsDisplay = true
+        // Ensure correct shape is active
+        let expectedShape: IndicatorShape = UserPreferences.shared.enableStyleChecking ? .capsule : .circle
+        if currentShape != expectedShape {
+            transitionToShape(expectedShape)
+        }
+
+        if currentShape == .capsule {
+            // Capsule mode - update style section to show loading
+            capsuleStateManager.updateStyle(suggestions: [], isLoading: true)
+            capsuleStateManager.updateTextGeneration(isGenerating: false)
+            capsuleIndicatorView?.sections = capsuleStateManager.visibleSections
+            capsuleIndicatorView?.needsDisplay = true
+        } else {
+            // Circular mode - show spinning indicator
+            indicatorView?.displayMode = .spinning
+            indicatorView?.ringColor = .purple
+            indicatorView?.needsDisplay = true
+        }
 
         // Position indicator
         positionIndicator(for: element)
@@ -457,6 +1219,11 @@ class FloatingErrorIndicator: NSPanel {
             self.mode = .styleSuggestions(styleSuggestions)
         }
         // If count == 0, mode will be updated in showStyleCheckComplete
+
+        // Update capsule state to clear loading indicator
+        if currentShape == .capsule {
+            setStyleLoading(false)
+        }
 
         // Always show checkmark first to confirm completion
         showStyleCheckComplete(thenShowCount: count)
@@ -531,50 +1298,72 @@ class FloatingErrorIndicator: NSPanel {
             return
         }
 
-        let indicatorSize: CGFloat = UIConstants.indicatorSize
+        // Calculate actual indicator dimensions based on shape and orientation
+        let indicatorWidth: CGFloat
+        let indicatorHeight: CGFloat
+
+        if currentShape == .circle {
+            indicatorWidth = UIConstants.indicatorSize
+            indicatorHeight = UIConstants.indicatorSize
+        } else if let viewOrientation = capsuleIndicatorView?.orientation {
+            let sectionCount = CGFloat(max(capsuleStateManager.visibleSections.count, 1))
+            switch viewOrientation {
+            case .vertical:
+                indicatorWidth = UIConstants.capsuleWidth
+                indicatorHeight = sectionCount * UIConstants.capsuleSectionHeight
+            case .horizontal:
+                indicatorWidth = sectionCount * UIConstants.capsuleSectionHeight
+                indicatorHeight = UIConstants.capsuleSectionHeight
+            }
+        } else {
+            indicatorWidth = UIConstants.indicatorSize
+            indicatorHeight = UIConstants.indicatorSize
+        }
 
         // Snap position to valid border area
         let snappedPosition = snapToBorderArea(
             position: finalPosition,
             windowFrame: windowFrame,
-            indicatorSize: indicatorSize
+            indicatorWidth: indicatorWidth,
+            indicatorHeight: indicatorHeight
         )
 
-        // Update the indicator position if it was snapped
-        if snappedPosition != finalPosition {
-            Logger.debug("FloatingErrorIndicator: Snapping from \(finalPosition) to \(snappedPosition)", category: Logger.ui)
-            let snappedFrame = NSRect(x: snappedPosition.x, y: snappedPosition.y, width: indicatorSize, height: indicatorSize)
-            setFrame(snappedFrame, display: true, animate: true)
-        }
-
-        // Convert absolute position to percentage
+        // Convert absolute position to percentage (use width for X, height for Y)
         let percentagePos = IndicatorPositionStore.PercentagePosition.from(
             absolutePosition: snappedPosition,
             in: windowFrame,
-            indicatorSize: indicatorSize
+            width: indicatorWidth,
+            height: indicatorHeight
         )
 
         // Save position for this application
         IndicatorPositionStore.shared.savePosition(percentagePos, for: bundleID)
 
         Logger.debug("FloatingErrorIndicator: Saved position for \(bundleID) at x=\(percentagePos.xPercent), y=\(percentagePos.yPercent)", category: Logger.ui)
+
+        // Apply snapped position if different from original
+        if snappedPosition != finalPosition {
+            Logger.debug("FloatingErrorIndicator: Snapping from \(finalPosition) to \(snappedPosition)", category: Logger.ui)
+            let snappedFrame = NSRect(x: snappedPosition.x, y: snappedPosition.y, width: indicatorWidth, height: indicatorHeight)
+            setFrame(snappedFrame, display: true, animate: true)
+        }
     }
 
     /// Snap a position to the valid border area (1.5cm band around window edge)
     /// If the position is outside the window or in the center, snaps to closest valid position
-    private func snapToBorderArea(position: CGPoint, windowFrame: CGRect, indicatorSize: CGFloat) -> CGPoint {
+    private func snapToBorderArea(position: CGPoint, windowFrame: CGRect, indicatorWidth: CGFloat, indicatorHeight: CGFloat) -> CGPoint {
         let borderWidth = BorderGuideWindow.borderWidth
 
-        // First, clamp position to be within the window bounds
-        var snappedX = max(windowFrame.minX, min(position.x, windowFrame.maxX - indicatorSize))
-        var snappedY = max(windowFrame.minY, min(position.y, windowFrame.maxY - indicatorSize))
+        // First, clamp position to be within the window bounds (use actual width for X, height for Y)
+        var snappedX = max(windowFrame.minX, min(position.x, windowFrame.maxX - indicatorWidth))
+        var snappedY = max(windowFrame.minY, min(position.y, windowFrame.maxY - indicatorHeight))
 
         // Define the valid border area (within borderWidth of any edge)
         let innerRect = windowFrame.insetBy(dx: borderWidth, dy: borderWidth)
 
         // Check if the indicator center is in the "forbidden" center zone
-        let indicatorCenterX = snappedX + indicatorSize / 2
-        let indicatorCenterY = snappedY + indicatorSize / 2
+        let indicatorCenterX = snappedX + indicatorWidth / 2
+        let indicatorCenterY = snappedY + indicatorHeight / 2
 
         // If the indicator is fully within the inner (forbidden) zone, snap to closest edge
         if innerRect.contains(CGPoint(x: indicatorCenterX, y: indicatorCenterY)) {
@@ -586,23 +1375,19 @@ class FloatingErrorIndicator: NSPanel {
 
             let minDist = min(distToLeft, distToRight, distToBottom, distToTop)
 
-            // Snap to the closest edge
+            // Snap to the closest edge (use correct dimension for each edge)
             if minDist == distToLeft {
                 snappedX = windowFrame.minX
             } else if minDist == distToRight {
-                snappedX = windowFrame.maxX - indicatorSize
+                snappedX = windowFrame.maxX - indicatorWidth
             } else if minDist == distToBottom {
                 snappedY = windowFrame.minY
             } else {
-                snappedY = windowFrame.maxY - indicatorSize
+                snappedY = windowFrame.maxY - indicatorHeight
             }
 
             Logger.debug("FloatingErrorIndicator: Snapped to closest edge (minDist=\(minDist))", category: Logger.ui)
         }
-
-        // Ensure the final position keeps the indicator within the border area
-        // The indicator can be anywhere in the border band, not just on the edge
-        // But it must have at least part of it within borderWidth of an edge
 
         return CGPoint(x: snappedX, y: snappedY)
     }
@@ -617,8 +1402,6 @@ class FloatingErrorIndicator: NSPanel {
         }
 
         Logger.debug("FloatingErrorIndicator: Using visible window frame: \(visibleFrame)", category: Logger.ui)
-
-        let indicatorSize: CGFloat = UIConstants.indicatorSize
 
         // Check for per-app stored position first
         var percentagePos: IndicatorPositionStore.PercentagePosition?
@@ -638,9 +1421,32 @@ class FloatingErrorIndicator: NSPanel {
             Logger.debug("FloatingErrorIndicator: Using default position from preferences", category: Logger.ui)
         }
 
-        // Convert percentage to absolute position
-        let position = resolvedPosition.toAbsolute(in: visibleFrame, indicatorSize: indicatorSize)
-        let finalFrame = NSRect(x: position.x, y: position.y, width: indicatorSize, height: indicatorSize)
+        // Calculate dimensions based on shape and ACTUAL position-based orientation
+        let indicatorWidth: CGFloat
+        let indicatorHeight: CGFloat
+
+        if currentShape == .capsule {
+            // Determine orientation from actual stored/resolved position
+            let orientation = CapsuleStateManager.orientationFromPercentagePosition(resolvedPosition)
+            capsuleIndicatorView?.orientation = orientation
+
+            let sectionCount = CGFloat(max(capsuleStateManager.visibleSections.count, 1))
+            switch orientation {
+            case .vertical:
+                indicatorWidth = UIConstants.capsuleWidth
+                indicatorHeight = sectionCount * UIConstants.capsuleSectionHeight
+            case .horizontal:
+                indicatorWidth = sectionCount * UIConstants.capsuleSectionHeight
+                indicatorHeight = UIConstants.capsuleSectionHeight
+            }
+        } else {
+            indicatorWidth = UIConstants.indicatorSize
+            indicatorHeight = UIConstants.indicatorSize
+        }
+
+        // Convert percentage to absolute position (use width for X, height for Y)
+        let position = resolvedPosition.toAbsolute(in: visibleFrame, width: indicatorWidth, height: indicatorHeight)
+        let finalFrame = NSRect(x: position.x, y: position.y, width: indicatorWidth, height: indicatorHeight)
 
         Logger.debug("FloatingErrorIndicator: Positioning at \(finalFrame)", category: Logger.ui)
         setFrame(finalFrame, display: true)
@@ -905,38 +1711,82 @@ class FloatingErrorIndicator: NSPanel {
         )
     }
 
-    /// Calculate popover position that points inward from the indicator
-    private func calculatePopoverPosition(for indicatorFrame: CGRect) -> CGPoint {
-        let indicatorPosition = UserPreferences.shared.indicatorPosition
-        // Use larger spacing for left positions (to overcome popover's auto-positioning logic)
-        // Use smaller spacing for right positions to match visual gap
-        let leftSpacing: CGFloat = UIConstants.popoverLeftSpacing
-        let rightSpacing: CGFloat = UIConstants.popoverRightSpacing
+    /// Popover anchor information for consistent positioning
+    struct PopoverAnchor {
+        let anchorPoint: CGPoint  // The edge point of the indicator where popover should align
+        let edge: PopoverOpenDirection  // Which edge of the indicator the popover opens from
+    }
 
-        // For indicator-triggered popover, position anchor closer to get popover near indicator
-        // The SuggestionPopover will center horizontally and add vertical spacing
-        switch indicatorPosition {
-        case "Top Left":
-            // Indicator at top-left → popover below-right of indicator
-            return CGPoint(x: indicatorFrame.maxX + leftSpacing, y: indicatorFrame.minY)
-        case "Top Right":
-            // Indicator at top-right → popover below-left of indicator
-            return CGPoint(x: indicatorFrame.minX - rightSpacing, y: indicatorFrame.minY)
-        case "Center Left":
-            // Indicator at center-left → popover to the right, vertically centered
-            return CGPoint(x: indicatorFrame.maxX + leftSpacing, y: indicatorFrame.midY + 75)
-        case "Center Right":
-            // Indicator at center-right → popover to the left, vertically centered
-            return CGPoint(x: indicatorFrame.minX - rightSpacing, y: indicatorFrame.midY + 75)
-        case "Bottom Left":
-            // Indicator at bottom-left → popover above-right of indicator
-            return CGPoint(x: indicatorFrame.maxX + leftSpacing, y: indicatorFrame.maxY + 150)
-        case "Bottom Right":
-            // Indicator at bottom-right → popover above-left of indicator
-            return CGPoint(x: indicatorFrame.minX - rightSpacing, y: indicatorFrame.maxY + 150)
-        default:
-            return CGPoint(x: indicatorFrame.midX, y: indicatorFrame.maxY + 10)
+    /// Calculate popover anchor point and edge for consistent positioning
+    /// Uses the stored percentage position to determine which edge the indicator is on (same as CapsuleStateManager)
+    private func calculatePopoverAnchor(for indicatorFrame: CGRect) -> PopoverAnchor {
+        // Get stored percentage position for current app
+        let pos: IndicatorPositionStore.PercentagePosition
+        if let bundleID = context?.bundleIdentifier,
+           let storedPos = IndicatorPositionStore.shared.getPosition(for: bundleID) {
+            pos = storedPos
+        } else {
+            pos = IndicatorPositionStore.shared.getDefaultPosition()
         }
+
+        // Use same threshold as CapsuleStateManager for consistency
+        let sideEdgeThreshold: CGFloat = 0.15
+        let topBottomThreshold: CGFloat = 0.12
+
+        let isOnLeftEdge = pos.xPercent < sideEdgeThreshold
+        let isOnRightEdge = pos.xPercent > (1.0 - sideEdgeThreshold)
+        let isOnTopEdge = pos.yPercent > (1.0 - topBottomThreshold)
+        let isOnBottomEdge = pos.yPercent < topBottomThreshold
+
+        Logger.debug("calculatePopoverAnchor: x=\(pos.xPercent), y=\(pos.yPercent) → L=\(isOnLeftEdge), R=\(isOnRightEdge), T=\(isOnTopEdge), B=\(isOnBottomEdge)", category: Logger.ui)
+
+        // Return anchor point at the indicator edge where popover should open from
+        let spacing: CGFloat = 25  // Gap between indicator and popover
+
+        // Priority: right/left edges first (since vertical capsule), then top/bottom
+        if isOnRightEdge {
+            // Indicator on right edge → popover opens to the left
+            Logger.debug("calculatePopoverAnchor: isOnRightEdge → .left", category: Logger.ui)
+            return PopoverAnchor(
+                anchorPoint: CGPoint(x: indicatorFrame.minX - spacing, y: indicatorFrame.midY),
+                edge: .left
+            )
+        } else if isOnLeftEdge {
+            // Indicator on left edge → popover opens to the right
+            Logger.debug("calculatePopoverAnchor: isOnLeftEdge → .right", category: Logger.ui)
+            return PopoverAnchor(
+                anchorPoint: CGPoint(x: indicatorFrame.maxX + spacing, y: indicatorFrame.midY),
+                edge: .right
+            )
+        } else if isOnTopEdge {
+            // Indicator at top → popover opens below
+            Logger.debug("calculatePopoverAnchor: isOnTopEdge → .bottom", category: Logger.ui)
+            return PopoverAnchor(
+                anchorPoint: CGPoint(x: indicatorFrame.midX, y: indicatorFrame.minY - spacing),
+                edge: .bottom
+            )
+        } else if isOnBottomEdge {
+            // Indicator at bottom → popover opens above
+            Logger.debug("calculatePopoverAnchor: isOnBottomEdge → .top", category: Logger.ui)
+            return PopoverAnchor(
+                anchorPoint: CGPoint(x: indicatorFrame.midX, y: indicatorFrame.maxY + spacing),
+                edge: .top
+            )
+        } else {
+            // Default: popover opens to the left (most common for right-side indicator)
+            Logger.debug("calculatePopoverAnchor: no edge detected → default .left", category: Logger.ui)
+            return PopoverAnchor(
+                anchorPoint: CGPoint(x: indicatorFrame.minX - spacing, y: indicatorFrame.midY),
+                edge: .left
+            )
+        }
+    }
+
+    /// Legacy method for backward compatibility - converts anchor to center position
+    private func calculatePopoverPosition(for indicatorFrame: CGRect) -> CGPoint {
+        let anchor = calculatePopoverAnchor(for: indicatorFrame)
+        // Return anchor point - popovers will position themselves relative to this
+        return anchor.anchorPoint
     }
 
     // MARK: - Context Menu
@@ -969,10 +1819,16 @@ class FloatingErrorIndicator: NSPanel {
         preferencesItem.target = self
         menu.addItem(preferencesItem)
 
-        // Show menu at mouse location
-        guard let indicatorView = indicatorView else { return }
-        let locationInView = indicatorView.convert(event.locationInWindow, from: nil)
-        menu.popUp(positioning: nil, at: locationInView, in: indicatorView)
+        // Show menu at mouse location - use whichever view is active
+        let targetView: NSView?
+        if let capsuleView = capsuleIndicatorView {
+            targetView = capsuleView
+        } else {
+            targetView = indicatorView
+        }
+        guard let view = targetView else { return }
+        let locationInView = view.convert(event.locationInWindow, from: nil)
+        menu.popUp(positioning: nil, at: locationInView, in: view)
     }
 
     /// Add global pause menu items
@@ -1724,6 +2580,666 @@ private class IndicatorView: NSView {
         let trackingArea = NSTrackingArea(
             rect: bounds,
             options: [.mouseEnteredAndExited, .activeAlways],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(trackingArea)
+    }
+}
+
+// MARK: - Capsule Indicator View
+
+/// Custom view that draws a capsule-shaped indicator with multiple sections
+private class CapsuleIndicatorView: NSView {
+
+    // MARK: - Properties
+
+    var sections: [CapsuleSectionState] = [] {
+        didSet {
+            updateSpinningAnimation()
+            needsDisplay = true
+        }
+    }
+
+    var orientation: CapsuleOrientation = .vertical {
+        didSet {
+            needsDisplay = true
+        }
+    }
+
+    var onSectionClicked: ((CapsuleSectionType) -> Void)?
+    var onRightClicked: ((NSEvent) -> Void)?
+    var onHover: ((CapsuleSectionType?) -> Void)?
+    var onDragStart: (() -> Void)?
+    var onDragMove: ((CGPoint) -> Void)?
+    var onDragEnd: ((CGPoint) -> Void)?
+
+    private var hoveredSection: CapsuleSectionType?
+    private var hoverTimer: Timer?
+    private var isDragging = false
+    private var dragStartPoint: CGPoint = .zero
+    private var spinningTimer: Timer?
+    private var spinningAngle: CGFloat = 0
+    private var themeObserver: Any?
+
+    // MARK: - Initialization
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+
+        let trackingArea = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(trackingArea)
+
+        // Observe overlay theme changes to redraw
+        themeObserver = UserPreferences.shared.$overlayTheme
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.needsDisplay = true
+            }
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    deinit {
+        spinningTimer?.invalidate()
+        hoverTimer?.invalidate()
+        themeObserver = nil
+    }
+
+    // MARK: - Animation
+
+    private func updateSpinningAnimation() {
+        let hasSpinning = sections.contains { section in
+            if case .styleLoading = section.displayState { return true }
+            if case .textGenActive = section.displayState { return true }
+            return false
+        }
+
+        if hasSpinning {
+            startSpinning()
+        } else {
+            stopSpinning()
+        }
+    }
+
+    private func startSpinning() {
+        guard spinningTimer == nil else { return }
+        spinningTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.animationFrameInterval, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            self.spinningAngle -= 0.08
+            if self.spinningAngle <= -.pi * 2 {
+                self.spinningAngle = 0
+            }
+            self.needsDisplay = true
+        }
+    }
+
+    private func stopSpinning() {
+        spinningTimer?.invalidate()
+        spinningTimer = nil
+        spinningAngle = 0
+    }
+
+    // MARK: - Section Geometry
+
+    /// Get the frame for a section at the given index
+    func sectionFrame(at index: Int) -> CGRect {
+        let sectionSize = UIConstants.capsuleSectionHeight
+        let spacing = UIConstants.capsuleSectionSpacing
+
+        switch orientation {
+        case .vertical:
+            // Sections stacked from top to bottom
+            // In Cocoa coordinates, y=0 is at the bottom, so we need to calculate from top
+            let yFromTop = CGFloat(index) * (sectionSize + spacing)
+            let y = bounds.height - yFromTop - sectionSize
+            return CGRect(x: 0, y: y, width: bounds.width, height: sectionSize)
+
+        case .horizontal:
+            // Sections arranged from left to right
+            let x = CGFloat(index) * (sectionSize + spacing)
+            return CGRect(x: x, y: 0, width: sectionSize, height: bounds.height)
+        }
+    }
+
+    /// Determine which section is at the given point
+    func sectionAtPoint(_ point: CGPoint) -> CapsuleSectionType? {
+        for (index, section) in sections.enumerated() {
+            let frame = sectionFrame(at: index)
+            if frame.contains(point) {
+                return section.type
+            }
+        }
+        return nil
+    }
+
+    // MARK: - Drawing
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        guard !sections.isEmpty else { return }
+
+        let isDarkMode = determineDarkMode()
+
+        // Single section - draw as circle (like IndicatorView)
+        if sections.count == 1 {
+            drawCircularIndicator(isDarkMode: isDarkMode)
+            return
+        }
+
+        // Multiple sections - draw as capsule
+        drawCapsuleIndicator(isDarkMode: isDarkMode)
+    }
+
+    /// Draw circular indicator (same as IndicatorView)
+    private func drawCircularIndicator(isDarkMode: Bool) {
+        guard let section = sections.first else { return }
+
+        let backgroundRect = bounds.insetBy(dx: 5, dy: 5)
+        let backgroundPath = NSBezierPath(ovalIn: backgroundRect)
+
+        // Draw shadow
+        drawShadow(path: backgroundPath, isDarkMode: isDarkMode)
+
+        // Draw glass background
+        drawGlassBackground(path: backgroundPath, rect: backgroundRect, isDarkMode: isDarkMode)
+
+        // Draw ring
+        if case .styleLoading = section.displayState {
+            drawSpinningRing(rect: backgroundRect, color: section.ringColor, isDarkMode: isDarkMode)
+        } else {
+            drawRing(rect: backgroundRect, color: section.ringColor, isHovered: section.isHovered)
+        }
+
+        // Draw content
+        drawSectionContent(section, in: backgroundRect, isDarkMode: isDarkMode)
+    }
+
+    /// Draw capsule-shaped indicator with multiple sections - unified elegant design
+    private func drawCapsuleIndicator(isDarkMode: Bool) {
+        let cornerRadius = UIConstants.capsuleCornerRadius
+        let capsuleRect = bounds.insetBy(dx: 2, dy: 2)
+        let capsulePath = NSBezierPath(roundedRect: capsuleRect, xRadius: cornerRadius, yRadius: cornerRadius)
+
+        // Draw shadow for entire capsule
+        drawShadow(path: capsulePath, isDarkMode: isDarkMode)
+
+        // Draw unified glass background
+        NSGraphicsContext.saveGraphicsState()
+        capsulePath.addClip()
+
+        let glassBaseColor = isDarkMode
+            ? NSColor(white: 0.15, alpha: 1.0)
+            : NSColor(white: 0.97, alpha: 1.0)
+        glassBaseColor.setFill()
+        NSBezierPath.fill(capsuleRect)
+
+        // Subtle top highlight for depth
+        let highlightGradient = NSGradient(colors: [
+            NSColor.white.withAlphaComponent(isDarkMode ? 0.12 : 0.4),
+            NSColor.white.withAlphaComponent(0.0)
+        ])
+        highlightGradient?.draw(in: capsuleRect, angle: 90)
+
+        NSGraphicsContext.restoreGraphicsState()
+
+        // Draw subtle separator lines between sections
+        if sections.count > 1 {
+            let separatorColor = isDarkMode
+                ? NSColor.white.withAlphaComponent(0.15)
+                : NSColor.black.withAlphaComponent(0.1)
+            separatorColor.setStroke()
+
+            let sectionSize = UIConstants.capsuleSectionHeight
+            let spacing = UIConstants.capsuleSectionSpacing
+
+            // Draw a separator after each section except the last
+            for i in 0..<(sections.count - 1) {
+                let separatorPath = NSBezierPath()
+
+                switch orientation {
+                case .vertical:
+                    // Horizontal separator line between sections
+                    // Sections are drawn from top to bottom, so separator is below each section
+                    let yFromTop = CGFloat(i + 1) * (sectionSize + spacing) - spacing / 2
+                    let separatorY = capsuleRect.maxY - yFromTop
+                    separatorPath.move(to: CGPoint(x: capsuleRect.minX + 6, y: separatorY))
+                    separatorPath.line(to: CGPoint(x: capsuleRect.maxX - 6, y: separatorY))
+                case .horizontal:
+                    // Vertical separator line between sections
+                    let separatorX = capsuleRect.minX + CGFloat(i + 1) * (sectionSize + spacing) - spacing / 2
+                    separatorPath.move(to: CGPoint(x: separatorX, y: capsuleRect.minY + 6))
+                    separatorPath.line(to: CGPoint(x: separatorX, y: capsuleRect.maxY - 6))
+                }
+
+                separatorPath.lineWidth = 0.5
+                separatorPath.stroke()
+            }
+        }
+
+        // Draw subtle neutral border
+        let hasHover = sections.contains { $0.isHovered }
+        let borderColor = isDarkMode
+            ? NSColor.white.withAlphaComponent(hasHover ? 0.3 : 0.2)
+            : NSColor.black.withAlphaComponent(hasHover ? 0.2 : 0.12)
+        borderColor.setStroke()
+        capsulePath.lineWidth = hasHover ? 1.5 : 1.0
+        capsulePath.stroke()
+
+        // Draw content for each section
+        for (index, section) in sections.enumerated() {
+            let contentRect = sectionFrame(at: index)
+            drawSectionContent(section, in: contentRect, isDarkMode: isDarkMode)
+        }
+    }
+
+    /// Create a path with different corner radii for top and bottom
+    private func roundedRectPath(_ rect: CGRect, topRadius: CGFloat, bottomRadius: CGFloat) -> NSBezierPath {
+        let path = NSBezierPath()
+
+        // Start at bottom-left, going clockwise
+        path.move(to: CGPoint(x: rect.minX + bottomRadius, y: rect.minY))
+
+        // Bottom edge to bottom-right corner
+        path.line(to: CGPoint(x: rect.maxX - bottomRadius, y: rect.minY))
+        path.appendArc(withCenter: CGPoint(x: rect.maxX - bottomRadius, y: rect.minY + bottomRadius),
+                       radius: bottomRadius, startAngle: 270, endAngle: 0, clockwise: false)
+
+        // Right edge to top-right corner
+        path.line(to: CGPoint(x: rect.maxX, y: rect.maxY - topRadius))
+        path.appendArc(withCenter: CGPoint(x: rect.maxX - topRadius, y: rect.maxY - topRadius),
+                       radius: topRadius, startAngle: 0, endAngle: 90, clockwise: false)
+
+        // Top edge to top-left corner
+        path.line(to: CGPoint(x: rect.minX + topRadius, y: rect.maxY))
+        path.appendArc(withCenter: CGPoint(x: rect.minX + topRadius, y: rect.maxY - topRadius),
+                       radius: topRadius, startAngle: 90, endAngle: 180, clockwise: false)
+
+        // Left edge to bottom-left corner
+        path.line(to: CGPoint(x: rect.minX, y: rect.minY + bottomRadius))
+        path.appendArc(withCenter: CGPoint(x: rect.minX + bottomRadius, y: rect.minY + bottomRadius),
+                       radius: bottomRadius, startAngle: 180, endAngle: 270, clockwise: false)
+
+        path.close()
+        return path
+    }
+
+    // MARK: - Drawing Helpers
+
+    private func determineDarkMode() -> Bool {
+        switch UserPreferences.shared.overlayTheme {
+        case "Light": return false
+        case "Dark": return true
+        default: return UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
+        }
+    }
+
+    private func drawShadow(path: NSBezierPath, isDarkMode: Bool) {
+        NSGraphicsContext.saveGraphicsState()
+
+        let shadowColor = NSColor.black.withAlphaComponent(isDarkMode ? 0.35 : 0.2)
+        let shadow = NSShadow()
+        shadow.shadowColor = shadowColor
+        shadow.shadowOffset = NSSize(width: 0, height: -2)
+        shadow.shadowBlurRadius = 3
+        shadow.set()
+
+        NSColor.clear.setFill()
+        path.fill()
+
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    private func drawGlassBackground(path: NSBezierPath, rect: CGRect, isDarkMode: Bool) {
+        NSGraphicsContext.saveGraphicsState()
+        path.addClip()
+
+        let glassBaseColor = isDarkMode
+            ? NSColor(white: 0.18, alpha: 1.0)
+            : NSColor(white: 0.96, alpha: 1.0)
+        glassBaseColor.setFill()
+        NSBezierPath.fill(rect)
+
+        let highlightGradient = NSGradient(colors: [
+            NSColor.white.withAlphaComponent(isDarkMode ? 0.1 : 0.3),
+            NSColor.white.withAlphaComponent(0.0)
+        ])
+        highlightGradient?.draw(in: rect, angle: 90)
+
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    private func drawRing(rect: CGRect, color: NSColor, isHovered: Bool) {
+        let ringPath = NSBezierPath(ovalIn: rect)
+        let adjustedColor = isHovered ? color.withAlphaComponent(1.0) : color
+        adjustedColor.setStroke()
+        ringPath.lineWidth = isHovered ? 3.0 : 2.5
+        ringPath.stroke()
+
+        // Inner glow
+        let innerGlowPath = NSBezierPath(ovalIn: rect.insetBy(dx: 1.25, dy: 1.25))
+        color.withAlphaComponent(0.25).setStroke()
+        innerGlowPath.lineWidth = 0.75
+        innerGlowPath.stroke()
+    }
+
+    private func drawSpinningRing(rect: CGRect, color: NSColor, isDarkMode: Bool) {
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let radius = rect.width / 2
+
+        // Background ring
+        let backgroundRing = NSBezierPath()
+        backgroundRing.appendArc(withCenter: center, radius: radius, startAngle: 0, endAngle: 360, clockwise: false)
+        color.withAlphaComponent(0.15).setStroke()
+        backgroundRing.lineWidth = 2.5
+        backgroundRing.stroke()
+
+        // Animated arc
+        let arcLength: CGFloat = 90
+        let startAngleDegrees = spinningAngle * 180 / .pi
+        let endAngleDegrees = startAngleDegrees + arcLength
+
+        let spinningArc = NSBezierPath()
+        spinningArc.appendArc(withCenter: center, radius: radius, startAngle: startAngleDegrees, endAngle: endAngleDegrees, clockwise: false)
+        color.setStroke()
+        spinningArc.lineWidth = 2.5
+        spinningArc.lineCapStyle = .round
+        spinningArc.stroke()
+    }
+
+    private func drawSpinningRingForSection(path: NSBezierPath, rect: CGRect, color: NSColor, isDarkMode: Bool) {
+        // Background ring
+        color.withAlphaComponent(0.15).setStroke()
+        path.lineWidth = 2.5
+        path.stroke()
+
+        // For sections, we'll draw a partial animated border
+        // This is simplified - full implementation would track arc position
+        color.setStroke()
+        path.lineWidth = 2.5
+        path.stroke()
+    }
+
+    // MARK: - Content Drawing
+
+    /// Distinct color palette for clear visual differentiation
+    private var grammarIconColor: NSColor {
+        // Warm red-orange for grammar errors - clearly different from purple/blue
+        NSColor(red: 0.95, green: 0.35, blue: 0.25, alpha: 1.0)
+    }
+
+    private func styleIconColor(isDarkMode: Bool) -> NSColor {
+        if isDarkMode {
+            // Vibrant magenta for dark mode - high contrast
+            return NSColor(red: 0.95, green: 0.3, blue: 0.75, alpha: 1.0)
+        } else {
+            // Deep violet for light mode - distinct from red and blue
+            return NSColor(red: 0.6, green: 0.2, blue: 0.85, alpha: 1.0)
+        }
+    }
+
+    private func textGenIconColor(isDarkMode: Bool) -> NSColor {
+        if isDarkMode {
+            // Bright cyan-blue for dark mode - clearly different from magenta
+            return NSColor(red: 0.3, green: 0.7, blue: 1.0, alpha: 1.0)
+        } else {
+            // Deep teal-blue for light mode - distinct from violet
+            return NSColor(red: 0.15, green: 0.5, blue: 0.8, alpha: 1.0)
+        }
+    }
+
+    private var successColor: NSColor {
+        // Soft teal - for success checkmarks
+        NSColor(red: 0.35, green: 0.65, blue: 0.6, alpha: 1.0)
+    }
+
+    private func drawSectionContent(_ section: CapsuleSectionState, in rect: CGRect, isDarkMode: Bool) {
+        switch section.displayState {
+        case .grammarCount(let count):
+            drawCount(count, in: rect, isDarkMode: isDarkMode, color: grammarIconColor)
+        case .grammarSuccess:
+            drawCheckmark(in: rect, color: successColor)
+        case .styleIdle:
+            drawSparkle(in: rect, color: styleIconColor(isDarkMode: isDarkMode).withAlphaComponent(0.85))  // Ready state, slightly dimmed
+        case .styleLoading:
+            drawLoadingSpinner(in: rect, color: styleIconColor(isDarkMode: isDarkMode))
+        case .styleCount(let count):
+            drawCount(count, in: rect, isDarkMode: isDarkMode, color: styleIconColor(isDarkMode: isDarkMode))
+        case .styleSuccess:
+            drawCheckmark(in: rect, color: successColor)
+        case .textGenIdle:
+            drawPenIcon(in: rect)
+        case .textGenActive:
+            drawPenIcon(in: rect)
+        case .hidden:
+            break
+        }
+    }
+
+    private func drawCount(_ count: Int, in rect: CGRect, isDarkMode: Bool, color: NSColor? = nil) {
+        let textColor = color ?? (isDarkMode ? NSColor.white : NSColor.black)
+        let countString = count > 9 ? "9+" : "\(count)"
+        let fontSize: CGFloat = count > 9 ? 10 : 12
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: fontSize, weight: .bold),
+            .foregroundColor: textColor
+        ]
+        let textSize = (countString as NSString).size(withAttributes: attributes)
+
+        let textRect = NSRect(
+            x: rect.midX - textSize.width / 2,
+            y: rect.midY - textSize.height / 2,
+            width: textSize.width,
+            height: textSize.height
+        )
+        (countString as NSString).draw(in: textRect, withAttributes: attributes)
+    }
+
+    private func drawCheckmark(in rect: CGRect, color: NSColor) {
+        let symbolConfig = NSImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
+        guard let checkmarkImage = NSImage(systemSymbolName: "checkmark", accessibilityDescription: "Success")?
+            .withSymbolConfiguration(symbolConfig) else { return }
+
+        let tintedImage = NSImage(size: checkmarkImage.size, flipped: false) { drawRect in
+            checkmarkImage.draw(in: drawRect)
+            color.set()
+            drawRect.fill(using: .sourceAtop)
+            return true
+        }
+
+        let imageSize = tintedImage.size
+        let x = rect.midX - imageSize.width / 2
+        let y = rect.midY - imageSize.height / 2
+
+        tintedImage.draw(in: NSRect(x: x, y: y, width: imageSize.width, height: imageSize.height),
+                         from: .zero, operation: .sourceOver, fraction: 1.0)
+    }
+
+    /// Draw a simple loading spinner within a section
+    private func drawLoadingSpinner(in rect: CGRect, color: NSColor) {
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let radius: CGFloat = 6.0  // Small spinner radius
+
+        // Draw background arc (dimmed)
+        let backgroundArc = NSBezierPath()
+        backgroundArc.appendArc(withCenter: center, radius: radius, startAngle: 0, endAngle: 360)
+        color.withAlphaComponent(0.2).setStroke()
+        backgroundArc.lineWidth = 2.0
+        backgroundArc.stroke()
+
+        // Draw spinning arc (partial circle)
+        // Convert radians to degrees (spinningAngle is updated in radians)
+        let startAngleDegrees = spinningAngle * 180 / .pi
+        let spinnerArc = NSBezierPath()
+        spinnerArc.appendArc(withCenter: center, radius: radius, startAngle: startAngleDegrees, endAngle: startAngleDegrees + 90)
+        color.setStroke()
+        spinnerArc.lineWidth = 2.0
+        spinnerArc.lineCapStyle = .round
+        spinnerArc.stroke()
+    }
+
+    private func drawSparkle(in rect: CGRect, color: NSColor) {
+        let symbolConfig = NSImage.SymbolConfiguration(pointSize: 11, weight: .medium)
+        guard let sparkleImage = NSImage(systemSymbolName: "sparkles", accessibilityDescription: "Style")?
+            .withSymbolConfiguration(symbolConfig) else { return }
+
+        let tintedImage = NSImage(size: sparkleImage.size, flipped: false) { drawRect in
+            sparkleImage.draw(in: drawRect)
+            color.set()
+            drawRect.fill(using: .sourceAtop)
+            return true
+        }
+
+        let imageSize = tintedImage.size
+        let x = rect.midX - imageSize.width / 2
+        let y = rect.midY - imageSize.height / 2
+
+        tintedImage.draw(in: NSRect(x: x, y: y, width: imageSize.width, height: imageSize.height),
+                         from: .zero, operation: .sourceOver, fraction: 1.0)
+    }
+
+    private func drawPenIcon(in rect: CGRect) {
+        let symbolConfig = NSImage.SymbolConfiguration(pointSize: 11, weight: .medium)
+        guard let penImage = NSImage(systemSymbolName: "pencil.line", accessibilityDescription: "Generate")?
+            .withSymbolConfiguration(symbolConfig) else { return }
+
+        let isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let iconColor = textGenIconColor(isDarkMode: isDarkMode)
+        let tintedImage = NSImage(size: penImage.size, flipped: false) { drawRect in
+            penImage.draw(in: drawRect)
+            iconColor.set()
+            drawRect.fill(using: .sourceAtop)
+            return true
+        }
+
+        let imageSize = tintedImage.size
+        let x = rect.midX - imageSize.width / 2
+        let y = rect.midY - imageSize.height / 2
+
+        tintedImage.draw(in: NSRect(x: x, y: y, width: imageSize.width, height: imageSize.height),
+                         from: .zero, operation: .sourceOver, fraction: 1.0)
+    }
+
+    // MARK: - Mouse Events
+
+    override func mouseDown(with event: NSEvent) {
+        dragStartPoint = event.locationInWindow
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let window = window else { return }
+
+        if !isDragging {
+            isDragging = true
+            NSCursor.closedHand.push()
+            onDragStart?()
+        }
+
+        let currentPoint = event.locationInWindow
+        let deltaX = currentPoint.x - dragStartPoint.x
+        let deltaY = currentPoint.y - dragStartPoint.y
+
+        var newOrigin = window.frame.origin
+        newOrigin.x += deltaX
+        newOrigin.y += deltaY
+        window.setFrameOrigin(newOrigin)
+        window.orderFrontRegardless()
+
+        // Notify about position during drag for dynamic orientation updates
+        onDragMove?(newOrigin)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        if !isDragging {
+            // Click - determine which section was clicked
+            let locationInView = convert(event.locationInWindow, from: nil)
+            Logger.debug("CapsuleIndicatorView: mouseUp at \(locationInView), bounds=\(bounds)", category: Logger.ui)
+            if let section = sectionAtPoint(locationInView) {
+                Logger.debug("CapsuleIndicatorView: Section detected: \(section)", category: Logger.ui)
+                onSectionClicked?(section)
+            } else {
+                Logger.debug("CapsuleIndicatorView: No section detected at point", category: Logger.ui)
+            }
+            return
+        }
+
+        isDragging = false
+        NSCursor.pop()
+
+        if let window = window {
+            onDragEnd?(window.frame.origin)
+        }
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        onRightClicked?(event)
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        let locationInView = convert(event.locationInWindow, from: nil)
+        let section = sectionAtPoint(locationInView)
+
+        if section != hoveredSection {
+            hoveredSection = section
+
+            // Update section hover states
+            for i in 0..<sections.count {
+                sections[i].isHovered = sections[i].type == section
+            }
+
+            needsDisplay = true
+        }
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        if !isDragging {
+            NSCursor.openHand.push()
+        }
+
+        hoverTimer?.invalidate()
+        hoverTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.hoverDelay, repeats: false) { [weak self] _ in
+            self?.onHover?(self?.hoveredSection)
+        }
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        if !isDragging {
+            NSCursor.pop()
+        }
+
+        hoverTimer?.invalidate()
+        hoverTimer = nil
+
+        hoveredSection = nil
+        for i in 0..<sections.count {
+            sections[i].isHovered = false
+        }
+        needsDisplay = true
+
+        onHover?(nil)
+    }
+
+    // MARK: - Tracking Area
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+
+        for trackingArea in trackingAreas {
+            removeTrackingArea(trackingArea)
+        }
+
+        let trackingArea = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways],
             owner: self,
             userInfo: nil
         )
