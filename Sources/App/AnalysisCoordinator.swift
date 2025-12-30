@@ -321,6 +321,7 @@ class AnalysisCoordinator: ObservableObject {
         setupScrollWheelMonitor()
         setupPositionRefreshCoordinator()
         setupTypingCallback()
+        setupIndicatorCallbacks()
         // Window position monitoring will be started when we begin monitoring an app
     }
 
@@ -371,6 +372,181 @@ class AnalysisCoordinator: ObservableObject {
             // Proactively extract text since Notion may not send AX notifications
             self.textMonitor.extractText(from: element)
         }
+    }
+
+    /// Setup callbacks for the floating indicator
+    private func setupIndicatorCallbacks() {
+        // Handle click on style section when no suggestions exist - trigger style check
+        floatingIndicator.onRequestStyleCheck = { [weak self] in
+            guard let self = self else { return }
+            Logger.debug("AnalysisCoordinator: Style check requested from capsule click", category: Logger.analysis)
+            self.runManualStyleCheck()
+        }
+
+        // Handle request for generation context
+        floatingIndicator.onRequestGenerationContext = { [weak self] in
+            guard let self = self else { return .empty }
+            return self.extractGenerationContext()
+        }
+
+        // Setup text generation popover callbacks
+        setupTextGenerationCallbacks()
+    }
+
+    /// Setup callbacks for text generation popover
+    private func setupTextGenerationCallbacks() {
+        // Handle text generation request
+        TextGenerationPopover.shared.onGenerate = { [weak self] instruction, style, context, variationSeed in
+            guard let self = self else {
+                throw FoundationModelsError.analysisError("Coordinator not available")
+            }
+
+            let seedInfo = variationSeed.map { " (retry seed: \($0))" } ?? ""
+            Logger.debug("AnalysisCoordinator: Text generation requested - instruction: '\(instruction.prefix(30))...'\(seedInfo)", category: Logger.analysis)
+
+            if #available(macOS 26.0, *) {
+                // Create engine on demand
+                let fmEngine = FoundationModelsEngine()
+                fmEngine.checkAvailability()
+
+                guard fmEngine.status.isAvailable else {
+                    throw FoundationModelsError.notAvailable(fmEngine.status)
+                }
+
+                return try await fmEngine.generateText(
+                    instruction: instruction,
+                    context: context,
+                    style: style,
+                    variationSeed: variationSeed
+                )
+            } else {
+                throw FoundationModelsError.analysisError("Text generation requires macOS 26 or later")
+            }
+        }
+
+        // Handle text insertion from AI Compose
+        TextGenerationPopover.shared.onInsertText = { [weak self] text in
+            guard let self = self,
+                  let element = self.textMonitor.monitoredElement else { return }
+
+            Logger.debug("AnalysisCoordinator: Inserting generated text (\(text.count) chars)", category: Logger.analysis)
+
+            // Use app-specific text replacement strategies
+            Task { @MainActor in
+                await self.insertGeneratedTextAsync(text, element: element)
+            }
+        }
+    }
+
+    /// Insert generated text at cursor or replace selection using app-specific strategies
+    /// This reuses the same infrastructure as grammar/style corrections
+    @MainActor
+    private func insertGeneratedTextAsync(_ text: String, element: AXUIElement) async {
+        guard let context = monitoredContext else {
+            Logger.warning("AnalysisCoordinator: No context for text insertion", category: Logger.analysis)
+            return
+        }
+
+        let appConfig = appRegistry.configuration(for: context.bundleIdentifier)
+
+        // Check app type for strategy selection
+        let isElectronApp = context.requiresKeyboardReplacement
+        let isBrowser = context.isBrowser
+        let isMacCatalyst = context.isMacCatalystApp
+        let usesBrowserStyleReplacement = appConfig.features.textReplacementMethod == .browserStyle
+
+        // For native macOS apps, try AX API first (it's faster and preserves formatting)
+        if !isElectronApp && !isBrowser && !isMacCatalyst && !usesBrowserStyleReplacement {
+            let result = AXUIElementSetAttributeValue(
+                element,
+                kAXSelectedTextAttribute as CFString,
+                text as CFTypeRef
+            )
+
+            if result == .success {
+                Logger.debug("AnalysisCoordinator: Inserted text via AX API", category: Logger.analysis)
+                return
+            }
+            Logger.debug("AnalysisCoordinator: AX API insert failed (\(result.rawValue)), using clipboard method", category: Logger.analysis)
+        }
+
+        // For Electron apps, browsers, Catalyst apps, and apps requiring browser-style replacement:
+        // Use clipboard paste with proper activation
+        await insertViaClipboardAsync(text, context: context, isMacCatalyst: isMacCatalyst)
+    }
+
+    /// Insert text via clipboard paste with proper app activation (async version)
+    @MainActor
+    private func insertViaClipboardAsync(_ text: String, context: ApplicationContext, isMacCatalyst: Bool) async {
+        Logger.debug("AnalysisCoordinator: Inserting via clipboard for \(context.applicationName)", category: Logger.analysis)
+
+        // Save current clipboard
+        let pasteboard = NSPasteboard.general
+        let previousContent = pasteboard.string(forType: .string)
+        let originalChangeCount = pasteboard.changeCount
+
+        // Set new content
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+
+        // Activate target app so paste goes to the right window
+        if let targetApp = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier).first {
+            targetApp.activate()
+        }
+
+        // Wait for activation
+        try? await Task.sleep(nanoseconds: UInt64(TimingConstants.longDelay * 1_000_000_000))
+
+        // Mac Catalyst: use direct keyboard typing (clipboard paste is unreliable)
+        if isMacCatalyst {
+            Logger.debug("AnalysisCoordinator: Using direct typing for Mac Catalyst", category: Logger.analysis)
+            typeTextDirectly(text)
+
+            // Restore clipboard
+            if let previous = previousContent {
+                pasteboard.clearContents()
+                pasteboard.setString(previous, forType: .string)
+            }
+
+            let typingDelay = Double(text.count) * 0.01 + 0.1
+            try? await Task.sleep(nanoseconds: UInt64(typingDelay * 1_000_000_000))
+            return
+        }
+
+        // Try menu paste first (more reliable for some apps)
+        var pasteSucceeded = false
+        if let frontmostApp = NSWorkspace.shared.frontmostApplication {
+            let appElement = AXUIElementCreateApplication(frontmostApp.processIdentifier)
+            if let pasteMenuItem = findPasteMenuItem(in: appElement) {
+                if AXUIElementPerformAction(pasteMenuItem, kAXPressAction as CFString) == .success {
+                    pasteSucceeded = true
+                    Logger.debug("AnalysisCoordinator: Pasted via menu action", category: Logger.analysis)
+                }
+            }
+        }
+
+        // Keyboard fallback if menu failed
+        if !pasteSucceeded {
+            let delay = context.keyboardOperationDelay
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
+            Logger.debug("AnalysisCoordinator: Pasted via Cmd+V", category: Logger.analysis)
+        }
+
+        // Wait for paste to complete
+        try? await Task.sleep(nanoseconds: 150_000_000) // 150ms
+
+        // Restore clipboard if unchanged by user
+        if pasteboard.changeCount == originalChangeCount + 1 {
+            if let previous = previousContent {
+                pasteboard.clearContents()
+                pasteboard.setString(previous, forType: .string)
+            } else {
+                pasteboard.clearContents()
+            }
+        }
+
+        Logger.debug("AnalysisCoordinator: Text insertion complete", category: Logger.analysis)
     }
 
     nonisolated deinit {
@@ -478,6 +654,14 @@ class AnalysisCoordinator: ObservableObject {
             guard let self = self else { return }
             Logger.debug("AnalysisCoordinator: Style suggestion rejected with reason: \(category.rawValue)", category: Logger.analysis)
             self.removeSuggestionFromTracking(suggestion)
+        }
+
+        // Handle regenerate style suggestion - get alternative suggestion
+        if #available(macOS 26.0, *) {
+            suggestionPopover.onRegenerateStyleSuggestion = { [weak self] suggestion in
+                guard let self = self else { return nil }
+                return await self.regenerateStyleSuggestion(suggestion)
+            }
         }
 
         // Handle mouse entered popover - cancel any pending delayed switches

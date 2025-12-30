@@ -203,6 +203,197 @@ final class FoundationModelsEngine: ObservableObject {
             throw FoundationModelsError.analysisError(error.localizedDescription)
         }
     }
+
+    /// Regenerate a style suggestion to get an alternative
+    ///
+    /// Uses a higher temperature for variety and instructs the model to provide
+    /// a different suggestion than the previous one.
+    ///
+    /// - Parameters:
+    ///   - originalText: The original text that was analyzed
+    ///   - previousSuggestion: The suggestion to regenerate (will be excluded)
+    ///   - style: The writing style to optimize for
+    ///   - customVocabulary: Terms that should not be changed
+    /// - Returns: A new style suggestion model, or nil if no alternative found
+    func regenerateStyleSuggestion(
+        originalText: String,
+        previousSuggestion: StyleSuggestionModel,
+        style: WritingStyle,
+        customVocabulary: [String] = []
+    ) async throws -> StyleSuggestionModel? {
+        guard status == .available else {
+            Logger.warning("Apple Intelligence: Cannot regenerate, not available", category: Logger.llm)
+            throw FoundationModelsError.notAvailable(status)
+        }
+
+        isAnalyzing = true
+        defer { isAnalyzing = false }
+
+        let startTime = CFAbsoluteTimeGetCurrent()
+
+        // Build instructions with exclusion
+        let baseInstructions = StyleInstructions.build(
+            for: style,
+            customVocabulary: customVocabulary
+        )
+
+        // Add exclusion instruction
+        let exclusionInstructions = """
+        \(baseInstructions)
+
+        IMPORTANT: You must provide a DIFFERENT suggestion than this previous one:
+        Previous suggestion: "\(previousSuggestion.suggestedText)"
+
+        Provide an alternative way to improve the text. Be creative but accurate.
+        """
+
+        // Create session with modified instructions
+        let session = LanguageModelSession(instructions: exclusionInstructions)
+
+        // Use moderate temperature for variety in regeneration
+        let options = GenerationOptions(temperature: TemperatureValues.moderate)
+
+        Logger.debug("Apple Intelligence: Regenerating suggestion for '\(previousSuggestion.originalText.prefix(30))...', style=\(style.displayName)", category: Logger.llm)
+
+        do {
+            let response = try await session.respond(
+                to: "Provide an alternative style improvement for this text:\n\n\(originalText)",
+                generating: FMStyleAnalysisResult.self,
+                options: options
+            )
+
+            let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+
+            // Convert results
+            let suggestions = response.content.toStyleSuggestionModels(in: originalText, style: style)
+
+            Logger.debug("Apple Intelligence: Regeneration complete, \(suggestions.count) suggestion(s) in \(String(format: "%.2f", elapsed))s", category: Logger.llm)
+
+            // Return the first suggestion that's different from the previous one
+            return suggestions.first { $0.suggestedText != previousSuggestion.suggestedText }
+
+        } catch let error as LanguageModelSession.GenerationError {
+            Logger.error("Apple Intelligence: Regeneration generation error - \(error.localizedDescription)", category: Logger.llm)
+            throw FoundationModelsError.generationFailed(error.localizedDescription)
+        } catch {
+            Logger.error("Apple Intelligence: Regeneration failed - \(error.localizedDescription)", category: Logger.llm)
+            throw FoundationModelsError.analysisError(error.localizedDescription)
+        }
+    }
+
+    // MARK: - Text Generation
+
+    /// Generate text based on user instruction and context
+    ///
+    /// - Parameters:
+    ///   - instruction: The user's instruction for what to generate
+    ///   - context: Context from the document (selected text, surrounding text, etc.)
+    ///   - style: The writing style to use
+    ///   - variationSeed: Optional seed for varied outputs. Pass different values (e.g., attempt number) to get different results.
+    ///                    When nil, uses default sampling. When provided, uses random sampling with higher temperature.
+    /// - Returns: The generated text, ready to insert
+    /// - Throws: If generation fails
+    func generateText(
+        instruction: String,
+        context: GenerationContext,
+        style: WritingStyle,
+        variationSeed: UInt64? = nil
+    ) async throws -> String {
+        guard status == .available else {
+            Logger.warning("Apple Intelligence: Cannot generate text, not available", category: Logger.llm)
+            throw FoundationModelsError.notAvailable(status)
+        }
+
+        isAnalyzing = true
+        defer { isAnalyzing = false }
+
+        let startTime = CFAbsoluteTimeGetCurrent()
+
+        // Build the prompt - user instruction is primary, context is optional reference
+        var promptParts: [String] = []
+
+        promptParts.append("User instruction: \(instruction)")
+        promptParts.append("\nWriting style: \(style.displayName)")
+
+        // Only include context if user might want to reference it
+        // Context is purely informational - the user's instruction takes absolute priority
+        //
+        // Context budget: Apple Foundation Models has 4096 token limit (input + output combined)
+        // At ~3-4 chars/token, we allocate ~1500 tokens (~4500 chars) for context
+        // This leaves room for: instructions (~400 tokens) + output (~1000+ tokens)
+        let maxContextChars = 4500
+
+        if let selected = context.selectedText, !selected.isEmpty {
+            let truncated = selected.prefix(maxContextChars)
+            promptParts.append("\n[Optional reference - selected text in document]:\n\"\"\"\n\(truncated)\n\"\"\"")
+        } else if let surrounding = context.surroundingText, !surrounding.isEmpty {
+            let truncated = surrounding.prefix(maxContextChars)
+            switch context.source {
+            case .cursorWindow:
+                promptParts.append("\n[Optional reference - nearby text for context only]:\n\"\"\"\n\(truncated)\n\"\"\"")
+            case .documentStart, .selection:
+                promptParts.append("\n[Optional reference - document context]:\n\"\"\"\n\(truncated)\n\"\"\"")
+            case .none:
+                break
+            }
+        }
+
+        let prompt = promptParts.joined(separator: "\n")
+
+        // Build instructions - emphasize user instruction priority
+        let instructions = """
+        You are a text generation assistant. Your ONLY job is to follow the user's instruction exactly.
+
+        Critical rules:
+        - The user's instruction is ABSOLUTE - follow it precisely
+        - If the user asks for "unrelated" or "random" text, generate completely NEW content
+        - Do NOT copy, paraphrase, or base your output on any provided context unless explicitly asked
+        - Context is ONLY provided as optional reference - ignore it unless the instruction specifically refers to it
+        - Output ONLY the generated text - no explanations, labels, or meta-commentary
+        - Match the specified writing style
+        """
+
+        let session = LanguageModelSession(instructions: instructions)
+
+        // Configure generation options based on whether we want variation
+        // For regeneration (variationSeed != nil), use random sampling with higher temperature
+        // This ensures different outputs for each attempt while maintaining quality
+        let options: GenerationOptions
+        if let seed = variationSeed {
+            // Random top-k sampling with seed for varied but reproducible outputs
+            // Higher temperature (0.8) encourages more creative alternatives
+            options = GenerationOptions(
+                sampling: .random(top: 40, seed: seed),
+                temperature: 0.8
+            )
+        } else {
+            // Default: balanced temperature for first generation
+            options = GenerationOptions(temperature: TemperatureValues.low)
+        }
+
+        let samplingInfo = variationSeed.map { "random(seed:\($0), temp:0.8)" } ?? "temp:\(TemperatureValues.low)"
+        Logger.debug("Apple Intelligence: Generating text for instruction '\(instruction.prefix(50))...', style=\(style.displayName), \(samplingInfo)", category: Logger.llm)
+
+        do {
+            let response = try await session.respond(
+                to: prompt,
+                generating: FMTextGenerationResult.self,
+                options: options
+            )
+
+            let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+            Logger.debug("Apple Intelligence: Text generation complete in \(String(format: "%.2f", elapsed))s", category: Logger.llm)
+
+            return response.content.generatedText
+
+        } catch let error as LanguageModelSession.GenerationError {
+            Logger.error("Apple Intelligence: Text generation error - \(error.localizedDescription)", category: Logger.llm)
+            throw FoundationModelsError.generationFailed(error.localizedDescription)
+        } catch {
+            Logger.error("Apple Intelligence: Text generation failed - \(error.localizedDescription)", category: Logger.llm)
+            throw FoundationModelsError.analysisError(error.localizedDescription)
+        }
+    }
 }
 
 // MARK: - Errors
