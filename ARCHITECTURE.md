@@ -368,7 +368,9 @@ For app-specific underline behavior, see `docs/applications/` (e.g., [SLACK.md](
 
 ### Apple Foundation Models Integration
 
-TextWarden uses Apple's Foundation Models framework (macOS 26+) for AI-powered style suggestions. This replaces the previous mistral.rs-based approach with Apple Intelligence.
+TextWarden uses Apple's Foundation Models framework (macOS 26+) for AI-powered style suggestions and text generation. This replaces the previous mistral.rs-based approach with Apple Intelligence.
+
+**For detailed documentation on prompts, temperature settings, and @Generable types, see [docs/FOUNDATION_MODELS.md](docs/FOUNDATION_MODELS.md).**
 
 **Key Components:**
 

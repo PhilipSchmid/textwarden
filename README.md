@@ -36,6 +36,7 @@ A small indicator and/or underline appears when issues are found. Click to see s
 
 - **Real-time grammar and spelling** - Catches errors as you type
 - **AI-powered style suggestions** - Apple Intelligence ([Foundation Models](https://developer.apple.com/documentation/FoundationModels)) for clarity and readability improvements (macOS 26+)
+- **AI Compose** - Generate text from instructions using on-device AI (macOS 26+, Apple Silicon)
 - **Multilingual awareness** - Detects non-English sentences and ignores them (no false positives on foreign phrases)
 - **Custom dictionary** - Add your own technical terms and proper nouns
 - **Dialect support** - American, British, Canadian, or Australian English
@@ -86,6 +87,20 @@ Style analysis can be triggered in two ways:
 When using the keyboard shortcut with text selected, only the selected portion is analyzed. Without a selection, the entire text field is analyzed.
 
 Available writing styles: Default, Concise, Formal, Casual, and Business.
+
+### AI Compose
+
+AI Compose lets you generate text directly from natural language instructions. Click the pen icon on the indicator (when style checking is enabled) to open the compose panel.
+
+Use cases:
+- Draft emails, messages, or responses
+- Expand bullet points into full paragraphs
+- Rewrite or rephrase selected text
+- Generate placeholder content
+
+Enter your instruction (e.g., "Write a polite decline for a meeting invitation"), choose a writing style, and press Enter. The generated text can be inserted directly or copied to clipboard. Use "Retry" to get alternative versions.
+
+Like style suggestions, AI Compose runs entirely on-device using Apple Intelligence - your instructions and generated text never leave your Mac.
 
 ### Multilingual Support
 
