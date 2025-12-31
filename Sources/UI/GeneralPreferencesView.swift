@@ -42,9 +42,6 @@ struct GeneralPreferencesView: View {
                 }
 
                 LaunchAtLogin.Toggle()
-
-                Toggle("Always open in foreground", isOn: $preferences.openInForeground)
-                    .help("Show settings window when TextWarden starts (default: background only)")
             } header: {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 8) {
