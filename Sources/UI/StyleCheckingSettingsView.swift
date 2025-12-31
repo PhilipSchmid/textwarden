@@ -19,8 +19,8 @@ struct StyleCheckingSettingsView: View {
             Section {
                 Toggle(isOn: $preferences.enableStyleChecking) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Enable Style Checking")
-                        Text("Analyze your writing for style improvements alongside grammar checking")
+                        Text("Enable Apple Intelligence Features")
+                        Text("Style suggestions and AI Compose for text generation")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -32,12 +32,12 @@ struct StyleCheckingSettingsView: View {
                         Image(systemName: "apple.intelligence")
                             .font(.title2)
                             .foregroundColor(.purple)
-                        Text("Style Checking")
+                        Text("Apple Intelligence")
                             .font(.title3)
                             .fontWeight(.semibold)
                     }
 
-                    Text("Style checking uses Apple Intelligence to suggest improvements to your writing. All processing happens on your device.")
+                    Text("Uses Apple Intelligence for style suggestions and AI Compose text generation. All processing happens on your device.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
