@@ -16,6 +16,7 @@ struct DiagnosticsView: View {
     @State private var isExporting: Bool = false
     @State private var showingExportAlert: Bool = false
     @State private var exportAlertMessage: String = ""
+    @State private var lastMilestoneResetClick: Date?
 
     var body: some View {
         Form {
@@ -296,59 +297,6 @@ struct DiagnosticsView: View {
                 }
             }
 
-            // MARK: - UI Previews
-            Section {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Preview UI components for troubleshooting purposes")
-                        .font(.body)
-                        .foregroundColor(.secondary)
-
-                    Button {
-                        MenuBarController.shared?.showMilestonePreview()
-                    } label: {
-                        HStack {
-                            Image(systemName: "gift.fill")
-                            Text("Show Milestone Card")
-                        }
-                    }
-                    .help("Preview the milestone celebration card that appears when usage milestones are reached")
-
-                    if preferences.milestonesDisabled {
-                        HStack(spacing: 6) {
-                            Image(systemName: "info.circle")
-                                .foregroundColor(.orange)
-                                .font(.caption)
-                            Text("Milestone prompts are disabled. The preview will still work.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-
-                        Button {
-                            preferences.milestonesDisabled = false
-                        } label: {
-                            Text("Re-enable milestone prompts")
-                                .font(.caption)
-                        }
-                        .buttonStyle(.link)
-                    }
-                }
-            } header: {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "rectangle.on.rectangle")
-                            .font(.title2)
-                            .foregroundColor(.accentColor)
-                        Text("UI Previews")
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                    }
-
-                    Text("Test UI components without triggering actual events")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-
             // MARK: - Reset Options
             Section {
                 VStack(alignment: .leading, spacing: 16) {
@@ -433,6 +381,46 @@ struct DiagnosticsView: View {
                             }
                             .buttonStyle(.bordered)
                             .help("Clear all error texts ignored with 'Ignore Everywhere'")
+                        }
+
+                        HStack(spacing: 12) {
+                            Button {
+                                // Easter egg: double-click shows milestone preview instead of resetting
+                                let now = Date()
+                                if let lastClick = lastMilestoneResetClick,
+                                   now.timeIntervalSince(lastClick) < 0.4 {
+                                    // Double-click detected - show preview
+                                    MenuBarController.shared?.showMilestonePreview()
+                                    lastMilestoneResetClick = nil
+                                } else {
+                                    // Single click - reset milestones
+                                    lastMilestoneResetClick = now
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                                        if lastMilestoneResetClick != nil {
+                                            preferences.milestonesDisabled = false
+                                            preferences.shownMilestones.removeAll()
+                                            lastMilestoneResetClick = nil
+                                        }
+                                    }
+                                }
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Image(systemName: "gift")
+                                        Text("Reset Milestones")
+                                    }
+                                    .font(.body)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.red)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.bordered)
+                            .help("Re-enable milestone celebration prompts")
+
+                            // Empty spacer to maintain grid alignment
+                            Color.clear
+                                .frame(maxWidth: .infinity)
                         }
                     }
                 }
