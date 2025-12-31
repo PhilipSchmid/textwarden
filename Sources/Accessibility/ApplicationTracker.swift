@@ -116,7 +116,17 @@ class ApplicationTracker: ObservableObject {
         )
 
         // Record this app as discovered
+        let isNewApp = !UserPreferences.shared.discoveredApplications.contains(bundleIdentifier)
         UserPreferences.shared.discoveredApplications.insert(bundleIdentifier)
+
+        // Pause unsupported apps by default on first discovery
+        if isNewApp && !AppRegistry.shared.hasConfiguration(for: bundleIdentifier) {
+            // Only set pause if user hasn't already configured this app
+            if UserPreferences.shared.getPauseDuration(for: bundleIdentifier) == .active {
+                UserPreferences.shared.setPauseDuration(for: bundleIdentifier, duration: .indefinite)
+                Logger.info("Auto-paused unsupported app: \(bundleIdentifier)", category: Logger.general)
+            }
+        }
 
         // Track previous app before updating current
         if let current = self.activeApplication, current.bundleIdentifier != bundleIdentifier {
