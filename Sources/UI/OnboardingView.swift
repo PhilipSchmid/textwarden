@@ -367,7 +367,7 @@ struct OnboardingView: View {
                     .foregroundColor(appleIntelligenceStatusColor)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("AI Style Checking")
+                    Text("Apple Intelligence")
                         .font(.title3)
                         .fontWeight(.semibold)
 
@@ -726,25 +726,25 @@ struct OnboardingView: View {
 
         case .available:
             VStack(alignment: .leading, spacing: 16) {
-                Text("Style checking uses Apple Intelligence to suggest rewrites that improve clarity, tone, and readability of your writing - all processed locally on your Mac.")
+                Text("Uses Apple Intelligence for style suggestions and AI Compose text generation - all processed locally on your Mac.")
                     .font(.body)
                     .foregroundColor(.secondary)
 
                 HStack(alignment: .top, spacing: 16) {
                     FeatureCard(icon: "sparkles", title: "Style Suggestions", description: "AI rewrites for clarity")
-                    FeatureCard(icon: "text.quote", title: "Multiple Styles", description: "Concise, Formal, Casual")
+                    FeatureCard(icon: "pencil.and.outline", title: "AI Compose", description: "Generate text from instructions")
                     FeatureCard(icon: "lock.shield", title: "On-Device", description: "Private & local")
                 }
 
                 Divider()
 
-                // Enable Style Checking toggle
+                // Enable Apple Intelligence toggle
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Enable Style Checking")
+                        Text("Enable Apple Intelligence Features")
                             .font(.body)
                             .fontWeight(.medium)
-                        Text("Get AI-powered suggestions to improve your writing")
+                        Text("Style suggestions and AI Compose for text generation")
                             .font(.body)
                             .foregroundColor(.secondary)
                     }
@@ -754,9 +754,9 @@ struct OnboardingView: View {
                         .labelsHidden()
                 }
 
-                // Automatic Style Checking toggle (only shown if style checking is enabled)
+                // Info text (only shown if enabled)
                 if enableStyleChecking {
-                    Text("Style checking runs automatically after grammar analysis. You can also trigger it manually via keyboard shortcut or by clicking the style section of the indicator.")
+                    Text("Style checking runs automatically after grammar analysis. You can also trigger it manually via keyboard shortcut or by clicking the indicator.")
                         .font(.body)
                         .foregroundColor(.secondary)
                 }
