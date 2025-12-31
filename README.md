@@ -218,6 +218,7 @@ TextWarden uses the macOS Accessibility API and works with most applications. Vi
 | **Apple Notes** | Full | Full |
 | **Apple Messages** | Full | Full |
 | **Apple Pages** | Full | Full |
+| **Apple Reminders** | Full | Full |
 | **TextEdit** | Full | Full |
 | **Notion** | Full | Partial** |
 | **Telegram** | Full | Full |
