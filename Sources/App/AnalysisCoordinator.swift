@@ -236,6 +236,24 @@ class AnalysisCoordinator: ObservableObject {
     /// Prevents the same suggestion from reappearing after re-analysis
     var dismissedStyleSuggestionHashes: Set<Int> = []
 
+    /// Last time auto style check was triggered (for rate limiting)
+    var lastAutoStyleCheckTime: Date?
+
+    /// Text hash from last auto style check (to avoid re-checking unchanged text)
+    var lastAutoStyleCheckTextHash: Int?
+
+    /// Whether an auto style check is currently in progress
+    var isAutoStyleCheckInProgress: Bool = false
+
+    /// Minimum interval between auto style checks (seconds)
+    let autoStyleCheckMinInterval: TimeInterval = 30.0
+
+    /// Debounce delay for auto style check after grammar completes (seconds)
+    let autoStyleCheckDebounceDelay: TimeInterval = 3.0
+
+    /// Minimum text length for auto style checking (characters)
+    let autoStyleCheckMinTextLength: Int = 50
+
     /// Flag to prevent text-change handler from clearing errors during replacement
     /// When true, text changes are expected (we're applying a suggestion) and should not trigger re-analysis
     var isApplyingReplacement: Bool = false

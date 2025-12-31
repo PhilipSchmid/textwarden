@@ -283,21 +283,167 @@ extension AnalysisCoordinator {
     // MARK: - Style Analysis Helpers
 
     /// Check if auto style checking should run
-    /// Note: Auto style checking is now handled via Apple Intelligence (FoundationModelsEngine)
+    /// Returns true if style checking is enabled (auto checking is now always on when enabled)
     func shouldRunAutoStyleChecking() -> Bool {
         let styleCheckingEnabled = userPreferences.enableStyleChecking
-        let autoStyleChecking = userPreferences.autoStyleChecking
-        let shouldRun = styleCheckingEnabled && autoStyleChecking
-
-        Logger.debug("AnalysisCoordinator: Style check eligibility - enabled=\(styleCheckingEnabled), auto=\(autoStyleChecking), willRun=\(shouldRun)", category: Logger.llm)
-        return shouldRun
+        Logger.debug("AnalysisCoordinator: Style check eligibility - enabled=\(styleCheckingEnabled)", category: Logger.llm)
+        return styleCheckingEnabled
     }
 
-    /// Run debounced style analysis
-    /// Note: Style analysis now uses Apple Intelligence via manual trigger
+    /// Run debounced style analysis after grammar check completes
+    /// Uses Apple Intelligence (Foundation Models) with defensive rate limiting
     func runDebouncedStyleAnalysis(text: String) {
-        // Auto style analysis is disabled - use manual style check instead
-        // Future: integrate with Apple Intelligence (FoundationModelsEngine) for auto analysis
+        // Cancel any pending style check
+        styleDebounceTimer?.invalidate()
+
+        // Schedule new style check with debounce delay
+        styleDebounceTimer = Timer.scheduledTimer(withTimeInterval: autoStyleCheckDebounceDelay, repeats: false) { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.executeAutoStyleCheck(text: text)
+            }
+        }
+    }
+
+    /// Execute auto style check with defensive rate limiting
+    private func executeAutoStyleCheck(text: String) {
+        // Guard: Don't run if already in progress
+        guard !isAutoStyleCheckInProgress else {
+            Logger.debug("Auto style check: Skipping - already in progress", category: Logger.llm)
+            return
+        }
+
+        // Guard: Don't run if manual style check is active
+        guard !isManualStyleCheckActive else {
+            Logger.debug("Auto style check: Skipping - manual check active", category: Logger.llm)
+            return
+        }
+
+        // Guard: Minimum text length
+        guard text.count >= autoStyleCheckMinTextLength else {
+            Logger.debug("Auto style check: Skipping - text too short (\(text.count) < \(autoStyleCheckMinTextLength))", category: Logger.llm)
+            return
+        }
+
+        // Guard: Rate limiting - minimum interval between checks
+        if let lastCheck = lastAutoStyleCheckTime {
+            let elapsed = Date().timeIntervalSince(lastCheck)
+            guard elapsed >= autoStyleCheckMinInterval else {
+                Logger.debug("Auto style check: Skipping - too soon (\(Int(elapsed))s < \(Int(autoStyleCheckMinInterval))s)", category: Logger.llm)
+                return
+            }
+        }
+
+        // Guard: Text must have changed since last check
+        let textHash = text.hashValue
+        if let lastHash = lastAutoStyleCheckTextHash, lastHash == textHash {
+            Logger.debug("Auto style check: Skipping - text unchanged", category: Logger.llm)
+            return
+        }
+
+        // Guard: Apple Intelligence must be available (macOS 26+)
+        guard #available(macOS 26.0, *) else {
+            Logger.debug("Auto style check: Skipping - requires macOS 26+", category: Logger.llm)
+            return
+        }
+
+        // Guard: Must have monitored element and context
+        guard let element = textMonitor.monitoredElement,
+              let context = monitoredContext else {
+            Logger.debug("Auto style check: Skipping - no monitored element", category: Logger.llm)
+            return
+        }
+
+        // All guards passed - run the style check
+        Logger.info("Auto style check: Starting analysis (\(text.count) chars)", category: Logger.llm)
+
+        isAutoStyleCheckInProgress = true
+        lastAutoStyleCheckTime = Date()
+        lastAutoStyleCheckTextHash = textHash
+
+        // Run the actual style check using Foundation Models
+        runAutoStyleCheckWithFM(text: text, element: element, context: context)
+    }
+
+    /// Run auto style check using Foundation Models (Apple Intelligence)
+    @available(macOS 26.0, *)
+    private func runAutoStyleCheckWithFM(text: String, element: AXUIElement, context: ApplicationContext) {
+        let fmEngine = FoundationModelsEngine()
+        fmEngine.checkAvailability()
+
+        guard fmEngine.status.isAvailable else {
+            Logger.warning("Auto style check: Apple Intelligence not available - \(fmEngine.status.userMessage)", category: Logger.llm)
+            isAutoStyleCheckInProgress = false
+            return
+        }
+
+        let styleName = userPreferences.selectedWritingStyle
+        let style = WritingStyle.allCases.first { $0.displayName == styleName } ?? .default
+
+        // Check cache first
+        let cacheKey = computeStyleCacheKey(text: text)
+        if let cached = styleCache[cacheKey], text == styleAnalysisSourceText {
+            var filteredCached = cached.filter { !dismissedStyleSuggestionHashes.contains($0.originalText.hashValue) }
+            filteredCached = filterStyleSuggestionsNotOverlappingGrammarErrors(filteredCached, grammarErrors: currentErrors)
+
+            Logger.debug("Auto style check: Cache hit, \(filteredCached.count) suggestion(s)", category: Logger.llm)
+
+            styleCacheMetadata[cacheKey] = StyleCacheMetadata(lastAccessed: Date(), style: styleName)
+            currentStyleSuggestions = filteredCached
+            styleAnalysisSourceText = text
+
+            floatingIndicator.showStyleSuggestionsReady(count: filteredCached.count, styleSuggestions: filteredCached)
+            isAutoStyleCheckInProgress = false
+            return
+        }
+
+        // Cache miss - run analysis
+        Logger.debug("Auto style check: Cache miss, running analysis", category: Logger.llm)
+
+        // Show loading state on indicator
+        floatingIndicator.setStyleLoading(true)
+
+        // Capture generation for staleness check
+        styleAnalysisGeneration &+= 1
+        let capturedGeneration = styleAnalysisGeneration
+
+        Task {
+            do {
+                let suggestions = try await fmEngine.analyzeStyle(text, style: style)
+
+                await MainActor.run {
+                    // Check if still valid (text may have changed during analysis)
+                    guard capturedGeneration == self.styleAnalysisGeneration else {
+                        Logger.debug("Auto style check: Stale result, discarding", category: Logger.llm)
+                        self.isAutoStyleCheckInProgress = false
+                        return
+                    }
+
+                    // Filter suggestions
+                    var filtered = suggestions.filter { !self.dismissedStyleSuggestionHashes.contains($0.originalText.hashValue) }
+                    filtered = self.filterStyleSuggestionsNotOverlappingGrammarErrors(filtered, grammarErrors: self.currentErrors)
+
+                    Logger.info("Auto style check: Complete, \(filtered.count) suggestion(s)", category: Logger.llm)
+
+                    // Update cache
+                    self.styleCache[cacheKey] = suggestions
+                    self.styleCacheMetadata[cacheKey] = StyleCacheMetadata(lastAccessed: Date(), style: styleName)
+
+                    // Update state
+                    self.currentStyleSuggestions = filtered
+                    self.styleAnalysisSourceText = text
+
+                    // Update indicator
+                    self.floatingIndicator.showStyleSuggestionsReady(count: filtered.count, styleSuggestions: filtered)
+                    self.isAutoStyleCheckInProgress = false
+                }
+            } catch {
+                await MainActor.run {
+                    Logger.error("Auto style check failed: \(error)", category: Logger.llm)
+                    self.floatingIndicator.setStyleLoading(false)
+                    self.isAutoStyleCheckInProgress = false
+                }
+            }
+        }
     }
 
     /// Execute style analysis
