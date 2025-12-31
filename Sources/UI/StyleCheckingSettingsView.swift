@@ -44,19 +44,6 @@ struct StyleCheckingSettingsView: View {
             }
 
             if preferences.enableStyleChecking {
-                // MARK: - Auto Check Section
-                Section {
-                    Toggle(isOn: $preferences.autoStyleChecking) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Automatic Style Checks")
-                            Text("Run style analysis automatically while typing. When disabled, use the keyboard shortcut to trigger checks manually.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .toggleStyle(.switch)
-                }
-
                 // MARK: - Writing Style Section
                 Section {
                     // Custom segmented control with tooltips
@@ -176,30 +163,8 @@ struct StyleCheckingSettingsView: View {
                             .foregroundColor(.secondary)
                     }
                     .padding(.vertical, 4)
-
-                    // Minimum sentence words
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Minimum sentence length")
-                            Spacer()
-                            Text("\(preferences.styleMinSentenceWords) words")
-                                .foregroundColor(.secondary)
-                        }
-                        Slider(
-                            value: Binding(
-                                get: { Double(preferences.styleMinSentenceWords) },
-                                set: { preferences.styleMinSentenceWords = Int($0) }
-                            ),
-                            in: 3...10,
-                            step: 1
-                        )
-                        Text("Only analyze sentences with at least this many words")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.vertical, 4)
                 } header: {
-                    Text("Advanced Settings")
+                    Text("Creativity")
                         .font(.headline)
                 }
             }
