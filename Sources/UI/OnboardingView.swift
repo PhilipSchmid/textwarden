@@ -358,7 +358,6 @@ struct OnboardingView: View {
     @State private var enableLaunchAtLogin: Bool = false
     @State private var enableAutoUpdates: Bool = true
     @State private var enableStyleChecking: Bool = true
-    @State private var enableAutoStyleChecking: Bool = false
 
     private var appleIntelligenceStep: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -757,24 +756,7 @@ struct OnboardingView: View {
 
                 // Automatic Style Checking toggle (only shown if style checking is enabled)
                 if enableStyleChecking {
-                    Divider()
-
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Automatic Style Checking")
-                                .font(.body)
-                                .fontWeight(.medium)
-                            Text("Automatically analyze after you stop typing")
-                                .font(.body)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        Toggle("", isOn: $enableAutoStyleChecking)
-                            .toggleStyle(.switch)
-                            .labelsHidden()
-                    }
-
-                    Text("You can always trigger style checking manually via the keyboard shortcut. Select text first to check only that portion, or use without selection to check the entire text field.")
+                    Text("Style checking runs automatically after grammar analysis. You can also trigger it manually via keyboard shortcut or by clicking the style section of the indicator.")
                         .font(.body)
                         .foregroundColor(.secondary)
                 }
@@ -1020,8 +1002,7 @@ struct OnboardingView: View {
         case .appleIntelligence:
             // Save style checking settings
             UserPreferences.shared.enableStyleChecking = enableStyleChecking
-            UserPreferences.shared.autoStyleChecking = enableStyleChecking && enableAutoStyleChecking
-            Logger.info("Onboarding: Style checking: \(enableStyleChecking), auto: \(enableAutoStyleChecking)", category: Logger.general)
+            Logger.info("Onboarding: Style checking: \(enableStyleChecking)", category: Logger.general)
             currentStep = .languageDetection
 
         case .languageDetection:
