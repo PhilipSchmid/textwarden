@@ -1023,6 +1023,30 @@ class AnalysisCoordinator: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // Monitor style checking toggle - clear cache when disabled
+        UserPreferences.shared.$enableStyleChecking
+            .dropFirst() // Skip initial value
+            .sink { [weak self] enabled in
+                guard let self = self else { return }
+                if !enabled {
+                    Logger.info("AnalysisCoordinator: Style checking disabled - clearing style cache and suggestions", category: Logger.analysis)
+                    self.clearStyleCache()
+                    self.currentStyleSuggestions = []
+                    // Update indicator to hide style section
+                    if let element = self.textMonitor.monitoredElement,
+                       let context = self.monitoredContext {
+                        self.floatingIndicator.update(
+                            errors: self.currentErrors,
+                            styleSuggestions: [],
+                            element: element,
+                            context: context,
+                            sourceText: self.lastAnalyzedText
+                        )
+                    }
+                }
+            }
+            .store(in: &cancellables)
+
         // CRITICAL FIX: Check if there's already an active application
         if let currentApp = applicationTracker.activeApplication {
             Logger.debug("AnalysisCoordinator: Found existing active application: \(currentApp.applicationName) (\(currentApp.bundleIdentifier))", category: Logger.analysis)
