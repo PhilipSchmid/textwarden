@@ -731,11 +731,12 @@ struct OnboardingView: View {
                     .font(.body)
                     .foregroundColor(.secondary)
 
-                HStack(alignment: .top, spacing: 16) {
+                HStack(spacing: 16) {
                     FeatureCard(icon: "sparkles", title: "Style Suggestions", description: "AI rewrites for clarity")
                     FeatureCard(icon: "pencil.and.outline", title: "AI Compose", description: "Generate text from instructions")
                     FeatureCard(icon: "lock.shield", title: "On-Device", description: "Private & local")
                 }
+                .fixedSize(horizontal: false, vertical: true)
 
                 Divider()
 
@@ -1175,8 +1176,10 @@ private struct FeatureCard: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
+
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.vertical, 12)
         .padding(.horizontal, 8)
         .background(Color.secondary.opacity(0.1))
