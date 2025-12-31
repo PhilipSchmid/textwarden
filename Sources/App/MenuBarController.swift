@@ -69,8 +69,9 @@ class MenuBarController: NSObject, NSMenuDelegate {
         // Capture the frontmost app before our app potentially becomes active
         menuTargetApp = NSWorkspace.shared.frontmostApplication
 
-        // Check for pending milestones first
-        if let milestone = MilestoneManager.shared.checkForMilestones() {
+        // Check for pending milestones first (only if onboarding is complete)
+        if UserPreferences.shared.hasCompletedOnboarding,
+           let milestone = MilestoneManager.shared.checkForMilestones() {
             showMilestoneCard(milestone, from: sender)
             return
         }
