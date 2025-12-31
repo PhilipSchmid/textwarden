@@ -72,6 +72,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
         // Check for pending milestones first (only if onboarding is complete)
         if UserPreferences.shared.hasCompletedOnboarding,
            let milestone = MilestoneManager.shared.checkForMilestones() {
+            // Mark as shown immediately so it won't show again on next click
+            MilestoneManager.shared.markMilestoneShown(milestone)
             showMilestoneCard(milestone, from: sender)
             return
         }
