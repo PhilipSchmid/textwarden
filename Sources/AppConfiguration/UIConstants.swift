@@ -29,14 +29,14 @@ enum UIConstants {
 
     // MARK: - Capsule Indicator (when style checking enabled)
 
-    /// Height of each section in the capsule indicator
-    static let capsuleSectionHeight: CGFloat = 28
+    /// Height of each section in the capsule indicator (matches circular indicator size)
+    static let capsuleSectionHeight: CGFloat = 36
 
-    /// Width of the capsule indicator (narrow vertical capsule)
-    static let capsuleWidth: CGFloat = 28
+    /// Width of the capsule indicator (matches circular indicator size)
+    static let capsuleWidth: CGFloat = 36
 
     /// Corner radius for capsule indicator (half of capsuleWidth for rounded ends)
-    static let capsuleCornerRadius: CGFloat = 14
+    static let capsuleCornerRadius: CGFloat = 18
 
     /// Spacing between sections in the capsule (seamless for unified look)
     static let capsuleSectionSpacing: CGFloat = 0
