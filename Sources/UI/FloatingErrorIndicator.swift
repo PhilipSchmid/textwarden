@@ -2616,6 +2616,7 @@ private class CapsuleIndicatorView: NSView {
 
     private var hoveredSection: CapsuleSectionType?
     private var hoverTimer: Timer?
+    private var hoverPopoverActive = false
     private var isDragging = false
     private var dragStartPoint: CGPoint = .zero
     private var spinningTimer: Timer?
@@ -3189,6 +3190,7 @@ private class CapsuleIndicatorView: NSView {
         let section = sectionAtPoint(locationInView)
 
         if section != hoveredSection {
+            let previousSection = hoveredSection
             hoveredSection = section
 
             // Update section hover states
@@ -3197,6 +3199,14 @@ private class CapsuleIndicatorView: NSView {
             }
 
             needsDisplay = true
+
+            // If a hover popover is active, immediately switch to the new section's popover
+            // Also switch if any popover is currently visible (from click)
+            if hoverPopoverActive || SuggestionPopover.shared.isVisible || TextGenerationPopover.shared.isVisible {
+                if previousSection != nil && section != nil {
+                    onHover?(section)
+                }
+            }
         }
     }
 
@@ -3207,6 +3217,7 @@ private class CapsuleIndicatorView: NSView {
 
         hoverTimer?.invalidate()
         hoverTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.hoverDelay, repeats: false) { [weak self] _ in
+            self?.hoverPopoverActive = true
             self?.onHover?(self?.hoveredSection)
         }
     }
@@ -3218,6 +3229,7 @@ private class CapsuleIndicatorView: NSView {
 
         hoverTimer?.invalidate()
         hoverTimer = nil
+        hoverPopoverActive = false
 
         hoveredSection = nil
         for i in 0..<sections.count {
