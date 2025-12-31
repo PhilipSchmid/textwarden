@@ -93,6 +93,9 @@ final class AppRegistry {
         register(.notion)
         register(.mail)
         register(.messages)
+        register(.notes)
+        register(.textEdit)
+        register(.reminders)
         register(.pages)
         register(.whatsapp)
         register(.telegram)
@@ -395,6 +398,99 @@ extension AppConfiguration {
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: true,  // Catalyst byte offsets may be fragile
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
+        )
+    )
+
+    // MARK: - Apple Notes
+
+    static let notes = AppConfiguration(
+        identifier: "notes",
+        displayName: "Apple Notes",
+        bundleIDs: ["com.apple.Notes"],
+        category: .native,
+        parserType: .generic,
+        fontConfig: FontConfig(
+            defaultSize: 12,
+            fontFamily: nil,  // System font
+            spacingMultiplier: 1.0
+        ),
+        horizontalPadding: 0,
+        // Notes uses standard NSTextView with reliable AXBoundsForRange for positioning.
+        preferredStrategies: [.rangeBounds, .lineIndex, .fontMetrics],
+        features: AppFeatures(
+            visualUnderlinesEnabled: true,
+            textReplacementMethod: .standard,
+            requiresTypingPause: false,
+            supportsFormattedText: true,
+            childElementTraversal: false,
+            delaysAXNotifications: false,
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: false,
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
+        )
+    )
+
+    // MARK: - TextEdit
+
+    static let textEdit = AppConfiguration(
+        identifier: "textedit",
+        displayName: "TextEdit",
+        bundleIDs: ["com.apple.TextEdit"],
+        category: .native,
+        parserType: .generic,
+        fontConfig: FontConfig(
+            defaultSize: 12,
+            fontFamily: nil,  // System font
+            spacingMultiplier: 1.0
+        ),
+        horizontalPadding: 0,
+        // TextEdit is the quintessential NSTextView app with full AX support.
+        preferredStrategies: [.rangeBounds, .lineIndex, .fontMetrics],
+        features: AppFeatures(
+            visualUnderlinesEnabled: true,
+            textReplacementMethod: .standard,
+            requiresTypingPause: false,
+            supportsFormattedText: true,
+            childElementTraversal: false,
+            delaysAXNotifications: false,
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: false,
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
+        )
+    )
+
+    // MARK: - Apple Reminders
+
+    static let reminders = AppConfiguration(
+        identifier: "reminders",
+        displayName: "Apple Reminders",
+        bundleIDs: ["com.apple.reminders"],
+        category: .native,
+        parserType: .generic,
+        fontConfig: FontConfig(
+            defaultSize: 13,
+            fontFamily: nil,  // System font
+            spacingMultiplier: 1.0
+        ),
+        horizontalPadding: 0,
+        // Reminders uses standard Cocoa text fields for task titles and notes.
+        preferredStrategies: [.rangeBounds, .lineIndex, .fontMetrics],
+        features: AppFeatures(
+            visualUnderlinesEnabled: true,
+            textReplacementMethod: .standard,
+            requiresTypingPause: false,
+            supportsFormattedText: false,  // Plain text tasks
+            childElementTraversal: false,
+            delaysAXNotifications: false,
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: false,
             defersTextExtraction: false,
             requiresFrameValidation: false,
             hasTextMarkerIndexOffset: false
