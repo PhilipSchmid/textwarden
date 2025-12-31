@@ -78,51 +78,7 @@ struct StyleCheckingSettingsView: View {
                         .font(.headline)
                 }
 
-                // MARK: - Apple Intelligence Status Section
-                Section {
-                    HStack(spacing: 12) {
-                        Image(systemName: fmStatus.symbolName)
-                            .font(.title2)
-                            .foregroundColor(fmStatus.isAvailable ? .green : .orange)
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(fmStatus.isAvailable ? "Apple Intelligence Ready" : "Apple Intelligence")
-                                .font(.system(size: 13, weight: .semibold))
-
-                            Text(fmStatus.userMessage)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-
-                        Spacer()
-
-                        if fmStatus == .appleIntelligenceNotEnabled {
-                            Button("Open Settings") {
-                                // Open System Settings → Apple Intelligence
-                                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.appleintelli") {
-                                    NSWorkspace.shared.open(url)
-                                }
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                        } else if fmStatus.canRetry {
-                            Button("Check Again") {
-                                checkFMAvailability()
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                } header: {
-                    Text("Status")
-                        .font(.headline)
-                }
-                .onAppear {
-                    checkFMAvailability()
-                }
-
-                // MARK: - Advanced Settings Section
+                // MARK: - Creativity Section
                 Section {
                     // Temperature Preset (Creativity vs Consistency)
                     VStack(alignment: .leading, spacing: 8) {
@@ -166,6 +122,50 @@ struct StyleCheckingSettingsView: View {
                 } header: {
                     Text("Creativity")
                         .font(.headline)
+                }
+
+                // MARK: - Apple Intelligence Status Section
+                Section {
+                    HStack(spacing: 12) {
+                        Image(systemName: fmStatus.symbolName)
+                            .font(.title2)
+                            .foregroundColor(fmStatus.isAvailable ? .green : .orange)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(fmStatus.isAvailable ? "Apple Intelligence Ready" : "Apple Intelligence")
+                                .font(.system(size: 13, weight: .semibold))
+
+                            Text(fmStatus.userMessage)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+
+                        if fmStatus == .appleIntelligenceNotEnabled {
+                            Button("Open Settings") {
+                                // Open System Settings → Apple Intelligence
+                                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.appleintelli") {
+                                    NSWorkspace.shared.open(url)
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        } else if fmStatus.canRetry {
+                            Button("Check Again") {
+                                checkFMAvailability()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Status")
+                        .font(.headline)
+                }
+                .onAppear {
+                    checkFMAvailability()
                 }
             }
         }
