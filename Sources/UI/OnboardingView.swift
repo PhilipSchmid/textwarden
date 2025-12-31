@@ -173,8 +173,9 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 18) {
                 FeatureRow(icon: "checkmark.circle.fill", title: "Grammar & Spelling", description: "Instant detection of typos, grammar errors, and punctuation issues")
                 FeatureRow(icon: "sparkles", title: "AI Style Suggestions", description: "Apple Intelligence rewrites for clarity, tone, and readability")
+                FeatureRow(icon: "pencil.and.outline", title: "AI Compose", description: "Generate text from natural language instructions")
                 FeatureRow(icon: "lock.shield.fill", title: "100% Private", description: "Everything runs locally — your text never leaves your device")
-                FeatureRow(icon: "macwindow.on.rectangle", title: "Works Everywhere", description: "Slack, Mail, Notes, browsers, and thousands more apps")
+                FeatureRow(icon: "macwindow.on.rectangle", title: "Works Everywhere", description: "Slack, Mail, Notes, browsers, and many more")
             }
             .padding(.vertical, 12)
 
@@ -196,8 +197,8 @@ struct OnboardingView: View {
 
             VStack(alignment: .leading, spacing: 14) {
                 FeatureRow(icon: "lock.shield.fill", title: "100% Local & Private", description: "All processing on your Mac — no cloud, no data leaves your device")
-                FeatureRow(icon: "sparkles", title: "AI-Powered Style Suggestions", description: "Apple Intelligence rewrites for clarity and tone")
-                FeatureRow(icon: "macwindow.on.rectangle", title: "Works in Every App", description: "Slack, Notion, VS Code, Mail, and thousands more")
+                FeatureRow(icon: "sparkles", title: "AI Style & Compose", description: "Apple Intelligence for style suggestions and text generation")
+                FeatureRow(icon: "macwindow.on.rectangle", title: "Works in Every App", description: "Slack, Notion, Word, Mail, and many more")
             }
             .padding(.vertical, 8)
 
