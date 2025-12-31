@@ -26,7 +26,6 @@ import FoundationModels
 struct AppleIntelligenceDiagnostics: Codable {
     // Feature status
     let styleCheckingEnabled: Bool
-    let autoStyleCheckingEnabled: Bool
 
     // Apple Intelligence availability
     let appleIntelligenceStatus: String
@@ -37,7 +36,6 @@ struct AppleIntelligenceDiagnostics: Codable {
     let selectedWritingStyle: String
     let temperaturePreset: String
     let confidenceThreshold: Double
-    let minSentenceWords: Int
 
     // Runtime status
     let isAnalyzing: Bool
@@ -84,14 +82,12 @@ struct AppleIntelligenceDiagnostics: Codable {
 
         return AppleIntelligenceDiagnostics(
             styleCheckingEnabled: preferences.enableStyleChecking,
-            autoStyleCheckingEnabled: preferences.autoStyleChecking,
             appleIntelligenceStatus: status,
             appleIntelligenceAvailable: available,
             statusMessage: statusMessage,
             selectedWritingStyle: preferences.selectedWritingStyle,
             temperaturePreset: preset.label,
             confidenceThreshold: preferences.styleConfidenceThreshold,
-            minSentenceWords: preferences.styleMinSentenceWords,
             isAnalyzing: isAnalyzing
         )
     }
