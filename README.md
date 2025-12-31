@@ -56,7 +56,8 @@ A small indicator and/or underline appears when issues are found. Click to see s
    - The DMG is a **Universal binary** that works on both Intel and Apple Silicon Macs
 2. Move TextWarden to your Applications folder and open it
 3. Grant Accessibility permission when prompted (required to read text in other apps)
-4. Start typing - TextWarden works automatically in the background
+4. **Recommended**: Disable built-in spell/grammar checking in apps you use with TextWarden to avoid confusion from overlapping underlines (e.g., in System Settings → Keyboard → Text Input, or within individual apps like Slack, Word, etc.)
+5. Start typing - TextWarden works automatically in the background
 
 For detailed explanations of all settings and how they affect your experience, see the **[Configuration Guide](CONFIGURATION.md)**.
 
@@ -77,12 +78,12 @@ You can enable or disable specific categories in Settings.
 
 ### AI-Powered Style Suggestions
 
-Beyond rule-based grammar checking, TextWarden offers intelligent style suggestions powered by a local AI model running entirely on your Mac. This feature is disabled by default and can be enabled in Settings.
+Beyond rule-based grammar checking, TextWarden offers intelligent style suggestions powered by Apple Intelligence running entirely on your Mac. This feature is disabled by default and can be enabled in Settings → Style.
 
-Style analysis can be triggered in two ways:
+When enabled, style checking runs automatically after grammar analysis with smart rate limiting. You can also trigger it manually:
 
 - **Keyboard shortcut**: Press `Option+Control+S` (customizable) to run a style check on demand
-- **Automatic**: Enable automatic style checking in Settings to analyze text as you type
+- **Indicator click**: Click or hover over the style section of the capsule indicator
 
 When using the keyboard shortcut with text selected, only the selected portion is analyzed. Without a selection, the entire text field is analyzed.
 

@@ -154,17 +154,15 @@ TextWarden includes optional word lists you can enable:
 
 > **Requires:** macOS 26 (Tahoe) or later with Apple Intelligence enabled
 
-### Enable Style Checking
+### Enable Apple Intelligence Features
 
-**What it does:** Activates AI-powered style suggestions using Apple Intelligence. These go beyond grammar to suggest clearer, more effective phrasing.
+**What it does:** Activates AI-powered features using Apple Intelligence:
+- **Style Suggestions** - Get suggestions for clearer, more effective phrasing
+- **AI Compose** - Generate text from instructions by clicking the pen icon in the indicator
+
+Style checking runs automatically after grammar analysis with smart rate limiting. You can also trigger it manually via keyboard shortcut or by clicking the style section of the indicator.
 
 **What you'll see:** When enabled, you may get suggestions like "Consider rephrasing for clarity" or "This could be more concise."
-
-### Automatic Style Checks
-
-**What it does:** When enabled, style analysis runs automatically as you type (with a delay to avoid interrupting your flow). When disabled, you must manually trigger style checks using the keyboard shortcut.
-
-**Recommendation:** Start with automatic checks disabled. Use manual triggers until you're comfortable with the suggestions, then consider enabling automatic checks.
 
 ### Writing Style
 
@@ -189,14 +187,6 @@ TextWarden includes optional word lists you can enable:
 - **Creative** - More varied suggestions, still appropriate for writing tasks
 
 **Recommendation:** Use Consistent for professional documents where you want predictable results. Use Balanced for everyday writing.
-
-### Minimum Sentence Length
-
-**What it does:** Only analyzes sentences with at least this many words. Short phrases like "Thanks!" or "OK" are skipped.
-
-**Range:** 3-10 words
-
-**Recommendation:** Keep at 5-6 words. Lower values may generate unnecessary suggestions for greetings and short responses.
 
 ---
 
