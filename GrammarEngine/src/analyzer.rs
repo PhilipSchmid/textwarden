@@ -3483,13 +3483,16 @@ mod tests {
                 if let Some(first_suggestion) = error.suggestions.first() {
                     // The suggestion should NOT have forced capitalization
                     // We expect Harper's original suggestion, which would be lowercase for these test cases
-                    let first_char = first_suggestion.chars().next().unwrap();
-                    println!(
-                        "  First suggestion: '{}', first char: '{}'",
-                        first_suggestion, first_char
-                    );
-                    // This is a negative test - we just verify the function runs without error
-                    println!("  ✓ Capitalization enhancement was not applied");
+                    if let Some(first_char) = first_suggestion.chars().next() {
+                        println!(
+                            "  First suggestion: '{}', first char: '{}'",
+                            first_suggestion, first_char
+                        );
+                        // This is a negative test - we just verify the function runs without error
+                        println!("  ✓ Capitalization enhancement was not applied");
+                    } else {
+                        println!("  ⚠️  Empty suggestion received");
+                    }
                 }
             } else {
                 println!("  ⚠️  No error found for '{}'", error_word);
@@ -3555,16 +3558,19 @@ mod tests {
 
             // When enabled, first suggestion should start with uppercase
             if let Some(sugg_on) = err_on.suggestions.first() {
-                let first_char_on = sugg_on.chars().next().unwrap();
-                assert!(
-                    first_char_on.is_uppercase(),
-                    "With enhancement enabled, first suggestion should be capitalized: '{}'",
-                    sugg_on
-                );
-                println!(
-                    "\n✓ Enhancement enabled: suggestion is capitalized: '{}'",
-                    sugg_on
-                );
+                if let Some(first_char_on) = sugg_on.chars().next() {
+                    assert!(
+                        first_char_on.is_uppercase(),
+                        "With enhancement enabled, first suggestion should be capitalized: '{}'",
+                        sugg_on
+                    );
+                    println!(
+                        "\n✓ Enhancement enabled: suggestion is capitalized: '{}'",
+                        sugg_on
+                    );
+                } else {
+                    panic!("Empty suggestion from Harper - test data error");
+                }
             }
 
             // Both should have suggestions, but they may differ in capitalization
