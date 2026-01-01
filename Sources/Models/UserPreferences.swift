@@ -205,6 +205,13 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Whether the menu bar tooltip has been shown after onboarding (shown only once, ever)
+    @Published var hasShownMenuBarTooltip: Bool {
+        didSet {
+            defaults.set(hasShownMenuBarTooltip, forKey: Keys.hasShownMenuBarTooltip)
+        }
+    }
+
     // MARK: - Language & Dialect
 
     /// Selected English dialect for grammar checking
@@ -682,6 +689,7 @@ class UserPreferences: ObservableObject {
 
         self.openInForeground = defaults.object(forKey: Keys.openInForeground) as? Bool ?? false
         self.hasCompletedOnboarding = defaults.object(forKey: Keys.hasCompletedOnboarding) as? Bool ?? false
+        self.hasShownMenuBarTooltip = defaults.object(forKey: Keys.hasShownMenuBarTooltip) as? Bool ?? false
 
         // Language & Dialect
         self.selectedDialect = defaults.string(forKey: Keys.selectedDialect) ?? "American"
@@ -1061,6 +1069,7 @@ class UserPreferences: ObservableObject {
     /// Reset all preferences to defaults
     func resetToDefaults() {
         hasCompletedOnboarding = false
+        hasShownMenuBarTooltip = false
         pauseDuration = .active
         pausedUntil = nil
         disabledApplications = []
@@ -1141,6 +1150,7 @@ class UserPreferences: ObservableObject {
 
         // Onboarding
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
+        static let hasShownMenuBarTooltip = "hasShownMenuBarTooltip"
 
         // Milestones
         static let shownMilestones = "shownMilestones"

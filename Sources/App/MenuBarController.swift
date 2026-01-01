@@ -22,6 +22,9 @@ class MenuBarController: NSObject, NSMenuDelegate {
     /// Window controller for milestone celebration cards
     private var milestoneCardController: MilestoneCardWindowController?
 
+    /// Window controller for menu bar tooltip (shown once after onboarding)
+    private var menuBarTooltipController: MenuBarTooltipWindowController?
+
     override init() {
         super.init()
         MenuBarController.shared = self
@@ -123,6 +126,31 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         showMilestoneCard(milestone, from: button, isPreview: false)
+    }
+
+    /// Show the menu bar tooltip after onboarding completes
+    /// This tooltip is shown only once to help users find the menu bar icon
+    func showMenuBarTooltip() {
+        guard let button = statusItem?.button else {
+            Logger.warning("Cannot show menu bar tooltip: no status item button", category: Logger.ui)
+            return
+        }
+
+        guard let window = button.window else {
+            Logger.warning("Cannot show menu bar tooltip: no window for button", category: Logger.ui)
+            return
+        }
+
+        // Get the button's frame in screen coordinates
+        let buttonFrameInWindow = button.convert(button.bounds, to: nil)
+        let buttonFrameOnScreen = window.convertToScreen(buttonFrameInWindow)
+
+        // Create controller if needed
+        if menuBarTooltipController == nil {
+            menuBarTooltipController = MenuBarTooltipWindowController()
+        }
+
+        menuBarTooltipController?.showTooltip(near: buttonFrameOnScreen)
     }
 
     private func createMenu() {

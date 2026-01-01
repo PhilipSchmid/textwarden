@@ -644,26 +644,6 @@ struct OnboardingView: View {
                 }
             }
 
-            HStack(spacing: 12) {
-                Image(systemName: "menubar.rectangle")
-                    .font(.title2)
-                    .foregroundColor(.accentColor)
-                    .frame(width: 32)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Look for TextWarden in your menu bar")
-                        .font(.body)
-                    Text("Click the icon to access settings, pause checking, or view statistics")
-                        .font(.body)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .padding()
-            .background(Color.accentColor.opacity(0.1))
-            .cornerRadius(10)
-
-            Divider()
-
             // Support section
             VStack(alignment: .leading, spacing: 12) {
                 Text("Support TextWarden")
@@ -853,6 +833,11 @@ struct OnboardingView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             NSApp.setActivationPolicy(.accessory)
             Logger.info("Returned to menu bar only mode", category: Logger.lifecycle)
+
+            // Show menu bar tooltip to help users find the icon (only shown once)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                MenuBarController.shared?.showMenuBarTooltip()
+            }
         }
     }
 
