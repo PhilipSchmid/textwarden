@@ -309,17 +309,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let window = NSWindow(contentViewController: hostingController)
         window.title = "TextWarden Settings"
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.isReleasedWhenClosed = false  // CRITICAL: Keep window alive when closed
         window.setContentSize(NSSize(width: 850, height: 1000))
         window.minSize = NSSize(width: 750, height: 800)
         window.center()
         window.delegate = self
         window.level = .normal
-        window.toolbar = NSToolbar()
-        window.toolbar?.displayMode = .iconOnly
+
+        // Add toolbar for modern macOS 26 "Toolbar window" style (26pt corner radius)
+        let toolbar = NSToolbar(identifier: "SettingsToolbar")
+        toolbar.displayMode = .iconOnly
+        toolbar.showsBaselineSeparator = false
+        window.toolbar = toolbar
+        window.toolbarStyle = .unified
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
 
         // Store window
         settingsWindow = window
