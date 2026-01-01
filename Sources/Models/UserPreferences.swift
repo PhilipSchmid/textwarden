@@ -108,13 +108,6 @@ class UserPreferences: ObservableObject {
         }
     }
 
-    /// Hidden applications (apps that user has hidden from the discovered list)
-    @Published var hiddenApplications: Set<String> {
-        didSet {
-            persist(hiddenApplications, forKey: Keys.hiddenApplications)
-        }
-    }
-
     /// Applications where underlines are disabled (user preference override)
     /// This allows users to disable underlines for specific apps while keeping grammar checking active
     @Published var appUnderlinesDisabled: Set<String> {
@@ -130,91 +123,6 @@ class UserPreferences: ObservableObject {
             persist(disabledWebsites, forKey: Keys.disabledWebsites)
         }
     }
-
-    /// Default hidden applications (system utilities and apps where grammar checking doesn't make sense)
-    ///
-    /// **Easy Configuration Guide:**
-    /// To add your own apps to this list, simply add the bundle identifier as a new string in the set below.
-    /// To find an app's bundle ID:
-    /// 1. Right-click the app in Finder > Show Package Contents
-    /// 2. Open Info.plist and look for CFBundleIdentifier
-    /// OR run: `mdls -name kMDItemCFBundleIdentifier /path/to/App.app`
-    ///
-    /// Example: "com.yourcompany.YourApp"
-    static let defaultHiddenApplications: Set<String> = [
-        // TextWarden itself
-        "io.textwarden.TextWarden",  // TextWarden
-        // System services and background apps
-        "com.apple.loginwindow",  // Login Window
-        "com.apple.UserNotificationCenter",  // Notification Center
-        "com.apple.notificationcenterui",  // Notification Center UI
-        "com.apple.accessibility.universalAccessAuthWarn",  // Accessibility Warning
-        "com.apple.controlcenter",  // Control Center
-        "com.apple.systemuiserver",  // System UI Server
-        "com.apple.QuickLookUIService",  // Quick Look UI Service
-        "com.apple.appkit.xpc.openAndSavePanelService",  // Open/Save Panel Service
-        "com.apple.CloudKit.ShareBear",  // CloudKit Share Service
-        "com.apple.bird",  // iCloud Sync Daemon
-        "com.apple.CommCenter",  // Communication Center
-        "com.apple.cloudphotosd",  // iCloud Photos Daemon
-        "com.apple.iCloudHelper",  // iCloud Helper
-        "com.apple.FollowUpUI",  // Follow Up UI (system suggestions)
-        "com.apple.InputMethodKit.TextReplacementService",  // Text Replacement Service
-        "com.apple.Console",  // Console
-        "com.apple.dock",  // Dock
-        "com.apple.systempreferences",  // System Preferences
-        // System utilities
-        "com.apple.finder",  // Finder
-        "com.apple.archiveutility",  // Archive Utility
-        "com.apple.universalcontrol",  // Universal Control
-        "com.apple.UniversalAccessControl",  // Universal Access Control
-        // Utility apps
-        "com.TechSmith.Snagit",  // Snagit
-        "com.TechSmith.SnagitHelper",  // Snagit Helper
-        "com.techsmith.snagit.capturehelper",  // Snagit Capture Helper
-        "com.surteesstudios.Bartender",  // Bartender
-        "com.1password.1password",  // 1Password
-        "com.linebreak.CloudApp",  // CloudApp
-        "com.particlebacker.FastFace",  // Meeter (legacy bundle ID)
-        "com.patricebecker.FastFace",  // Meeter
-        "com.raycast.macos",  // Raycast
-        "com.spotify.client",  // Spotify
-        // Security software (Intego)
-        "com.intego.NetUpdate",  // Intego NetUpdate
-        "com.intego.netupdate.application.events.agent",  // Intego NetUpdate Agent
-        "com.intego.app.netbarrier",  // Intego NetBarrier
-        "com.intego.netbarrier.alert",  // Intego NetBarrier Alert
-        "com.intego.virusbarrier.application",  // Intego VirusBarrier
-        "com.intego.virusbarrier.alert",  // Intego VirusBarrier Alert
-        "com.apple.Photos",            // Apple Photos
-        "com.apple.Preview",           // Apple Preview
-        "com.apple.ProblemReporter",   // Apple Problem Reporter
-        "com.prakashjoshipax.VoiceInk", // VoiceInk
-        "com.apple.keychainaccess",    // Keychain Access
-        "com.apple.Passwords",         // Passwords
-        "com.apple.Music",             // Apple Music
-        // Hardware device managers
-        "com.logi.cp-dev-mgr",          // Logitech Device Manager
-        "pro.betterdisplay.BetterDisplay",  // BetterDisplay
-        "com.electron.dockerdesktop",       // Docker Desktop
-        "com.apple.dt.Xcode",               // Xcode
-        "com.grammarly.ProjectLlama",       // Grammarly
-        "org.languagetool.desktop",         // LanguageTool
-        "org.inkscape.Inkscape",            // Inkscape
-        "com.microsoft.OneDrive",           // OneDrive
-        "com.microsoft.autoupdate2",        // Microsoft AutoUpdate
-        "com.microsoft.errorreporting",     // Microsoft Error Reporting
-        "com.alienator88.Pearcleaner",       // Pearcleaner
-        "com.apple.ActivityMonitor",         // Activity Monitor
-        "com.apple.AppStore",                // App Store
-        "com.knollsoft.Rectangle",           // Rectangle
-        // Developer tools
-        "com.apple.AccessibilityInspector",  // Accessibility Inspector
-        "com.apple.IconComposer",            // Icon Composer
-        "com.apple.helpviewer",              // Help Viewer
-        // Design tools
-        "com.canva.CanvaDesktop"             // Canva
-    ]
 
     /// Custom words to ignore
     @Published var customDictionary: Set<String> {
@@ -668,7 +576,6 @@ class UserPreferences: ObservableObject {
         self.pausedUntil = nil
         self.disabledApplications = []
         self.discoveredApplications = []
-        self.hiddenApplications = UserPreferences.defaultHiddenApplications
         self.appUnderlinesDisabled = []
         self.disabledWebsites = []
         self.appPauseDurations = [:]
@@ -743,11 +650,6 @@ class UserPreferences: ObservableObject {
         if let data = defaults.data(forKey: Keys.discoveredApplications),
            let set = try? decoder.decode(Set<String>.self, from: data) {
             self.discoveredApplications = set
-        }
-
-        if let data = defaults.data(forKey: Keys.hiddenApplications),
-           let set = try? decoder.decode(Set<String>.self, from: data) {
-            self.hiddenApplications = set
         }
 
         if let data = defaults.data(forKey: Keys.appUnderlinesDisabled),
@@ -872,14 +774,6 @@ class UserPreferences: ObservableObject {
             }
         }
 
-        // Migrate apps from discovered to hidden if they're in defaultHiddenApplications
-        // This ensures system utilities and unsupported apps (like terminals) stay hidden
-        let appsToHide = discoveredApplications.intersection(Self.defaultHiddenApplications)
-        if !appsToHide.isEmpty {
-            discoveredApplications.subtract(appsToHide)
-            hiddenApplications.formUnion(appsToHide)
-        }
-
         if pauseDuration == .oneHour, let until = pausedUntil, Date() < until {
             setupResumeTimer(until: until)
         }
@@ -995,12 +889,6 @@ class UserPreferences: ObservableObject {
 
         // Check if app is permanently disabled
         if disabledApplications.contains(bundleIdentifier) {
-            return false
-        }
-
-        // Check if app is hidden (hidden apps should not be checked)
-        // Hiding an app from the list implies the user doesn't want TextWarden interaction
-        if hiddenApplications.contains(bundleIdentifier) {
             return false
         }
 
@@ -1224,7 +1112,6 @@ class UserPreferences: ObservableObject {
         static let pausedUntil = "pausedUntil"
         static let disabledApplications = "disabledApplications"
         static let discoveredApplications = "discoveredApplications"
-        static let hiddenApplications = "hiddenApplications"
         static let appUnderlinesDisabled = "appUnderlinesDisabled"
         static let disabledWebsites = "disabledWebsites"
         static let appPauseDurations = "appPauseDurations"

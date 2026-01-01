@@ -15,9 +15,7 @@ struct ApplicationSettingsView: View {
     @State private var searchText = ""
     @State private var supportedApps: [ApplicationInfo] = []
     @State private var otherApps: [ApplicationInfo] = []
-    @State private var hiddenApps: [ApplicationInfo] = []
     @State private var isOtherSectionExpanded = false
-    @State private var isHiddenSectionExpanded = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -48,8 +46,7 @@ struct ApplicationSettingsView: View {
                         ApplicationRow(
                             app: app,
                             preferences: preferences,
-                            isSupported: true,
-                            onHide: { hideApplication(app.bundleIdentifier) }
+                            isSupported: true
                         )
                     }
                 } header: {
@@ -62,7 +59,7 @@ struct ApplicationSettingsView: View {
                             .foregroundColor(.secondary)
                     }
                 } footer: {
-                    Text("These applications have been tested and optimized for TextWarden.")
+                    Text("TextWarden has been tested and optimized for these applications.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -78,22 +75,42 @@ struct ApplicationSettingsView: View {
                                     ApplicationRow(
                                         app: app,
                                         preferences: preferences,
-                                        isSupported: false,
-                                        onHide: { hideApplication(app.bundleIdentifier) }
+                                        isSupported: false
                                     )
                                 }
 
-                                // Request support link
+                                // Request support hint
                                 if !otherApps.isEmpty {
-                                    HStack {
-                                        Spacer()
-                                        Link(destination: URL(string: "https://github.com/philipschmid/textwarden/discussions/new?category=ideas&title=App%20Support%20Request")!) {
-                                            Label("Request support for an app", systemImage: "plus.bubble")
-                                                .font(.caption)
+                                    VStack(spacing: 8) {
+                                        Divider()
+                                            .padding(.vertical, 4)
+
+                                        HStack(spacing: 12) {
+                                            Image(systemName: "sparkles")
+                                                .font(.title2)
+                                                .foregroundColor(.accentColor)
+
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text("Want better support for an app?")
+                                                    .font(.subheadline)
+                                                    .fontWeight(.medium)
+                                                Text("Let us know which apps you'd like TextWarden to fully support.")
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                            }
+
+                                            Spacer()
+
+                                            Link(destination: URL(string: "https://github.com/philipschmid/textwarden/discussions/new?category=ideas&title=App%20Support%20Request")!) {
+                                                Text("Request")
+                                                    .font(.caption)
+                                                    .fontWeight(.medium)
+                                            }
+                                            .buttonStyle(.borderedProminent)
+                                            .controlSize(.small)
                                         }
-                                        Spacer()
+                                        .padding(.vertical, 4)
                                     }
-                                    .padding(.top, 8)
                                 }
                             },
                             label: {
@@ -109,79 +126,10 @@ struct ApplicationSettingsView: View {
                         )
 
                         if !isOtherSectionExpanded {
-                            Text("Apps without dedicated support. Grammar checking may work but visual underlines might be inaccurate. Paused by default.")
+                            Text("Apps without dedicated support. Grammar checking may work but underlines might be inaccurate. Paused by default.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
-                    }
-                    .headerProminence(.increased)
-                }
-
-                // MARK: - Hidden Applications Section
-                if !hiddenApps.isEmpty {
-                    Section {
-                        DisclosureGroup(
-                            isExpanded: $isHiddenSectionExpanded,
-                            content: {
-                                ForEach(hiddenApps, id: \.bundleIdentifier) { app in
-                                    HStack {
-                                        // App icon
-                                        if let icon = app.icon {
-                                            Image(nsImage: icon)
-                                                .resizable()
-                                                .frame(width: 24, height: 24)
-                                        } else {
-                                            Image(systemName: "app")
-                                                .foregroundColor(.secondary)
-                                                .frame(width: 24, height: 24)
-                                        }
-
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(app.name)
-                                                .font(.body)
-                                            HStack(spacing: 4) {
-                                                Text(app.bundleIdentifier)
-                                                    .font(.caption)
-                                                    .foregroundColor(.secondary)
-                                                Button {
-                                                    copyToClipboard(app.bundleIdentifier)
-                                                } label: {
-                                                    Image(systemName: "doc.on.doc")
-                                                        .font(.caption2)
-                                                        .foregroundColor(.secondary)
-                                                }
-                                                .buttonStyle(.plain)
-                                                .help("Copy bundle identifier")
-                                            }
-                                        }
-
-                                        Spacer()
-
-                                        // Show button
-                                        Button {
-                                            showApplication(app.bundleIdentifier)
-                                        } label: {
-                                            Label("Show", systemImage: "eye")
-                                                .font(.caption)
-                                        }
-                                        .buttonStyle(.bordered)
-                                        .controlSize(.small)
-                                        .help("Show this app in the list")
-                                    }
-                                    .padding(.vertical, 4)
-                                }
-                            },
-                            label: {
-                                HStack {
-                                    Text("Hidden Applications")
-                                        .font(.headline)
-                                    Spacer()
-                                    Text("\(hiddenApps.count) apps")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                        )
                     }
                     .headerProminence(.increased)
                 }
@@ -189,7 +137,7 @@ struct ApplicationSettingsView: View {
             .listStyle(.inset)
 
             // Info text
-            Text("Supported applications have been tested for accurate grammar checking and visual underlines. Other applications may work but could have positioning issues.")
+            Text("Supported applications have full grammar checking and visual underlines. Other applications are paused by default but can be enabled manually.")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -198,13 +146,7 @@ struct ApplicationSettingsView: View {
         .onAppear {
             loadApplications()
         }
-        .onChange(of: preferences.disabledApplications) {
-            loadApplications()
-        }
         .onChange(of: preferences.appPauseDurations) {
-            loadApplications()
-        }
-        .onChange(of: preferences.hiddenApplications) {
             loadApplications()
         }
         .onChange(of: preferences.discoveredApplications) {
@@ -238,51 +180,39 @@ struct ApplicationSettingsView: View {
 
     // MARK: - Load Applications
 
-    /// Check if a bundle ID should be excluded from the applications list
-    private func shouldExcludeFromApplicationList(_ bundleID: String) -> Bool {
-        return preferences.hiddenApplications.contains(bundleID)
-    }
-
     /// Check if an app has a dedicated configuration profile
     private func isSupported(_ bundleID: String) -> Bool {
         return AppRegistry.shared.hasConfiguration(for: bundleID)
     }
 
-    /// Load all applications and split into supported/other/hidden
+    /// Load all applications and split into supported/other
     private func loadApplications() {
         var allBundleIDs = Set<String>()
 
         // 1. Add all registered/supported apps from AppRegistry
         for config in AppRegistry.shared.allConfigurations {
             for bundleID in config.bundleIDs {
-                if !shouldExcludeFromApplicationList(bundleID) {
-                    allBundleIDs.insert(bundleID)
-                }
+                allBundleIDs.insert(bundleID)
             }
         }
 
         // 2. Add discovered applications (apps that have been used)
         for bundleID in preferences.discoveredApplications {
-            if !shouldExcludeFromApplicationList(bundleID) {
-                allBundleIDs.insert(bundleID)
-            }
+            allBundleIDs.insert(bundleID)
         }
 
         // 3. Add currently running applications with GUI
         let workspace = NSWorkspace.shared
         for app in workspace.runningApplications {
             if let bundleID = app.bundleIdentifier,
-               app.activationPolicy == .regular,
-               !shouldExcludeFromApplicationList(bundleID) {
+               app.activationPolicy == .regular {
                 allBundleIDs.insert(bundleID)
             }
         }
 
         // 4. Add apps from pause durations (in case they have custom settings)
         for bundleID in preferences.appPauseDurations.keys {
-            if !shouldExcludeFromApplicationList(bundleID) {
-                allBundleIDs.insert(bundleID)
-            }
+            allBundleIDs.insert(bundleID)
         }
 
         // Convert to ApplicationInfo and split by support status
@@ -302,9 +232,6 @@ struct ApplicationSettingsView: View {
         // Sort alphabetically
         supportedApps = supported.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         otherApps = other.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-
-        // Load hidden apps
-        loadHiddenApplications()
     }
 
     /// Get application info from bundle ID
@@ -324,41 +251,6 @@ struct ApplicationSettingsView: View {
             icon: icon
         )
     }
-
-    /// Load hidden applications
-    private func loadHiddenApplications() {
-        var apps: [ApplicationInfo] = []
-
-        for bundleID in preferences.hiddenApplications {
-            if let appInfo = getApplicationInfo(for: bundleID) {
-                apps.append(appInfo)
-            }
-        }
-
-        // Sort alphabetically
-        hiddenApps = apps.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-    }
-
-    /// Move app to hidden
-    private func hideApplication(_ bundleID: String) {
-        preferences.hiddenApplications.insert(bundleID)
-        preferences.discoveredApplications.remove(bundleID)
-        loadApplications()
-    }
-
-    /// Move app from hidden to visible
-    private func showApplication(_ bundleID: String) {
-        preferences.hiddenApplications.remove(bundleID)
-        preferences.discoveredApplications.insert(bundleID)
-        loadApplications()
-    }
-
-    /// Copy text to clipboard
-    private func copyToClipboard(_ text: String) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-    }
 }
 
 // MARK: - Application Row
@@ -367,7 +259,6 @@ private struct ApplicationRow: View {
     let app: ApplicationInfo
     @ObservedObject var preferences: UserPreferences
     let isSupported: Bool
-    let onHide: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -445,16 +336,6 @@ private struct ApplicationRow: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .help(preferences.areUnderlinesEnabled(for: app.bundleIdentifier) ? "Disable underlines for \(app.name)" : "Enable underlines for \(app.name)")
-
-                // Hide button
-                Button {
-                    onHide()
-                } label: {
-                    Image(systemName: "eye.slash")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help("Hide this app from the list")
             }
 
             // Resume time if paused
