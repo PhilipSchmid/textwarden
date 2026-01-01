@@ -1520,15 +1520,8 @@ class AnalysisCoordinator: ObservableObject {
             style: styleName
         )
 
-        if let element = textMonitor.monitoredElement {
-            floatingIndicator.update(
-                errors: currentErrors,
-                styleSuggestions: currentStyleSuggestions,
-                element: element,
-                context: monitoredContext,
-                sourceText: text
-            )
-        }
+        // Don't update indicator here - let grammar analysis completion handle it
+        // to avoid flickering (showing 0 errors briefly before analysis completes)
     }
 
     /// Check if analysis should be skipped for disabled website
