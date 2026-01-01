@@ -190,18 +190,6 @@ class UserPreferences: ObservableObject {
         "com.mitchellh.ghostty"
     ]
 
-    /// Applications paused by default (users can enable them in Applications preferences)
-    /// These apps are set to .indefinite pause on first run because grammar checking is typically not useful
-    static let defaultPausedApplications: Set<String> = [
-        "com.apple.iCal",               // Apple Calendar
-        "com.microsoft.VSCode",         // VS Code
-        "com.todesktop.230313mzl4w4u92", // Cursor IDE
-        "com.exafunction.windsurf",     // Windsurf IDE
-        "com.microsoft.Excel",          // Excel
-        "com.apple.ActivityMonitor",    // Activity Monitor
-        "com.apple.AppStore",           // App Store
-        "com.knollsoft.Rectangle"       // Rectangle
-    ]
 
     /// Always open settings window in foreground on launch
     @Published var openInForeground: Bool {
@@ -765,14 +753,8 @@ class UserPreferences: ObservableObject {
                 appPauseDurations[terminalID] = .indefinite
             }
         }
-
-        // Pause default applications where grammar checking is typically not useful
-        // Users can still enable these individually via Applications preferences
-        for appID in Self.defaultPausedApplications {
-            if appPauseDurations[appID] == nil {
-                appPauseDurations[appID] = .indefinite
-            }
-        }
+        // Note: Other unsupported apps are auto-paused via ApplicationTracker and ApplicationSettingsView
+        // when they're first discovered (whitelist approach)
 
         if pauseDuration == .oneHour, let until = pausedUntil, Date() < until {
             setupResumeTimer(until: until)
@@ -1024,7 +1006,9 @@ class UserPreferences: ObservableObject {
     func setPauseDuration(for bundleIdentifier: String, duration: PauseDuration) {
         switch duration {
         case .active:
-            appPauseDurations.removeValue(forKey: bundleIdentifier)
+            // Always store .active explicitly to prevent re-pausing by auto-pause logic
+            // (terminals are paused on init, unsupported apps are paused on discovery)
+            appPauseDurations[bundleIdentifier] = duration
             appPausedUntil.removeValue(forKey: bundleIdentifier)
 
         case .oneHour:
