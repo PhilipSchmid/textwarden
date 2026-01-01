@@ -12,6 +12,9 @@ This guide explains all the settings available in TextWarden and how they affect
 - [Style Checking (Apple Intelligence)](#style-checking-apple-intelligence)
 - [Appearance](#appearance)
 - [Application Controls](#application-controls)
+  - [Supported Applications](#supported-applications)
+  - [Other Applications](#other-applications)
+  - [Terminal Applications](#terminal-applications)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Advanced Settings](#advanced-settings)
 - [Troubleshooting Tips](#troubleshooting-tips)
@@ -249,18 +252,52 @@ Style checking runs automatically after grammar analysis with smart rate limitin
 
 ## Application Controls
 
-### Per-App Settings
+TextWarden organizes applications into two categories based on their support level.
 
-**What it does:** Enable, disable, or pause TextWarden for specific applications.
+### Supported Applications
+
+**What they are:** Applications that TextWarden has been tested and optimized for. These have dedicated configuration profiles that ensure accurate underline positioning and proper text replacement.
+
+**Default behavior:** Active (grammar checking enabled)
+
+**Examples:** Slack, Claude, Safari, Apple Mail, Microsoft Word, Apple Notes, and many more. See the full list in Settings → Applications.
+
+### Other Applications
+
+**What they are:** Applications discovered on your system that don't have a dedicated configuration profile. Grammar checking may work, but visual underlines might be inaccurate.
+
+**Default behavior:** Paused indefinitely on first discovery. This prevents unexpected behavior in apps where TextWarden hasn't been tested.
+
+**How to enable:** You can manually set any "Other" application to Active in Settings → Applications. Your choice persists across restarts.
+
+**Request support:** Want TextWarden to fully support an app you use? Click the "Request" button in the Other Applications section to submit a feature request.
+
+### Terminal Applications
+
+**What they are:** Command-line applications like Terminal, iTerm2, Warp, and others.
+
+**Default behavior:** Paused indefinitely. Grammar checking in terminals typically produces false positives from command output, error messages, and code snippets.
+
+**How to enable:** You can manually enable any terminal if desired, though this isn't recommended.
+
+### Per-App Settings
 
 **Options for each app:**
 - **Active** - TextWarden monitors and checks text
-- **Paused (duration)** - Temporarily disabled (15 min, 1 hour, etc.)
-- **Paused Indefinitely** - Disabled until you re-enable
+- **Paused for 1 Hour** - Temporarily disabled, automatically resumes
+- **Paused for 24 Hours** - Temporarily disabled, automatically resumes
+- **Paused Until Resumed** - Disabled until you manually re-enable
 
 **Use cases:**
 - Pause for apps where you intentionally write unconventionally
 - Pause during presentations or screen sharing
+- Enable an "Other" application you want to try with TextWarden
+
+### Visual Underlines Toggle
+
+Each application row has an underline button (U) that lets you enable or disable visual error underlines for that specific app, independent of grammar checking. This is useful when:
+- You want grammar checking but find underlines distracting
+- An app has positioning issues that make underlines inaccurate
 
 ### Global Pause
 
