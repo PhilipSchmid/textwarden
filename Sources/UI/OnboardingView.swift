@@ -65,89 +65,122 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Scrollable content area
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Header - larger on overview and sponsoring, compact on other steps
-                    VStack(spacing: isLargeHeaderStep ? 16 : 8) {
-                        Image("TextWardenLogo")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: isLargeHeaderStep ? 140 : 80,
-                                   height: isLargeHeaderStep ? 140 : 80)
-                            .accessibilityHidden(true) // Decorative
+            // Getting Started tutorial fills entire space with its own layout
+            if currentStep == .gettingStarted {
+                // Compact header for tutorial
+                VStack(spacing: 8) {
+                    Image("TextWardenLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 80, height: 80)
+                        .accessibilityHidden(true)
 
-                        Text("Welcome to TextWarden")
-                            .font(isLargeHeaderStep ? .largeTitle : .title2)
-                            .fontWeight(.bold)
-                            .accessibilityAddTraits(.isHeader)
+                    Text("Welcome to TextWarden")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .accessibilityAddTraits(.isHeader)
 
-                        Text("Your Privacy-First Grammar Checker")
-                            .font(isLargeHeaderStep ? .title3 : .subheadline)
-                            .foregroundColor(.secondary)
+                    Text("Your Privacy-First Grammar Checker")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.top, 8)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Welcome to TextWarden, Your Privacy-First Grammar Checker")
+
+                Divider()
+                    .padding(.top, 16)
+
+                // Tutorial content fills remaining space
+                gettingStartedStep
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                // Scrollable content area for all other steps
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // Header - larger on overview and sponsoring, compact on other steps
+                        VStack(spacing: isLargeHeaderStep ? 16 : 8) {
+                            Image("TextWardenLogo")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: isLargeHeaderStep ? 140 : 80,
+                                       height: isLargeHeaderStep ? 140 : 80)
+                                .accessibilityHidden(true) // Decorative
+
+                            Text("Welcome to TextWarden")
+                                .font(isLargeHeaderStep ? .largeTitle : .title2)
+                                .fontWeight(.bold)
+                                .accessibilityAddTraits(.isHeader)
+
+                            Text("Your Privacy-First Grammar Checker")
+                                .font(isLargeHeaderStep ? .title3 : .subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.top, isLargeHeaderStep ? 20 : 8)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Welcome to TextWarden, Your Privacy-First Grammar Checker")
+
+                        Divider()
+
+                        // Content based on current step
+                        Group {
+                            switch currentStep {
+                            case .overview:
+                                overviewStep
+                            case .welcome:
+                                welcomeStep
+                            case .permissionRequest:
+                                permissionRequestStep
+                            case .verification:
+                                verificationStep
+                            case .launchAtLogin:
+                                launchAtLoginStep
+                            case .appleIntelligence:
+                                appleIntelligenceStep
+                            case .languageDetection:
+                                languageDetectionStep
+                            case .websiteExclusion:
+                                websiteExclusionStep
+                            case .gettingStarted:
+                                EmptyView()  // Handled above
+                            case .sponsoring:
+                                sponsoringStep
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 24)
                     }
-                    .padding(.top, isLargeHeaderStep ? 20 : 8)
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("Welcome to TextWarden, Your Privacy-First Grammar Checker")
+                    .frame(width: 580)
+                }
 
-                    Divider()
+                // Fixed footer with navigation buttons
+                Divider()
 
-                    // Content based on current step
-                    Group {
-                        switch currentStep {
-                        case .overview:
-                            overviewStep
-                        case .welcome:
-                            welcomeStep
-                        case .permissionRequest:
-                            permissionRequestStep
-                        case .verification:
-                            verificationStep
-                        case .launchAtLogin:
-                            launchAtLoginStep
-                        case .appleIntelligence:
-                            appleIntelligenceStep
-                        case .languageDetection:
-                            languageDetectionStep
-                        case .websiteExclusion:
-                            websiteExclusionStep
-                        case .sponsoring:
-                            sponsoringStep
+                HStack {
+                    // Back button (shown after overview, except during permission steps)
+                    if canGoBack {
+                        Button("Back") {
+                            goBack()
+                        }
+                        .keyboardShortcut(.escape)
+                    }
+
+                    Spacer()
+
+                    // Cancel button during timeout
+                    if showTimeoutWarning {
+                        Button("Cancel") {
+                            closeOnboardingWindow()
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 24)
+
+                    // Continue/action button
+                    navigationButton
                 }
-                .frame(width: 580)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 16)
             }
-
-            // Fixed footer with navigation buttons
-            Divider()
-
-            HStack {
-                // Back button (shown after overview, except during permission steps)
-                if canGoBack {
-                    Button("Back") {
-                        goBack()
-                    }
-                    .keyboardShortcut(.escape)
-                }
-
-                Spacer()
-
-                // Cancel button during timeout
-                if showTimeoutWarning {
-                    Button("Cancel") {
-                        closeOnboardingWindow()
-                    }
-                }
-
-                // Continue/action button
-                navigationButton
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
         }
         .frame(width: 640, height: 760)
         .onAppear {
@@ -625,6 +658,22 @@ struct OnboardingView: View {
         websiteToExclude = ""
     }
 
+    // MARK: - Getting Started Tutorial
+
+    private var gettingStartedStep: some View {
+        GettingStartedTutorialView(
+            onSkip: {
+                currentStep = .sponsoring
+            },
+            onComplete: {
+                currentStep = .sponsoring
+            },
+            onBackToOnboarding: {
+                currentStep = .websiteExclusion
+            }
+        )
+    }
+
     private var sponsoringStep: some View {
         VStack(alignment: .leading, spacing: 20) {
             // Ready to go section
@@ -857,6 +906,8 @@ struct OnboardingView: View {
             return true
         case .websiteExclusion:
             return true
+        case .gettingStarted:
+            return false  // Tutorial has its own navigation
         case .sponsoring:
             return true
         }
@@ -864,7 +915,7 @@ struct OnboardingView: View {
 
     private func goBack() {
         switch currentStep {
-        case .overview, .welcome, .permissionRequest, .verification:
+        case .overview, .welcome, .permissionRequest, .verification, .gettingStarted:
             break  // Can't go back from these
         case .launchAtLogin:
             currentStep = .verification
@@ -875,7 +926,7 @@ struct OnboardingView: View {
         case .websiteExclusion:
             currentStep = .languageDetection
         case .sponsoring:
-            currentStep = .websiteExclusion
+            currentStep = .gettingStarted
         }
     }
 
@@ -911,7 +962,9 @@ struct OnboardingView: View {
         case .languageDetection:
             return "Double tap to continue to website exclusions"
         case .websiteExclusion:
-            return "Double tap to continue"
+            return "Double tap to view the quick start guide"
+        case .gettingStarted:
+            return ""  // Tutorial has its own navigation
         case .sponsoring:
             return "Double tap to complete setup"
         }
@@ -935,6 +988,8 @@ struct OnboardingView: View {
             return "Continue"
         case .websiteExclusion:
             return "Continue"
+        case .gettingStarted:
+            return ""  // Tutorial has its own navigation
         case .sponsoring:
             return "Finish Setup"
         }
@@ -1015,6 +1070,11 @@ struct OnboardingView: View {
             if !excludedWebsitesDuringOnboarding.isEmpty {
                 Logger.info("Onboarding: Excluded websites: \(excludedWebsitesDuringOnboarding)", category: Logger.general)
             }
+            // Show getting started guide
+            currentStep = .gettingStarted
+
+        case .gettingStarted:
+            // Tutorial has its own navigation, this shouldn't be called
             currentStep = .sponsoring
 
         case .sponsoring:
@@ -1208,6 +1268,7 @@ private enum OnboardingStep {
     case appleIntelligence
     case languageDetection
     case websiteExclusion
+    case gettingStarted
     case sponsoring
 }
 
