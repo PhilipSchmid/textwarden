@@ -71,46 +71,44 @@ struct ApplicationSettingsView: View {
                         DisclosureGroup(
                             isExpanded: $isOtherSectionExpanded,
                             content: {
+                                // Request support hint at the top
+                                if !otherApps.isEmpty {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "sparkles")
+                                            .font(.title2)
+                                            .foregroundColor(.accentColor)
+
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("Want better support for an app?")
+                                                .font(.subheadline)
+                                                .fontWeight(.medium)
+                                            Text("Let us know which apps you'd like TextWarden to fully support.")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+
+                                        Spacer()
+
+                                        Link(destination: URL(string: "https://github.com/philipschmid/textwarden/discussions/new?category=ideas&title=App%20Support%20Request")!) {
+                                            Text("Request")
+                                                .font(.caption)
+                                                .fontWeight(.medium)
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                        .controlSize(.small)
+                                    }
+                                    .padding(.vertical, 8)
+
+                                    Divider()
+                                        .padding(.bottom, 4)
+                                }
+
                                 ForEach(filteredOtherApps, id: \.bundleIdentifier) { app in
                                     ApplicationRow(
                                         app: app,
                                         preferences: preferences,
                                         isSupported: false
                                     )
-                                }
-
-                                // Request support hint
-                                if !otherApps.isEmpty {
-                                    VStack(spacing: 8) {
-                                        Divider()
-                                            .padding(.vertical, 4)
-
-                                        HStack(spacing: 12) {
-                                            Image(systemName: "sparkles")
-                                                .font(.title2)
-                                                .foregroundColor(.accentColor)
-
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                Text("Want better support for an app?")
-                                                    .font(.subheadline)
-                                                    .fontWeight(.medium)
-                                                Text("Let us know which apps you'd like TextWarden to fully support.")
-                                                    .font(.caption)
-                                                    .foregroundColor(.secondary)
-                                            }
-
-                                            Spacer()
-
-                                            Link(destination: URL(string: "https://github.com/philipschmid/textwarden/discussions/new?category=ideas&title=App%20Support%20Request")!) {
-                                                Text("Request")
-                                                    .font(.caption)
-                                                    .fontWeight(.medium)
-                                            }
-                                            .buttonStyle(.borderedProminent)
-                                            .controlSize(.small)
-                                        }
-                                        .padding(.vertical, 4)
-                                    }
                                 }
                             },
                             label: {
@@ -224,6 +222,11 @@ struct ApplicationSettingsView: View {
                 if isSupported(bundleID) {
                     supported.append(app)
                 } else {
+                    // Auto-pause unsupported apps that haven't been configured yet
+                    if preferences.getPauseDuration(for: bundleID) == .active &&
+                       !preferences.appPauseDurations.keys.contains(bundleID) {
+                        preferences.setPauseDuration(for: bundleID, duration: .indefinite)
+                    }
                     other.append(app)
                 }
             }
