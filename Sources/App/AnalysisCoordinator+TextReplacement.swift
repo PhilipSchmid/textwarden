@@ -349,9 +349,14 @@ extension AnalysisCoordinator {
         if replaceError == .success {
             Logger.debug("Style replacement successful via AX API", category: Logger.analysis)
 
-            // Note: Don't call invalidateCacheAfterReplacement for style replacements
-            // Style suggestions use text matching, not byte offsets, so remaining suggestions stay valid
-            // Also, invalidateCacheAfterReplacement triggers re-analysis which would clear style suggestions
+            // Clear manual style check flag to allow indicator updates
+            isManualStyleCheckActive = false
+
+            // Clear grammar errors - their positions are now invalid after text replacement
+            // They'll be recalculated on the next text change event
+            currentErrors.removeAll()
+            errorOverlay.hide()
+            positionResolver.clearCache()
 
             // Invalidate style cache since text changed
             styleCache.removeAll()
@@ -377,7 +382,9 @@ extension AnalysisCoordinator {
 
             // Remove the applied style suggestion from tracking
             removeSuggestionFromTracking(suggestion)
-            // Note: Don't clear remaining suggestions - we find them by text match, not byte offset
+
+            // Schedule re-analysis after grace period to restore grammar underlines
+            schedulePostStyleReplacementAnalysis()
         } else {
             Logger.debug("AX API replacement failed for style (\(replaceError.rawValue)), trying keyboard fallback", category: Logger.analysis)
             applyStyleReplacementViaKeyboard(for: suggestion, element: element)
@@ -463,7 +470,15 @@ extension AnalysisCoordinator {
                 }
             }
 
-            // Invalidate style cache (not grammar cache - don't trigger re-analysis)
+            // Clear manual style check flag to allow indicator updates
+            self?.isManualStyleCheckActive = false
+
+            // Clear grammar errors - their positions are now invalid after text replacement
+            self?.currentErrors.removeAll()
+            self?.errorOverlay.hide()
+            self?.positionResolver.clearCache()
+
+            // Invalidate style cache since text changed
             self?.styleCache.removeAll()
             self?.styleCacheMetadata.removeAll()
 
@@ -478,7 +493,9 @@ extension AnalysisCoordinator {
             }
 
             self?.removeSuggestionFromTracking(suggestion)
-            // Note: Don't clear remaining suggestions - we find them by text match, not byte offset
+
+            // Schedule re-analysis after grace period to restore grammar underlines
+            self?.schedulePostStyleReplacementAnalysis()
         }
     }
 
@@ -541,7 +558,15 @@ extension AnalysisCoordinator {
                 }
             }
 
-            // Invalidate style cache (not grammar cache - don't trigger re-analysis)
+            // Clear manual style check flag to allow indicator updates
+            self?.isManualStyleCheckActive = false
+
+            // Clear grammar errors - their positions are now invalid after text replacement
+            self?.currentErrors.removeAll()
+            self?.errorOverlay.hide()
+            self?.positionResolver.clearCache()
+
+            // Invalidate style cache since text changed
             self?.styleCache.removeAll()
             self?.styleCacheMetadata.removeAll()
 
@@ -556,7 +581,9 @@ extension AnalysisCoordinator {
             }
 
             self?.removeSuggestionFromTracking(suggestion)
-            // Note: Don't clear remaining suggestions - we find them by text match, not byte offset
+
+            // Schedule re-analysis after grace period to restore grammar underlines
+            self?.schedulePostStyleReplacementAnalysis()
         }
     }
 
@@ -579,16 +606,48 @@ extension AnalysisCoordinator {
             Logger.debug("AnalysisCoordinator: No remaining style suggestions, hiding indicator", category: Logger.analysis)
             floatingIndicator.hide()
         } else {
-            // Update indicator with remaining count
+            // Update indicator with remaining count (preserve current grammar errors)
             Logger.debug("AnalysisCoordinator: \(currentStyleSuggestions.count) style suggestions remaining, updating indicator", category: Logger.analysis)
             if let element = textMonitor.monitoredElement {
                 floatingIndicator.update(
-                    errors: [],
+                    errors: currentErrors,
                     styleSuggestions: currentStyleSuggestions,
                     element: element,
                     context: monitoredContext,
                     sourceText: lastAnalyzedText
                 )
+            }
+        }
+    }
+
+    /// Schedule re-analysis after the replacement grace period ends.
+    /// Called after style replacements to restore grammar underlines with correct positions.
+    func schedulePostStyleReplacementAnalysis() {
+        // Wait for the replacement grace period to end, plus a small buffer
+        let delay = TimingConstants.replacementGracePeriod + 0.1
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self = self else { return }
+            guard let element = self.textMonitor.monitoredElement else {
+                Logger.debug("Post-style replacement analysis: no monitored element", category: Logger.analysis)
+                return
+            }
+
+            // Extract current text and trigger analysis
+            if let text = self.extractTextSynchronously(from: element) {
+                Logger.debug("Post-style replacement analysis: triggering re-analysis (\(text.count) chars)", category: Logger.analysis)
+
+                // Clear previousText to force re-analysis (otherwise analyzeText skips if text matches)
+                self.previousText = ""
+
+                let segment = TextSegment(
+                    content: text,
+                    startIndex: 0,
+                    endIndex: text.count,
+                    context: self.monitoredContext ?? ApplicationContext(bundleIdentifier: "", processID: 0, applicationName: "")
+                )
+                self.currentSegment = segment
+                self.analyzeText(segment)
             }
         }
     }
