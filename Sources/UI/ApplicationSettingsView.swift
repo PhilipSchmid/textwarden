@@ -97,12 +97,8 @@ struct ApplicationSettingsView: View {
                                         .buttonStyle(.borderedProminent)
                                         .controlSize(.small)
                                     }
-                                    .padding(.vertical, 8)
-
-                                    Divider()
-                                        .padding(.bottom, 4)
+                                    .padding(.bottom, 4)
                                 }
-
                                 ForEach(filteredOtherApps, id: \.bundleIdentifier) { app in
                                     ApplicationRow(
                                         app: app,
