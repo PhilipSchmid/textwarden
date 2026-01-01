@@ -96,6 +96,7 @@ final class AppRegistry {
         register(.notes)
         register(.textEdit)
         register(.reminders)
+        register(.calendar)
         register(.pages)
         register(.whatsapp)
         register(.telegram)
@@ -104,7 +105,6 @@ final class AppRegistry {
         register(.outlook)
         register(.webex)
         // Note: .default is not registered, used as fallback
-        // Note: Terminal apps are not supported (hidden by default in UserPreferences)
     }
 }
 
@@ -487,6 +487,37 @@ extension AppConfiguration {
             textReplacementMethod: .standard,
             requiresTypingPause: false,
             supportsFormattedText: false,  // Plain text tasks
+            childElementTraversal: false,
+            delaysAXNotifications: false,
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: false,
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
+        )
+    )
+
+    // MARK: - Apple Calendar
+
+    static let calendar = AppConfiguration(
+        identifier: "calendar",
+        displayName: "Apple Calendar",
+        bundleIDs: ["com.apple.iCal"],
+        category: .native,
+        parserType: .generic,
+        fontConfig: FontConfig(
+            defaultSize: 13,
+            fontFamily: nil,  // System font
+            spacingMultiplier: 1.0
+        ),
+        horizontalPadding: 0,
+        // Calendar uses standard Cocoa text fields for event titles and notes.
+        preferredStrategies: [.rangeBounds, .lineIndex, .fontMetrics],
+        features: AppFeatures(
+            visualUnderlinesEnabled: true,
+            textReplacementMethod: .standard,
+            requiresTypingPause: false,
+            supportsFormattedText: false,  // Plain text event titles
             childElementTraversal: false,
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
