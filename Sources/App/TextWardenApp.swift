@@ -175,7 +175,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             // Check for pending milestones on startup (e.g., after system restart)
             // Delay to ensure menu bar is fully initialized
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.startupMilestoneCheckDelay) { [weak self] in
                 Task { @MainActor in
                     self?.checkForStartupMilestone()
                 }
@@ -218,7 +218,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             queue: .main
         ) { [weak self] _ in
             // Delay cleanup to let window animations complete (macOS 26 fix)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.windowCleanupDelay) {
                 self?.onboardingWindow = nil
                 Logger.debug("Onboarding window reference cleared", category: Logger.ui)
             }
@@ -241,7 +241,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         onboardingWindow?.close()
 
         // Return to accessory mode after window closes
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.accessoryModeReturnDelay) {
             NSApp.setActivationPolicy(.accessory)
             Logger.info("Returned to menu bar only mode", category: Logger.lifecycle)
         }

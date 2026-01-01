@@ -124,6 +124,35 @@ enum TimingConstants {
     /// Initial wait time before checking crash recovery state
     static let crashRecoveryInitialWait: TimeInterval = 3.0
 
+    /// Delay before showing crash recovery dialog to allow app to fully initialize
+    static let crashRecoveryDialogDelay: TimeInterval = 2.0
+
+    // MARK: - Accessibility API Timing
+
+    /// Delay to wait for AX API to settle after element position changes
+    /// Electron apps need 250-300ms for AX layer to update after UI changes
+    static let axBoundsStabilizationDelay: TimeInterval = 0.25
+
+    /// Fast polling interval for character bounds stability check
+    static let boundsStabilityPollInterval: TimeInterval = 0.08
+
+    // MARK: - App Lifecycle
+
+    /// Delay before checking startup milestones after menu bar initialization
+    static let startupMilestoneCheckDelay: TimeInterval = 2.0
+
+    /// Delay before showing changelog window after app launch
+    static let changelogDisplayDelay: TimeInterval = 0.5
+
+    /// Delay for window cleanup after close to allow animations to complete
+    static let windowCleanupDelay: TimeInterval = 0.5
+
+    /// Delay before showing onboarding tutorial after permission grant
+    static let tutorialDisplayDelay: TimeInterval = 0.3
+
+    /// Delay before returning to accessory mode after closing a window
+    static let accessoryModeReturnDelay: TimeInterval = 0.3
+
     // MARK: - AI/LLM Operations
 
     /// Retry delay for AI inference operations

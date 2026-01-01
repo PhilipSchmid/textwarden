@@ -385,7 +385,7 @@ extension AnalysisCoordinator {
 
         // Wait for AX API to settle, then verify character bounds are stable
         // Electron apps can take 300-500ms for AX layer to update after UI changes
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.axBoundsStabilizationDelay) { [weak self] in
             self?.waitForCharacterBoundsStability()
         }
     }
@@ -438,8 +438,8 @@ extension AnalysisCoordinator {
 
         lastCharacterBounds = currentCharBounds
 
-        // Check again after 80ms (faster polling)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+        // Check again with faster polling
+        DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.boundsStabilityPollInterval) { [weak self] in
             self?.waitForCharacterBoundsStability()
         }
     }
