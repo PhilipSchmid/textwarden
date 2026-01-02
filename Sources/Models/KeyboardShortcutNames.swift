@@ -14,16 +14,26 @@ extension KeyboardShortcuts.Name {
     /// Toggle TextWarden on/off globally ("T" for TextWarden)
     static let toggleTextWarden = Self("toggleTextWarden", default: .init(.t, modifiers: [.option, .control]))
 
-    /// Trigger style check on current text
-    static let runStyleCheck = Self("runStyleCheck", default: .init(.s, modifiers: [.option, .control]))
-
-    /// Fix all errors that have exactly one suggestion (obvious fixes) - "A" for Apply All
+    /// Fix all grammar errors that have exactly one suggestion (obvious fixes) - "A" for Apply All
     static let fixAllObvious = Self("fixAllObvious", default: .init(.a, modifiers: [.option, .control]))
 
-    // MARK: - Suggestion Popover
+    // MARK: - Popover Shortcuts
 
-    /// Toggle suggestion popover (show if hidden, hide if shown) - "G" for Grammar
-    static let showSuggestionPopover = Self("showSuggestionPopover", default: .init(.g, modifiers: [.option, .control]))
+    /// Show grammar suggestions popover - "G" for Grammar
+    static let showGrammarSuggestions = Self("showGrammarSuggestions", default: .init(.g, modifiers: [.option, .control]))
+
+    /// Show style suggestions popover - "Y" for stYle
+    static let showStyleSuggestions = Self("showStyleSuggestions", default: .init(.y, modifiers: [.option, .control]))
+
+    /// Show AI Compose popover - "W" for Write
+    static let showAICompose = Self("showAICompose", default: .init(.w, modifiers: [.option, .control]))
+
+    /// Trigger style check on current text - "S" for Style check
+    static let runStyleCheck = Self("runStyleCheck", default: .init(.s, modifiers: [.option, .control]))
+
+    // MARK: - Legacy Alias (for backwards compatibility with saved shortcuts)
+    /// @available(*, deprecated, renamed: "showGrammarSuggestions")
+    static let showSuggestionPopover = showGrammarSuggestions
 
     /// Accept the currently selected suggestion
     static let acceptSuggestion = Self("acceptSuggestion", default: .init(.tab))

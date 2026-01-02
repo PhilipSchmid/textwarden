@@ -543,20 +543,53 @@ extension AppDelegate: NSWindowDelegate {
             }
         }
 
-        // Toggle suggestion popover (Option+Control+G by default)
-        KeyboardShortcuts.onKeyUp(for: .showSuggestionPopover) {
+        // Show grammar suggestions popover (Option+Control+G by default)
+        KeyboardShortcuts.onKeyUp(for: .showGrammarSuggestions) {
             Task { @MainActor in
                 let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
 
                 // Toggle: hide if visible, show if hidden
                 if SuggestionPopover.shared.isVisible {
-                    Logger.debug("Keyboard shortcut: Hide suggestion popover (toggle)", category: Logger.ui)
+                    Logger.debug("Keyboard shortcut: Hide grammar popover (toggle)", category: Logger.ui)
                     SuggestionPopover.shared.hide()
                 } else {
-                    Logger.debug("Keyboard shortcut: Show suggestion popover (toggle)", category: Logger.ui)
-                    // Show popover via FloatingErrorIndicator (uses its position and data)
-                    FloatingErrorIndicator.shared.showPopoverFromKeyboard()
+                    Logger.debug("Keyboard shortcut: Show grammar suggestions", category: Logger.ui)
+                    FloatingErrorIndicator.shared.showGrammarPopoverFromKeyboard()
+                }
+            }
+        }
+
+        // Show style suggestions popover (Option+Control+Y by default)
+        KeyboardShortcuts.onKeyUp(for: .showStyleSuggestions) {
+            Task { @MainActor in
+                let preferences = UserPreferences.shared
+                guard preferences.keyboardShortcutsEnabled else { return }
+
+                // Toggle: hide if visible, show if hidden
+                if SuggestionPopover.shared.isVisible {
+                    Logger.debug("Keyboard shortcut: Hide style popover (toggle)", category: Logger.ui)
+                    SuggestionPopover.shared.hide()
+                } else {
+                    Logger.debug("Keyboard shortcut: Show style suggestions", category: Logger.ui)
+                    FloatingErrorIndicator.shared.showStylePopoverFromKeyboard()
+                }
+            }
+        }
+
+        // Show AI Compose popover (Option+Control+W by default)
+        KeyboardShortcuts.onKeyUp(for: .showAICompose) {
+            Task { @MainActor in
+                let preferences = UserPreferences.shared
+                guard preferences.keyboardShortcutsEnabled else { return }
+
+                // Toggle: hide if visible, show if hidden
+                if TextGenerationPopover.shared.isVisible {
+                    Logger.debug("Keyboard shortcut: Hide AI Compose (toggle)", category: Logger.ui)
+                    TextGenerationPopover.shared.hide()
+                } else {
+                    Logger.debug("Keyboard shortcut: Show AI Compose", category: Logger.ui)
+                    FloatingErrorIndicator.shared.showAIComposeFromKeyboard()
                 }
             }
         }

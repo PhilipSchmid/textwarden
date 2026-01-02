@@ -330,14 +330,26 @@ Each application row has an underline button (U) that lets you enable or disable
 
 TextWarden supports global keyboard shortcuts that work in any application.
 
-### Available Shortcuts
+### Global Shortcuts
 
 | Action | Default | Description |
 |--------|---------|-------------|
 | Toggle TextWarden | ⌥⌃T | Enable/disable grammar checking globally |
+| Fix All Grammar Errors | ⌥⌃A | Apply all single-suggestion grammar fixes at once |
+
+### Feature Shortcuts
+
+| Action | Default | Description |
+|--------|---------|-------------|
+| Show Grammar Suggestions | ⌥⌃G | Toggle the grammar suggestions popover |
+| Show Style Suggestions | ⌥⌃Y | Toggle the style suggestions popover |
+| Show AI Compose | ⌥⌃W | Toggle the AI text generation popover |
 | Run Style Check | ⌥⌃S | Trigger manual style analysis |
-| Fix All Obvious | ⌥⌃A | Apply all single-suggestion fixes at once |
-| Show Suggestions | ⌥⌃G | Toggle the suggestion popover |
+
+### Popover Navigation
+
+| Action | Default | Description |
+|--------|---------|-------------|
 | Accept Suggestion | Tab | Apply the current suggestion |
 | Dismiss Suggestion | ⌥Esc | Dismiss without applying |
 | Previous Suggestion | ⌥← | Navigate to previous error |

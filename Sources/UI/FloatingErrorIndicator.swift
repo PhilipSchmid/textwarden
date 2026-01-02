@@ -1388,6 +1388,46 @@ class FloatingErrorIndicator: NSPanel {
         return true
     }
 
+    /// Show grammar suggestions popover from keyboard shortcut
+    @discardableResult
+    func showGrammarPopoverFromKeyboard() -> Bool {
+        guard isVisible else {
+            Logger.debug("FloatingErrorIndicator: showGrammarPopoverFromKeyboard - indicator not visible", category: Logger.ui)
+            return false
+        }
+
+        Logger.debug("FloatingErrorIndicator: showGrammarPopoverFromKeyboard - showing grammar popover", category: Logger.ui)
+        showGrammarPopover()
+        return true
+    }
+
+    /// Show style suggestions popover from keyboard shortcut
+    /// If no style suggestions available, triggers a style check
+    @discardableResult
+    func showStylePopoverFromKeyboard() -> Bool {
+        guard isVisible else {
+            Logger.debug("FloatingErrorIndicator: showStylePopoverFromKeyboard - indicator not visible", category: Logger.ui)
+            return false
+        }
+
+        Logger.debug("FloatingErrorIndicator: showStylePopoverFromKeyboard - showing style popover", category: Logger.ui)
+        showStylePopover()
+        return true
+    }
+
+    /// Show AI Compose popover from keyboard shortcut
+    @discardableResult
+    func showAIComposeFromKeyboard() -> Bool {
+        guard isVisible else {
+            Logger.debug("FloatingErrorIndicator: showAIComposeFromKeyboard - indicator not visible", category: Logger.ui)
+            return false
+        }
+
+        Logger.debug("FloatingErrorIndicator: showAIComposeFromKeyboard - showing AI compose popover", category: Logger.ui)
+        showTextGenerationPopover()
+        return true
+    }
+
     /// Toggle popover visibility (show if hidden, hide if showing)
     private func togglePopover() {
         if SuggestionPopover.shared.isVisible {

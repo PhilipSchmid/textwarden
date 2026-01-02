@@ -289,9 +289,7 @@ struct GeneralPreferencesView: View {
 
             Section {
                 KeyboardShortcuts.Recorder("Toggle TextWarden:", name: .toggleTextWarden)
-                KeyboardShortcuts.Recorder("Run Style Check:", name: .runStyleCheck)
-                KeyboardShortcuts.Recorder("Show Suggestions:", name: .showSuggestionPopover)
-                KeyboardShortcuts.Recorder("Fix All Obvious:", name: .fixAllObvious)
+                KeyboardShortcuts.Recorder("Fix All Grammar Errors:", name: .fixAllObvious)
 
                 Text("Works system-wide, even when TextWarden isn't the active app")
                     .font(.caption)
@@ -299,6 +297,21 @@ struct GeneralPreferencesView: View {
                     .padding(.top, 4)
             } header: {
                 Text("Global Shortcuts")
+                    .font(.headline)
+            }
+
+            Section {
+                KeyboardShortcuts.Recorder("Show Grammar Suggestions:", name: .showGrammarSuggestions)
+                KeyboardShortcuts.Recorder("Show Style Suggestions:", name: .showStyleSuggestions)
+                KeyboardShortcuts.Recorder("Show AI Compose:", name: .showAICompose)
+                KeyboardShortcuts.Recorder("Run Style Check:", name: .runStyleCheck)
+
+                Text("Quick access to grammar, style, and AI writing features")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 4)
+            } header: {
+                Text("Feature Shortcuts")
                     .font(.headline)
             }
 
