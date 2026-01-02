@@ -269,7 +269,7 @@ class AnalysisCoordinator: ObservableObject {
     // MARK: - Thread-Safe Replacement Mode Check
 
     /// Thread-safe storage for last replacement time (for non-MainActor access)
-    private static let replacementTimeLock = NSLock()
+    nonisolated private static let replacementTimeLock = NSLock()
     nonisolated(unsafe) private static var _threadSafeLastReplacementTime: Date?
 
     /// Thread-safe check if we're in replacement mode
@@ -415,7 +415,7 @@ class AnalysisCoordinator: ObservableObject {
     private func setupTextGenerationCallbacks() {
         // Handle text generation request
         TextGenerationPopover.shared.onGenerate = { [weak self] instruction, style, context, variationSeed in
-            guard let self = self else {
+            guard self != nil else {
                 throw FoundationModelsError.analysisError("Coordinator not available")
             }
 
