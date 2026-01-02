@@ -13,12 +13,14 @@ class CapsuleStateManager {
     var grammarState: CapsuleSectionState
     var styleState: CapsuleSectionState
     var textGenState: CapsuleSectionState
+    var readabilityState: CapsuleSectionState
     var hoveredSection: CapsuleSectionType?
 
     init() {
         grammarState = CapsuleSectionState(type: .grammar)
         styleState = CapsuleSectionState(type: .style)
         textGenState = CapsuleSectionState(type: .textGeneration)
+        readabilityState = CapsuleSectionState(type: .readability)
     }
 
     /// Current indicator shape based on style checking preference
@@ -76,6 +78,11 @@ class CapsuleStateManager {
         // Text generation section (future)
         if textGenState.displayState != .hidden {
             sections.append(textGenState)
+        }
+
+        // Readability section (when enabled and has score)
+        if readabilityState.displayState != .hidden {
+            sections.append(readabilityState)
         }
 
         return sections
@@ -177,12 +184,30 @@ class CapsuleStateManager {
         }
     }
 
+    /// Update readability section state
+    /// - Parameter result: The readability calculation result, or nil if text is too short
+    func updateReadability(result: ReadabilityResult?) {
+        guard UserPreferences.shared.showReadabilityScore else {
+            readabilityState.displayState = .hidden
+            return
+        }
+
+        if let result {
+            readabilityState.displayState = .readabilityScore(result.displayScore, result.color)
+            readabilityState.ringColor = result.color
+        } else {
+            // No result - either text too short or no text
+            readabilityState.displayState = .hidden
+        }
+    }
+
     /// Set hover state for a section
     func setHovered(_ section: CapsuleSectionType?) {
         hoveredSection = section
         grammarState.isHovered = section == .grammar
         styleState.isHovered = section == .style
         textGenState.isHovered = section == .textGeneration
+        readabilityState.isHovered = section == .readability
     }
 
     /// Get color for grammar errors based on severity

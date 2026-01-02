@@ -12,8 +12,9 @@ import Cocoa
 /// Section types in the capsule indicator
 enum CapsuleSectionType: Int, CaseIterable {
     case grammar = 0 // Upper section
-    case style = 1 // Middle section
-    case textGeneration = 2 // Lower section (future)
+    case style = 1 // Second section
+    case textGeneration = 2 // Third section
+    case readability = 3 // Bottom section - Flesch Reading Ease score
 }
 
 /// Visual state per section
@@ -31,6 +32,10 @@ enum SectionDisplayState: Equatable {
     // Text generation states
     case textGenIdle // Pen icon, ready
     case textGenActive // Generating animation
+
+    // Readability states
+    case readabilityScore(Int, NSColor) // Show score (0-100) with color
+    case readabilityNA // Text too short for meaningful score
 
     case hidden // Section not visible
 }
