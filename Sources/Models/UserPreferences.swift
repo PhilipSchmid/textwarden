@@ -466,6 +466,13 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Delay in milliseconds before showing popover on hover (0 = instant)
+    @Published var popoverHoverDelayMs: Int {
+        didSet {
+            defaults.set(popoverHoverDelayMs, forKey: Keys.popoverHoverDelayMs)
+        }
+    }
+
     // MARK: - Diagnostics
 
     /// Show debug border for text field bounds (red box)
@@ -645,6 +652,7 @@ class UserPreferences: ObservableObject {
         self.maxErrorsForUnderlines = 10
         self.indicatorPosition = "Center Right"
         self.enableHoverPopover = true
+        self.popoverHoverDelayMs = 0
 
         // Diagnostics
         self.showDebugBorderTextFieldBounds = false
@@ -774,6 +782,7 @@ class UserPreferences: ObservableObject {
         self.maxErrorsForUnderlines = defaults.object(forKey: Keys.maxErrorsForUnderlines) as? Int ?? 10
         self.indicatorPosition = defaults.string(forKey: Keys.indicatorPosition) ?? "Center Right"
         self.enableHoverPopover = defaults.object(forKey: Keys.enableHoverPopover) as? Bool ?? true
+        self.popoverHoverDelayMs = defaults.object(forKey: Keys.popoverHoverDelayMs) as? Int ?? 0
 
         // Diagnostics
         self.showDebugBorderTextFieldBounds = defaults.object(forKey: Keys.showDebugBorderTextFieldBounds) as? Bool ?? false
@@ -1197,6 +1206,7 @@ class UserPreferences: ObservableObject {
         static let maxErrorsForUnderlines = "maxErrorsForUnderlines"
         static let indicatorPosition = "indicatorPosition"
         static let enableHoverPopover = "enableHoverPopover"
+        static let popoverHoverDelayMs = "popoverHoverDelayMs"
 
         // Diagnostics
         static let showDebugBorderTextFieldBounds = "showDebugBorderTextFieldBounds"

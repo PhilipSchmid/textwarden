@@ -53,6 +53,9 @@ class ErrorOverlayWindow: NSPanel {
     /// Global event monitor for mouse movement
     private var mouseMonitor: Any?
 
+    /// Timer for hover delay before showing popover
+    private var hoverTimer: Timer?
+
     /// Callback when user hovers over an error (includes window frame for smart positioning)
     var onErrorHover: ((GrammarErrorModel, CGPoint, CGRect?) -> Void)?
 
@@ -203,7 +206,20 @@ class ErrorOverlayWindow: NSPanel {
                    !isMouseOverPopover &&
                    !isSameErrorAlreadyShowing {
                     let appWindowFrame = self.getApplicationWindowFrame()
-                    self.onErrorHover?(newHoveredUnderline.error, screenLocation, appWindowFrame)
+
+                    // Cancel any existing hover timer
+                    self.hoverTimer?.invalidate()
+
+                    let delayMs = UserPreferences.shared.popoverHoverDelayMs
+                    if delayMs <= 0 {
+                        // Instant display
+                        self.onErrorHover?(newHoveredUnderline.error, screenLocation, appWindowFrame)
+                    } else {
+                        // Delayed display
+                        self.hoverTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(delayMs) / 1000.0, repeats: false) { [weak self] _ in
+                            self?.onErrorHover?(newHoveredUnderline.error, screenLocation, appWindowFrame)
+                        }
+                    }
                 }
             } else {
                 // Clear hovered state
@@ -211,6 +227,11 @@ class ErrorOverlayWindow: NSPanel {
                     self.hoveredUnderline = nil
                     underlineView.hoveredUnderline = nil
                     underlineView.needsDisplay = true
+
+                    // Cancel pending hover timer
+                    self.hoverTimer?.invalidate()
+                    self.hoverTimer = nil
+
                     // Only trigger hover end if mouse is not over the popover
                     // (prevents closing popover when mouse moves from underline to popover)
                     if !SuggestionPopover.shared.containsPoint(mouseLocation) {
@@ -732,6 +753,10 @@ class ErrorOverlayWindow: NSPanel {
 
     /// Hide overlay
     func hide() {
+        // Cancel any pending hover timer
+        hoverTimer?.invalidate()
+        hoverTimer = nil
+
         if isCurrentlyVisible {
             orderOut(nil)
             isCurrentlyVisible = false
@@ -847,6 +872,8 @@ class ErrorOverlayWindow: NSPanel {
 
     /// Clean up resources
     deinit {
+        hoverTimer?.invalidate()
+        hoverTimer = nil
         stopFrameValidationTimer()
         if let monitor = mouseMonitor {
             NSEvent.removeMonitor(monitor)

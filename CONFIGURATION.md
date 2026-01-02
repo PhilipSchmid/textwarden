@@ -108,41 +108,23 @@ Click **Check for Updates** in the About section to immediately check for availa
 **Categories include:**
 - **Spelling** - Misspelled words
 - **Grammar** - Subject-verb agreement, tense consistency
-- **Punctuation** - Missing or incorrect punctuation
+- **Punctuation** - Missing or incorrect punctuation (with sub-options, see below)
 - **Style** - Wordiness, passive voice, clichés
 - **Capitalization** - Proper nouns, sentence starts
 - **Repetition** - Repeated words like "the the"
 
 **Recommendation:** Enable all categories initially. Disable specific ones only if they generate too many unwanted suggestions for your writing style.
 
-### Punctuation Fine-tuning
+### Punctuation Sub-options
 
-These settings provide finer control over specific punctuation rules within the Punctuation category:
+When the Punctuation category is enabled, additional fine-tuning options appear:
 
-**Oxford Comma**
+- **Oxford Comma** - Flag lists missing the serial comma (e.g., "apples, bananas and oranges" → "apples, bananas, and oranges")
+- **Ellipsis Formatting** - Suggest proper ellipsis character (…) instead of three periods (...)
+- **Unclosed Quotes** - Flag quotation marks that are opened but never closed
+- **Dash Usage** - Check correct usage of em-dashes (—), en-dashes (–), and hyphens (-)
 
-When enabled, TextWarden flags lists that are missing the serial comma.
-- Example: "apples, bananas and oranges" → "apples, bananas, and oranges"
-- **Default:** Enabled
-
-**Ellipsis Formatting**
-
-When enabled, suggests using the proper ellipsis character (…) instead of three periods (...).
-- Example: "Wait..." → "Wait…"
-- **Default:** Enabled
-
-**Unclosed Quotes**
-
-When enabled, flags quotation marks that are opened but never closed.
-- Example: "She said "hello and walked away.
-- **Default:** Enabled
-
-**Dash Usage**
-
-When enabled, checks for correct usage of em-dashes (—), en-dashes (–), and hyphens (-).
-- **Default:** Enabled
-
-**Recommendation:** Keep all enabled for complete punctuation checking. Disable individual rules if they don't match your preferred writing style.
+All sub-options are enabled by default. Disable individual rules if they don't match your preferred writing style.
 
 ---
 
@@ -288,6 +270,16 @@ You can drag the indicator to any position along the window border, and position
 **Why you'd enable it:** Provides constant visual feedback about your text quality. When Apple Intelligence is enabled, also gives quick mouse access to Style Check and AI Compose features.
 
 **Default:** Off. The indicator only appears when there are grammar errors or style suggestions.
+
+#### Hover Delay
+
+**What it does:** Controls how long you need to hover over the indicator before the suggestion popover appears.
+
+**Range:** 0ms (instant) to 1000ms
+
+**Default:** 0ms (instant display)
+
+**Recommendation:** Keep at 0ms for immediate feedback. Increase the delay if you find the popover appearing too quickly when you're just moving the mouse across the screen.
 
 ---
 

@@ -2284,8 +2284,13 @@ private class IndicatorView: NSView {
         }
 
         hoverTimer?.invalidate()
-        hoverTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.hoverDelay, repeats: false) { [weak self] _ in
-            self?.onHover?(true)
+        let delayMs = UserPreferences.shared.popoverHoverDelayMs
+        if delayMs <= 0 {
+            onHover?(true)
+        } else {
+            hoverTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(delayMs) / 1000.0, repeats: false) { [weak self] _ in
+                self?.onHover?(true)
+            }
         }
 
         // Redraw to update dot opacity
@@ -3015,9 +3020,15 @@ private class CapsuleIndicatorView: NSView {
         }
 
         hoverTimer?.invalidate()
-        hoverTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.hoverDelay, repeats: false) { [weak self] _ in
-            self?.hoverPopoverActive = true
-            self?.onHover?(self?.hoveredSection)
+        let delayMs = UserPreferences.shared.popoverHoverDelayMs
+        if delayMs <= 0 {
+            hoverPopoverActive = true
+            onHover?(hoveredSection)
+        } else {
+            hoverTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(delayMs) / 1000.0, repeats: false) { [weak self] _ in
+                self?.hoverPopoverActive = true
+                self?.onHover?(self?.hoveredSection)
+            }
         }
     }
 

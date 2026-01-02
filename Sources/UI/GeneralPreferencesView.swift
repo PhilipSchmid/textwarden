@@ -231,16 +231,18 @@ struct GeneralPreferencesView: View {
             }
 
             Section {
-                Picker("Default position:", selection: $preferences.indicatorPosition) {
-                    ForEach(UserPreferences.indicatorPositions, id: \.self) { position in
-                        Text(position).tag(position)
+                VStack(alignment: .leading, spacing: 8) {
+                    Picker("Default position:", selection: $preferences.indicatorPosition) {
+                        ForEach(UserPreferences.indicatorPositions, id: \.self) { position in
+                            Text(position).tag(position)
+                        }
                     }
-                }
-                .help("Choose the default position for new applications. Drag the indicator to customize per-app positions.")
+                    .help("Choose the default position for new applications. Drag the indicator to customize per-app positions.")
 
-                Text("Default position for the floating indicator. You can drag it to any position along the window border, and positions are remembered per application.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    Text("Default position for the floating indicator. You can drag it to any position along the window border, and positions are remembered per application.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
 
                 Toggle(isOn: $preferences.alwaysShowCapsule) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -251,7 +253,28 @@ struct GeneralPreferencesView: View {
                     }
                 }
                 .toggleStyle(.switch)
-                .padding(.top, 4)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Hover delay:")
+                        Spacer()
+                        Text("\(preferences.popoverHoverDelayMs) ms")
+                            .monospacedDigit()
+                            .foregroundColor(.secondary)
+                    }
+                    Slider(
+                        value: Binding(
+                            get: { Double(preferences.popoverHoverDelayMs) },
+                            set: { preferences.popoverHoverDelayMs = Int($0) }
+                        ),
+                        in: 0...1000,
+                        step: 50
+                    )
+                    Text("Delay before showing the suggestion popover when hovering over the indicator. Set to 0 for instant display.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .help("Time to wait before showing the suggestion popover when hovering over the indicator. 0 = instant.")
             } header: {
                 Text("Indicator")
                     .font(.headline)
