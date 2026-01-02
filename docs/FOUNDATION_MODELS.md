@@ -9,6 +9,7 @@ The Foundation Models framework (macOS 26+) provides access to Apple's ~3B param
 1. **Style Analysis** - Analyzing text for style improvements
 2. **Style Regeneration** - Generating alternative suggestions
 3. **AI Compose** - Creating new text based on user instructions
+4. **Sentence Simplification** - Simplifying complex sentences for target audiences
 
 All processing happens **on-device** with complete privacy and no API costs.
 
@@ -273,6 +274,66 @@ Context is provided as **optional reference only**:
 
 **Important:** The user's instruction takes absolute priority over context. If user asks for "unrelated" content, the model should ignore context entirely.
 
+## Feature 4: Sentence Simplification
+
+**Purpose:** Simplify complex sentences to make them appropriate for a target audience's reading level.
+
+**File:** `Sources/App/FoundationModelsEngine.swift` → `simplifySentence()`
+
+### How It Works
+
+When readability analysis identifies sentences that are too complex for the selected target audience (based on Flesch score thresholds), users can hover over the violet dashed underlines to get AI-powered simplification suggestions.
+
+### Target Audiences
+
+| Audience | Min Flesch Score | Grade Level | Description |
+|----------|------------------|-------------|-------------|
+| Accessible | 70+ | ~7th grade | Everyone should understand |
+| General | 60+ | ~9th grade | Average adult reader |
+| Professional | 50+ | ~11th grade | Business readers |
+| Technical | 40+ | College | Specialized readers |
+| Academic | 30+ | Graduate | Academic/research |
+
+### Configuration
+
+| Parameter | First Generation | Regeneration |
+|-----------|------------------|--------------|
+| Temperature | Low (0.3) | High (0.9) |
+| Output type | `FMSentenceSimplificationResult` | `FMSentenceSimplificationResult` |
+
+### System Instructions
+
+```
+You are a readability expert. Your task is to simplify sentences for a specific target audience.
+
+Target audience: <audience name> (<description>)
+Target reading level: <grade level>
+Writing style: <selected style>
+
+Simplification guidelines:
+- Break long sentences into shorter ones if needed
+- Replace complex words with simpler alternatives
+- Use active voice instead of passive voice
+- Remove unnecessary jargon and filler words
+- Preserve the core meaning exactly
+- Match the specified writing style
+- Do NOT add information that wasn't in the original
+```
+
+### Regeneration
+
+When a user clicks "Retry", the system:
+1. Passes the previous suggestion in the prompt with explicit exclusion instruction
+2. Uses higher temperature (0.9) to encourage variety
+3. Filters out alternatives identical to the previous suggestion
+
+### Output Processing
+
+Results are filtered to remove:
+1. Empty alternatives
+2. Alternatives identical to the original sentence
+3. Alternatives identical to the previous suggestion (for regeneration)
+
 ## @Generable Type Definitions
 
 Located in `Sources/App/StyleTypes+Generable.swift`:
@@ -310,6 +371,16 @@ struct FMStyleAnalysisResult {
 struct FMTextGenerationResult {
     @Guide(description: "The generated text. Ready to insert directly. No explanations or meta-commentary.")
     let generatedText: String
+}
+```
+
+### FMSentenceSimplificationResult
+
+```swift
+@Generable
+struct FMSentenceSimplificationResult {
+    @Guide(description: "A single simplified version of the sentence in an array.")
+    let alternatives: [String]
 }
 ```
 

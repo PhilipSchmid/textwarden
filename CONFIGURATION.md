@@ -289,6 +289,46 @@ You can drag the indicator to any position along the window border, and position
 
 **Default:** On. The readability section appears in the capsule indicator alongside grammar and style sections.
 
+#### Target Audience
+
+**What it does:** Sets the expected reading level for your audience. TextWarden uses this to determine which sentences are "too complex" and need simplification suggestions.
+
+**Options:**
+| Audience | Min Flesch Score | Description |
+|----------|------------------|-------------|
+| Accessible | 70+ | Everyone should understand (7th grade level) |
+| General | 60+ | Average adult reader (9th grade level) |
+| Professional | 50+ | Business readers (11th grade level) |
+| Technical | 40+ | Specialized readers (college level) |
+| Academic | 30+ | Academic/research (graduate level) |
+
+**How it works:** Sentences with a Flesch score below the threshold for your selected audience are marked with violet dashed underlines. Hover over them to get AI-powered simplification suggestions.
+
+**Default:** General (60+ Flesch score)
+
+**Recommendation:** Match this to your audience. Use "Accessible" for public-facing content, "Professional" for business documents, "Technical" for developer documentation.
+
+#### Highlight Complex Sentences
+
+**What it does:** When enabled, analyzes individual sentences for readability and marks those that are too complex for your target audience with violet dashed underlines.
+
+**Features enabled:**
+- Per-sentence Flesch score analysis
+- Violet dashed underlines on complex sentences
+- AI-powered simplification suggestions on hover (requires Apple Intelligence)
+
+**Default:** On
+
+**Recommendation:** Keep enabled for most writing. Disable if you intentionally write at a higher reading level or find the underlines distracting.
+
+#### Show Readability Underlines
+
+**What it does:** Controls whether violet dashed underlines appear under complex sentences. Only applies when "Highlight Complex Sentences" is enabled.
+
+**Default:** On
+
+**Use case:** Disable this if you want sentence-level analysis and AI simplification (accessible via the style popover) but find the visual underlines distracting.
+
 #### Hover Delay
 
 **What it does:** Controls how long you need to hover over the indicator before the suggestion popover appears.
