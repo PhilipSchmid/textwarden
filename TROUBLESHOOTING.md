@@ -23,7 +23,7 @@ This guide helps you diagnose and resolve common issues with TextWarden.
 1. Style checking is disabled by default - enable it in Settings → Style
 2. Requires macOS 26 (Tahoe) or later with Apple Intelligence enabled in System Settings
 3. Style checking only runs on text longer than ~50 characters
-4. Try using the keyboard shortcut (`Cmd+Control+S`) to trigger a manual check
+4. Try using the keyboard shortcut (`Option+Control+S`) to trigger a manual check
 
 ### High memory or CPU usage
 

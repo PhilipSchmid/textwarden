@@ -2327,6 +2327,63 @@ private class IndicatorView: NSView {
         )
         addTrackingArea(trackingArea)
     }
+
+    // MARK: - Accessibility
+
+    override func isAccessibilityElement() -> Bool {
+        return true
+    }
+
+    override func accessibilityRole() -> NSAccessibility.Role? {
+        return .button
+    }
+
+    override func accessibilityLabel() -> String? {
+        switch displayMode {
+        case .count(let count):
+            if count == 0 {
+                return "TextWarden indicator: No grammar errors"
+            } else if count == 1 {
+                return "TextWarden indicator: 1 grammar error"
+            } else {
+                return "TextWarden indicator: \(count) grammar errors"
+            }
+        case .sparkle:
+            return "TextWarden indicator: Style check available"
+        case .sparkleWithCount(let count):
+            if count == 1 {
+                return "TextWarden indicator: 1 style suggestion"
+            } else {
+                return "TextWarden indicator: \(count) style suggestions"
+            }
+        case .spinning:
+            return "TextWarden indicator: Checking..."
+        case .styleCheckComplete:
+            return "TextWarden indicator: Style check complete, no issues"
+        }
+    }
+
+    override func accessibilityValue() -> Any? {
+        switch displayMode {
+        case .count(let count):
+            return "\(count) errors"
+        case .sparkleWithCount(let count):
+            return "\(count) suggestions"
+        case .spinning:
+            return "Loading"
+        case .sparkle, .styleCheckComplete:
+            return "Ready"
+        }
+    }
+
+    override func accessibilityHelp() -> String? {
+        return "Click to show suggestions, or drag to reposition"
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        onClicked?()
+        return true
+    }
 }
 
 // MARK: - Capsule Indicator View
@@ -2998,5 +3055,98 @@ private class CapsuleIndicatorView: NSView {
             userInfo: nil
         )
         addTrackingArea(trackingArea)
+    }
+
+    // MARK: - Accessibility
+
+    override func isAccessibilityElement() -> Bool {
+        return true
+    }
+
+    override func accessibilityRole() -> NSAccessibility.Role? {
+        return .group
+    }
+
+    override func accessibilityLabel() -> String? {
+        var parts: [String] = []
+
+        for section in sections {
+            switch section.displayState {
+            case .grammarCount(let count):
+                if count == 0 {
+                    parts.append("No grammar errors")
+                } else if count == 1 {
+                    parts.append("1 grammar error")
+                } else {
+                    parts.append("\(count) grammar errors")
+                }
+            case .grammarSuccess:
+                parts.append("No grammar errors")
+            case .styleIdle:
+                parts.append("Style check available")
+            case .styleLoading:
+                parts.append("Checking style")
+            case .styleCount(let count):
+                if count == 1 {
+                    parts.append("1 style suggestion")
+                } else {
+                    parts.append("\(count) style suggestions")
+                }
+            case .styleSuccess:
+                parts.append("No style issues")
+            case .textGenIdle:
+                parts.append("AI compose available")
+            case .textGenActive:
+                parts.append("Generating text")
+            case .hidden:
+                break
+            }
+        }
+
+        if parts.isEmpty {
+            return "TextWarden indicator"
+        }
+        return "TextWarden indicator: " + parts.joined(separator: ", ")
+    }
+
+    override func accessibilityHelp() -> String? {
+        return "Click sections to show suggestions, or drag to reposition"
+    }
+
+    override func accessibilityChildren() -> [Any]? {
+        // Create accessibility elements for each section
+        var children: [NSAccessibilityElement] = []
+
+        for (index, section) in sections.enumerated() {
+            let element = NSAccessibilityElement()
+            element.setAccessibilityParent(self)
+            element.setAccessibilityRole(.button)
+            element.setAccessibilityFrameInParentSpace(sectionFrame(at: index))
+
+            switch section.displayState {
+            case .grammarCount(let count):
+                element.setAccessibilityLabel("Grammar section: \(count) error\(count == 1 ? "" : "s")")
+            case .grammarSuccess:
+                element.setAccessibilityLabel("Grammar section: No errors")
+            case .styleIdle:
+                element.setAccessibilityLabel("Style section: Click to check")
+            case .styleLoading:
+                element.setAccessibilityLabel("Style section: Checking...")
+            case .styleCount(let count):
+                element.setAccessibilityLabel("Style section: \(count) suggestion\(count == 1 ? "" : "s")")
+            case .styleSuccess:
+                element.setAccessibilityLabel("Style section: No issues")
+            case .textGenIdle:
+                element.setAccessibilityLabel("AI compose section: Click to write")
+            case .textGenActive:
+                element.setAccessibilityLabel("AI compose section: Generating...")
+            case .hidden:
+                continue
+            }
+
+            children.append(element)
+        }
+
+        return children.isEmpty ? nil : children
     }
 }
