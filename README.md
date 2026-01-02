@@ -230,6 +230,7 @@ TextWarden uses the macOS Accessibility API and works with most applications. Vi
 | **Microsoft Outlook** | Full | Full |
 | **Microsoft Excel** | Not supported | N/A |
 | **Microsoft Teams** | Full | Full |
+| **Proton Mail** | Full | Full |
 
 *\*PowerPoint uses a floating indicator instead of inline underlines due to accessibility API limitations (crashes on parameterized accessibility attribute queries).*
 

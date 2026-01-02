@@ -46,6 +46,7 @@ class PositionResolver {
             WordStrategy(),  // Dedicated strategy for Word documents
             WebExStrategy(),  // Dedicated strategy for Cisco WebEx chat
             MailStrategy(),  // Dedicated strategy for Apple Mail's WebKit compose
+            ProtonMailStrategy(),  // Dedicated strategy for Proton Mail's Rooster editor
             ChromiumStrategy(),
             TextMarkerStrategy(),
             RangeBoundsStrategy(),

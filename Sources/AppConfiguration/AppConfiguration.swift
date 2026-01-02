@@ -46,6 +46,7 @@ enum StrategyType: String, CaseIterable {
     case word       // Dedicated strategy for Microsoft Word documents
     case webex      // Dedicated strategy for Cisco WebEx chat
     case mail       // Dedicated strategy for Apple Mail's WebKit compose
+    case protonMail // Dedicated strategy for Proton Mail's Rooster editor
     case chromium   // Selection-based marker range positioning for Chromium apps (Slack, Teams, etc.)
     case textMarker
     case rangeBounds

@@ -400,11 +400,13 @@ extension AnalysisCoordinator {
 
         Logger.debug("Using keyboard simulation for style replacement (app: \(context.applicationName))", category: Logger.analysis)
 
-        // For browsers and Electron apps (Slack, Notion), use the browser-specific approach
+        // For browsers and Electron apps (Slack, Notion, Proton Mail), use the browser-specific approach
         // These apps require child element traversal for proper text selection
+        // Proton Mail uses Chromium which expects UTF-16 indices for selection
         let isSlack = context.bundleIdentifier == "com.tinyspeck.slackmacgap"
         let isNotion = context.bundleIdentifier == "notion.id" || context.bundleIdentifier == "com.notion.id"
-        if context.isBrowser || isSlack || isNotion {
+        let isProtonMail = context.bundleIdentifier == "ch.protonmail.desktop"
+        if context.isBrowser || isSlack || isNotion || isProtonMail {
             applyStyleBrowserReplacement(for: suggestion, element: element, context: context)
             return
         }

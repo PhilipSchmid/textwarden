@@ -104,6 +104,7 @@ final class AppRegistry {
         register(.powerpoint)
         register(.outlook)
         register(.webex)
+        register(.protonMail)
         // Note: .default is not registered, used as fallback
     }
 }
@@ -754,6 +755,39 @@ extension AppConfiguration {
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: false,
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
+        )
+    )
+
+    // MARK: - Proton Mail
+
+    static let protonMail = AppConfiguration(
+        identifier: "protonmail",
+        displayName: "Proton Mail",
+        bundleIDs: ["ch.protonmail.desktop"],
+        category: .electron,
+        parserType: .generic,
+        fontConfig: FontConfig(
+            defaultSize: 14,
+            fontFamily: nil,
+            spacingMultiplier: 1.0
+        ),
+        horizontalPadding: 8,
+        // Proton Mail is Electron-based with good AX support. Body (AXTextArea with
+        // domId="rooster-editor") has child AXStaticText elements per paragraph.
+        // Uses dedicated ProtonMailStrategy for tree traversal with UTF-16 emoji handling.
+        preferredStrategies: [.protonMail],
+        features: AppFeatures(
+            visualUnderlinesEnabled: true,
+            textReplacementMethod: .browserStyle,
+            requiresTypingPause: true,  // Wait for typing pause before querying AX tree
+            supportsFormattedText: true,  // Rich text email composer
+            childElementTraversal: true,  // Body has child AXStaticText elements
+            delaysAXNotifications: false,
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: true,  // Electron byte offsets are fragile
             defersTextExtraction: false,
             requiresFrameValidation: false,
             hasTextMarkerIndexOffset: false
