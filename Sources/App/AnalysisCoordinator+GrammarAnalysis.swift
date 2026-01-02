@@ -256,6 +256,13 @@ extension AnalysisCoordinator {
             latencyMs: Double(result.analysisTimeMs)
         )
 
+        // Calculate readability score if enabled and text has sufficient length
+        if userPreferences.showReadabilityScore, wordCount >= 30 {
+            currentReadabilityResult = ReadabilityCalculator.shared.fleschReadingEase(for: text)
+        } else {
+            currentReadabilityResult = nil
+        }
+
         Logger.debug("AnalysisCoordinator: Grammar analysis complete, UI updated", category: Logger.analysis)
 
         // Enhance readability errors with AI suggestions
@@ -509,6 +516,7 @@ extension AnalysisCoordinator {
             floatingIndicator.update(
                 errors: currentErrors,
                 styleSuggestions: filteredSuggestions,
+                readabilityResult: currentReadabilityResult,
                 element: element,
                 context: monitoredContext,
                 sourceText: lastAnalyzedText

@@ -617,6 +617,7 @@ extension AnalysisCoordinator {
                 floatingIndicator.update(
                     errors: currentErrors,
                     styleSuggestions: currentStyleSuggestions,
+                    readabilityResult: currentReadabilityResult,
                     element: element,
                     context: monitoredContext,
                     sourceText: lastAnalyzedText

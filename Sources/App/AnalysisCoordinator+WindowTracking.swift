@@ -695,7 +695,7 @@ extension AnalysisCoordinator {
             // but we CAN show the floating indicator using just the PID from context
             // The user will see the error count badge; underlines will appear when they click
             Logger.debug("Window monitoring: No element but have \(currentErrors.count) cached errors - showing floating indicator", category: Logger.analysis)
-            floatingIndicator.updateWithContext(errors: currentErrors, context: context, sourceText: lastAnalyzedText)
+            floatingIndicator.updateWithContext(errors: currentErrors, readabilityResult: currentReadabilityResult, context: context, sourceText: lastAnalyzedText)
             // DON'T call startMonitoring - it will likely fail to find an editable element
             // in browsers (focus may be on nothing or a UI element after restore), which
             // triggers handleTextChange with nil element, hiding our floating indicator

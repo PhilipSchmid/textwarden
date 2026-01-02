@@ -194,6 +194,9 @@ class AnalysisCoordinator: ObservableObject {
     /// Currently displayed style suggestions from LLM analysis (internal visibility for extensions)
     @Published var currentStyleSuggestions: [StyleSuggestionModel] = []
 
+    /// Current readability score result (nil if text too short or feature disabled)
+    @Published var currentReadabilityResult: ReadabilityResult?
+
     /// Style analysis queue for background LLM processing
     let styleAnalysisQueue = DispatchQueue(label: "com.textwarden.styleanalysis", qos: .userInitiated)
 
@@ -1060,6 +1063,7 @@ class AnalysisCoordinator: ObservableObject {
                         floatingIndicator.update(
                             errors: currentErrors,
                             styleSuggestions: [],
+                            readabilityResult: currentReadabilityResult,
                             element: element,
                             context: context,
                             sourceText: lastAnalyzedText
@@ -1897,6 +1901,7 @@ class AnalysisCoordinator: ObservableObject {
                 floatingIndicator.update(
                     errors: [],
                     styleSuggestions: [],
+                    readabilityResult: currentReadabilityResult,
                     element: providedElement,
                     context: monitoredContext,
                     sourceText: lastAnalyzedText
@@ -1933,6 +1938,7 @@ class AnalysisCoordinator: ObservableObject {
                 floatingIndicator.update(
                     errors: errors,
                     styleSuggestions: currentStyleSuggestions,
+                    readabilityResult: currentReadabilityResult,
                     element: providedElement,
                     context: monitoredContext,
                     sourceText: lastAnalyzedText
