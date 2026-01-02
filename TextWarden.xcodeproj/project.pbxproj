@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		D40C16252EFFCB1F00DFCA4A /* ConfettiSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = D4CONF1022F0E000000000002 /* ConfettiSwiftUI */; };
-		D421EA852ED4DE3400B327EB /* UserStatisticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D421EA842ED4DE3400B327EB /* UserStatisticsTests.swift */; };
 		D48CD6972EDF31D9004B9B44 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = D48CD6982EDF31D9004B9B44 /* Sparkle */; };
 		D48EA19C2ED3B90E00CC5B73 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = D48EA1252ED3B88E00CC5B73 /* LaunchAtLogin */; };
 		D48EA28C2ED3BACB00CC5B73 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = D48EA2152ED3B9D900CC5B73 /* KeyboardShortcuts */; };
@@ -26,14 +25,13 @@
 
 /* Begin PBXFileReference section */
 		D421EA7B2ED4DD0100B327EB /* TextWardenTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TextWardenTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		D421EA842ED4DE3400B327EB /* UserStatisticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserStatisticsTests.swift; sourceTree = "<group>"; };
 		E8AC081A2EC11FBB008E37E6 /* TextWarden.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TextWarden.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		D421EA7C2ED4DD0100B327EB /* TextWardenTests */ = {
+		D421EA7C2ED4DD0100B327EB /* Tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = TextWardenTests;
+			path = Tests;
 			sourceTree = "<group>";
 		};
 		E8AC081C2EC11FBB008E37E6 /* Sources */ = {
@@ -69,9 +67,8 @@
 			isa = PBXGroup;
 			children = (
 				E8AC081C2EC11FBB008E37E6 /* Sources */,
-				D421EA7C2ED4DD0100B327EB /* TextWardenTests */,
+				D421EA7C2ED4DD0100B327EB /* Tests */,
 				E8AC081B2EC11FBB008E37E6 /* Products */,
-				D421EA842ED4DE3400B327EB /* UserStatisticsTests.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -101,7 +98,7 @@
 				D421EA802ED4DD0100B327EB /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				D421EA7C2ED4DD0100B327EB /* TextWardenTests */,
+				D421EA7C2ED4DD0100B327EB /* Tests */,
 			);
 			name = TextWardenTests;
 			packageProductDependencies = (
@@ -247,7 +244,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D421EA852ED4DE3400B327EB /* UserStatisticsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
