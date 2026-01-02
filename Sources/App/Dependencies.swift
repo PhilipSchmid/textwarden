@@ -39,7 +39,11 @@ protocol GrammarAnalyzing: Sendable {
         enablePersonNames: Bool,
         enableLastNames: Bool,
         enableLanguageDetection: Bool,
-        excludedLanguages: [String]
+        excludedLanguages: [String],
+        enforceOxfordComma: Bool,
+        checkEllipsis: Bool,
+        checkUnclosedQuotes: Bool,
+        checkDashes: Bool
     ) -> GrammarAnalysisResult
 }
 
@@ -61,6 +65,12 @@ protocol UserPreferencesProviding: AnyObject {
     var enableMacOSDictionary: Bool { get }
     var enableLanguageDetection: Bool { get }
     var excludedLanguages: Set<String> { get }
+
+    // Individual rule toggles
+    var enforceOxfordComma: Bool { get }
+    var checkEllipsis: Bool { get }
+    var checkUnclosedQuotes: Bool { get }
+    var checkDashes: Bool { get }
 
     // Filtering settings
     var enabledCategories: Set<String> { get }

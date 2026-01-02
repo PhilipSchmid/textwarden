@@ -27,6 +27,10 @@ extension AnalysisCoordinator {
         let enableLastNames: Bool
         let enableLanguageDetection: Bool
         let excludedLanguages: [String]
+        let enforceOxfordComma: Bool
+        let checkEllipsis: Bool
+        let checkUnclosedQuotes: Bool
+        let checkDashes: Bool
     }
 
     /// Capture grammar preferences on main thread before async dispatch
@@ -40,7 +44,11 @@ extension AnalysisCoordinator {
             enablePersonNames: userPreferences.enablePersonNames,
             enableLastNames: userPreferences.enableLastNames,
             enableLanguageDetection: userPreferences.enableLanguageDetection,
-            excludedLanguages: Array(userPreferences.excludedLanguages.map { UserPreferences.languageCode(for: $0) })
+            excludedLanguages: Array(userPreferences.excludedLanguages.map { UserPreferences.languageCode(for: $0) }),
+            enforceOxfordComma: userPreferences.enforceOxfordComma,
+            checkEllipsis: userPreferences.checkEllipsis,
+            checkUnclosedQuotes: userPreferences.checkUnclosedQuotes,
+            checkDashes: userPreferences.checkDashes
         )
     }
 
@@ -120,6 +128,10 @@ extension AnalysisCoordinator {
         let enableLastNames = userPreferences.enableLastNames
         let enableLanguageDetection = userPreferences.enableLanguageDetection
         let excludedLanguages = Array(userPreferences.excludedLanguages.map { UserPreferences.languageCode(for: $0) })
+        let enforceOxfordComma = userPreferences.enforceOxfordComma
+        let checkEllipsis = userPreferences.checkEllipsis
+        let checkUnclosedQuotes = userPreferences.checkUnclosedQuotes
+        let checkDashes = userPreferences.checkDashes
 
         // Capture grammar engine reference before async dispatch
         let grammarEngineRef = grammarEngine
@@ -139,7 +151,11 @@ extension AnalysisCoordinator {
                 enablePersonNames: enablePersonNames,
                 enableLastNames: enableLastNames,
                 enableLanguageDetection: enableLanguageDetection,
-                excludedLanguages: excludedLanguages
+                excludedLanguages: excludedLanguages,
+                enforceOxfordComma: enforceOxfordComma,
+                checkEllipsis: checkEllipsis,
+                checkUnclosedQuotes: checkUnclosedQuotes,
+                checkDashes: checkDashes
             )
 
             DispatchQueue.main.async { [weak self] in
@@ -194,7 +210,11 @@ extension AnalysisCoordinator {
                 enablePersonNames: config.enablePersonNames,
                 enableLastNames: config.enableLastNames,
                 enableLanguageDetection: config.enableLanguageDetection,
-                excludedLanguages: config.excludedLanguages
+                excludedLanguages: config.excludedLanguages,
+                enforceOxfordComma: config.enforceOxfordComma,
+                checkEllipsis: config.checkEllipsis,
+                checkUnclosedQuotes: config.checkUnclosedQuotes,
+                checkDashes: config.checkDashes
             )
 
             Logger.debug("AnalysisCoordinator: Harper returned \(grammarResult.errors.count) error(s)", category: Logger.analysis)

@@ -115,6 +115,35 @@ Click **Check for Updates** in the About section to immediately check for availa
 
 **Recommendation:** Enable all categories initially. Disable specific ones only if they generate too many unwanted suggestions for your writing style.
 
+### Punctuation Fine-tuning
+
+These settings provide finer control over specific punctuation rules within the Punctuation category:
+
+**Oxford Comma**
+
+When enabled, TextWarden flags lists that are missing the serial comma.
+- Example: "apples, bananas and oranges" → "apples, bananas, and oranges"
+- **Default:** Enabled
+
+**Ellipsis Formatting**
+
+When enabled, suggests using the proper ellipsis character (…) instead of three periods (...).
+- Example: "Wait..." → "Wait…"
+- **Default:** Enabled
+
+**Unclosed Quotes**
+
+When enabled, flags quotation marks that are opened but never closed.
+- Example: "She said "hello and walked away.
+- **Default:** Enabled
+
+**Dash Usage**
+
+When enabled, checks for correct usage of em-dashes (—), en-dashes (–), and hyphens (-).
+- **Default:** Enabled
+
+**Recommendation:** Keep all enabled for complete punctuation checking. Disable individual rules if they don't match your preferred writing style.
+
 ---
 
 ## Custom Vocabulary

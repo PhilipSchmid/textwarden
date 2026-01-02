@@ -244,6 +244,28 @@ private struct FilteringPreferencesContent: View {
                     .font(.headline)
             }
 
+            // Punctuation Fine-tuning
+            Section {
+                Toggle("Oxford comma", isOn: $preferences.enforceOxfordComma)
+                    .help("Flag lists that are missing the serial comma (e.g., 'apples, bananas and oranges' → 'apples, bananas, and oranges')")
+
+                Toggle("Ellipsis formatting", isOn: $preferences.checkEllipsis)
+                    .help("Suggest using the proper ellipsis character (…) instead of three periods (...)")
+
+                Toggle("Unclosed quotes", isOn: $preferences.checkUnclosedQuotes)
+                    .help("Flag quotation marks that are opened but never closed")
+
+                Toggle("Dash usage", isOn: $preferences.checkDashes)
+                    .help("Check for correct usage of em-dashes (—), en-dashes (–), and hyphens (-)")
+
+                Text("These settings provide finer control over specific punctuation rules within the Punctuation category above.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } header: {
+                Text("Punctuation Fine-tuning")
+                    .font(.headline)
+            }
+
             // Writing Style
             Section {
                 Toggle("Style", isOn: categoryBinding("Style"))
@@ -831,6 +853,28 @@ struct FilteringPreferencesView: View {
                     .help("Check proper capitalization of words and sentences")
             } header: {
                 Text("Core Checks")
+                    .font(.headline)
+            }
+
+            // Punctuation Fine-tuning
+            Section {
+                Toggle("Oxford comma", isOn: $preferences.enforceOxfordComma)
+                    .help("Flag lists that are missing the serial comma (e.g., 'apples, bananas and oranges' → 'apples, bananas, and oranges')")
+
+                Toggle("Ellipsis formatting", isOn: $preferences.checkEllipsis)
+                    .help("Suggest using the proper ellipsis character (…) instead of three periods (...)")
+
+                Toggle("Unclosed quotes", isOn: $preferences.checkUnclosedQuotes)
+                    .help("Flag quotation marks that are opened but never closed")
+
+                Toggle("Dash usage", isOn: $preferences.checkDashes)
+                    .help("Check for correct usage of em-dashes (—), en-dashes (–), and hyphens (-)")
+
+                Text("These settings provide finer control over specific punctuation rules within the Punctuation category above.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } header: {
+                Text("Punctuation Fine-tuning")
                     .font(.headline)
             }
 

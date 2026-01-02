@@ -177,6 +177,30 @@ class UserPreferences: ObservableObject {
         "WordChoice"
     ]
 
+    // MARK: - Individual Rule Toggles
+
+    /// Enforce Oxford comma (serial comma) in lists
+    /// When enabled, flags lists like "apples, bananas and oranges" as needing a comma before "and"
+    @Published var enforceOxfordComma: Bool {
+        didSet { defaults.set(enforceOxfordComma, forKey: Keys.enforceOxfordComma) }
+    }
+
+    /// Check for proper ellipsis formatting
+    /// When enabled, suggests using proper ellipsis character (…) instead of three dots (...)
+    @Published var checkEllipsis: Bool {
+        didSet { defaults.set(checkEllipsis, forKey: Keys.checkEllipsis) }
+    }
+
+    /// Check for unclosed quotation marks
+    @Published var checkUnclosedQuotes: Bool {
+        didSet { defaults.set(checkUnclosedQuotes, forKey: Keys.checkUnclosedQuotes) }
+    }
+
+    /// Check dash usage (em-dash vs en-dash vs hyphen)
+    @Published var checkDashes: Bool {
+        didSet { defaults.set(checkDashes, forKey: Keys.checkDashes) }
+    }
+
     /// Terminal applications disabled by default (users can enable them in Applications preferences)
     /// These apps are set to .indefinite pause on first run to avoid false positives from command output
     static let terminalApplications: Set<String> = [
@@ -589,6 +613,12 @@ class UserPreferences: ObservableObject {
         self.enabledCategories = UserPreferences.allCategories // All categories enabled by default
         self.openInForeground = false
 
+        // Individual Rule Toggles (all enabled by default to match Harper defaults)
+        self.enforceOxfordComma = true
+        self.checkEllipsis = true
+        self.checkUnclosedQuotes = true
+        self.checkDashes = true
+
         // Language & Dialect
         self.selectedDialect = "American"
         self.enableInternetAbbreviations = true
@@ -699,6 +729,12 @@ class UserPreferences: ObservableObject {
         self.openInForeground = defaults.object(forKey: Keys.openInForeground) as? Bool ?? false
         self.hasCompletedOnboarding = defaults.object(forKey: Keys.hasCompletedOnboarding) as? Bool ?? false
         self.hasShownMenuBarTooltip = defaults.object(forKey: Keys.hasShownMenuBarTooltip) as? Bool ?? false
+
+        // Individual Rule Toggles
+        self.enforceOxfordComma = defaults.object(forKey: Keys.enforceOxfordComma) as? Bool ?? true
+        self.checkEllipsis = defaults.object(forKey: Keys.checkEllipsis) as? Bool ?? true
+        self.checkUnclosedQuotes = defaults.object(forKey: Keys.checkUnclosedQuotes) as? Bool ?? true
+        self.checkDashes = defaults.object(forKey: Keys.checkDashes) as? Bool ?? true
 
         // Language & Dialect
         self.selectedDialect = defaults.string(forKey: Keys.selectedDialect) ?? "American"
@@ -1088,6 +1124,10 @@ class UserPreferences: ObservableObject {
         customDictionary = []
         ignoredRules = []
         enabledCategories = UserPreferences.allCategories
+        enforceOxfordComma = true
+        checkEllipsis = true
+        checkUnclosedQuotes = true
+        checkDashes = true
         selectedDialect = "American"
         enableInternetAbbreviations = true
         enableGenZSlang = true
@@ -1124,6 +1164,12 @@ class UserPreferences: ObservableObject {
         static let ignoredErrorTexts = "ignoredErrorTexts"
         static let enabledCategories = "enabledCategories"
         static let openInForeground = "openInForeground"
+
+        // Individual Rule Toggles
+        static let enforceOxfordComma = "enforceOxfordComma"
+        static let checkEllipsis = "checkEllipsis"
+        static let checkUnclosedQuotes = "checkUnclosedQuotes"
+        static let checkDashes = "checkDashes"
 
         // Language & Dialect
         static let selectedDialect = "selectedDialect"

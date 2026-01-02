@@ -27,6 +27,10 @@ import Foundation
     ///   - enableLastNames: Enable recognition of surnames/last names
     ///   - enableLanguageDetection: Enable detection and filtering of non-English words
     ///   - excludedLanguages: Array of language codes to exclude (e.g., ["spanish", "german"])
+    ///   - enforceOxfordComma: Enable Oxford comma checking
+    ///   - checkEllipsis: Enable ellipsis formatting checking
+    ///   - checkUnclosedQuotes: Enable unclosed quotes checking
+    ///   - checkDashes: Enable dash usage checking
     /// - Returns: Result containing analysis result or error
     @objc public func analyzeText(
         _ text: String,
@@ -38,7 +42,11 @@ import Foundation
         enablePersonNames: Bool,
         enableLastNames: Bool,
         enableLanguageDetection: Bool = false,
-        excludedLanguages: [String] = []
+        excludedLanguages: [String] = [],
+        enforceOxfordComma: Bool = true,
+        checkEllipsis: Bool = true,
+        checkUnclosedQuotes: Bool = true,
+        checkDashes: Bool = true
     ) -> GrammarAnalysisResult {
         // Call FFI function with all parameters
         // Convert Swift strings to RustString and create RustVec for language list
@@ -61,7 +69,11 @@ import Foundation
             enableLastNames,
             enableLanguageDetection,
             rustVec,
-            true  // enableSentenceStartCapitalization - always on
+            true,  // enableSentenceStartCapitalization - always on
+            enforceOxfordComma,
+            checkEllipsis,
+            checkUnclosedQuotes,
+            checkDashes
         )
 
         // Convert FFI result to Swift model
@@ -81,6 +93,10 @@ import Foundation
     ///   - enableLastNames: Enable recognition of surnames/last names
     ///   - enableLanguageDetection: Enable detection and filtering of non-English words
     ///   - excludedLanguages: Array of language codes to exclude (e.g., ["spanish", "german"])
+    ///   - enforceOxfordComma: Enable Oxford comma checking
+    ///   - checkEllipsis: Enable ellipsis formatting checking
+    ///   - checkUnclosedQuotes: Enable unclosed quotes checking
+    ///   - checkDashes: Enable dash usage checking
     /// - Returns: Analysis result
     @available(macOS 10.15, *)
     public func analyzeText(
@@ -93,9 +109,13 @@ import Foundation
         enablePersonNames: Bool,
         enableLastNames: Bool,
         enableLanguageDetection: Bool = false,
-        excludedLanguages: [String] = []
+        excludedLanguages: [String] = [],
+        enforceOxfordComma: Bool = true,
+        checkEllipsis: Bool = true,
+        checkUnclosedQuotes: Bool = true,
+        checkDashes: Bool = true
     ) async -> GrammarAnalysisResult {
-        await Task.detached(priority: .userInitiated) { [text, dialect, enableInternetAbbrev, enableGenZSlang, enableITTerminology, enableBrandNames, enablePersonNames, enableLastNames, enableLanguageDetection, excludedLanguages] in
+        await Task.detached(priority: .userInitiated) { [text, dialect, enableInternetAbbrev, enableGenZSlang, enableITTerminology, enableBrandNames, enablePersonNames, enableLastNames, enableLanguageDetection, excludedLanguages, enforceOxfordComma, checkEllipsis, checkUnclosedQuotes, checkDashes] in
             // Call FFI function directly in detached task
             // Convert Swift strings to RustString and create RustVec for language list
             let rustText = RustString(text)
@@ -117,7 +137,11 @@ import Foundation
                 enableLastNames,
                 enableLanguageDetection,
                 rustVec,
-                true  // enableSentenceStartCapitalization - always on
+                true,  // enableSentenceStartCapitalization - always on
+                enforceOxfordComma,
+                checkEllipsis,
+                checkUnclosedQuotes,
+                checkDashes
             )
             return GrammarAnalysisResult(ffiResult: ffiResult)
         }.value

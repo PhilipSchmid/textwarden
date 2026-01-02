@@ -151,6 +151,10 @@ pub fn analyze_text(
     enable_language_detection: bool,
     excluded_languages: Vec<String>,
     enable_sentence_start_capitalization: bool,
+    enforce_oxford_comma: bool,
+    check_ellipsis: bool,
+    check_unclosed_quotes: bool,
+    check_dashes: bool,
 ) -> AnalysisResult {
     let start_time = Instant::now();
 
@@ -229,9 +233,20 @@ pub fn analyze_text(
     // Clone the Arc so we can use the dictionary for both linting and document parsing
     let mut linter = LintGroup::new_curated(dictionary.clone(), dialect);
 
-    // Don't disable any Harper rules - let all style suggestions through.
-    // The dictionary handles word recognition (preventing spelling errors).
-    // Harper's rules handle style improvements (capitalization, expansion suggestions, etc.)
+    // Configure individual rule toggles based on user preferences
+    // These allow fine-grained control over specific punctuation rules
+    if !enforce_oxford_comma {
+        linter.config.set_rule_enabled("OxfordComma", false);
+    }
+    if !check_ellipsis {
+        linter.config.set_rule_enabled("EllipsisLength", false);
+    }
+    if !check_unclosed_quotes {
+        linter.config.set_rule_enabled("UnclosedQuotes", false);
+    }
+    if !check_dashes {
+        linter.config.set_rule_enabled("Dashes", false);
+    }
 
     // Parse the text into a Document using our merged dictionary
     // This ensures abbreviations and slang are recognized during parsing
@@ -548,6 +563,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         assert_eq!(result.errors.len(), 0);
         assert_eq!(result.word_count, 0);
@@ -567,6 +586,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         // Well-written text may still have style suggestions, so we just verify it runs
         assert!(result.word_count > 0);
@@ -588,6 +611,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         assert!(result.word_count > 0);
         // Note: Harper may or may not catch this specific error depending on version
@@ -653,6 +680,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         println!("\nWithout IT terminology:");
         println!("  Errors found: {}", result_without_it.errors.len());
@@ -681,6 +712,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         println!("\nWith IT terminology:");
         println!("  Errors found: {}", result_with_it.errors.len());
@@ -724,6 +759,10 @@ mod tests {
                 false,
                 vec![],
                 true,
+                true, // enforce_oxford_comma
+                true, // check_ellipsis
+                true, // check_unclosed_quotes
+                true, // check_dashes
             );
 
             // Find the error for the specific word
@@ -837,6 +876,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         // Should find at least one error for "Teh"
@@ -891,6 +934,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         // Find the Oxford comma error (should flag "bananas")
@@ -931,6 +978,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         // Analysis should complete in under 1500ms for ~900 words (test mode with opt-level=1)
         // Note: Release builds are ~3x faster (~500ms)
@@ -958,6 +1009,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         let result_british = analyze_text(
             text,
@@ -971,6 +1026,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         let result_canadian = analyze_text(
             text,
@@ -984,6 +1043,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         let result_australian = analyze_text(
             text,
@@ -997,6 +1060,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         let result_invalid = analyze_text(
             text,
@@ -1010,6 +1077,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         // All should run without crashing
@@ -1038,6 +1109,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         // With slang enabled, should NOT flag abbreviations
@@ -1053,6 +1128,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         // We expect fewer errors with slang enabled
@@ -1081,6 +1160,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         // With slang enabled, should recognize these words
@@ -1096,6 +1179,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!(
@@ -1122,6 +1209,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("Text with both slang types enabled:");
@@ -1150,6 +1241,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         // With slang enabled, should NOT flag these
@@ -1165,6 +1260,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== UPPERCASE ABBREVIATIONS TEST ===");
@@ -1235,6 +1334,10 @@ mod tests {
                 false,
                 vec![],
                 true,
+                true, // enforce_oxford_comma
+                true, // check_ellipsis
+                true, // check_unclosed_quotes
+                true, // check_dashes
             );
 
             println!("\nTesting: '{}'", text);
@@ -1275,6 +1378,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         let abbrev_enabled = analyze_text(
             text_with_abbrevs,
@@ -1288,6 +1395,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== INTERNET ABBREVIATIONS TOGGLE TEST ===");
@@ -1314,6 +1425,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         let slang_enabled = analyze_text(
             text_with_slang,
@@ -1327,6 +1442,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== GEN Z SLANG TOGGLE TEST ===");
@@ -1360,6 +1479,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         assert_eq!(result.errors.len(), 0, "Empty text should have no errors");
         assert_eq!(result.word_count, 0, "Empty text should have 0 words");
@@ -1377,6 +1500,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         println!("\nOnly abbreviations - Errors: {}", result.errors.len());
         // These should all be recognized
@@ -1395,6 +1522,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         println!("With punctuation - Errors: {}", result.errors.len());
 
@@ -1411,6 +1542,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         println!("Mixed slang types - Errors: {}", result.errors.len());
     }
@@ -1445,6 +1580,10 @@ mod tests {
                 false,
                 vec![],
                 true,
+                true, // enforce_oxford_comma
+                true, // check_ellipsis
+                true, // check_unclosed_quotes
+                true, // check_dashes
             );
 
             println!("\nTesting {}: '{}'", description, text);
@@ -1502,6 +1641,10 @@ mod tests {
                 false,
                 vec![],
                 true,
+                true, // enforce_oxford_comma
+                true, // check_ellipsis
+                true, // check_unclosed_quotes
+                true, // check_dashes
             );
 
             // Test UPPERCASE
@@ -1519,6 +1662,10 @@ mod tests {
                 false,
                 vec![],
                 true,
+                true, // enforce_oxford_comma
+                true, // check_ellipsis
+                true, // check_unclosed_quotes
+                true, // check_dashes
             );
 
             // Test Title Case
@@ -1546,6 +1693,10 @@ mod tests {
                 false,
                 vec![],
                 true,
+                true, // enforce_oxford_comma
+                true, // check_ellipsis
+                true, // check_unclosed_quotes
+                true, // check_dashes
             );
 
             // Check none have SPELLING errors (style suggestions are OK)
@@ -1617,6 +1768,10 @@ mod tests {
                 false,
                 vec![],
                 true,
+                true, // enforce_oxford_comma
+                true, // check_ellipsis
+                true, // check_unclosed_quotes
+                true, // check_dashes
             ); // Both slang options ON
 
             println!("\nText: '{}'", text);
@@ -1671,6 +1826,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== USER SCREENSHOT SCENARIO TEST ===");
@@ -1831,6 +1990,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         // "Hallo" should be flagged as unknown word
@@ -1862,6 +2025,10 @@ mod tests {
             true, // Enable language detection
             vec!["german".to_string()],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== GERMAN SENTENCE TEST ===");
@@ -1903,6 +2070,10 @@ mod tests {
             true,
             vec!["german".to_string()],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== USER SCENARIO TEST ===");
@@ -1945,6 +2116,10 @@ mod tests {
             true,
             vec!["spanish".to_string()],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== SPANISH WORDS TEST ===");
@@ -1985,6 +2160,10 @@ mod tests {
             true,
             vec!["french".to_string()],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== FRENCH GREETING TEST ===");
@@ -2029,6 +2208,10 @@ mod tests {
                 "german".to_string(),
             ],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== MULTIPLE LANGUAGES TEST ===");
@@ -2089,6 +2272,10 @@ mod tests {
             true,
             vec!["spanish".to_string()], // Only Spanish excluded
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== SELECTIVE EXCLUSION TEST ===");
@@ -2132,6 +2319,10 @@ mod tests {
             true, // Language detection ON
             vec!["spanish".to_string()],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== LANGUAGE + SLANG TEST ===");
@@ -2193,6 +2384,10 @@ mod tests {
             true,
             vec!["german".to_string()],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== REAL ERRORS PRESERVED TEST ===");
@@ -2243,6 +2438,10 @@ mod tests {
             true,
             vec!["spanish".to_string()],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== CODE-SWITCHING TEST ===");
@@ -2285,6 +2484,10 @@ mod tests {
             true,
             vec!["german".to_string()],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         let elapsed = start.elapsed();
@@ -2318,6 +2521,10 @@ mod tests {
             true,
             vec![], // Empty list
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         // Behavior should be same as disabled (no filtering)
@@ -2347,6 +2554,10 @@ mod tests {
                 true,
                 vec!["german".to_string()],
                 true,
+                true, // enforce_oxford_comma
+                true, // check_ellipsis
+                true, // check_unclosed_quotes
+                true, // check_dashes
             );
 
             println!("\n=== DIALECT TEST: {} ===", dialect);
@@ -2379,6 +2590,10 @@ mod tests {
             true,
             vec!["german".to_string()],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         // 3 German words + 3 English words = 6 total
@@ -2404,6 +2619,10 @@ mod tests {
             true,
             vec!["italian".to_string()],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== ITALIAN LANGUAGE TEST ===");
@@ -2443,6 +2662,10 @@ mod tests {
             true,
             vec!["portuguese".to_string()],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== PORTUGUESE LANGUAGE TEST ===");
@@ -2482,6 +2705,10 @@ mod tests {
             true,
             vec!["dutch".to_string()],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== DUTCH LANGUAGE TEST ===");
@@ -2518,6 +2745,10 @@ mod tests {
             true,
             vec!["swedish".to_string()],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== SWEDISH LANGUAGE TEST ===");
@@ -2557,6 +2788,10 @@ mod tests {
             true,
             vec!["turkish".to_string()],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== TURKISH LANGUAGE TEST ===");
@@ -2597,6 +2832,10 @@ mod tests {
             true,
             vec!["italian".to_string()], // Only Italian excluded, not German
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== NON-EXCLUDED LANGUAGE TEST ===");
@@ -2640,6 +2879,10 @@ mod tests {
             true,
             vec!["french".to_string(), "spanish".to_string()],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== MULTILINGUAL EMAIL TEST ===");
@@ -2677,6 +2920,10 @@ mod tests {
             true,
             vec!["japanese".to_string(), "korean".to_string()],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== ASIAN LANGUAGES TEST ===");
@@ -2716,6 +2963,10 @@ mod tests {
                 "french".to_string(),
             ],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== MIXED PUNCTUATION TEST ===");
@@ -2768,6 +3019,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         let elapsed = start.elapsed();
 
@@ -2814,6 +3069,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         let elapsed = start.elapsed();
 
@@ -2855,6 +3114,10 @@ mod tests {
             true,
             vec!["german".to_string()],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         let elapsed = start.elapsed();
 
@@ -2905,6 +3168,10 @@ mod tests {
         let start = Instant::now();
         let result = analyze_text(
             &text, "American", false, false, false, false, false, false, true, all_langs, true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         let elapsed = start.elapsed();
 
@@ -2946,6 +3213,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         let elapsed = start.elapsed();
 
@@ -2984,6 +3255,10 @@ mod tests {
             true,
             vec!["german".to_string()],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         let elapsed = start.elapsed();
 
@@ -3027,6 +3302,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         let elapsed = start.elapsed();
 
@@ -3067,6 +3346,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         // With IT terminology enabled, should recognize these terms
@@ -3082,6 +3365,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== IT TERMINOLOGY TEST ===");
@@ -3128,6 +3415,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         let enabled = analyze_text(
             text,
@@ -3141,6 +3432,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== IT TERMINOLOGY TOGGLE TEST ===");
@@ -3196,6 +3491,10 @@ mod tests {
                 false,
                 vec![],
                 true,
+                true, // enforce_oxford_comma
+                true, // check_ellipsis
+                true, // check_unclosed_quotes
+                true, // check_dashes
             );
             let result_enabled = analyze_text(
                 text,
@@ -3209,6 +3508,10 @@ mod tests {
                 false,
                 vec![],
                 true,
+                true, // enforce_oxford_comma
+                true, // check_ellipsis
+                true, // check_unclosed_quotes
+                true, // check_dashes
             );
 
             // Check if the term has SPELLING errors when disabled
@@ -3262,6 +3565,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\n=== IT TERMINOLOGY + SLANG TEST ===");
@@ -3333,6 +3640,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         let elapsed = start.elapsed();
 
@@ -3374,6 +3685,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         let elapsed = start.elapsed();
 
@@ -3415,6 +3730,10 @@ mod tests {
                 false,
                 vec![],
                 true,
+                true, // enforce_oxford_comma
+                true, // check_ellipsis
+                true, // check_unclosed_quotes
+                true, // check_dashes
             );
 
             // Find the error for the specific word
@@ -3467,6 +3786,10 @@ mod tests {
                 false,
                 vec![],
                 false,
+                true, // enforce_oxford_comma
+                true, // check_ellipsis
+                true, // check_unclosed_quotes
+                true, // check_dashes
             );
 
             // Find the error for the specific word
@@ -3522,6 +3845,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         // With enhancement disabled
@@ -3537,6 +3864,10 @@ mod tests {
             false,
             vec![],
             false,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         // Find the error for "THis"
@@ -3609,6 +3940,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         println!("Text: '{}' (IT terminology: ON)", text1);
         println!("Errors: {}", result1.errors.len());
@@ -3642,6 +3977,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         println!("\nText: '{}' (IT terminology: OFF)", text2);
         println!("Errors: {}", result2.errors.len());
@@ -3678,6 +4017,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         println!("\nText: '{}' (control test)", text3);
         println!("Errors: {}", result3.errors.len());
@@ -3711,6 +4054,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         println!("\nText: '{}' (correct spelling)", text4);
         println!("Errors: {}", result4.errors.len());
@@ -3744,6 +4091,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
         println!("\nText: '{}' (lowercase misspelling)", text5);
         println!("Errors: {}", result5.errors.len());
@@ -3804,6 +4155,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("\nErrors found: {}", result.errors.len());
@@ -3913,6 +4268,10 @@ mod tests {
                 false,
                 vec![],
                 true,
+                true, // enforce_oxford_comma
+                true, // check_ellipsis
+                true, // check_unclosed_quotes
+                true, // check_dashes
             );
 
             let chars: Vec<char> = text.chars().collect();
@@ -3971,6 +4330,10 @@ mod tests {
             false,
             vec![],
             true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
         );
 
         println!("Errors after deduplication: {}", result.errors.len());
@@ -4047,6 +4410,10 @@ mod tests {
                 false,
                 vec![],
                 true,
+                true, // enforce_oxford_comma
+                true, // check_ellipsis
+                true, // check_unclosed_quotes
+                true, // check_dashes
             );
 
             for (error_word, expected_sugg) in expectations {

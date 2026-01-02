@@ -62,6 +62,11 @@ mod ffi {
             enable_language_detection: bool,
             excluded_languages: Vec<String>,
             enable_sentence_start_capitalization: bool,
+            // Individual rule toggles
+            enforce_oxford_comma: bool,
+            check_ellipsis: bool,
+            check_unclosed_quotes: bool,
+            check_dashes: bool,
         ) -> AnalysisResult;
     }
 }
@@ -221,6 +226,11 @@ fn analyze_text(
     enable_language_detection: bool,
     excluded_languages: Vec<String>,
     enable_sentence_start_capitalization: bool,
+    // Individual rule toggles
+    enforce_oxford_comma: bool,
+    check_ellipsis: bool,
+    check_unclosed_quotes: bool,
+    check_dashes: bool,
 ) -> AnalysisResult {
     // SECURITY: Never log the actual text content - only metadata
     tracing::debug!(
@@ -245,6 +255,10 @@ fn analyze_text(
         enable_language_detection,
         excluded_languages,
         enable_sentence_start_capitalization,
+        enforce_oxford_comma,
+        check_ellipsis,
+        check_unclosed_quotes,
+        check_dashes,
     );
 
     // Capture memory after analysis
