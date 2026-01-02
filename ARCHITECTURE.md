@@ -161,6 +161,7 @@ Sources/
 ├── UI/                                           # User interface components
 │   ├── SuggestionPopover.swift                   # Main grammar suggestion UI
 │   ├── StyleSuggestionPopover.swift              # Style suggestion popover
+│   ├── ReadabilityPopover.swift                  # Readability score popover
 │   ├── FloatingErrorIndicator.swift              # Error count indicator
 │   ├── ErrorOverlayWindow.swift                  # Visual underline rendering
 │   ├── PreferencesView.swift                     # Main settings UI
@@ -181,7 +182,8 @@ Sources/
     ├── LogCollector.swift                        # Log file management
     ├── TextIndexConverter.swift                  # UTF-8/UTF-16 index conversion
     ├── StatisticsHelpers.swift                   # Statistics calculation helpers
-    └── SystemMetrics.swift                       # System-level metrics
+    ├── SystemMetrics.swift                       # System-level metrics
+    └── ReadabilityCalculator.swift               # Flesch Reading Ease scoring
 
 GrammarEngine/                                    # Rust grammar engine
 └── src/
@@ -210,6 +212,7 @@ The central orchestrator that connects all subsystems. Located in `Sources/App/A
 ```swift
 @Published var currentErrors: [GrammarErrorModel]               // Active grammar errors
 @Published var currentStyleSuggestions: [StyleSuggestionModel]  // Active style suggestions
+@Published var currentReadabilityResult: ReadabilityResult?     // Active readability score
 @Published var isAnalyzing: Bool                                // Analysis in progress
 ```
 

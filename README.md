@@ -37,6 +37,7 @@ A small indicator and/or underline appears when issues are found. Click to see s
 - **Real-time grammar and spelling** - Catches errors as you type
 - **AI-powered style suggestions** - Apple Intelligence ([Foundation Models](https://developer.apple.com/documentation/FoundationModels)) for clarity and readability improvements (macOS 26+)
 - **AI Compose** - Generate text from instructions using on-device AI (macOS 26+, Apple Silicon)
+- **Readability Score** - Real-time Flesch Reading Ease score for text with 30+ words
 - **Multilingual awareness** - Detects non-English sentences and ignores them (no false positives on foreign phrases)
 - **Custom dictionary** - Add your own technical terms and proper nouns
 - **Dialect support** - American, British, Canadian, or Australian English

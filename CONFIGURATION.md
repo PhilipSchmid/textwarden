@@ -383,6 +383,7 @@ TextWarden supports global keyboard shortcuts that work in any application.
 | Show Grammar Suggestions | ⌥⌃G | Toggle the grammar suggestions popover |
 | Show Style Suggestions | ⌥⌃Y | Toggle the style suggestions popover |
 | Show AI Compose | ⌥⌃W | Toggle the AI text generation popover |
+| Show Readability | ⌥⌃R | Toggle the readability score popover |
 | Run Style Check | ⌥⌃S | Trigger manual style analysis |
 
 ### Popover Navigation
