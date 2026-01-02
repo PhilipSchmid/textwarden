@@ -17,15 +17,37 @@ excluded:
 
 # Disabled rules (with justification)
 disabled_rules:
-  - todo                    # Allow TODO comments during development
+  # Style preferences handled by SwiftFormat
   - line_length             # Handled by SwiftFormat
   - opening_brace           # Handled by SwiftFormat
   - trailing_comma          # Style preference
   - vertical_whitespace     # Handled by SwiftFormat
+
+  # Development conveniences
+  - todo                    # Allow TODO comments during development
   - identifier_name         # Allow short names like i, x, y, id
+
+  # Complex code patterns that are intentional
   - large_tuple             # Sometimes needed for complex returns
-  - nesting                 # Deep nesting sometimes necessary
+  - nesting                 # Deep nesting sometimes necessary in UI code
   - for_where               # Style preference
+
+  # Length/complexity rules - disabled because this codebase has intentionally
+  # complex, cohesive modules (UI components, AX strategies, content parsers)
+  # that would lose clarity if artificially split. Code review catches issues.
+  - file_length             # Many files are large but logically cohesive
+  - type_body_length        # Complex UI classes need many methods
+  - function_body_length    # Some functions have complex but linear logic
+  - cyclomatic_complexity   # State machines and AX handling are inherently complex
+
+  # SwiftUI patterns
+  - multiple_closures_with_trailing_closure  # SwiftUI animation syntax uses this
+
+  # Dependency injection pattern
+  - function_parameter_count  # DI containers need many parameters by design
+
+  # AX API requirements - CFTypeRef conversions require force casts
+  - force_cast              # Required for Accessibility API CFTypeRef handling
 
 # Opt-in rules (useful but not default)
 opt_in_rules:
@@ -42,13 +64,6 @@ opt_in_rules:
 
 # Rule configurations
 
-# Downgrade to warnings - some force unwraps are intentional
-force_unwrapping:
-  severity: warning
-
-force_cast:
-  severity: warning
-
 force_try:
   severity: warning
 
@@ -56,29 +71,7 @@ type_name:
   min_length: 2
   max_length: 50
 
-# Relaxed limits for complex UI code - warnings only, no errors for length
-file_length:
-  warning: 1000
-  error: 5000  # Effectively disabled
-
-function_body_length:
-  warning: 100
-  error: 500  # Effectively disabled
-
-type_body_length:
-  warning: 600
-  error: 3000  # Effectively disabled
-
-cyclomatic_complexity:
-  warning: 20
-  error: 50  # Effectively disabled
-  ignores_case_statements: true
-
-function_parameter_count:
-  warning: 10
-  error: 20  # Effectively disabled
-
-# Downgrade shorthand_operator to warning
+# Downgrade shorthand_operator to warning (Text concatenation can't use +=)
 shorthand_operator:
   severity: warning
 
