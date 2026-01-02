@@ -391,6 +391,125 @@ final class FoundationModelsEngine: ObservableObject {
             throw FoundationModelsError.analysisError(error.localizedDescription)
         }
     }
+
+    // MARK: - Sentence Simplification
+
+    /// Generate simplified alternatives for a complex sentence
+    ///
+    /// Used to help users improve readability by offering 1-3 simpler versions
+    /// of sentences that are too complex for their target audience.
+    ///
+    /// - Parameters:
+    ///   - sentence: The complex sentence to simplify
+    ///   - targetAudience: The target audience level for readability
+    ///   - writingStyle: The writing style to maintain
+    ///   - previousSuggestion: Optional previous suggestion to avoid (for regeneration)
+    /// - Returns: Array of 1-3 simplified alternatives (may be empty if cannot simplify)
+    /// - Throws: If simplification fails
+    func simplifySentence(
+        _ sentence: String,
+        targetAudience: TargetAudience,
+        writingStyle: WritingStyle,
+        previousSuggestion: String? = nil
+    ) async throws -> [String] {
+        guard status == .available else {
+            Logger.warning("Apple Intelligence: Cannot simplify sentence, not available", category: Logger.llm)
+            throw FoundationModelsError.notAvailable(status)
+        }
+
+        isAnalyzing = true
+        defer { isAnalyzing = false }
+
+        let startTime = CFAbsoluteTimeGetCurrent()
+
+        // Build instructions tailored for sentence simplification
+        var instructions = """
+        You are a readability expert. Your task is to simplify sentences for a specific target audience.
+
+        Target audience: \(targetAudience.displayName) (\(targetAudience.audienceDescription))
+        Target reading level: \(targetAudience.gradeLevel)
+        Writing style: \(writingStyle.displayName)
+
+        Simplification guidelines:
+        - Break long sentences into shorter ones if needed
+        - Replace complex words with simpler alternatives
+        - Use active voice instead of passive voice
+        - Remove unnecessary jargon and filler words
+        - Preserve the core meaning exactly - all key information must be retained
+        - Match the specified writing style
+        - Do NOT add information that wasn't in the original
+
+        If the sentence is already simple enough for the target audience, return an empty array.
+        """
+
+        // Add instruction to avoid previous suggestion during regeneration
+        if let previous = previousSuggestion, !previous.isEmpty {
+            instructions += """
+
+
+            CRITICAL: The user rejected this previous simplification, you MUST provide a completely different alternative:
+            Rejected: "\(previous)"
+
+            Your new alternative must use different sentence structure, different word choices, or a different way to break up the sentence.
+            """
+        }
+
+        let session = LanguageModelSession(instructions: instructions)
+
+        // Use higher temperature for regeneration to ensure variety
+        let temperature = previousSuggestion != nil ? 0.9 : TemperatureValues.low
+        let options = GenerationOptions(temperature: temperature)
+
+        Logger.debug("Apple Intelligence: Simplifying sentence (\(sentence.count) chars) for \(targetAudience.displayName) audience\(previousSuggestion != nil ? " (regeneration, temp=0.9)" : "")", category: Logger.llm)
+
+        do {
+            let response = try await session.respond(
+                to: "Simplify this sentence:\n\n\"\(sentence)\"",
+                generating: FMSentenceSimplificationResult.self,
+                options: options
+            )
+
+            let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+
+            // Log what was returned before filtering
+            Logger.debug("Apple Intelligence: Raw alternatives: \(response.content.alternatives.count)", category: Logger.llm)
+
+            // Filter out any alternatives that are identical to the original or previous suggestion
+            let originalTrimmed = sentence.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            let previousTrimmed = previousSuggestion?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+
+            let validAlternatives = response.content.alternatives.filter { alt in
+                let trimmed = alt.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+                // Exclude empty alternatives
+                if trimmed.isEmpty {
+                    Logger.debug("Apple Intelligence: Filtered out empty alternative", category: Logger.llm)
+                    return false
+                }
+                // Exclude original
+                if trimmed == originalTrimmed {
+                    Logger.debug("Apple Intelligence: Filtered out (same as original): \(trimmed.prefix(50))...", category: Logger.llm)
+                    return false
+                }
+                // Exclude previous suggestion (for regeneration)
+                if let prevTrimmed = previousTrimmed, trimmed == prevTrimmed {
+                    Logger.debug("Apple Intelligence: Filtered out (same as previous): \(trimmed.prefix(50))...", category: Logger.llm)
+                    return false
+                }
+                return true
+            }
+
+            Logger.debug("Apple Intelligence: Simplification complete, \(validAlternatives.count) alternative(s) after filtering in \(String(format: "%.2f", elapsed))s", category: Logger.llm)
+
+            return validAlternatives
+
+        } catch let error as LanguageModelSession.GenerationError {
+            Logger.error("Apple Intelligence: Simplification generation error - \(error.localizedDescription)", category: Logger.llm)
+            throw FoundationModelsError.generationFailed(error.localizedDescription)
+        } catch {
+            Logger.error("Apple Intelligence: Simplification failed - \(error.localizedDescription)", category: Logger.llm)
+            throw FoundationModelsError.analysisError(error.localizedDescription)
+        }
+    }
 }
 
 // MARK: - Errors

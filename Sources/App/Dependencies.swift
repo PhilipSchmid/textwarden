@@ -87,6 +87,9 @@ protocol UserPreferencesProviding: AnyObject {
 
     // Readability settings
     var showReadabilityScore: Bool { get }
+    var sentenceComplexityHighlightingEnabled: Bool { get }
+    var showReadabilityUnderlines: Bool { get }
+    var selectedTargetAudience: String { get }
 
     // Debug settings
     var showDebugBorderCGWindowCoords: Bool { get }

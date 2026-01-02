@@ -64,6 +64,12 @@ class ErrorOverlayWindow: NSPanel {
     /// Callback when user clicks on an error underline (includes window frame for smart positioning)
     var onErrorClick: ((GrammarErrorModel, CGPoint, CGRect?) -> Void)?
 
+    /// Callback when user hovers over a readability underline
+    var onReadabilityHover: ((SentenceReadabilityResult, CGPoint, CGRect?) -> Void)?
+
+    /// Callback when user clicks on a readability underline
+    var onReadabilityClick: ((SentenceReadabilityResult, CGPoint, CGRect?) -> Void)?
+
     /// Global event monitor for mouse clicks
     private var clickMonitor: Any?
 
@@ -222,11 +228,65 @@ class ErrorOverlayWindow: NSPanel {
                         }
                     }
                 }
-            } else {
-                // Clear hovered state
+            }
+            // Check if hovering over any readability underline
+            else if let newHoveredReadability = underlineView.readabilityUnderlines.first(where: { $0.bounds.contains(localPoint) }) {
+                Logger.debug("ErrorOverlay: Hovering over readability underline at bounds: \(newHoveredReadability.bounds)", category: Logger.ui)
+
+                // Update hovered state
+                if underlineView.hoveredReadabilityUnderline?.sentenceResult.range != newHoveredReadability.sentenceResult.range {
+                    underlineView.hoveredReadabilityUnderline = newHoveredReadability
+                    underlineView.needsDisplay = true
+                }
+
+                // Clear grammar error hover
                 if hoveredUnderline != nil {
                     hoveredUnderline = nil
                     underlineView.hoveredUnderline = nil
+                }
+
+                // Calculate screen position for popover
+                let underlineBounds = newHoveredReadability.drawingBounds
+                let localX = underlineBounds.midX
+                let localY = underlineBounds.maxY
+
+                let screenLocation = CGPoint(
+                    x: windowOrigin.x + localX,
+                    y: windowOrigin.y + (windowHeight - localY)
+                )
+
+                // Trigger hover callback with delay
+                if UserPreferences.shared.enableHoverPopover,
+                   !SuggestionPopover.shared.containsPoint(mouseLocation)
+                {
+                    let appWindowFrame = getApplicationWindowFrame()
+
+                    hoverTimer?.invalidate()
+                    let delayMs = UserPreferences.shared.popoverHoverDelayMs
+                    if delayMs <= 0 {
+                        onReadabilityHover?(newHoveredReadability.sentenceResult, screenLocation, appWindowFrame)
+                    } else {
+                        hoverTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(delayMs) / 1000.0, repeats: false) { [weak self] _ in
+                            self?.onReadabilityHover?(newHoveredReadability.sentenceResult, screenLocation, appWindowFrame)
+                        }
+                    }
+                }
+            } else {
+                // Clear hovered state for both grammar and readability
+                var needsRedraw = false
+
+                if hoveredUnderline != nil {
+                    hoveredUnderline = nil
+                    underlineView.hoveredUnderline = nil
+                    needsRedraw = true
+                }
+
+                if underlineView.hoveredReadabilityUnderline != nil {
+                    underlineView.hoveredReadabilityUnderline = nil
+                    needsRedraw = true
+                }
+
+                if needsRedraw {
                     underlineView.needsDisplay = true
 
                     // Cancel pending hover timer
@@ -234,7 +294,6 @@ class ErrorOverlayWindow: NSPanel {
                     hoverTimer = nil
 
                     // Only trigger hover end if mouse is not over the popover
-                    // (prevents closing popover when mouse moves from underline to popover)
                     if !SuggestionPopover.shared.containsPoint(mouseLocation) {
                         onHoverEnd?()
                     }
@@ -290,6 +349,25 @@ class ErrorOverlayWindow: NSPanel {
 
                 let appWindowFrame = getApplicationWindowFrame()
                 onErrorClick?(clickedUnderline.error, screenLocation, appWindowFrame)
+            }
+            // Check if clicking on any readability underline
+            else if let clickedReadability = underlineView.readabilityUnderlines.first(where: { $0.bounds.contains(localPoint) }) {
+                Logger.debug("ErrorOverlay: Clicked on readability underline at bounds: \(clickedReadability.bounds)", category: Logger.ui)
+
+                // Convert underline bounds to screen coordinates for popup positioning
+                let underlineBounds = clickedReadability.drawingBounds
+                let localX = underlineBounds.midX
+                let localY = underlineBounds.maxY
+
+                let screenLocation = CGPoint(
+                    x: windowOrigin.x + localX,
+                    y: windowOrigin.y + (windowHeight - localY)
+                )
+
+                Logger.debug("ErrorOverlay: Click popup anchor - readability bounds: \(underlineBounds), screen: \(screenLocation)", category: Logger.ui)
+
+                let appWindowFrame = getApplicationWindowFrame()
+                onReadabilityClick?(clickedReadability.sentenceResult, screenLocation, appWindowFrame)
             }
         }
 
@@ -763,10 +841,12 @@ class ErrorOverlayWindow: NSPanel {
             isCurrentlyVisible = false
         }
         underlineView?.underlines = []
+        underlineView?.readabilityUnderlines = [] // Clear readability underlines
 
         // Clear hover state
         hoveredUnderline = nil
         underlineView?.hoveredUnderline = nil
+        underlineView?.hoveredReadabilityUnderline = nil
 
         // Clear locked highlight - but preserve during replacement mode
         // so it can be re-applied when underlines are recreated
@@ -781,6 +861,316 @@ class ErrorOverlayWindow: NSPanel {
         if !waitingForFrameStabilization {
             stopFrameValidationTimer()
         }
+    }
+
+    /// Clear only the readability underlines (called when feature is disabled)
+    func clearReadabilityUnderlines() {
+        underlineView?.readabilityUnderlines = []
+        underlineView?.hoveredReadabilityUnderline = nil
+        underlineView?.needsDisplay = true
+    }
+
+    /// Update readability underlines for complex sentences
+    /// Uses the same positioning infrastructure as grammar error underlines
+    /// - Parameters:
+    ///   - complexSentences: Sentences that are too complex for the target audience
+    ///   - element: The AX element containing the text
+    ///   - context: Application context
+    ///   - text: The full text being analyzed
+    func updateReadabilityUnderlines(
+        complexSentences: [SentenceReadabilityResult],
+        element: AXUIElement,
+        context: ApplicationContext?,
+        text: String
+    ) {
+        // Check if readability underlines are enabled
+        guard UserPreferences.shared.showReadabilityUnderlines else {
+            clearReadabilityUnderlines()
+            return
+        }
+
+        // If no complex sentences, clear underlines
+        guard !complexSentences.isEmpty else {
+            clearReadabilityUnderlines()
+            return
+        }
+
+        let bundleID = context?.bundleIdentifier ?? "unknown"
+
+        // Check watchdog protection
+        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            Logger.debug("ErrorOverlay: Skipping readability underlines - watchdog active", category: Logger.ui)
+            clearReadabilityUnderlines()
+            return
+        }
+
+        // Limit to first 10 complex sentences to avoid performance issues
+        let sentencesToProcess = Array(complexSentences.prefix(10))
+
+        let parser = ContentParserFactory.shared.parser(for: bundleID)
+
+        // If overlay is not visible, we need to set it up first
+        // This allows readability underlines to show even when there are no grammar errors
+        var elementFrame: CGRect
+        if isCurrentlyVisible, frame.size.width > 0 {
+            elementFrame = frame
+        } else {
+            // Get element frame and set up overlay window
+            AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXPosition/AXSize")
+            let frameResult = getElementFrameInCocoaCoords(element)
+            AXWatchdog.shared.endCall()
+
+            guard let rawFrame = frameResult else {
+                Logger.debug("ErrorOverlay: Cannot get element frame for readability underlines", category: Logger.ui)
+                return
+            }
+
+            elementFrame = rawFrame
+
+            // Constrain to visible window frame
+            if let windowFrame = getApplicationWindowFrame() {
+                let visibleFrame = elementFrame.intersection(windowFrame)
+                if !visibleFrame.isEmpty {
+                    elementFrame = visibleFrame
+                }
+            }
+
+            // Extend frame for underlines
+            let underlineExtension: CGFloat = 10.0
+            var extendedFrame = elementFrame
+            extendedFrame.origin.y -= underlineExtension
+            extendedFrame.size.height += underlineExtension
+
+            // Set up overlay window
+            setFrame(extendedFrame, display: true)
+            Logger.debug("ErrorOverlay: Set up overlay for readability underlines at \(elementFrame)", category: Logger.ui)
+        }
+
+        var readabilityUnderlines: [ReadabilityUnderline] = []
+
+        Logger.debug("ErrorOverlay: Processing \(sentencesToProcess.count) sentences, elementFrame=\(elementFrame)", category: Logger.ui)
+
+        for sentence in sentencesToProcess {
+            let range = sentence.range
+
+            Logger.debug("ErrorOverlay: Resolving position for sentence '\(sentence.sentence.prefix(30))...' at range \(range.location)-\(range.location + range.length)", category: Logger.ui)
+
+            // Get bounds for this sentence
+            let geometryResult = parser.resolvePosition(
+                for: range,
+                in: element,
+                text: text,
+                actualBundleID: bundleID
+            )
+
+            Logger.debug("ErrorOverlay: Position result - isUsable=\(geometryResult.isUsable), isUnavailable=\(geometryResult.isUnavailable), bounds=\(geometryResult.bounds)", category: Logger.ui)
+
+            // If full sentence bounds work, use them
+            if geometryResult.isUsable, !geometryResult.isUnavailable {
+                // Convert screen bounds to local coordinates
+                let allScreenBounds = geometryResult.allLineBounds
+                var allLocalBounds: [CGRect] = []
+
+                for screenBounds in allScreenBounds {
+                    if !elementFrame.intersects(screenBounds) {
+                        continue
+                    }
+
+                    let localBounds = convertToLocal(screenBounds, from: elementFrame)
+
+                    // Validate bounds
+                    let maxValidHeight: CGFloat = UIConstants.maximumTextLineHeight
+                    if localBounds.origin.y < -10 || localBounds.height > maxValidHeight {
+                        continue
+                    }
+
+                    if localBounds.origin.y > elementFrame.height || localBounds.maxY < 0 {
+                        continue
+                    }
+
+                    allLocalBounds.append(localBounds)
+                }
+
+                if !allLocalBounds.isEmpty {
+                    // Calculate overall bounds
+                    let overallLocalBounds = calculateOverallBounds(from: allLocalBounds)
+                    let thickness = CGFloat(UserPreferences.shared.underlineThickness)
+                    let offsetAmount = max(2.0, thickness / 2.0)
+
+                    let expandedBounds = CGRect(
+                        x: overallLocalBounds.minX,
+                        y: overallLocalBounds.minY - offsetAmount - thickness - 2.0,
+                        width: overallLocalBounds.width,
+                        height: overallLocalBounds.height + offsetAmount + thickness + 2.0
+                    )
+
+                    if let primaryDrawingBounds = allLocalBounds.last {
+                        let underline = ReadabilityUnderline(
+                            bounds: expandedBounds,
+                            drawingBounds: primaryDrawingBounds,
+                            allDrawingBounds: allLocalBounds,
+                            sentenceResult: sentence
+                        )
+                        readabilityUnderlines.append(underline)
+                        continue
+                    }
+                }
+            }
+
+            // Fallback: Try segmented approach (first 3 words ... last 3 words)
+            Logger.debug("ErrorOverlay: Full sentence position failed, trying segmented approach", category: Logger.ui)
+
+            let wordRanges = extractWordRanges(from: sentence.sentence, sentenceStart: range.location, wordCount: 3)
+
+            Logger.debug("ErrorOverlay: Word ranges - first: \(String(describing: wordRanges.first)), last: \(String(describing: wordRanges.last))", category: Logger.ui)
+
+            guard let firstWordsRange = wordRanges.first, let lastWordsRange = wordRanges.last else {
+                Logger.debug("ErrorOverlay: Could not extract word ranges for segmented underline", category: Logger.ui)
+                continue
+            }
+
+            Logger.debug("ErrorOverlay: First words range: \(firstWordsRange.location)-\(firstWordsRange.location + firstWordsRange.length), Last words range: \(lastWordsRange.location)-\(lastWordsRange.location + lastWordsRange.length)", category: Logger.ui)
+
+            // Resolve first segment
+            let firstResult = parser.resolvePosition(
+                for: firstWordsRange,
+                in: element,
+                text: text,
+                actualBundleID: bundleID
+            )
+
+            // Resolve last segment
+            let lastResult = parser.resolvePosition(
+                for: lastWordsRange,
+                in: element,
+                text: text,
+                actualBundleID: bundleID
+            )
+
+            // We need at least the first segment to show something
+            guard firstResult.isUsable, !firstResult.isUnavailable else {
+                Logger.debug("ErrorOverlay: First segment position not usable", category: Logger.ui)
+                continue
+            }
+
+            // Convert first segment bounds
+            var firstLocalBounds: [CGRect] = []
+            for screenBounds in firstResult.allLineBounds {
+                if elementFrame.intersects(screenBounds) {
+                    let localBounds = convertToLocal(screenBounds, from: elementFrame)
+                    let maxValidHeight: CGFloat = UIConstants.maximumTextLineHeight
+                    if localBounds.origin.y >= -10, localBounds.height <= maxValidHeight,
+                       localBounds.origin.y <= elementFrame.height, localBounds.maxY >= 0
+                    {
+                        firstLocalBounds.append(localBounds)
+                    }
+                }
+            }
+
+            guard !firstLocalBounds.isEmpty else {
+                Logger.debug("ErrorOverlay: First segment has no valid local bounds", category: Logger.ui)
+                continue
+            }
+
+            // Convert last segment bounds (may be empty if resolution failed)
+            var lastLocalBounds: [CGRect] = []
+            if lastResult.isUsable, !lastResult.isUnavailable {
+                for screenBounds in lastResult.allLineBounds {
+                    if elementFrame.intersects(screenBounds) {
+                        let localBounds = convertToLocal(screenBounds, from: elementFrame)
+                        let maxValidHeight: CGFloat = UIConstants.maximumTextLineHeight
+                        if localBounds.origin.y >= -10, localBounds.height <= maxValidHeight,
+                           localBounds.origin.y <= elementFrame.height, localBounds.maxY >= 0
+                        {
+                            lastLocalBounds.append(localBounds)
+                        }
+                    }
+                }
+            }
+
+            // Calculate overall bounds from all segments
+            let allSegmentBounds = firstLocalBounds + lastLocalBounds
+            let overallLocalBounds = calculateOverallBounds(from: allSegmentBounds)
+            let thickness = CGFloat(UserPreferences.shared.underlineThickness)
+            let offsetAmount = max(2.0, thickness / 2.0)
+
+            let expandedBounds = CGRect(
+                x: overallLocalBounds.minX,
+                y: overallLocalBounds.minY - offsetAmount - thickness - 2.0,
+                width: overallLocalBounds.width,
+                height: overallLocalBounds.height + offsetAmount + thickness + 2.0
+            )
+
+            let underline = ReadabilityUnderline(
+                bounds: expandedBounds,
+                firstSegmentBounds: firstLocalBounds,
+                lastSegmentBounds: lastLocalBounds.isEmpty ? nil : lastLocalBounds,
+                sentenceResult: sentence
+            )
+
+            Logger.debug("ErrorOverlay: Created segmented underline - first: \(firstLocalBounds.count) bounds, last: \(lastLocalBounds.count) bounds", category: Logger.ui)
+            readabilityUnderlines.append(underline)
+        }
+
+        Logger.debug("ErrorOverlay: Created \(readabilityUnderlines.count) readability underlines from \(complexSentences.count) complex sentences", category: Logger.ui)
+
+        underlineView?.readabilityUnderlines = readabilityUnderlines
+        underlineView?.needsDisplay = true
+
+        // Show overlay if it wasn't already visible and we have underlines to show
+        if !readabilityUnderlines.isEmpty, !isCurrentlyVisible {
+            Logger.info("ErrorOverlay: Showing overlay for readability underlines only", category: Logger.ui)
+            order(.above, relativeTo: 0)
+            isCurrentlyVisible = true
+        }
+    }
+
+    /// Extract ranges for first N and last N words from a sentence
+    /// Returns tuple of (firstWordsRange, lastWordsRange) as NSRanges relative to the full text
+    private func extractWordRanges(from sentence: String, sentenceStart: Int, wordCount: Int) -> (first: NSRange?, last: NSRange?) {
+        // Split sentence into words with their ranges
+        var wordRanges: [(word: String, range: Range<String.Index>)] = []
+
+        sentence.enumerateSubstrings(in: sentence.startIndex ..< sentence.endIndex, options: .byWords) { word, range, _, _ in
+            if let word {
+                wordRanges.append((word, range))
+            }
+        }
+
+        guard wordRanges.count >= 2 else {
+            // Sentence is too short for segmentation
+            return (nil, nil)
+        }
+
+        // Get first N words
+        let firstCount = min(wordCount, wordRanges.count / 2)
+        let firstWords = wordRanges.prefix(firstCount)
+
+        guard let firstStart = firstWords.first?.range.lowerBound,
+              let firstEnd = firstWords.last?.range.upperBound
+        else {
+            return (nil, nil)
+        }
+
+        let firstStartOffset = sentence.distance(from: sentence.startIndex, to: firstStart)
+        let firstLength = sentence.distance(from: firstStart, to: firstEnd)
+        let firstRange = NSRange(location: sentenceStart + firstStartOffset, length: firstLength)
+
+        // Get last N words
+        let lastCount = min(wordCount, wordRanges.count - firstCount)
+        let lastWords = wordRanges.suffix(lastCount)
+
+        guard let lastStart = lastWords.first?.range.lowerBound,
+              let lastEnd = lastWords.last?.range.upperBound
+        else {
+            return (firstRange, nil)
+        }
+
+        let lastStartOffset = sentence.distance(from: sentence.startIndex, to: lastStart)
+        let lastLength = sentence.distance(from: lastStart, to: lastEnd)
+        let lastRange = NSRange(location: sentenceStart + lastStartOffset, length: lastLength)
+
+        return (firstRange, lastRange)
     }
 
     // MARK: - Highlight Control
@@ -1319,6 +1709,65 @@ extension StyleUnderline {
     static let color = NSColor.purple
 }
 
+/// Underline for sentences that are too complex for the target audience
+struct ReadabilityUnderline {
+    let bounds: CGRect // Overall bounds for hit detection
+    let drawingBounds: CGRect // Primary bounds for drawing
+    let allDrawingBounds: [CGRect] // All line bounds for multi-line sentences
+    let sentenceResult: SentenceReadabilityResult
+
+    /// For segmented underlines: bounds for first few words
+    let firstSegmentBounds: [CGRect]?
+
+    /// For segmented underlines: bounds for last few words
+    let lastSegmentBounds: [CGRect]?
+
+    /// Whether this uses segmented display (first...last words with dots)
+    var isSegmented: Bool {
+        firstSegmentBounds != nil && lastSegmentBounds != nil
+    }
+
+    /// Check if this is a multi-line underline
+    var isMultiLine: Bool {
+        allDrawingBounds.count > 1
+    }
+
+    /// Single-line convenience initializer
+    init(bounds: CGRect, drawingBounds: CGRect, sentenceResult: SentenceReadabilityResult) {
+        self.bounds = bounds
+        self.drawingBounds = drawingBounds
+        allDrawingBounds = [drawingBounds]
+        self.sentenceResult = sentenceResult
+        firstSegmentBounds = nil
+        lastSegmentBounds = nil
+    }
+
+    /// Multi-line initializer
+    init(bounds: CGRect, drawingBounds: CGRect, allDrawingBounds: [CGRect], sentenceResult: SentenceReadabilityResult) {
+        self.bounds = bounds
+        self.drawingBounds = drawingBounds
+        self.allDrawingBounds = allDrawingBounds
+        self.sentenceResult = sentenceResult
+        firstSegmentBounds = nil
+        lastSegmentBounds = nil
+    }
+
+    /// Segmented initializer (for long sentences where full bounds aren't available)
+    init(bounds: CGRect, firstSegmentBounds: [CGRect], lastSegmentBounds: [CGRect]?, sentenceResult: SentenceReadabilityResult) {
+        self.bounds = bounds
+        // Use first segment as primary drawing bounds
+        drawingBounds = firstSegmentBounds.first ?? bounds
+        allDrawingBounds = firstSegmentBounds + (lastSegmentBounds ?? [])
+        self.sentenceResult = sentenceResult
+        self.firstSegmentBounds = firstSegmentBounds
+        self.lastSegmentBounds = lastSegmentBounds
+    }
+}
+
+extension ReadabilityUnderline {
+    static let color = NSColor.systemPurple // Violet/purple for readability issues
+}
+
 // MARK: - Underline View
 
 class UnderlineView: NSView {
@@ -1326,8 +1775,10 @@ class UnderlineView: NSView {
 
     var underlines: [ErrorUnderline] = []
     var styleUnderlines: [StyleUnderline] = []
+    var readabilityUnderlines: [ReadabilityUnderline] = [] // Violet dashed underlines for complex sentences
     var hoveredUnderline: ErrorUnderline?
     var hoveredStyleUnderline: StyleUnderline?
+    var hoveredReadabilityUnderline: ReadabilityUnderline?
     var lockedHighlightUnderline: ErrorUnderline? // Persists while popover is open
     var allowsClickPassThrough: Bool = false
     var firstCharDebugMarker: CGRect? // For coordinate debugging (first char position)
@@ -1353,6 +1804,8 @@ class UnderlineView: NSView {
 
     override func draw(_: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
+
+        Logger.trace("UnderlineView.draw: bounds=\(bounds), underlines=\(underlines.count), styleUnderlines=\(styleUnderlines.count), readabilityUnderlines=\(readabilityUnderlines.count)", category: Logger.ui)
 
         // DEBUG: Log actual window position at draw time
         if UserPreferences.shared.showDebugBorderTextFieldBounds, let window {
@@ -1396,6 +1849,65 @@ class UnderlineView: NSView {
         // Draw each style suggestion underline (dotted purple line)
         for styleUnderline in styleUnderlines {
             drawDottedUnderline(in: context, bounds: styleUnderline.drawingBounds, color: StyleUnderline.color)
+        }
+
+        // Draw highlight for hovered readability underline
+        if let hovered = hoveredReadabilityUnderline {
+            for lineBounds in hovered.allDrawingBounds {
+                drawHighlight(in: context, bounds: lineBounds, color: ReadabilityUnderline.color)
+            }
+        }
+
+        // Draw each readability underline (dashed violet line for complex sentences)
+        Logger.trace("UnderlineView: Drawing \(readabilityUnderlines.count) readability underlines", category: Logger.ui)
+        for readabilityUnderline in readabilityUnderlines {
+            Logger.trace("UnderlineView: Readability underline - isSegmented=\(readabilityUnderline.isSegmented), firstBounds=\(String(describing: readabilityUnderline.firstSegmentBounds)), lastBounds=\(String(describing: readabilityUnderline.lastSegmentBounds))", category: Logger.ui)
+            if readabilityUnderline.isSegmented,
+               let firstBounds = readabilityUnderline.firstSegmentBounds,
+               let lastBounds = readabilityUnderline.lastSegmentBounds
+            {
+                // Draw segmented underline: first words ... last words
+                // Shorten the underlines slightly so dots blend seamlessly
+                Logger.debug("UnderlineView: Drawing segmented underline - first: \(firstBounds), last: \(lastBounds)", category: Logger.ui)
+
+                // Draw first segment (shortened on right side for fade-out)
+                for (index, lineBounds) in firstBounds.enumerated() {
+                    var adjustedBounds = lineBounds
+                    // Only shorten the last line of the first segment
+                    if index == firstBounds.count - 1 {
+                        adjustedBounds.size.width = max(10, lineBounds.width - 8)
+                    }
+                    drawDashedUnderline(in: context, bounds: adjustedBounds, color: ReadabilityUnderline.color)
+                }
+
+                // Draw connecting dots between segments
+                if let firstEnd = firstBounds.last, let lastStart = lastBounds.first {
+                    drawConnectingDots(in: context, from: firstEnd, to: lastStart, color: ReadabilityUnderline.color)
+                }
+
+                // Draw last segment (shortened on left side for fade-in on multi-line)
+                let onSameLine = firstBounds.last.map { firstEnd in
+                    lastBounds.first.map { lastStart in
+                        abs(firstEnd.maxY - lastStart.maxY) < 10
+                    } ?? true
+                } ?? true
+
+                for (index, lineBounds) in lastBounds.enumerated() {
+                    var adjustedBounds = lineBounds
+                    // Only shorten the first line of the last segment if on different lines
+                    if index == 0, !onSameLine {
+                        let shortenAmount: CGFloat = 8.0
+                        adjustedBounds.origin.x += shortenAmount
+                        adjustedBounds.size.width = max(10, lineBounds.width - shortenAmount)
+                    }
+                    drawDashedUnderline(in: context, bounds: adjustedBounds, color: ReadabilityUnderline.color)
+                }
+            } else {
+                // Draw regular continuous underline
+                for lineBounds in readabilityUnderline.allDrawingBounds {
+                    drawDashedUnderline(in: context, bounds: lineBounds, color: ReadabilityUnderline.color)
+                }
+            }
         }
 
         // Draw debug border and label if enabled (like DebugBorderWindow)
@@ -1500,6 +2012,122 @@ class UnderlineView: NSView {
         context.strokePath()
 
         // Reset line dash to solid for other drawing
+        context.setLineDash(phase: 0, lengths: [])
+    }
+
+    /// Draw dashed underline for complex sentences (violet)
+    /// Uses longer dashes than dotted to distinguish from style suggestions
+    private func drawDashedUnderline(in context: CGContext, bounds: CGRect, color: NSColor) {
+        context.setStrokeColor(color.cgColor)
+
+        let thickness = CGFloat(UserPreferences.shared.underlineThickness)
+        context.setLineWidth(thickness)
+
+        // Set dashed line pattern: 6pt dash, 4pt gap (longer than dotted)
+        context.setLineDash(phase: 0, lengths: [6.0, 4.0])
+
+        // Draw dashed line below the text
+        let offset = thickness / 2.0
+        let y = bounds.maxY + offset
+
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: bounds.minX, y: y))
+        path.addLine(to: CGPoint(x: bounds.maxX, y: y))
+
+        context.addPath(path)
+        context.strokePath()
+
+        // Reset line dash to solid for other drawing
+        context.setLineDash(phase: 0, lengths: [])
+    }
+
+    /// Draw smooth fade-out transition between first and last segment underlines
+    /// Uses tapering mini-dashes that shrink into dots for a gradient effect
+    /// Note: firstEnd and lastStart are the ORIGINAL bounds - we account for the 8px shortening
+    private func drawConnectingDots(in context: CGContext, from firstEnd: CGRect, to lastStart: CGRect, color: NSColor) {
+        let thickness = CGFloat(UserPreferences.shared.underlineThickness)
+        let offset = thickness / 2.0
+
+        let firstY = firstEnd.maxY + offset
+        let shortenAmount: CGFloat = 8.0
+        let startX = firstEnd.maxX - shortenAmount
+
+        // Check if segments are on the same line or different lines
+        let onSameLine = abs(firstEnd.maxY - lastStart.maxY) < 10
+
+        if onSameLine {
+            let endX = lastStart.minX + shortenAmount
+            drawFadeGradient(in: context, from: startX, to: endX, y: firstY, color: color, fadeOut: true)
+        } else {
+            // Different lines: fade out at end of first segment, fade in at start of last segment
+            let fadeOutEndX = startX + 30
+            drawFadeGradient(in: context, from: startX, to: fadeOutEndX, y: firstY, color: color, fadeOut: true)
+
+            // Draw fade-in on the last segment's line (different Y coordinate)
+            let lastY = lastStart.maxY + offset
+            let fadeInStartX = lastStart.minX
+            let fadeInEndX = fadeInStartX + shortenAmount
+            drawFadeGradient(in: context, from: fadeInStartX, to: fadeInEndX, y: lastY, color: color, fadeOut: false)
+        }
+    }
+
+    /// Draw a smooth fade gradient using tapering strokes that transition to dots
+    private func drawFadeGradient(in context: CGContext, from startX: CGFloat, to endX: CGFloat, y: CGFloat, color: NSColor, fadeOut: Bool) {
+        let thickness = CGFloat(UserPreferences.shared.underlineThickness)
+        let availableSpace = endX - startX
+        guard availableSpace > 5 else { return }
+
+        // Phase 1: Draw mini-dashes that get progressively shorter (first 60% of space)
+        let dashPhaseEnd = startX + availableSpace * 0.6
+        var currentX = startX
+
+        var dashIndex = 0
+        while currentX < dashPhaseEnd {
+            let progress = (currentX - startX) / (dashPhaseEnd - startX)
+            let t = fadeOut ? progress : (1.0 - progress)
+
+            // Dash length shrinks from 4px to 1px
+            let dashLength = max(1.0, 4.0 * (1.0 - t))
+            // Gap grows from 2px to 3px
+            let gapLength = 2.0 + t
+            // Opacity fades from 100% to 40%
+            let alpha = 1.0 - t * 0.6
+            // Thickness tapers slightly
+            let strokeWidth = thickness * (1.0 - t * 0.3)
+
+            context.setStrokeColor(color.withAlphaComponent(alpha).cgColor)
+            context.setLineWidth(strokeWidth)
+            context.setLineDash(phase: 0, lengths: [])
+
+            let endDashX = min(currentX + dashLength, dashPhaseEnd)
+            context.move(to: CGPoint(x: currentX, y: y))
+            context.addLine(to: CGPoint(x: endDashX, y: y))
+            context.strokePath()
+
+            currentX += dashLength + gapLength
+            dashIndex += 1
+        }
+
+        // Phase 2: Transition to dots (remaining 40% of space)
+        let dotPhaseStart = dashPhaseEnd
+        let dotCount = max(3, Int((endX - dotPhaseStart) / 4))
+        let dotSpacing = (endX - dotPhaseStart) / CGFloat(dotCount + 1)
+
+        for i in 0 ..< dotCount {
+            let dotProgress = CGFloat(i) / CGFloat(max(1, dotCount - 1))
+            let t = fadeOut ? dotProgress : (1.0 - dotProgress)
+
+            // Start with small dots, shrink to tiny
+            let size = max(0.5, 1.2 * (1.0 - t * 0.7))
+            // Continue fading opacity
+            let alpha = 0.4 * (1.0 - t * 0.6)
+
+            let x = dotPhaseStart + CGFloat(i + 1) * dotSpacing
+            context.setFillColor(color.withAlphaComponent(alpha).cgColor)
+            context.fillEllipse(in: CGRect(x: x - size / 2, y: y - size / 2, width: size, height: size))
+        }
+
+        // Reset line dash
         context.setLineDash(phase: 0, lengths: [])
     }
 

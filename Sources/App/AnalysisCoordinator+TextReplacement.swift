@@ -598,30 +598,55 @@ extension AnalysisCoordinator {
         dismissedStyleSuggestionHashes.insert(suggestion.originalText.hashValue)
 
         // Remove from current suggestions
+        let countBefore = currentStyleSuggestions.count
         currentStyleSuggestions.removeAll { $0.id == suggestion.id }
 
-        // Update popover's allStyleSuggestions
-        suggestionPopover.allStyleSuggestions.removeAll { $0.id == suggestion.id }
+        // Also validate and remove any stale suggestions whose original text no longer exists
+        // This handles the case where text changed and other suggestions became invalid
+        if let element = textMonitor.monitoredElement {
+            var currentTextRef: CFTypeRef?
+            let result = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
+            if result == .success, let currentText = currentTextRef as? String, !currentText.isEmpty {
+                let staleSuggestions = currentStyleSuggestions.filter { !currentText.contains($0.originalText) }
+                if !staleSuggestions.isEmpty {
+                    Logger.debug("Removing \(staleSuggestions.count) stale suggestions whose text no longer exists", category: Logger.analysis)
+                    currentStyleSuggestions.removeAll { suggestion in
+                        !currentText.contains(suggestion.originalText)
+                    }
+                }
+                // Update the source text to current
+                styleAnalysisSourceText = currentText
+            }
+        }
+        let countAfter = currentStyleSuggestions.count
 
-        Logger.debug("Removed style suggestion from tracking, remaining: \(currentStyleSuggestions.count)", category: Logger.analysis)
+        // Update popover's allStyleSuggestions
+        suggestionPopover.allStyleSuggestions = currentStyleSuggestions
+
+        Logger.debug("Removed style suggestion '\(suggestion.id)' from tracking, before: \(countBefore), after: \(countAfter) (validated against current text)", category: Logger.analysis)
 
         // Update the floating indicator with remaining suggestions
-        if currentStyleSuggestions.isEmpty {
-            // No more suggestions - hide indicator
-            Logger.debug("AnalysisCoordinator: No remaining style suggestions, hiding indicator", category: Logger.analysis)
+        if currentStyleSuggestions.isEmpty, currentErrors.isEmpty {
+            // No more suggestions or errors - hide indicator
+            Logger.debug("AnalysisCoordinator: No remaining suggestions/errors, hiding indicator", category: Logger.analysis)
             floatingIndicator.hide()
         } else {
-            // Update indicator with remaining count (preserve current grammar errors)
-            Logger.debug("AnalysisCoordinator: \(currentStyleSuggestions.count) style suggestions remaining, updating indicator", category: Logger.analysis)
+            // Update indicator with remaining count
+            Logger.debug("AnalysisCoordinator: \(currentStyleSuggestions.count) style suggestions, \(currentErrors.count) errors remaining", category: Logger.analysis)
             if let element = textMonitor.monitoredElement {
                 floatingIndicator.update(
                     errors: currentErrors,
                     styleSuggestions: currentStyleSuggestions,
                     readabilityResult: currentReadabilityResult,
+                    readabilityAnalysis: currentReadabilityAnalysis,
                     element: element,
                     context: monitoredContext,
                     sourceText: lastAnalyzedText
                 )
+            } else {
+                // Element not available - update style count directly
+                Logger.debug("AnalysisCoordinator: No element, updating style count directly", category: Logger.analysis)
+                floatingIndicator.updateStyleSuggestions(currentStyleSuggestions)
             }
         }
     }

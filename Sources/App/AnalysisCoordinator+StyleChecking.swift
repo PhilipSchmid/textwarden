@@ -347,6 +347,12 @@ extension AnalysisCoordinator {
         // Get custom vocabulary for context
         let vocabulary = customVocabulary.allWords()
 
+        // Capture readability settings for simplification
+        let sentenceComplexityEnabled = userPreferences.sentenceComplexityHighlightingEnabled
+        let targetAudienceName = userPreferences.selectedTargetAudience
+        let targetAudience = TargetAudience(fromDisplayName: targetAudienceName) ?? .general
+        let readabilityAnalysis = currentReadabilityAnalysis
+
         // Run style analysis using Apple Intelligence
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -388,8 +394,53 @@ extension AnalysisCoordinator {
                 currentStyleSuggestions = filteredSuggestions
                 styleAnalysisSourceText = capturedFullText
 
-                // Cache the unfiltered results - filtering happens at display time
-                styleCache[cacheKey] = suggestions
+                // Generate readability simplifications for complex sentences (if enabled)
+                if sentenceComplexityEnabled,
+                   let analysis = readabilityAnalysis,
+                   !analysis.complexSentences.isEmpty
+                {
+                    Logger.debug("Style check: Generating simplifications for \(analysis.complexSentences.count) complex sentence(s)", category: Logger.llm)
+
+                    // Process up to 3 complex sentences
+                    for sentence in analysis.complexSentences.prefix(3) {
+                        do {
+                            let alternatives = try await fmEngine.simplifySentence(
+                                sentence.sentence,
+                                targetAudience: targetAudience,
+                                writingStyle: style
+                            )
+
+                            // Create a StyleSuggestionModel for the first alternative only
+                            // (user can retry for more alternatives)
+                            // Only store suggestion if we got a non-empty alternative
+                            if let firstAlternative = alternatives.first, !firstAlternative.isEmpty {
+                                let suggestion = StyleSuggestionModel(
+                                    id: "readability-\(sentence.range.location)-0",
+                                    originalStart: sentence.range.location,
+                                    originalEnd: sentence.range.location + sentence.range.length,
+                                    originalText: sentence.sentence,
+                                    suggestedText: firstAlternative,
+                                    explanation: "Simplified for \(targetAudience.displayName) audience",
+                                    confidence: 0.85,
+                                    style: style,
+                                    isReadabilitySuggestion: true,
+                                    readabilityScore: Int(sentence.score),
+                                    targetAudience: targetAudience.displayName
+                                )
+                                currentStyleSuggestions.append(suggestion)
+                            }
+
+                            Logger.debug("Style check: Generated simplification for sentence at \(sentence.range.location)", category: Logger.llm)
+
+                        } catch {
+                            Logger.warning("Style check: Failed to simplify sentence - \(error.localizedDescription)", category: Logger.llm)
+                            // Continue with other sentences even if one fails
+                        }
+                    }
+                }
+
+                // Cache the combined results (style + readability) - filtering happens at display time
+                styleCache[cacheKey] = currentStyleSuggestions
                 styleCacheMetadata[cacheKey] = StyleCacheMetadata(
                     lastAccessed: Date(),
                     style: styleName
@@ -397,9 +448,10 @@ extension AnalysisCoordinator {
                 evictStyleCacheIfNeeded()
 
                 // Update indicator to show results (checkmark first, then transition)
+                // Use currentStyleSuggestions which includes both style AND readability suggestions
                 floatingIndicator.showStyleSuggestionsReady(
-                    count: filteredSuggestions.count,
-                    styleSuggestions: filteredSuggestions
+                    count: currentStyleSuggestions.count,
+                    styleSuggestions: currentStyleSuggestions
                 )
 
                 // Clear the flag after the checkmark display period
@@ -446,10 +498,7 @@ extension AnalysisCoordinator {
     /// Regenerate a style suggestion to get an alternative
     @available(macOS 26.0, *)
     func regenerateStyleSuggestion(_ suggestion: StyleSuggestionModel) async -> StyleSuggestionModel? {
-        Logger.debug("AnalysisCoordinator: Regenerating style suggestion for '\(suggestion.originalText.prefix(30))...'", category: Logger.analysis)
-
-        // Get the source text from the suggestion or current analysis
-        let sourceText = !styleAnalysisSourceText.isEmpty ? styleAnalysisSourceText : (currentText() ?? suggestion.originalText)
+        Logger.debug("AnalysisCoordinator: Regenerating suggestion for '\(suggestion.originalText.prefix(30))...' (readability: \(suggestion.isReadabilitySuggestion))", category: Logger.analysis)
 
         // Create engine on demand
         let fmEngine = FoundationModelsEngine()
@@ -461,6 +510,52 @@ extension AnalysisCoordinator {
         }
 
         do {
+            // Handle readability suggestions differently - use simplifySentence instead of style regeneration
+            if suggestion.isReadabilitySuggestion {
+                let targetAudience = TargetAudience(fromDisplayName: suggestion.targetAudience ?? "General") ?? .general
+
+                Logger.debug("AnalysisCoordinator: Using simplifySentence for readability regeneration", category: Logger.analysis)
+
+                let alternatives = try await fmEngine.simplifySentence(
+                    suggestion.originalText,
+                    targetAudience: targetAudience,
+                    writingStyle: suggestion.style,
+                    previousSuggestion: suggestion.suggestedText
+                )
+
+                // Pick the first alternative that's different from the current suggestion
+                if let newAlternative = alternatives.first(where: { $0 != suggestion.suggestedText }) ?? alternatives.first {
+                    let newSuggestion = StyleSuggestionModel(
+                        id: suggestion.id,
+                        originalStart: suggestion.originalStart,
+                        originalEnd: suggestion.originalEnd,
+                        originalText: suggestion.originalText,
+                        suggestedText: newAlternative,
+                        explanation: "Simplified for \(targetAudience.displayName) audience",
+                        confidence: suggestion.confidence,
+                        style: suggestion.style,
+                        isReadabilitySuggestion: true,
+                        readabilityScore: suggestion.readabilityScore,
+                        targetAudience: suggestion.targetAudience
+                    )
+
+                    Logger.debug("AnalysisCoordinator: Readability regeneration successful - new suggestion: '\(newSuggestion.suggestedText.prefix(30))...'", category: Logger.analysis)
+
+                    // Update the tracking
+                    if let index = currentStyleSuggestions.firstIndex(where: { $0.id == suggestion.id }) {
+                        currentStyleSuggestions[index] = newSuggestion
+                    }
+
+                    return newSuggestion
+                } else {
+                    Logger.debug("AnalysisCoordinator: Readability regeneration returned no alternatives", category: Logger.analysis)
+                    return nil
+                }
+            }
+
+            // Regular style suggestion - use style regeneration
+            let sourceText = !styleAnalysisSourceText.isEmpty ? styleAnalysisSourceText : (currentText() ?? suggestion.originalText)
+
             let newSuggestion = try await fmEngine.regenerateStyleSuggestion(
                 originalText: sourceText,
                 previousSuggestion: suggestion,

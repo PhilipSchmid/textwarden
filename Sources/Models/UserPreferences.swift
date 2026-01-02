@@ -532,6 +532,33 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Enable sentence complexity highlighting feature (enabled by default)
+    /// When enabled: Analyzes sentences for readability, shows violet dashed underlines
+    /// for sentences too complex for the target audience, and generates AI simplification suggestions
+    @Published var sentenceComplexityHighlightingEnabled: Bool {
+        didSet {
+            defaults.set(sentenceComplexityHighlightingEnabled, forKey: Keys.sentenceComplexityHighlightingEnabled)
+        }
+    }
+
+    /// Show violet dashed underlines for complex sentences (only applies when sentenceComplexityHighlightingEnabled is true)
+    @Published var showReadabilityUnderlines: Bool {
+        didSet {
+            defaults.set(showReadabilityUnderlines, forKey: Keys.showReadabilityUnderlines)
+        }
+    }
+
+    /// Selected target audience for readability analysis
+    /// Determines the Flesch score threshold for marking sentences as "too complex"
+    @Published var selectedTargetAudience: String {
+        didSet {
+            defaults.set(selectedTargetAudience, forKey: Keys.selectedTargetAudience)
+        }
+    }
+
+    /// Available target audience options
+    static let targetAudienceOptions: [String] = TargetAudience.allCases.map(\.displayName)
+
     // MARK: - Style Checking Settings
 
     /// Enable LLM-powered style suggestions
@@ -823,6 +850,11 @@ class UserPreferences: ObservableObject {
 
         // Readability Score - enabled by default
         showReadabilityScore = defaults.object(forKey: Keys.showReadabilityScore) as? Bool ?? true
+
+        // Sentence Complexity Highlighting - enabled by default
+        sentenceComplexityHighlightingEnabled = defaults.object(forKey: Keys.sentenceComplexityHighlightingEnabled) as? Bool ?? true
+        showReadabilityUnderlines = defaults.object(forKey: Keys.showReadabilityUnderlines) as? Bool ?? true
+        selectedTargetAudience = defaults.string(forKey: Keys.selectedTargetAudience) ?? TargetAudience.general.displayName
 
         // LLM Style Checking
         enableStyleChecking = defaults.object(forKey: Keys.enableStyleChecking) as? Bool ?? false
@@ -1251,6 +1283,11 @@ class UserPreferences: ObservableObject {
 
         // Readability Score
         static let showReadabilityScore = "showReadabilityScore"
+
+        // Sentence Complexity Highlighting
+        static let sentenceComplexityHighlightingEnabled = "sentenceComplexityHighlightingEnabled"
+        static let showReadabilityUnderlines = "showReadabilityUnderlines"
+        static let selectedTargetAudience = "selectedTargetAudience"
 
         // LLM Style Checking
         static let enableStyleChecking = "enableStyleChecking"

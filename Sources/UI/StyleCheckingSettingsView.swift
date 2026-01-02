@@ -15,7 +15,81 @@ struct StyleCheckingSettingsView: View {
 
     var body: some View {
         Form {
-            // MARK: - Enable Section
+            // MARK: - Readability Section (always visible)
+
+            Section {
+                // Target audience segmented control (matches Writing Style UI)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Target Audience")
+                        .font(.headline)
+
+                    HStack(spacing: 0) {
+                        ForEach(UserPreferences.targetAudienceOptions, id: \.self) { audience in
+                            Button {
+                                preferences.selectedTargetAudience = audience
+                            } label: {
+                                Text(audience)
+                                    .font(.system(size: 12, weight: preferences.selectedTargetAudience == audience ? .semibold : .regular))
+                                    .foregroundColor(preferences.selectedTargetAudience == audience ? .white : .primary)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        preferences.selectedTargetAudience == audience
+                                            ? Color.accentColor
+                                            : Color.clear
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                            .help(audienceDescription(for: audience))
+                        }
+                    }
+                    .background(Color(.separatorColor).opacity(0.2))
+                    .cornerRadius(6)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color(.separatorColor), lineWidth: 0.5)
+                    )
+                }
+
+                Toggle(isOn: $preferences.sentenceComplexityHighlightingEnabled) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Highlight Complex Sentences")
+                        Text("Mark sentences too difficult for your target audience")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .toggleStyle(.switch)
+
+                if preferences.sentenceComplexityHighlightingEnabled {
+                    Toggle(isOn: $preferences.showReadabilityUnderlines) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Show Readability Underlines")
+                            Text("Violet dashed underlines under complex sentences")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .toggleStyle(.switch)
+                }
+            } header: {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "text.book.closed")
+                            .font(.title2)
+                            .foregroundColor(.purple)
+                        Text("Readability")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
+
+                    Text("Analyze text complexity based on your target audience. Works independently of Apple Intelligence.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            // MARK: - Apple Intelligence Section
 
             Section {
                 Toggle(isOn: $preferences.enableStyleChecking) {
@@ -175,6 +249,25 @@ struct StyleCheckingSettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
+    }
+
+    // MARK: - Audience Descriptions
+
+    private func audienceDescription(for audience: String) -> String {
+        switch audience {
+        case "Accessible":
+            "Text should be easy for everyone to understand. Flags sentences that may be too complex for casual readers."
+        case "General":
+            "Text should be clear for the average adult reader. Good balance for most writing."
+        case "Professional":
+            "Text can be moderately complex. Suitable for business and professional contexts."
+        case "Technical":
+            "Text can use specialized language. Appropriate for technical documentation and formal writing."
+        case "Academic":
+            "Text can be highly complex. Suitable for academic papers and graduate-level content."
+        default:
+            "Text should be clear for the average adult reader."
+        }
     }
 
     // MARK: - Style Descriptions

@@ -36,6 +36,22 @@ public enum WritingStyle: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+// MARK: - Target Audience Mapping
+
+extension WritingStyle {
+    /// Target audience inferred from writing style
+    /// Determines the minimum Flesch score threshold for readability
+    var targetAudience: TargetAudience {
+        switch self {
+        case .informal: .accessible // Casual = everyone should understand
+        case .default: .general // Default = average adult reader
+        case .concise: .general // Concise = focus on brevity, not complexity
+        case .business: .professional // Business = professional readers
+        case .formal: .technical // Formal = specialized readers
+        }
+    }
+}
+
 // MARK: - Diff Segment
 
 /// Kind of change in a diff
@@ -71,6 +87,15 @@ public struct StyleSuggestionModel: Identifiable {
     public let style: WritingStyle
     public let diff: [DiffSegmentModel]
 
+    /// Whether this is a readability simplification suggestion (vs regular style suggestion)
+    public let isReadabilitySuggestion: Bool
+
+    /// Original readability score of the sentence (only set for readability suggestions)
+    public let readabilityScore: Int?
+
+    /// Target audience for readability suggestions
+    public let targetAudience: String?
+
     public init(
         id: String = UUID().uuidString,
         originalStart: Int,
@@ -80,7 +105,10 @@ public struct StyleSuggestionModel: Identifiable {
         explanation: String,
         confidence: Float = 0.8,
         style: WritingStyle = .default,
-        diff: [DiffSegmentModel] = []
+        diff: [DiffSegmentModel] = [],
+        isReadabilitySuggestion: Bool = false,
+        readabilityScore: Int? = nil,
+        targetAudience: String? = nil
     ) {
         self.id = id
         self.originalStart = originalStart
@@ -91,6 +119,9 @@ public struct StyleSuggestionModel: Identifiable {
         self.confidence = confidence
         self.style = style
         self.diff = diff
+        self.isReadabilitySuggestion = isReadabilitySuggestion
+        self.readabilityScore = readabilityScore
+        self.targetAudience = targetAudience
     }
 
     /// Range of the original text

@@ -131,6 +131,9 @@ class AnalysisCoordinator: ObservableObject {
     /// Cancellables for Combine subscriptions
     private var cancellables = Set<AnyCancellable>()
 
+    /// Track sentences with pending simplification requests (by range location)
+    private var pendingSimplificationRequests = Set<Int>()
+
     /// Maximum number of cached documents
     let maxCachedDocuments = 10
 
@@ -196,6 +199,9 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Current readability score result (nil if text too short or feature disabled)
     @Published var currentReadabilityResult: ReadabilityResult?
+
+    /// Current sentence-level readability analysis (nil if feature disabled or text too short)
+    @Published var currentReadabilityAnalysis: TextReadabilityAnalysis?
 
     /// Style analysis queue for background LLM processing
     let styleAnalysisQueue = DispatchQueue(label: "com.textwarden.styleanalysis", qos: .userInitiated)
@@ -807,6 +813,326 @@ class AnalysisCoordinator: ObservableObject {
             }
         }
 
+        // Handle hover on readability underline - show style popover with simplification
+        errorOverlay.onReadabilityHover = { [weak self] sentenceResult, position, windowFrame in
+            guard let self else { return }
+
+            let sentenceLocation = sentenceResult.range.location
+            let placeholderId = "readability-\(sentenceLocation)-0"
+
+            // Skip if popover is already visible and showing this sentence (avoid flickering/duplicate requests)
+            // This includes: loading state, placeholder, or actual suggestion for this sentence
+            if suggestionPopover.isVisible {
+                if let current = suggestionPopover.currentStyleSuggestion,
+                   current.isReadabilitySuggestion,
+                   current.originalText == sentenceResult.sentence
+                {
+                    // Already showing this sentence - don't retrigger
+                    return
+                }
+            }
+
+            // Skip if a request is already pending for this sentence
+            guard !pendingSimplificationRequests.contains(sentenceLocation) else {
+                return
+            }
+
+            Logger.debug("AnalysisCoordinator: onReadabilityHover - sentence score \(sentenceResult.displayScore)", category: Logger.analysis)
+
+            // Find existing suggestion for this sentence (if already generated with valid content)
+            // Only use existing suggestion if it has non-empty suggestedText, otherwise regenerate
+            if let styleSuggestion = currentStyleSuggestions.first(where: {
+                $0.isReadabilitySuggestion && $0.originalText == sentenceResult.sentence
+            }), !styleSuggestion.suggestedText.isEmpty {
+                suggestionPopover.show(
+                    styleSuggestion: styleSuggestion,
+                    allSuggestions: currentStyleSuggestions,
+                    at: position,
+                    constrainToWindow: windowFrame
+                )
+                return
+            }
+
+            // No existing suggestion - generate on demand if AI is available
+            // Mark as pending IMMEDIATELY to prevent race conditions
+            pendingSimplificationRequests.insert(sentenceLocation)
+
+            let styleName = UserPreferences.shared.selectedWritingStyle
+            let style = WritingStyle.allCases.first { $0.displayName == styleName } ?? .default
+            let targetAudience = sentenceResult.targetAudience
+            let placeholderSuggestion = StyleSuggestionModel(
+                id: placeholderId,
+                originalStart: sentenceResult.range.location,
+                originalEnd: sentenceResult.range.location + sentenceResult.range.length,
+                originalText: sentenceResult.sentence,
+                suggestedText: "", // Empty = will show loading or info-only
+                explanation: "This sentence may be too complex for \(targetAudience.displayName) readers.",
+                confidence: 0.0,
+                style: style,
+                isReadabilitySuggestion: true,
+                readabilityScore: Int(sentenceResult.score),
+                targetAudience: targetAudience.displayName
+            )
+
+            // Check if Foundation Models is available (requires macOS 26+)
+            if #available(macOS 26.0, *) {
+                let fmEngine = FoundationModelsEngine()
+                fmEngine.checkAvailability()
+
+                if fmEngine.status.isAvailable {
+                    Logger.debug("AnalysisCoordinator: Generating on-demand simplification for complex sentence", category: Logger.analysis)
+
+                    // Show loading state
+                    suggestionPopover.isGeneratingSimplification = true
+                    suggestionPopover.show(
+                        styleSuggestion: placeholderSuggestion,
+                        allSuggestions: [placeholderSuggestion],
+                        at: position,
+                        constrainToWindow: windowFrame
+                    )
+
+                    // Generate simplification asynchronously
+                    Task { @MainActor in
+                        defer {
+                            // Always remove from pending when done
+                            self.pendingSimplificationRequests.remove(sentenceLocation)
+                        }
+
+                        do {
+                            let alternatives = try await fmEngine.simplifySentence(
+                                sentenceResult.sentence,
+                                targetAudience: targetAudience,
+                                writingStyle: style
+                            )
+
+                            // Create the real suggestion with the first alternative (must be non-empty)
+                            if let firstAlternative = alternatives.first, !firstAlternative.isEmpty {
+                                // Note: diff will be empty, popover will use fallback display
+                                let realSuggestion = StyleSuggestionModel(
+                                    id: placeholderId,
+                                    originalStart: sentenceResult.range.location,
+                                    originalEnd: sentenceResult.range.location + sentenceResult.range.length,
+                                    originalText: sentenceResult.sentence,
+                                    suggestedText: firstAlternative,
+                                    explanation: "Simplified for \(targetAudience.displayName) audience",
+                                    confidence: 0.85,
+                                    style: style,
+                                    isReadabilitySuggestion: true,
+                                    readabilityScore: Int(sentenceResult.score),
+                                    targetAudience: targetAudience.displayName
+                                )
+
+                                // Only add if not already in suggestions (avoid duplicates)
+                                if !self.currentStyleSuggestions.contains(where: { $0.id == placeholderId }) {
+                                    self.currentStyleSuggestions.append(realSuggestion)
+                                }
+
+                                // Update popover if still showing the placeholder
+                                if self.suggestionPopover.currentStyleSuggestion?.id == placeholderId {
+                                    self.suggestionPopover.isGeneratingSimplification = false
+                                    self.suggestionPopover.show(
+                                        styleSuggestion: realSuggestion,
+                                        allSuggestions: self.currentStyleSuggestions,
+                                        at: position,
+                                        constrainToWindow: windowFrame
+                                    )
+                                }
+
+                                Logger.debug("AnalysisCoordinator: On-demand simplification generated successfully", category: Logger.analysis)
+                            } else {
+                                // No alternatives generated - show info-only mode
+                                self.suggestionPopover.isGeneratingSimplification = false
+                                Logger.warning("AnalysisCoordinator: No simplification alternatives generated", category: Logger.analysis)
+                            }
+                        } catch {
+                            // Error generating - show info-only mode
+                            self.suggestionPopover.isGeneratingSimplification = false
+                            Logger.warning("AnalysisCoordinator: Failed to generate simplification - \(error.localizedDescription)", category: Logger.analysis)
+                        }
+                    }
+                } else {
+                    // AI not available (status not ready) - show info-only mode
+                    Logger.debug("AnalysisCoordinator: Foundation Models not available - showing info-only", category: Logger.analysis)
+                    pendingSimplificationRequests.remove(sentenceLocation) // No request started
+                    suggestionPopover.show(
+                        styleSuggestion: placeholderSuggestion,
+                        allSuggestions: [placeholderSuggestion],
+                        at: position,
+                        constrainToWindow: windowFrame
+                    )
+                }
+            } else {
+                // macOS < 26 - show info-only mode
+                Logger.debug("AnalysisCoordinator: macOS 26 required for AI simplification", category: Logger.analysis)
+                pendingSimplificationRequests.remove(sentenceLocation) // No request started
+                suggestionPopover.show(
+                    styleSuggestion: placeholderSuggestion,
+                    allSuggestions: [placeholderSuggestion],
+                    at: position,
+                    constrainToWindow: windowFrame
+                )
+            }
+        }
+
+        // Handle click on readability underline - toggle style popover
+        errorOverlay.onReadabilityClick = { [weak self] sentenceResult, position, windowFrame in
+            guard let self else { return }
+
+            Logger.debug("AnalysisCoordinator: onReadabilityClick - sentence score \(sentenceResult.displayScore)", category: Logger.analysis)
+
+            // Debounce: ignore click if popover was just hidden
+            if let lastClose = suggestionPopover.lastClickOutsideHideTime,
+               Date().timeIntervalSince(lastClose) < 0.3
+            {
+                return
+            }
+
+            let styleName = UserPreferences.shared.selectedWritingStyle
+            let style = WritingStyle.allCases.first { $0.displayName == styleName } ?? .default
+            let targetAudience = sentenceResult.targetAudience
+            let sentenceLocation = sentenceResult.range.location
+            let placeholderId = "readability-\(sentenceLocation)-0"
+
+            // Find existing suggestion for this sentence
+            if let existingSuggestion = currentStyleSuggestions.first(where: {
+                $0.isReadabilitySuggestion && $0.originalText == sentenceResult.sentence
+            }) {
+                // Toggle behavior - hide if showing same suggestion
+                if suggestionPopover.isVisible,
+                   suggestionPopover.currentStyleSuggestion?.id == existingSuggestion.id
+                {
+                    suggestionPopover.hide()
+                } else {
+                    suggestionPopover.show(
+                        styleSuggestion: existingSuggestion,
+                        allSuggestions: currentStyleSuggestions,
+                        at: position,
+                        constrainToWindow: windowFrame
+                    )
+                }
+                return
+            }
+
+            // No existing suggestion - generate on demand if AI available
+            let placeholderSuggestion = StyleSuggestionModel(
+                id: placeholderId,
+                originalStart: sentenceResult.range.location,
+                originalEnd: sentenceResult.range.location + sentenceResult.range.length,
+                originalText: sentenceResult.sentence,
+                suggestedText: "",
+                explanation: "This sentence may be too complex for \(targetAudience.displayName) readers.",
+                confidence: 0.0,
+                style: style,
+                isReadabilitySuggestion: true,
+                readabilityScore: Int(sentenceResult.score),
+                targetAudience: targetAudience.displayName
+            )
+
+            // Toggle if already showing this placeholder or loading
+            if suggestionPopover.isVisible,
+               let current = suggestionPopover.currentStyleSuggestion,
+               current.isReadabilitySuggestion,
+               current.originalText == sentenceResult.sentence
+            {
+                suggestionPopover.hide()
+                return
+            }
+
+            // Skip if already pending (from hover)
+            guard !pendingSimplificationRequests.contains(sentenceLocation) else {
+                return
+            }
+
+            // Mark as pending
+            pendingSimplificationRequests.insert(sentenceLocation)
+
+            // Generate on demand if AI available (requires macOS 26+)
+            if #available(macOS 26.0, *) {
+                let fmEngine = FoundationModelsEngine()
+                fmEngine.checkAvailability()
+
+                if fmEngine.status.isAvailable {
+                    Logger.debug("AnalysisCoordinator: Generating on-demand simplification (click)", category: Logger.analysis)
+
+                    suggestionPopover.isGeneratingSimplification = true
+                    suggestionPopover.show(
+                        styleSuggestion: placeholderSuggestion,
+                        allSuggestions: [placeholderSuggestion],
+                        at: position,
+                        constrainToWindow: windowFrame
+                    )
+
+                    Task { @MainActor in
+                        defer {
+                            self.pendingSimplificationRequests.remove(sentenceLocation)
+                        }
+
+                        do {
+                            let alternatives = try await fmEngine.simplifySentence(
+                                sentenceResult.sentence,
+                                targetAudience: targetAudience,
+                                writingStyle: style
+                            )
+
+                            if let firstAlternative = alternatives.first, !firstAlternative.isEmpty {
+                                let realSuggestion = StyleSuggestionModel(
+                                    id: placeholderId,
+                                    originalStart: sentenceResult.range.location,
+                                    originalEnd: sentenceResult.range.location + sentenceResult.range.length,
+                                    originalText: sentenceResult.sentence,
+                                    suggestedText: firstAlternative,
+                                    explanation: "Simplified for \(targetAudience.displayName) audience",
+                                    confidence: 0.85,
+                                    style: style,
+                                    isReadabilitySuggestion: true,
+                                    readabilityScore: Int(sentenceResult.score),
+                                    targetAudience: targetAudience.displayName
+                                )
+
+                                // Only add if not already in suggestions
+                                if !self.currentStyleSuggestions.contains(where: { $0.id == placeholderId }) {
+                                    self.currentStyleSuggestions.append(realSuggestion)
+                                }
+
+                                if self.suggestionPopover.currentStyleSuggestion?.id == placeholderId {
+                                    self.suggestionPopover.isGeneratingSimplification = false
+                                    self.suggestionPopover.show(
+                                        styleSuggestion: realSuggestion,
+                                        allSuggestions: self.currentStyleSuggestions,
+                                        at: position,
+                                        constrainToWindow: windowFrame
+                                    )
+                                }
+                            } else {
+                                self.suggestionPopover.isGeneratingSimplification = false
+                            }
+                        } catch {
+                            self.suggestionPopover.isGeneratingSimplification = false
+                            Logger.warning("AnalysisCoordinator: Click simplification failed - \(error.localizedDescription)", category: Logger.analysis)
+                        }
+                    }
+                } else {
+                    // AI not available - show info-only
+                    pendingSimplificationRequests.remove(sentenceLocation)
+                    suggestionPopover.show(
+                        styleSuggestion: placeholderSuggestion,
+                        allSuggestions: [placeholderSuggestion],
+                        at: position,
+                        constrainToWindow: windowFrame
+                    )
+                }
+            } else {
+                // macOS < 26 - show info-only
+                pendingSimplificationRequests.remove(sentenceLocation)
+                suggestionPopover.show(
+                    styleSuggestion: placeholderSuggestion,
+                    allSuggestions: [placeholderSuggestion],
+                    at: position,
+                    constrainToWindow: windowFrame
+                )
+            }
+        }
+
         // Re-show underlines when frame stabilizes after resize
         errorOverlay.onFrameStabilized = { [weak self] in
             guard let self else { return }
@@ -1064,6 +1390,7 @@ class AnalysisCoordinator: ObservableObject {
                             errors: currentErrors,
                             styleSuggestions: [],
                             readabilityResult: currentReadabilityResult,
+                            readabilityAnalysis: currentReadabilityAnalysis,
                             element: element,
                             context: context,
                             sourceText: lastAnalyzedText
@@ -1886,9 +2213,16 @@ class AnalysisCoordinator: ObservableObject {
         // Check if we should always show the indicator (provides visual confirmation even with no issues)
         let shouldAlwaysShowIndicator = UserPreferences.shared.alwaysShowCapsule
 
+        // Check if we have readability underlines that should be preserved
+        let hasReadabilityUnderlines = currentReadabilityAnalysis?.complexSentenceCount ?? 0 > 0
+            && UserPreferences.shared.showReadabilityUnderlines
+
         if !hasErrors, !hasStyleSuggestions {
             Logger.debug("AnalysisCoordinator: No errors or style suggestions", category: Logger.analysis)
-            errorOverlay.hide()
+            // Only hide overlay if there are no readability underlines to preserve
+            if !hasReadabilityUnderlines {
+                errorOverlay.hide()
+            }
 
             // Don't hide indicator if:
             // - Manual style check is active (showing checkmark/results), OR
@@ -1902,6 +2236,7 @@ class AnalysisCoordinator: ObservableObject {
                     errors: [],
                     styleSuggestions: [],
                     readabilityResult: currentReadabilityResult,
+                    readabilityAnalysis: currentReadabilityAnalysis,
                     element: providedElement,
                     context: monitoredContext,
                     sourceText: lastAnalyzedText
@@ -1927,8 +2262,11 @@ class AnalysisCoordinator: ObservableObject {
                     Logger.debug("AnalysisCoordinator: Showing \(underlinesCreated) visual underlines + floating indicator", category: Logger.analysis)
                 }
             } else {
-                // No grammar errors but have style suggestions - hide error overlay
-                errorOverlay.hide()
+                // No grammar errors but have style suggestions - hide grammar underlines only
+                // Preserve readability underlines if they exist
+                if !hasReadabilityUnderlines {
+                    errorOverlay.hide()
+                }
             }
 
             // Show floating indicator with errors and/or style suggestions
@@ -1939,6 +2277,7 @@ class AnalysisCoordinator: ObservableObject {
                     errors: errors,
                     styleSuggestions: currentStyleSuggestions,
                     readabilityResult: currentReadabilityResult,
+                    readabilityAnalysis: currentReadabilityAnalysis,
                     element: providedElement,
                     context: monitoredContext,
                     sourceText: lastAnalyzedText

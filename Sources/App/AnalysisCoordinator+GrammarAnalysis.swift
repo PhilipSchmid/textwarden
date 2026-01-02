@@ -258,9 +258,38 @@ extension AnalysisCoordinator {
 
         // Calculate readability score if enabled and text has sufficient length
         if userPreferences.showReadabilityScore, wordCount >= 30 {
-            currentReadabilityResult = ReadabilityCalculator.shared.fleschReadingEase(for: text)
+            // Get target audience from user preference
+            let targetAudience = TargetAudience(fromDisplayName: userPreferences.selectedTargetAudience) ?? .general
+
+            // Run sentence-level analysis if feature is enabled
+            if userPreferences.sentenceComplexityHighlightingEnabled,
+               let analysis = ReadabilityCalculator.shared.analyzeForTargetAudience(text, targetAudience: targetAudience)
+            {
+                currentReadabilityAnalysis = analysis
+                currentReadabilityResult = analysis.overallResult
+                Logger.debug("AnalysisCoordinator: Readability analysis complete - \(analysis.complexSentenceCount) complex sentences for \(targetAudience.displayName) audience", category: Logger.analysis)
+
+                // Update readability underlines if there are complex sentences and element is available
+                if let element, userPreferences.showReadabilityUnderlines, !analysis.complexSentences.isEmpty {
+                    errorOverlay.updateReadabilityUnderlines(
+                        complexSentences: analysis.complexSentences,
+                        element: element,
+                        context: monitoredContext,
+                        text: text
+                    )
+                } else {
+                    errorOverlay.clearReadabilityUnderlines()
+                }
+            } else {
+                // Feature disabled - just calculate overall readability without sentence analysis
+                currentReadabilityResult = ReadabilityCalculator.shared.fleschReadingEase(for: text)
+                currentReadabilityAnalysis = nil
+                errorOverlay.clearReadabilityUnderlines()
+            }
         } else {
             currentReadabilityResult = nil
+            currentReadabilityAnalysis = nil
+            errorOverlay.clearReadabilityUnderlines()
         }
 
         Logger.debug("AnalysisCoordinator: Grammar analysis complete, UI updated", category: Logger.analysis)
@@ -433,6 +462,12 @@ extension AnalysisCoordinator {
         styleAnalysisGeneration &+= 1
         let capturedGeneration = styleAnalysisGeneration
 
+        // Capture readability settings
+        let sentenceComplexityEnabled = userPreferences.sentenceComplexityHighlightingEnabled
+        let targetAudienceName = userPreferences.selectedTargetAudience
+        let targetAudience = TargetAudience(fromDisplayName: targetAudienceName) ?? .general
+        let readabilityAnalysis = currentReadabilityAnalysis
+
         Task {
             do {
                 let suggestions = try await fmEngine.analyzeStyle(text, style: style)
@@ -449,18 +484,61 @@ extension AnalysisCoordinator {
                     var filtered = suggestions.filter { !self.dismissedStyleSuggestionHashes.contains($0.originalText.hashValue) }
                     filtered = self.filterStyleSuggestionsNotOverlappingGrammarErrors(filtered, grammarErrors: self.currentErrors)
 
-                    Logger.info("Auto style check: Complete, \(filtered.count) suggestion(s)", category: Logger.llm)
-
-                    // Update cache
-                    self.styleCache[cacheKey] = suggestions
-                    self.styleCacheMetadata[cacheKey] = StyleCacheMetadata(lastAccessed: Date(), style: styleName)
-
-                    // Update state
+                    // Update state with style suggestions
                     self.currentStyleSuggestions = filtered
                     self.styleAnalysisSourceText = text
+                }
+
+                // Generate readability simplifications for complex sentences (if enabled)
+                if sentenceComplexityEnabled,
+                   let analysis = readabilityAnalysis,
+                   !analysis.complexSentences.isEmpty
+                {
+                    Logger.debug("Auto style check: Generating simplifications for \(analysis.complexSentences.count) complex sentence(s)", category: Logger.llm)
+
+                    for sentence in analysis.complexSentences.prefix(3) {
+                        do {
+                            let alternatives = try await fmEngine.simplifySentence(
+                                sentence.sentence,
+                                targetAudience: targetAudience,
+                                writingStyle: style
+                            )
+
+                            // Only store suggestion if we got a non-empty alternative
+                            if let firstAlternative = alternatives.first, !firstAlternative.isEmpty {
+                                let suggestion = StyleSuggestionModel(
+                                    id: "readability-\(sentence.range.location)-0",
+                                    originalStart: sentence.range.location,
+                                    originalEnd: sentence.range.location + sentence.range.length,
+                                    originalText: sentence.sentence,
+                                    suggestedText: firstAlternative,
+                                    explanation: "Simplified for \(targetAudience.displayName) audience",
+                                    confidence: 0.85,
+                                    style: style,
+                                    isReadabilitySuggestion: true,
+                                    readabilityScore: Int(sentence.score),
+                                    targetAudience: targetAudience.displayName
+                                )
+
+                                await MainActor.run {
+                                    self.currentStyleSuggestions.append(suggestion)
+                                }
+                            }
+                        } catch {
+                            Logger.warning("Auto style check: Failed to simplify sentence - \(error.localizedDescription)", category: Logger.llm)
+                        }
+                    }
+                }
+
+                await MainActor.run {
+                    Logger.info("Auto style check: Complete, \(self.currentStyleSuggestions.count) total suggestion(s)", category: Logger.llm)
+
+                    // Cache combined results (style + readability)
+                    self.styleCache[cacheKey] = self.currentStyleSuggestions
+                    self.styleCacheMetadata[cacheKey] = StyleCacheMetadata(lastAccessed: Date(), style: styleName)
 
                     // Update indicator
-                    self.floatingIndicator.showStyleSuggestionsReady(count: filtered.count, styleSuggestions: filtered)
+                    self.floatingIndicator.showStyleSuggestionsReady(count: self.currentStyleSuggestions.count, styleSuggestions: self.currentStyleSuggestions)
                     self.isAutoStyleCheckInProgress = false
                 }
             } catch {
@@ -517,6 +595,7 @@ extension AnalysisCoordinator {
                 errors: currentErrors,
                 styleSuggestions: filteredSuggestions,
                 readabilityResult: currentReadabilityResult,
+                readabilityAnalysis: currentReadabilityAnalysis,
                 element: element,
                 context: monitoredContext,
                 sourceText: lastAnalyzedText

@@ -17,6 +17,70 @@ enum ReadabilityAlgorithm: String, CaseIterable, Codable, Sendable {
     // Future: fleschKincaidGrade, gunningFog, smog, colemanLiau, ari
 }
 
+/// Target audience level for readability scoring
+/// Each level has a minimum Flesch score threshold - text scoring below is considered too complex
+enum TargetAudience: String, CaseIterable, Codable, Sendable {
+    case accessible // Everyone should understand (casual writing)
+    case general // Average adult reader (default writing)
+    case professional // Business readers
+    case technical // Specialized/formal readers
+    case academic // Graduate-level readers
+
+    /// Minimum Flesch Reading Ease score for this audience
+    /// Sentences scoring below this threshold are flagged as too complex
+    var minimumFleschScore: Double {
+        switch self {
+        case .accessible: 70.0 // ~7th grade
+        case .general: 60.0 // ~9th grade
+        case .professional: 50.0 // ~11th grade
+        case .technical: 40.0 // College level
+        case .academic: 30.0 // Graduate level
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .accessible: "Accessible"
+        case .general: "General"
+        case .professional: "Professional"
+        case .technical: "Technical"
+        case .academic: "Academic"
+        }
+    }
+
+    var gradeLevel: String {
+        switch self {
+        case .accessible: "7th grade"
+        case .general: "9th grade"
+        case .professional: "11th grade"
+        case .technical: "College"
+        case .academic: "Graduate"
+        }
+    }
+
+    var audienceDescription: String {
+        switch self {
+        case .accessible: "Everyone should understand"
+        case .general: "Average adult reader"
+        case .professional: "Business professionals"
+        case .technical: "Specialized readers"
+        case .academic: "Graduate-level readers"
+        }
+    }
+
+    /// Initialize from display name string
+    init?(fromDisplayName name: String) {
+        switch name.lowercased() {
+        case "accessible": self = .accessible
+        case "general": self = .general
+        case "professional": self = .professional
+        case "technical": self = .technical
+        case "academic": self = .academic
+        default: return nil
+        }
+    }
+}
+
 /// Result of a readability calculation
 struct ReadabilityResult: Sendable {
     let score: Double
@@ -38,6 +102,62 @@ struct ReadabilityResult: Sendable {
     /// Integer score for display
     var displayScore: Int {
         max(0, min(100, Int(score.rounded())))
+    }
+
+    /// Get color relative to target audience threshold
+    /// Green = exceeds threshold, Yellow = meets threshold, Orange/Red = below threshold
+    func colorForAudience(_ audience: TargetAudience) -> NSColor {
+        let threshold = audience.minimumFleschScore
+        let delta = score - threshold
+
+        switch delta {
+        case 10...: return .systemGreen // Excellent for audience
+        case 0 ..< 10: return .systemYellow // Meeting expectations
+        case -10 ..< 0: return .systemOrange // Slightly complex
+        default: return .systemRed // Too complex
+        }
+    }
+
+    /// Check if score meets the target audience threshold
+    func meetsAudienceThreshold(_ audience: TargetAudience) -> Bool {
+        score >= audience.minimumFleschScore
+    }
+}
+
+/// Result of readability analysis for a single sentence
+struct SentenceReadabilityResult: Sendable {
+    let sentence: String
+    let range: NSRange
+    let score: Double
+    let wordCount: Int
+    let isComplex: Bool // true if below target threshold
+    let targetAudience: TargetAudience
+
+    /// Integer score for display
+    var displayScore: Int {
+        max(0, min(100, Int(score.rounded())))
+    }
+}
+
+/// Full readability analysis including per-sentence breakdown
+struct TextReadabilityAnalysis: Sendable {
+    let overallResult: ReadabilityResult
+    let sentenceResults: [SentenceReadabilityResult]
+    let targetAudience: TargetAudience
+
+    /// Sentences that are too complex for the target audience
+    var complexSentences: [SentenceReadabilityResult] {
+        sentenceResults.filter(\.isComplex)
+    }
+
+    /// Number of sentences analyzed
+    var sentenceCount: Int {
+        sentenceResults.count
+    }
+
+    /// Number of complex sentences
+    var complexSentenceCount: Int {
+        complexSentences.count
     }
 }
 
@@ -237,6 +357,145 @@ final class ReadabilityCalculator: Sendable {
             }
 
         return words.reduce(0) { $0 + syllableCount($1) }
+    }
+
+    // MARK: - Sentence-Level Analysis
+
+    /// Split text into individual sentences with their ranges
+    /// Uses NSLinguisticTagger for accurate sentence boundary detection
+    func splitIntoSentences(_ text: String) -> [(sentence: String, range: NSRange)] {
+        guard !text.isEmpty else { return [] }
+
+        var results: [(String, NSRange)] = []
+
+        text.enumerateSubstrings(
+            in: text.startIndex ..< text.endIndex,
+            options: .bySentences
+        ) { substring, substringRange, _, _ in
+            guard let sentence = substring else { return }
+
+            // Trim whitespace but preserve the original range for positioning
+            let trimmed = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+
+            // Convert String.Index range to NSRange
+            let nsRange = NSRange(substringRange, in: text)
+
+            // Find the trimmed sentence's position within the original range
+            if let trimmedRange = sentence.range(of: trimmed) {
+                let offset = sentence.distance(from: sentence.startIndex, to: trimmedRange.lowerBound)
+                let adjustedLocation = nsRange.location + offset
+                let adjustedRange = NSRange(location: adjustedLocation, length: trimmed.count)
+                results.append((trimmed, adjustedRange))
+            } else {
+                results.append((trimmed, nsRange))
+            }
+        }
+
+        return results
+    }
+
+    /// Calculate Flesch Reading Ease for a single sentence
+    /// Adapted formula for single sentences with minimum thresholds
+    func fleschReadingEaseForSentence(_ sentence: String) -> Double? {
+        let words = wordCount(sentence)
+
+        // Skip very short sentences (less than 3 words)
+        guard words >= 3 else { return nil }
+
+        let syllables = totalSyllables(sentence)
+        guard syllables > 0 else { return nil }
+
+        // For single sentences, we use words per sentence = total words (since it's 1 sentence)
+        let wordsPerSentence = Double(words)
+        let syllablesPerWord = Double(syllables) / Double(words)
+
+        // Standard Flesch formula
+        let score = 206.835 - (1.015 * wordsPerSentence) - (84.6 * syllablesPerWord)
+
+        // Clamp to 0-100 range
+        return max(0, min(100, score))
+    }
+
+    /// Perform full readability analysis with per-sentence breakdown
+    /// Returns nil if text has insufficient content
+    func analyzeForTargetAudience(
+        _ text: String,
+        targetAudience: TargetAudience
+    ) -> TextReadabilityAnalysis? {
+        // Get overall readability first
+        guard let overallResult = fleschReadingEase(for: text) else {
+            Logger.debug("ReadabilityCalculator: analyzeForTargetAudience - no overall result", category: Logger.analysis)
+            return nil
+        }
+
+        // Split into sentences and analyze each
+        let sentences = splitIntoSentences(text)
+        Logger.debug("ReadabilityCalculator: analyzeForTargetAudience - found \(sentences.count) sentences, threshold=\(targetAudience.minimumFleschScore)", category: Logger.analysis)
+
+        // Cap at 50 sentences for performance
+        let sentencesToAnalyze = Array(sentences.prefix(50))
+
+        var sentenceResults: [SentenceReadabilityResult] = []
+
+        for (sentence, range) in sentencesToAnalyze {
+            // Skip code-like content (contains backticks or looks like code)
+            if sentence.contains("`") || looksLikeCode(sentence) {
+                continue
+            }
+
+            guard let score = fleschReadingEaseForSentence(sentence) else {
+                Logger.trace("ReadabilityCalculator: skipping sentence (no score) - '\(sentence.prefix(50))...'", category: Logger.analysis)
+                continue
+            }
+
+            let words = wordCount(sentence)
+            let isComplex = score < targetAudience.minimumFleschScore
+            Logger.debug("ReadabilityCalculator: sentence score=\(Int(score)), words=\(words), isComplex=\(isComplex) - '\(sentence.prefix(50))...'", category: Logger.analysis)
+
+            let result = SentenceReadabilityResult(
+                sentence: sentence,
+                range: range,
+                score: score,
+                wordCount: words,
+                isComplex: isComplex,
+                targetAudience: targetAudience
+            )
+
+            sentenceResults.append(result)
+        }
+
+        return TextReadabilityAnalysis(
+            overallResult: overallResult,
+            sentenceResults: sentenceResults,
+            targetAudience: targetAudience
+        )
+    }
+
+    /// Check if text looks like code (simple heuristic)
+    private func looksLikeCode(_ text: String) -> Bool {
+        // Check for common code patterns
+        let codeIndicators = [
+            "func ", "var ", "let ", "class ", "struct ", "enum ", // Swift
+            "function ", "const ", "=>", // JavaScript
+            "def ", "import ", "from ", // Python
+            "->", "::", "&&", "||", "==", "!=", // General operators
+        ]
+
+        for indicator in codeIndicators {
+            if text.contains(indicator) {
+                return true
+            }
+        }
+
+        // Check if mostly special characters
+        let letterCount = text.filter(\.isLetter).count
+        let totalCount = text.count
+        if totalCount > 10, Double(letterCount) / Double(totalCount) < 0.5 {
+            return true
+        }
+
+        return false
     }
 
     // MARK: - Score Interpretation

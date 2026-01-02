@@ -185,16 +185,33 @@ class CapsuleStateManager {
     }
 
     /// Update readability section state
-    /// - Parameter result: The readability calculation result, or nil if text is too short
-    func updateReadability(result: ReadabilityResult?) {
+    /// - Parameters:
+    ///   - result: The readability calculation result, or nil if text is too short
+    ///   - analysis: Optional sentence-level analysis with target audience info
+    func updateReadability(result: ReadabilityResult?, analysis: TextReadabilityAnalysis? = nil) {
         guard UserPreferences.shared.showReadabilityScore else {
             readabilityState.displayState = .hidden
             return
         }
 
         if let result {
-            readabilityState.displayState = .readabilityScore(result.displayScore, result.color)
-            readabilityState.ringColor = result.color
+            // Use audience-relative color if analysis is available
+            let displayColor: NSColor
+            if let analysis {
+                displayColor = result.colorForAudience(analysis.targetAudience)
+
+                // Add violet accent to ring if there are complex sentences
+                if analysis.complexSentenceCount > 0 {
+                    readabilityState.ringColor = .systemPurple
+                } else {
+                    readabilityState.ringColor = displayColor
+                }
+            } else {
+                displayColor = result.color
+                readabilityState.ringColor = result.color
+            }
+
+            readabilityState.displayState = .readabilityScore(result.displayScore, displayColor)
         } else {
             // No result - either text too short or no text
             readabilityState.displayState = .hidden

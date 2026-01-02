@@ -32,6 +32,9 @@ class ReadabilityPopover: NSObject, ObservableObject {
     /// Current readability result
     @Published var result: ReadabilityResult?
 
+    /// Current sentence-level analysis (optional, when feature is enabled)
+    @Published var analysis: TextReadabilityAnalysis?
+
     /// Stored open direction from indicator
     private var openDirection: PopoverOpenDirection = .top
 
@@ -50,19 +53,21 @@ class ReadabilityPopover: NSObject, ObservableObject {
     // MARK: - Show/Hide
 
     /// Show the readability popover
-    func show(at position: CGPoint, direction: PopoverOpenDirection = .top, result: ReadabilityResult) {
+    func show(at position: CGPoint, direction: PopoverOpenDirection = .top, result: ReadabilityResult, analysis: TextReadabilityAnalysis? = nil) {
         Logger.debug("ReadabilityPopover: show at \(position), direction: \(direction), score: \(result.displayScore)", category: Logger.ui)
 
         self.result = result
+        self.analysis = analysis
         openDirection = direction
 
         if panel == nil {
             createPanel()
         }
 
+        // Rebuild content first to get actual size
         rebuildContentView()
 
-        // Position panel
+        // Position panel with actual content size
         positionPanel(at: position)
 
         // Make panel visible
@@ -71,7 +76,7 @@ class ReadabilityPopover: NSObject, ObservableObject {
         setupClickOutsideMonitor()
     }
 
-    /// Position panel using anchor-based positioning
+    /// Position panel using anchor-based positioning with automatic direction flipping
     private func positionPanel(at anchorPoint: CGPoint) {
         guard let panel else { return }
 
@@ -82,28 +87,58 @@ class ReadabilityPopover: NSObject, ObservableObject {
         let constraintFrame = screen.visibleFrame
         let padding: CGFloat = 20
 
-        var origin = CGPoint.zero
-
-        switch openDirection {
-        case .left:
-            origin.x = anchorPoint.x - panelSize.width
-            origin.y = anchorPoint.y - panelSize.height / 2
-        case .right:
-            origin.x = anchorPoint.x
-            origin.y = anchorPoint.y - panelSize.height / 2
-        case .top:
-            origin.x = anchorPoint.x - panelSize.width / 2
-            origin.y = anchorPoint.y
-        case .bottom:
-            origin.x = anchorPoint.x - panelSize.width / 2
-            origin.y = anchorPoint.y - panelSize.height
+        // Calculate origin for requested direction
+        func originFor(direction: PopoverOpenDirection) -> CGPoint {
+            switch direction {
+            case .left:
+                CGPoint(x: anchorPoint.x - panelSize.width, y: anchorPoint.y - panelSize.height / 2)
+            case .right:
+                CGPoint(x: anchorPoint.x, y: anchorPoint.y - panelSize.height / 2)
+            case .top:
+                CGPoint(x: anchorPoint.x - panelSize.width / 2, y: anchorPoint.y)
+            case .bottom:
+                CGPoint(x: anchorPoint.x - panelSize.width / 2, y: anchorPoint.y - panelSize.height)
+            }
         }
 
-        // Clamp to screen bounds
+        // Check if origin fits within screen bounds
+        func fitsScreen(origin: CGPoint) -> Bool {
+            let minX = constraintFrame.minX + padding
+            let maxX = constraintFrame.maxX - panelSize.width - padding
+            let minY = constraintFrame.minY + padding
+            let maxY = constraintFrame.maxY - panelSize.height - padding
+            return origin.x >= minX && origin.x <= maxX && origin.y >= minY && origin.y <= maxY
+        }
+
+        // Opposite direction for fallback
+        func oppositeDirection(_ dir: PopoverOpenDirection) -> PopoverOpenDirection {
+            switch dir {
+            case .left: .right
+            case .right: .left
+            case .top: .bottom
+            case .bottom: .top
+            }
+        }
+
+        // Try requested direction first
+        var origin = originFor(direction: openDirection)
+        var usedDirection = openDirection
+
+        // If doesn't fit, try opposite direction
+        if !fitsScreen(origin: origin) {
+            let oppositeDir = oppositeDirection(openDirection)
+            let oppositeOrigin = originFor(direction: oppositeDir)
+            if fitsScreen(origin: oppositeOrigin) {
+                origin = oppositeOrigin
+                usedDirection = oppositeDir
+            }
+        }
+
+        // Final clamp to ensure it stays on screen
         origin.x = max(constraintFrame.minX + padding, min(origin.x, constraintFrame.maxX - panelSize.width - padding))
         origin.y = max(constraintFrame.minY + padding, min(origin.y, constraintFrame.maxY - panelSize.height - padding))
 
-        Logger.debug("ReadabilityPopover: positioning - direction: \(openDirection), origin: \(origin)", category: Logger.ui)
+        Logger.debug("ReadabilityPopover: positioning - requested: \(openDirection), used: \(usedDirection), origin: \(origin)", category: Logger.ui)
         panel.setFrameOrigin(origin)
     }
 
@@ -160,12 +195,14 @@ class ReadabilityPopover: NSObject, ObservableObject {
 
         let contentView = ReadabilityPopoverContentView(popover: self)
         let hostingView = NSHostingView(rootView: contentView)
-        hostingView.frame = NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight)
 
+        // Let the hosting view calculate its intrinsic size
+        let fittingSize = hostingView.fittingSize
+        let actualHeight = min(fittingSize.height, 500) // Cap at 500pt max
+
+        hostingView.frame = NSRect(x: 0, y: 0, width: panelWidth, height: actualHeight)
         panel.contentView = hostingView
-
-        // Update panel size based on content
-        panel.setContentSize(NSSize(width: panelWidth, height: panelHeight))
+        panel.setContentSize(NSSize(width: panelWidth, height: actualHeight))
     }
 
     // MARK: - Event Handling
@@ -292,6 +329,39 @@ struct ReadabilityPopoverContentView: View {
 
                 Divider()
                     .padding(.horizontal, 12)
+
+                // Target Audience (if analysis available)
+                if let analysis = popover.analysis {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Image(systemName: "person.2")
+                                .font(.system(size: 11))
+                                .foregroundColor(colors.textSecondary)
+                            Text("For: \(analysis.targetAudience.displayName)")
+                                .font(.system(size: baseTextSize * 0.85, weight: .medium))
+                                .foregroundColor(colors.textPrimary)
+                            Text("(\(analysis.targetAudience.audienceDescription))")
+                                .font(.system(size: baseTextSize * 0.8))
+                                .foregroundColor(colors.textTertiary)
+                        }
+
+                        if analysis.complexSentenceCount > 0 {
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.purple)
+                                Text("\(analysis.complexSentenceCount) sentence\(analysis.complexSentenceCount == 1 ? "" : "s") may be too complex")
+                                    .font(.system(size: baseTextSize * 0.85))
+                                    .foregroundColor(.purple)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+
+                    Divider()
+                        .padding(.horizontal, 12)
+                }
 
                 // Interpretation
                 Text(result.interpretation)

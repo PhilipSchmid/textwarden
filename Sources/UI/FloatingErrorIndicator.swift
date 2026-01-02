@@ -35,6 +35,9 @@ class FloatingErrorIndicator: NSPanel {
     /// Current readability result (nil if text too short or feature disabled)
     private var readabilityResult: ReadabilityResult?
 
+    /// Current readability analysis with sentence-level details (nil if feature disabled)
+    private var readabilityAnalysis: TextReadabilityAnalysis?
+
     /// Source text for error context display
     private var sourceText: String = ""
 
@@ -494,7 +497,7 @@ class FloatingErrorIndicator: NSPanel {
         capsuleStateManager.updateGrammar(errors: errors)
         capsuleStateManager.updateStyle(suggestions: styleSuggestions, isLoading: false)
         capsuleStateManager.updateTextGeneration(isGenerating: false)
-        capsuleStateManager.updateReadability(result: readabilityResult)
+        capsuleStateManager.updateReadability(result: readabilityResult, analysis: readabilityAnalysis)
     }
 
     /// Handle section click in capsule mode
@@ -599,6 +602,26 @@ class FloatingErrorIndicator: NSPanel {
         capsuleIndicatorView?.needsDisplay = true
     }
 
+    /// Update style suggestions count directly (for when element is unavailable)
+    func updateStyleSuggestions(_ suggestions: [StyleSuggestionModel]) {
+        Logger.debug("FloatingErrorIndicator: updateStyleSuggestions(\(suggestions.count))", category: Logger.ui)
+        styleSuggestions = suggestions
+
+        // Update mode
+        if !errors.isEmpty, !suggestions.isEmpty {
+            mode = .both(errors: errors, styleSuggestions: suggestions)
+        } else if !suggestions.isEmpty {
+            mode = .styleSuggestions(suggestions)
+        } else if !errors.isEmpty {
+            mode = .errors(errors)
+        }
+
+        // Update capsule state
+        capsuleStateManager.updateStyle(suggestions: suggestions, isLoading: false, hasChecked: true)
+        capsuleIndicatorView?.sections = capsuleStateManager.visibleSections
+        capsuleIndicatorView?.needsDisplay = true
+    }
+
     /// Callback to get generation context from AnalysisCoordinator
     var onRequestGenerationContext: (() -> GenerationContext)?
 
@@ -638,8 +661,8 @@ class FloatingErrorIndicator: NSPanel {
         let indicatorFrame = frame
         let anchor = calculatePopoverAnchor(for: indicatorFrame)
 
-        // Show the readability popover
-        ReadabilityPopover.shared.show(at: anchor.anchorPoint, direction: anchor.edge, result: result)
+        // Show the readability popover with analysis for target audience info
+        ReadabilityPopover.shared.show(at: anchor.anchorPoint, direction: anchor.edge, result: result, analysis: readabilityAnalysis)
     }
 
     // MARK: - Public API
@@ -649,6 +672,7 @@ class FloatingErrorIndicator: NSPanel {
         errors: [GrammarErrorModel],
         styleSuggestions: [StyleSuggestionModel] = [],
         readabilityResult: ReadabilityResult? = nil,
+        readabilityAnalysis: TextReadabilityAnalysis? = nil,
         element: AXUIElement,
         context: ApplicationContext?,
         sourceText: String = ""
@@ -673,6 +697,7 @@ class FloatingErrorIndicator: NSPanel {
         self.errors = errors
         self.styleSuggestions = styleSuggestions
         self.readabilityResult = readabilityResult
+        self.readabilityAnalysis = readabilityAnalysis
         monitoredElement = element
         self.context = context
         self.sourceText = sourceText
@@ -745,6 +770,7 @@ class FloatingErrorIndicator: NSPanel {
         errors: [GrammarErrorModel],
         styleSuggestions: [StyleSuggestionModel] = [],
         readabilityResult: ReadabilityResult? = nil,
+        readabilityAnalysis: TextReadabilityAnalysis? = nil,
         context: ApplicationContext,
         sourceText: String = ""
     ) {
@@ -759,6 +785,7 @@ class FloatingErrorIndicator: NSPanel {
         self.errors = errors
         self.styleSuggestions = styleSuggestions
         self.readabilityResult = readabilityResult
+        self.readabilityAnalysis = readabilityAnalysis
         self.context = context
         self.sourceText = sourceText
         // Don't set monitoredElement - we don't have one

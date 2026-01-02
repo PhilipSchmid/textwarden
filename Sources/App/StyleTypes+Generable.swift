@@ -349,4 +349,22 @@ struct GenerationContext {
         let generatedText: String
     }
 
+    // MARK: - Sentence Simplification @Generable Types
+
+    /// Result of sentence simplification from Foundation Models
+    @available(macOS 26.0, *)
+    @Generable
+    struct FMSentenceSimplificationResult {
+        @Guide(description: """
+        A single simplified version of the sentence in an array.
+        The alternative should:
+        - Be simpler and easier to read than the original
+        - Preserve the core meaning
+        - Use shorter words and sentences
+        - Use active voice when possible
+        If the sentence cannot be simplified meaningfully, return an empty array.
+        """)
+        let alternatives: [String]
+    }
+
 #endif
