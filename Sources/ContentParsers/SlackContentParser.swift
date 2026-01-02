@@ -1663,8 +1663,7 @@ class SlackContentParser: ContentParser {
         var endIndex = start
 
         for (i, char) in text[start...].enumerated() {
-            if char == "{" { depth += 1 }
-            else if char == "}" {
+            if char == "{" { depth += 1 } else if char == "}" {
                 depth -= 1
                 if depth == 0 {
                     endIndex = text.index(start, offsetBy: i + 1)
@@ -1702,8 +1701,7 @@ class SlackContentParser: ContentParser {
         var urlRef: CFTypeRef?
         var url = ""
         if AXUIElementCopyAttributeValue(element, kAXURLAttribute as CFString, &urlRef) == .success {
-            if let u = urlRef as? URL { url = u.absoluteString }
-            else if let u = urlRef as? String { url = u }
+            if let u = urlRef as? URL { url = u.absoluteString } else if let u = urlRef as? String { url = u }
         }
 
         // Get description

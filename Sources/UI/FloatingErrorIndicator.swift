@@ -628,7 +628,7 @@ class FloatingErrorIndicator: NSPanel {
         }
 
         // CRITICAL: Check watchdog BEFORE making any AX calls
-        // Skip positioning if the app is blacklisted (AX API unresponsive)
+        // Skip positioning if the app is blocklisted (AX API unresponsive)
         let bundleID = context?.bundleIdentifier ?? "unknown"
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
             Logger.debug("FloatingErrorIndicator: Skipping - watchdog active for \(bundleID)", category: Logger.ui)

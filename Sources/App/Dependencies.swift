@@ -232,40 +232,6 @@ struct DependencyContainer {
         suggestionPopover: .shared,
         floatingIndicator: .shared
     )
-
-    init(
-        textMonitor: TextMonitor,
-        applicationTracker: ApplicationTracker,
-        permissionManager: PermissionManager,
-        grammarEngine: GrammarAnalyzing,
-        userPreferences: UserPreferencesProviding,
-        appRegistry: AppConfigurationProviding,
-        customVocabulary: CustomVocabularyProviding,
-        browserURLExtractor: BrowserURLExtracting,
-        positionResolver: PositionResolving,
-        statistics: StatisticsTracking,
-        contentParserFactory: ContentParserProviding,
-        typingDetector: TypingDetecting,
-        textReplacementCoordinator: TextReplacementCoordinating,
-        suggestionPopover: SuggestionPopover,
-        floatingIndicator: FloatingErrorIndicator
-    ) {
-        self.textMonitor = textMonitor
-        self.applicationTracker = applicationTracker
-        self.permissionManager = permissionManager
-        self.grammarEngine = grammarEngine
-        self.userPreferences = userPreferences
-        self.appRegistry = appRegistry
-        self.customVocabulary = customVocabulary
-        self.browserURLExtractor = browserURLExtractor
-        self.positionResolver = positionResolver
-        self.statistics = statistics
-        self.contentParserFactory = contentParserFactory
-        self.typingDetector = typingDetector
-        self.textReplacementCoordinator = textReplacementCoordinator
-        self.suggestionPopover = suggestionPopover
-        self.floatingIndicator = floatingIndicator
-    }
 }
 
 // MARK: - Lightweight Service Locator for Static Access

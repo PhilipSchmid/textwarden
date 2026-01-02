@@ -145,7 +145,7 @@ class PositionResolver {
         // These pre-strategy AX calls can also hang on misbehaving apps
         let watchdogActive = AXWatchdog.shared.shouldSkipCalls(for: bundleID)
 
-        // FAIL-FAST: If app is already blacklisted, skip everything immediately
+        // FAIL-FAST: If app is already blocklisted, skip everything immediately
         if watchdogActive {
             Logger.debug("PositionResolver: Skipping - watchdog active for \(bundleID)", category: Logger.accessibility)
             return GeometryResult.unavailable(reason: "AX API unresponsive - skipping positioning")
@@ -156,7 +156,7 @@ class PositionResolver {
         let isVisible = AccessibilityBridge.isRangeVisible(errorRange, in: element)
         AXWatchdog.shared.endCall()
 
-        // FAIL-FAST: If visibility check caused blacklisting (timed out), abort immediately
+        // FAIL-FAST: If visibility check caused blocklisting (timed out), abort immediately
         // This prevents wasting 50+ seconds trying strategies that will all fail
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
             Logger.warning("PositionResolver: AX timeout detected - aborting positioning for \(bundleID)", category: Logger.accessibility)

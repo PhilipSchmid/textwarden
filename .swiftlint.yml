@@ -12,7 +12,8 @@ excluded:
   - .build
   - DerivedData
   - GrammarEngine
-  - Sources/GrammarBridge/SwiftBridgeCore.swift  # Auto-generated FFI code
+  - Sources/GrammarBridge/SwiftBridgeCore.swift   # Auto-generated FFI code
+  - Sources/GrammarBridge/GrammarEngineFFI.swift  # Auto-generated FFI code
 
 # Disabled rules (with justification)
 disabled_rules:
@@ -88,3 +89,4 @@ custom_rules:
     regex: '(?<!//\s)print\('
     message: "Use Logger instead of print for logging"
     severity: warning
+    excluded: "Tests/.*"  # print() is acceptable in tests

@@ -64,9 +64,6 @@ extension View {
     }
 }
 
-// MARK: - Unified Content View
-
-/// Unified content view that switches between grammar and style suggestion content
 // MARK: - Sentence Context View
 
 /// Helper to extract sentence containing error and highlight the error word(s)
@@ -397,6 +394,7 @@ struct SentenceContextView: View {
             // Add text before this error (primary color for good contrast)
             if currentIndex < errorRange.range.lowerBound {
                 let beforeText = String(sentence[currentIndex ..< errorRange.range.lowerBound])
+                // swiftlint:disable:next shorthand_operator
                 result = result + Text(beforeText).foregroundColor(colors.textPrimary)
             }
 
@@ -408,12 +406,14 @@ struct SentenceContextView: View {
 
             if errorRange.isCurrent {
                 // Current error - full highlight with underline
+                // swiftlint:disable:next shorthand_operator
                 result = result + Text(errorText)
                     .foregroundColor(categoryColor)
                     .fontWeight(.semibold)
                     .underline(true, color: categoryColor)
             } else {
                 // Other errors in same sentence - color only, no underline
+                // swiftlint:disable:next shorthand_operator
                 result = result + Text(errorText)
                     .foregroundColor(categoryColor.opacity(0.8))
                     .fontWeight(.medium)
@@ -425,6 +425,7 @@ struct SentenceContextView: View {
         // Add remaining text after last error (primary color for good contrast)
         if currentIndex < sentence.endIndex {
             let afterText = String(sentence[currentIndex...])
+            // swiftlint:disable:next shorthand_operator
             result = result + Text(afterText).foregroundColor(colors.textPrimary)
         }
 

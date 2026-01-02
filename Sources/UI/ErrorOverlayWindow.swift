@@ -317,7 +317,7 @@ class ErrorOverlayWindow: NSPanel {
         currentBundleID = bundleID
 
         // CRITICAL: Check watchdog BEFORE making any AX calls
-        // If this app is blacklisted or watchdog is busy, skip ALL AX calls in this function
+        // If this app is blocklisted or watchdog is busy, skip ALL AX calls in this function
         // This prevents freezing on apps with slow/hanging AX implementations (like Microsoft Office)
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
             Logger.debug("ErrorOverlay: Skipping update - watchdog protection active for \(bundleID)", category: Logger.ui)
@@ -377,7 +377,7 @@ class ErrorOverlayWindow: NSPanel {
         var elementFrame: CGRect
 
         // Strategy 1: Try AX API to get text field bounds
-        // CRITICAL: Track with watchdog so timeout triggers immediate blacklisting
+        // CRITICAL: Track with watchdog so timeout triggers immediate blocklisting
         AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXPosition/AXSize")
         let frameResult = getElementFrameInCocoaCoords(element)
         AXWatchdog.shared.endCall()
@@ -458,7 +458,7 @@ class ErrorOverlayWindow: NSPanel {
 
         // Extract full text once for all positioning calculations
         // Use timeout wrapper to prevent freeze on slow AX APIs
-        // CRITICAL: Track with watchdog so timeout triggers immediate blacklisting
+        // CRITICAL: Track with watchdog so timeout triggers immediate blocklisting
         AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXValue")
         var fullText: String?
         let textCompleted = executeWithTimeout(seconds: 1.5) {
@@ -495,7 +495,7 @@ class ErrorOverlayWindow: NSPanel {
         // Get visible character range to filter out off-screen errors
         // Note: Some apps (like Mail's WebKit) return Int.max for visibleRange which is invalid
         // Note: Mac Catalyst apps (like Messages) return {0, 0} which means "unsupported"
-        // CRITICAL: Track with watchdog so timeout triggers immediate blacklisting
+        // CRITICAL: Track with watchdog so timeout triggers immediate blocklisting
         AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXVisibleCharacterRange")
         var visibleRange = AccessibilityBridge.getVisibleCharacterRange(element)
         AXWatchdog.shared.endCall()

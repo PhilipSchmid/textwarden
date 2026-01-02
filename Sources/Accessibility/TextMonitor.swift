@@ -793,7 +793,7 @@ private func axObserverCallback(
     // Dispatch to main actor since TextMonitor is @MainActor isolated
     Task { @MainActor in
         // CRITICAL: Check watchdog BEFORE doing ANYTHING with AX
-        // If this app is blacklisted due to slow AX, skip all processing
+        // If this app is blocklisted due to slow AX, skip all processing
         // Note: currentContext access must happen on MainActor
         let bundleID = monitor.currentContext?.bundleIdentifier ?? "unknown"
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {

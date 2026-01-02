@@ -25,7 +25,7 @@ class TextMarkerStrategy: GeometryProvider {
     }
 
     func canHandle(element: AXUIElement, bundleID: String) -> Bool {
-        // Check if we should skip AX calls (blacklisted or worker busy)
+        // Check if we should skip AX calls (blocklisted or worker busy)
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
             Logger.debug("TextMarkerStrategy: Skipping \(bundleID) - watchdog protection active", category: Logger.ui)
             return false

@@ -90,18 +90,18 @@ func executeWithTimeout(seconds: TimeInterval, closure: @escaping () -> Void) ->
 
 // MARK: - AX Call Watchdog
 
-/// Watchdog that detects and blacklists apps with slow/hanging AX calls.
+/// Watchdog that detects and blocklists apps with slow/hanging AX calls.
 ///
 /// This class protects TextWarden from misbehaving accessibility implementations
 /// (like Microsoft Office's mso99 framework) that can hang or freeze on certain
 /// parameterized AX API calls.
 ///
 /// Features:
-/// - **Hang Detection**: Background timer monitors active calls and blacklists apps
+/// - **Hang Detection**: Background timer monitors active calls and blocklists apps
 ///   that take longer than `hangThreshold` (3s) to respond
 /// - **Busy Guard**: Prevents pile-up of blocked calls by skipping new requests
 ///   while a call is in progress (up to `maxBusyTime` of 5s)
-/// - **Auto-Recovery**: Blacklisted apps are allowed again after `blacklistDuration` (30s)
+/// - **Auto-Recovery**: Blocklisted apps are allowed again after `blocklistDuration` (30s)
 ///
 /// Usage:
 /// ```
@@ -118,20 +118,20 @@ final class AXWatchdog {
 
     // MARK: - Configuration
 
-    /// How long an AX call can take before we consider the app "slow" and blacklist it
-    /// Set to 0.8s - triggers blacklisting slightly before the 1.0s native timeout returns,
-    /// so subsequent fail-fast checks immediately see the blacklist
+    /// How long an AX call can take before we consider the app "slow" and blocklist it
+    /// Set to 0.8s - triggers blocklisting slightly before the 1.0s native timeout returns,
+    /// so subsequent fail-fast checks immediately see the blocklist
     private let hangThreshold: TimeInterval = 0.8
 
-    /// How long to blacklist an app after detecting a hang
-    private let blacklistDuration: TimeInterval = 30.0
+    /// How long to blocklist an app after detecting a hang
+    private let blocklistDuration: TimeInterval = 30.0
 
     /// Check interval for the watchdog timer
     /// Check every 0.1s to quickly detect hangs (must be less than hangThreshold)
     private let checkInterval: TimeInterval = 0.1
 
     /// Maximum time to consider the worker "busy" before allowing new calls.
-    /// If exceeded, we consider the worker stuck and allow new calls (blacklist handles prevention).
+    /// If exceeded, we consider the worker stuck and allow new calls (blocklist handles prevention).
     /// Set to 1.2s - slightly longer than the 1.0s timeout to account for overhead.
     private let maxBusyTime: TimeInterval = 1.2
 
@@ -144,8 +144,8 @@ final class AXWatchdog {
         let attribute: String
     }
 
-    /// Blacklisted apps with expiration time
-    private var blacklist: [String: Date] = [:]
+    /// Blocklisted apps with expiration time
+    private var blocklist: [String: Date] = [:]
 
     /// Currently active call (if any)
     private var activeCall: ActiveCall?
@@ -194,29 +194,29 @@ final class AXWatchdog {
         guard let call = activeCall else { return }
 
         let elapsed = Date().timeIntervalSince(call.startTime)
-        if elapsed > hangThreshold, blacklist[call.bundleID] == nil {
-            // This app is hanging - blacklist it
-            Logger.warning("AXWatchdog: Detected slow AX call to \(call.bundleID) (\(call.attribute)) - \(String(format: "%.1f", elapsed))s elapsed, blacklisting for \(Int(blacklistDuration))s", category: Logger.accessibility)
-            blacklist[call.bundleID] = Date().addingTimeInterval(blacklistDuration)
+        if elapsed > hangThreshold, blocklist[call.bundleID] == nil {
+            // This app is hanging - blocklist it
+            Logger.warning("AXWatchdog: Detected slow AX call to \(call.bundleID) (\(call.attribute)) - \(String(format: "%.1f", elapsed))s elapsed, blocklisting for \(Int(blocklistDuration))s", category: Logger.accessibility)
+            blocklist[call.bundleID] = Date().addingTimeInterval(blocklistDuration)
         }
     }
 
     // MARK: - Public API
 
     /// Check if we should skip AX calls for an app.
-    /// Returns true if the app is blacklisted or another call is currently in progress.
+    /// Returns true if the app is blocklisted or another call is currently in progress.
     func shouldSkipCalls(for bundleID: String) -> Bool {
         lock.lock()
         defer { lock.unlock() }
 
-        // Check blacklist (with expiration cleanup)
-        if let expirationTime = blacklist[bundleID] {
+        // Check blocklist (with expiration cleanup)
+        if let expirationTime = blocklist[bundleID] {
             if Date() < expirationTime {
                 return true
             }
-            // Blacklist expired - remove it
-            blacklist.removeValue(forKey: bundleID)
-            Logger.info("AXWatchdog: Blacklist expired for \(bundleID), allowing AX calls again", category: Logger.accessibility)
+            // Blocklist expired - remove it
+            blocklist.removeValue(forKey: bundleID)
+            Logger.info("AXWatchdog: Blocklist expired for \(bundleID), allowing AX calls again", category: Logger.accessibility)
         }
 
         // Check if worker is busy (protects against pile-up)
@@ -225,7 +225,7 @@ final class AXWatchdog {
             if elapsed < maxBusyTime {
                 return true
             }
-            // Worker stuck too long - allow new calls (blacklist will prevent repeats)
+            // Worker stuck too long - allow new calls (blocklist will prevent repeats)
         }
 
         return false
@@ -280,8 +280,8 @@ final class AXWatchdog {
         lock.lock()
         defer { lock.unlock() }
 
-        // Always defer if blacklisted
-        if let expirationTime = blacklist[bundleID], Date() < expirationTime {
+        // Always defer if blocklisted
+        if let expirationTime = blocklist[bundleID], Date() < expirationTime {
             return true
         }
 
@@ -297,17 +297,17 @@ final class AXWatchdog {
         return false
     }
 
-    /// Explicitly blacklist an app (called when timeout wrappers detect a slow call)
-    /// This allows immediate blacklisting without waiting for the background timer.
-    func blacklistApp(_ bundleID: String, reason: String) {
+    /// Explicitly blocklist an app (called when timeout wrappers detect a slow call)
+    /// This allows immediate blocklisting without waiting for the background timer.
+    func blocklistApp(_ bundleID: String, reason: String) {
         lock.lock()
         defer { lock.unlock() }
 
-        // Don't log if already blacklisted
-        guard blacklist[bundleID] == nil else { return }
+        // Don't log if already blocklisted
+        guard blocklist[bundleID] == nil else { return }
 
-        Logger.warning("AXWatchdog: Blacklisting \(bundleID) - \(reason)", category: Logger.accessibility)
-        blacklist[bundleID] = Date().addingTimeInterval(blacklistDuration)
+        Logger.warning("AXWatchdog: Blocklisting \(bundleID) - \(reason)", category: Logger.accessibility)
+        blocklist[bundleID] = Date().addingTimeInterval(blocklistDuration)
 
         // Clear active call if it was for this app
         if activeCall?.bundleID == bundleID {
@@ -536,7 +536,7 @@ enum AccessibilityBridge {
         AXUIElementGetPid(element, &pid)
         let bundleID = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? "unknown"
 
-        // Check if we should skip AX calls (blacklisted or worker busy)
+        // Check if we should skip AX calls (blocklisted or worker busy)
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
             Logger.debug("supportsOpaqueMarkers: Skipping \(bundleID) - watchdog protection active", category: Logger.accessibility)
             return false

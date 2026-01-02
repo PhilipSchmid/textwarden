@@ -254,7 +254,7 @@ extension AnalysisCoordinator {
 
             var newPosition = CFRange(location: error.start + suggestion.count, length: 0)
             if let newRangeValue = AXValueCreate(.cfRange, &newPosition) {
-                let _ = AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, newRangeValue)
+                _ = AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, newRangeValue)
             }
 
             let lengthDelta = suggestion.count - (error.end - error.start)
@@ -375,7 +375,7 @@ extension AnalysisCoordinator {
             // Move cursor after replacement
             var newPosition = CFRange(location: startIndex + suggestion.suggestedText.count, length: 0)
             if let newRangeValue = AXValueCreate(.cfRange, &newPosition) {
-                let _ = AXUIElementSetAttributeValue(
+                _ = AXUIElementSetAttributeValue(
                     element,
                     kAXSelectedTextRangeAttribute as CFString,
                     newRangeValue

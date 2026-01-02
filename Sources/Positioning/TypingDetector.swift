@@ -113,10 +113,10 @@ final class TypingDetector {
             // Ignore modifier-only keys (shift, ctrl, cmd, etc.)
             // These don't typically indicate typing
             let modifierOnlyFlags: NSEvent.ModifierFlags = [.command, .control, .option]
-            if modifierFlags.intersection(modifierOnlyFlags).isEmpty == false {
+            if !modifierFlags.isDisjoint(with: modifierOnlyFlags) {
                 // If a modifier is held, check if it's just a modifier key press
                 // Allow typing characters with shift (uppercase, symbols)
-                if modifierFlags.intersection([.command, .control, .option]).isEmpty == false {
+                if !modifierFlags.isDisjoint(with: [.command, .control, .option]) {
                     return
                 }
             }
