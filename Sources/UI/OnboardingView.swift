@@ -97,14 +97,14 @@ struct OnboardingView: View {
             } else {
                 // Scrollable content area for all other steps
                 ScrollView {
-                    VStack(spacing: 24) {
+                    VStack(spacing: 16) {
                         // Header - larger on overview and sponsoring, compact on other steps
-                        VStack(spacing: isLargeHeaderStep ? 16 : 8) {
+                        VStack(spacing: isLargeHeaderStep ? 12 : 8) {
                             Image("TextWardenLogo")
                                 .resizable()
                                 .scaledToFit()
-                                .frame(width: isLargeHeaderStep ? 140 : 80,
-                                       height: isLargeHeaderStep ? 140 : 80)
+                                .frame(width: isLargeHeaderStep ? 100 : 80,
+                                       height: isLargeHeaderStep ? 100 : 80)
                                 .accessibilityHidden(true) // Decorative
 
                             Text("Welcome to TextWarden")
@@ -116,7 +116,7 @@ struct OnboardingView: View {
                                 .font(isLargeHeaderStep ? .title3 : .subheadline)
                                 .foregroundColor(.secondary)
                         }
-                        .padding(.top, isLargeHeaderStep ? 20 : 8)
+                        .padding(.top, isLargeHeaderStep ? 12 : 8)
                         .accessibilityElement(children: .combine)
                         .accessibilityLabel("Welcome to TextWarden, Your Privacy-First Grammar Checker")
 
@@ -149,7 +149,7 @@ struct OnboardingView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 24)
-                        .padding(.bottom, 24)
+                        .padding(.bottom, 16)
                     }
                     .frame(width: 580)
                 }
@@ -194,26 +194,27 @@ struct OnboardingView: View {
     // MARK: - Steps
 
     private var overviewStep: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 16) {
             Text("Write with confidence, everywhere.")
                 .font(.title2)
                 .fontWeight(.semibold)
 
             Text("TextWarden is a privacy-first grammar checker that works across all your applications. Catch typos, fix grammar, and improve your writing style — all without your text ever leaving your Mac.")
-                .font(.title3)
+                .font(.body)
                 .foregroundColor(.secondary)
 
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 12) {
                 FeatureRow(icon: "checkmark.circle.fill", title: "Grammar & Spelling", description: "Instant detection of typos, grammar errors, and punctuation issues")
                 FeatureRow(icon: "sparkles", title: "AI Style Suggestions", description: "Apple Intelligence rewrites for clarity, tone, and readability")
                 FeatureRow(icon: "pencil.and.outline", title: "AI Compose", description: "Generate text from natural language instructions")
+                FeatureRow(icon: "textformat.size", title: "Readability Score", description: "Real-time Flesch Reading Ease score for your text")
                 FeatureRow(icon: "lock.shield.fill", title: "100% Private", description: "Everything runs locally — your text never leaves your device")
                 FeatureRow(icon: "macwindow.on.rectangle", title: "Works Everywhere", description: "Slack, Mail, Notes, browsers, and many more")
             }
-            .padding(.vertical, 12)
+            .padding(.vertical, 8)
 
             Text("Let's get you set up in just a few steps.")
-                .font(.body)
+                .font(.subheadline)
                 .foregroundColor(.secondary)
         }
     }
