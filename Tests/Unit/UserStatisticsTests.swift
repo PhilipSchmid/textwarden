@@ -8,6 +8,7 @@
 @testable import TextWarden
 import XCTest
 
+@MainActor
 final class UserStatisticsTests: XCTestCase {
     var statistics: UserStatistics!
 

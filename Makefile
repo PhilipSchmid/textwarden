@@ -84,12 +84,20 @@ logs: ## Watch app logs
 
 ##@ Testing
 
-test: test-rust ## Run all tests
+test: test-rust test-swift ## Run all tests
 
 test-rust: ## Run Rust tests
 	@echo "$(BLUE)🦀 Running Rust tests...$(NC)"
 	@cd $(RUST_DIR) && cargo test
-	@echo "$(GREEN)✅ Tests passed$(NC)"
+	@echo "$(GREEN)✅ Rust tests passed$(NC)"
+
+test-swift: ## Run Swift tests (unit tests only, excludes performance tests)
+	@echo "$(BLUE)🍎 Running Swift tests...$(NC)"
+	@xcodebuild test -scheme TextWarden -destination 'platform=macOS' \
+		-only-testing:TextWardenTests/ReadabilityTests \
+		-only-testing:TextWardenTests/UserStatisticsTests \
+		2>&1 | tail -20
+	@echo "$(GREEN)✅ Swift tests passed$(NC)"
 
 ##@ Installation
 
@@ -127,27 +135,34 @@ ci-check: ## Run CI checks locally (use before pushing)
 	@echo "$(BLUE)Running CI checks...$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo ""
-	@echo "$(YELLOW)[1/6] Checking Rust formatting...$(NC)"
+	@echo "$(YELLOW)[1/7] Checking Rust formatting...$(NC)"
 	@cd $(RUST_DIR) && cargo fmt --check
 	@echo "$(GREEN)✅ OK$(NC)"
 	@echo ""
-	@echo "$(YELLOW)[2/6] Running Clippy...$(NC)"
+	@echo "$(YELLOW)[2/7] Running Clippy...$(NC)"
 	@cd $(RUST_DIR) && cargo clippy --all-targets -- -D warnings
 	@echo "$(GREEN)✅ OK$(NC)"
 	@echo ""
-	@echo "$(YELLOW)[3/6] Checking Swift formatting...$(NC)"
+	@echo "$(YELLOW)[3/7] Checking Swift formatting...$(NC)"
 	@swiftformat Sources Tests --lint 2>&1 || (echo "$(RED)❌ Swift formatting issues found. Run 'make fmt-swift' to fix.$(NC)" && exit 1)
 	@echo "$(GREEN)✅ OK$(NC)"
 	@echo ""
-	@echo "$(YELLOW)[4/6] Running SwiftLint...$(NC)"
+	@echo "$(YELLOW)[4/7] Running SwiftLint...$(NC)"
 	@swiftlint lint --quiet Sources Tests
 	@echo "$(GREEN)✅ OK$(NC)"
 	@echo ""
-	@echo "$(YELLOW)[5/6] Running tests...$(NC)"
+	@echo "$(YELLOW)[5/7] Running Rust tests...$(NC)"
 	@cd $(RUST_DIR) && cargo test
 	@echo "$(GREEN)✅ OK$(NC)"
 	@echo ""
-	@echo "$(YELLOW)[6/6] Building...$(NC)"
+	@echo "$(YELLOW)[6/7] Running Swift tests...$(NC)"
+	@xcodebuild test -scheme TextWarden -destination 'platform=macOS' \
+		-only-testing:TextWardenTests/ReadabilityTests \
+		-only-testing:TextWardenTests/UserStatisticsTests \
+		2>&1 | grep -E '(Test case|passed|failed|error:)' | tail -20
+	@echo "$(GREEN)✅ OK$(NC)"
+	@echo ""
+	@echo "$(YELLOW)[7/7] Building...$(NC)"
 	@make -s build
 	@echo ""
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
