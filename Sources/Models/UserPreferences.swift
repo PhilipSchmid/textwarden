@@ -506,6 +506,14 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Always show the capsule indicator when style checking is enabled, even with no grammar errors
+    /// This provides quick access to Style Check and AI Compose features
+    @Published var alwaysShowCapsule: Bool {
+        didSet {
+            defaults.set(alwaysShowCapsule, forKey: Keys.alwaysShowCapsule)
+        }
+    }
+
     /// Selected writing style template
     @Published var selectedWritingStyle: String {
         didSet {
@@ -621,6 +629,7 @@ class UserPreferences: ObservableObject {
         // LLM Style Checking
         self.enableStyleChecking = false  // Off by default
         self.autoStyleChecking = false    // Manual-only by default
+        self.alwaysShowCapsule = false    // Hide capsule when no errors by default
         self.selectedWritingStyle = "Default"
         self.selectedModelId = "qwen2.5-1.5b"  // Balanced model
         self.styleMinSentenceWords = 5
@@ -746,6 +755,7 @@ class UserPreferences: ObservableObject {
         // LLM Style Checking
         self.enableStyleChecking = defaults.object(forKey: Keys.enableStyleChecking) as? Bool ?? false
         self.autoStyleChecking = defaults.object(forKey: Keys.autoStyleChecking) as? Bool ?? false
+        self.alwaysShowCapsule = defaults.object(forKey: Keys.alwaysShowCapsule) as? Bool ?? false
         self.selectedWritingStyle = defaults.string(forKey: Keys.selectedWritingStyle) ?? "Default"
         self.selectedModelId = defaults.string(forKey: Keys.selectedModelId) ?? "qwen2.5-1.5b"
         self.styleMinSentenceWords = defaults.object(forKey: Keys.styleMinSentenceWords) as? Int ?? 5
@@ -1159,6 +1169,7 @@ class UserPreferences: ObservableObject {
         // LLM Style Checking
         static let enableStyleChecking = "enableStyleChecking"
         static let autoStyleChecking = "autoStyleChecking"
+        static let alwaysShowCapsule = "alwaysShowCapsule"
         static let selectedWritingStyle = "selectedWritingStyle"
         static let selectedModelId = "selectedModelId"
         static let styleMinSentenceWords = "styleMinSentenceWords"

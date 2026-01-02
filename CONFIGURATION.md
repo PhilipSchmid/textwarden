@@ -237,9 +237,11 @@ Style checking runs automatically after grammar analysis with smart rate limitin
 
 **Recommendation:** Thicker lines are more noticeable but may feel intrusive. Find your balance.
 
-### Indicator Position
+### Indicator
 
-**What it does:** Where the error count indicator appears relative to the text field.
+#### Default Position
+
+**What it does:** Where the floating indicator appears relative to the text field.
 
 **Options:**
 - **Auto** - TextWarden chooses based on available space
@@ -247,6 +249,16 @@ Style checking runs automatically after grammar analysis with smart rate limitin
 - **Bottom Right** - Below and to the right
 - **Top Left** - Above and to the left
 - **Bottom Left** - Below and to the left
+
+You can drag the indicator to any position along the window border, and positions are remembered per application.
+
+#### Always Show Indicator
+
+**What it does:** When enabled, the indicator remains visible even when there are no grammar errors or style suggestions, displaying a green checkmark as confirmation that everything is fine.
+
+**Why you'd enable it:** Provides constant visual feedback about your text quality. When Apple Intelligence is enabled, also gives quick mouse access to Style Check and AI Compose features.
+
+**Default:** Off. The indicator only appears when there are grammar errors or style suggestions.
 
 ---
 

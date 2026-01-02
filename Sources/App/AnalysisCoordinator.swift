@@ -1861,12 +1861,28 @@ class AnalysisCoordinator: ObservableObject {
         let hasErrors = !errors.isEmpty
         let hasStyleSuggestions = !currentStyleSuggestions.isEmpty
 
+        // Check if we should always show the indicator (provides visual confirmation even with no issues)
+        let shouldAlwaysShowIndicator = UserPreferences.shared.alwaysShowCapsule
+
         if !hasErrors && !hasStyleSuggestions {
-            Logger.debug("AnalysisCoordinator: No errors or style suggestions - hiding overlays", category: Logger.analysis)
+            Logger.debug("AnalysisCoordinator: No errors or style suggestions", category: Logger.analysis)
             errorOverlay.hide()
-            // Don't hide indicator during manual style check (showing checkmark/results)
-            if !isManualStyleCheckActive {
+
+            // Don't hide indicator if:
+            // - Manual style check is active (showing checkmark/results), OR
+            // - Always show indicator is enabled (provides visual confirmation)
+            if !isManualStyleCheckActive && !shouldAlwaysShowIndicator {
                 floatingIndicator.hide()
+            } else if shouldAlwaysShowIndicator && !isManualStyleCheckActive {
+                // Update indicator with empty errors to show success state
+                Logger.debug("AnalysisCoordinator: Always show indicator enabled - updating with 0 errors", category: Logger.analysis)
+                floatingIndicator.update(
+                    errors: [],
+                    styleSuggestions: [],
+                    element: providedElement,
+                    context: monitoredContext,
+                    sourceText: lastAnalyzedText
+                )
             }
             MenuBarController.shared?.setIconState(.active)
         } else {

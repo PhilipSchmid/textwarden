@@ -238,11 +238,22 @@ struct GeneralPreferencesView: View {
                 }
                 .help("Choose the default position for new applications. Drag the indicator to customize per-app positions.")
 
-                Text("Default position for the floating error indicator badge. You can drag the indicator to any position along the window border, and positions are remembered per application.")
+                Text("Default position for the floating indicator. You can drag it to any position along the window border, and positions are remembered per application.")
                     .font(.caption)
                     .foregroundColor(.secondary)
+
+                Toggle(isOn: $preferences.alwaysShowCapsule) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Always show indicator")
+                        Text("Show even when there are no issues, displaying a green checkmark as confirmation")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .toggleStyle(.switch)
+                .padding(.top, 4)
             } header: {
-                Text("Error Indicator")
+                Text("Indicator")
                     .font(.headline)
             }
 

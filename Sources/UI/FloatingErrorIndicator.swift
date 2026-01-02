@@ -649,14 +649,22 @@ class FloatingErrorIndicator: NSPanel {
             self.mode = .errors(errors)
         }
 
-        guard !mode.isEmpty else {
+        // Determine expected shape based on style checking preference
+        let styleCheckingEnabled = UserPreferences.shared.enableStyleChecking
+        let alwaysShowIndicator = UserPreferences.shared.alwaysShowCapsule
+        let expectedShape: IndicatorShape = styleCheckingEnabled ? .capsule : .circle
+
+        // Hide indicator only if:
+        // - Mode is empty (no errors/suggestions) AND
+        // - Always show indicator is off
+        // When alwaysShowIndicator is on, show indicator with success state (green checkmark)
+        guard !mode.isEmpty || alwaysShowIndicator else {
             Logger.debug("FloatingErrorIndicator: No errors or suggestions, hiding", category: Logger.ui)
             hide()
             return
         }
 
         // Ensure correct shape is active
-        let expectedShape: IndicatorShape = UserPreferences.shared.enableStyleChecking ? .capsule : .circle
         if currentShape != expectedShape {
             transitionToShape(expectedShape)
         }
