@@ -5,8 +5,8 @@
 //  Automatic crash recovery and restart management
 //
 
-import Foundation
 import AppKit
+import Foundation
 
 /// Manages crash detection and automatic recovery
 class CrashRecoveryManager {
@@ -95,11 +95,11 @@ class CrashRecoveryManager {
     /// Show crash dialog for excessive restarts
     private func showCrashDialog() {
         DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
             let alert = NSAlert()
             alert.messageText = "TextWarden encountered repeated crashes"
             alert.informativeText = """
-            The app has crashed \(self.restartAttempts) times. \
+            The app has crashed \(restartAttempts) times. \
             This may indicate a serious issue. Would you like to:
 
             • Reset preferences and try again
@@ -117,13 +117,13 @@ class CrashRecoveryManager {
             case .alertFirstButtonReturn:
                 // Reset preferences
                 UserPreferences.shared.resetToDefaults()
-                self.restartAttempts = 0
-                self.defaults.set(0, forKey: self.crashCountKey)
+                restartAttempts = 0
+                defaults.set(0, forKey: crashCountKey)
                 Logger.info("Preferences reset, restarting", category: Logger.lifecycle)
 
             case .alertSecondButtonReturn:
                 // Open Console app filtered to TextWarden logs
-                self.openConsoleLogs()
+                openConsoleLogs()
 
             default:
                 NSApplication.shared.terminate(nil)
@@ -175,7 +175,7 @@ class CrashRecoveryManager {
 
     /// Current health status
     func healthStatus() -> HealthStatus {
-        return HealthStatus(
+        HealthStatus(
             isHealthy: restartAttempts < maxRestartAttempts,
             restartAttempts: restartAttempts,
             lastHeartbeat: lastHeartbeat,

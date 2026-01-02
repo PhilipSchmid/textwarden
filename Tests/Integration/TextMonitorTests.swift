@@ -5,12 +5,11 @@
 //  Integration tests for Accessibility text extraction
 //
 
-import XCTest
 import ApplicationServices
 @testable import TextWarden
+import XCTest
 
 final class TextMonitorTests: XCTestCase {
-
     // MARK: - Text Extraction Tests
 
     func testTextMonitor_ExtractsTextFromAccessibleElement() {

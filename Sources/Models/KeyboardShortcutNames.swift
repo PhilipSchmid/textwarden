@@ -5,8 +5,8 @@
 //  Defines global keyboard shortcuts for the application
 //
 
-import KeyboardShortcuts
 import AppKit
+import KeyboardShortcuts
 
 extension KeyboardShortcuts.Name {
     // MARK: - Global Controls
@@ -32,6 +32,7 @@ extension KeyboardShortcuts.Name {
     static let runStyleCheck = Self("runStyleCheck", default: .init(.s, modifiers: [.option, .control]))
 
     // MARK: - Legacy Alias (for backwards compatibility with saved shortcuts)
+
     /// @available(*, deprecated, renamed: "showGrammarSuggestions")
     static let showSuggestionPopover = showGrammarSuggestions
 
@@ -69,7 +70,7 @@ extension KeyboardShortcuts.Name {
         .nextSuggestion,
         .applySuggestion1,
         .applySuggestion2,
-        .applySuggestion3
+        .applySuggestion3,
     ]
 
     /// Enable all popover-specific shortcuts

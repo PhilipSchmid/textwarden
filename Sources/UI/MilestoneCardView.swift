@@ -5,9 +5,9 @@
 //  Celebratory card shown when a usage milestone is reached
 //
 
-import SwiftUI
-import Foundation
 import ConfettiSwiftUI
+import Foundation
+import SwiftUI
 
 /// URLs for milestone card actions
 private enum MilestoneURLs {
@@ -170,14 +170,14 @@ struct TransparentBackgroundView<Content: View>: NSViewRepresentable {
         self.content = content()
     }
 
-    func makeNSView(context: Context) -> NSView {
+    func makeNSView(context _: Context) -> NSView {
         let hostingView = NSHostingView(rootView: content)
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = .clear
         return hostingView
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    func updateNSView(_: NSView, context _: Context) {}
 }
 
 // MARK: - Window Controller
@@ -230,7 +230,7 @@ class MilestoneCardWindowController {
         window.isOpaque = false
         window.backgroundColor = .clear
         window.level = .popUpMenu
-        window.hasShadow = false  // We'll use the SwiftUI shadow instead
+        window.hasShadow = false // We'll use the SwiftUI shadow instead
 
         // Make the hosting view and its layer hierarchy transparent
         if let hostingView = hostingController?.view {
@@ -269,7 +269,7 @@ class MilestoneCardWindowController {
 
         // Close when clicking outside - use global mouse event monitor
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-            guard let self = self, let window = self.window else { return }
+            guard let self, let window = self.window else { return }
 
             // Check if click is outside the window
             let clickLocation = event.locationInWindow
@@ -288,7 +288,7 @@ class MilestoneCardWindowController {
             forName: NSWindow.didResignKeyNotification,
             object: window,
             queue: .main
-        ) { [weak self] notification in
+        ) { [weak self] _ in
             let controller = self
             Task { @MainActor in
                 controller?.dismissCard()

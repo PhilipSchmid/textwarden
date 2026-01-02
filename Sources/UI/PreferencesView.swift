@@ -5,12 +5,12 @@
 //  Settings/Preferences window
 //
 
-import SwiftUI
-import LaunchAtLogin
-import KeyboardShortcuts
-import UniformTypeIdentifiers
-import Charts
 import AppKit
+import Charts
+import KeyboardShortcuts
+import LaunchAtLogin
+import SwiftUI
+import UniformTypeIdentifiers
 
 struct PreferencesView: View {
     @ObservedObject private var preferences = UserPreferences.shared
@@ -92,9 +92,11 @@ struct SpellCheckingView: View {
     var body: some View {
         Form {
             // MARK: Grammar Categories Group
+
             FilteringPreferencesContent(preferences: preferences)
 
             // MARK: Language Settings
+
             Section {
                 Picker("English dialect:", selection: $preferences.selectedDialect) {
                     ForEach(UserPreferences.availableDialects, id: \.self) { dialect in
@@ -128,6 +130,7 @@ struct SpellCheckingView: View {
             }
 
             // MARK: Custom Vocabulary Group Header
+
             Section {
                 EmptyView()
             } header: {
@@ -148,6 +151,7 @@ struct SpellCheckingView: View {
             }
 
             // MARK: Custom Dictionary Content
+
             CustomVocabularyContent(
                 vocabulary: vocabulary,
                 preferences: preferences,
@@ -392,7 +396,7 @@ private struct FilteringPreferencesContent: View {
 
         var result = ""
         for (index, char) in nameToFormat.enumerated() {
-            if index > 0 && char.isUppercase {
+            if index > 0, char.isUppercase {
                 result += " "
             }
             result.append(char)
@@ -433,6 +437,7 @@ private struct CustomVocabularyContent: View {
     var body: some View {
         Group {
             // MARK: - Predefined Wordlists Section
+
             Section {
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle("Internet Abbreviations", isOn: $preferences.enableInternetAbbreviations)
@@ -500,6 +505,7 @@ private struct CustomVocabularyContent: View {
             }
 
             // MARK: - Language Detection Section
+
             Section {
                 Toggle("Detect non-English words", isOn: $preferences.enableLanguageDetection)
                     .help("Automatically detect and ignore errors in non-English words")
@@ -519,7 +525,7 @@ private struct CustomVocabularyContent: View {
                             GridItem(.fixed(150), alignment: .leading),
                             GridItem(.fixed(150), alignment: .leading),
                             GridItem(.fixed(150), alignment: .leading),
-                            GridItem(.fixed(150), alignment: .leading)
+                            GridItem(.fixed(150), alignment: .leading),
                         ], alignment: .leading, spacing: 6) {
                             ForEach(UserPreferences.availableLanguages.filter { $0 != "English" }.sorted(), id: \.self) { language in
                                 Toggle(language, isOn: Binding(
@@ -557,6 +563,7 @@ private struct CustomVocabularyContent: View {
             }
 
             // MARK: - System Dictionary Section
+
             Section {
                 Toggle("Import macOS learned words", isOn: $preferences.enableMacOSDictionary)
                     .help("Respect words you've added via 'Learn Spelling' in other macOS apps")
@@ -570,6 +577,7 @@ private struct CustomVocabularyContent: View {
             }
 
             // MARK: - Custom Dictionary Section
+
             Section {
                 // Add word input row
                 HStack(spacing: 8) {
@@ -591,7 +599,7 @@ private struct CustomVocabularyContent: View {
                     .help("Add word to dictionary")
 
                     // Error message inline
-                    if let errorMessage = errorMessage {
+                    if let errorMessage {
                         Label(errorMessage, systemImage: "exclamationmark.circle.fill")
                             .font(.caption)
                             .foregroundColor(.red)
@@ -610,7 +618,7 @@ private struct CustomVocabularyContent: View {
                         .foregroundColor(.secondary)
                         .font(.subheadline)
                         .padding(.vertical, 8)
-                } else if filteredWords.isEmpty && !searchText.isEmpty {
+                } else if filteredWords.isEmpty, !searchText.isEmpty {
                     Text("No matching words")
                         .foregroundColor(.secondary)
                         .font(.subheadline)
@@ -655,7 +663,7 @@ private struct CustomVocabularyContent: View {
                 }
             }
             .alert("Clear Custom Dictionary?", isPresented: $showClearDictionaryAlert) {
-                Button("Cancel", role: .cancel) { }
+                Button("Cancel", role: .cancel) {}
                 Button("Clear All", role: .destructive) {
                     clearAll()
                 }
@@ -664,6 +672,7 @@ private struct CustomVocabularyContent: View {
             }
 
             // MARK: - Ignored Words Section
+
             Section {
                 // Search field (only show when there are ignored words)
                 if !preferences.ignoredErrorTexts.isEmpty {
@@ -677,7 +686,7 @@ private struct CustomVocabularyContent: View {
                         .foregroundColor(.secondary)
                         .font(.subheadline)
                         .padding(.vertical, 8)
-                } else if filteredIgnoredTexts.isEmpty && !ignoredSearchText.isEmpty {
+                } else if filteredIgnoredTexts.isEmpty, !ignoredSearchText.isEmpty {
                     Text("No matching words")
                         .foregroundColor(.secondary)
                         .font(.subheadline)
@@ -734,7 +743,7 @@ private struct CustomVocabularyContent: View {
                 }
             }
             .alert("Clear Ignored Words?", isPresented: $showClearIgnoredAlert) {
-                Button("Cancel", role: .cancel) { }
+                Button("Cancel", role: .cancel) {}
                 Button("Clear All", role: .destructive) {
                     preferences.ignoredErrorTexts.removeAll()
                 }
@@ -1010,7 +1019,7 @@ struct FilteringPreferencesView: View {
         // Fallback: Insert spaces before uppercase letters (for PascalCase/camelCase)
         var result = ""
         for (index, char) in nameToFormat.enumerated() {
-            if index > 0 && char.isUppercase {
+            if index > 0, char.isUppercase {
                 result += " "
             }
             result.append(char)
@@ -1165,7 +1174,7 @@ struct CustomVocabularyView: View {
                             GridItem(.fixed(150), alignment: .leading),
                             GridItem(.fixed(150), alignment: .leading),
                             GridItem(.fixed(150), alignment: .leading),
-                            GridItem(.fixed(150), alignment: .leading)
+                            GridItem(.fixed(150), alignment: .leading),
                         ], alignment: .leading, spacing: 6) {
                             ForEach(UserPreferences.availableLanguages.filter { $0 != "English" }.sorted(), id: \.self) { language in
                                 Toggle(language, isOn: Binding(
@@ -1252,7 +1261,7 @@ struct CustomVocabularyView: View {
             .padding(.bottom, 8)
 
             // Error message
-            if let errorMessage = errorMessage {
+            if let errorMessage {
                 HStack {
                     Image(systemName: "exclamationmark.circle.fill")
                         .foregroundColor(.red)
@@ -1382,4 +1391,3 @@ struct CustomVocabularyView: View {
         }
     }
 }
-

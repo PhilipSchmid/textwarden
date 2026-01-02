@@ -7,9 +7,9 @@
 //  AXSelectedTextMarkerRange + AXBoundsForTextMarkerRange approach instead.
 //
 
-import Foundation
 import AppKit
 import ApplicationServices
+import Foundation
 
 /// Chromium-based app positioning strategy
 ///
@@ -22,7 +22,6 @@ import ApplicationServices
 ///
 /// Note: Slack has its own dedicated SlackStrategy for better positioning accuracy.
 class ChromiumStrategy: GeometryProvider {
-
     var strategyName: String { "Chromium" }
     var strategyType: StrategyType { .chromium }
     var tier: StrategyTier { .precise }
@@ -61,12 +60,12 @@ class ChromiumStrategy: GeometryProvider {
 
     /// Bundle IDs of Chromium-based apps that use this strategy
     private static let chromiumBundleIDs: Set<String> = [
-        "com.microsoft.teams2"  // Microsoft Teams
+        "com.microsoft.teams2", // Microsoft Teams
     ]
 
     // MARK: - Public Interface
 
-    func canHandle(element: AXUIElement, bundleID: String) -> Bool {
+    func canHandle(element _: AXUIElement, bundleID: String) -> Bool {
         // Check if this is a Chromium-based app that should use this strategy
         // Apps must be in preferredStrategies with .chromium to use this
         let config = AppRegistry.shared.configuration(for: bundleID)
@@ -102,13 +101,14 @@ class ChromiumStrategy: GeometryProvider {
         let (shouldRestore, position, element) = stateQueue.sync { () -> (Bool, CFRange?, AXUIElement?) in
             guard _measurementInProgress,
                   let pos = _savedCursorPosition,
-                  let elem = _savedCursorElement else {
+                  let elem = _savedCursorElement
+            else {
                 return (false, nil, nil)
             }
             return (true, pos, elem)
         }
 
-        guard shouldRestore, var pos = position, let element = element else { return }
+        guard shouldRestore, var pos = position, let element else { return }
 
         if let restoreValue = AXValueCreate(.cfRange, &pos) {
             AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, restoreValue)
@@ -130,7 +130,6 @@ class ChromiumStrategy: GeometryProvider {
         text: String,
         parser: ContentParser
     ) -> GeometryResult? {
-
         let offset = parser.textReplacementOffset
         let startIndex = errorRange.location + offset
         let graphemeRange = NSRange(location: startIndex, length: errorRange.length)
@@ -199,9 +198,9 @@ class ChromiumStrategy: GeometryProvider {
         // Validate bounds aren't unreasonably large (catches bogus bounds for special formatting)
         // A typical character is ~8-12px wide, so max ~15px per char is generous
         let maxReasonableWidth = CGFloat(errorRange.length) * 15.0 + 50.0
-        let maxReasonableHeight: CGFloat = 30.0  // Single line text should be ~18-22px
+        let maxReasonableHeight: CGFloat = 30.0 // Single line text should be ~18-22px
 
-        if bounds.width > maxReasonableWidth && bounds.width > 200 {
+        if bounds.width > maxReasonableWidth, bounds.width > 200 {
             Logger.debug("ChromiumStrategy: Rejecting bounds - width \(bounds.width)px too large for \(errorRange.length) chars (max: \(maxReasonableWidth)px)", category: Logger.analysis)
             return nil
         }
@@ -215,7 +214,7 @@ class ChromiumStrategy: GeometryProvider {
         // Emojis in Chromium apps cause text markers to be offset from AXValue positions.
         // When bounds Y is outside the element, it means the position drift is severe.
         if let elementFrame = AccessibilityBridge.getElementFrame(element) {
-            let tolerance: CGFloat = 50.0  // Allow some tolerance for rounding
+            let tolerance: CGFloat = 50.0 // Allow some tolerance for rounding
             let minY = elementFrame.origin.y - tolerance
             let maxY = elementFrame.origin.y + elementFrame.height + tolerance
 
@@ -228,12 +227,12 @@ class ChromiumStrategy: GeometryProvider {
         // Handle Teams case: position is valid but width is -1 (needs estimation)
         if bounds.width < 0 {
             // Estimate width based on error text length
-            let errorText: String
-            if let startIdx = text.index(text.startIndex, offsetBy: errorRange.location, limitedBy: text.endIndex),
-               let endIdx = text.index(startIdx, offsetBy: errorRange.length, limitedBy: text.endIndex) {
-                errorText = String(text[startIdx..<endIdx])
+            let errorText = if let startIdx = text.index(text.startIndex, offsetBy: errorRange.location, limitedBy: text.endIndex),
+                               let endIdx = text.index(startIdx, offsetBy: errorRange.length, limitedBy: text.endIndex)
+            {
+                String(text[startIdx ..< endIdx])
             } else {
-                errorText = ""
+                ""
             }
 
             // Use system font for estimation (reasonable for most apps)
@@ -367,7 +366,7 @@ class ChromiumStrategy: GeometryProvider {
         usleep(GeometryConstants.chromiumMediumDelay * 3)
 
         // Poll for valid bounds with stale data detection
-        for attempt in 0..<10 {
+        for attempt in 0 ..< 10 {
             if attempt > 0 {
                 usleep(GeometryConstants.chromiumShortDelay)
             }
@@ -384,9 +383,10 @@ class ChromiumStrategy: GeometryProvider {
             // 2. Bounds width close to element width (likely whole-line bounds)
             let isStaleData = ChromiumStrategy.stateQueue.sync { () -> Bool in
                 if let lastBounds = ChromiumStrategy._lastMeasuredBounds,
-                   abs(bounds.origin.x - lastBounds.origin.x) < 1 &&
-                   abs(bounds.origin.y - lastBounds.origin.y) < 1 &&
-                   abs(bounds.width - lastBounds.width) < 1 {
+                   abs(bounds.origin.x - lastBounds.origin.x) < 1,
+                   abs(bounds.origin.y - lastBounds.origin.y) < 1,
+                   abs(bounds.width - lastBounds.width) < 1
+                {
                     ChromiumStrategy._consecutiveSameBoundsCount += 1
                     return true
                 } else {
@@ -396,15 +396,14 @@ class ChromiumStrategy: GeometryProvider {
             }
 
             // Also check for "whole line" bounds - width close to element width
-            let isWholeLine: Bool
-            if let frame = elementFrame {
+            let isWholeLine: Bool = if let frame = elementFrame {
                 // If bounds width is > 80% of element width, it's likely bogus whole-line bounds
-                isWholeLine = bounds.width > frame.width * 0.8
+                bounds.width > frame.width * 0.8
             } else {
-                isWholeLine = false
+                false
             }
 
-            if (isStaleData || isWholeLine) && attempt < 8 {
+            if isStaleData || isWholeLine, attempt < 8 {
                 if isWholeLine {
                     Logger.debug("ChromiumStrategy: Skipping whole-line bounds \(bounds.width)px on attempt \(attempt)", category: Logger.analysis)
                 }
@@ -437,23 +436,24 @@ class ChromiumStrategy: GeometryProvider {
         )
         guard boundsResult == .success,
               let bv = boundsRef,
-              let rect = safeAXValueGetRect(bv) else {
+              let rect = safeAXValueGetRect(bv)
+        else {
             return nil
         }
 
         // Validate bounds
         // For Teams (WebView2), we may get valid position but zero dimensions
         // In that case, we'll use the position and estimate dimensions
-        if rect.width > 0 && rect.height > 0 && rect.height < GeometryConstants.conservativeMaxLineHeight {
+        if rect.width > 0, rect.height > 0, rect.height < GeometryConstants.conservativeMaxLineHeight {
             return rect
         }
 
         // Check if we have a valid position even with zero/invalid dimensions
         // This happens with MS Teams - position is correct but dimensions are 0
-        if rect.origin.x > 0 && rect.origin.y > 0 && (rect.width == 0 || rect.height == 0) {
+        if rect.origin.x > 0, rect.origin.y > 0, rect.width == 0 || rect.height == 0 {
             Logger.debug("ChromiumStrategy: Got position with zero dimensions \(rect) - will estimate size", category: Logger.analysis)
             // Return with a marker height, width will be calculated by caller
-            return CGRect(x: rect.origin.x, y: rect.origin.y, width: -1, height: 18)  // -1 width = needs estimation
+            return CGRect(x: rect.origin.x, y: rect.origin.y, width: -1, height: 18) // -1 width = needs estimation
         }
 
         Logger.debug("ChromiumStrategy: Rejected bounds \(rect) - invalid", category: Logger.analysis)
@@ -466,7 +466,8 @@ class ChromiumStrategy: GeometryProvider {
     private func getAttributedStringHash(element: AXUIElement) -> Int {
         var textLengthValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &textLengthValue) == .success,
-              let length = textLengthValue as? Int, length > 0 else {
+              let length = textLengthValue as? Int, length > 0
+        else {
             return 0
         }
 
@@ -510,5 +511,4 @@ class ChromiumStrategy: GeometryProvider {
         cocoaRect.origin.y = screenHeight - quartzRect.origin.y - quartzRect.height
         return cocoaRect
     }
-
 }

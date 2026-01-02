@@ -6,13 +6,12 @@
 //  AXUIElement bounds are unreliable for Electron apps
 //
 
-import Foundation
 import ApplicationServices
+import Foundation
 
 /// Helper to get window bounds using CGWindow API
 /// This is more reliable than AXUIElement bounds for Electron apps
 enum CGWindowHelper {
-
     /// Get window bounds for process using CGWindow API
     static func getWindowBounds(for processID: pid_t) -> CGRect? {
         let options = CGWindowListOption([.optionOnScreenOnly, .excludeDesktopElements])
@@ -24,7 +23,8 @@ enum CGWindowHelper {
         // Find window for our process
         for windowInfo in windowList {
             guard let windowPID = windowInfo[kCGWindowOwnerPID as String] as? pid_t,
-                  windowPID == processID else {
+                  windowPID == processID
+            else {
                 continue
             }
 
@@ -32,7 +32,8 @@ enum CGWindowHelper {
                   let x = boundsDict["X"],
                   let y = boundsDict["Y"],
                   let width = boundsDict["Width"],
-                  let height = boundsDict["Height"] else {
+                  let height = boundsDict["Height"]
+            else {
                 continue
             }
 
@@ -63,7 +64,8 @@ enum CGWindowHelper {
         // Find largest window for this process (likely the main window)
         for windowInfo in windowList {
             guard let windowPID = windowInfo[kCGWindowOwnerPID as String] as? pid_t,
-                  windowPID == processID else {
+                  windowPID == processID
+            else {
                 continue
             }
 
@@ -71,7 +73,8 @@ enum CGWindowHelper {
                   let x = boundsDict["X"],
                   let y = boundsDict["Y"],
                   let width = boundsDict["Width"],
-                  let height = boundsDict["Height"] else {
+                  let height = boundsDict["Height"]
+            else {
                 continue
             }
 

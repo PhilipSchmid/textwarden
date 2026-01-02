@@ -194,7 +194,7 @@ final class AXWatchdog {
         guard let call = activeCall else { return }
 
         let elapsed = Date().timeIntervalSince(call.startTime)
-        if elapsed > hangThreshold && blacklist[call.bundleID] == nil {
+        if elapsed > hangThreshold, blacklist[call.bundleID] == nil {
             // This app is hanging - blacklist it
             Logger.warning("AXWatchdog: Detected slow AX call to \(call.bundleID) (\(call.attribute)) - \(String(format: "%.1f", elapsed))s elapsed, blacklisting for \(Int(blacklistDuration))s", category: Logger.accessibility)
             blacklist[call.bundleID] = Date().addingTimeInterval(blacklistDuration)
@@ -319,7 +319,6 @@ final class AXWatchdog {
 /// Low-level Accessibility API wrapper
 /// Isolates all C API complexity and provides clean Swift interface
 enum AccessibilityBridge {
-
     // MARK: - Visibility Detection
 
     /// Get visible character range using AXVisibleCharacterRange
@@ -400,7 +399,7 @@ enum AccessibilityBridge {
     /// Get the edit area frame (the text field bounds)
     /// Used to validate that calculated bounds are within the edit area
     static func getEditAreaFrame(_ element: AXUIElement) -> CGRect? {
-        return getElementFrame(element)
+        getElementFrame(element)
     }
 
     /// Validate that bounds are within the edit area frame
@@ -450,14 +449,14 @@ enum AccessibilityBridge {
         guard result == .success, let spv = screenPointValue else {
             Logger.warning("AccessibilityBridge: AXScreenPointForLayoutPoint failed with error \(result.rawValue)", category: Logger.accessibility)
             Logger.warning("AccessibilityBridge: Attempted to convert layout point: \(layoutPoint)", category: Logger.accessibility)
-            
+
             // Check if element supports this attribute
             let attributes = getSupportedParameterizedAttributes(element)
             if !attributes.contains("AXScreenPointForLayoutPoint") {
                 Logger.warning("AccessibilityBridge: Element does NOT support AXScreenPointForLayoutPoint!", category: Logger.accessibility)
                 Logger.warning("AccessibilityBridge: Available parameterized attributes: \(attributes)", category: Logger.accessibility)
             }
-            
+
             return nil
         }
 
@@ -508,12 +507,11 @@ enum AccessibilityBridge {
         }
 
         // Convert size (optional - size usually doesn't change much)
-        let screenSize: CGSize
-        if let convertedSize = convertLayoutSizeToScreen(layoutRect.size, in: element) {
-            screenSize = convertedSize
+        let screenSize: CGSize = if let convertedSize = convertLayoutSizeToScreen(layoutRect.size, in: element) {
+            convertedSize
         } else {
             // Fall back to same size if conversion fails
-            screenSize = layoutRect.size
+            layoutRect.size
         }
 
         let screenRect = CGRect(origin: screenOrigin, size: screenSize)
@@ -545,7 +543,7 @@ enum AccessibilityBridge {
         }
 
         // Try to create a marker for index 0 as capability test
-        var indexValue: Int = 0
+        var indexValue = 0
         guard let indexRef = CFNumberCreate(
             kCFAllocatorDefault,
             .intType,
@@ -616,7 +614,7 @@ enum AccessibilityBridge {
         Logger.debug("AccessibilityBridge.calculateBounds() called", category: Logger.accessibility)
 
         // Log what parameterized attributes this element supports (ONCE per session)
-        struct DebugState {
+        enum DebugState {
             static var hasLoggedAttributes = false
         }
         if !DebugState.hasLoggedAttributes {
@@ -685,15 +683,14 @@ enum AccessibilityBridge {
             Logger.debug("  FAILED at AXUIElementCopyParameterizedAttributeValue - AXError code: \(result.rawValue)", category: Logger.accessibility)
 
             // Log what the error code means
-            let errorDesc: String
-            switch result {
-            case .apiDisabled: errorDesc = "API disabled (user needs to enable accessibility)"
-            case .notImplemented: errorDesc = "Not implemented (attribute not supported)"
-            case .attributeUnsupported: errorDesc = "Attribute unsupported"
-            case .invalidUIElement: errorDesc = "Invalid UI element"
-            case .illegalArgument: errorDesc = "Illegal argument (marker range format wrong?)"
-            case .failure: errorDesc = "Generic failure"
-            default: errorDesc = "Unknown error"
+            let errorDesc = switch result {
+            case .apiDisabled: "API disabled (user needs to enable accessibility)"
+            case .notImplemented: "Not implemented (attribute not supported)"
+            case .attributeUnsupported: "Attribute unsupported"
+            case .invalidUIElement: "Invalid UI element"
+            case .illegalArgument: "Illegal argument (marker range format wrong?)"
+            case .failure: "Generic failure"
+            default: "Unknown error"
             }
             Logger.debug("  Error description: \(errorDesc)", category: Logger.accessibility)
 
@@ -781,7 +778,8 @@ enum AccessibilityBridge {
         }
 
         guard let axValue = boundsValue,
-              CFGetTypeID(axValue) == AXValueGetTypeID() else {
+              CFGetTypeID(axValue) == AXValueGetTypeID()
+        else {
             Logger.debug("AXBoundsForRange returned non-AXValue type", category: Logger.accessibility)
             return nil
         }
@@ -840,7 +838,7 @@ enum AccessibilityBridge {
         Logger.debug("AccessibilityBridge: AX reports lines \(startLine ?? -1) to \(endLine ?? -1), axReportsMultiLine: \(axReportsMultiLine)", category: Logger.accessibility)
 
         // If AX says single-line AND bounds don't suggest multi-line, return single bounds
-        if !axReportsMultiLine && !likelyMultiLine {
+        if !axReportsMultiLine, !likelyMultiLine {
             Logger.debug("AccessibilityBridge: Treating as single-line (AX and bounds agree)", category: Logger.accessibility)
             return [overallBounds]
         }
@@ -852,7 +850,7 @@ enum AccessibilityBridge {
         if axReportsMultiLine, let start = startLine, let end = endLine {
             var rangeForLineWorks = true
 
-            for lineNum in start...end {
+            for lineNum in start ... end {
                 // Get the character range for this line
                 guard let lineRange = tryGetRangeForLine(lineNum, in: element) else {
                     Logger.debug("AccessibilityBridge: AXRangeForLine failed for line \(lineNum)", category: Logger.accessibility)
@@ -883,7 +881,7 @@ enum AccessibilityBridge {
                 }
             }
 
-            if rangeForLineWorks && !lineBounds.isEmpty {
+            if rangeForLineWorks, !lineBounds.isEmpty {
                 Logger.debug("AccessibilityBridge: Calculated \(lineBounds.count) line bounds using AXRangeForLine", category: Logger.accessibility)
                 return lineBounds
             }
@@ -899,7 +897,7 @@ enum AccessibilityBridge {
         // Sample rate: check every ~10 characters, but at least sample each expected line
         let sampleStep = max(1, min(10, rangeLength / max(estimatedLineCount * 3, 1)))
 
-        var lineBreakIndices: [Int] = [range.location]  // Start of first line
+        var lineBreakIndices: [Int] = [range.location] // Start of first line
         var lastY: CGFloat?
 
         var sampleIndex = range.location
@@ -930,7 +928,7 @@ enum AccessibilityBridge {
         lineBreakIndices.append(range.location + range.length)
 
         // Convert line break indices to bounds
-        for i in 0..<(lineBreakIndices.count - 1) {
+        for i in 0 ..< (lineBreakIndices.count - 1) {
             let lineStart = lineBreakIndices[i]
             let lineEnd = lineBreakIndices[i + 1]
             let lineLength = lineEnd - lineStart
@@ -955,7 +953,7 @@ enum AccessibilityBridge {
         Logger.debug("AccessibilityBridge: Using geometric fallback to split bounds into \(estimatedLineCount) lines", category: Logger.accessibility)
         lineBounds = []
 
-        for lineIndex in 0..<estimatedLineCount {
+        for lineIndex in 0 ..< estimatedLineCount {
             // Calculate the Y position for this line segment
             // Overall bounds are in Quartz (top-left origin), so Y increases downward
             let lineY = overallBounds.origin.y + (CGFloat(lineIndex) * typicalLineHeight)
@@ -1062,7 +1060,7 @@ enum AccessibilityBridge {
         return CGRect(
             x: estimatedX,
             y: estimatedY,
-            width: averageCharWidth * 5,  // Assume ~5 characters
+            width: averageCharWidth * 5, // Assume ~5 characters
             height: elementFrame.height * 0.5
         )
     }
@@ -1095,12 +1093,14 @@ enum AccessibilityBridge {
             guard positionResult == .success,
                   sizeResult == .success,
                   let position = positionValue,
-                  let size = sizeValue else {
+                  let size = sizeValue
+            else {
                 return
             }
 
             guard let origin = safeAXValueGetPoint(position),
-                  let rectSize = safeAXValueGetSize(size) else {
+                  let rectSize = safeAXValueGetSize(size)
+            else {
                 return
             }
 
@@ -1132,7 +1132,8 @@ enum AccessibilityBridge {
 
             guard positionResult == .success,
                   let position = positionValue,
-                  let point = safeAXValueGetPoint(position) else {
+                  let point = safeAXValueGetPoint(position)
+            else {
                 return
             }
 
@@ -1155,20 +1156,22 @@ enum AccessibilityBridge {
         var windowValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXWindowAttribute as CFString, &windowValue) == .success,
            let wv = windowValue,
-           CFGetTypeID(wv) == AXUIElementGetTypeID() {
+           CFGetTypeID(wv) == AXUIElementGetTypeID()
+        {
             // Safe: type verified by CFGetTypeID check above
             return unsafeBitCast(wv, to: AXUIElement.self)
         }
 
         // Walk up the parent hierarchy
         var currentElement: AXUIElement? = element
-        for _ in 0..<10 {
+        for _ in 0 ..< 10 {
             guard let current = currentElement else { break }
 
             // Check if current element has window attribute
             if AXUIElementCopyAttributeValue(current, kAXWindowAttribute as CFString, &windowValue) == .success,
                let wv = windowValue,
-               CFGetTypeID(wv) == AXUIElementGetTypeID() {
+               CFGetTypeID(wv) == AXUIElementGetTypeID()
+            {
                 // Safe: type verified by CFGetTypeID check above
                 return unsafeBitCast(wv, to: AXUIElement.self)
             }
@@ -1177,7 +1180,8 @@ enum AccessibilityBridge {
             var roleValue: CFTypeRef?
             if AXUIElementCopyAttributeValue(current, kAXRoleAttribute as CFString, &roleValue) == .success,
                let role = roleValue as? String,
-               role == "AXWindow" || role == kAXWindowRole as String {
+               role == "AXWindow" || role == kAXWindowRole as String
+            {
                 return current
             }
 
@@ -1185,7 +1189,8 @@ enum AccessibilityBridge {
             var parentValue: CFTypeRef?
             guard AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentValue) == .success,
                   let parent = parentValue,
-                  CFGetTypeID(parent) == AXUIElementGetTypeID() else {
+                  CFGetTypeID(parent) == AXUIElementGetTypeID()
+            else {
                 break
             }
             // Safe: type verified by CFGetTypeID check above
@@ -1235,12 +1240,13 @@ enum AccessibilityBridge {
 
         guard result == .success,
               let bv = boundsValue,
-              let bounds = safeAXValueGetRect(bv) else {
+              let bounds = safeAXValueGetRect(bv)
+        else {
             return nil
         }
 
         // Validate: reject Chromium bugs (zero/tiny bounds) or element-sized bounds
-        guard bounds.width > minSize && bounds.height > minSize && bounds.height < maxHeight else {
+        guard bounds.width > minSize, bounds.height > minSize, bounds.height < maxHeight else {
             return nil
         }
 
@@ -1283,7 +1289,8 @@ enum AccessibilityBridge {
         )
 
         guard result == .success,
-              let number = indexValue as? NSNumber else {
+              let number = indexValue as? NSNumber
+        else {
             return nil
         }
 
@@ -1301,7 +1308,8 @@ enum AccessibilityBridge {
 
         guard result == .success,
               let cfArray = attributesValue,
-              let attributes = cfArray as? [String] else {
+              let attributes = cfArray as? [String]
+        else {
             return []
         }
 
@@ -1355,7 +1363,8 @@ enum AccessibilityBridge {
         // 4. List all supported attributes
         var attrNames: CFArray?
         if AXUIElementCopyAttributeNames(element, &attrNames) == .success,
-           let names = attrNames as? [String] {
+           let names = attrNames as? [String]
+        {
             result.supportedAttributes = names
             Logger.info("Supported attributes (\(names.count)): \(names.joined(separator: ", "))")
         }
@@ -1415,7 +1424,8 @@ enum AccessibilityBridge {
         Logger.info("--- Testing Insertion Point ---", category: Logger.accessibility)
         var insertionLineValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, "AXInsertionPointLineNumber" as CFString, &insertionLineValue) == .success,
-           let lineNum = insertionLineValue as? Int {
+           let lineNum = insertionLineValue as? Int
+        {
             result.insertionPointLine = lineNum
             Logger.info("  AXInsertionPointLineNumber: \(lineNum) ✓", category: Logger.accessibility)
         } else {
@@ -1425,8 +1435,9 @@ enum AccessibilityBridge {
         // 10. Try AXSelectedTextRange (cursor position)
         var selectedRangeValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &selectedRangeValue) == .success,
-           let selectedRangeValue = selectedRangeValue,
-           let selectedRange = safeAXValueGetRange(selectedRangeValue) {
+           let selectedRangeValue,
+           let selectedRange = safeAXValueGetRange(selectedRangeValue)
+        {
             result.cursorPosition = selectedRange.location
             Logger.info("  Cursor position: \(selectedRange.location) ✓", category: Logger.accessibility)
 
@@ -1441,7 +1452,8 @@ enum AccessibilityBridge {
         // 11. Try AXNumberOfCharacters
         var numCharsValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &numCharsValue) == .success,
-           let numChars = numCharsValue as? Int {
+           let numChars = numCharsValue as? Int
+        {
             result.numberOfCharacters = numChars
             Logger.info("  AXNumberOfCharacters: \(numChars) ✓", category: Logger.accessibility)
         }
@@ -1478,7 +1490,8 @@ enum AccessibilityBridge {
         )
 
         guard result == .success, let bv = boundsValue,
-              let rect = safeAXValueGetRect(bv) else {
+              let rect = safeAXValueGetRect(bv)
+        else {
             return nil
         }
 
@@ -1524,7 +1537,8 @@ enum AccessibilityBridge {
         )
 
         guard result == .success, let rv = rangeValue,
-              let range = safeAXValueGetRange(rv) else {
+              let range = safeAXValueGetRange(rv)
+        else {
             return nil
         }
 
@@ -1544,7 +1558,8 @@ enum AccessibilityBridge {
         // Get children
         var childrenValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenValue) == .success,
-              let children = childrenValue as? [AXUIElement] else {
+              let children = childrenValue as? [AXUIElement]
+        else {
             return results
         }
 
@@ -1554,7 +1569,7 @@ enum AccessibilityBridge {
             let role = roleValue as? String ?? "unknown"
 
             // Get child's frame
-            if let frame = getElementFrame(child), frame.width > 0 && frame.height > 0 && frame.height < GeometryConstants.maximumLineHeight {
+            if let frame = getElementFrame(child), frame.width > 0, frame.height > 0, frame.height < GeometryConstants.maximumLineHeight {
                 // Get text if available
                 var textValue: CFTypeRef?
                 AXUIElementCopyAttributeValue(child, kAXValueAttribute as CFString, &textValue)
@@ -1602,10 +1617,10 @@ struct NotionDiagnosticResult {
 
     /// Check if we have any working positioning method
     var hasWorkingMethod: Bool {
-        return !workingRangeBounds.isEmpty ||
-               !lineBounds.isEmpty ||
-               cursorBounds != nil ||
-               !childrenWithBounds.isEmpty
+        !workingRangeBounds.isEmpty ||
+            !lineBounds.isEmpty ||
+            cursorBounds != nil ||
+            !childrenWithBounds.isEmpty
     }
 
     /// Get the best available method description
@@ -1637,7 +1652,6 @@ struct ChildBoundsInfo {
 // MARK: - InsertionPointFrame Strategy
 
 extension AccessibilityBridge {
-
     /// Get AXInsertionPointFrame for current cursor position
     /// Works in Chromium when AXBoundsForRange fails
     static func getInsertionPointFrame(_ element: AXUIElement) -> CGRect? {
@@ -1698,5 +1712,4 @@ extension AccessibilityBridge {
 
         return result == .success
     }
-
 }

@@ -32,8 +32,8 @@
 //  - Y-flip requires rect height: Point conversion differs from rect conversion
 //
 
-import Foundation
 import AppKit
+import Foundation
 
 // MARK: - Unified Coordinate Type
 
@@ -58,8 +58,8 @@ struct ScreenPosition {
     }
 
     init(point: CGPoint, system: CoordinateSystem) {
-        self.x = point.x
-        self.y = point.y
+        x = point.x
+        y = point.y
         self.system = system
     }
 
@@ -72,7 +72,7 @@ struct ScreenPosition {
         guard system == .quartz else { return self }
         guard let height = screenHeight ?? NSScreen.main?.frame.height else {
             Logger.warning("CoordinateMapper: Screen height unavailable for conversion", category: Logger.analysis)
-            return self  // Return unchanged to avoid corrupting coordinates
+            return self // Return unchanged to avoid corrupting coordinates
         }
         return ScreenPosition(x: x, y: height - y, system: .cocoa)
     }
@@ -82,7 +82,7 @@ struct ScreenPosition {
         guard system == .cocoa else { return self }
         guard let height = screenHeight ?? NSScreen.main?.frame.height else {
             Logger.warning("CoordinateMapper: Screen height unavailable for conversion", category: Logger.analysis)
-            return self  // Return unchanged to avoid corrupting coordinates
+            return self // Return unchanged to avoid corrupting coordinates
         }
         return ScreenPosition(x: x, y: height - y, system: .quartz)
     }
@@ -99,8 +99,8 @@ struct ScreenRect {
     }
 
     init(rect: CGRect, system: ScreenPosition.CoordinateSystem) {
-        self.origin = ScreenPosition(point: rect.origin, system: system)
-        self.size = rect.size
+        origin = ScreenPosition(point: rect.origin, system: system)
+        size = rect.size
     }
 
     var rect: CGRect {
@@ -140,7 +140,6 @@ struct ScreenRect {
 /// Accessibility APIs return Quartz coordinates (top-left origin)
 /// NSWindow uses Cocoa coordinates (bottom-left origin)
 enum CoordinateMapper {
-
     // MARK: - Coordinate Conversion
 
     /// Convert from Quartz (top-left origin) to Cocoa (bottom-left origin)
@@ -195,35 +194,38 @@ enum CoordinateMapper {
 
         // Check for unreasonably large dimensions
         // Anything larger is likely a container bound, not character bounds
-        guard rect.width < GeometryConstants.maximumTextWidth &&
-              rect.height < GeometryConstants.maximumLineHeight else {
+        guard rect.width < GeometryConstants.maximumTextWidth,
+              rect.height < GeometryConstants.maximumLineHeight
+        else {
             Logger.debug("CoordinateMapper: Invalid bounds: dimensions too large for text \(rect)", category: Logger.accessibility)
             return false
         }
 
         // Check for NaN values
-        guard !rect.origin.x.isNaN && !rect.origin.y.isNaN &&
-              !rect.width.isNaN && !rect.height.isNaN else {
+        guard !rect.origin.x.isNaN, !rect.origin.y.isNaN,
+              !rect.width.isNaN, !rect.height.isNaN
+        else {
             Logger.debug("CoordinateMapper: Invalid bounds: contains NaN values \(rect)", category: Logger.accessibility)
             return false
         }
 
         // Check for infinite values
-        guard !rect.origin.x.isInfinite && !rect.origin.y.isInfinite &&
-              !rect.width.isInfinite && !rect.height.isInfinite else {
+        guard !rect.origin.x.isInfinite, !rect.origin.y.isInfinite,
+              !rect.width.isInfinite, !rect.height.isInfinite
+        else {
             Logger.debug("CoordinateMapper: Invalid bounds: contains infinite values \(rect)", category: Logger.accessibility)
             return false
         }
 
         // Check for extremely small dimensions (< 1px suggests error)
-        guard rect.width >= 1.0 && rect.height >= 1.0 else {
+        guard rect.width >= 1.0, rect.height >= 1.0 else {
             Logger.debug("CoordinateMapper: Invalid bounds: dimensions too small \(rect)", category: Logger.accessibility)
             return false
         }
 
         // Check for negative coordinates (often indicates stale values)
         // Note: Negative Y is valid in Quartz coords for multi-monitor, so only check extremely negative
-        guard rect.origin.x >= -10000 && rect.origin.y >= -10000 else {
+        guard rect.origin.x >= -10000, rect.origin.y >= -10000 else {
             Logger.debug("CoordinateMapper: Invalid bounds: extremely negative coordinates \(rect)", category: Logger.accessibility)
             return false
         }
@@ -357,12 +359,12 @@ enum CoordinateMapper {
     /// Expand bounds slightly to ensure full coverage
     /// Helps with rounding errors and pixel-perfect alignment
     static func expandBounds(_ rect: CGRect, by amount: CGFloat = 1.0) -> CGRect {
-        return rect.insetBy(dx: -amount, dy: -amount)
+        rect.insetBy(dx: -amount, dy: -amount)
     }
 
     /// Shrink bounds slightly
     /// Useful for creating margins
     static func shrinkBounds(_ rect: CGRect, by amount: CGFloat = 1.0) -> CGRect {
-        return rect.insetBy(dx: amount, dy: amount)
+        rect.insetBy(dx: amount, dy: amount)
     }
 }

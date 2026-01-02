@@ -12,7 +12,6 @@ import ApplicationServices
 /// Position resolution engine with multiple strategies
 /// Uses AppRegistry to filter and order strategies per app
 class PositionResolver {
-
     // MARK: - Singleton
 
     static let shared = PositionResolver()
@@ -39,27 +38,27 @@ class PositionResolver {
         // as they interfere with typing (manipulate cursor/selection)
         let strategies: [GeometryProvider] = [
             // Tier: Precise
-            SlackStrategy(),  // Dedicated strategy for Slack - highest priority
-            TeamsStrategy(),  // Dedicated strategy for Teams - same tree traversal approach
-            NotionStrategy(),  // Dedicated strategy for Notion - same tree traversal approach
-            OutlookStrategy(),  // Dedicated strategy for Outlook compose
-            WordStrategy(),  // Dedicated strategy for Word documents
-            WebExStrategy(),  // Dedicated strategy for Cisco WebEx chat
-            MailStrategy(),  // Dedicated strategy for Apple Mail's WebKit compose
-            ProtonMailStrategy(),  // Dedicated strategy for Proton Mail's Rooster editor
+            SlackStrategy(), // Dedicated strategy for Slack - highest priority
+            TeamsStrategy(), // Dedicated strategy for Teams - same tree traversal approach
+            NotionStrategy(), // Dedicated strategy for Notion - same tree traversal approach
+            OutlookStrategy(), // Dedicated strategy for Outlook compose
+            WordStrategy(), // Dedicated strategy for Word documents
+            WebExStrategy(), // Dedicated strategy for Cisco WebEx chat
+            MailStrategy(), // Dedicated strategy for Apple Mail's WebKit compose
+            ProtonMailStrategy(), // Dedicated strategy for Proton Mail's Rooster editor
             ChromiumStrategy(),
             TextMarkerStrategy(),
             RangeBoundsStrategy(),
 
             // Tier: Reliable
-            InsertionPointStrategy(),  // For Mac Catalyst apps (Messages, etc.)
+            InsertionPointStrategy(), // For Mac Catalyst apps (Messages, etc.)
             ElementTreeStrategy(),
             LineIndexStrategy(),
             OriginStrategy(),
             AnchorSearchStrategy(),
 
             // Tier: Estimated
-            FontMetricsStrategy()
+            FontMetricsStrategy(),
         ]
 
         // Store all strategies
@@ -128,7 +127,6 @@ class PositionResolver {
         parser: ContentParser,
         bundleID: String
     ) -> GeometryResult {
-
         let cacheKey = CacheKey(
             element: element,
             range: errorRange,
@@ -260,16 +258,15 @@ class PositionResolver {
 
     /// Get cache statistics
     func cacheStatistics() -> CacheStatistics {
-        return cache.statistics()
+        cache.statistics()
     }
 
     // MARK: - Debugging
 
     /// Get strategies that would be used for a bundle ID (for debugging)
     func debugStrategiesFor(bundleID: String) -> [(name: String, type: StrategyType, tier: StrategyTier)] {
-        return strategiesForApp(bundleID: bundleID).map {
+        strategiesForApp(bundleID: bundleID).map {
             (name: $0.strategyName, type: $0.strategyType, tier: $0.tier)
         }
     }
-
 }

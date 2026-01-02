@@ -7,14 +7,13 @@
 //  then calculates character offset within the line.
 //
 
-import Foundation
 import AppKit
 import ApplicationServices
+import Foundation
 
 /// Line-based positioning strategy
 /// Gets line bounds then calculates X offset within the line
 class LineIndexStrategy: GeometryProvider {
-
     var strategyName: String { "LineIndex" }
     var strategyType: StrategyType { .lineIndex }
     var tier: StrategyTier { .reliable }
@@ -28,7 +27,6 @@ class LineIndexStrategy: GeometryProvider {
         text: String,
         parser: ContentParser
     ) -> GeometryResult? {
-
         Logger.debug("LineIndexStrategy: Starting for range \(errorRange)", category: Logger.ui)
 
         // Convert filtered coordinates to original coordinates (still in grapheme clusters)
@@ -83,7 +81,7 @@ class LineIndexStrategy: GeometryProvider {
         }
 
         // Validate line bounds
-        guard lineBounds.width > 0 && lineBounds.height > 0 && lineBounds.height < GeometryConstants.maximumLineHeight else {
+        guard lineBounds.width > 0, lineBounds.height > 0, lineBounds.height < GeometryConstants.maximumLineHeight else {
             Logger.debug("LineIndexStrategy: Invalid line bounds: \(lineBounds)", category: Logger.accessibility)
             return nil
         }
@@ -97,24 +95,24 @@ class LineIndexStrategy: GeometryProvider {
         // Convert UTF-16 indices to String.Index for correct text extraction
         guard let lineStartIdx = stringIndex(forUTF16Offset: lineStartUTF16, in: text),
               let lineEndIdx = stringIndex(forUTF16Offset: lineEndUTF16, in: text),
-              lineStartIdx <= lineEndIdx else {
+              lineStartIdx <= lineEndIdx
+        else {
             Logger.debug("LineIndexStrategy: Failed to convert UTF-16 indices to string indices", category: Logger.accessibility)
             return nil
         }
-        let lineText = String(text[lineStartIdx..<lineEndIdx])
+        let lineText = String(text[lineStartIdx ..< lineEndIdx])
 
         // Get text before error within the line
         // offsetInLineUTF16 is the UTF-16 offset within the line, need to convert to grapheme count
-        var textBeforeErrorInLine: String
-        if offsetInLineUTF16 > 0 {
+        var textBeforeErrorInLine = if offsetInLineUTF16 > 0 {
             // Convert the error position to a string index within the line text
             if let errorPosInLine = stringIndex(forUTF16Offset: offsetInLineUTF16, in: lineText) {
-                textBeforeErrorInLine = String(lineText[..<errorPosInLine])
+                String(lineText[..<errorPosInLine])
             } else {
-                textBeforeErrorInLine = ""
+                ""
             }
         } else {
-            textBeforeErrorInLine = ""
+            ""
         }
 
         // Handle edge case: if textBeforeErrorInLine contains a newline, the error is actually
@@ -124,7 +122,7 @@ class LineIndexStrategy: GeometryProvider {
         var lineOffsetAdjustment = 0
         if textBeforeErrorInLine.contains("\n") {
             let parts = textBeforeErrorInLine.components(separatedBy: "\n")
-            lineOffsetAdjustment = parts.count - 1  // Number of newlines crossed
+            lineOffsetAdjustment = parts.count - 1 // Number of newlines crossed
             textBeforeErrorInLine = parts.last ?? ""
             Logger.debug("LineIndexStrategy: Adjusted for newline boundary - \(lineOffsetAdjustment) lines down", category: Logger.ui)
         }
@@ -134,8 +132,9 @@ class LineIndexStrategy: GeometryProvider {
         let errorText: String
         if let errorStartIdx = stringIndex(forUTF16Offset: originalLocationUTF16, in: text),
            let errorEndIdx = stringIndex(forUTF16Offset: errorEndUTF16, in: text),
-           errorStartIdx <= errorEndIdx {
-            errorText = String(text[errorStartIdx..<errorEndIdx])
+           errorStartIdx <= errorEndIdx
+        {
+            errorText = String(text[errorStartIdx ..< errorEndIdx])
         } else {
             Logger.debug("LineIndexStrategy: String index out of bounds for error text", category: Logger.accessibility)
             return nil
@@ -222,7 +221,7 @@ class LineIndexStrategy: GeometryProvider {
                 "line_number": lineNumber,
                 "line_range": "\(lineRange)",
                 "offset_in_line_utf16": offsetInLineUTF16,
-                "using_estimated_bounds": usingEstimatedBounds
+                "using_estimated_bounds": usingEstimatedBounds,
             ]
         )
     }
@@ -266,7 +265,8 @@ class LineIndexStrategy: GeometryProvider {
 
         guard result == .success,
               let rv = rangeValue,
-              let range = safeAXValueGetRange(rv) else {
+              let range = safeAXValueGetRange(rv)
+        else {
             return nil
         }
 
@@ -289,7 +289,8 @@ class LineIndexStrategy: GeometryProvider {
 
         guard result == .success,
               let bv = boundsValue,
-              let bounds = safeAXValueGetRect(bv) else {
+              let bounds = safeAXValueGetRect(bv)
+        else {
             return nil
         }
 
@@ -311,7 +312,7 @@ class LineIndexStrategy: GeometryProvider {
         lineStartUTF16: Int,
         textBeforeLength: Int,
         errorText: String,
-        parser: ContentParser
+        parser _: ContentParser
     ) -> AttributedMeasurements? {
         // Get attributed string for the text before error
         let textBeforeWidth: CGFloat
@@ -328,7 +329,8 @@ class LineIndexStrategy: GeometryProvider {
             )
 
             guard result == .success,
-                  let attrString = attrStringValue as? NSAttributedString else {
+                  let attrString = attrStringValue as? NSAttributedString
+            else {
                 return nil
             }
 
@@ -351,7 +353,8 @@ class LineIndexStrategy: GeometryProvider {
         )
 
         guard errorResult == .success,
-              let errorAttrString = errorAttrStringValue as? NSAttributedString else {
+              let errorAttrString = errorAttrStringValue as? NSAttributedString
+        else {
             return nil
         }
 
@@ -376,7 +379,8 @@ class LineIndexStrategy: GeometryProvider {
 
         // Use configured font family if available, otherwise system font
         if let fontFamily = parser.fontFamily(context: context),
-           let font = NSFont(name: fontFamily, size: fontSize) {
+           let font = NSFont(name: fontFamily, size: fontSize)
+        {
             Logger.debug("LineIndexStrategy: Using configured font '\(fontFamily)' size \(fontSize)", category: Logger.ui)
             return font
         }
@@ -403,7 +407,8 @@ class LineIndexStrategy: GeometryProvider {
 
         guard result == .success,
               let attrString = attrStringValue as? NSAttributedString,
-              attrString.length > 0 else {
+              attrString.length > 0
+        else {
             Logger.trace("LineIndexStrategy: AXAttributedStringForRange unavailable", category: Logger.ui)
             return nil
         }
@@ -419,7 +424,8 @@ class LineIndexStrategy: GeometryProvider {
         // Try looking for AXFont key in attributed string
         if let fontDict = attrs[NSAttributedString.Key(rawValue: "AXFont")] as? [String: Any] {
             if let fontName = fontDict["AXFontName"] as? String,
-               let fontSize = fontDict["AXFontSize"] as? CGFloat {
+               let fontSize = fontDict["AXFontSize"] as? CGFloat
+            {
                 if let font = NSFont(name: fontName, size: fontSize) {
                     Logger.trace("LineIndexStrategy: Font from AXFont: \(fontName) \(fontSize)pt", category: Logger.ui)
                     return font
@@ -453,7 +459,7 @@ class LineIndexStrategy: GeometryProvider {
         // Calculate Y position for this line
         // In Quartz coordinates, Y increases downward from top-left
         // Line 0 is at the top of the element
-        let lineY = elementFrame.origin.y + (CGFloat(lineNumber) * lineHeight) + 4  // 4pt top padding estimate
+        let lineY = elementFrame.origin.y + (CGFloat(lineNumber) * lineHeight) + 4 // 4pt top padding estimate
 
         // Use element X for line start and full width
         let lineX = elementFrame.origin.x
@@ -478,7 +484,7 @@ class LineIndexStrategy: GeometryProvider {
     private func graphemeToUTF16(_ graphemeIndex: Int, in string: String) -> Int {
         let safeIndex = min(graphemeIndex, string.count)
         guard let stringIndex = string.index(string.startIndex, offsetBy: safeIndex, limitedBy: string.endIndex) else {
-            return graphemeIndex  // Fallback to original if conversion fails
+            return graphemeIndex // Fallback to original if conversion fails
         }
         let prefix = String(string[..<stringIndex])
         return (prefix as NSString).length

@@ -6,8 +6,8 @@
 //  Filters out toolbar/ribbon elements and focuses only on the document body
 //
 
-import Foundation
 import AppKit
+import Foundation
 
 /// Content parser for Microsoft Word
 /// Focuses only on the document text area, ignoring toolbar/ribbon elements
@@ -22,17 +22,17 @@ class WordContentParser: ContentParser {
         return nil
     }
 
-    func estimatedFontSize(context: String?) -> CGFloat {
+    func estimatedFontSize(context _: String?) -> CGFloat {
         // Word default is typically 11-12pt
-        return 12.0
+        12.0
     }
 
-    func spacingMultiplier(context: String?) -> CGFloat {
-        return 1.0
+    func spacingMultiplier(context _: String?) -> CGFloat {
+        1.0
     }
 
-    func horizontalPadding(context: String?) -> CGFloat {
-        return 4.0
+    func horizontalPadding(context _: String?) -> CGFloat {
+        4.0
     }
 
     /// Custom text extraction for Microsoft Word
@@ -52,7 +52,8 @@ class WordContentParser: ContentParser {
         var valueRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
            let text = valueRef as? String,
-           !text.isEmpty {
+           !text.isEmpty
+        {
             Logger.debug("WordContentParser: extractText - got AXValue (\(text.count) chars)", category: Logger.accessibility)
             return text
         }
@@ -129,7 +130,8 @@ class WordContentParser: ContentParser {
             var charCountRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &charCountRef) == .success,
                let charCount = charCountRef as? Int,
-               charCount > 0 {
+               charCount > 0
+            {
                 Logger.debug("WordContentParser: Accepting - AXScrollArea with \(charCount) characters", category: Logger.accessibility)
                 return true
             }
@@ -152,10 +154,10 @@ class WordContentParser: ContentParser {
     }
 
     /// Check if the element appears to be a toolbar/ribbon control
-    private static func isToolbarElement(role: String, subrole: String, description: String, identifier: String, title: String, value: String) -> Bool {
+    private static func isToolbarElement(role: String, subrole _: String, description: String, identifier: String, title: String, value _: String) -> Bool {
         // Toolbar-related roles
         let toolbarRoles = ["AXToolbar", "AXGroup", "AXButton", "AXCheckBox", "AXRadioButton"]
-        if toolbarRoles.contains(role) && !role.contains("Text") {
+        if toolbarRoles.contains(role), !role.contains("Text") {
             return true
         }
 
@@ -171,7 +173,7 @@ class WordContentParser: ContentParser {
     }
 
     /// Check if the element is a font selector
-    private static func isFontElement(description: String, identifier: String, title: String, value: String) -> Bool {
+    private static func isFontElement(description: String, identifier: String, title _: String, value: String) -> Bool {
         // Font-related keywords
         let fontKeywords = ["font", "typeface", "aptos", "calibri", "arial", "times", "helvetica", "style", "body"]
         for keyword in fontKeywords {
@@ -181,7 +183,7 @@ class WordContentParser: ContentParser {
         }
 
         // Check if value looks like a font name (parenthesized suffix like "Aptos (Body)")
-        if value.contains("(") && value.contains(")") && value.count < 50 {
+        if value.contains("("), value.contains(")"), value.count < 50 {
             // Likely a font name like "Aptos (Body)" or "Calibri (Body)"
             let fontNamePattern = #"^[A-Za-z\s]+ \([A-Za-z]+\)$"#
             if value.range(of: fontNamePattern, options: .regularExpression) != nil {
@@ -201,7 +203,8 @@ class WordContentParser: ContentParser {
             var parentRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentRef) == .success,
                let parent = parentRef,
-               CFGetTypeID(parent) == AXUIElementGetTypeID() {
+               CFGetTypeID(parent) == AXUIElementGetTypeID()
+            {
                 // Safe: type verified by CFGetTypeID check above
                 let parentElement = unsafeBitCast(parent, to: AXUIElement.self)
 
@@ -238,9 +241,10 @@ class WordContentParser: ContentParser {
         // First, get the application element
         var appRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, "AXTopLevelUIElement" as CFString, &appRef) == .success ||
-              AXUIElementCopyAttributeValue(element, kAXParentAttribute as CFString, &appRef) == .success,
-              let app = appRef,
-              CFGetTypeID(app) == AXUIElementGetTypeID() else {
+            AXUIElementCopyAttributeValue(element, kAXParentAttribute as CFString, &appRef) == .success,
+            let app = appRef,
+            CFGetTypeID(app) == AXUIElementGetTypeID()
+        else {
             return nil
         }
         // Safe: type verified by CFGetTypeID check above
@@ -248,7 +252,7 @@ class WordContentParser: ContentParser {
 
         // Walk up to find the window
         var windowElement: AXUIElement?
-        for _ in 0..<20 {
+        for _ in 0 ..< 20 {
             var roleRef: CFTypeRef?
             AXUIElementCopyAttributeValue(current, kAXRoleAttribute as CFString, &roleRef)
             let role = roleRef as? String ?? ""
@@ -261,7 +265,8 @@ class WordContentParser: ContentParser {
             var parentRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentRef) == .success,
                let parent = parentRef,
-               CFGetTypeID(parent) == AXUIElementGetTypeID() {
+               CFGetTypeID(parent) == AXUIElementGetTypeID()
+            {
                 // Safe: type verified by CFGetTypeID check above
                 current = unsafeBitCast(parent, to: AXUIElement.self)
             } else {
@@ -298,7 +303,8 @@ class WordContentParser: ContentParser {
         // Check children
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-              let children = childrenRef as? [AXUIElement] else {
+              let children = childrenRef as? [AXUIElement]
+        else {
             return nil
         }
 

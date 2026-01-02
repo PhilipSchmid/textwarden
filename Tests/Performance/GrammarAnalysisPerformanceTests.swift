@@ -5,11 +5,10 @@
 //  Performance tests ensuring <20ms analysis for real-time detection
 //
 
-import XCTest
 @testable import TextWarden
+import XCTest
 
 final class GrammarAnalysisPerformanceTests: XCTestCase {
-
     // MARK: - Real-time Analysis Performance (<20ms target)
 
     func testAnalysis_ShortSentence_Under20ms() {
@@ -47,7 +46,7 @@ final class GrammarAnalysisPerformanceTests: XCTestCase {
             "The team is working on multiple projects this quarter.",
             "She doesn't like apples but enjoys oranges very much.",
             "They were happy yesterday when the results were announced.",
-            "A quick brown fox jumps over the lazy sleeping dog."
+            "A quick brown fox jumps over the lazy sleeping dog.",
         ]
 
         // When: Analyzing multiple times
@@ -102,7 +101,7 @@ final class GrammarAnalysisPerformanceTests: XCTestCase {
             "The quick brown fox.",
             "She dont like apples.",
             "They was happy.",
-            "A beautiful day outside."
+            "A beautiful day outside.",
         ]
 
         // When: Analyzing concurrently
@@ -129,7 +128,7 @@ final class GrammarAnalysisPerformanceTests: XCTestCase {
         let text = "The quick brown fox jumps over the lazy dog."
 
         // When: Analyzing many times
-        for _ in 0..<100 {
+        for _ in 0 ..< 100 {
             autoreleasepool {
                 _ = GrammarEngine.shared.analyzeText(text)
             }

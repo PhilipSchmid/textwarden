@@ -5,9 +5,9 @@
 //  Controls which tab is shown in the preferences window
 //
 
-import Foundation
-import Combine
 import AppKit
+import Combine
+import Foundation
 
 /// Type-safe enum for settings tabs - use this instead of raw integers
 /// to ensure navigation remains correct even if tabs are reordered

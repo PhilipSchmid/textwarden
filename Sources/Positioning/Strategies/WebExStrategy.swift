@@ -15,7 +15,6 @@ import ApplicationServices
 
 /// Dedicated WebEx positioning using standard AXBoundsForRange
 class WebExStrategy: GeometryProvider {
-
     var strategyName: String { "WebEx" }
     var strategyType: StrategyType { .webex }
     var tier: StrategyTier { .precise }
@@ -45,9 +44,8 @@ class WebExStrategy: GeometryProvider {
         errorRange: NSRange,
         element: AXUIElement,
         text: String,
-        parser: ContentParser
+        parser _: ContentParser
     ) -> GeometryResult? {
-
         Logger.debug("WebExStrategy: Calculating for range \(errorRange) in text length \(text.count)", category: Logger.ui)
 
         // Convert grapheme cluster indices to UTF-16 code unit indices
@@ -73,14 +71,16 @@ class WebExStrategy: GeometryProvider {
 
         guard result == .success,
               let bv = boundsRef,
-              CFGetTypeID(bv) == AXValueGetTypeID() else {
+              CFGetTypeID(bv) == AXValueGetTypeID()
+        else {
             Logger.debug("WebExStrategy: AXBoundsForRange failed - letting chain continue", category: Logger.ui)
             return nil
         }
 
         var quartzBounds = CGRect.zero
         guard AXValueGetValue(bv as! AXValue, .cgRect, &quartzBounds),
-              quartzBounds.width >= GeometryConstants.minimumBoundsSize else {
+              quartzBounds.width >= GeometryConstants.minimumBoundsSize
+        else {
             Logger.debug("WebExStrategy: Bounds too small or invalid - letting chain continue", category: Logger.ui)
             return nil
         }

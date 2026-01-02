@@ -10,7 +10,6 @@ import Foundation
 
 /// Centralized timing constants for TextWarden
 enum TimingConstants {
-
     // MARK: - Debounce Intervals
 
     /// Default debounce interval for text change detection (50ms for snappy UX)

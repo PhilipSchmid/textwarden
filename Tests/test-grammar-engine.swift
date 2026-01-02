@@ -22,7 +22,8 @@ if let resultPtr = analyze_text(testText, dialect) {
     // Parse JSON to check if errors were found
     if let jsonData = resultString.data(using: .utf8),
        let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-       let errors = json["errors"] as? [[String: Any]] {
+       let errors = json["errors"] as? [[String: Any]]
+    {
         print("\n✅ Found \(errors.count) error(s)")
         for error in errors {
             if let message = error["message"] as? String {

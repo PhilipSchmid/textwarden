@@ -5,8 +5,8 @@
 //  Per-application settings for grammar checking.
 //
 
-import SwiftUI
 import AppKit
+import SwiftUI
 
 // MARK: - Application Settings
 
@@ -41,6 +41,7 @@ struct ApplicationSettingsView: View {
             // Application list
             List {
                 // MARK: - Supported Applications Section
+
                 Section {
                     ForEach(filteredSupportedApps, id: \.bundleIdentifier) { app in
                         ApplicationRow(
@@ -66,6 +67,7 @@ struct ApplicationSettingsView: View {
                 .headerProminence(.increased)
 
                 // MARK: - Other Applications Section
+
                 if !otherApps.isEmpty || !searchText.isEmpty {
                     Section {
                         DisclosureGroup(
@@ -157,7 +159,7 @@ struct ApplicationSettingsView: View {
         }
         return supportedApps.filter { app in
             app.name.localizedCaseInsensitiveContains(searchText) ||
-            app.bundleIdentifier.localizedCaseInsensitiveContains(searchText)
+                app.bundleIdentifier.localizedCaseInsensitiveContains(searchText)
         }
     }
 
@@ -168,7 +170,7 @@ struct ApplicationSettingsView: View {
         }
         return otherApps.filter { app in
             app.name.localizedCaseInsensitiveContains(searchText) ||
-            app.bundleIdentifier.localizedCaseInsensitiveContains(searchText)
+                app.bundleIdentifier.localizedCaseInsensitiveContains(searchText)
         }
     }
 
@@ -176,7 +178,7 @@ struct ApplicationSettingsView: View {
 
     /// Check if an app has a dedicated configuration profile
     private func isSupported(_ bundleID: String) -> Bool {
-        return AppRegistry.shared.hasConfiguration(for: bundleID)
+        AppRegistry.shared.hasConfiguration(for: bundleID)
     }
 
     /// Load all applications and split into supported/other
@@ -199,7 +201,8 @@ struct ApplicationSettingsView: View {
         let workspace = NSWorkspace.shared
         for app in workspace.runningApplications {
             if let bundleID = app.bundleIdentifier,
-               app.activationPolicy == .regular {
+               app.activationPolicy == .regular
+            {
                 allBundleIDs.insert(bundleID)
             }
         }
@@ -219,8 +222,9 @@ struct ApplicationSettingsView: View {
                     supported.append(app)
                 } else {
                     // Auto-pause unsupported apps that haven't been configured yet
-                    if preferences.getPauseDuration(for: bundleID) == .active &&
-                       !preferences.appPauseDurations.keys.contains(bundleID) {
+                    if preferences.getPauseDuration(for: bundleID) == .active,
+                       !preferences.appPauseDurations.keys.contains(bundleID)
+                    {
                         preferences.setPauseDuration(for: bundleID, duration: .indefinite)
                     }
                     other.append(app)

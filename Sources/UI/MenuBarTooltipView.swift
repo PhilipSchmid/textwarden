@@ -5,8 +5,8 @@
 //  Tooltip shown once after onboarding to help users find the menu bar icon
 //
 
-import SwiftUI
 import AppKit
+import SwiftUI
 
 // MARK: - Menu Bar Tooltip View
 
@@ -152,7 +152,7 @@ class MenuBarTooltipWindowController {
         window.isOpaque = false
         window.backgroundColor = .clear
         window.level = .popUpMenu
-        window.hasShadow = false  // We use SwiftUI shadow instead
+        window.hasShadow = false // We use SwiftUI shadow instead
 
         // Make the hosting view transparent
         if let hostingView = hostingController?.view {
@@ -185,25 +185,25 @@ class MenuBarTooltipWindowController {
 
         // Close when clicking outside
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-            guard let self = self, let window = self.window else { return }
+            guard let self, let window = self.window else { return }
 
             let clickLocation = event.locationInWindow
             let windowFrame = window.frame
 
             if !windowFrame.contains(clickLocation) {
-                self.dismissTooltip()
+                dismissTooltip()
             }
         }
 
         // Also close on local mouse events (clicks inside the app but outside tooltip)
         let localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-            guard let self = self, let window = self.window else { return event }
+            guard let self, let window = self.window else { return event }
 
             let clickLocationInScreen = NSEvent.mouseLocation
             let windowFrame = window.frame
 
             if !windowFrame.contains(clickLocationInScreen) {
-                self.dismissTooltip()
+                dismissTooltip()
             }
             return event
         }

@@ -7,8 +7,8 @@
 //  Slide text boxes are not exposed programmatically by PowerPoint.
 //
 
-import Foundation
 import AppKit
+import Foundation
 
 /// Content parser for Microsoft PowerPoint
 /// Supports Notes section only (slide text boxes are not accessible via Accessibility API)
@@ -23,17 +23,17 @@ class PowerPointContentParser: ContentParser {
         return nil
     }
 
-    func estimatedFontSize(context: String?) -> CGFloat {
+    func estimatedFontSize(context _: String?) -> CGFloat {
         // PowerPoint default body text is typically 18-24pt
-        return 18.0
+        18.0
     }
 
-    func spacingMultiplier(context: String?) -> CGFloat {
-        return 1.0
+    func spacingMultiplier(context _: String?) -> CGFloat {
+        1.0
     }
 
-    func horizontalPadding(context: String?) -> CGFloat {
-        return 4.0
+    func horizontalPadding(context _: String?) -> CGFloat {
+        4.0
     }
 
     /// Custom text extraction for Microsoft PowerPoint Notes section
@@ -51,7 +51,8 @@ class PowerPointContentParser: ContentParser {
         var valueRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
            let text = valueRef as? String,
-           !text.isEmpty {
+           !text.isEmpty
+        {
             Logger.debug("PowerPointContentParser: extractText - got AXValue (\(text.count) chars)", category: Logger.accessibility)
             return text
         }
@@ -144,10 +145,10 @@ class PowerPointContentParser: ContentParser {
     }
 
     /// Check if the element appears to be a toolbar/ribbon control
-    private static func isToolbarElement(role: String, subrole: String, description: String, identifier: String, title: String, value: String) -> Bool {
+    private static func isToolbarElement(role: String, subrole _: String, description: String, identifier: String, title: String, value _: String) -> Bool {
         // Toolbar-related roles
         let toolbarRoles = ["AXToolbar", "AXGroup", "AXButton", "AXCheckBox", "AXRadioButton"]
-        if toolbarRoles.contains(role) && !role.contains("Text") {
+        if toolbarRoles.contains(role), !role.contains("Text") {
             return true
         }
 
@@ -163,7 +164,7 @@ class PowerPointContentParser: ContentParser {
     }
 
     /// Check if the element is a font selector
-    private static func isFontElement(description: String, identifier: String, title: String, value: String) -> Bool {
+    private static func isFontElement(description: String, identifier: String, title _: String, value: String) -> Bool {
         // Font-related keywords
         let fontKeywords = ["font", "typeface", "aptos", "calibri", "arial", "times", "helvetica", "style", "body"]
         for keyword in fontKeywords {
@@ -173,7 +174,7 @@ class PowerPointContentParser: ContentParser {
         }
 
         // Check if value looks like a font name (parenthesized suffix like "Aptos (Body)")
-        if value.contains("(") && value.contains(")") && value.count < 50 {
+        if value.contains("("), value.contains(")"), value.count < 50 {
             let fontNamePattern = #"^[A-Za-z\s]+ \([A-Za-z]+\)$"#
             if value.range(of: fontNamePattern, options: .regularExpression) != nil {
                 return true
@@ -192,7 +193,8 @@ class PowerPointContentParser: ContentParser {
             var parentRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentRef) == .success,
                let parent = parentRef,
-               CFGetTypeID(parent) == AXUIElementGetTypeID() {
+               CFGetTypeID(parent) == AXUIElementGetTypeID()
+            {
                 // Safe: type verified by CFGetTypeID check above
                 let parentElement = unsafeBitCast(parent, to: AXUIElement.self)
 

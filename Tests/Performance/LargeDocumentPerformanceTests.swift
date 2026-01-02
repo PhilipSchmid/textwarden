@@ -5,8 +5,8 @@
 //  Performance tests for 10,000-word document analysis
 //
 
-import XCTest
 @testable import TextWarden
+import XCTest
 
 final class LargeDocumentPerformanceTests: XCTestCase {
     var grammarEngine: GrammarEngine!
@@ -56,8 +56,8 @@ final class LargeDocumentPerformanceTests: XCTestCase {
         let text = generateLargeDocument(wordCount: 10000)
 
         // Analyze multiple times to check for memory leaks
-        for _ in 0..<5 {
-            let _ = grammarEngine.analyzeText(text)
+        for _ in 0 ..< 5 {
+            _ = grammarEngine.analyzeText(text)
         }
 
         // If we get here without crash, memory is managed properly
@@ -65,15 +65,15 @@ final class LargeDocumentPerformanceTests: XCTestCase {
     }
 
     func testMultipleLargeDocumentsConcurrently() {
-        let expectation = self.expectation(description: "Concurrent analysis")
+        let expectation = expectation(description: "Concurrent analysis")
         expectation.expectedFulfillmentCount = 3
 
         let text = generateLargeDocument(wordCount: 5000)
 
         // Simulate analyzing multiple large documents concurrently
-        for _ in 0..<3 {
+        for _ in 0 ..< 3 {
             DispatchQueue.global().async {
-                let _ = self.grammarEngine.analyzeText(text)
+                _ = self.grammarEngine.analyzeText(text)
                 expectation.fulfill()
             }
         }
@@ -94,7 +94,7 @@ final class LargeDocumentPerformanceTests: XCTestCase {
             "All that glitters is not gold.",
             "Actions speak louder than words.",
             "Knowledge is power and power corrupts.",
-            "The pen is mightier than the sword."
+            "The pen is mightier than the sword.",
         ]
 
         var words: [String] = []

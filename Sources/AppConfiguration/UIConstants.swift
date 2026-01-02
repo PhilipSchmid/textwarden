@@ -10,7 +10,6 @@ import Foundation
 
 /// Centralized UI constants for TextWarden
 enum UIConstants {
-
     // MARK: - Window Dimensions
 
     /// Minimum window dimension to be considered valid (not a tooltip/popup)
@@ -43,8 +42,8 @@ enum UIConstants {
 
     /// Popover spacing from indicator (accounts for ~400px popover width + centering)
     /// Formula: gap + popoverWidth/2, where gap is visual spacing desired
-    static let popoverLeftSpacing: CGFloat = 215   // 15px gap + 200px (half of ~400px popover)
-    static let popoverRightSpacing: CGFloat = 215  // 15px gap + 200px (half of ~400px popover)
+    static let popoverLeftSpacing: CGFloat = 215 // 15px gap + 200px (half of ~400px popover)
+    static let popoverRightSpacing: CGFloat = 215 // 15px gap + 200px (half of ~400px popover)
 
     // MARK: - Underlines
 

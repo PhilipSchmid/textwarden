@@ -5,12 +5,12 @@
 //  First-time setup and Accessibility permission onboarding
 //
 
-import SwiftUI
 import ApplicationServices
 import LaunchAtLogin
+import SwiftUI
 
 #if canImport(FoundationModels)
-import FoundationModels
+    import FoundationModels
 #endif
 
 // MARK: - App URLs
@@ -142,7 +142,7 @@ struct OnboardingView: View {
                             case .websiteExclusion:
                                 websiteExclusionStep
                             case .gettingStarted:
-                                EmptyView()  // Handled above
+                                EmptyView() // Handled above
                             case .sponsoring:
                                 sponsoringStep
                             }
@@ -645,7 +645,7 @@ struct OnboardingView: View {
         }
 
         // Remove www. prefix (but keep wildcards like *.example.com)
-        if domain.hasPrefix("www.") && !domain.hasPrefix("*.") {
+        if domain.hasPrefix("www."), !domain.hasPrefix("*.") {
             domain = String(domain.dropFirst(4))
         }
 
@@ -843,29 +843,29 @@ struct OnboardingView: View {
 
     private var appleIntelligenceStatusIcon: String {
         switch appleIntelligenceStatus {
-        case .checking: return "hourglass"
-        case .available: return "checkmark.circle.fill"
-        case .notEnabled: return "exclamationmark.circle.fill"
-        case .notEligible, .notSupported: return "xmark.circle.fill"
+        case .checking: "hourglass"
+        case .available: "checkmark.circle.fill"
+        case .notEnabled: "exclamationmark.circle.fill"
+        case .notEligible, .notSupported: "xmark.circle.fill"
         }
     }
 
     private var appleIntelligenceStatusColor: Color {
         switch appleIntelligenceStatus {
-        case .checking: return .secondary
-        case .available: return .green
-        case .notEnabled: return .orange
-        case .notEligible, .notSupported: return .secondary
+        case .checking: .secondary
+        case .available: .green
+        case .notEnabled: .orange
+        case .notEligible, .notSupported: .secondary
         }
     }
 
     private var appleIntelligenceStatusSubtitle: String {
         switch appleIntelligenceStatus {
-        case .checking: return "Checking availability..."
-        case .available: return "Available on your Mac"
-        case .notEnabled: return "Requires setup"
-        case .notEligible: return "Not available on this Mac"
-        case .notSupported: return "Requires macOS 26+"
+        case .checking: "Checking availability..."
+        case .available: "Available on your Mac"
+        case .notEnabled: "Requires setup"
+        case .notEligible: "Not available on this Mac"
+        case .notSupported: "Requires macOS 26+"
         }
     }
 
@@ -895,28 +895,28 @@ struct OnboardingView: View {
     private var canGoBack: Bool {
         switch currentStep {
         case .overview:
-            return false  // First step
+            false // First step
         case .welcome, .permissionRequest, .verification:
-            return false  // During permission flow, don't allow back
+            false // During permission flow, don't allow back
         case .launchAtLogin:
-            return true  // Can go back to verification
+            true // Can go back to verification
         case .appleIntelligence:
-            return true
+            true
         case .languageDetection:
-            return true
+            true
         case .websiteExclusion:
-            return true
+            true
         case .gettingStarted:
-            return false  // Tutorial has its own navigation
+            false // Tutorial has its own navigation
         case .sponsoring:
-            return true
+            true
         }
     }
 
     private func goBack() {
         switch currentStep {
         case .overview, .welcome, .permissionRequest, .verification, .gettingStarted:
-            break  // Can't go back from these
+            break // Can't go back from these
         case .launchAtLogin:
             currentStep = .verification
         case .appleIntelligence:
@@ -948,50 +948,50 @@ struct OnboardingView: View {
     private var actionButtonHint: String {
         switch currentStep {
         case .overview:
-            return "Double tap to begin the setup process"
+            "Double tap to begin the setup process"
         case .welcome:
-            return "Double tap to continue with permission setup"
+            "Double tap to continue with permission setup"
         case .permissionRequest:
-            return "Double tap to open System Settings and grant accessibility permission"
+            "Double tap to open System Settings and grant accessibility permission"
         case .verification:
-            return "Double tap to continue to the next step"
+            "Double tap to continue to the next step"
         case .launchAtLogin:
-            return "Double tap to continue to AI style checking setup"
+            "Double tap to continue to AI style checking setup"
         case .appleIntelligence:
-            return "Double tap to continue to language detection setup"
+            "Double tap to continue to language detection setup"
         case .languageDetection:
-            return "Double tap to continue to website exclusions"
+            "Double tap to continue to website exclusions"
         case .websiteExclusion:
-            return "Double tap to view the quick start guide"
+            "Double tap to view the quick start guide"
         case .gettingStarted:
-            return ""  // Tutorial has its own navigation
+            "" // Tutorial has its own navigation
         case .sponsoring:
-            return "Double tap to complete setup"
+            "Double tap to complete setup"
         }
     }
 
     private var actionButtonTitle: String {
         switch currentStep {
         case .overview:
-            return "Get Started"
+            "Get Started"
         case .welcome:
-            return "Continue"
+            "Continue"
         case .permissionRequest:
-            return showTimeoutWarning ? "Retry" : "Open System Settings"
+            showTimeoutWarning ? "Retry" : "Open System Settings"
         case .verification:
-            return "Continue"
+            "Continue"
         case .launchAtLogin:
-            return "Continue"
+            "Continue"
         case .appleIntelligence:
-            return "Continue"
+            "Continue"
         case .languageDetection:
-            return "Continue"
+            "Continue"
         case .websiteExclusion:
-            return "Continue"
+            "Continue"
         case .gettingStarted:
-            return ""  // Tutorial has its own navigation
+            "" // Tutorial has its own navigation
         case .sponsoring:
-            return "Finish Setup"
+            "Finish Setup"
         }
     }
 
@@ -1088,35 +1088,35 @@ struct OnboardingView: View {
 
     private func checkAppleIntelligenceStatus() {
         #if canImport(FoundationModels)
-        if #available(macOS 26.0, *) {
-            let model = SystemLanguageModel.default
-            switch model.availability {
-            case .available:
-                appleIntelligenceStatus = .available
-                Logger.debug("Onboarding: Apple Intelligence available", category: Logger.ui)
-            case .unavailable(let reason):
-                switch reason {
-                case .appleIntelligenceNotEnabled:
-                    appleIntelligenceStatus = .notEnabled
-                    Logger.debug("Onboarding: Apple Intelligence not enabled", category: Logger.ui)
-                case .deviceNotEligible:
-                    appleIntelligenceStatus = .notEligible
-                    Logger.debug("Onboarding: Device not eligible for Apple Intelligence", category: Logger.ui)
-                case .modelNotReady:
-                    appleIntelligenceStatus = .notEnabled
-                    Logger.debug("Onboarding: Apple Intelligence model not ready", category: Logger.ui)
-                @unknown default:
-                    appleIntelligenceStatus = .notEnabled
-                    Logger.debug("Onboarding: Apple Intelligence unknown status", category: Logger.ui)
+            if #available(macOS 26.0, *) {
+                let model = SystemLanguageModel.default
+                switch model.availability {
+                case .available:
+                    appleIntelligenceStatus = .available
+                    Logger.debug("Onboarding: Apple Intelligence available", category: Logger.ui)
+                case let .unavailable(reason):
+                    switch reason {
+                    case .appleIntelligenceNotEnabled:
+                        appleIntelligenceStatus = .notEnabled
+                        Logger.debug("Onboarding: Apple Intelligence not enabled", category: Logger.ui)
+                    case .deviceNotEligible:
+                        appleIntelligenceStatus = .notEligible
+                        Logger.debug("Onboarding: Device not eligible for Apple Intelligence", category: Logger.ui)
+                    case .modelNotReady:
+                        appleIntelligenceStatus = .notEnabled
+                        Logger.debug("Onboarding: Apple Intelligence model not ready", category: Logger.ui)
+                    @unknown default:
+                        appleIntelligenceStatus = .notEnabled
+                        Logger.debug("Onboarding: Apple Intelligence unknown status", category: Logger.ui)
+                    }
                 }
+            } else {
+                appleIntelligenceStatus = .notSupported
+                Logger.debug("Onboarding: macOS version does not support Apple Intelligence", category: Logger.ui)
             }
-        } else {
-            appleIntelligenceStatus = .notSupported
-            Logger.debug("Onboarding: macOS version does not support Apple Intelligence", category: Logger.ui)
-        }
         #else
-        appleIntelligenceStatus = .notSupported
-        Logger.debug("Onboarding: FoundationModels not available", category: Logger.ui)
+            appleIntelligenceStatus = .notSupported
+            Logger.debug("Onboarding: FoundationModels not available", category: Logger.ui)
         #endif
     }
 
@@ -1124,7 +1124,7 @@ struct OnboardingView: View {
         // Always show overview first, even if permissions are already granted
         // The user can proceed through the steps normally
         // Only skip to verification if we're already past the overview
-        if permissionManager.isPermissionGranted && currentStep != .overview {
+        if permissionManager.isPermissionGranted, currentStep != .overview {
             currentStep = .verification
             stopPolling()
         }

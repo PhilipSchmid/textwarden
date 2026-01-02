@@ -10,14 +10,14 @@
 //  User text may contain passwords, credentials, and personal information.
 //
 
-import Foundation
-import CoreGraphics
 import AppKit
-import LaunchAtLogin
+import CoreGraphics
+import Foundation
 import KeyboardShortcuts
+import LaunchAtLogin
 
 #if canImport(FoundationModels)
-import FoundationModels
+    import FoundationModels
 #endif
 
 // MARK: - Apple Intelligence Style Checking Diagnostics
@@ -46,35 +46,35 @@ struct AppleIntelligenceDiagnostics: Codable {
         var status = "Unknown"
         var available = false
         var statusMessage = "Requires macOS 26+"
-        let isAnalyzing = false  // Not accessible at report generation time
+        let isAnalyzing = false // Not accessible at report generation time
 
         if #available(macOS 26.0, *) {
             // Access the shared FoundationModelsEngine to get status
             // Note: We can't easily access the singleton here without dependency injection,
             // so we check availability directly
             #if canImport(FoundationModels)
-            let model = SystemLanguageModel.default
-            switch model.availability {
-            case .available:
-                status = "Available"
-                available = true
-                statusMessage = "Ready"
-            case .unavailable(let reason):
-                switch reason {
-                case .appleIntelligenceNotEnabled:
-                    status = "NotEnabled"
-                    statusMessage = "Apple Intelligence not enabled in System Settings"
-                case .deviceNotEligible:
-                    status = "DeviceNotEligible"
-                    statusMessage = "Device not eligible (requires Apple Silicon)"
-                case .modelNotReady:
-                    status = "ModelNotReady"
-                    statusMessage = "Language model not ready yet"
-                @unknown default:
-                    status = "Unknown"
-                    statusMessage = "Unknown unavailability reason"
+                let model = SystemLanguageModel.default
+                switch model.availability {
+                case .available:
+                    status = "Available"
+                    available = true
+                    statusMessage = "Ready"
+                case let .unavailable(reason):
+                    switch reason {
+                    case .appleIntelligenceNotEnabled:
+                        status = "NotEnabled"
+                        statusMessage = "Apple Intelligence not enabled in System Settings"
+                    case .deviceNotEligible:
+                        status = "DeviceNotEligible"
+                        statusMessage = "Device not eligible (requires Apple Silicon)"
+                    case .modelNotReady:
+                        status = "ModelNotReady"
+                        statusMessage = "Language model not ready yet"
+                    @unknown default:
+                        status = "Unknown"
+                        statusMessage = "Unknown unavailability reason"
+                    }
                 }
-            }
             #endif
         }
 
@@ -125,18 +125,17 @@ struct TimeRangeStatistics: Codable {
 
     @MainActor
     static func from(_ stats: UserStatistics, timeRange: TimeRange) -> TimeRangeStatistics {
-        let timeRangeName: String
-        switch timeRange {
+        let timeRangeName = switch timeRange {
         case .session:
-            timeRangeName = "Since App Start"
+            "Since App Start"
         case .day:
-            timeRangeName = "Last 24 Hours"
+            "Last 24 Hours"
         case .week:
-            timeRangeName = "Last 7 Days"
+            "Last 7 Days"
         case .month:
-            timeRangeName = "Last 30 Days"
+            "Last 30 Days"
         case .ninetyDays:
-            timeRangeName = "Last 90 Days"
+            "Last 90 Days"
         }
 
         // Get latency samples for this time range
@@ -426,7 +425,7 @@ struct SettingsDump: Codable {
 
     @MainActor
     static func from(_ preferences: UserPreferences, shortcuts: [String: String] = [:]) -> SettingsDump {
-        return SettingsDump(
+        SettingsDump(
             autoStart: LaunchAtLogin.isEnabled,
             selectedDialect: preferences.selectedDialect,
             enabledCategories: Array(preferences.enabledCategories).sorted(),
@@ -446,8 +445,8 @@ struct SettingsDump: Codable {
             fileLoggingEnabled: Logger.fileLoggingEnabled,
             logFilePath: Logger.logFilePath,
             debugOverlaysEnabled: preferences.showDebugBorderTextFieldBounds ||
-                                 preferences.showDebugBorderCGWindowCoords ||
-                                 preferences.showDebugBorderCocoaCoords,
+                preferences.showDebugBorderCGWindowCoords ||
+                preferences.showDebugBorderCocoaCoords,
             showTextFieldBounds: preferences.showDebugBorderTextFieldBounds,
             showCGWindowCoords: preferences.showDebugBorderCGWindowCoords,
             showCocoaCoords: preferences.showDebugBorderCocoaCoords,
@@ -549,9 +548,9 @@ struct DiagnosticReport: Codable {
         crashReportCount: Int = 0,
         shortcuts: [String: String] = [:]
     ) -> DiagnosticReport {
-        return DiagnosticReport(
+        DiagnosticReport(
             reportTimestamp: Date(),
-            reportVersion: "6.0",  // Bumped to 6.0 for Apple Intelligence migration
+            reportVersion: "6.0", // Bumped to 6.0 for Apple Intelligence migration
             appVersion: BuildInfo.appVersion,
             buildNumber: BuildInfo.buildNumber,
             buildTimestamp: BuildInfo.buildTimestamp,
@@ -626,7 +625,7 @@ struct DiagnosticReport: Codable {
                 try fileManager.copyItem(atPath: logPath, toPath: destLogURL.path)
 
                 // Copy rotated logs
-                for i in 1..<5 {
+                for i in 1 ..< 5 {
                     let rotatedLog = "\(logPath).\(i)"
                     if fileManager.fileExists(atPath: rotatedLog) {
                         let rotatedFileName = "\(logFileName).\(i)"

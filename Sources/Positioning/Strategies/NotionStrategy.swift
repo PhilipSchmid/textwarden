@@ -27,14 +27,13 @@ import ApplicationServices
 /// A segment of text with its visual bounds from the AX tree
 private struct TextPart {
     let text: String
-    let range: NSRange          // Character range in the full text
-    let frame: CGRect           // Visual bounds from AXFrame (Quartz coordinates)
-    let element: AXUIElement    // Reference to query AXBoundsForRange directly
+    let range: NSRange // Character range in the full text
+    let frame: CGRect // Visual bounds from AXFrame (Quartz coordinates)
+    let element: AXUIElement // Reference to query AXBoundsForRange directly
 }
 
 /// Dedicated Notion positioning using AX tree traversal for bounds
 class NotionStrategy: GeometryProvider {
-
     var strategyName: String { "Notion" }
     var strategyType: StrategyType { .notion }
     var tier: StrategyTier { .precise }
@@ -58,7 +57,7 @@ class NotionStrategy: GeometryProvider {
 
     // MARK: - GeometryProvider
 
-    func canHandle(element: AXUIElement, bundleID: String) -> Bool {
+    func canHandle(element _: AXUIElement, bundleID: String) -> Bool {
         guard Self.notionBundleIDs.contains(bundleID) else { return false }
 
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
@@ -75,7 +74,6 @@ class NotionStrategy: GeometryProvider {
         text: String,
         parser: ContentParser
     ) -> GeometryResult? {
-
         Logger.trace("NotionStrategy: Calculating for range \(errorRange) in text length \(text.count)", category: Logger.ui)
 
         // Convert filtered coordinates to original coordinates
@@ -102,7 +100,7 @@ class NotionStrategy: GeometryProvider {
         let textHash = fullText.hashValue
         let textParts: [TextPart]
 
-        if textHash == cachedTextHash && elementFrame == cachedElementFrame && !cachedTextParts.isEmpty {
+        if textHash == cachedTextHash, elementFrame == cachedElementFrame, !cachedTextParts.isEmpty {
             // Use cached TextParts
             textParts = cachedTextParts
         } else {
@@ -116,7 +114,7 @@ class NotionStrategy: GeometryProvider {
 
         if textParts.isEmpty {
             Logger.debug("NotionStrategy: No TextParts found - allowing fallback strategies", category: Logger.ui)
-            return nil  // Return nil to allow fallback strategies to try
+            return nil // Return nil to allow fallback strategies to try
         }
 
         // STEP 2: Find TextPart(s) that contain the error range
@@ -144,9 +142,10 @@ class NotionStrategy: GeometryProvider {
         // STEP 3: Validate bounds are within element frame
         // Notion's AXBoundsForRange sometimes returns coordinates for scrolled-out content
         let elementBottom = elementFrame.origin.y + elementFrame.height
-        guard bounds.origin.y >= elementFrame.origin.y - 50 &&
-              bounds.origin.y <= elementBottom + 50 &&
-              bounds.width > 0 && bounds.height > 0 && bounds.height < 100 else {
+        guard bounds.origin.y >= elementFrame.origin.y - 50,
+              bounds.origin.y <= elementBottom + 50,
+              bounds.width > 0, bounds.height > 0, bounds.height < 100
+        else {
             Logger.debug("NotionStrategy: Bounds validation failed - bounds=\(bounds), elementFrame=\(elementFrame)", category: Logger.ui)
             return GeometryResult.unavailable(reason: "Bounds outside visible element area")
         }
@@ -175,7 +174,7 @@ class NotionStrategy: GeometryProvider {
             strategy: strategyName,
             metadata: [
                 "api": "textpart-tree",
-                "textparts": "\(textParts.count)"
+                "textparts": "\(textParts.count)",
             ]
         )
     }
@@ -183,7 +182,7 @@ class NotionStrategy: GeometryProvider {
     // MARK: - TextPart Tree Building
 
     /// Maximum recursion depth for tree traversal (prevents infinite loops)
-    private static let maxTreeDepth = 15  // Notion has deeper nesting than Teams
+    private static let maxTreeDepth = 15 // Notion has deeper nesting than Teams
 
     /// Build TextPart map by recursively traversing entire AX tree
     /// Notion uses various nesting for blocks, headers, callouts, etc.
@@ -217,7 +216,7 @@ class NotionStrategy: GeometryProvider {
         let frame = getFrame(element)
 
         // Log all elements we visit for debugging
-        if !text.isEmpty && text.count < 100 {
+        if !text.isEmpty, text.count < 100 {
             Logger.trace("NotionStrategy: [depth=\(depth)] role=\(role), text='\(text.prefix(30))...', frame=\(frame)", category: Logger.ui)
         }
 
@@ -278,7 +277,7 @@ class NotionStrategy: GeometryProvider {
             return nil
         }
 
-        let searchRange = searchStartIdx..<text.endIndex
+        let searchRange = searchStartIdx ..< text.endIndex
         if let foundRange = text.range(of: substring, range: searchRange) {
             let location = text.distance(from: text.startIndex, to: foundRange.lowerBound)
             return NSRange(location: location, length: substring.count)
@@ -291,7 +290,7 @@ class NotionStrategy: GeometryProvider {
 
     /// Find visual bounds for a character range using TextPart map
     /// For multi-TextPart errors, unions overlapping bounds
-    private func findBoundsForRange(_ targetRange: NSRange, in textParts: [TextPart], fullText: String, element: AXUIElement) -> CGRect? {
+    private func findBoundsForRange(_ targetRange: NSRange, in textParts: [TextPart], fullText _: String, element _: AXUIElement) -> CGRect? {
         let targetEnd = targetRange.location + targetRange.length
 
         // Find TextParts that CONTAIN the error range (error starts within TextPart)
@@ -349,7 +348,7 @@ class NotionStrategy: GeometryProvider {
         // A negative offset means the error starts BEFORE this TextPart - this is a matching bug
         guard graphemeOffsetInPart >= 0 else {
             Logger.warning("NotionStrategy: Negative grapheme offset \(graphemeOffsetInPart) - error range \(targetRange) doesn't match TextPart range \(part.range)", category: Logger.ui)
-            return nil  // Return nil to try next TextPart or fallback
+            return nil // Return nil to try next TextPart or fallback
         }
 
         // Also ensure the error actually overlaps with this TextPart's content
@@ -368,7 +367,7 @@ class NotionStrategy: GeometryProvider {
         // The local range is relative to the TextPart text, in UTF-16 code units
         if let bounds = getBoundsForRange(location: utf16Range.location, length: utf16Range.length, in: part.element) {
             // Validate bounds are reasonable
-            if bounds.width > 0 && bounds.height > 0 && bounds.height < 100 {
+            if bounds.width > 0, bounds.height > 0, bounds.height < 100 {
                 Logger.trace("NotionStrategy: AXBoundsForRange on child SUCCESS: \(bounds)", category: Logger.ui)
                 return bounds
             }
@@ -397,7 +396,8 @@ class NotionStrategy: GeometryProvider {
 
         guard result == .success,
               let bv = boundsRef,
-              CFGetTypeID(bv) == AXValueGetTypeID() else {
+              CFGetTypeID(bv) == AXValueGetTypeID()
+        else {
             return nil
         }
 
@@ -414,7 +414,8 @@ class NotionStrategy: GeometryProvider {
     private func getFullTextFromElement(_ element: AXUIElement) -> String? {
         var textRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef) == .success,
-              let text = textRef as? String else {
+              let text = textRef as? String
+        else {
             return nil
         }
         return text
@@ -423,7 +424,8 @@ class NotionStrategy: GeometryProvider {
     private func getChildren(_ element: AXUIElement) -> [AXUIElement]? {
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-              let children = childrenRef as? [AXUIElement] else {
+              let children = childrenRef as? [AXUIElement]
+        else {
             return nil
         }
         return children
@@ -432,7 +434,8 @@ class NotionStrategy: GeometryProvider {
     private func getRole(_ element: AXUIElement) -> String {
         var roleRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef) == .success,
-              let role = roleRef as? String else {
+              let role = roleRef as? String
+        else {
             return ""
         }
         return role
@@ -441,7 +444,8 @@ class NotionStrategy: GeometryProvider {
     private func getText(_ element: AXUIElement) -> String {
         var textRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef) == .success,
-              let text = textRef as? String else {
+              let text = textRef as? String
+        else {
             return ""
         }
         return text
@@ -451,7 +455,8 @@ class NotionStrategy: GeometryProvider {
         var frameRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, "AXFrame" as CFString, &frameRef) == .success,
               let fRef = frameRef,
-              CFGetTypeID(fRef) == AXValueGetTypeID() else {
+              CFGetTypeID(fRef) == AXValueGetTypeID()
+        else {
             return .zero
         }
         var frame = CGRect.zero

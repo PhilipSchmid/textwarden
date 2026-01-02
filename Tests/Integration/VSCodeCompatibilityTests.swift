@@ -5,8 +5,8 @@
 //  Integration tests for VS Code compatibility
 //
 
-import XCTest
 @testable import TextWarden
+import XCTest
 
 final class VSCodeCompatibilityTests: XCTestCase {
     var coordinator: AnalysisCoordinator!

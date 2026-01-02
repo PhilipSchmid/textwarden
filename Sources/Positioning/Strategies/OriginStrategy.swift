@@ -7,20 +7,19 @@
 //  This strategy extracts just the position and estimates dimensions.
 //
 
-import Foundation
 import AppKit
 import ApplicationServices
+import Foundation
 
 /// Position extraction strategy
 /// Uses AXBoundsForRange position even when width/height are zero
 class OriginStrategy: GeometryProvider {
-
     var strategyName: String { "Origin" }
     var strategyType: StrategyType { .origin }
     var tier: StrategyTier { .reliable }
     var tierPriority: Int { 20 }
 
-    func canHandle(element: AXUIElement, bundleID: String) -> Bool {
+    func canHandle(element _: AXUIElement, bundleID: String) -> Bool {
         // Designed for Chromium/Electron apps that return zero dimensions
         // Note: Slack has its own dedicated SlackStrategy
         let chromiumApps: Set<String> = [
@@ -40,7 +39,6 @@ class OriginStrategy: GeometryProvider {
         text: String,
         parser: ContentParser
     ) -> GeometryResult? {
-
         Logger.debug("OriginStrategy: Starting for range \(errorRange)", category: Logger.ui)
 
         // Convert filtered coordinates to original coordinates
@@ -57,9 +55,9 @@ class OriginStrategy: GeometryProvider {
 
         // Check if position is valid (even if dimensions are zero)
         let hasValidPosition = rawBounds.origin.y > 0 &&
-                               rawBounds.origin.y < 10000 &&
-                               !rawBounds.origin.x.isNaN &&
-                               !rawBounds.origin.y.isNaN
+            rawBounds.origin.y < 10000 &&
+            !rawBounds.origin.x.isNaN &&
+            !rawBounds.origin.y.isNaN
 
         guard hasValidPosition else {
             Logger.debug("OriginStrategy: Position not valid - x=\(rawBounds.origin.x), y=\(rawBounds.origin.y)", category: Logger.accessibility)
@@ -85,11 +83,12 @@ class OriginStrategy: GeometryProvider {
         // Safe string slicing to handle UTF-16/character count mismatches
         guard let errorStartIdx = text.index(text.startIndex, offsetBy: errorStartIndex, limitedBy: text.endIndex),
               let errorEndIdx = text.index(text.startIndex, offsetBy: errorEndIndex, limitedBy: text.endIndex),
-              errorStartIdx <= errorEndIdx else {
+              errorStartIdx <= errorEndIdx
+        else {
             Logger.debug("OriginStrategy: String index out of bounds for error text", category: Logger.accessibility)
             return nil
         }
-        let errorText = String(text[errorStartIdx..<errorEndIdx])
+        let errorText = String(text[errorStartIdx ..< errorEndIdx])
         let errorWidth = max((errorText as NSString).size(withAttributes: attributes).width, 20.0)
         let errorHeight = fontSize * 1.3
 
@@ -126,7 +125,7 @@ class OriginStrategy: GeometryProvider {
                 "api": "origin-extraction",
                 "raw_position": "(\(rawBounds.origin.x), \(rawBounds.origin.y))",
                 "raw_dimensions": "(\(rawBounds.width), \(rawBounds.height))",
-                "estimated_dimensions": "(\(errorWidth), \(errorHeight))"
+                "estimated_dimensions": "(\(errorWidth), \(errorHeight))",
             ]
         )
     }
@@ -149,7 +148,8 @@ class OriginStrategy: GeometryProvider {
 
         guard result == .success,
               let bv = boundsValue,
-              let bounds = safeAXValueGetRect(bv) else {
+              let bounds = safeAXValueGetRect(bv)
+        else {
             Logger.debug("OriginStrategy: AXBoundsForRange failed with error \(result.rawValue)", category: Logger.accessibility)
             return nil
         }

@@ -55,8 +55,8 @@ struct TextSegment {
             return false
         }
 
-        let thisRange = startIndex..<endIndex
-        let otherRange = other.startIndex..<other.endIndex
+        let thisRange = startIndex ..< endIndex
+        let otherRange = other.startIndex ..< other.endIndex
 
         return thisRange.overlaps(otherRange)
     }

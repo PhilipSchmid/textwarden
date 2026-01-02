@@ -25,7 +25,6 @@ protocol PositionRefreshDelegate: AnyObject {
 /// Coordinates app-specific position refresh triggers
 /// Monitors events that may require underline position recalculation
 class PositionRefreshCoordinator {
-
     weak var delegate: PositionRefreshDelegate?
 
     /// Currently monitored bundle ID (nil if not monitoring)
@@ -147,9 +146,9 @@ class PositionRefreshCoordinator {
         case "com.tinyspeck.slackmacgap", "com.microsoft.teams2":
             // Slack and Teams have scrollable compose areas
             // Underlines become misaligned when content scrolls
-            return true
+            true
         default:
-            return false
+            false
         }
     }
 
@@ -159,10 +158,10 @@ class PositionRefreshCoordinator {
     private static func refreshDebounceMs(for bundleID: String) -> Int {
         switch bundleID {
         case "com.tinyspeck.slackmacgap":
-            return GeometryConstants.slackRecheckDebounceMs
+            GeometryConstants.slackRecheckDebounceMs
         default:
             // Formatting button clicks need a bit more delay for layout to stabilize
-            return 250
+            250
         }
     }
 
@@ -195,7 +194,7 @@ class PositionRefreshCoordinator {
 
         // Dispatch to main thread for thread-safe access
         Task { @MainActor [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
 
             // Skip if in replacement mode
             if AnalysisCoordinator.shared.isInReplacementMode {
@@ -203,10 +202,10 @@ class PositionRefreshCoordinator {
             }
 
             // Hide underlines immediately when scroll starts
-            self.delegate?.hideUnderlinesRequested()
+            delegate?.hideUnderlinesRequested()
 
             // Cancel any pending scroll refresh - we'll reschedule
-            self.scrollHideWorkItem?.cancel()
+            scrollHideWorkItem?.cancel()
 
             // Schedule refresh only after scrolling has fully stabilized
             let workItem = DispatchWorkItem { [weak self] in
@@ -215,7 +214,7 @@ class PositionRefreshCoordinator {
                     self?.delegate?.positionRefreshRequested()
                 }
             }
-            self.scrollHideWorkItem = workItem
+            scrollHideWorkItem = workItem
 
             // Wait 300ms after last scroll event before refreshing
             // This ensures scrolling has fully stopped
@@ -252,7 +251,7 @@ class PositionRefreshCoordinator {
 
         // All checks for replacement mode happen on MainActor
         Task { @MainActor [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
 
             // Skip refresh if in replacement mode
             if AnalysisCoordinator.shared.isInReplacementMode {
@@ -260,7 +259,7 @@ class PositionRefreshCoordinator {
             }
 
             // Cancel any pending refresh
-            self.refreshWorkItem?.cancel()
+            refreshWorkItem?.cancel()
 
             // Schedule refresh with short delay to let layout update
             let workItem = DispatchWorkItem { [weak self] in
@@ -269,7 +268,7 @@ class PositionRefreshCoordinator {
                     self?.delegate?.positionRefreshRequested()
                 }
             }
-            self.refreshWorkItem = workItem
+            refreshWorkItem = workItem
 
             // Use slightly longer delay for formatting (layout needs to stabilize)
             DispatchQueue.main.asyncAfter(
@@ -286,7 +285,7 @@ class PositionRefreshCoordinator {
         // Debounce to let the app's DOM/AX tree stabilize after click
         // All checks for replacement mode happen on MainActor
         Task { @MainActor [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
 
             // Skip refresh if in replacement mode (during replacement or grace period after)
             // Clicking on a suggestion triggers this, but we don't want to refresh
@@ -296,7 +295,7 @@ class PositionRefreshCoordinator {
             }
 
             // Cancel any pending refresh
-            self.refreshWorkItem?.cancel()
+            refreshWorkItem?.cancel()
 
             // Schedule new refresh
             let workItem = DispatchWorkItem { [weak self] in
@@ -306,7 +305,7 @@ class PositionRefreshCoordinator {
                     self?.delegate?.positionRefreshRequested()
                 }
             }
-            self.refreshWorkItem = workItem
+            refreshWorkItem = workItem
 
             DispatchQueue.main.asyncAfter(
                 deadline: .now() + .milliseconds(Self.refreshDebounceMs(for: bundleID)),

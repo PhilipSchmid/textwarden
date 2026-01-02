@@ -20,16 +20,16 @@ class DebugBorderWindow: NSPanel {
             defer: false
         )
 
-        self.isOpaque = false
-        self.backgroundColor = .clear
-        self.level = .screenSaver
-        self.ignoresMouseEvents = true
-        self.hasShadow = false
+        isOpaque = false
+        backgroundColor = .clear
+        level = .screenSaver
+        ignoresMouseEvents = true
+        hasShadow = false
 
         let borderView = DebugBorderView(color: color, label: label)
-        self.contentView = borderView
+        contentView = borderView
 
-        self.orderFront(nil)
+        orderFront(nil)
         DebugBorderWindow.debugWindows.append(self)
     }
 
@@ -46,13 +46,14 @@ class DebugBorderView: NSView {
     let label: String
 
     init(color: NSColor, label: String) {
-        self.borderColor = color
+        borderColor = color
         self.label = label
         super.init(frame: .zero)
-        self.wantsLayer = true
+        wantsLayer = true
     }
 
-    required init?(coder: NSCoder) {
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
@@ -69,17 +70,16 @@ class DebugBorderView: NSView {
         // Draw label
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.boldSystemFont(ofSize: 16),
-            .foregroundColor: borderColor
+            .foregroundColor: borderColor,
         ]
         let labelStr = label as NSString
         let textSize = labelStr.size(withAttributes: attrs)
 
         // Position blue box label (CGWindow coords) in top right, others in top left
-        let xPosition: CGFloat
-        if label.contains("CGWindow") {
-            xPosition = bounds.width - textSize.width - 10
+        let xPosition: CGFloat = if label.contains("CGWindow") {
+            bounds.width - textSize.width - 10
         } else {
-            xPosition = 10
+            10
         }
 
         labelStr.draw(at: NSPoint(x: xPosition, y: bounds.height - 30), withAttributes: attrs)

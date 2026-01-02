@@ -5,12 +5,11 @@
 //  Integration tests for Accessibility permission detection
 //
 
-import XCTest
 import ApplicationServices
 @testable import TextWarden
+import XCTest
 
 final class PermissionManagerTests: XCTestCase {
-
     var permissionManager: PermissionManager!
 
     override func setUp() {
@@ -86,7 +85,7 @@ final class PermissionManagerTests: XCTestCase {
     func testPermissionPolling() {
         // Given: App is monitoring for permission changes
         let expectation = XCTestExpectation(description: "Permission polling should detect changes")
-        expectation.isInverted = false  // Expect this to be fulfilled quickly
+        expectation.isInverted = false // Expect this to be fulfilled quickly
 
         var callbackCalled = false
 

@@ -4,7 +4,8 @@
 .PHONY: help build build-rust build-swift \
         run run-only install uninstall \
         test test-rust clean clean-all clean-derived \
-        ci-check fmt lint logs kill status reset reset-onboarding xcode version \
+        ci-check fmt fmt-rust fmt-swift lint lint-rust lint-swift \
+        logs kill status reset reset-onboarding xcode version \
         release release-alpha release-beta release-rc release-upload \
         help-book
 
@@ -126,32 +127,56 @@ ci-check: ## Run CI checks locally (use before pushing)
 	@echo "$(BLUE)Running CI checks...$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo ""
-	@echo "$(YELLOW)[1/4] Checking formatting...$(NC)"
+	@echo "$(YELLOW)[1/6] Checking Rust formatting...$(NC)"
 	@cd $(RUST_DIR) && cargo fmt --check
 	@echo "$(GREEN)✅ OK$(NC)"
 	@echo ""
-	@echo "$(YELLOW)[2/4] Running Clippy...$(NC)"
+	@echo "$(YELLOW)[2/6] Running Clippy...$(NC)"
 	@cd $(RUST_DIR) && cargo clippy --all-targets -- -D warnings
 	@echo "$(GREEN)✅ OK$(NC)"
 	@echo ""
-	@echo "$(YELLOW)[3/4] Running tests...$(NC)"
+	@echo "$(YELLOW)[3/6] Checking Swift formatting...$(NC)"
+	@swiftformat Sources Tests --lint 2>&1 || (echo "$(RED)❌ Swift formatting issues found. Run 'make fmt-swift' to fix.$(NC)" && exit 1)
+	@echo "$(GREEN)✅ OK$(NC)"
+	@echo ""
+	@echo "$(YELLOW)[4/6] Running SwiftLint...$(NC)"
+	@swiftlint lint --quiet Sources Tests
+	@echo "$(GREEN)✅ OK$(NC)"
+	@echo ""
+	@echo "$(YELLOW)[5/6] Running tests...$(NC)"
 	@cd $(RUST_DIR) && cargo test
 	@echo "$(GREEN)✅ OK$(NC)"
 	@echo ""
-	@echo "$(YELLOW)[4/4] Building...$(NC)"
+	@echo "$(YELLOW)[6/6] Building...$(NC)"
 	@make -s build
 	@echo ""
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(GREEN)✅ All checks passed! Safe to push.$(NC)"
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 
-fmt: ## Format Rust code
-	@cd $(RUST_DIR) && cargo fmt
-	@echo "$(GREEN)✅ Formatted$(NC)"
+fmt: ## Format all code (Rust + Swift)
+	@make -s fmt-rust
+	@make -s fmt-swift
 
-lint: ## Run Clippy linter
+fmt-rust: ## Format Rust code
+	@cd $(RUST_DIR) && cargo fmt
+	@echo "$(GREEN)✅ Rust formatted$(NC)"
+
+fmt-swift: ## Format Swift code
+	@swiftformat Sources Tests
+	@echo "$(GREEN)✅ Swift formatted$(NC)"
+
+lint: ## Lint all code (Rust + Swift)
+	@make -s lint-rust
+	@make -s lint-swift
+
+lint-rust: ## Run Clippy linter on Rust code
 	@cd $(RUST_DIR) && cargo clippy --all-targets -- -D warnings
-	@echo "$(GREEN)✅ Lint passed$(NC)"
+	@echo "$(GREEN)✅ Rust lint passed$(NC)"
+
+lint-swift: ## Run SwiftLint on Swift code
+	@swiftlint lint Sources Tests
+	@echo "$(GREEN)✅ Swift lint passed$(NC)"
 
 ##@ Utilities
 

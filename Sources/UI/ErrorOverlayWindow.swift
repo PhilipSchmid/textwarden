@@ -11,7 +11,6 @@ import ApplicationServices
 /// Manages a transparent overlay panel that draws error underlines
 /// CRITICAL: Uses NSPanel to prevent activating the app
 class ErrorOverlayWindow: NSPanel {
-
     // MARK: - Properties
 
     /// Current errors to display
@@ -80,29 +79,29 @@ class ErrorOverlayWindow: NSPanel {
         )
 
         // Configure panel properties to prevent ANY focus stealing
-        self.isOpaque = false
+        isOpaque = false
         // DEBUG: Clear background - border and label shown in UnderlineView
-        self.backgroundColor = .clear
-        self.hasShadow = false
+        backgroundColor = .clear
+        hasShadow = false
         // CRITICAL: Use .popUpMenu level - these windows NEVER activate the app
-        self.level = .popUpMenu
-        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        level = .popUpMenu
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         // CRITICAL: Prevent this panel from affecting app activation
-        self.hidesOnDeactivate = false
-        self.worksWhenModal = false
+        hidesOnDeactivate = false
+        worksWhenModal = false
         // CRITICAL: This makes the panel resist becoming the key window
-        self.becomesKeyOnlyIfNeeded = true
+        becomesKeyOnlyIfNeeded = true
         // CRITICAL: Ignore mouse events so clicks pass through to the app below
         // The overlay should be purely visual - only the FloatingErrorIndicator handles interaction
-        self.ignoresMouseEvents = true
-        self.isMovableByWindowBackground = false
+        ignoresMouseEvents = true
+        isMovableByWindowBackground = false
 
         let view = UnderlineView()
         view.wantsLayer = true
         view.layer?.backgroundColor = .clear
-        view.allowsClickPassThrough = true  // Custom property to enable click pass-through
-        self.contentView = view
-        self.underlineView = view
+        view.allowsClickPassThrough = true // Custom property to enable click pass-through
+        contentView = view
+        underlineView = view
 
         // Setup global mouse monitors for hover detection and click handling
         setupGlobalMouseMonitor()
@@ -110,33 +109,33 @@ class ErrorOverlayWindow: NSPanel {
     }
 
     override var canBecomeKey: Bool {
-        return false
+        false
     }
 
     override var canBecomeMain: Bool {
-        return false
+        false
     }
 
     // MARK: - Mouse Monitoring
 
     private func setupGlobalMouseMonitor() {
         // Monitor mouse moved events globally
-        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] event in
-            guard let self = self else { return }
+        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
+            guard let self else { return }
 
             // Only process if window is visible
-            guard self.isCurrentlyVisible else { return }
+            guard isCurrentlyVisible else { return }
 
             let mouseLocation = NSEvent.mouseLocation
 
             // Check if mouse is within our window bounds
-            guard self.frame.contains(mouseLocation) else {
+            guard frame.contains(mouseLocation) else {
                 // Mouse left the window - clear hover state
-                if self.hoveredUnderline != nil {
-                    self.hoveredUnderline = nil
+                if hoveredUnderline != nil {
+                    hoveredUnderline = nil
                     self.underlineView?.hoveredUnderline = nil
                     self.underlineView?.needsDisplay = true
-                    self.onHoverEnd?()
+                    onHoverEnd?()
                 }
                 return
             }
@@ -146,10 +145,10 @@ class ErrorOverlayWindow: NSPanel {
             // So Y=0 is at TOP of view, increases downward
             // But mouseLocation is in Cocoa coordinates (Y=0 at bottom, increases upward)
             // We must flip the Y coordinate to match the view's coordinate system
-            let windowOrigin = self.frame.origin
-            let windowHeight = self.frame.height
+            let windowOrigin = frame.origin
+            let windowHeight = frame.height
             let cocoaLocalY = mouseLocation.y - windowOrigin.y
-            let flippedLocalY = windowHeight - cocoaLocalY  // Flip Y for flipped view
+            let flippedLocalY = windowHeight - cocoaLocalY // Flip Y for flipped view
             let localPoint = CGPoint(
                 x: mouseLocation.x - windowOrigin.x,
                 y: flippedLocalY
@@ -158,14 +157,15 @@ class ErrorOverlayWindow: NSPanel {
             Logger.trace("ErrorOverlay: Global mouse at screen: \(mouseLocation), window-local (flipped): \(localPoint)", category: Logger.ui)
 
             // Check if hovering over any underline
-            guard let underlineView = self.underlineView else { return }
+            guard let underlineView else { return }
 
             if let newHoveredUnderline = underlineView.underlines.first(where: { $0.bounds.contains(localPoint) }) {
                 Logger.debug("ErrorOverlay: Hovering over error at bounds: \(newHoveredUnderline.bounds)", category: Logger.ui)
 
-                if self.hoveredUnderline?.error.start != newHoveredUnderline.error.start ||
-                   self.hoveredUnderline?.error.end != newHoveredUnderline.error.end {
-                    self.hoveredUnderline = newHoveredUnderline
+                if hoveredUnderline?.error.start != newHoveredUnderline.error.start ||
+                    hoveredUnderline?.error.end != newHoveredUnderline.error.end
+                {
+                    hoveredUnderline = newHoveredUnderline
                     underlineView.hoveredUnderline = newHoveredUnderline
                     underlineView.needsDisplay = true
                 }
@@ -202,40 +202,41 @@ class ErrorOverlayWindow: NSPanel {
                     popover.currentError?.start == newHoveredUnderline.error.start &&
                     popover.currentError?.end == newHoveredUnderline.error.end
 
-                if UserPreferences.shared.enableHoverPopover &&
-                   !isMouseOverPopover &&
-                   !isSameErrorAlreadyShowing {
-                    let appWindowFrame = self.getApplicationWindowFrame()
+                if UserPreferences.shared.enableHoverPopover,
+                   !isMouseOverPopover,
+                   !isSameErrorAlreadyShowing
+                {
+                    let appWindowFrame = getApplicationWindowFrame()
 
                     // Cancel any existing hover timer
-                    self.hoverTimer?.invalidate()
+                    hoverTimer?.invalidate()
 
                     let delayMs = UserPreferences.shared.popoverHoverDelayMs
                     if delayMs <= 0 {
                         // Instant display
-                        self.onErrorHover?(newHoveredUnderline.error, screenLocation, appWindowFrame)
+                        onErrorHover?(newHoveredUnderline.error, screenLocation, appWindowFrame)
                     } else {
                         // Delayed display
-                        self.hoverTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(delayMs) / 1000.0, repeats: false) { [weak self] _ in
+                        hoverTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(delayMs) / 1000.0, repeats: false) { [weak self] _ in
                             self?.onErrorHover?(newHoveredUnderline.error, screenLocation, appWindowFrame)
                         }
                     }
                 }
             } else {
                 // Clear hovered state
-                if self.hoveredUnderline != nil {
-                    self.hoveredUnderline = nil
+                if hoveredUnderline != nil {
+                    hoveredUnderline = nil
                     underlineView.hoveredUnderline = nil
                     underlineView.needsDisplay = true
 
                     // Cancel pending hover timer
-                    self.hoverTimer?.invalidate()
-                    self.hoverTimer = nil
+                    hoverTimer?.invalidate()
+                    hoverTimer = nil
 
                     // Only trigger hover end if mouse is not over the popover
                     // (prevents closing popover when mouse moves from underline to popover)
                     if !SuggestionPopover.shared.containsPoint(mouseLocation) {
-                        self.onHoverEnd?()
+                        onHoverEnd?()
                     }
                 }
             }
@@ -246,20 +247,20 @@ class ErrorOverlayWindow: NSPanel {
 
     /// Setup global click monitor for click-to-show-popover
     private func setupGlobalClickMonitor() {
-        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
-            guard let self = self else { return }
+        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in
+            guard let self else { return }
 
             // Only process if window is visible
-            guard self.isCurrentlyVisible else { return }
+            guard isCurrentlyVisible else { return }
 
             let mouseLocation = NSEvent.mouseLocation
 
             // Check if click is within our window bounds
-            guard self.frame.contains(mouseLocation) else { return }
+            guard frame.contains(mouseLocation) else { return }
 
             // Convert to window-local coordinates (flipped for UnderlineView)
-            let windowOrigin = self.frame.origin
-            let windowHeight = self.frame.height
+            let windowOrigin = frame.origin
+            let windowHeight = frame.height
             let cocoaLocalY = mouseLocation.y - windowOrigin.y
             let flippedLocalY = windowHeight - cocoaLocalY
             let localPoint = CGPoint(
@@ -270,7 +271,7 @@ class ErrorOverlayWindow: NSPanel {
             Logger.trace("ErrorOverlay: Click at screen: \(mouseLocation), window-local (flipped): \(localPoint)", category: Logger.ui)
 
             // Check if clicking on any underline
-            guard let underlineView = self.underlineView else { return }
+            guard let underlineView else { return }
 
             if let clickedUnderline = underlineView.underlines.first(where: { $0.bounds.contains(localPoint) }) {
                 Logger.debug("ErrorOverlay: Clicked on error at bounds: \(clickedUnderline.bounds)", category: Logger.ui)
@@ -287,8 +288,8 @@ class ErrorOverlayWindow: NSPanel {
 
                 Logger.debug("ErrorOverlay: Click popup anchor - underline bounds: \(underlineBounds), screen: \(screenLocation)", category: Logger.ui)
 
-                let appWindowFrame = self.getApplicationWindowFrame()
-                self.onErrorClick?(clickedUnderline.error, screenLocation, appWindowFrame)
+                let appWindowFrame = getApplicationWindowFrame()
+                onErrorClick?(clickedUnderline.error, screenLocation, appWindowFrame)
             }
         }
 
@@ -306,14 +307,14 @@ class ErrorOverlayWindow: NSPanel {
     ///   - sourceText: The text that was analyzed (used to detect if text has changed)
     ///   - bypassTypingCheck: If true, skip the typing pause check (used after applying replacements)
     @discardableResult
-    func update(errors: [GrammarErrorModel], element: AXUIElement, context: ApplicationContext?, sourceText: String? = nil, bypassTypingCheck: Bool = false) -> Int {
+    func update(errors: [GrammarErrorModel], element: AXUIElement, context: ApplicationContext?, sourceText _: String? = nil, bypassTypingCheck: Bool = false) -> Int {
         Logger.debug("ErrorOverlay: update() called with \(errors.count) errors", category: Logger.ui)
         self.errors = errors
-        self.monitoredElement = element
+        monitoredElement = element
 
         // Check if visual underlines are enabled for this app
         let bundleID = context?.bundleIdentifier ?? "unknown"
-        self.currentBundleID = bundleID
+        currentBundleID = bundleID
 
         // CRITICAL: Check watchdog BEFORE making any AX calls
         // If this app is blacklisted or watchdog is busy, skip ALL AX calls in this function
@@ -332,7 +333,7 @@ class ErrorOverlayWindow: NSPanel {
         // Skip this check when in replacement mode (during replacement OR in grace period after)
         // This prevents hiding underlines and clearing lockedHighlightError while navigating errors
         let isInReplacementMode = AnalysisCoordinator.shared.isInReplacementMode
-        if appConfig.features.requiresTypingPause && TypingDetector.shared.isCurrentlyTyping && !bypassTypingCheck && !isInReplacementMode {
+        if appConfig.features.requiresTypingPause, TypingDetector.shared.isCurrentlyTyping, !bypassTypingCheck, !isInReplacementMode {
             Logger.debug("ErrorOverlay: Hiding underlines during typing (\(appConfig.displayName))", category: Logger.ui)
             hide()
             // Return 0 underlines but errors will still be counted by the indicator
@@ -404,9 +405,9 @@ class ErrorOverlayWindow: NSPanel {
         // Hide underlines immediately when frame changes to avoid stale underlines
         if let lastFrame = lastElementFrame {
             let positionChanged = abs(elementFrame.origin.x - lastFrame.origin.x) > 5 ||
-                                  abs(elementFrame.origin.y - lastFrame.origin.y) > 5
+                abs(elementFrame.origin.y - lastFrame.origin.y) > 5
             let sizeChanged = abs(elementFrame.width - lastFrame.width) > 5 ||
-                              abs(elementFrame.height - lastFrame.height) > 5
+                abs(elementFrame.height - lastFrame.height) > 5
 
             if positionChanged || sizeChanged {
                 Logger.trace("ErrorOverlay: Element frame changed - hiding stale underlines (was: \(lastFrame), now: \(elementFrame))", category: Logger.ui)
@@ -448,7 +449,7 @@ class ErrorOverlayWindow: NSPanel {
         // (like ChatGPT's input bar) overlaps the bottom of the text area.
         let underlineExtension: CGFloat = 10.0
         var extendedFrame = elementFrame
-        extendedFrame.origin.y -= underlineExtension  // In Cocoa coords, decrease Y to extend down
+        extendedFrame.origin.y -= underlineExtension // In Cocoa coords, decrease Y to extend down
         extendedFrame.size.height += underlineExtension
 
         // Position overlay window with extended bounds
@@ -491,7 +492,6 @@ class ErrorOverlayWindow: NSPanel {
         }
         let fullTextValue = extractedText
 
-
         // Get visible character range to filter out off-screen errors
         // Note: Some apps (like Mail's WebKit) return Int.max for visibleRange which is invalid
         // Note: Mac Catalyst apps (like Messages) return {0, 0} which means "unsupported"
@@ -530,7 +530,7 @@ class ErrorOverlayWindow: NSPanel {
         // TextMarker returns actual visual bounds while LineIndex uses element frame
         var internalPaddingX: CGFloat = 0
 
-        if fullTextValue.count > 0 {
+        if !fullTextValue.isEmpty {
             // Use TextMarker API to get the ACTUAL first character position
             // This is more accurate than AXBoundsForRange which often returns element frame X
             let startMarker = AccessibilityBridge.requestOpaqueMarker(at: 0, from: element)
@@ -564,7 +564,7 @@ class ErrorOverlayWindow: NSPanel {
             let errorRange = NSRange(location: error.start, length: error.end - error.start)
 
             // Filter out errors that are completely outside the visible character range
-            if let visibleRange = visibleRange {
+            if let visibleRange {
                 let errorEnd = error.start + (error.end - error.start)
                 let visibleEnd = visibleRange.location + visibleRange.length
 
@@ -611,7 +611,8 @@ class ErrorOverlayWindow: NSPanel {
 
             // Set first character debug marker if enabled (uses parser's custom bounds)
             if UserPreferences.shared.showDebugCharacterMarkers,
-               let firstCharBounds = parser.getBoundsForRange(range: NSRange(location: 0, length: 1), in: element) {
+               let firstCharBounds = parser.getBoundsForRange(range: NSRange(location: 0, length: 1), in: element)
+            {
                 let firstCharCocoa = CoordinateMapper.toCocoaCoordinates(firstCharBounds)
                 let firstCharLocal = convertToLocal(firstCharCocoa, from: elementFrame)
                 underlineView?.firstCharDebugMarker = firstCharLocal
@@ -788,7 +789,7 @@ class ErrorOverlayWindow: NSPanel {
     func setLockedHighlight(for error: GrammarErrorModel?) {
         lockedHighlightError = error
 
-        if let error = error {
+        if let error {
             // Find the underline for this error
             let matchingUnderline = underlineView?.underlines.first { underline in
                 underline.error.start == error.start && underline.error.end == error.end
@@ -818,7 +819,8 @@ class ErrorOverlayWindow: NSPanel {
     /// Check if element frame has changed and hide underlines if so
     private func validateElementFrame() {
         guard let element = monitoredElement,
-              let lastFrame = lastElementFrame else {
+              let lastFrame = lastElementFrame
+        else {
             // No element or frame - stop waiting
             if waitingForFrameStabilization {
                 waitingForFrameStabilization = false
@@ -839,9 +841,9 @@ class ErrorOverlayWindow: NSPanel {
 
         // Check for significant changes
         let positionChanged = abs(currentFrame.origin.x - lastFrame.origin.x) > 3 ||
-                              abs(currentFrame.origin.y - lastFrame.origin.y) > 3
+            abs(currentFrame.origin.y - lastFrame.origin.y) > 3
         let sizeChanged = abs(currentFrame.width - lastFrame.width) > 3 ||
-                          abs(currentFrame.height - lastFrame.height) > 3
+            abs(currentFrame.height - lastFrame.height) > 3
 
         if positionChanged || sizeChanged {
             // Frame changed - update tracking and reset stabilization timer
@@ -859,7 +861,8 @@ class ErrorOverlayWindow: NSPanel {
         } else if waitingForFrameStabilization {
             // Frame is stable - check if it's been stable long enough
             if let lastChanged = frameLastChangedAt,
-               Date().timeIntervalSince(lastChanged) > 0.4 {
+               Date().timeIntervalSince(lastChanged) > 0.4
+            {
                 Logger.trace("ErrorOverlay: Frame stabilized after resize - triggering re-display", category: Logger.ui)
                 waitingForFrameStabilization = false
                 // Don't stop timer - keep monitoring for future changes
@@ -909,7 +912,7 @@ class ErrorOverlayWindow: NSPanel {
         // Try Method 1: CGWindow API (most reliable for regular apps)
         let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
 
-        if let windowList = windowList {
+        if let windowList {
             Logger.debug("ErrorOverlay: Got \(windowList.count) windows from CGWindowListCopyWindowInfo", category: Logger.ui)
 
             // Find windows belonging to the monitored app's PID
@@ -928,8 +931,8 @@ class ErrorOverlayWindow: NSPanel {
                    let x = boundsDict["X"],
                    let y = boundsDict["Y"],
                    let width = boundsDict["Width"],
-                   let height = boundsDict["Height"] {
-
+                   let height = boundsDict["Height"]
+                {
                     // CGWindow coordinates are in Quartz (top-left origin relative to primary screen's top-left)
                     // Convert to Cocoa (bottom-left origin relative to primary screen's bottom-left)
                     //
@@ -940,7 +943,7 @@ class ErrorOverlayWindow: NSPanel {
                     //
                     // Find primary screen (the one with origin 0,0)
                     let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero } ?? NSScreen.main
-                    if let primaryScreen = primaryScreen {
+                    if let primaryScreen {
                         // The global coordinate system height is the primary screen's height in this context
                         // Actually, Quartz uses a global coordinate system where Y=0 is at the top of the primary screen
                         // and extends downward. For multi-monitor setups, the conversion needs the primary screen height.
@@ -950,10 +953,10 @@ class ErrorOverlayWindow: NSPanel {
 
                         // Account for window chrome (title bar, borders)
                         // Title bar is ~24px, add small margins on other sides
-                        let chromeTop: CGFloat = 24    // Title bar
-                        let chromeLeft: CGFloat = 2    // Left border
-                        let chromeRight: CGFloat = 2   // Right border
-                        let chromeBottom: CGFloat = 2  // Bottom border
+                        let chromeTop: CGFloat = 24 // Title bar
+                        let chromeLeft: CGFloat = 2 // Left border
+                        let chromeRight: CGFloat = 2 // Right border
+                        let chromeBottom: CGFloat = 2 // Bottom border
 
                         frame = frame.insetBy(dx: 0, dy: 0)
                         frame.origin.x += chromeLeft
@@ -982,10 +985,10 @@ class ErrorOverlayWindow: NSPanel {
                 var frame = CGRect(x: quartzFrame.origin.x, y: cocoaY, width: quartzFrame.width, height: quartzFrame.height)
 
                 // Account for window chrome (title bar, borders)
-                let chromeTop: CGFloat = 24    // Title bar
-                let chromeLeft: CGFloat = 2    // Left border
-                let chromeRight: CGFloat = 2   // Right border
-                let chromeBottom: CGFloat = 2  // Bottom border
+                let chromeTop: CGFloat = 24 // Title bar
+                let chromeLeft: CGFloat = 2 // Left border
+                let chromeRight: CGFloat = 2 // Right border
+                let chromeBottom: CGFloat = 2 // Bottom border
 
                 frame.origin.x += chromeLeft
                 frame.origin.y += chromeBottom
@@ -1051,7 +1054,8 @@ class ErrorOverlayWindow: NSPanel {
 
         guard boundsError == .success,
               let axValue = boundsValue,
-              let rect = safeAXValueGetRect(axValue) else {
+              let rect = safeAXValueGetRect(axValue)
+        else {
             return nil
         }
 
@@ -1091,11 +1095,10 @@ class ErrorOverlayWindow: NSPanel {
         // In multiline text fields (like Slack), we need to measure text only from the
         // start of the current line, not from the beginning of the entire text field
         let textUpToError = String(fullText.prefix(safeStart))
-        let lineStart: Int
-        if let lastNewlineIndex = textUpToError.lastIndex(of: "\n") {
-            lineStart = fullText.distance(from: fullText.startIndex, to: lastNewlineIndex) + 1
+        let lineStart: Int = if let lastNewlineIndex = textUpToError.lastIndex(of: "\n") {
+            fullText.distance(from: fullText.startIndex, to: lastNewlineIndex) + 1
         } else {
-            lineStart = 0
+            0
         }
 
         // Extract only the text on the current line before the error
@@ -1104,12 +1107,13 @@ class ErrorOverlayWindow: NSPanel {
               let errorStartIndex = fullText.index(fullText.startIndex, offsetBy: safeStart, limitedBy: fullText.endIndex),
               let errorEndIndex = fullText.index(fullText.startIndex, offsetBy: safeEnd, limitedBy: fullText.endIndex),
               lineStartIndex <= errorStartIndex,
-              errorStartIndex <= errorEndIndex else {
+              errorStartIndex <= errorEndIndex
+        else {
             Logger.debug("ErrorOverlay: String index bounds check failed, using simple fallback", category: Logger.ui)
             return simpleFallbackBounds(for: error, elementFrame: elementFrame, context: context)
         }
-        let textBeforeError = String(fullText[lineStartIndex..<errorStartIndex])
-        let errorText = String(fullText[errorStartIndex..<errorEndIndex])
+        let textBeforeError = String(fullText[lineStartIndex ..< errorStartIndex])
+        let errorText = String(fullText[errorStartIndex ..< errorEndIndex])
 
         Logger.debug("ErrorOverlay: Multiline handling - lineStart: \(lineStart), textOnLine: '\(textBeforeError)', error: '\(errorText)'", category: Logger.ui)
 
@@ -1133,22 +1137,21 @@ class ErrorOverlayWindow: NSPanel {
 
             // Constrain to element bounds
             let maxX = elementFrame.maxX - 10.0
-            let clampedWidth: CGFloat
-            if estimatedX + estimatedWidth > maxX {
-                clampedWidth = max(20.0, maxX - estimatedX)
+            let clampedWidth: CGFloat = if estimatedX + estimatedWidth > maxX {
+                max(20.0, maxX - estimatedX)
             } else {
-                clampedWidth = estimatedWidth
+                estimatedWidth
             }
 
             // Use Y position from parser if it looks valid (non-zero and within reasonable bounds)
             // Parser returns position in Quartz coordinates (Y from screen bottom)
             let estimatedY: CGFloat
-            let estimatedHeight: CGFloat = 24.0  // Standard underline height
+            let estimatedHeight: CGFloat = 24.0 // Standard underline height
 
             // Check if parser provided a meaningful Y position
             // Valid positions should be within or near the element's vertical extent
             let parserY = adjustedBounds.position.y
-            if parserY > 0 && parserY < (elementFrame.origin.y + elementFrame.height + 500) {
+            if parserY > 0, parserY < (elementFrame.origin.y + elementFrame.height + 500) {
                 // Use parser's calculated Y position
                 estimatedY = parserY
                 Logger.debug("ErrorOverlay: Using parser Y position: \(parserY)", category: Logger.ui)
@@ -1250,26 +1253,25 @@ class ErrorOverlayWindow: NSPanel {
         switch category {
         // Spelling and typos: Red (critical, obvious errors)
         case "Spelling", "Typo":
-            return NSColor.systemRed
+            NSColor.systemRed
 
         // Grammar and structure: Orange (grammatical correctness)
         case "Grammar", "Agreement", "BoundaryError", "Capitalization", "Nonstandard", "Punctuation":
-            return NSColor.systemOrange
+            NSColor.systemOrange
 
         // Style and enhancement: Blue (style improvements)
         case "Style", "Enhancement", "WordChoice", "Readability", "Redundancy", "Formatting":
-            return NSColor.systemBlue
+            NSColor.systemBlue
 
         // Usage and word choice issues: Purple
         case "Usage", "Eggcorn", "Malapropism", "Regionalism", "Repetition":
-            return NSColor.systemPurple
+            NSColor.systemPurple
 
         // Miscellaneous: Gray (fallback)
         default:
-            return NSColor.systemGray
+            NSColor.systemGray
         }
     }
-
 }
 
 // MARK: - Error Underline Model
@@ -1290,7 +1292,7 @@ struct ErrorUnderline {
     init(bounds: CGRect, drawingBounds: CGRect, color: NSColor, error: GrammarErrorModel) {
         self.bounds = bounds
         self.drawingBounds = drawingBounds
-        self.allDrawingBounds = [drawingBounds]
+        allDrawingBounds = [drawingBounds]
         self.color = color
         self.error = error
     }
@@ -1320,41 +1322,40 @@ extension StyleUnderline {
 // MARK: - Underline View
 
 class UnderlineView: NSView {
-
     // MARK: - Properties
 
     var underlines: [ErrorUnderline] = []
     var styleUnderlines: [StyleUnderline] = []
     var hoveredUnderline: ErrorUnderline?
     var hoveredStyleUnderline: StyleUnderline?
-    var lockedHighlightUnderline: ErrorUnderline?  // Persists while popover is open
+    var lockedHighlightUnderline: ErrorUnderline? // Persists while popover is open
     var allowsClickPassThrough: Bool = false
-    var firstCharDebugMarker: CGRect?  // For coordinate debugging (first char position)
+    var firstCharDebugMarker: CGRect? // For coordinate debugging (first char position)
 
     // MARK: - View Configuration
 
     // CRITICAL: Use flipped coordinates (top-left origin) to match window positioning
     // When isFlipped = true: (0,0) is top-left, Y increases downward
     override var isFlipped: Bool {
-        return true
+        true
     }
 
     // CRITICAL: Override hitTest to return nil, which passes clicks through to the app below
     // This allows Chrome (or other apps) to receive clicks while we still track mouse movement
     override func hitTest(_ point: NSPoint) -> NSView? {
         if allowsClickPassThrough {
-            return nil  // Pass all clicks through to the app below
+            return nil // Pass all clicks through to the app below
         }
         return super.hitTest(point)
     }
 
     // MARK: - Drawing
 
-    override func draw(_ dirtyRect: NSRect) {
+    override func draw(_: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
 
         // DEBUG: Log actual window position at draw time
-        if UserPreferences.shared.showDebugBorderTextFieldBounds, let window = self.window {
+        if UserPreferences.shared.showDebugBorderTextFieldBounds, let window {
             Logger.info("UnderlineView.draw: Window ACTUAL frame at draw time: \(window.frame)", category: Logger.ui)
         }
 
@@ -1408,7 +1409,7 @@ class UnderlineView: NSView {
             let label = "Text Field Bounds"
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: NSFont.boldSystemFont(ofSize: 16),
-                .foregroundColor: borderColor
+                .foregroundColor: borderColor,
             ]
             let labelStr = label as NSString
             labelStr.draw(at: NSPoint(x: 10, y: 10), withAttributes: attrs)
@@ -1425,14 +1426,14 @@ class UnderlineView: NSView {
             // Draw coordinate labels
             let coordAttrs: [NSAttributedString.Key: Any] = [
                 .font: NSFont.boldSystemFont(ofSize: 10),
-                .foregroundColor: NSColor.systemGreen
+                .foregroundColor: NSColor.systemGreen,
             ]
             let originLabel = "(0,0)" as NSString
             originLabel.draw(at: NSPoint(x: 12, y: 0), withAttributes: coordAttrs)
 
             let offsetAttrs: [NSAttributedString.Key: Any] = [
                 .font: NSFont.boldSystemFont(ofSize: 10),
-                .foregroundColor: NSColor.systemBlue
+                .foregroundColor: NSColor.systemBlue,
             ]
             let offsetLabel = "(24,15)" as NSString
             offsetLabel.draw(at: NSPoint(x: 36, y: 15), withAttributes: offsetAttrs)
@@ -1444,7 +1445,7 @@ class UnderlineView: NSView {
 
                 let firstCharAttrs: [NSAttributedString.Key: Any] = [
                     .font: NSFont.boldSystemFont(ofSize: 9),
-                    .foregroundColor: NSColor.systemTeal
+                    .foregroundColor: NSColor.systemTeal,
                 ]
                 let firstCharLabel = "1st(\(Int(firstCharMarker.origin.x)),\(Int(firstCharMarker.origin.y)))" as NSString
                 firstCharLabel.draw(at: NSPoint(x: firstCharMarker.origin.x + 10, y: firstCharMarker.origin.y), withAttributes: firstCharAttrs)
@@ -1465,8 +1466,8 @@ class UnderlineView: NSView {
         // View uses flipped coordinates (top-left origin): minY is top, maxY is bottom
         // Position the line just below the text baseline (bounds.maxY is bottom of text bounds)
         // Offset accounts for half the line thickness to prevent overlapping text descenders
-        let offset = thickness / 2.0  // Half thickness keeps line close but not overlapping
-        let y = bounds.maxY + offset  // In flipped coords, maxY is the bottom edge
+        let offset = thickness / 2.0 // Half thickness keeps line close but not overlapping
+        let y = bounds.maxY + offset // In flipped coords, maxY is the bottom edge
 
         let path = CGMutablePath()
         path.move(to: CGPoint(x: bounds.minX, y: y))
@@ -1488,7 +1489,7 @@ class UnderlineView: NSView {
 
         // Draw dotted line below the text
         // Offset accounts for half the line thickness to prevent overlapping text descenders
-        let offset = thickness / 2.0  // Half thickness keeps line close but not overlapping
+        let offset = thickness / 2.0 // Half thickness keeps line close but not overlapping
         let y = bounds.maxY + offset
 
         let path = CGMutablePath()
@@ -1508,14 +1509,15 @@ class UnderlineView: NSView {
         // Use higher opacity for better visibility
         let highlightOpacity: CGFloat
 
-        // Check if we're in dark mode for better contrast
-        if let appearance = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]),
-           appearance == .darkAqua {
+            // Check if we're in dark mode for better contrast
+            = if let appearance = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]),
+            appearance == .darkAqua
+        {
             // Dark mode: use lighter/brighter highlight with higher opacity
-            highlightOpacity = 0.35
+            0.35
         } else {
             // Light mode: use more saturated highlight with good opacity
-            highlightOpacity = 0.30
+            0.30
         }
 
         context.setFillColor(color.withAlphaComponent(highlightOpacity).cgColor)

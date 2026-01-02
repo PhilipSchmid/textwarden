@@ -6,12 +6,11 @@
 //  Prevents replacing wrong text if indices have shifted since analysis.
 //
 
-import Foundation
 @preconcurrency import ApplicationServices
+import Foundation
 
 /// Validates replacement context to ensure safe text replacement
 struct ReplacementValidator {
-
     // MARK: - Validation
 
     /// Validate the replacement context before executing.

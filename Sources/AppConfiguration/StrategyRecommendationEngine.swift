@@ -6,8 +6,8 @@
 //  Called when TextWarden encounters an unknown application.
 //
 
-import Foundation
 import ApplicationServices
+import Foundation
 
 /// Orchestrates profiling and strategy recommendation for unknown applications
 final class StrategyRecommendationEngine {

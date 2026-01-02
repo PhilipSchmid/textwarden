@@ -5,11 +5,10 @@
 //  Tests validating Rust-Swift FFI boundary integrity
 //
 
-import XCTest
 @testable import TextWarden
+import XCTest
 
 final class GrammarEngineFFITests: XCTestCase {
-
     // MARK: - Basic FFI Contract Tests
 
     func testAnalyzeText_EmptyString_ReturnsEmptyResult() {
@@ -41,7 +40,7 @@ final class GrammarEngineFFITests: XCTestCase {
 
     func testAnalyzeText_IncorrectSentence_ReturnsErrors() {
         // Given: Text with grammar error
-        let incorrectText = "The cats sits on the mat."  // Subject-verb disagreement
+        let incorrectText = "The cats sits on the mat." // Subject-verb disagreement
 
         // When: Analyzing incorrect text
         let result = GrammarEngine.shared.analyzeText(incorrectText)
@@ -57,7 +56,7 @@ final class GrammarEngineFFITests: XCTestCase {
 
     func testGrammarError_HasRequiredFields() {
         // Given: A grammar error from analysis
-        let text = "She dont like apples."  // Grammar error
+        let text = "She dont like apples." // Grammar error
         let result = GrammarEngine.shared.analyzeText(text)
 
         // When: Checking error properties
@@ -75,7 +74,7 @@ final class GrammarEngineFFITests: XCTestCase {
 
     func testGrammarError_SeverityIsValid() {
         // Given: A grammar error from analysis
-        let text = "They was happy."  // Grammar error
+        let text = "They was happy." // Grammar error
         let result = GrammarEngine.shared.analyzeText(text)
 
         guard let error = result.errors.first else {
@@ -96,7 +95,7 @@ final class GrammarEngineFFITests: XCTestCase {
         // When: Measuring analysis time
         let startTime = CFAbsoluteTimeGetCurrent()
         let result = GrammarEngine.shared.analyzeText(text)
-        let elapsedTime = (CFAbsoluteTimeGetCurrent() - startTime) * 1000  // Convert to ms
+        let elapsedTime = (CFAbsoluteTimeGetCurrent() - startTime) * 1000 // Convert to ms
 
         // Then: Analysis should complete quickly
         XCTAssertNotNil(result)

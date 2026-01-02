@@ -233,7 +233,7 @@ struct BeforeAfterView: View {
         DiffSegmentModel(text: "really ", kind: .removed),
         DiffSegmentModel(text: "a ", kind: .unchanged),
         DiffSegmentModel(text: "great ", kind: .added),
-        DiffSegmentModel(text: "example.", kind: .unchanged)
+        DiffSegmentModel(text: "example.", kind: .unchanged),
     ])
     .padding()
 }
@@ -245,7 +245,7 @@ struct BeforeAfterView: View {
             DiffSegmentModel(text: "really ", kind: .removed),
             DiffSegmentModel(text: "a ", kind: .unchanged),
             DiffSegmentModel(text: "great ", kind: .added),
-            DiffSegmentModel(text: "example.", kind: .unchanged)
+            DiffSegmentModel(text: "example.", kind: .unchanged),
         ],
         showInline: false
     )
@@ -262,7 +262,7 @@ struct BeforeAfterView: View {
             DiffSegmentModel(text: "really ", kind: .removed),
             DiffSegmentModel(text: "a ", kind: .unchanged),
             DiffSegmentModel(text: "great ", kind: .added),
-            DiffSegmentModel(text: "example.", kind: .unchanged)
+            DiffSegmentModel(text: "example.", kind: .unchanged),
         ]
     )
     .padding()

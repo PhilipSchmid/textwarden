@@ -6,9 +6,9 @@
 //  Enables pluggable positioning algorithms with automatic fallback
 //
 
-import Foundation
 import AppKit
 import ApplicationServices
+import Foundation
 
 // MARK: - Strategy Capability Tiers
 
@@ -33,10 +33,10 @@ enum StrategyTier: Int, Comparable {
 
     var description: String {
         switch self {
-        case .precise: return "precise"
-        case .reliable: return "reliable"
-        case .estimated: return "estimated"
-        case .fallback: return "fallback"
+        case .precise: "precise"
+        case .reliable: "reliable"
+        case .estimated: "estimated"
+        case .fallback: "fallback"
         }
     }
 }
@@ -85,7 +85,7 @@ extension GeometryProvider {
 
     /// Default canHandle returns true (works for most elements)
     /// Strategies with specific requirements should override this
-    func canHandle(element: AXUIElement, bundleID: String) -> Bool { true }
+    func canHandle(element _: AXUIElement, bundleID _: String) -> Bool { true }
 
     /// Default implementation - no cache to clear
     func clearInternalCache() {}
@@ -151,13 +151,13 @@ struct GeometryResult {
 
     /// Check if this is a multi-line result
     var isMultiLine: Bool {
-        guard let lineBounds = lineBounds else { return false }
+        guard let lineBounds else { return false }
         return lineBounds.count > 1
     }
 
     /// Get all line bounds (returns single-element array with main bounds if not multi-line)
     var allLineBounds: [CGRect] {
-        if let lineBounds = lineBounds, !lineBounds.isEmpty {
+        if let lineBounds, !lineBounds.isEmpty {
             return lineBounds
         }
         return [bounds]
@@ -233,17 +233,17 @@ struct GeometryResult {
 enum ElectronDetector {
     /// Known Electron app bundle identifiers
     private static let electronBundleIDs: Set<String> = [
-        "com.tinyspeck.slackmacgap",    // Slack
+        "com.tinyspeck.slackmacgap", // Slack
         "com.anthropic.claudefordesktop", // Claude
-        "com.openai.chat",              // ChatGPT
-        "ai.perplexity.mac",            // Perplexity
-        "com.slite.desktop",            // Slite
-        "com.electron.app",             // Generic Electron
-        "com.github.atom",              // Atom
-        "com.vscodium",                 // VSCodium
-        "com.discordapp.discord",       // Discord
-        "com.figma.Desktop",            // Figma
-        "notion.id",                    // Notion
+        "com.openai.chat", // ChatGPT
+        "ai.perplexity.mac", // Perplexity
+        "com.slite.desktop", // Slite
+        "com.electron.app", // Generic Electron
+        "com.github.atom", // Atom
+        "com.vscodium", // VSCodium
+        "com.discordapp.discord", // Discord
+        "com.figma.Desktop", // Figma
+        "notion.id", // Notion
     ]
 
     /// Check if bundle ID indicates Electron app
@@ -268,14 +268,14 @@ enum ElectronDetector {
 
     /// Check if element is in a Chrome/Chromium browser
     static func isChromiumBrowser(_ bundleID: String) -> Bool {
-        return bundleID == "com.google.Chrome" ||
-               bundleID == "org.chromium.Chromium" ||
-               bundleID == "com.brave.Browser" ||
-               bundleID == "com.microsoft.edgemac"
+        bundleID == "com.google.Chrome" ||
+            bundleID == "org.chromium.Chromium" ||
+            bundleID == "com.brave.Browser" ||
+            bundleID == "com.microsoft.edgemac"
     }
 
     /// Check if app likely uses web technologies
     static func usesWebTechnologies(_ bundleID: String) -> Bool {
-        return isElectronApp(bundleID) || isChromiumBrowser(bundleID)
+        isElectronApp(bundleID) || isChromiumBrowser(bundleID)
     }
 }

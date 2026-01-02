@@ -11,7 +11,7 @@ import os.log
 
 /// Log level enum for filtering
 enum LogLevel: String, Codable, CaseIterable, Comparable {
-    case trace = "Trace"     // Most verbose - high-frequency events like mouse movement
+    case trace = "Trace" // Most verbose - high-frequency events like mouse movement
     case debug = "Debug"
     case info = "Info"
     case warning = "Warning"
@@ -20,12 +20,12 @@ enum LogLevel: String, Codable, CaseIterable, Comparable {
 
     var priority: Int {
         switch self {
-        case .trace: return -1
-        case .debug: return 0
-        case .info: return 1
-        case .warning: return 2
-        case .error: return 3
-        case .critical: return 4
+        case .trace: -1
+        case .debug: 0
+        case .info: 1
+        case .warning: 2
+        case .error: 3
+        case .critical: 4
         }
     }
 
@@ -35,7 +35,7 @@ enum LogLevel: String, Codable, CaseIterable, Comparable {
 }
 
 /// Centralized logging system for TextWarden
-struct Logger {
+enum Logger {
     private static let subsystem = "com.textwarden.app"
     private static let logFileName = "textwarden.log"
     private static let maxLogFileSize = 10 * 1024 * 1024 // 10MB
@@ -100,7 +100,8 @@ struct Logger {
     static var minimumLogLevel: LogLevel {
         get {
             guard let stored = UserDefaults.standard.string(forKey: "logLevel"),
-                  let level = LogLevel(rawValue: stored) else {
+                  let level = LogLevel(rawValue: stored)
+            else {
                 return .info // Default to info
             }
             return level
@@ -166,7 +167,7 @@ struct Logger {
             )
             return true
         } catch let error as NSError {
-            if error.domain == NSCocoaErrorDomain && error.code == NSFileWriteNoPermissionError {
+            if error.domain == NSCocoaErrorDomain, error.code == NSFileWriteNoPermissionError {
                 logToStderr("Permission denied creating log directory: \(directory)")
             } else {
                 logToStderr("Failed to create log directory '\(directory)': \(error.localizedDescription)")
@@ -222,16 +223,14 @@ struct Logger {
         guard level >= minimumLogLevel else { return }
 
         // Log to os_log
-        let osLogType: OSLogType = {
-            switch level {
-            case .trace: return .debug   // Trace uses debug level in os_log
-            case .debug: return .debug
-            case .info: return .info
-            case .warning: return .default
-            case .error: return .error
-            case .critical: return .fault
-            }
-        }()
+        let osLogType: OSLogType = switch level {
+        case .trace: .debug // Trace uses debug level in os_log
+        case .debug: .debug
+        case .info: .info
+        case .warning: .default
+        case .error: .error
+        case .critical: .fault
+        }
         os_log("%{public}@", log: category, type: osLogType, message)
 
         // Log to file if enabled
@@ -270,15 +269,16 @@ struct Logger {
 
         // Check if file was deleted externally - invalidate stale handle
         // This is the key fix: detect when file no longer exists and recreate it
-        if cachedFileHandle != nil && !FileManager.default.fileExists(atPath: logPath) {
+        if cachedFileHandle != nil, !FileManager.default.fileExists(atPath: logPath) {
             invalidateFileHandle()
-            ensureLogDirectoryExists()  // Directory might have been deleted too
+            ensureLogDirectoryExists() // Directory might have been deleted too
         }
 
         // Check if we need to rotate logs (check periodically, not every write)
         if let attrs = try? FileManager.default.attributesOfItem(atPath: logPath),
            let fileSize = attrs[.size] as? Int64,
-           fileSize > maxLogFileSize {
+           fileSize > maxLogFileSize
+        {
             invalidateFileHandle()
             rotateLogs()
         }
@@ -289,7 +289,7 @@ struct Logger {
         if cachedFileHandle == nil {
             cachedFileHandle = createFileHandle(at: logPath, initialData: data)
             if cachedFileHandle != nil {
-                return  // Initial data was already written during file creation
+                return // Initial data was already written during file creation
             }
         }
 
@@ -297,7 +297,7 @@ struct Logger {
         if let handle = cachedFileHandle {
             do {
                 try handle.write(contentsOf: data)
-                resetFailureCounter()  // Success - reset error rate limiting
+                resetFailureCounter() // Success - reset error rate limiting
             } catch {
                 // Write failed - file may have been deleted during write
                 // Invalidate handle and try to recreate on next write
@@ -341,7 +341,7 @@ struct Logger {
                 resetFailureCounter()
                 return handle
             } catch let error as NSError {
-                if error.domain == NSCocoaErrorDomain && error.code == NSFileNoSuchFileError {
+                if error.domain == NSCocoaErrorDomain, error.code == NSFileNoSuchFileError {
                     // File was deleted between exists check and open - fall through to create
                 } else {
                     logToStderr("Failed to open log file: \(error.localizedDescription)")
@@ -392,7 +392,7 @@ struct Logger {
         }
 
         // Rotate existing logs
-        for i in (1..<maxLogFiles - 1).reversed() {
+        for i in (1 ..< maxLogFiles - 1).reversed() {
             let currentLog = "\(basePath).\(i)"
             let nextLog = "\(basePath).\(i + 1)"
             if FileManager.default.fileExists(atPath: currentLog) {
@@ -433,7 +433,7 @@ struct Logger {
 
     /// Log errors
     static func error(_ message: String, error: Error? = nil, category: OSLog = errors) {
-        let fullMessage = if let error = error {
+        let fullMessage = if let error {
             "\(message): \(error.localizedDescription)"
         } else {
             message
@@ -481,7 +481,7 @@ struct Logger {
 
     /// Log accessibility error
     static func logAccessibilityError(_ error: String, element: String? = nil) {
-        if let element = element {
+        if let element {
             log(.error, "Accessibility error for \(element): \(error)", category: accessibility)
         } else {
             log(.error, "Accessibility error: \(error)", category: accessibility)
@@ -497,7 +497,7 @@ struct Logger {
 ///   - level: Log level (0=ERROR, 1=WARN, 2=INFO, 3=DEBUG, 4=TRACE)
 ///   - messagePtr: Pointer to null-terminated C string containing the log message
 private let rustLogCallback: @convention(c) (Int32, UnsafePointer<CChar>?) -> Void = { level, messagePtr in
-    guard let messagePtr = messagePtr else { return }
+    guard let messagePtr else { return }
     let message = String(cString: messagePtr)
     Logger.handleRustLog(level: level, message: message)
 }

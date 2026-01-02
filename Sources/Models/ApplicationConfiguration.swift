@@ -6,13 +6,12 @@
 //  Uses AppRegistry as the source of truth for app categorization.
 //
 
-import Foundation
 import AppKit
+import Foundation
 
 /// Provides app-specific configuration for text replacement and rendering
 /// Uses AppRegistry for app categorization, adds timing-specific configuration
 class ApplicationConfiguration {
-
     // MARK: - Keyboard Operation Timing
 
     /// Get recommended timing delay for keyboard operations (in seconds)
@@ -57,9 +56,9 @@ class ApplicationConfiguration {
     /// Character width correction factor (per character)
     /// Accounts for cumulative rendering differences between NSFont measurement
     /// and actual app rendering. Applied as: measuredWidth - (charCount * correction)
-    static func characterWidthCorrection(for bundleIdentifier: String) -> CGFloat {
+    static func characterWidthCorrection(for _: String) -> CGFloat {
         // Currently disabled for all apps - raw NSFont measurement is accurate enough
-        return 0.0
+        0.0
     }
 
     // MARK: - Layout and Padding

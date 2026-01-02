@@ -10,13 +10,12 @@
 //  - Indicator/CapsuleStateManager.swift - State management for capsule sections
 //
 
-import Cocoa
 import AppKit
+import Cocoa
 import Combine
 
 /// Floating error indicator window
 class FloatingErrorIndicator: NSPanel {
-
     // MARK: - Singleton
 
     /// Shared singleton instance
@@ -77,13 +76,13 @@ class FloatingErrorIndicator: NSPanel {
         )
 
         // Window configuration
-        self.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.floatingWindow)))  // Highest possible level
-        self.isOpaque = false
-        self.backgroundColor = .clear
-        self.hasShadow = true
-        self.ignoresMouseEvents = false
-        self.acceptsMouseMovedEvents = true
-        self.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
+        level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.floatingWindow))) // Highest possible level
+        isOpaque = false
+        backgroundColor = .clear
+        hasShadow = true
+        ignoresMouseEvents = false
+        acceptsMouseMovedEvents = true
+        collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
 
         let indicatorView = IndicatorView(frame: initialFrame)
         indicatorView.onClicked = { [weak self] in
@@ -99,14 +98,14 @@ class FloatingErrorIndicator: NSPanel {
             }
         }
         indicatorView.onDragStart = { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
 
             Logger.debug("onDragStart triggered!", category: Logger.ui)
 
             SuggestionPopover.shared.hide()
 
             // Enlarge indicator to show it's being dragged
-            let currentFrame = self.frame
+            let currentFrame = frame
             let normalSize: CGFloat = UIConstants.indicatorSize
             let enlargedSize: CGFloat = UIConstants.indicatorDragSize
             let sizeDelta = enlargedSize - normalSize
@@ -118,25 +117,26 @@ class FloatingErrorIndicator: NSPanel {
                 width: enlargedSize,
                 height: enlargedSize
             )
-            self.setFrame(newFrame, display: true)
+            setFrame(newFrame, display: true)
 
             // Ensure indicator stays visible and in front during drag
-            self.alphaValue = 0.85  // Slightly transparent to see what's underneath
-            self.orderFrontRegardless()
-            self.level = .popUpMenu + 2  // Increase level during drag
+            alphaValue = 0.85 // Slightly transparent to see what's underneath
+            orderFrontRegardless()
+            level = .popUpMenu + 2 // Increase level during drag
 
-            if let element = self.monitoredElement,
-               let windowFrame = self.getVisibleWindowFrame(for: element) {
+            if let element = monitoredElement,
+               let windowFrame = getVisibleWindowFrame(for: element)
+            {
                 Logger.debug("Showing border guide with frame: \(windowFrame)", category: Logger.ui)
 
                 // Use theme-based color matching the popover background
-                self.borderGuide.showBorder(around: windowFrame)
+                borderGuide.showBorder(around: windowFrame)
             } else {
-                Logger.debug("Cannot show border guide - element=\(String(describing: self.monitoredElement))", category: Logger.ui)
+                Logger.debug("Cannot show border guide - element=\(String(describing: monitoredElement))", category: Logger.ui)
             }
         }
         indicatorView.onDragEnd = { [weak self] finalPosition in
-            guard let self = self else { return }
+            guard let self else { return }
 
             // Restore normal size
             let normalSize: CGFloat = UIConstants.indicatorSize
@@ -150,22 +150,22 @@ class FloatingErrorIndicator: NSPanel {
                 width: normalSize,
                 height: normalSize
             )
-            self.setFrame(newFrame, display: true)
+            setFrame(newFrame, display: true)
 
             // Restore normal appearance
-            self.alphaValue = 1.0
-            self.level = .popUpMenu + 1  // Restore original level
+            alphaValue = 1.0
+            level = .popUpMenu + 1 // Restore original level
 
-            self.borderGuide.hide()
+            borderGuide.hide()
 
             // Handle snap positioning with corrected position
-            self.handleDragEnd(at: newFrame.origin)
+            handleDragEnd(at: newFrame.origin)
         }
         indicatorView.onRightClicked = { [weak self] event in
             self?.showContextMenu(with: event)
         }
         self.indicatorView = indicatorView
-        self.contentView = indicatorView
+        contentView = indicatorView
 
         // Listen to indicator position changes for immediate repositioning
         setupPositionObserver()
@@ -173,39 +173,39 @@ class FloatingErrorIndicator: NSPanel {
 
     // CRITICAL: Prevent this window from stealing focus from other applications
     override var canBecomeKey: Bool {
-        return false
+        false
     }
 
     override var canBecomeMain: Bool {
-        return false
+        false
     }
 
     /// Setup observer for indicator position preference changes
     private func setupPositionObserver() {
         UserPreferences.shared.$indicatorPosition
-            .dropFirst()  // Skip initial value
-            .receive(on: DispatchQueue.main)  // Ensure UI updates on main thread
+            .dropFirst() // Skip initial value
+            .receive(on: DispatchQueue.main) // Ensure UI updates on main thread
             .sink { [weak self] newPosition in
-                guard let self = self else { return }
+                guard let self else { return }
 
                 // If indicator is currently visible with errors, reposition immediately
-                if self.isVisible, let element = self.monitoredElement, !self.errors.isEmpty {
+                if isVisible, let element = monitoredElement, !self.errors.isEmpty {
                     Logger.debug("FloatingErrorIndicator: Position changed to '\(newPosition)' - repositioning", category: Logger.ui)
-                    self.positionIndicator(for: element)
+                    positionIndicator(for: element)
                 }
             }
             .store(in: &cancellables)
 
         // Observe global pause state changes to hide indicator when globally paused
         UserPreferences.shared.$pauseDuration
-            .dropFirst()  // Skip initial value
+            .dropFirst() // Skip initial value
             .receive(on: DispatchQueue.main)
             .sink { [weak self] newDuration in
-                guard let self = self else { return }
+                guard let self else { return }
 
                 if newDuration == .indefinite {
                     Logger.debug("FloatingErrorIndicator: Global pause set to indefinite - hiding indicator", category: Logger.ui)
-                    self.hide()
+                    hide()
                     SuggestionPopover.shared.hide()
                 }
             }
@@ -213,15 +213,15 @@ class FloatingErrorIndicator: NSPanel {
 
         // Observe style checking preference changes to switch indicator shape
         UserPreferences.shared.$enableStyleChecking
-            .dropFirst()  // Skip initial value
+            .dropFirst() // Skip initial value
             .receive(on: DispatchQueue.main)
             .sink { [weak self] enableStyleChecking in
-                guard let self = self else { return }
+                guard let self else { return }
 
                 let newShape: IndicatorShape = enableStyleChecking ? .capsule : .circle
-                if newShape != self.currentShape {
+                if newShape != currentShape {
                     Logger.debug("FloatingErrorIndicator: Style checking changed to \(enableStyleChecking) - transitioning to \(newShape)", category: Logger.ui)
-                    self.transitionToShape(newShape)
+                    transitionToShape(newShape)
                 }
             }
             .store(in: &cancellables)
@@ -288,9 +288,9 @@ class FloatingErrorIndicator: NSPanel {
             self?.showContextMenu(with: event)
         }
 
-        self.indicatorView = view
-        self.contentView = view
-        self.capsuleIndicatorView = nil
+        indicatorView = view
+        contentView = view
+        capsuleIndicatorView = nil
     }
 
     /// Setup the capsule indicator view
@@ -332,9 +332,9 @@ class FloatingErrorIndicator: NSPanel {
         updateCapsuleSections()
         view.sections = capsuleStateManager.visibleSections
 
-        self.capsuleIndicatorView = view
-        self.contentView = view
-        self.indicatorView = nil
+        capsuleIndicatorView = view
+        contentView = view
+        indicatorView = nil
     }
 
     /// Resize the window for the current shape
@@ -364,7 +364,7 @@ class FloatingErrorIndicator: NSPanel {
 
         // Enlarge indicator to show it's being dragged
         // Use the VIEW's current orientation, not preference-based dimensions
-        let currentFrame = self.frame
+        let currentFrame = frame
         let normalWidth: CGFloat
         let normalHeight: CGFloat
 
@@ -386,7 +386,7 @@ class FloatingErrorIndicator: NSPanel {
             normalHeight = UIConstants.indicatorSize
         }
 
-        let enlargeAmount: CGFloat = 5.0  // Enlarge by 5pt in each dimension
+        let enlargeAmount: CGFloat = 5.0 // Enlarge by 5pt in each dimension
 
         // Adjust origin to keep indicator centered while enlarging
         let newFrame = NSRect(
@@ -395,21 +395,22 @@ class FloatingErrorIndicator: NSPanel {
             width: normalWidth + enlargeAmount,
             height: normalHeight + enlargeAmount
         )
-        self.setFrame(newFrame, display: true)
+        setFrame(newFrame, display: true)
 
-        self.alphaValue = 0.85
-        self.orderFrontRegardless()
-        self.level = .popUpMenu + 2
+        alphaValue = 0.85
+        orderFrontRegardless()
+        level = .popUpMenu + 2
 
-        if let element = self.monitoredElement,
-           let windowFrame = self.getVisibleWindowFrame(for: element) {
-            self.borderGuide.showBorder(around: windowFrame)
+        if let element = monitoredElement,
+           let windowFrame = getVisibleWindowFrame(for: element)
+        {
+            borderGuide.showBorder(around: windowFrame)
         }
     }
 
     /// Handle drag movement - orientation is determined at drag end, not during drag
     /// This avoids visual glitches from orientation/size mismatches during movement
-    private func handleDragMove(at currentPosition: CGPoint) {
+    private func handleDragMove(at _: CGPoint) {
         // Intentionally empty - orientation change happens at drag end in handleDragEnd
         // This callback exists for future use if needed (e.g., edge proximity feedback)
     }
@@ -417,9 +418,9 @@ class FloatingErrorIndicator: NSPanel {
     /// Handle drag end (shared between circular and capsule)
     private func handleDragEndWithPosition(_ finalPosition: CGPoint) {
         // Restore visual state
-        self.alphaValue = 1.0
-        self.level = .popUpMenu + 1
-        self.borderGuide.hide()
+        alphaValue = 1.0
+        level = .popUpMenu + 1
+        borderGuide.hide()
 
         // Use the drop position directly (finalPosition is the frame origin during drag)
         // This preserves the edge position where the user dropped the indicator
@@ -429,7 +430,8 @@ class FloatingErrorIndicator: NSPanel {
         // For capsules, determine final orientation FIRST based on drop position relative to monitored window
         if currentShape == .capsule,
            let element = monitoredElement,
-           let windowFrame = getVisibleWindowFrame(for: element) {
+           let windowFrame = getVisibleWindowFrame(for: element)
+        {
             // Use center of current frame for orientation calculation
             let centerX = dropX + frame.width / 2
             let centerY = dropY + frame.height / 2
@@ -477,10 +479,10 @@ class FloatingErrorIndicator: NSPanel {
             width: normalWidth,
             height: normalHeight
         )
-        self.setFrame(newFrame, display: true)
+        setFrame(newFrame, display: true)
 
         // Handle snap positioning and save (no more orientation changes here)
-        self.handleDragEnd(at: newFrame.origin)
+        handleDragEnd(at: newFrame.origin)
     }
 
     /// Update capsule sections based on current errors and style suggestions
@@ -529,7 +531,7 @@ class FloatingErrorIndicator: NSPanel {
 
         SuggestionPopover.shared.showUnified(
             errors: errors,
-            styleSuggestions: [],  // Grammar only
+            styleSuggestions: [], // Grammar only
             at: anchor.anchorPoint,
             openDirection: anchor.edge,
             constrainToWindow: windowFrame,
@@ -545,7 +547,7 @@ class FloatingErrorIndicator: NSPanel {
         TextGenerationPopover.shared.hide()
 
         // If no style suggestions yet and not currently loading, trigger a style check
-        if styleSuggestions.isEmpty && capsuleStateManager.styleState.displayState != .styleLoading {
+        if styleSuggestions.isEmpty, capsuleStateManager.styleState.displayState != .styleLoading {
             Logger.debug("FloatingErrorIndicator: No style suggestions, requesting style check", category: Logger.ui)
             setStyleLoading(true)
             onRequestStyleCheck?()
@@ -558,7 +560,7 @@ class FloatingErrorIndicator: NSPanel {
         let windowFrame: CGRect? = monitoredElement.flatMap { getVisibleWindowFrame(for: $0) }
 
         SuggestionPopover.shared.showUnified(
-            errors: [],  // Style only
+            errors: [], // Style only
             styleSuggestions: styleSuggestions,
             at: anchor.anchorPoint,
             openDirection: anchor.edge,
@@ -636,17 +638,17 @@ class FloatingErrorIndicator: NSPanel {
 
         self.errors = errors
         self.styleSuggestions = styleSuggestions
-        self.monitoredElement = element
+        monitoredElement = element
         self.context = context
         self.sourceText = sourceText
 
         // Determine mode based on what we have
         if !errors.isEmpty && !styleSuggestions.isEmpty {
-            self.mode = .both(errors: errors, styleSuggestions: styleSuggestions)
+            mode = .both(errors: errors, styleSuggestions: styleSuggestions)
         } else if !styleSuggestions.isEmpty {
-            self.mode = .styleSuggestions(styleSuggestions)
+            mode = .styleSuggestions(styleSuggestions)
         } else {
-            self.mode = .errors(errors)
+            mode = .errors(errors)
         }
 
         // Determine expected shape based on style checking preference
@@ -677,7 +679,7 @@ class FloatingErrorIndicator: NSPanel {
             capsuleIndicatorView?.needsDisplay = true
         } else {
             // Circular mode
-            if mode.hasStyleSuggestions && !mode.hasErrors {
+            if mode.hasStyleSuggestions, !mode.hasErrors {
                 // Style suggestions only - show count with purple ring (same as grammar errors)
                 indicatorView?.displayMode = .count(styleSuggestions.count)
                 indicatorView?.ringColor = .purple
@@ -692,10 +694,10 @@ class FloatingErrorIndicator: NSPanel {
         // Position in bottom-right of text field
         positionIndicator(for: element)
 
-        Logger.debug("FloatingErrorIndicator: Window level: \(self.level.rawValue), isVisible: \(isVisible)", category: Logger.ui)
+        Logger.debug("FloatingErrorIndicator: Window level: \(level.rawValue), isVisible: \(isVisible)", category: Logger.ui)
         if !isVisible {
             Logger.debug("FloatingErrorIndicator: Calling order(.above)", category: Logger.ui)
-            order(.above, relativeTo: 0)  // Show window without stealing focus
+            order(.above, relativeTo: 0) // Show window without stealing focus
             Logger.debug("FloatingErrorIndicator: After order(.above), isVisible: \(isVisible)", category: Logger.ui)
         } else {
             Logger.debug("FloatingErrorIndicator: Window already visible", category: Logger.ui)
@@ -725,12 +727,12 @@ class FloatingErrorIndicator: NSPanel {
         // Don't set monitoredElement - we don't have one
 
         // Determine mode based on what we have
-        if !errors.isEmpty && !styleSuggestions.isEmpty {
-            self.mode = .both(errors: errors, styleSuggestions: styleSuggestions)
+        if !errors.isEmpty, !styleSuggestions.isEmpty {
+            mode = .both(errors: errors, styleSuggestions: styleSuggestions)
         } else if !styleSuggestions.isEmpty {
-            self.mode = .styleSuggestions(styleSuggestions)
+            mode = .styleSuggestions(styleSuggestions)
         } else {
-            self.mode = .errors(errors)
+            mode = .errors(errors)
         }
 
         guard !mode.isEmpty else {
@@ -740,7 +742,7 @@ class FloatingErrorIndicator: NSPanel {
         }
 
         // Configure indicator view based on mode
-        if mode.hasStyleSuggestions && !mode.hasErrors {
+        if mode.hasStyleSuggestions, !mode.hasErrors {
             // Style suggestions only - show count with purple ring (same as grammar errors)
             indicatorView?.displayMode = .count(styleSuggestions.count)
             indicatorView?.ringColor = .purple
@@ -753,10 +755,10 @@ class FloatingErrorIndicator: NSPanel {
         // Position using PID from context (no element needed)
         positionIndicatorByPID(context.processID)
 
-        Logger.debug("FloatingErrorIndicator: Window level: \(self.level.rawValue), isVisible: \(isVisible)", category: Logger.ui)
+        Logger.debug("FloatingErrorIndicator: Window level: \(level.rawValue), isVisible: \(isVisible)", category: Logger.ui)
         if !isVisible {
             Logger.debug("FloatingErrorIndicator: Calling order(.above)", category: Logger.ui)
-            order(.above, relativeTo: 0)  // Show window without stealing focus
+            order(.above, relativeTo: 0) // Show window without stealing focus
             Logger.debug("FloatingErrorIndicator: After order(.above), isVisible: \(isVisible)", category: Logger.ui)
         } else {
             Logger.debug("FloatingErrorIndicator: Window already visible", category: Logger.ui)
@@ -836,8 +838,8 @@ class FloatingErrorIndicator: NSPanel {
         for windowInfo in windowList {
             if let windowPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
                windowPID == pid,
-               let boundsDict = windowInfo[kCGWindowBounds as String] as? [String: CGFloat] {
-
+               let boundsDict = windowInfo[kCGWindowBounds as String] as? [String: CGFloat]
+            {
                 let x = boundsDict["X"] ?? 0
                 let y = boundsDict["Y"] ?? 0
                 let width = boundsDict["Width"] ?? 0
@@ -845,7 +847,7 @@ class FloatingErrorIndicator: NSPanel {
                 let area = width * height
 
                 // Skip tiny windows (likely tooltips or popups)
-                guard width >= UIConstants.minimumValidWindowSize && height >= UIConstants.minimumValidWindowSize else { continue }
+                guard width >= UIConstants.minimumValidWindowSize, height >= UIConstants.minimumValidWindowSize else { continue }
 
                 if bestWindow.map({ area > $0.area }) ?? true {
                     bestWindow = (x: x, y: y, width: width, height: height, area: area)
@@ -887,7 +889,7 @@ class FloatingErrorIndicator: NSPanel {
             return
         }
 
-        self.monitoredElement = element
+        monitoredElement = element
         self.context = context
 
         // Ensure correct shape is active
@@ -927,7 +929,7 @@ class FloatingErrorIndicator: NSPanel {
 
         // Update mode based on what we have
         if count > 0 {
-            self.mode = .styleSuggestions(styleSuggestions)
+            mode = .styleSuggestions(styleSuggestions)
         }
         // If count == 0, mode will be updated in showStyleCheckComplete
 
@@ -958,37 +960,36 @@ class FloatingErrorIndicator: NSPanel {
 
         // Short delay for checkmark, then show results or restore errors or hide
         // Use 1 second if there are findings to show, 2 seconds if restoring errors, 3 seconds if hiding
-        let delay: TimeInterval
-        if hasStyleSuggestions {
-            delay = 1.0
+        let delay: TimeInterval = if hasStyleSuggestions {
+            1.0
         } else if hasGrammarErrors {
-            delay = 2.0  // Shorter delay when restoring grammar errors
+            2.0 // Shorter delay when restoring grammar errors
         } else {
-            delay = 3.0  // Longer delay before hiding (no findings at all)
+            3.0 // Longer delay before hiding (no findings at all)
         }
 
         let workItem = DispatchWorkItem { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
 
             if hasStyleSuggestions {
                 // Transition to style suggestions count display
                 Logger.debug("FloatingErrorIndicator: Transitioning to style count \(count)", category: Logger.ui)
-                self.indicatorView?.displayMode = .count(count)
-                self.indicatorView?.ringColor = .purple
-                self.mode = .styleSuggestions(self.styleSuggestions)
-                self.indicatorView?.needsDisplay = true
+                indicatorView?.displayMode = .count(count)
+                indicatorView?.ringColor = .purple
+                mode = .styleSuggestions(styleSuggestions)
+                indicatorView?.needsDisplay = true
             } else if hasGrammarErrors {
                 // No style suggestions, but we have grammar errors - restore error display
-                Logger.debug("FloatingErrorIndicator: Restoring grammar errors display (\(self.errors.count) errors)", category: Logger.ui)
-                self.styleSuggestions = []
-                self.mode = .errors(self.errors)
-                self.indicatorView?.displayMode = .count(self.errors.count)
-                self.indicatorView?.ringColor = self.colorForErrors(self.errors)
-                self.indicatorView?.needsDisplay = true
+                Logger.debug("FloatingErrorIndicator: Restoring grammar errors display (\(errors.count) errors)", category: Logger.ui)
+                styleSuggestions = []
+                mode = .errors(errors)
+                indicatorView?.displayMode = .count(errors.count)
+                indicatorView?.ringColor = colorForErrors(errors)
+                indicatorView?.needsDisplay = true
             } else {
                 // No suggestions and no errors, hide the indicator
                 Logger.debug("FloatingErrorIndicator: No suggestions or errors, hiding indicator", category: Logger.ui)
-                self.hide()
+                hide()
             }
         }
         styleCheckHideWorkItem = workItem
@@ -1004,7 +1005,8 @@ class FloatingErrorIndicator: NSPanel {
     private func handleDragEnd(at finalPosition: CGPoint) {
         guard let element = monitoredElement,
               let windowFrame = getVisibleWindowFrame(for: element),
-              let bundleID = context?.bundleIdentifier else {
+              let bundleID = context?.bundleIdentifier
+        else {
             Logger.debug("FloatingErrorIndicator: handleDragEnd - no window frame or bundle ID available", category: Logger.ui)
             return
         }
@@ -1172,20 +1174,20 @@ class FloatingErrorIndicator: NSPanel {
     ) -> (x: CGFloat, y: CGFloat) {
         switch position {
         case "Top Left":
-            return (frame.minX + padding, frame.maxY - indicatorSize - padding)
+            (frame.minX + padding, frame.maxY - indicatorSize - padding)
         case "Top Right":
-            return (frame.maxX - indicatorSize - padding, frame.maxY - indicatorSize - padding)
+            (frame.maxX - indicatorSize - padding, frame.maxY - indicatorSize - padding)
         case "Center Left":
-            return (frame.minX + padding, frame.midY - indicatorSize / 2)
+            (frame.minX + padding, frame.midY - indicatorSize / 2)
         case "Center Right":
-            return (frame.maxX - indicatorSize - padding, frame.midY - indicatorSize / 2)
+            (frame.maxX - indicatorSize - padding, frame.midY - indicatorSize / 2)
         case "Bottom Left":
-            return (frame.minX + padding, frame.minY + padding)
+            (frame.minX + padding, frame.minY + padding)
         case "Bottom Right":
-            return (frame.maxX - indicatorSize - padding, frame.minY + padding)
+            (frame.maxX - indicatorSize - padding, frame.minY + padding)
         default:
             // Default to bottom right
-            return (frame.maxX - indicatorSize - padding, frame.minY + padding)
+            (frame.maxX - indicatorSize - padding, frame.minY + padding)
         }
     }
 
@@ -1241,8 +1243,8 @@ class FloatingErrorIndicator: NSPanel {
         for windowInfo in windowList {
             if let windowPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
                windowPID == pid,
-               let boundsDict = windowInfo[kCGWindowBounds as String] as? [String: CGFloat] {
-
+               let boundsDict = windowInfo[kCGWindowBounds as String] as? [String: CGFloat]
+            {
                 // Extract bounds
                 let x = boundsDict["X"] ?? 0
                 let y = boundsDict["Y"] ?? 0
@@ -1251,7 +1253,7 @@ class FloatingErrorIndicator: NSPanel {
                 let area = width * height
 
                 // Skip tiny windows (likely tooltips or popups)
-                guard width >= UIConstants.minimumValidWindowSize && height >= UIConstants.minimumValidWindowSize else { continue }
+                guard width >= UIConstants.minimumValidWindowSize, height >= UIConstants.minimumValidWindowSize else { continue }
 
                 // If we have an element window frame, try to match it
                 if let axFrame = elementWindowFrame {
@@ -1263,7 +1265,7 @@ class FloatingErrorIndicator: NSPanel {
                     if sizeMatch {
                         Logger.debug("FloatingErrorIndicator: Found matching window for element (size match: \(width)x\(height))", category: Logger.ui)
                         matchedWindow = (x: x, y: y, width: width, height: height)
-                        break  // Found exact match, use it
+                        break // Found exact match, use it
                     }
                 }
 
@@ -1348,7 +1350,7 @@ class FloatingErrorIndicator: NSPanel {
     /// Get the window frame for the given element (may include scrollback for terminals)
     /// Uses centralized AccessibilityBridge.getWindowFrame() helper
     private func getWindowFrame(for element: AXUIElement) -> CGRect? {
-        return AccessibilityBridge.getWindowFrame(element)
+        AccessibilityBridge.getWindowFrame(element)
     }
 
     // MARK: - Error Color Mapping
@@ -1357,13 +1359,13 @@ class FloatingErrorIndicator: NSPanel {
     private func colorForErrors(_ errors: [GrammarErrorModel]) -> NSColor {
         // Prioritize by severity: Spelling > Grammar > Style
         if errors.contains(where: { $0.category == "Spelling" || $0.category == "Typo" }) {
-            return .systemRed
+            .systemRed
         } else if errors.contains(where: {
             $0.category == "Grammar" || $0.category == "Agreement" || $0.category == "Punctuation"
         }) {
-            return .systemOrange
+            .systemOrange
         } else {
-            return .systemBlue
+            .systemBlue
         }
     }
 
@@ -1464,20 +1466,20 @@ class FloatingErrorIndicator: NSPanel {
 
     /// Popover anchor information for consistent positioning
     struct PopoverAnchor {
-        let anchorPoint: CGPoint  // The edge point of the indicator where popover should align
-        let edge: PopoverOpenDirection  // Which edge of the indicator the popover opens from
+        let anchorPoint: CGPoint // The edge point of the indicator where popover should align
+        let edge: PopoverOpenDirection // Which edge of the indicator the popover opens from
     }
 
     /// Calculate popover anchor point and edge for consistent positioning
     /// Uses the stored percentage position to determine which edge the indicator is on (same as CapsuleStateManager)
     private func calculatePopoverAnchor(for indicatorFrame: CGRect) -> PopoverAnchor {
         // Get stored percentage position for current app
-        let pos: IndicatorPositionStore.PercentagePosition
-        if let bundleID = context?.bundleIdentifier,
-           let storedPos = IndicatorPositionStore.shared.getPosition(for: bundleID) {
-            pos = storedPos
+        let pos: IndicatorPositionStore.PercentagePosition = if let bundleID = context?.bundleIdentifier,
+                                                                let storedPos = IndicatorPositionStore.shared.getPosition(for: bundleID)
+        {
+            storedPos
         } else {
-            pos = IndicatorPositionStore.shared.getDefaultPosition()
+            IndicatorPositionStore.shared.getDefaultPosition()
         }
 
         // Use same threshold as CapsuleStateManager for consistency
@@ -1492,7 +1494,7 @@ class FloatingErrorIndicator: NSPanel {
         Logger.debug("calculatePopoverAnchor: x=\(pos.xPercent), y=\(pos.yPercent) → L=\(isOnLeftEdge), R=\(isOnRightEdge), T=\(isOnTopEdge), B=\(isOnBottomEdge)", category: Logger.ui)
 
         // Return anchor point at the indicator edge where popover should open from
-        let spacing: CGFloat = 25  // Gap between indicator and popover
+        let spacing: CGFloat = 25 // Gap between indicator and popover
 
         // Priority: right/left edges first (since vertical capsule), then top/bottom
         if isOnRightEdge {
@@ -1571,11 +1573,10 @@ class FloatingErrorIndicator: NSPanel {
         menu.addItem(preferencesItem)
 
         // Show menu at mouse location - use whichever view is active
-        let targetView: NSView?
-        if let capsuleView = capsuleIndicatorView {
-            targetView = capsuleView
+        let targetView: NSView? = if let capsuleView = capsuleIndicatorView {
+            capsuleView
         } else {
-            targetView = indicatorView
+            indicatorView
         }
         guard let view = targetView else { return }
         let locationInView = view.convert(event.locationInWindow, from: nil)
@@ -1632,8 +1633,9 @@ class FloatingErrorIndicator: NSPanel {
         menu.addItem(indefiniteItem)
 
         // Show resume time if paused with duration
-        if (preferences.pauseDuration == .oneHour || preferences.pauseDuration == .twentyFourHours),
-           let until = preferences.pausedUntil {
+        if preferences.pauseDuration == .oneHour || preferences.pauseDuration == .twentyFourHours,
+           let until = preferences.pausedUntil
+        {
             let formatter = DateFormatter()
             formatter.timeStyle = .short
             let timeString = formatter.string(from: until)
@@ -1701,8 +1703,9 @@ class FloatingErrorIndicator: NSPanel {
         menu.addItem(indefiniteItem)
 
         // Show resume time if paused with duration for this app
-        if (currentPause == .oneHour || currentPause == .twentyFourHours),
-           let until = preferences.getPausedUntil(for: bundleID) {
+        if currentPause == .oneHour || currentPause == .twentyFourHours,
+           let until = preferences.getPausedUntil(for: bundleID)
+        {
             let formatter = DateFormatter()
             formatter.timeStyle = .short
             let timeString = formatter.string(from: until)
@@ -1793,7 +1796,6 @@ class FloatingErrorIndicator: NSPanel {
 
 /// Custom view for drawing the circular indicator
 private class IndicatorView: NSView {
-
     // MARK: - Properties
 
     var displayMode: IndicatorDisplayMode = .count(0) {
@@ -1802,6 +1804,7 @@ private class IndicatorView: NSView {
             needsDisplay = true
         }
     }
+
     var ringColor: NSColor = .systemRed
     var onClicked: (() -> Void)?
     var onRightClicked: ((NSEvent) -> Void)?
@@ -1838,7 +1841,8 @@ private class IndicatorView: NSView {
             }
     }
 
-    required init?(coder: NSCoder) {
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
@@ -1863,12 +1867,12 @@ private class IndicatorView: NSView {
     private func startSpinning() {
         guard spinningTimer == nil else { return }
         spinningTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.animationFrameInterval, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            self.spinningAngle -= 0.08  // Clockwise rotation (negative = clockwise in flipped coords)
-            if self.spinningAngle <= -.pi * 2 {
-                self.spinningAngle = 0
+            guard let self else { return }
+            spinningAngle -= 0.08 // Clockwise rotation (negative = clockwise in flipped coords)
+            if spinningAngle <= -.pi * 2 {
+                spinningAngle = 0
             }
-            self.needsDisplay = true
+            needsDisplay = true
         }
     }
 
@@ -1886,23 +1890,23 @@ private class IndicatorView: NSView {
         // Determine if dark mode based on overlay theme preference
         // Note: For "System" mode, we check the actual macOS system setting (not NSApp.effectiveAppearance)
         // because the app may have its own theme override via NSApp.appearance
-        let isDarkMode: Bool = {
-            switch UserPreferences.shared.overlayTheme {
-            case "Light":
-                return false
-            case "Dark":
-                return true
-            default: // "System"
-                // Query actual macOS system dark mode setting
-                return UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
-            }
-        }()
+        let isDarkMode: Bool = switch UserPreferences.shared.overlayTheme {
+        case "Light":
+            false
+        case "Dark":
+            true
+        default: // "System"
+            // Query actual macOS system dark mode setting
+            UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
+        }
 
         // MARK: - Define background circle (inset to leave room for ring stroke)
+
         let backgroundRect = bounds.insetBy(dx: 5, dy: 5)
         let backgroundPath = NSBezierPath(ovalIn: backgroundRect)
 
         // MARK: - Draw Drop Shadow (outside the ring only)
+
         // Use a slightly larger circle for shadow to ensure it appears behind the ring
         NSGraphicsContext.saveGraphicsState()
 
@@ -1910,7 +1914,7 @@ private class IndicatorView: NSView {
         let shadow = NSShadow()
         shadow.shadowColor = shadowColor
         shadow.shadowOffset = NSSize(width: 0, height: -2)
-        shadow.shadowBlurRadius = 3  // Reduced to keep shadow within bounds
+        shadow.shadowBlurRadius = 3 // Reduced to keep shadow within bounds
         shadow.set()
 
         // Draw shadow from a clear fill (shadow only, no visible fill)
@@ -1921,6 +1925,7 @@ private class IndicatorView: NSView {
         NSGraphicsContext.restoreGraphicsState()
 
         // MARK: - Glass Background (clipped to circle)
+
         NSGraphicsContext.saveGraphicsState()
         backgroundPath.addClip()
 
@@ -1934,13 +1939,14 @@ private class IndicatorView: NSView {
         // Inner highlight gradient (top to center, clipped to circle)
         let highlightGradient = NSGradient(colors: [
             NSColor.white.withAlphaComponent(isDarkMode ? 0.1 : 0.3),
-            NSColor.white.withAlphaComponent(0.0)
+            NSColor.white.withAlphaComponent(0.0),
         ])
         highlightGradient?.draw(in: backgroundRect, angle: 90)
 
         NSGraphicsContext.restoreGraphicsState()
 
         // MARK: - Colored Ring (drawn on top of glass background)
+
         switch displayMode {
         case .spinning:
             drawSpinningRing()
@@ -1958,6 +1964,7 @@ private class IndicatorView: NSView {
         }
 
         // MARK: - Subtle Border (glass edge, inside the ring)
+
         let borderPath = NSBezierPath(ovalIn: backgroundRect.insetBy(dx: 1.25, dy: 1.25))
         let borderColor = isDarkMode
             ? NSColor.white.withAlphaComponent(0.1)
@@ -1968,11 +1975,11 @@ private class IndicatorView: NSView {
 
         // Draw content based on display mode
         switch displayMode {
-        case .count(let count):
+        case let .count(count):
             drawErrorCount(count)
         case .sparkle:
             drawSparkleIcon()
-        case .sparkleWithCount(let count):
+        case let .sparkleWithCount(count):
             drawSparkleWithCount(count)
         case .spinning:
             drawSparkleIcon()
@@ -2001,7 +2008,7 @@ private class IndicatorView: NSView {
         backgroundRing.stroke()
 
         // Draw animated arc (spinning)
-        let arcLength: CGFloat = 90  // 90 degree arc
+        let arcLength: CGFloat = 90 // 90 degree arc
         let startAngleDegrees = spinningAngle * 180 / .pi
         let endAngleDegrees = startAngleDegrees + arcLength
 
@@ -2039,8 +2046,8 @@ private class IndicatorView: NSView {
         // Draw sparkle icon (smaller to make room for count)
         let symbolConfig = NSImage.SymbolConfiguration(pointSize: 12, weight: .medium)
         if let sparkleImage = NSImage(systemSymbolName: "sparkles", accessibilityDescription: "Style Suggestions")?
-            .withSymbolConfiguration(symbolConfig) {
-
+            .withSymbolConfiguration(symbolConfig)
+        {
             let tintedImage = NSImage(size: sparkleImage.size, flipped: false) { rect in
                 sparkleImage.draw(in: rect)
                 NSColor.purple.set()
@@ -2065,7 +2072,7 @@ private class IndicatorView: NSView {
         let fontSize: CGFloat = count > 9 ? 9 : 11
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: fontSize, weight: .bold),
-            .foregroundColor: NSColor.purple
+            .foregroundColor: NSColor.purple,
         ]
         let textSize = (countString as NSString).size(withAttributes: attributes)
         let textRect = NSRect(
@@ -2101,7 +2108,7 @@ private class IndicatorView: NSView {
         let fontSize: CGFloat = count > 9 ? 12 : 14
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: fontSize, weight: .semibold),
-            .foregroundColor: textColor
+            .foregroundColor: textColor,
         ]
         let textSize = (countString as NSString).size(withAttributes: attributes)
 
@@ -2119,7 +2126,8 @@ private class IndicatorView: NSView {
     private func drawSparkleIcon() {
         let symbolConfig = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
         guard let sparkleImage = NSImage(systemSymbolName: "sparkles", accessibilityDescription: "Style Suggestions")?
-            .withSymbolConfiguration(symbolConfig) else {
+            .withSymbolConfiguration(symbolConfig)
+        else {
             // Fallback to text if symbol not available
             drawFallbackSparkle()
             return
@@ -2151,7 +2159,7 @@ private class IndicatorView: NSView {
         let sparkleString = "✨"
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 14, weight: .medium),
-            .foregroundColor: NSColor.purple
+            .foregroundColor: NSColor.purple,
         ]
         let textSize = (sparkleString as NSString).size(withAttributes: attributes)
 
@@ -2168,12 +2176,13 @@ private class IndicatorView: NSView {
     private func drawCheckmarkIcon() {
         let symbolConfig = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
         guard let checkmarkImage = NSImage(systemSymbolName: "checkmark", accessibilityDescription: "Style Check Complete")?
-            .withSymbolConfiguration(symbolConfig) else {
+            .withSymbolConfiguration(symbolConfig)
+        else {
             // Fallback to text if symbol not available
             let checkString = "✓"
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: NSFont.systemFont(ofSize: 16, weight: .bold),
-                .foregroundColor: NSColor.purple
+                .foregroundColor: NSColor.purple,
             ]
             let textSize = (checkString as NSString).size(withAttributes: attributes)
             let textRect = NSRect(
@@ -2218,7 +2227,7 @@ private class IndicatorView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard let window = window else { return }
+        guard let window else { return }
 
         // Start drag on first mouseDragged event (not on mouseDown)
         // This prevents showing border guide on simple clicks
@@ -2251,7 +2260,7 @@ private class IndicatorView: NSView {
         window.orderFrontRegardless()
     }
 
-    override func mouseUp(with event: NSEvent) {
+    override func mouseUp(with _: NSEvent) {
         if !isDragging {
             // No drag happened - treat as a click
             onClicked?()
@@ -2261,7 +2270,7 @@ private class IndicatorView: NSView {
         isDragging = false
         NSCursor.pop()
 
-        if let window = window {
+        if let window {
             onDragEnd?(window.frame.origin)
         }
 
@@ -2274,7 +2283,7 @@ private class IndicatorView: NSView {
         onRightClicked?(event)
     }
 
-    override func mouseEntered(with event: NSEvent) {
+    override func mouseEntered(with _: NSEvent) {
         Logger.debug("IndicatorView: mouseEntered", category: Logger.ui)
         isHovered = true
 
@@ -2297,7 +2306,7 @@ private class IndicatorView: NSView {
         needsDisplay = true
     }
 
-    override func mouseExited(with event: NSEvent) {
+    override func mouseExited(with _: NSEvent) {
         Logger.debug("IndicatorView: mouseExited", category: Logger.ui)
         isHovered = false
 
@@ -2336,53 +2345,53 @@ private class IndicatorView: NSView {
     // MARK: - Accessibility
 
     override func isAccessibilityElement() -> Bool {
-        return true
+        true
     }
 
     override func accessibilityRole() -> NSAccessibility.Role? {
-        return .button
+        .button
     }
 
     override func accessibilityLabel() -> String? {
         switch displayMode {
-        case .count(let count):
+        case let .count(count):
             if count == 0 {
-                return "TextWarden indicator: No grammar errors"
+                "TextWarden indicator: No grammar errors"
             } else if count == 1 {
-                return "TextWarden indicator: 1 grammar error"
+                "TextWarden indicator: 1 grammar error"
             } else {
-                return "TextWarden indicator: \(count) grammar errors"
+                "TextWarden indicator: \(count) grammar errors"
             }
         case .sparkle:
-            return "TextWarden indicator: Style check available"
-        case .sparkleWithCount(let count):
+            "TextWarden indicator: Style check available"
+        case let .sparkleWithCount(count):
             if count == 1 {
-                return "TextWarden indicator: 1 style suggestion"
+                "TextWarden indicator: 1 style suggestion"
             } else {
-                return "TextWarden indicator: \(count) style suggestions"
+                "TextWarden indicator: \(count) style suggestions"
             }
         case .spinning:
-            return "TextWarden indicator: Checking..."
+            "TextWarden indicator: Checking..."
         case .styleCheckComplete:
-            return "TextWarden indicator: Style check complete, no issues"
+            "TextWarden indicator: Style check complete, no issues"
         }
     }
 
     override func accessibilityValue() -> Any? {
         switch displayMode {
-        case .count(let count):
-            return "\(count) errors"
-        case .sparkleWithCount(let count):
-            return "\(count) suggestions"
+        case let .count(count):
+            "\(count) errors"
+        case let .sparkleWithCount(count):
+            "\(count) suggestions"
         case .spinning:
-            return "Loading"
+            "Loading"
         case .sparkle, .styleCheckComplete:
-            return "Ready"
+            "Ready"
         }
     }
 
     override func accessibilityHelp() -> String? {
-        return "Click to show suggestions, or drag to reposition"
+        "Click to show suggestions, or drag to reposition"
     }
 
     override func accessibilityPerformPress() -> Bool {
@@ -2395,7 +2404,6 @@ private class IndicatorView: NSView {
 
 /// Custom view that draws a capsule-shaped indicator with multiple sections
 private class CapsuleIndicatorView: NSView {
-
     // MARK: - Properties
 
     var sections: [CapsuleSectionState] = [] {
@@ -2448,7 +2456,8 @@ private class CapsuleIndicatorView: NSView {
             }
     }
 
-    required init?(coder: NSCoder) {
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
@@ -2477,12 +2486,12 @@ private class CapsuleIndicatorView: NSView {
     private func startSpinning() {
         guard spinningTimer == nil else { return }
         spinningTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.animationFrameInterval, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            self.spinningAngle -= 0.08
-            if self.spinningAngle <= -.pi * 2 {
-                self.spinningAngle = 0
+            guard let self else { return }
+            spinningAngle -= 0.08
+            if spinningAngle <= -.pi * 2 {
+                spinningAngle = 0
             }
-            self.needsDisplay = true
+            needsDisplay = true
         }
     }
 
@@ -2590,7 +2599,7 @@ private class CapsuleIndicatorView: NSView {
         // Subtle top highlight for depth
         let highlightGradient = NSGradient(colors: [
             NSColor.white.withAlphaComponent(isDarkMode ? 0.12 : 0.4),
-            NSColor.white.withAlphaComponent(0.0)
+            NSColor.white.withAlphaComponent(0.0),
         ])
         highlightGradient?.draw(in: capsuleRect, angle: 90)
 
@@ -2607,7 +2616,7 @@ private class CapsuleIndicatorView: NSView {
             let spacing = UIConstants.capsuleSectionSpacing
 
             // Draw a separator after each section except the last
-            for i in 0..<(sections.count - 1) {
+            for i in 0 ..< (sections.count - 1) {
                 let separatorPath = NSBezierPath()
 
                 switch orientation {
@@ -2681,9 +2690,9 @@ private class CapsuleIndicatorView: NSView {
 
     private func determineDarkMode() -> Bool {
         switch UserPreferences.shared.overlayTheme {
-        case "Light": return false
-        case "Dark": return true
-        default: return UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
+        case "Light": false
+        case "Dark": true
+        default: UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
         }
     }
 
@@ -2715,7 +2724,7 @@ private class CapsuleIndicatorView: NSView {
 
         let highlightGradient = NSGradient(colors: [
             NSColor.white.withAlphaComponent(isDarkMode ? 0.1 : 0.3),
-            NSColor.white.withAlphaComponent(0.0)
+            NSColor.white.withAlphaComponent(0.0),
         ])
         highlightGradient?.draw(in: rect, angle: 90)
 
@@ -2736,7 +2745,7 @@ private class CapsuleIndicatorView: NSView {
         innerGlowPath.stroke()
     }
 
-    private func drawSpinningRing(rect: CGRect, color: NSColor, isDarkMode: Bool) {
+    private func drawSpinningRing(rect: CGRect, color: NSColor, isDarkMode _: Bool) {
         let center = CGPoint(x: rect.midX, y: rect.midY)
         let radius = rect.width / 2
 
@@ -2760,7 +2769,7 @@ private class CapsuleIndicatorView: NSView {
         spinningArc.stroke()
     }
 
-    private func drawSpinningRingForSection(path: NSBezierPath, rect: CGRect, color: NSColor, isDarkMode: Bool) {
+    private func drawSpinningRingForSection(path: NSBezierPath, rect _: CGRect, color: NSColor, isDarkMode _: Bool) {
         // Background ring
         color.withAlphaComponent(0.15).setStroke()
         path.lineWidth = 2.5
@@ -2784,20 +2793,20 @@ private class CapsuleIndicatorView: NSView {
     private func styleIconColor(isDarkMode: Bool) -> NSColor {
         if isDarkMode {
             // Vibrant magenta for dark mode - high contrast
-            return NSColor(red: 0.95, green: 0.3, blue: 0.75, alpha: 1.0)
+            NSColor(red: 0.95, green: 0.3, blue: 0.75, alpha: 1.0)
         } else {
             // Deep violet for light mode - distinct from red and blue
-            return NSColor(red: 0.6, green: 0.2, blue: 0.85, alpha: 1.0)
+            NSColor(red: 0.6, green: 0.2, blue: 0.85, alpha: 1.0)
         }
     }
 
     private func textGenIconColor(isDarkMode: Bool) -> NSColor {
         if isDarkMode {
             // Bright cyan-blue for dark mode - clearly different from magenta
-            return NSColor(red: 0.3, green: 0.7, blue: 1.0, alpha: 1.0)
+            NSColor(red: 0.3, green: 0.7, blue: 1.0, alpha: 1.0)
         } else {
             // Deep teal-blue for light mode - distinct from violet
-            return NSColor(red: 0.15, green: 0.5, blue: 0.8, alpha: 1.0)
+            NSColor(red: 0.15, green: 0.5, blue: 0.8, alpha: 1.0)
         }
     }
 
@@ -2808,15 +2817,15 @@ private class CapsuleIndicatorView: NSView {
 
     private func drawSectionContent(_ section: CapsuleSectionState, in rect: CGRect, isDarkMode: Bool) {
         switch section.displayState {
-        case .grammarCount(let count):
+        case let .grammarCount(count):
             drawCount(count, in: rect, isDarkMode: isDarkMode, color: grammarIconColor)
         case .grammarSuccess:
             drawCheckmark(in: rect, color: successColor)
         case .styleIdle:
-            drawSparkle(in: rect, color: styleIconColor(isDarkMode: isDarkMode).withAlphaComponent(0.85))  // Ready state, slightly dimmed
+            drawSparkle(in: rect, color: styleIconColor(isDarkMode: isDarkMode).withAlphaComponent(0.85)) // Ready state, slightly dimmed
         case .styleLoading:
             drawLoadingSpinner(in: rect, color: styleIconColor(isDarkMode: isDarkMode))
-        case .styleCount(let count):
+        case let .styleCount(count):
             drawCount(count, in: rect, isDarkMode: isDarkMode, color: styleIconColor(isDarkMode: isDarkMode))
         case .styleSuccess:
             drawCheckmark(in: rect, color: successColor)
@@ -2836,7 +2845,7 @@ private class CapsuleIndicatorView: NSView {
 
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: fontSize, weight: .bold),
-            .foregroundColor: textColor
+            .foregroundColor: textColor,
         ]
         let textSize = (countString as NSString).size(withAttributes: attributes)
 
@@ -2872,7 +2881,7 @@ private class CapsuleIndicatorView: NSView {
     /// Draw a simple loading spinner within a section
     private func drawLoadingSpinner(in rect: CGRect, color: NSColor) {
         let center = CGPoint(x: rect.midX, y: rect.midY)
-        let radius: CGFloat = 6.0  // Small spinner radius
+        let radius: CGFloat = 6.0 // Small spinner radius
 
         // Draw background arc (dimmed)
         let backgroundArc = NSBezierPath()
@@ -2941,7 +2950,7 @@ private class CapsuleIndicatorView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard let window = window else { return }
+        guard let window else { return }
 
         if !isDragging {
             isDragging = true
@@ -2980,7 +2989,7 @@ private class CapsuleIndicatorView: NSView {
         isDragging = false
         NSCursor.pop()
 
-        if let window = window {
+        if let window {
             onDragEnd?(window.frame.origin)
         }
     }
@@ -2998,7 +3007,7 @@ private class CapsuleIndicatorView: NSView {
             hoveredSection = section
 
             // Update section hover states
-            for i in 0..<sections.count {
+            for i in 0 ..< sections.count {
                 sections[i].isHovered = sections[i].type == section
             }
 
@@ -3007,14 +3016,14 @@ private class CapsuleIndicatorView: NSView {
             // If a hover popover is active, immediately switch to the new section's popover
             // Also switch if any popover is currently visible (from click)
             if hoverPopoverActive || SuggestionPopover.shared.isVisible || TextGenerationPopover.shared.isVisible {
-                if previousSection != nil && section != nil {
+                if previousSection != nil, section != nil {
                     onHover?(section)
                 }
             }
         }
     }
 
-    override func mouseEntered(with event: NSEvent) {
+    override func mouseEntered(with _: NSEvent) {
         if !isDragging {
             NSCursor.openHand.push()
         }
@@ -3032,7 +3041,7 @@ private class CapsuleIndicatorView: NSView {
         }
     }
 
-    override func mouseExited(with event: NSEvent) {
+    override func mouseExited(with _: NSEvent) {
         if !isDragging {
             NSCursor.pop()
         }
@@ -3042,7 +3051,7 @@ private class CapsuleIndicatorView: NSView {
         hoverPopoverActive = false
 
         hoveredSection = nil
-        for i in 0..<sections.count {
+        for i in 0 ..< sections.count {
             sections[i].isHovered = false
         }
         needsDisplay = true
@@ -3071,11 +3080,11 @@ private class CapsuleIndicatorView: NSView {
     // MARK: - Accessibility
 
     override func isAccessibilityElement() -> Bool {
-        return true
+        true
     }
 
     override func accessibilityRole() -> NSAccessibility.Role? {
-        return .group
+        .group
     }
 
     override func accessibilityLabel() -> String? {
@@ -3083,7 +3092,7 @@ private class CapsuleIndicatorView: NSView {
 
         for section in sections {
             switch section.displayState {
-            case .grammarCount(let count):
+            case let .grammarCount(count):
                 if count == 0 {
                     parts.append("No grammar errors")
                 } else if count == 1 {
@@ -3097,7 +3106,7 @@ private class CapsuleIndicatorView: NSView {
                 parts.append("Style check available")
             case .styleLoading:
                 parts.append("Checking style")
-            case .styleCount(let count):
+            case let .styleCount(count):
                 if count == 1 {
                     parts.append("1 style suggestion")
                 } else {
@@ -3121,7 +3130,7 @@ private class CapsuleIndicatorView: NSView {
     }
 
     override func accessibilityHelp() -> String? {
-        return "Click sections to show suggestions, or drag to reposition"
+        "Click sections to show suggestions, or drag to reposition"
     }
 
     override func accessibilityChildren() -> [Any]? {
@@ -3135,7 +3144,7 @@ private class CapsuleIndicatorView: NSView {
             element.setAccessibilityFrameInParentSpace(sectionFrame(at: index))
 
             switch section.displayState {
-            case .grammarCount(let count):
+            case let .grammarCount(count):
                 element.setAccessibilityLabel("Grammar section: \(count) error\(count == 1 ? "" : "s")")
             case .grammarSuccess:
                 element.setAccessibilityLabel("Grammar section: No errors")
@@ -3143,7 +3152,7 @@ private class CapsuleIndicatorView: NSView {
                 element.setAccessibilityLabel("Style section: Click to check")
             case .styleLoading:
                 element.setAccessibilityLabel("Style section: Checking...")
-            case .styleCount(let count):
+            case let .styleCount(count):
                 element.setAccessibilityLabel("Style section: \(count) suggestion\(count == 1 ? "" : "s")")
             case .styleSuccess:
                 element.setAccessibilityLabel("Style section: No issues")

@@ -6,8 +6,8 @@
 //  These values are used to filter out invalid or suspicious AX API results.
 //
 
-import Foundation
 import CoreGraphics
+import Foundation
 
 /// Constants for validating geometry bounds from accessibility APIs
 enum GeometryConstants {
@@ -32,7 +32,7 @@ enum GeometryConstants {
     // MARK: - Font Size Estimation
 
     /// Typical single line height range for font size estimation
-    static let typicalLineHeightRange: ClosedRange<CGFloat> = 15...50
+    static let typicalLineHeightRange: ClosedRange<CGFloat> = 15 ... 50
 
     /// Expected minimum line height for multi-line detection
     static let multiLineThresholdHeight: CGFloat = 35
@@ -98,16 +98,16 @@ enum GeometryConstants {
     // MARK: - Chromium/Electron Delays (microseconds for usleep)
 
     /// Short delay for Chromium AX processing (15ms)
-    static let chromiumShortDelay: UInt32 = 15_000
+    static let chromiumShortDelay: UInt32 = 15000
 
     /// Medium delay for Chromium operations (20ms)
-    static let chromiumMediumDelay: UInt32 = 20_000
+    static let chromiumMediumDelay: UInt32 = 20000
 
     /// Delay between key presses (1ms)
-    static let keyPressDelay: UInt32 = 1_000
+    static let keyPressDelay: UInt32 = 1000
 
     /// Short UI update delay (5ms)
-    static let shortUIDelay: UInt32 = 5_000
+    static let shortUIDelay: UInt32 = 5000
 
     // MARK: - Slack-Specific Constants
 
@@ -120,16 +120,16 @@ enum GeometryConstants {
     /// Check if bounds represent a valid single-line text region
     static func isValidSingleLineBounds(_ bounds: CGRect) -> Bool {
         bounds.width > 0 &&
-        bounds.height > minimumBoundsSize &&
-        bounds.height < maximumLineHeight
+            bounds.height > minimumBoundsSize &&
+            bounds.height < maximumLineHeight
     }
 
     /// Check if bounds represent a valid character or small text region
     static func isValidCharacterBounds(_ bounds: CGRect) -> Bool {
         bounds.width > 0 &&
-        bounds.width < maximumCharacterWidth &&
-        bounds.height > 0 &&
-        bounds.height < conservativeMaxLineHeight
+            bounds.width < maximumCharacterWidth &&
+            bounds.height > 0 &&
+            bounds.height < conservativeMaxLineHeight
     }
 
     /// Check if bounds are non-zero (basic validity)

@@ -5,12 +5,11 @@
 //  Integration tests for suggestion popover display and interaction
 //
 
-import XCTest
 import SwiftUI
 @testable import TextWarden
+import XCTest
 
 final class SuggestionPopoverTests: XCTestCase {
-
     // MARK: - Display Tests
 
     func testPopover_DisplaysNearCursor() {

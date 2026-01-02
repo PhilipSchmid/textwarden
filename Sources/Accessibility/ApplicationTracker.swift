@@ -5,9 +5,9 @@
 //  Tracks active application changes using NSWorkspace
 //
 
-import Foundation
 import AppKit
 import Combine
+import Foundation
 
 /// Tracks the currently active application and notifies observers
 @MainActor
@@ -72,7 +72,8 @@ class ApplicationTracker: ObservableObject {
     /// Check if frontmost application has changed
     private func checkForApplicationChange() {
         guard let app = workspace.frontmostApplication,
-              let bundleIdentifier = app.bundleIdentifier else {
+              let bundleIdentifier = app.bundleIdentifier
+        else {
             return
         }
 
@@ -86,7 +87,8 @@ class ApplicationTracker: ObservableObject {
     /// Handle application termination
     @objc private func handleApplicationTerminated(_ notification: Notification) {
         guard let userInfo = notification.userInfo,
-              let app = userInfo[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else {
+              let app = userInfo[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+        else {
             return
         }
 
@@ -102,7 +104,8 @@ class ApplicationTracker: ObservableObject {
     /// - Note: Must be called on the main thread to ensure thread safety with @Published properties
     func updateActiveApplicationSync() {
         guard let app = workspace.frontmostApplication,
-              let bundleIdentifier = app.bundleIdentifier else {
+              let bundleIdentifier = app.bundleIdentifier
+        else {
             return
         }
 
@@ -120,7 +123,7 @@ class ApplicationTracker: ObservableObject {
         UserPreferences.shared.discoveredApplications.insert(bundleIdentifier)
 
         // Pause unsupported apps by default on first discovery
-        if isNewApp && !AppRegistry.shared.hasConfiguration(for: bundleIdentifier) {
+        if isNewApp, !AppRegistry.shared.hasConfiguration(for: bundleIdentifier) {
             // Only set pause if user hasn't already configured this app
             if UserPreferences.shared.getPauseDuration(for: bundleIdentifier) == .active {
                 UserPreferences.shared.setPauseDuration(for: bundleIdentifier, duration: .indefinite)
@@ -129,14 +132,14 @@ class ApplicationTracker: ObservableObject {
         }
 
         // Track previous app before updating current
-        if let current = self.activeApplication, current.bundleIdentifier != bundleIdentifier {
-            self.previousApplication = current
+        if let current = activeApplication, current.bundleIdentifier != bundleIdentifier {
+            previousApplication = current
         }
 
-        self.activeApplication = context
+        activeApplication = context
 
         // Trigger callback for app change
-        self.onApplicationChange?(context)
+        onApplicationChange?(context)
     }
 
     /// Gets the most relevant application to display in the menu bar.
@@ -162,7 +165,8 @@ class ApplicationTracker: ObservableObject {
         let runningApps = workspace.runningApplications
 
         guard let app = runningApps.first(where: { $0.bundleIdentifier == bundleIdentifier }),
-              let bundle = app.bundleIdentifier else {
+              let bundle = app.bundleIdentifier
+        else {
             return nil
         }
 
@@ -204,7 +208,7 @@ extension ApplicationTracker {
             "com.github.atom",
             "com.jetbrains.intellij",
             "md.obsidian",
-            "notion.id"
+            "notion.id",
         ]
 
         return textEditors.contains(bundleID)
@@ -219,7 +223,7 @@ extension ApplicationTracker {
             "com.google.Chrome",
             "org.mozilla.firefox",
             "com.microsoft.edgemac",
-            "com.brave.Browser"
+            "com.brave.Browser",
         ]
 
         return browsers.contains(bundleID)

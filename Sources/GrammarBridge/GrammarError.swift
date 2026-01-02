@@ -11,9 +11,9 @@ import Foundation
 
     public var description: String {
         switch self {
-        case .error: return "Error"
-        case .warning: return "Warning"
-        case .info: return "Info"
+        case .error: "Error"
+        case .warning: "Warning"
+        case .info: "Info"
         }
     }
 
@@ -60,16 +60,16 @@ import Foundation
 
     /// Initialize from FFI GrammarError (opaque type)
     init(ffiError: GrammarErrorRef) {
-        self.start = Int(ffiError.start())
-        self.end = Int(ffiError.end())
-        self.message = ffiError.message().toString()
-        self.severity = GrammarErrorSeverity(ffiSeverity: ffiError.severity())
-        self.category = ffiError.category().toString()
-        self.lintId = ffiError.lint_id().toString()
+        start = Int(ffiError.start())
+        end = Int(ffiError.end())
+        message = ffiError.message().toString()
+        severity = GrammarErrorSeverity(ffiSeverity: ffiError.severity())
+        category = ffiError.category().toString()
+        lintId = ffiError.lint_id().toString()
 
         // Convert RustVec<RustString> to [String]
         let rustSuggestions = ffiError.suggestions()
-        self.suggestions = rustSuggestions.map { rustStrRef in
+        suggestions = rustSuggestions.map { rustStrRef in
             rustStrRef.as_str().toString()
         }
 
@@ -88,7 +88,7 @@ import Foundation
         super.init()
     }
 
-    public override var description: String {
+    override public var description: String {
         let suggestionsStr = suggestions.isEmpty ? "" : " -> [\(suggestions.joined(separator: ", "))]"
         return "[\(severity)] \(message) (\(lintId)) at \(start):\(end)\(suggestionsStr)"
     }
@@ -123,12 +123,12 @@ import Foundation
     /// Initialize from FFI AnalysisResult (opaque type)
     init(ffiResult: AnalysisResultRef) {
         let ffiErrors = ffiResult.errors()
-        self.errors = ffiErrors.map { GrammarErrorModel(ffiError: $0) }
-        self.wordCount = Int(ffiResult.word_count())
-        self.analysisTimeMs = ffiResult.analysis_time_ms()
-        self.memoryBeforeBytes = ffiResult.memory_before_bytes()
-        self.memoryAfterBytes = ffiResult.memory_after_bytes()
-        self.memoryDeltaBytes = ffiResult.memory_delta_bytes()
+        errors = ffiErrors.map { GrammarErrorModel(ffiError: $0) }
+        wordCount = Int(ffiResult.word_count())
+        analysisTimeMs = ffiResult.analysis_time_ms()
+        memoryBeforeBytes = ffiResult.memory_before_bytes()
+        memoryAfterBytes = ffiResult.memory_after_bytes()
+        memoryDeltaBytes = ffiResult.memory_delta_bytes()
         super.init()
     }
 
@@ -143,7 +143,7 @@ import Foundation
         super.init()
     }
 
-    public override var description: String {
+    override public var description: String {
         "Analysis: \(errors.count) errors found in \(wordCount) words (\(analysisTimeMs)ms, mem: \(memoryAfterBytes / 1024)KB)"
     }
 }

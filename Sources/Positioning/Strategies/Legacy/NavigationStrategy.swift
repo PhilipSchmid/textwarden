@@ -6,16 +6,15 @@
 //  Uses synthetic key events to move the cursor and measure position.
 //
 
-import Foundation
 import AppKit
 import ApplicationServices
 import Carbon.HIToolbox
+import Foundation
 
 /// Navigation-based positioning strategy
 /// Uses synthetic key events to move cursor and measure real screen position.
 /// Works when standard AX APIs fail.
 class NavigationStrategy: GeometryProvider {
-
     var strategyName: String { "Navigation" }
     var strategyType: StrategyType { .navigation }
     var tier: StrategyTier { .fallback }
@@ -25,11 +24,11 @@ class NavigationStrategy: GeometryProvider {
     private let kVK_LeftArrow: CGKeyCode = 123
     private let kVK_RightArrow: CGKeyCode = 124
 
-    func canHandle(element: AXUIElement, bundleID: String) -> Bool {
+    func canHandle(element _: AXUIElement, bundleID _: String) -> Bool {
         // DISABLED: This strategy uses synthetic arrow key presses which interferes with typing.
         // The cursor movement is visible to the user and makes the app unusable.
         // We need a non-invasive approach for Chromium apps.
-        return false
+        false
     }
 
     func calculateGeometry(
@@ -38,7 +37,6 @@ class NavigationStrategy: GeometryProvider {
         text: String,
         parser: ContentParser
     ) -> GeometryResult? {
-
         Logger.debug("NavigationStrategy: Starting for range \(errorRange)", category: Logger.ui)
 
         // Step 1: Get current cursor position
@@ -75,7 +73,7 @@ class NavigationStrategy: GeometryProvider {
 
         // Step 5: Always restore original position
         let restoreDelta = originalPosition - targetPosition
-        let _ = moveCursorByArrowKeys(delta: restoreDelta, element: element)
+        _ = moveCursorByArrowKeys(delta: restoreDelta, element: element)
 
         guard let bounds = cursorBounds else {
             Logger.debug("NavigationStrategy: Could not get cursor bounds at target", category: Logger.accessibility)
@@ -83,7 +81,7 @@ class NavigationStrategy: GeometryProvider {
         }
 
         // Validate bounds
-        guard bounds.width >= 0 && bounds.height > 0 && bounds.height < GeometryConstants.conservativeMaxLineHeight else {
+        guard bounds.width >= 0, bounds.height > 0, bounds.height < GeometryConstants.conservativeMaxLineHeight else {
             Logger.debug("NavigationStrategy: Invalid bounds \(bounds)", category: Logger.accessibility)
             return nil
         }
@@ -98,11 +96,12 @@ class NavigationStrategy: GeometryProvider {
         // Safe string slicing to handle UTF-16/character count mismatches
         guard let errorStartIdx = text.index(text.startIndex, offsetBy: errorStart, limitedBy: text.endIndex),
               let errorEndIdx = text.index(text.startIndex, offsetBy: errorEnd, limitedBy: text.endIndex),
-              errorStartIdx <= errorEndIdx else {
+              errorStartIdx <= errorEndIdx
+        else {
             Logger.debug("NavigationStrategy: String index out of bounds for error text", category: Logger.accessibility)
             return nil
         }
-        let errorText = String(text[errorStartIdx..<errorEndIdx])
+        let errorText = String(text[errorStartIdx ..< errorEndIdx])
         let errorWidth = max((errorText as NSString).size(withAttributes: attributes).width, 20.0)
 
         let finalBounds = CGRect(
@@ -129,7 +128,7 @@ class NavigationStrategy: GeometryProvider {
             metadata: [
                 "api": "cursor-navigation",
                 "delta": "\(delta)",
-                "measured_at": "\(targetPosition)"
+                "measured_at": "\(targetPosition)",
             ]
         )
     }
@@ -146,7 +145,8 @@ class NavigationStrategy: GeometryProvider {
 
         guard result == .success,
               let axValue = value,
-              let range = safeAXValueGetRange(axValue) else {
+              let range = safeAXValueGetRange(axValue)
+        else {
             return nil
         }
 
@@ -155,7 +155,7 @@ class NavigationStrategy: GeometryProvider {
 
     // MARK: - Cursor Movement
 
-    private func moveCursorByArrowKeys(delta: Int, element: AXUIElement) -> Bool {
+    private func moveCursorByArrowKeys(delta: Int, element _: AXUIElement) -> Bool {
         if delta == 0 {
             return true
         }
@@ -171,7 +171,7 @@ class NavigationStrategy: GeometryProvider {
 
         Logger.debug("NavigationStrategy: Moving cursor by \(delta) chars (\(steps) key presses)", category: Logger.accessibility)
 
-        for _ in 0..<steps {
+        for _ in 0 ..< steps {
             if !pressKey(keyCode: keyCode) {
                 return false
             }
@@ -204,9 +204,10 @@ class NavigationStrategy: GeometryProvider {
         var insertionValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, "AXInsertionPointFrame" as CFString, &insertionValue) == .success,
            let axValue = insertionValue,
-           let frame = safeAXValueGetRect(axValue) {
+           let frame = safeAXValueGetRect(axValue)
+        {
             // Validate the frame
-            if frame.height > GeometryConstants.minimumBoundsSize && frame.height < GeometryConstants.conservativeMaxLineHeight && frame.origin.x > 0 {
+            if frame.height > GeometryConstants.minimumBoundsSize, frame.height < GeometryConstants.conservativeMaxLineHeight, frame.origin.x > 0 {
                 Logger.debug("NavigationStrategy: Got valid bounds from AXInsertionPointFrame: \(frame)", category: Logger.accessibility)
                 return frame
             } else {
@@ -229,9 +230,10 @@ class NavigationStrategy: GeometryProvider {
         )
 
         if result == .success, let bv = boundsValue,
-           let bounds = safeAXValueGetRect(bv) {
+           let bounds = safeAXValueGetRect(bv)
+        {
             // Validate bounds - Chromium bug returns (0, y, 0, 0)
-            if bounds.width > 0 && bounds.height > GeometryConstants.minimumBoundsSize && bounds.origin.x > 0 {
+            if bounds.width > 0, bounds.height > GeometryConstants.minimumBoundsSize, bounds.origin.x > 0 {
                 Logger.debug("NavigationStrategy: Got valid bounds from AXBoundsForRange: \(bounds)", category: Logger.accessibility)
                 return bounds
             } else {

@@ -5,12 +5,11 @@
 //  Integration tests for first-time onboarding flow
 //
 
-import XCTest
 import SwiftUI
 @testable import TextWarden
+import XCTest
 
 final class OnboardingViewTests: XCTestCase {
-
     // MARK: - Onboarding Flow Tests
 
     func testOnboardingViewInitialization() {
@@ -72,7 +71,7 @@ final class OnboardingViewTests: XCTestCase {
             "5. User enables TextWarden in the list",
             "6. PermissionManager detects grant within 1 second",
             "7. OnboardingView auto-dismisses",
-            "8. Grammar checking activates immediately"
+            "8. Grammar checking activates immediately",
         ]
 
         XCTAssertEqual(expectedSteps.count, 8, "Onboarding flow should have 8 documented steps")
@@ -106,7 +105,7 @@ final class OnboardingViewTests: XCTestCase {
         // Given: App is waiting for permission grant
 
         // When: Polling interval is configured
-        let pollingInterval: TimeInterval = 1.0  // 1 second
+        let pollingInterval: TimeInterval = 1.0 // 1 second
 
         // Then: Should check every 1 second
         XCTAssertEqual(pollingInterval, 1.0, "Permission should be checked every 1 second during onboarding")
@@ -160,7 +159,7 @@ final class OnboardingViewTests: XCTestCase {
             "Menu bar icon appears": true,
             "Permission instructions clear": true,
             "Auto-detect permission grant": true,
-            "Grammar checking activates": true
+            "Grammar checking activates": true,
         ]
 
         XCTAssertEqual(acceptanceCriteria.count, 4, "All 4 acceptance criteria for US2 should be documented")
@@ -170,7 +169,7 @@ final class OnboardingViewTests: XCTestCase {
         // Given: Target completion time is < 5 minutes
 
         // When: User follows onboarding flow
-        let targetTime: TimeInterval = 300  // 5 minutes in seconds
+        let targetTime: TimeInterval = 300 // 5 minutes in seconds
 
         // Then: Flow should be completable within target
         XCTAssertLessThan(targetTime, 301, "Onboarding should complete in under 5 minutes")

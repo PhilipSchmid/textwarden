@@ -21,6 +21,7 @@ struct DiagnosticsView: View {
     var body: some View {
         Form {
             // MARK: - Active Application Monitoring
+
             Section {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
@@ -109,6 +110,7 @@ struct DiagnosticsView: View {
             }
 
             // MARK: - Session Information
+
             Section {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
@@ -149,12 +151,15 @@ struct DiagnosticsView: View {
             }
 
             // MARK: - Resource Monitoring Section
+
             ResourceMonitoringView()
 
             // MARK: - Logging Configuration
+
             LoggingConfigurationView(preferences: preferences)
 
             // MARK: - Export System Diagnostics
+
             Section {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Export a complete diagnostic package including logs, crash reports, system information, and comprehensive performance metrics for troubleshooting")
@@ -226,6 +231,7 @@ struct DiagnosticsView: View {
             }
 
             // MARK: - Debug Overlays
+
             Section {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Enable visual debug overlays to help diagnose positioning issues. When enabled, colored boxes will appear around text fields to show how TextWarden calculates positions for grammar indicators")
@@ -298,6 +304,7 @@ struct DiagnosticsView: View {
             }
 
             // MARK: - Reset Options
+
             Section {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Reset various aspects of TextWarden to their default state. Use these options with caution as they cannot be undone")
@@ -388,7 +395,8 @@ struct DiagnosticsView: View {
                                 // Easter egg: double-click shows milestone preview instead of resetting
                                 let now = Date()
                                 if let lastClick = lastMilestoneResetClick,
-                                   now.timeIntervalSince(lastClick) < 0.4 {
+                                   now.timeIntervalSince(lastClick) < 0.4
+                                {
                                     // Double-click detected - show preview
                                     MenuBarController.shared?.showMilestonePreview()
                                     lastMilestoneResetClick = nil
@@ -444,7 +452,7 @@ struct DiagnosticsView: View {
         .formStyle(.grouped)
         .padding()
         .alert("Diagnostic Export", isPresented: $showingExportAlert) {
-            Button("OK", role: .cancel) { }
+            Button("OK", role: .cancel) {}
         } message: {
             Text(exportAlertMessage)
         }
@@ -465,7 +473,7 @@ struct DiagnosticsView: View {
 
         savePanel.begin { response in
             guard response == .OK, let url = savePanel.url else {
-                self.isExporting = false
+                isExporting = false
                 return
             }
 
@@ -477,27 +485,26 @@ struct DiagnosticsView: View {
             Task { @MainActor in
                 let success = DiagnosticReport.exportAsZIP(
                     to: url,
-                    preferences: self.preferences,
+                    preferences: preferences,
                     shortcuts: shortcuts
                 )
 
-                self.isExporting = false
+                isExporting = false
 
                 if success {
-                    self.exportAlertMessage = "Diagnostic package exported successfully to:\n\(url.path)"
-                    self.showingExportAlert = true
+                    exportAlertMessage = "Diagnostic package exported successfully to:\n\(url.path)"
+                    showingExportAlert = true
 
                     Logger.info("Diagnostic package exported to: \(url.path)", category: Logger.general)
                 } else {
-                    self.exportAlertMessage = "Failed to export diagnostic package. Please check the logs for details."
-                    self.showingExportAlert = true
+                    exportAlertMessage = "Failed to export diagnostic package. Please check the logs for details."
+                    showingExportAlert = true
 
                     Logger.error("Failed to export diagnostic package", category: Logger.general)
                 }
             }
         }
     }
-
 
     private func formatDateForFilename() -> String {
         let formatter = DateFormatter()
@@ -521,7 +528,7 @@ struct DiagnosticsView: View {
         configuration.createsNewApplicationInstance = true
 
         NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { _, error in
-            if let error = error {
+            if let error {
                 Logger.error("Failed to relaunch app: \(error.localizedDescription)", category: Logger.general)
             } else {
                 // Terminate current instance after new one starts

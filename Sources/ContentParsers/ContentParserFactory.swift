@@ -10,7 +10,6 @@ import Foundation
 
 /// Factory for creating app-specific content parsers
 final class ContentParserFactory {
-
     /// Shared singleton instance
     static let shared = ContentParserFactory()
 
@@ -33,7 +32,7 @@ final class ContentParserFactory {
             .word: WordContentParser(),
             .powerpoint: PowerPointContentParser(),
             .outlook: OutlookContentParser(),
-            .webex: WebExContentParser()
+            .webex: WebExContentParser(),
         ]
 
         Logger.info("ContentParserFactory: Initialized with \(parsersByType.count) parser types", category: Logger.analysis)
@@ -81,17 +80,17 @@ final class ContentParserFactory {
     /// Get configuration for a bundle identifier
     /// Convenience method to access AppRegistry
     func configuration(for bundleID: String) -> AppConfiguration {
-        return AppRegistry.shared.configuration(for: bundleID)
+        AppRegistry.shared.configuration(for: bundleID)
     }
 
     /// Check if a specific (non-generic) parser is configured for a bundle ID
     func hasSpecificParser(for bundleID: String) -> Bool {
-        return AppRegistry.shared.hasConfiguration(for: bundleID)
+        AppRegistry.shared.hasConfiguration(for: bundleID)
     }
 
     /// Get list of all bundle IDs with specific configurations
     var supportedBundleIdentifiers: [String] {
-        return AppRegistry.shared.allConfigurations.flatMap { Array($0.bundleIDs) }
+        AppRegistry.shared.allConfigurations.flatMap { Array($0.bundleIDs) }
     }
 
     /// Clear parser cache (useful for testing)

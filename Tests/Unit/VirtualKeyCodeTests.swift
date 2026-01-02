@@ -6,12 +6,12 @@
 //  that could break Terminal text replacement
 //
 
-import XCTest
 @testable import TextWarden
+import XCTest
 
 final class VirtualKeyCodeTests: XCTestCase {
-
     // MARK: - Critical Key Code Regression Tests
+
     // These tests ensure we never accidentally change the virtual key codes
     // that broke Terminal replacement in the past.
 
@@ -50,7 +50,7 @@ final class VirtualKeyCodeTests: XCTestCase {
             VirtualKeyCode.a,
             VirtualKeyCode.b,
             VirtualKeyCode.k,
-            VirtualKeyCode.v
+            VirtualKeyCode.v,
         ]
 
         let uniqueCodes = Set(codes)
@@ -66,7 +66,7 @@ final class VirtualKeyCodeTests: XCTestCase {
     /// 3. Cmd+V (paste)
     func testTerminalReplacementKeySequence() {
         // Verify the key codes used in Terminal replacement
-        struct TerminalKeys {
+        enum TerminalKeys {
             static let ctrlA = VirtualKeyCode.a
             static let ctrlK = VirtualKeyCode.k
             static let cmdV = VirtualKeyCode.v

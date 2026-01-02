@@ -13,8 +13,8 @@
 //  - CHECKED: Bold, italic, underline, strikethrough (grammar errors should be flagged)
 //
 
-import Foundation
 import AppKit
+import Foundation
 
 /// Microsoft Teams-specific content parser
 /// Uses TeamsStrategy for positioning via child element AXBoundsForRange.
@@ -36,14 +36,14 @@ class TeamsContentParser: ContentParser {
 
     /// Visual underlines status from config
     var disablesVisualUnderlines: Bool {
-        return !config.features.visualUnderlinesEnabled
+        !config.features.visualUnderlinesEnabled
     }
 
     /// UI contexts within Teams
     private enum TeamsContext: String {
         case messageInput = "message-input"
         case searchBar = "search-bar"
-        case unknown = "unknown"
+        case unknown
     }
 
     func detectUIContext(element: AXUIElement) -> String? {
@@ -75,16 +75,16 @@ class TeamsContentParser: ContentParser {
         return TeamsContext.messageInput.rawValue
     }
 
-    func estimatedFontSize(context: String?) -> CGFloat {
-        return config.fontConfig.defaultSize
+    func estimatedFontSize(context _: String?) -> CGFloat {
+        config.fontConfig.defaultSize
     }
 
-    func spacingMultiplier(context: String?) -> CGFloat {
-        return config.fontConfig.spacingMultiplier
+    func spacingMultiplier(context _: String?) -> CGFloat {
+        config.fontConfig.spacingMultiplier
     }
 
-    func horizontalPadding(context: String?) -> CGFloat {
-        return config.horizontalPadding
+    func horizontalPadding(context _: String?) -> CGFloat {
+        config.horizontalPadding
     }
 
     // MARK: - Exclusion Detection
@@ -96,7 +96,7 @@ class TeamsContentParser: ContentParser {
         let textHash = text.hashValue
 
         // Return cached exclusions if text hasn't changed
-        if textHash == exclusionTextHash && !cachedExclusions.isEmpty {
+        if textHash == exclusionTextHash, !cachedExclusions.isEmpty {
             Logger.debug("TeamsContentParser: Using cached exclusions (\(cachedExclusions.count) ranges)", category: Logger.analysis)
             return cachedExclusions
         }
@@ -139,13 +139,14 @@ class TeamsContentParser: ContentParser {
 
     /// Extract exclusions from attributed string using AXBackgroundColor
     /// Teams applies background color to mentions, channels, code blocks
-    private func extractFromAttributedString(element: AXUIElement, text: String) -> [ExclusionRange] {
+    private func extractFromAttributedString(element: AXUIElement, text _: String) -> [ExclusionRange] {
         var exclusions: [ExclusionRange] = []
 
         // Get character count
         var charCountRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXNumberOfCharactersAttribute as CFString, &charCountRef) == .success,
-              let charCount = charCountRef as? Int, charCount > 0 else {
+              let charCount = charCountRef as? Int, charCount > 0
+        else {
             Logger.debug("TeamsContentParser: Could not get AXNumberOfCharacters", category: Logger.analysis)
             return exclusions
         }
@@ -245,7 +246,7 @@ class TeamsContentParser: ContentParser {
     private static let maxLinkDetectionDepth = 5
 
     private func detectLinks(in element: AXUIElement, text: String) -> [ExclusionRange] {
-        return detectLinksRecursive(in: element, text: text, depth: 0)
+        detectLinksRecursive(in: element, text: text, depth: 0)
     }
 
     private func detectLinksRecursive(in element: AXUIElement, text: String, depth: Int) -> [ExclusionRange] {
@@ -259,17 +260,18 @@ class TeamsContentParser: ContentParser {
 
         if role == "AXLink" {
             var valueRef: CFTypeRef?
-            var linkText: String = ""
+            var linkText = ""
 
             if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
-               let v = valueRef as? String, !v.isEmpty {
+               let v = valueRef as? String, !v.isEmpty
+            {
                 linkText = v
             } else {
                 linkText = getLinkTextFromChildren(element)
             }
 
             // Only detect actual URLs, not mentions/channels
-            if !linkText.isEmpty && (linkText.hasPrefix("http://") || linkText.hasPrefix("https://")) {
+            if !linkText.isEmpty, linkText.hasPrefix("http://") || linkText.hasPrefix("https://") {
                 if let range = text.range(of: linkText) {
                     let location = text.distance(from: text.startIndex, to: range.lowerBound)
                     linkRanges.append(ExclusionRange(location: location, length: linkText.count))
@@ -281,7 +283,8 @@ class TeamsContentParser: ContentParser {
         // Recurse into children
         var childrenRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-           let children = childrenRef as? [AXUIElement] {
+           let children = childrenRef as? [AXUIElement]
+        {
             for child in children {
                 linkRanges.append(contentsOf: detectLinksRecursive(in: child, text: text, depth: depth + 1))
             }
@@ -293,17 +296,20 @@ class TeamsContentParser: ContentParser {
     private func getLinkTextFromChildren(_ element: AXUIElement) -> String {
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-              let children = childrenRef as? [AXUIElement] else {
+              let children = childrenRef as? [AXUIElement]
+        else {
             return ""
         }
 
         for child in children {
             var roleRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(child, kAXRoleAttribute as CFString, &roleRef) == .success,
-               let role = roleRef as? String, role == "AXStaticText" {
+               let role = roleRef as? String, role == "AXStaticText"
+            {
                 var valueRef: CFTypeRef?
                 if AXUIElementCopyAttributeValue(child, kAXValueAttribute as CFString, &valueRef) == .success,
-                   let value = valueRef as? String, !value.isEmpty {
+                   let value = valueRef as? String, !value.isEmpty
+                {
                     return value
                 }
             }
@@ -323,14 +329,16 @@ class TeamsContentParser: ContentParser {
 
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-              let children = childrenRef as? [AXUIElement] else {
+              let children = childrenRef as? [AXUIElement]
+        else {
             return codeRanges
         }
 
         for child in children {
             var subroleRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(child, kAXSubroleAttribute as CFString, &subroleRef) == .success,
-               let subrole = subroleRef as? String, subrole == "AXCodeStyleGroup" {
+               let subrole = subroleRef as? String, subrole == "AXCodeStyleGroup"
+            {
                 let codeText = getTextFromElement(child)
                 if !codeText.isEmpty, let range = text.range(of: codeText) {
                     let location = text.distance(from: text.startIndex, to: range.lowerBound)
@@ -348,14 +356,16 @@ class TeamsContentParser: ContentParser {
     private func getTextFromElement(_ element: AXUIElement) -> String {
         var valueRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
-           let value = valueRef as? String, !value.isEmpty {
+           let value = valueRef as? String, !value.isEmpty
+        {
             return value
         }
 
         // Concatenate child AXStaticText
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-              let children = childrenRef as? [AXUIElement] else {
+              let children = childrenRef as? [AXUIElement]
+        else {
             return ""
         }
 
@@ -363,10 +373,12 @@ class TeamsContentParser: ContentParser {
         for child in children {
             var roleRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(child, kAXRoleAttribute as CFString, &roleRef) == .success,
-               let role = roleRef as? String, role == "AXStaticText" {
+               let role = roleRef as? String, role == "AXStaticText"
+            {
                 var childValueRef: CFTypeRef?
                 if AXUIElementCopyAttributeValue(child, kAXValueAttribute as CFString, &childValueRef) == .success,
-                   let childValue = childValueRef as? String {
+                   let childValue = childValueRef as? String
+                {
                     combined += childValue
                 }
             }
@@ -382,11 +394,13 @@ class TeamsContentParser: ContentParser {
 
         var levelRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, "AXBlockQuoteLevel" as CFString, &levelRef) == .success,
-           let level = levelRef as? Int, level > 0 {
+           let level = levelRef as? Int, level > 0
+        {
             var valueRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
                let quoteText = valueRef as? String, !quoteText.isEmpty,
-               let range = text.range(of: quoteText) {
+               let range = text.range(of: quoteText)
+            {
                 let location = text.distance(from: text.startIndex, to: range.lowerBound)
                 Logger.debug("TeamsContentParser: Found blockquote at level \(level), \(location)-\(location + quoteText.count)", category: Logger.analysis)
                 quoteRanges.append(ExclusionRange(location: location, length: quoteText.count))
@@ -396,7 +410,8 @@ class TeamsContentParser: ContentParser {
         // Check children
         var childrenRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-           let children = childrenRef as? [AXUIElement] {
+           let children = childrenRef as? [AXUIElement]
+        {
             for child in children {
                 quoteRanges.append(contentsOf: detectBlockQuotes(in: child, text: text))
             }
@@ -413,17 +428,20 @@ class TeamsContentParser: ContentParser {
 
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-              let children = childrenRef as? [AXUIElement] else {
+              let children = childrenRef as? [AXUIElement]
+        else {
             return exclusions
         }
 
         for child in children {
             var roleRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(child, kAXRoleAttribute as CFString, &roleRef) == .success,
-               let role = roleRef as? String, role == "AXStaticText" {
+               let role = roleRef as? String, role == "AXStaticText"
+            {
                 var valueRef: CFTypeRef?
                 if AXUIElementCopyAttributeValue(child, kAXValueAttribute as CFString, &valueRef) == .success,
-                   let value = valueRef as? String, !value.isEmpty {
+                   let value = valueRef as? String, !value.isEmpty
+                {
                     // Check for mention or channel prefix
                     let isMention = value.hasPrefix("@") && value.count > 1 && !value.contains("@.")
                     let isChannel = value.hasPrefix("#") && value.count > 1

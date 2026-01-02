@@ -7,15 +7,14 @@
 //  then calculates error position relative to that reference.
 //
 
-import Foundation
 import AppKit
 import ApplicationServices
+import Foundation
 
 /// Anchor search strategy
 /// Probes characters near the error to find one with valid bounds,
 /// then calculates the error position relative to that anchor.
 class AnchorSearchStrategy: GeometryProvider {
-
     var strategyName: String { "AnchorSearch" }
     var strategyType: StrategyType { .anchorSearch }
     var tier: StrategyTier { .reliable }
@@ -32,7 +31,6 @@ class AnchorSearchStrategy: GeometryProvider {
         text: String,
         parser: ContentParser
     ) -> GeometryResult? {
-
         Logger.debug("AnchorSearchStrategy: Starting for range \(errorRange)", category: Logger.ui)
 
         // Convert filtered coordinates to original coordinates (still in grapheme clusters)
@@ -107,15 +105,14 @@ class AnchorSearchStrategy: GeometryProvider {
         Logger.debug("AnchorSearchStrategy: textBetweenWidth=\(textBetweenWidth), errorWidth=\(errorWidth)", category: Logger.ui)
 
         // Step 4: Calculate error position from anchor
-        var errorX: CGFloat
-        if offsetUTF16 >= 0 {
-            errorX = anchor.bounds.origin.x + textBetweenWidth
+        var errorX: CGFloat = if offsetUTF16 >= 0 {
+            anchor.bounds.origin.x + textBetweenWidth
         } else {
-            errorX = anchor.bounds.origin.x - textBetweenWidth
+            anchor.bounds.origin.x - textBetweenWidth
         }
 
         // Check if we're on the same line by looking at newlines in textBetween
-        let newlineCount = textBetween.filter { $0 == "\n" }.count
+        let newlineCount = textBetween.count(where: { $0 == "\n" })
 
         // Estimate Y position
         var errorY = anchor.bounds.origin.y
@@ -154,13 +151,12 @@ class AnchorSearchStrategy: GeometryProvider {
         }
 
         // Confidence depends on distance from anchor and whether same line
-        let confidence: Double
-        if newlineCount == 0 && abs(offsetUTF16) < 20 {
-            confidence = GeometryConstants.goodConfidence
+        let confidence: Double = if newlineCount == 0, abs(offsetUTF16) < 20 {
+            GeometryConstants.goodConfidence
         } else if newlineCount == 0 {
-            confidence = GeometryConstants.mediumConfidence
+            GeometryConstants.mediumConfidence
         } else {
-            confidence = GeometryConstants.lowConfidence
+            GeometryConstants.lowConfidence
         }
 
         Logger.debug("AnchorSearchStrategy: SUCCESS - bounds: \(cocoaBounds), confidence: \(confidence)", category: Logger.ui)
@@ -173,7 +169,7 @@ class AnchorSearchStrategy: GeometryProvider {
                 "api": "anchor-search",
                 "anchor_index": anchor.index,
                 "offset_utf16": offsetUTF16,
-                "newlines_crossed": newlineCount
+                "newlines_crossed": newlineCount,
             ]
         )
     }
@@ -186,18 +182,18 @@ class AnchorSearchStrategy: GeometryProvider {
     }
 
     private func findValidAnchor(near targetIndex: Int, in element: AXUIElement, textLength: Int) -> Anchor? {
-        var offsets: [Int] = [0]
-        for i in 1...maxProbeDistance {
+        var offsets = [0]
+        for i in 1 ... maxProbeDistance {
             offsets.append(i)
             offsets.append(-i)
         }
 
         for offset in offsets {
             let probeIndex = targetIndex + offset
-            guard probeIndex >= 0 && probeIndex < textLength else { continue }
+            guard probeIndex >= 0, probeIndex < textLength else { continue }
 
             if let bounds = getBoundsForSingleChar(at: probeIndex, in: element) {
-                if bounds.width > 0 && bounds.height > 0 && bounds.height < GeometryConstants.maximumLineHeight && bounds.width < GeometryConstants.maximumCharacterWidth {
+                if bounds.width > 0, bounds.height > 0, bounds.height < GeometryConstants.maximumLineHeight, bounds.width < GeometryConstants.maximumCharacterWidth {
                     return Anchor(index: probeIndex, bounds: bounds)
                 }
             }
@@ -222,7 +218,8 @@ class AnchorSearchStrategy: GeometryProvider {
 
         guard result == .success,
               let bv = boundsValue,
-              let bounds = safeAXValueGetRect(bv) else {
+              let bounds = safeAXValueGetRect(bv)
+        else {
             return nil
         }
 
@@ -238,7 +235,7 @@ class AnchorSearchStrategy: GeometryProvider {
     private func graphemeToUTF16(_ graphemeIndex: Int, in string: String) -> Int {
         let safeIndex = min(graphemeIndex, string.count)
         guard let stringIndex = string.index(string.startIndex, offsetBy: safeIndex, limitedBy: string.endIndex) else {
-            return graphemeIndex  // Fallback to original if conversion fails
+            return graphemeIndex // Fallback to original if conversion fails
         }
         let prefix = String(string[..<stringIndex])
         return (prefix as NSString).length

@@ -6,8 +6,8 @@
 //  Leverages TextMarkerStrategy for Chromium/Electron apps
 //
 
-import Foundation
 import AppKit
+import Foundation
 
 /// Slack-specific content parser
 /// Uses graceful degradation: error indicator shown but underlines hidden
@@ -62,7 +62,7 @@ class SlackContentParser: ContentParser {
         let textHash = text.hashValue
 
         // Return cached exclusions if text hasn't changed
-        if textHash == exclusionTextHash && !cachedExclusions.isEmpty {
+        if textHash == exclusionTextHash, !cachedExclusions.isEmpty {
             Logger.debug("SlackContentParser: Using cached exclusions (\(cachedExclusions.count) ranges)", category: Logger.analysis)
             return cachedExclusions
         }
@@ -152,13 +152,14 @@ class SlackContentParser: ContentParser {
     ///
     /// This method reads the attributed string in chunks and collects all ranges
     /// with `AXBackgroundColor` set. Links are handled separately via `detectLinks`.
-    private func extractUsingCFRange(element: AXUIElement, text: String) -> [ExclusionRange] {
+    private func extractUsingCFRange(element: AXUIElement, text _: String) -> [ExclusionRange] {
         var exclusions: [ExclusionRange] = []
 
         // Get character count from AX API (may differ from text.count due to UTF-16)
         var charCountRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXNumberOfCharactersAttribute as CFString, &charCountRef) == .success,
-              let charCount = charCountRef as? Int, charCount > 0 else {
+              let charCount = charCountRef as? Int, charCount > 0
+        else {
             Logger.debug("SlackContentParser: Could not get AXNumberOfCharacters", category: Logger.analysis)
             return exclusions
         }
@@ -335,15 +336,17 @@ class SlackContentParser: ContentParser {
 
             // Also check for monospace font (code blocks use monospace fonts)
             if !addedRanges.contains(range),
-               let font = attrs[.font] as? NSFont {
+               let font = attrs[.font] as? NSFont
+            {
                 let fontName = font.fontName.lowercased()
                 let traits = font.fontDescriptor.symbolicTraits
 
                 // Detect monospace fonts used for code
                 if fontName.contains("mono") || fontName.contains("courier") || fontName.contains("menlo") ||
-                   fontName.contains("consolas") || fontName.contains("source code") || fontName.contains("fira code") ||
-                   fontName.contains("sf mono") || fontName.contains("jetbrains") ||
-                   traits.contains(.monoSpace) {
+                    fontName.contains("consolas") || fontName.contains("source code") || fontName.contains("fira code") ||
+                    fontName.contains("sf mono") || fontName.contains("jetbrains") ||
+                    traits.contains(.monoSpace)
+                {
                     exclusions.append(ExclusionRange(location: range.location, length: range.length))
                     addedRanges.insert(range)
                 }
@@ -373,8 +376,8 @@ class SlackContentParser: ContentParser {
         if AXUIElementCopyAttributeValue(element, "AXStartTextMarker" as CFString, &startMarkerRef) == .success,
            AXUIElementCopyAttributeValue(element, "AXEndTextMarker" as CFString, &endMarkerRef) == .success,
            let startMarker = startMarkerRef,
-           let endMarker = endMarkerRef {
-
+           let endMarker = endMarkerRef
+        {
             // Create range from start to end markers
             let markers = [startMarker, endMarker] as CFArray
             if AXUIElementCopyParameterizedAttributeValue(
@@ -390,8 +393,8 @@ class SlackContentParser: ContentParser {
         // Method 3: Try using number of characters
         var charCountRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXNumberOfCharactersAttribute as CFString, &charCountRef) == .success,
-           let charCount = charCountRef as? Int {
-
+           let charCount = charCountRef as? Int
+        {
             // Get marker for index 0
             var startIndexMarker: CFTypeRef?
             if AXUIElementCopyParameterizedAttributeValue(
@@ -400,7 +403,6 @@ class SlackContentParser: ContentParser {
                 0 as CFNumber,
                 &startIndexMarker
             ) == .success {
-
                 // Get marker for last index
                 var endIndexMarker: CFTypeRef?
                 if AXUIElementCopyParameterizedAttributeValue(
@@ -409,7 +411,6 @@ class SlackContentParser: ContentParser {
                     charCount as CFNumber,
                     &endIndexMarker
                 ) == .success {
-
                     // Create range from markers
                     let markers = [startIndexMarker!, endIndexMarker!] as CFArray
                     if AXUIElementCopyParameterizedAttributeValue(
@@ -434,10 +435,11 @@ class SlackContentParser: ContentParser {
         guard exclusion.location >= 0,
               exclusion.location + exclusion.length <= text.count,
               let start = text.index(text.startIndex, offsetBy: exclusion.location, limitedBy: text.endIndex),
-              let end = text.index(start, offsetBy: exclusion.length, limitedBy: text.endIndex) else {
+              let end = text.index(start, offsetBy: exclusion.length, limitedBy: text.endIndex)
+        else {
             return false
         }
-        let exclusionText = String(text[start..<end]).trimmingCharacters(in: .whitespaces)
+        let exclusionText = String(text[start ..< end]).trimmingCharacters(in: .whitespaces)
         return exclusionText.hasPrefix("@") || exclusionText.hasPrefix("#") || exclusionText.hasPrefix("http")
     }
 
@@ -470,7 +472,8 @@ class SlackContentParser: ContentParser {
     private func saveSelectionState(element: AXUIElement) -> CFRange? {
         var rangeRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &rangeRef) == .success,
-              let range = safeAXValueGetRange(rangeRef!) else {
+              let range = safeAXValueGetRange(rangeRef!)
+        else {
             return nil
         }
         return range
@@ -512,7 +515,8 @@ class SlackContentParser: ContentParser {
         guard let source = CGEventSource(stateID: .combinedSessionState) else { return false }
 
         guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
-              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) else {
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
+        else {
             return false
         }
 
@@ -536,7 +540,7 @@ class SlackContentParser: ContentParser {
 
         // Log all available clipboard types for debugging
         if let types = pasteboard.types {
-            let typeList = types.map { $0.rawValue }.joined(separator: ", ")
+            let typeList = types.map(\.rawValue).joined(separator: ", ")
             Logger.debug("SlackContentParser: Clipboard types available: \(typeList)", category: Logger.analysis)
 
             // Check for interesting types
@@ -599,7 +603,7 @@ class SlackContentParser: ContentParser {
         Logger.debug("SlackContentParser: Pickle payload size: \(payloadSize), total data: \(data.count)", category: Logger.analysis)
 
         // Validate payload size
-        guard payloadSize > 0 && payloadSize <= data.count - 4 else {
+        guard payloadSize > 0, payloadSize <= data.count - 4 else {
             Logger.debug("SlackContentParser: Invalid Pickle payload size, likely not Pickle format", category: Logger.analysis)
             return nil
         }
@@ -612,7 +616,7 @@ class SlackContentParser: ContentParser {
 
         Logger.info("SlackContentParser: Pickle has \(numEntries) entries", category: Logger.analysis)
 
-        guard numEntries > 0 && numEntries < 100 else {
+        guard numEntries > 0, numEntries < 100 else {
             Logger.debug("SlackContentParser: Invalid num_entries, likely not Pickle format", category: Logger.analysis)
             return nil
         }
@@ -634,14 +638,14 @@ class SlackContentParser: ContentParser {
         // Helper to read String16 (UTF-16LE)
         // Note: Chromium stores CHARACTER count, not byte count, so we multiply by 2
         func readString16(at currentOffset: Int, charCount: Int) -> String? {
-            let byteCount = charCount * 2  // UTF-16 = 2 bytes per character
+            let byteCount = charCount * 2 // UTF-16 = 2 bytes per character
             guard currentOffset + byteCount <= data.count else { return nil }
-            let stringData = data.subdata(in: currentOffset..<(currentOffset + byteCount))
+            let stringData = data.subdata(in: currentOffset ..< (currentOffset + byteCount))
             return String(data: stringData, encoding: .utf16LittleEndian)
         }
 
         // Parse entries
-        for i in 0..<numEntries {
+        for i in 0 ..< numEntries {
             // Read type length (in characters, not bytes)
             guard let typeCharCount = readUInt32(at: offset) else {
                 Logger.debug("SlackContentParser: Pickle entry \(i): failed to read type length", category: Logger.analysis)
@@ -680,7 +684,8 @@ class SlackContentParser: ContentParser {
 
             // Check if this is Quill Delta
             if typeStr.lowercased().contains("quill") || typeStr == "Quill.Delta" ||
-               valueStr.contains("\"ops\"") {
+                valueStr.contains("\"ops\"")
+            {
                 Logger.info("SlackContentParser: Found Quill Delta in Pickle entry '\(typeStr)'", category: Logger.analysis)
                 return valueStr
             }
@@ -760,7 +765,7 @@ class SlackContentParser: ContentParser {
 
         // Log what we wrote
         if let types = pasteboard.types {
-            let typeList = types.map { $0.rawValue }.joined(separator: ", ")
+            let typeList = types.map(\.rawValue).joined(separator: ", ")
             Logger.debug("SlackContentParser: WROTE clipboard types: \(typeList)", category: Logger.analysis)
         }
 
@@ -814,9 +819,9 @@ class SlackContentParser: ContentParser {
 
     /// Result of format-preserving replacement attempt
     enum FormatPreservingResult {
-        case success                    // Successfully applied with formatting preserved
-        case fallbackToPlainText        // Could not preserve formatting, caller should use plain text
-        case failed(String)             // Failed completely, with reason
+        case success // Successfully applied with formatting preserved
+        case fallbackToPlainText // Could not preserve formatting, caller should use plain text
+        case failed(String) // Failed completely, with reason
     }
 
     /// Attempt format-preserving text replacement in Slack.
@@ -828,7 +833,6 @@ class SlackContentParser: ContentParser {
         suggestion: String,
         element: AXUIElement
     ) async -> FormatPreservingResult {
-
         Logger.info("SlackContentParser: Attempting partial-selection replacement at \(errorStart)-\(errorEnd)", category: Logger.analysis)
 
         // Step 1: Save clipboard for restoration
@@ -837,13 +841,14 @@ class SlackContentParser: ContentParser {
         // Step 2: Convert Harper's Unicode scalar indices to proper string indices
         guard let startStringIdx = TextIndexConverter.scalarIndexToStringIndex(errorStart, in: originalText),
               let endStringIdx = TextIndexConverter.scalarIndexToStringIndex(errorEnd, in: originalText),
-              startStringIdx < endStringIdx else {
+              startStringIdx < endStringIdx
+        else {
             Logger.warning("SlackContentParser: Invalid error range \(errorStart)-\(errorEnd) (scalar indices)", category: Logger.analysis)
             restoreClipboardState(savedClipboard)
             return .fallbackToPlainText
         }
 
-        let expectedErrorText = String(originalText[startStringIdx..<endStringIdx])
+        let expectedErrorText = String(originalText[startStringIdx ..< endStringIdx])
         Logger.debug("SlackContentParser: Expected error text: '\(expectedErrorText)'", category: Logger.analysis)
 
         Logger.debug("SlackContentParser: Scalar range \(errorStart)-\(errorEnd) -> grapheme range for child element", category: Logger.analysis)
@@ -861,7 +866,8 @@ class SlackContentParser: ContentParser {
         // Get child element's text for UTF-16 conversion
         var childTextRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(childElement, kAXValueAttribute as CFString, &childTextRef) == .success,
-              let childText = childTextRef as? String else {
+              let childText = childTextRef as? String
+        else {
             Logger.warning("SlackContentParser: Could not get child element text", category: Logger.analysis)
             restoreClipboardState(savedClipboard)
             return .fallbackToPlainText
@@ -914,7 +920,7 @@ class SlackContentParser: ContentParser {
 
         // Step 5: Copy to get formatting (selection is valid)
         Logger.debug("SlackContentParser: Step 5 - Copying selected word to get formatting", category: Logger.analysis)
-        _ = simulateKeyCombo(keyCode: 8, command: true)  // Cmd+C
+        _ = simulateKeyCombo(keyCode: 8, command: true) // Cmd+C
         try? await Task.sleep(nanoseconds: 100_000_000) // 100ms for clipboard to populate
 
         // Extract formatting from the copied Quill Delta
@@ -992,7 +998,8 @@ class SlackContentParser: ContentParser {
     private func extractFormattingForText(_ searchText: String, from quillDeltaJSON: String) -> [String: Any]? {
         guard let data = quillDeltaJSON.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let ops = json["ops"] as? [[String: Any]] else {
+              let ops = json["ops"] as? [[String: Any]]
+        else {
             return nil
         }
 
@@ -1024,7 +1031,8 @@ class SlackContentParser: ContentParser {
     private func extractFormattingAtPosition(_ position: Int, from quillDeltaJSON: String) -> [String: Any]? {
         guard let data = quillDeltaJSON.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let ops = json["ops"] as? [[String: Any]] else {
+              let ops = json["ops"] as? [[String: Any]]
+        else {
             Logger.debug("SlackContentParser: extractFormattingAtPosition - failed to parse JSON", category: Logger.analysis)
             return nil
         }
@@ -1051,7 +1059,7 @@ class SlackContentParser: ContentParser {
             Logger.trace("SlackContentParser: Op \(index): pos \(currentPos)-\(currentPos + insertLength), hasAttrs=\(hasAttrs), text='\(insertPreview)'", category: Logger.analysis)
 
             // Check if position falls within this op
-            if position >= currentPos && position < currentPos + insertLength {
+            if position >= currentPos, position < currentPos + insertLength {
                 // Found the op containing our position
                 Logger.debug("SlackContentParser: Position \(position) found in op \(index) (range \(currentPos)-\(currentPos + insertLength))", category: Logger.analysis)
                 if let attributes = op["attributes"] as? [String: Any], !attributes.isEmpty {
@@ -1086,7 +1094,8 @@ class SlackContentParser: ContentParser {
         let delta: [String: Any] = ["ops": [op]]
 
         guard let data = try? JSONSerialization.data(withJSONObject: delta),
-              let jsonString = String(data: data, encoding: .utf8) else {
+              let jsonString = String(data: data, encoding: .utf8)
+        else {
             // Fallback to simple format
             return "{\"ops\":[{\"insert\":\"\(escapeForJSON(text))\"}]}"
         }
@@ -1104,15 +1113,15 @@ class SlackContentParser: ContentParser {
         suggestion: String,
         axValueText: String
     ) -> String? {
-
         // Step 1: Extract the actual error text from AXValue
-        guard errorStart >= 0 && errorEnd <= axValueText.count && errorStart < errorEnd,
+        guard errorStart >= 0, errorEnd <= axValueText.count, errorStart < errorEnd,
               let axStartIdx = axValueText.index(axValueText.startIndex, offsetBy: errorStart, limitedBy: axValueText.endIndex),
-              let axEndIdx = axValueText.index(axValueText.startIndex, offsetBy: errorEnd, limitedBy: axValueText.endIndex) else {
+              let axEndIdx = axValueText.index(axValueText.startIndex, offsetBy: errorEnd, limitedBy: axValueText.endIndex)
+        else {
             Logger.debug("SlackContentParser: Invalid error range \(errorStart)-\(errorEnd) for AXValue (length: \(axValueText.count))", category: Logger.analysis)
             return nil
         }
-        let errorText = String(axValueText[axStartIdx..<axEndIdx])
+        let errorText = String(axValueText[axStartIdx ..< axEndIdx])
 
         // Step 2: Escape the error text and suggestion for JSON string matching
         let jsonEscapedError = escapeForJSON(errorText)
@@ -1135,9 +1144,9 @@ class SlackContentParser: ContentParser {
     /// Block-level attribute keys that should be stripped from Quill Delta.
     /// These cause Slack to re-apply block formatting when pasting after Cmd+A.
     private static let blockLevelAttributeKeys: Set<String> = [
-        "list",         // Bullet/numbered list formatting
-        "blockquote",   // Block quotes
-        "code-block",   // Code blocks (not inline code)
+        "list", // Bullet/numbered list formatting
+        "blockquote", // Block quotes
+        "code-block", // Code blocks (not inline code)
     ]
 
     /// Strip block-level attributes from Quill Delta to prevent formatting from being re-applied.
@@ -1149,7 +1158,8 @@ class SlackContentParser: ContentParser {
     private func stripBlockLevelAttributes(from delta: String) -> String {
         guard let data = delta.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let ops = json["ops"] as? [[String: Any]] else {
+              let ops = json["ops"] as? [[String: Any]]
+        else {
             // If parsing fails, return original (don't break anything)
             Logger.debug("SlackContentParser: Could not parse delta for attribute stripping", category: Logger.analysis)
             return delta
@@ -1179,13 +1189,14 @@ class SlackContentParser: ContentParser {
 
         if !strippedAny {
             Logger.debug("SlackContentParser: No block-level attributes to strip", category: Logger.analysis)
-            return delta  // No changes needed
+            return delta // No changes needed
         }
 
         // Serialize back to JSON
         let result: [String: Any] = ["ops": modifiedOps]
         guard let resultData = try? JSONSerialization.data(withJSONObject: result),
-              let resultString = String(data: resultData, encoding: .utf8) else {
+              let resultString = String(data: resultData, encoding: .utf8)
+        else {
             Logger.warning("SlackContentParser: Failed to serialize modified delta", category: Logger.analysis)
             return delta
         }
@@ -1217,13 +1228,13 @@ class SlackContentParser: ContentParser {
     private func findInsertValue(_ searchText: String, in json: String) -> Range<String.Index>? {
         var searchStart = json.startIndex
 
-        while let insertKeyRange = json.range(of: "\"insert\":", range: searchStart..<json.endIndex) {
+        while let insertKeyRange = json.range(of: "\"insert\":", range: searchStart ..< json.endIndex) {
             // Find what comes after "insert":
             guard insertKeyRange.upperBound < json.endIndex else { break }
 
             // Skip whitespace
             var valueStart = insertKeyRange.upperBound
-            while valueStart < json.endIndex && json[valueStart].isWhitespace {
+            while valueStart < json.endIndex, json[valueStart].isWhitespace {
                 valueStart = json.index(after: valueStart)
             }
 
@@ -1244,7 +1255,7 @@ class SlackContentParser: ContentParser {
                         }
                     } else if json[pos] == "\"" {
                         // Found closing quote - check if search text is in this value
-                        let valueContent = String(json[contentStart..<pos])
+                        let valueContent = String(json[contentStart ..< pos])
 
                         if let matchRange = valueContent.range(of: searchText) {
                             // Convert to range in original JSON string
@@ -1252,11 +1263,12 @@ class SlackContentParser: ContentParser {
                             let matchEndOffset = valueContent.distance(from: valueContent.startIndex, to: matchRange.upperBound)
 
                             guard let globalStart = json.index(contentStart, offsetBy: matchStartOffset, limitedBy: json.endIndex),
-                                  let globalEnd = json.index(contentStart, offsetBy: matchEndOffset, limitedBy: json.endIndex) else {
+                                  let globalEnd = json.index(contentStart, offsetBy: matchEndOffset, limitedBy: json.endIndex)
+                            else {
                                 break
                             }
 
-                            return globalStart..<globalEnd
+                            return globalStart ..< globalEnd
                         }
                         break
                     } else {
@@ -1279,18 +1291,19 @@ class SlackContentParser: ContentParser {
         errorEnd: Int,
         suggestion: String
     ) -> String {
-        guard errorStart >= 0 && errorEnd <= originalText.count && errorStart < errorEnd else {
+        guard errorStart >= 0, errorEnd <= originalText.count, errorStart < errorEnd else {
             return originalText
         }
 
         guard let startIndex = originalText.index(originalText.startIndex, offsetBy: errorStart, limitedBy: originalText.endIndex),
               let endIndex = originalText.index(originalText.startIndex, offsetBy: errorEnd, limitedBy: originalText.endIndex),
-              startIndex < endIndex else {
+              startIndex < endIndex
+        else {
             return originalText
         }
 
         var result = originalText
-        result.replaceSubrange(startIndex..<endIndex, with: suggestion)
+        result.replaceSubrange(startIndex ..< endIndex, with: suggestion)
         return result
     }
 
@@ -1333,20 +1346,21 @@ class SlackContentParser: ContentParser {
         var textValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textValue) == .success,
            let text = textValue as? String,
-           text.contains(targetText) {
-
+           text.contains(targetText)
+        {
             var sizeValue: CFTypeRef?
             var height: CGFloat = 0
             if AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
                let sv = sizeValue,
-               CFGetTypeID(sv) == AXValueGetTypeID() {
+               CFGetTypeID(sv) == AXValueGetTypeID()
+            {
                 var size = CGSize.zero
                 AXValueGetValue(sv as! AXValue, .cgSize, &size)
                 height = size.height
             }
 
             // Prefer smaller elements (paragraph-level, not document-level)
-            if height > 0 && height < 100 {
+            if height > 0, height < 100 {
                 candidates.append((element: element, text: text, offset: 0))
                 Logger.trace("SlackContentParser: Candidate element: height=\(Int(height)), length=\(text.count)", category: Logger.analysis)
             }
@@ -1354,7 +1368,8 @@ class SlackContentParser: ContentParser {
 
         var childrenValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenValue) == .success,
-           let children = childrenValue as? [AXUIElement] {
+           let children = childrenValue as? [AXUIElement]
+        {
             for child in children.prefix(100) {
                 collectTextElements(in: child, depth: depth + 1, maxDepth: maxDepth, candidates: &candidates, targetText: targetText)
             }
@@ -1386,7 +1401,8 @@ class SlackContentParser: ContentParser {
         // Parse JSON
         do {
             guard let json = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-                  let ops = json["ops"] as? [[String: Any]] else {
+                  let ops = json["ops"] as? [[String: Any]]
+            else {
                 Logger.debug("SlackContentParser: JSON doesn't have expected 'ops' structure", category: Logger.analysis)
                 return exclusions
             }
@@ -1488,7 +1504,7 @@ class SlackContentParser: ContentParser {
 
     /// Parse a Slack embedded object (user mention, channel, emoji, date, etc.)
     /// Returns the type of object if recognized
-    private func parseEmbeddedObject(_ object: [String: Any], at position: Int, operationIndex: Int) -> String? {
+    private func parseEmbeddedObject(_ object: [String: Any], at _: Int, operationIndex: Int) -> String? {
         // Log the embedded object for debugging
         Logger.debug("SlackContentParser: Op \(operationIndex) embedded object: \(object)", category: Logger.analysis)
 
@@ -1599,11 +1615,12 @@ class SlackContentParser: ContentParser {
 
         guard searchStart < searchEnd,
               let startIndex = text.index(text.startIndex, offsetBy: searchStart, limitedBy: text.endIndex),
-              let endIndex = text.index(text.startIndex, offsetBy: searchEnd, limitedBy: text.endIndex) else {
+              let endIndex = text.index(text.startIndex, offsetBy: searchEnd, limitedBy: text.endIndex)
+        else {
             return nil
         }
 
-        let searchWindow = String(text[startIndex..<endIndex])
+        let searchWindow = String(text[startIndex ..< endIndex])
 
         // Find the prefix in the window
         guard let prefixRange = searchWindow.range(of: prefix) else {
@@ -1621,7 +1638,7 @@ class SlackContentParser: ContentParser {
             mentionEnd = afterPrefix.index(after: mentionEnd)
         }
 
-        let mention = String(searchWindow[prefixRange.lowerBound..<mentionEnd])
+        let mention = String(searchWindow[prefixRange.lowerBound ..< mentionEnd])
         let mentionStartInText = searchStart + searchWindow.distance(from: searchWindow.startIndex, to: prefixRange.lowerBound)
 
         return ExclusionRange(location: mentionStartInText, length: mention.count)
@@ -1657,7 +1674,7 @@ class SlackContentParser: ContentParser {
         }
 
         guard depth == 0 else { return nil }
-        return String(text[start..<endIndex])
+        return String(text[start ..< endIndex])
     }
 
     /// Dump element tree for debugging - shows what AX attributes Slack exposes
@@ -1713,7 +1730,8 @@ class SlackContentParser: ContentParser {
         // Recurse into children
         var childrenRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-           let children = childrenRef as? [AXUIElement] {
+           let children = childrenRef as? [AXUIElement]
+        {
             for child in children.prefix(15) { // Limit children per level
                 dumpElementTree(child, text: text, depth: depth + 1)
             }
@@ -1726,7 +1744,7 @@ class SlackContentParser: ContentParser {
     /// This method traverses the element tree (limited depth for performance), finds AXLink elements,
     /// and extracts their text.
     private func detectLinks(in element: AXUIElement, text: String) -> [ExclusionRange] {
-        return detectLinksRecursive(in: element, text: text, depth: 0)
+        detectLinksRecursive(in: element, text: text, depth: 0)
     }
 
     /// Maximum depth for link detection tree traversal
@@ -1748,10 +1766,11 @@ class SlackContentParser: ContentParser {
         if role == "AXLink" {
             // Get link text - try direct value first, then check children
             var valueRef: CFTypeRef?
-            var linkText: String = ""
+            var linkText = ""
 
             if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
-               let v = valueRef as? String, !v.isEmpty {
+               let v = valueRef as? String, !v.isEmpty
+            {
                 linkText = v
             } else {
                 // AXLink often has empty value; look at child AXStaticText for the URL
@@ -1759,7 +1778,7 @@ class SlackContentParser: ContentParser {
             }
 
             // Only detect actual URLs, not mentions/channels (those have AXBackgroundColor)
-            if !linkText.isEmpty && (linkText.hasPrefix("http://") || linkText.hasPrefix("https://")) {
+            if !linkText.isEmpty, linkText.hasPrefix("http://") || linkText.hasPrefix("https://") {
                 // Find position of link text in parent text
                 if let range = text.range(of: linkText) {
                     let location = text.distance(from: text.startIndex, to: range.lowerBound)
@@ -1774,7 +1793,8 @@ class SlackContentParser: ContentParser {
         // Recurse into children
         var childrenRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-           let children = childrenRef as? [AXUIElement] {
+           let children = childrenRef as? [AXUIElement]
+        {
             for child in children {
                 linkRanges.append(contentsOf: detectLinksRecursive(in: child, text: text, depth: depth + 1))
             }
@@ -1787,7 +1807,8 @@ class SlackContentParser: ContentParser {
     private func getLinkTextFromChildren(_ element: AXUIElement) -> String {
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-              let children = childrenRef as? [AXUIElement] else {
+              let children = childrenRef as? [AXUIElement]
+        else {
             return ""
         }
 
@@ -1795,11 +1816,12 @@ class SlackContentParser: ContentParser {
             var roleRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(child, kAXRoleAttribute as CFString, &roleRef) == .success,
                let role = roleRef as? String,
-               role == "AXStaticText" {
-
+               role == "AXStaticText"
+            {
                 var valueRef: CFTypeRef?
                 if AXUIElementCopyAttributeValue(child, kAXValueAttribute as CFString, &valueRef) == .success,
-                   let value = valueRef as? String, !value.isEmpty {
+                   let value = valueRef as? String, !value.isEmpty
+                {
                     return value
                 }
             }
@@ -1822,7 +1844,8 @@ class SlackContentParser: ContentParser {
         // Get child elements
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-              let children = childrenRef as? [AXUIElement] else {
+              let children = childrenRef as? [AXUIElement]
+        else {
             return exclusions
         }
 
@@ -1831,16 +1854,16 @@ class SlackContentParser: ContentParser {
             var roleRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(child, kAXRoleAttribute as CFString, &roleRef) == .success,
                let role = roleRef as? String,
-               role == "AXStaticText" {
-
+               role == "AXStaticText"
+            {
                 // Get the value
                 var valueRef: CFTypeRef?
                 if AXUIElementCopyAttributeValue(child, kAXValueAttribute as CFString, &valueRef) == .success,
                    let value = valueRef as? String,
-                   !value.isEmpty {
-
+                   !value.isEmpty
+                {
                     // Check for mention or channel prefix
-                    let isMention = value.hasPrefix("@") && value.count > 1 && !value.contains("@.")  // Exclude email-like patterns
+                    let isMention = value.hasPrefix("@") && value.count > 1 && !value.contains("@.") // Exclude email-like patterns
                     let isChannel = value.hasPrefix("#") && value.count > 1
 
                     if isMention || isChannel {
@@ -1868,7 +1891,8 @@ class SlackContentParser: ContentParser {
         // Get child elements and check their subroles
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-              let children = childrenRef as? [AXUIElement] else {
+              let children = childrenRef as? [AXUIElement]
+        else {
             return codeRanges
         }
 
@@ -1877,8 +1901,8 @@ class SlackContentParser: ContentParser {
             var subroleRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(child, kAXSubroleAttribute as CFString, &subroleRef) == .success,
                let subrole = subroleRef as? String,
-               subrole == "AXCodeStyleGroup" {
-
+               subrole == "AXCodeStyleGroup"
+            {
                 // Get the text content - may be in child AXStaticText elements
                 let codeText = getTextFromElement(child)
 
@@ -1910,14 +1934,16 @@ class SlackContentParser: ContentParser {
         var valueRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
            let value = valueRef as? String,
-           !value.isEmpty {
+           !value.isEmpty
+        {
             return value
         }
 
         // Then try to concatenate text from child AXStaticText elements
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-              let children = childrenRef as? [AXUIElement] else {
+              let children = childrenRef as? [AXUIElement]
+        else {
             return ""
         }
 
@@ -1926,10 +1952,12 @@ class SlackContentParser: ContentParser {
             var roleRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(child, kAXRoleAttribute as CFString, &roleRef) == .success,
                let role = roleRef as? String,
-               role == "AXStaticText" {
+               role == "AXStaticText"
+            {
                 var childValueRef: CFTypeRef?
                 if AXUIElementCopyAttributeValue(child, kAXValueAttribute as CFString, &childValueRef) == .success,
-                   let childValue = childValueRef as? String {
+                   let childValue = childValueRef as? String
+                {
                     combinedText += childValue
                 }
             }
@@ -1946,15 +1974,16 @@ class SlackContentParser: ContentParser {
         var levelRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, "AXBlockQuoteLevel" as CFString, &levelRef) == .success,
            let level = levelRef as? Int,
-           level > 0 {
+           level > 0
+        {
             // This element is a block quote - get its text content
             var valueRef: CFTypeRef?
-            let quoteText: String
-            if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
-               let value = valueRef as? String {
-                quoteText = value
+            let quoteText: String = if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
+                                       let value = valueRef as? String
+            {
+                value
             } else {
-                quoteText = "(no text)"
+                "(no text)"
             }
 
             if let range = getTextRange(for: element, in: element) {
@@ -1969,7 +1998,8 @@ class SlackContentParser: ContentParser {
         // Check children for block quotes
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-              let children = childrenRef as? [AXUIElement] else {
+              let children = childrenRef as? [AXUIElement]
+        else {
             return quoteRanges
         }
 
@@ -1985,14 +2015,16 @@ class SlackContentParser: ContentParser {
         // Try to get the text content and position
         var valueRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(child, kAXValueAttribute as CFString, &valueRef) == .success,
-              let childText = valueRef as? String else {
+              let childText = valueRef as? String
+        else {
             return nil
         }
 
         // Get parent text for position lookup
         var parentValueRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(parent, kAXValueAttribute as CFString, &parentValueRef) == .success,
-              let parentText = parentValueRef as? String else {
+              let parentText = parentValueRef as? String
+        else {
             return nil
         }
 
@@ -2078,7 +2110,8 @@ class SlackContentParser: ContentParser {
 
                 // Cache the Quill Delta JSON for format-preserving replacement
                 if let quillJSON = getQuillDeltaFromClipboard(),
-                   let plainText = pasteboard.string(forType: .string) {
+                   let plainText = pasteboard.string(forType: .string)
+                {
                     cachedQuillDeltaJSON = quillJSON
                     cachedQuillDeltaPlainText = plainText
                     Logger.info("SlackContentParser: Cached Quill Delta JSON (\(quillJSON.count) chars) for format-preserving replacement", category: Logger.analysis)
@@ -2114,27 +2147,27 @@ class SlackContentParser: ContentParser {
 
     /// Visual underlines enabled/disabled from AppConfiguration
     var disablesVisualUnderlines: Bool {
-        return !config.features.visualUnderlinesEnabled
+        !config.features.visualUnderlinesEnabled
     }
 
     /// Slack selection API uses the same indices as AXValue - no offset adjustment needed.
     /// Previously, we tried various offset schemes, but they caused more issues than they solved.
     /// The X-axis drift for positions after emojis is a Chromium accessibility bug that
     /// can't be reliably corrected with a simple offset.
-    func selectionOffset(at position: Int, in text: String) -> Int {
-        return 0
+    func selectionOffset(at _: Int, in _: String) -> Int {
+        0
     }
 
     /// Slack needs UTF-16 conversion for correct emoji handling in Chromium selection APIs.
     /// Emojis like 😭 are 1 grapheme but 2 UTF-16 code units, causing position drift without conversion.
     var requiresUTF16Conversion: Bool {
-        return true
+        true
     }
 
     /// Slack renders emojis as [AXImage] children that cause text marker position drift.
     /// When emojis are present, positioning strategies should disable visual underlines.
     var hasEmbeddedImagePositioningIssues: Bool {
-        return true
+        true
     }
 
     /// Diagnostic result from probing Slack's AX capabilities
@@ -2147,7 +2180,7 @@ class SlackContentParser: ContentParser {
         case searchBar = "search-bar"
         case threadReply = "thread-reply"
         case editMessage = "edit-message"
-        case unknown = "unknown"
+        case unknown
     }
 
     func detectUIContext(element: AXUIElement) -> String? {
@@ -2185,9 +2218,9 @@ class SlackContentParser: ContentParser {
         return SlackContext.messageInput.rawValue
     }
 
-    func estimatedFontSize(context: String?) -> CGFloat {
+    func estimatedFontSize(context _: String?) -> CGFloat {
         // Use font size from AppConfiguration
-        return config.fontConfig.defaultSize
+        config.fontConfig.defaultSize
     }
 
     func spacingMultiplier(context: String?) -> CGFloat {
@@ -2203,7 +2236,7 @@ class SlackContentParser: ContentParser {
         case .messageInput, .threadReply, .editMessage, .unknown:
             return baseMultiplier
         case .searchBar:
-            return baseMultiplier + 0.01  // Slightly wider for search bar
+            return baseMultiplier + 0.01 // Slightly wider for search bar
         }
     }
 
@@ -2218,7 +2251,7 @@ class SlackContentParser: ContentParser {
 
         switch slackContext {
         case .searchBar:
-            return basePadding + 4.0  // Extra padding for search bar
+            return basePadding + 4.0 // Extra padding for search bar
         default:
             return basePadding
         }
@@ -2313,7 +2346,7 @@ class SlackContentParser: ContentParser {
     private func getCursorAnchoredPosition(
         element: AXUIElement,
         errorRange: NSRange,
-        textBeforeError: String,
+        textBeforeError _: String,
         errorText: String,
         fullText: String,
         context: String?,
@@ -2326,8 +2359,9 @@ class SlackContentParser: ContentParser {
             kAXSelectedTextRangeAttribute as CFString,
             &selectedRangeValue
         ) == .success,
-              let rangeRef = selectedRangeValue,
-              let selectedRange = safeAXValueGetRange(rangeRef) else {
+            let rangeRef = selectedRangeValue,
+            let selectedRange = safeAXValueGetRange(rangeRef)
+        else {
             return nil
         }
 
@@ -2340,8 +2374,9 @@ class SlackContentParser: ContentParser {
         var insertionPointValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, "AXInsertionPointFrame" as CFString, &insertionPointValue) == .success,
            let axValue = insertionPointValue,
-           let frame = safeAXValueGetRect(axValue) {
-            if frame.width >= 0 && frame.height > GeometryConstants.minimumBoundsSize && frame.height < GeometryConstants.conservativeMaxLineHeight {
+           let frame = safeAXValueGetRect(axValue)
+        {
+            if frame.width >= 0, frame.height > GeometryConstants.minimumBoundsSize, frame.height < GeometryConstants.conservativeMaxLineHeight {
                 cursorBounds = frame
                 Logger.debug("Slack: Got cursor bounds from AXInsertionPointFrame: \(frame)", category: Logger.ui)
             }
@@ -2356,7 +2391,7 @@ class SlackContentParser: ContentParser {
         }
 
         // Method 3: Bounds for character before cursor
-        if cursorBounds == nil && cursorPosition > 0 {
+        if cursorBounds == nil, cursorPosition > 0 {
             if let bounds = getSlackValidatedBounds(element: element, range: NSRange(location: cursorPosition - 1, length: 1)) {
                 let cursor = CGRect(
                     x: bounds.origin.x + bounds.width,
@@ -2417,7 +2452,7 @@ class SlackContentParser: ContentParser {
         }
 
         // Slack-specific: reject negative or zero origin (Electron bug)
-        guard bounds.origin.x > 0 && bounds.origin.y > 0 else {
+        guard bounds.origin.x > 0, bounds.origin.y > 0 else {
             return nil
         }
 
@@ -2428,7 +2463,7 @@ class SlackContentParser: ContentParser {
 
     private func getTextMeasurementFallback(
         element: AXUIElement,
-        errorRange: NSRange,
+        errorRange _: NSRange,
         textBeforeError: String,
         errorText: String,
         context: String?,
@@ -2445,7 +2480,8 @@ class SlackContentParser: ContentParser {
         let multiplier: CGFloat
 
         if let latoFont = NSFont(name: "Lato-Regular", size: fontSize) ??
-                          NSFont(name: "Lato", size: fontSize) {
+            NSFont(name: "Lato", size: fontSize)
+        {
             font = latoFont
             // Lato renders almost identically, minimal correction needed
             multiplier = 0.99
@@ -2462,11 +2498,11 @@ class SlackContentParser: ContentParser {
         let padding = horizontalPadding(context: context)
 
         // Calculate line height for Slack's message input
-        let lineHeight: CGFloat = fontSize * 1.4  // ~21px for 15pt font
+        let lineHeight: CGFloat = fontSize * 1.4 // ~21px for 15pt font
 
         // Estimate text width per line to determine wrapping
         // Slack's message input has internal padding on both sides
-        let availableWidth = elementFrame.width - (padding * 2) - 20  // Extra margin for safety
+        let availableWidth = elementFrame.width - (padding * 2) - 20 // Extra margin for safety
 
         // Calculate which line the error starts on by simulating text wrapping
         let textBeforeWidth = (textBeforeError as NSString).size(withAttributes: attributes).width * multiplier
@@ -2487,7 +2523,7 @@ class SlackContentParser: ContentParser {
         let yPosition = elementFrame.origin.y + topPadding + (CGFloat(errorLine) * lineHeight) + (lineHeight * 0.85)
 
         // GRACEFUL DEGRADATION: Text measurement is less reliable
-        let confidence: Double = 0.60
+        let confidence = 0.60
 
         Logger.debug("Slack: Text measurement - line=\(errorLine), xOffset=\(xOffsetOnLine), x=\(xPosition), y=\(yPosition), availableWidth=\(availableWidth)", category: Logger.ui)
 
@@ -2540,7 +2576,8 @@ class SlackContentParser: ContentParser {
                   let x = boundsDict["X"],
                   let y = boundsDict["Y"],
                   let width = boundsDict["Width"],
-                  let height = boundsDict["Height"] else {
+                  let height = boundsDict["Height"]
+            else {
                 continue
             }
 
@@ -2552,7 +2589,7 @@ class SlackContentParser: ContentParser {
             let windowTop = y
             let windowBottom = y + height
 
-            if elementY >= windowTop && elementY <= windowBottom {
+            if elementY >= windowTop, elementY <= windowBottom {
                 return windowFrame
             }
         }

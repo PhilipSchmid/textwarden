@@ -6,8 +6,8 @@
 //  Routes to the appropriate replacement method based on app configuration.
 //
 
-import Foundation
 @preconcurrency import ApplicationServices
+import Foundation
 
 /// Protocol for text replacement coordination
 protocol TextReplacementCoordinating: Sendable {
@@ -25,7 +25,6 @@ protocol TextReplacementCoordinating: Sendable {
 /// Coordinates text replacement operations across different app types
 @MainActor
 final class TextReplacementCoordinator: TextReplacementCoordinating {
-
     // MARK: - Dependencies
 
     private let validator = ReplacementValidator()
@@ -54,7 +53,6 @@ final class TextReplacementCoordinator: TextReplacementCoordinating {
         currentText: String,
         appConfig: AppConfiguration
     ) async -> ReplacementResult {
-
         Logger.debug(
             "TextReplacementCoordinator: Starting replacement for \(appConfig.identifier) at \(error.start)..<\(error.end)",
             category: Logger.analysis
@@ -86,13 +84,12 @@ final class TextReplacementCoordinator: TextReplacementCoordinating {
         }
 
         // 3. Route by configured method
-        let result: ReplacementResult
-        switch appConfig.features.textReplacementMethod {
+        let result: ReplacementResult = switch appConfig.features.textReplacementMethod {
         case .standard:
-            result = standardReplacement.execute(context)
+            standardReplacement.execute(context)
 
         case .browserStyle:
-            result = await keyboardReplacement.execute(context)
+            await keyboardReplacement.execute(context)
         }
 
         // 4. Log result
@@ -107,7 +104,7 @@ final class TextReplacementCoordinator: TextReplacementCoordinating {
                 "TextReplacementCoordinator: Replacement completed (unverified) for \(appConfig.identifier)",
                 category: Logger.analysis
             )
-        case .failed(let error):
+        case let .failed(error):
             Logger.warning(
                 "TextReplacementCoordinator: Replacement failed - \(error)",
                 category: Logger.analysis
@@ -121,6 +118,6 @@ final class TextReplacementCoordinator: TextReplacementCoordinating {
 
     /// Get the length delta for position adjustment after replacement
     static func lengthDelta(for error: GrammarErrorModel, suggestion: String) -> Int {
-        return suggestion.count - (error.end - error.start)
+        suggestion.count - (error.end - error.start)
     }
 }

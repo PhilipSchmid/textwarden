@@ -5,11 +5,10 @@
 //  Unit tests for RetryScheduler
 //
 
-import XCTest
 @testable import TextWarden
+import XCTest
 
 final class RetrySchedulerTests: XCTestCase {
-
     // MARK: - RetryConfig Tests
 
     func testRetryConfigDefaultAccessibilityAPI() {
@@ -48,13 +47,13 @@ final class RetrySchedulerTests: XCTestCase {
 
     func testRetrySchedulerCancel() {
         let scheduler = RetryScheduler()
-        let expectation = self.expectation(description: "Cancel should prevent retry")
-        expectation.isInverted = true  // Should NOT fulfill
+        let expectation = expectation(description: "Cancel should prevent retry")
+        expectation.isInverted = true // Should NOT fulfill
 
         // Schedule a retry that should be canceled
         scheduler.execute(attempt: 0) { () -> RetryResult<String> in
             .retry(NSError(domain: "test", code: 1))
-        } completion: { result in
+        } completion: { _ in
             expectation.fulfill()
         }
 
@@ -67,12 +66,12 @@ final class RetrySchedulerTests: XCTestCase {
 
     func testRetrySchedulerSuccess() {
         let scheduler = RetryScheduler()
-        let expectation = self.expectation(description: "Success should complete immediately")
+        let expectation = expectation(description: "Success should complete immediately")
 
         scheduler.execute(attempt: 0) { () -> RetryResult<String> in
             .success("test value")
         } completion: { result in
-            if case .success(let value) = result {
+            if case let .success(value) = result {
                 XCTAssertEqual(value, "test value")
                 expectation.fulfill()
             }
@@ -83,14 +82,14 @@ final class RetrySchedulerTests: XCTestCase {
 
     func testRetrySchedulerPermanentFailure() {
         let scheduler = RetryScheduler()
-        let expectation = self.expectation(description: "Permanent failure should not retry")
+        let expectation = expectation(description: "Permanent failure should not retry")
 
         let testError = NSError(domain: "test", code: 42)
 
         scheduler.execute(attempt: 0) { () -> RetryResult<String> in
             .failure(testError)
         } completion: { result in
-            if case .failure(let error as NSError) = result {
+            if case let .failure(error as NSError) = result {
                 XCTAssertEqual(error.code, 42)
                 expectation.fulfill()
             }
@@ -102,7 +101,7 @@ final class RetrySchedulerTests: XCTestCase {
     func testRetrySchedulerMaxAttemptsExceeded() {
         let config = RetryConfig(initialDelay: 0.01, multiplier: 1.1, maxAttempts: 2)
         let scheduler = RetryScheduler(config: config)
-        let expectation = self.expectation(description: "Should fail after max attempts")
+        let expectation = expectation(description: "Should fail after max attempts")
 
         var attemptCount = 0
 
@@ -110,8 +109,8 @@ final class RetrySchedulerTests: XCTestCase {
             attemptCount += 1
             return .retry(NSError(domain: "test", code: attemptCount))
         } completion: { result in
-            if case .failure(let error as RetryError) = result {
-                if case .maxAttemptsExceeded(let attempts, _) = error {
+            if case let .failure(error as RetryError) = result {
+                if case let .maxAttemptsExceeded(attempts, _) = error {
                     XCTAssertEqual(attempts, 2, "Should report max attempts")
                     XCTAssert(attemptCount > 1, "Should have retried at least once")
                     expectation.fulfill()
@@ -125,7 +124,7 @@ final class RetrySchedulerTests: XCTestCase {
     func testRetrySchedulerEventualSuccess() {
         let config = RetryConfig(initialDelay: 0.01, multiplier: 1.1, maxAttempts: 5)
         let scheduler = RetryScheduler(config: config)
-        let expectation = self.expectation(description: "Should succeed after retries")
+        let expectation = expectation(description: "Should succeed after retries")
 
         var attemptCount = 0
 
@@ -136,7 +135,7 @@ final class RetrySchedulerTests: XCTestCase {
             }
             return .success("success after \(attemptCount) attempts")
         } completion: { result in
-            if case .success(let value) = result {
+            if case let .success(value) = result {
                 XCTAssertEqual(attemptCount, 3, "Should succeed on third attempt")
                 XCTAssertEqual(value, "success after 3 attempts")
                 expectation.fulfill()

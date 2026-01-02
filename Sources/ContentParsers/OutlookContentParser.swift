@@ -6,8 +6,8 @@
 //  Handles both subject field and compose body, filtering out toolbar/ribbon elements
 //
 
-import Foundation
 import AppKit
+import Foundation
 
 /// Content parser for Microsoft Outlook
 /// Focuses on the compose window (subject and body), ignoring toolbar/ribbon elements
@@ -27,20 +27,20 @@ class OutlookContentParser: ContentParser {
         return nil
     }
 
-    func estimatedFontSize(context: String?) -> CGFloat {
-        return config.fontConfig.defaultSize
+    func estimatedFontSize(context _: String?) -> CGFloat {
+        config.fontConfig.defaultSize
     }
 
-    func spacingMultiplier(context: String?) -> CGFloat {
-        return config.fontConfig.spacingMultiplier
+    func spacingMultiplier(context _: String?) -> CGFloat {
+        config.fontConfig.spacingMultiplier
     }
 
-    func horizontalPadding(context: String?) -> CGFloat {
-        return config.horizontalPadding
+    func horizontalPadding(context _: String?) -> CGFloat {
+        config.horizontalPadding
     }
 
-    func fontFamily(context: String?) -> String? {
-        return config.fontConfig.fontFamily
+    func fontFamily(context _: String?) -> String? {
+        config.fontConfig.fontFamily
     }
 
     /// Custom text extraction for Microsoft Outlook
@@ -56,7 +56,8 @@ class OutlookContentParser: ContentParser {
         var valueRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
            let text = valueRef as? String,
-           !text.isEmpty {
+           !text.isEmpty
+        {
             Logger.debug("OutlookContentParser: extractText - got AXValue (\(text.count) chars)", category: Logger.accessibility)
             return text
         }
@@ -139,7 +140,7 @@ class OutlookContentParser: ContentParser {
                 return true
             }
             // Also accept text fields with substantial content that aren't address fields
-            if value.count > 3 && !isAddressLikeContent(value) {
+            if value.count > 3, !isAddressLikeContent(value) {
                 Logger.debug("OutlookContentParser: Accepting - AXTextField with content (\(value.count) chars)", category: Logger.accessibility)
                 return true
             }
@@ -150,7 +151,8 @@ class OutlookContentParser: ContentParser {
             var charCountRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &charCountRef) == .success,
                let charCount = charCountRef as? Int,
-               charCount > 0 {
+               charCount > 0
+            {
                 Logger.debug("OutlookContentParser: Accepting - AXScrollArea with \(charCount) characters", category: Logger.accessibility)
                 return true
             }
@@ -161,7 +163,7 @@ class OutlookContentParser: ContentParser {
     }
 
     /// Check if the element appears to be a toolbar/ribbon control
-    private static func isToolbarElement(role: String, subrole: String, description: String, identifier: String, title: String, value: String) -> Bool {
+    private static func isToolbarElement(role: String, subrole _: String, description: String, identifier: String, title: String, value _: String) -> Bool {
         // AXTextArea is always a text editing area, never a toolbar control
         // (even if description/title contains keywords like "message copilot")
         if role == kAXTextAreaRole as String {
@@ -169,7 +171,7 @@ class OutlookContentParser: ContentParser {
         }
 
         let toolbarRoles = ["AXToolbar", "AXGroup", "AXButton", "AXCheckBox", "AXRadioButton"]
-        if toolbarRoles.contains(role) && !role.contains("Text") {
+        if toolbarRoles.contains(role), !role.contains("Text") {
             return true
         }
 
@@ -184,7 +186,7 @@ class OutlookContentParser: ContentParser {
     }
 
     /// Check if the element is a font selector
-    private static func isFontElement(description: String, identifier: String, title: String, value: String) -> Bool {
+    private static func isFontElement(description: String, identifier: String, title _: String, value: String) -> Bool {
         let fontKeywords = ["font", "typeface", "aptos", "calibri", "arial", "times", "helvetica", "style", "body"]
         for keyword in fontKeywords {
             if description.contains(keyword) || identifier.contains(keyword) {
@@ -193,7 +195,7 @@ class OutlookContentParser: ContentParser {
         }
 
         // Check for font name pattern like "Aptos (Body)"
-        if value.contains("(") && value.contains(")") && value.count < 50 {
+        if value.contains("("), value.contains(")"), value.count < 50 {
             let fontNamePattern = #"^[A-Za-z\s]+ \([A-Za-z]+\)$"#
             if value.range(of: fontNamePattern, options: .regularExpression) != nil {
                 return true
@@ -217,7 +219,7 @@ class OutlookContentParser: ContentParser {
     /// Check if the value looks like an email address or address list
     private static func isAddressLikeContent(_ value: String) -> Bool {
         // Simple heuristic: contains @ and looks like email
-        return value.contains("@") && value.contains(".")
+        value.contains("@") && value.contains(".")
     }
 
     /// Check if element has a toolbar ancestor in its parent hierarchy
@@ -229,7 +231,8 @@ class OutlookContentParser: ContentParser {
             var parentRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentRef) == .success,
                let parent = parentRef,
-               CFGetTypeID(parent) == AXUIElementGetTypeID() {
+               CFGetTypeID(parent) == AXUIElementGetTypeID()
+            {
                 let parentElement = unsafeBitCast(parent, to: AXUIElement.self)
 
                 var roleRef: CFTypeRef?
@@ -272,7 +275,8 @@ class OutlookContentParser: ContentParser {
         var parentRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXParentAttribute as CFString, &parentRef) == .success,
            let parent = parentRef,
-           CFGetTypeID(parent) == AXUIElementGetTypeID() {
+           CFGetTypeID(parent) == AXUIElementGetTypeID()
+        {
             let parentElement = unsafeBitCast(parent, to: AXUIElement.self)
 
             if let editableInParent = findTextAreaInHierarchy(parentElement, maxDepth: 5) {
@@ -298,7 +302,8 @@ class OutlookContentParser: ContentParser {
         var parentRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXParentAttribute as CFString, &parentRef) == .success,
               let parent = parentRef,
-              CFGetTypeID(parent) == AXUIElementGetTypeID() else {
+              CFGetTypeID(parent) == AXUIElementGetTypeID()
+        else {
             return nil
         }
 
@@ -306,7 +311,8 @@ class OutlookContentParser: ContentParser {
 
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(parentElement, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-              let children = childrenRef as? [AXUIElement] else {
+              let children = childrenRef as? [AXUIElement]
+        else {
             return nil
         }
 
@@ -331,7 +337,7 @@ class OutlookContentParser: ContentParser {
     private static func findWindowAncestor(_ element: AXUIElement) -> AXUIElement? {
         var current = element
 
-        for _ in 0..<20 {
+        for _ in 0 ..< 20 {
             var roleRef: CFTypeRef?
             AXUIElementCopyAttributeValue(current, kAXRoleAttribute as CFString, &roleRef)
             let role = roleRef as? String ?? ""
@@ -343,7 +349,8 @@ class OutlookContentParser: ContentParser {
             var parentRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentRef) == .success,
                let parent = parentRef,
-               CFGetTypeID(parent) == AXUIElementGetTypeID() {
+               CFGetTypeID(parent) == AXUIElementGetTypeID()
+            {
                 current = unsafeBitCast(parent, to: AXUIElement.self)
             } else {
                 break
@@ -363,7 +370,7 @@ class OutlookContentParser: ContentParser {
 
         // Found a text area - check if it's the compose body (not toolbar)
         if role == kAXTextAreaRole as String {
-            if !hasToolbarAncestor(element) && isComposeElement(element) {
+            if !hasToolbarAncestor(element), isComposeElement(element) {
                 Logger.debug("OutlookContentParser: Found compose text area at depth \(depth)", category: Logger.accessibility)
                 return element
             }
@@ -372,7 +379,8 @@ class OutlookContentParser: ContentParser {
         // Check children
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-              let children = childrenRef as? [AXUIElement] else {
+              let children = childrenRef as? [AXUIElement]
+        else {
             return nil
         }
 

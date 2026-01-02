@@ -6,13 +6,12 @@
 //  Fallback strategy that works when AX APIs fail
 //
 
-import Foundation
 import ApplicationServices
+import Foundation
 
 /// Font metrics-based positioning strategy
 /// Uses ContentParser's adjustBounds() for app-specific estimation
 class FontMetricsStrategy: GeometryProvider {
-
     var strategyName: String { "FontMetrics" }
     var strategyType: StrategyType { .fontMetrics }
     var tier: StrategyTier { .estimated }
@@ -26,13 +25,12 @@ class FontMetricsStrategy: GeometryProvider {
         text: String,
         parser: ContentParser
     ) -> GeometryResult? {
-
         // Extract text segments for parser
         let startIndex = errorRange.location
         let endIndex = errorRange.location + errorRange.length
 
         // Safe string extraction with bounds checking
-        guard startIndex >= 0 && endIndex <= text.count else {
+        guard startIndex >= 0, endIndex <= text.count else {
             Logger.warning("FontMetricsStrategy: Invalid range \(errorRange) for text length \(text.count)", category: Logger.accessibility)
             return nil
         }
@@ -40,11 +38,12 @@ class FontMetricsStrategy: GeometryProvider {
         let textBeforeError = String(text.prefix(startIndex))
         guard let errorStartIdx = text.index(text.startIndex, offsetBy: startIndex, limitedBy: text.endIndex),
               let errorEndIdx = text.index(text.startIndex, offsetBy: endIndex, limitedBy: text.endIndex),
-              errorStartIdx <= errorEndIdx else {
+              errorStartIdx <= errorEndIdx
+        else {
             Logger.warning("FontMetricsStrategy: String index out of bounds", category: Logger.accessibility)
             return nil
         }
-        let errorText = String(text[errorStartIdx..<errorEndIdx])
+        let errorText = String(text[errorStartIdx ..< errorEndIdx])
 
         // Use ContentParser's app-specific estimation
         guard let adjustedBounds = parser.adjustBounds(
@@ -94,7 +93,7 @@ class FontMetricsStrategy: GeometryProvider {
                 "api": "font-metrics",
                 "parser": parser.parserName,
                 "context": adjustedBounds.uiContext ?? "unknown",
-                "debug_info": adjustedBounds.debugInfo
+                "debug_info": adjustedBounds.debugInfo,
             ]
         )
     }

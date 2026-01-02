@@ -65,7 +65,7 @@ struct ApplicationContext {
 extension ApplicationContext: Equatable {
     static func == (lhs: ApplicationContext, rhs: ApplicationContext) -> Bool {
         lhs.bundleIdentifier == rhs.bundleIdentifier &&
-        lhs.processID == rhs.processID
+            lhs.processID == rhs.processID
     }
 }
 
@@ -131,13 +131,13 @@ extension ApplicationContext {
 extension ApplicationContext {
     /// Known Electron-based apps that require special handling
     private static let electronApps: Set<String> = [
-        "com.tinyspeck.slackmacgap",      // Slack
-        "com.hnc.Discord",                 // Discord
-        "com.microsoft.VSCode",            // VS Code
-        "com.electron.app",                // Generic Electron
-        "com.github.GitHubClient",         // GitHub Desktop
-        "com.microsoft.teams",             // Microsoft Teams (Electron)
-        "notion.id"                        // Notion
+        "com.tinyspeck.slackmacgap", // Slack
+        "com.hnc.Discord", // Discord
+        "com.microsoft.VSCode", // VS Code
+        "com.electron.app", // Generic Electron
+        "com.github.GitHubClient", // GitHub Desktop
+        "com.microsoft.teams", // Microsoft Teams (Electron)
+        "notion.id", // Notion
     ]
 
     /// Known Chromium-based apps (includes Electron apps since Electron uses Chromium)
@@ -149,9 +149,9 @@ extension ApplicationContext {
         "com.vivaldi.Vivaldi",
         "org.chromium.Chromium",
         "ai.perplexity.comet",
-        "company.thebrowser.Browser",      // Arc browser
+        "company.thebrowser.Browser", // Arc browser
         "company.thebrowser.Browser.beta", // Arc browser beta
-        "notion.id"                        // Notion (Electron/Chromium-based)
+        "notion.id", // Notion (Electron/Chromium-based)
     ]
 
     /// Known browser applications (including non-Chromium browsers)
@@ -160,21 +160,21 @@ extension ApplicationContext {
         "com.apple.Safari",
         "org.mozilla.firefox",
         "org.mozilla.firefoxdeveloperedition",
-        "com.operasoftware.Opera"
+        "com.operasoftware.Opera",
     ]
 
     /// Check if this is an Electron-based application
     /// Electron apps require keyboard-based text replacement due to broken AX APIs
     var isElectronApp: Bool {
         Self.electronApps.contains(bundleIdentifier) ||
-        bundleIdentifier.contains("electron")
+            bundleIdentifier.contains("electron")
     }
 
     /// Check if this is a Chromium-based application
     /// Chromium apps may have accessibility tree issues
     var isChromiumBased: Bool {
         Self.chromiumApps.contains(bundleIdentifier) ||
-        bundleIdentifier.contains("chromium")
+            bundleIdentifier.contains("chromium")
     }
 
     /// Check if this is a browser application (including both Chromium and non-Chromium browsers)
@@ -193,11 +193,11 @@ extension ApplicationContext {
 
     /// Known Mac Catalyst apps (iOS apps running on macOS)
     private static let macCatalystApps: Set<String> = [
-        "com.apple.MobileSMS",       // Messages
-        "com.apple.news",            // Apple News
-        "com.apple.stocks",          // Stocks
-        "net.whatsapp.WhatsApp",     // WhatsApp (Catalyst version)
-        "ru.keepcoder.Telegram"      // Telegram (Catalyst version)
+        "com.apple.MobileSMS", // Messages
+        "com.apple.news", // Apple News
+        "com.apple.stocks", // Stocks
+        "net.whatsapp.WhatsApp", // WhatsApp (Catalyst version)
+        "ru.keepcoder.Telegram", // Telegram (Catalyst version)
     ]
 
     /// Check if this is a Mac Catalyst app (iOS app running on macOS)

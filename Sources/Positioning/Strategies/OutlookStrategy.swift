@@ -20,14 +20,13 @@ import ApplicationServices
 /// A segment of text with its visual bounds from the AX tree
 private struct OutlookTextPart {
     let text: String
-    let range: NSRange          // Character range in the full text
-    let frame: CGRect           // Visual bounds from AXFrame (Quartz coordinates)
-    let element: AXUIElement    // Reference to query AXBoundsForRange directly
+    let range: NSRange // Character range in the full text
+    let frame: CGRect // Visual bounds from AXFrame (Quartz coordinates)
+    let element: AXUIElement // Reference to query AXBoundsForRange directly
 }
 
 /// Dedicated Outlook positioning using element-specific approaches
 class OutlookStrategy: GeometryProvider {
-
     var strategyName: String { "Outlook" }
     var strategyType: StrategyType { .outlook }
     var tier: StrategyTier { .precise }
@@ -74,7 +73,6 @@ class OutlookStrategy: GeometryProvider {
         text: String,
         parser: ContentParser
     ) -> GeometryResult? {
-
         Logger.debug("OutlookStrategy: Calculating for range \(errorRange) in text length \(text.count)", category: Logger.ui)
 
         // Determine element type
@@ -115,9 +113,8 @@ class OutlookStrategy: GeometryProvider {
         errorRange: NSRange,
         element: AXUIElement,
         text: String,
-        parser: ContentParser
+        parser _: ContentParser
     ) -> GeometryResult? {
-
         Logger.debug("OutlookStrategy: Subject field - using AXBoundsForRange", category: Logger.ui)
 
         // Convert grapheme cluster indices to UTF-16 for the accessibility API
@@ -138,7 +135,8 @@ class OutlookStrategy: GeometryProvider {
 
         guard result == .success,
               let bv = boundsRef,
-              CFGetTypeID(bv) == AXValueGetTypeID() else {
+              CFGetTypeID(bv) == AXValueGetTypeID()
+        else {
             Logger.debug("OutlookStrategy: Subject AXBoundsForRange failed", category: Logger.ui)
             return nil
         }
@@ -170,7 +168,7 @@ class OutlookStrategy: GeometryProvider {
             strategy: strategyName,
             metadata: [
                 "api": "subject-bounds-for-range",
-                "element_type": "AXTextField"
+                "element_type": "AXTextField",
             ]
         )
     }
@@ -183,9 +181,8 @@ class OutlookStrategy: GeometryProvider {
         errorRange: NSRange,
         element: AXUIElement,
         text: String,
-        parser: ContentParser
+        parser _: ContentParser
     ) -> GeometryResult? {
-
         Logger.debug("OutlookStrategy: Compose body - trying AXBoundsForRange", category: Logger.ui)
 
         // Outlook's AXBoundsForRange uses grapheme cluster indices, NOT UTF-16
@@ -206,8 +203,8 @@ class OutlookStrategy: GeometryProvider {
 
         if result == .success,
            let bv = boundsRef,
-           CFGetTypeID(bv) == AXValueGetTypeID() {
-
+           CFGetTypeID(bv) == AXValueGetTypeID()
+        {
             var quartzBounds = CGRect.zero
             guard AXValueGetValue(bv as! AXValue, .cgRect, &quartzBounds) else {
                 return nil
@@ -235,7 +232,7 @@ class OutlookStrategy: GeometryProvider {
                     strategy: strategyName,
                     metadata: [
                         "api": "body-bounds-for-range",
-                        "element_type": "AXTextArea"
+                        "element_type": "AXTextArea",
                     ]
                 )
             }
@@ -259,7 +256,6 @@ class OutlookStrategy: GeometryProvider {
         element: AXUIElement,
         text: String
     ) -> GeometryResult? {
-
         Logger.debug("OutlookStrategy: Using tree traversal fallback", category: Logger.ui)
 
         // Get element frame for validation
@@ -276,7 +272,7 @@ class OutlookStrategy: GeometryProvider {
         let textHash = text.hashValue
         let textParts: [OutlookTextPart]
 
-        if textHash == cachedTextHash && elementFrame == cachedElementFrame && !cachedTextParts.isEmpty {
+        if textHash == cachedTextHash, elementFrame == cachedElementFrame, !cachedTextParts.isEmpty {
             textParts = cachedTextParts
         } else {
             textParts = buildTextPartMap(from: element, fullText: text)
@@ -301,8 +297,9 @@ class OutlookStrategy: GeometryProvider {
 
         // Validate bounds are within element
         let elementBottom = elementFrame.origin.y + elementFrame.height
-        guard quartzBounds.origin.y >= elementFrame.origin.y - 10 &&
-              quartzBounds.origin.y <= elementBottom + 10 else {
+        guard quartzBounds.origin.y >= elementFrame.origin.y - 10,
+              quartzBounds.origin.y <= elementBottom + 10
+        else {
             Logger.debug("OutlookStrategy: Bounds Y outside element", category: Logger.ui)
             return GeometryResult.unavailable(reason: "Y position outside element bounds")
         }
@@ -330,7 +327,7 @@ class OutlookStrategy: GeometryProvider {
             metadata: [
                 "api": "textpart-tree",
                 "textparts": "\(textParts.count)",
-                "element_type": "AXTextArea"
+                "element_type": "AXTextArea",
             ]
         )
     }
@@ -354,7 +351,7 @@ class OutlookStrategy: GeometryProvider {
             let childText = getText(child)
 
             // Direct text run
-            if role == "AXStaticText" && !childText.isEmpty && frame.width > 0 && frame.height > 0 {
+            if role == "AXStaticText", !childText.isEmpty, frame.width > 0, frame.height > 0 {
                 if let foundRange = findTextRange(childText, in: fullText, startingAt: searchStart) {
                     textParts.append(OutlookTextPart(text: childText, range: foundRange, frame: frame, element: child))
                     searchStart = foundRange.location + foundRange.length
@@ -369,7 +366,7 @@ class OutlookStrategy: GeometryProvider {
                     let gcFrame = getFrame(grandchild)
                     let gcText = getText(grandchild)
 
-                    if gcRole == "AXStaticText" && !gcText.isEmpty && gcFrame.width > 0 && gcFrame.height > 0 {
+                    if gcRole == "AXStaticText", !gcText.isEmpty, gcFrame.width > 0, gcFrame.height > 0 {
                         if let foundRange = findTextRange(gcText, in: fullText, startingAt: searchStart) {
                             textParts.append(OutlookTextPart(text: gcText, range: foundRange, frame: gcFrame, element: grandchild))
                             searchStart = foundRange.location + foundRange.length
@@ -383,7 +380,7 @@ class OutlookStrategy: GeometryProvider {
                             let ggFrame = getFrame(ggChild)
                             let ggText = getText(ggChild)
 
-                            if ggRole == "AXStaticText" && !ggText.isEmpty && ggFrame.width > 0 && ggFrame.height > 0 {
+                            if ggRole == "AXStaticText", !ggText.isEmpty, ggFrame.width > 0, ggFrame.height > 0 {
                                 if let foundRange = findTextRange(ggText, in: fullText, startingAt: searchStart) {
                                     textParts.append(OutlookTextPart(text: ggText, range: foundRange, frame: ggFrame, element: ggChild))
                                     searchStart = foundRange.location + foundRange.length
@@ -405,7 +402,7 @@ class OutlookStrategy: GeometryProvider {
             return nil
         }
 
-        let searchRange = searchStartIdx..<text.endIndex
+        let searchRange = searchStartIdx ..< text.endIndex
         if let foundRange = text.range(of: substring, range: searchRange) {
             let location = text.distance(from: text.startIndex, to: foundRange.lowerBound)
             return NSRange(location: location, length: substring.count)
@@ -417,7 +414,7 @@ class OutlookStrategy: GeometryProvider {
     // MARK: - Bounds Lookup
 
     /// Find visual bounds for a character range using TextPart map
-    private func findBoundsForRange(_ targetRange: NSRange, in textParts: [OutlookTextPart], fullText: String, element: AXUIElement) -> CGRect? {
+    private func findBoundsForRange(_ targetRange: NSRange, in textParts: [OutlookTextPart], fullText _: String, element: AXUIElement) -> CGRect? {
         let targetEnd = targetRange.location + targetRange.length
 
         // Find ALL TextParts that overlap with the error range
@@ -450,13 +447,13 @@ class OutlookStrategy: GeometryProvider {
     /// Calculate bounds for error within a single TextPart
     /// Uses AXBoundsForRange on the child element for pixel-perfect positioning
     /// Returns nil if AX query fails - let FontMetricsStrategy handle fallback
-    private func calculateSubElementBounds(targetRange: NSRange, in part: OutlookTextPart, element: AXUIElement) -> CGRect? {
+    private func calculateSubElementBounds(targetRange: NSRange, in part: OutlookTextPart, element _: AXUIElement) -> CGRect? {
         let offsetInPart = targetRange.location - part.range.location
         let errorLength = min(targetRange.location + targetRange.length, part.range.location + part.range.length) - targetRange.location
 
         // Query AXBoundsForRange on the child element directly
         if let bounds = getBoundsForRange(location: offsetInPart, length: errorLength, in: part.element) {
-            if bounds.width > 0 && bounds.height > 0 && bounds.height < 50 {
+            if bounds.width > 0, bounds.height > 0, bounds.height < 50 {
                 Logger.debug("OutlookStrategy: AXBoundsForRange on child SUCCESS: \(bounds)", category: Logger.ui)
                 return bounds
             }
@@ -484,7 +481,8 @@ class OutlookStrategy: GeometryProvider {
 
         guard result == .success,
               let bv = boundsRef,
-              CFGetTypeID(bv) == AXValueGetTypeID() else {
+              CFGetTypeID(bv) == AXValueGetTypeID()
+        else {
             return nil
         }
 
@@ -501,7 +499,8 @@ class OutlookStrategy: GeometryProvider {
     private func getChildren(_ element: AXUIElement) -> [AXUIElement]? {
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-              let children = childrenRef as? [AXUIElement] else {
+              let children = childrenRef as? [AXUIElement]
+        else {
             return nil
         }
         return children
@@ -510,7 +509,8 @@ class OutlookStrategy: GeometryProvider {
     private func getRole(_ element: AXUIElement) -> String {
         var roleRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef) == .success,
-              let role = roleRef as? String else {
+              let role = roleRef as? String
+        else {
             return ""
         }
         return role
@@ -519,7 +519,8 @@ class OutlookStrategy: GeometryProvider {
     private func getText(_ element: AXUIElement) -> String {
         var textRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef) == .success,
-              let text = textRef as? String else {
+              let text = textRef as? String
+        else {
             return ""
         }
         return text
@@ -529,7 +530,8 @@ class OutlookStrategy: GeometryProvider {
         var frameRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, "AXFrame" as CFString, &frameRef) == .success,
               let fRef = frameRef,
-              CFGetTypeID(fRef) == AXValueGetTypeID() else {
+              CFGetTypeID(fRef) == AXValueGetTypeID()
+        else {
             return .zero
         }
         var frame = CGRect.zero

@@ -4,8 +4,7 @@
 import Foundation
 
 /// Builds comprehensive instructions for Foundation Models style analysis
-struct StyleInstructions {
-
+enum StyleInstructions {
     // MARK: - Public API
 
     /// Build instructions for a specific writing style
@@ -61,15 +60,15 @@ struct StyleInstructions {
     private static func styleSpecificInstructions(for style: WritingStyle) -> String {
         switch style {
         case .formal:
-            return formalStyleInstructions
+            formalStyleInstructions
         case .informal:
-            return informalStyleInstructions
+            informalStyleInstructions
         case .business:
-            return businessStyleInstructions
+            businessStyleInstructions
         case .concise:
-            return conciseStyleInstructions
+            conciseStyleInstructions
         case .default:
-            return defaultStyleInstructions
+            defaultStyleInstructions
         }
     }
 

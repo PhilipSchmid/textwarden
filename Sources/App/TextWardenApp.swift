@@ -7,9 +7,9 @@
 //  Main entry point for TextWarden menu bar application.
 //
 
-import SwiftUI
-import os.log
 import KeyboardShortcuts
+import os.log
+import SwiftUI
 
 @main
 struct TextWardenApp: App {
@@ -31,14 +31,14 @@ struct TextWardenApp: App {
 class AppDelegate: NSObject, NSApplicationDelegate {
     var menuBarController: MenuBarController?
     var analysisCoordinator: AnalysisCoordinator?
-    var settingsWindow: NSWindow?  // Keep strong reference to settings window
-    var onboardingWindow: NSWindow?  // Keep strong reference to onboarding window
+    var settingsWindow: NSWindow? // Keep strong reference to settings window
+    var onboardingWindow: NSWindow? // Keep strong reference to onboarding window
 
     /// Shared updater view model for Sparkle auto-updates
     /// Lazy to ensure initialization happens on main thread (UpdaterViewModel is @MainActor)
     @MainActor lazy var updaterViewModel = UpdaterViewModel()
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
+    func applicationDidFinishLaunching(_: Notification) {
         Logger.info("Application launched", category: Logger.lifecycle)
 
         // Log build information for debugging
@@ -142,9 +142,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 Logger.info("Analysis coordinator initialized (permission already granted)", category: Logger.lifecycle)
             } else {
                 permissionManager.onPermissionGranted = { [weak self] in
-                    guard let self = self else { return }
+                    guard let self else { return }
                     Logger.info("Permission granted via onboarding - starting grammar checking", category: Logger.permissions)
-                    self.analysisCoordinator = AnalysisCoordinator.shared
+                    analysisCoordinator = AnalysisCoordinator.shared
                     Logger.info("Analysis coordinator initialized", category: Logger.lifecycle)
                 }
             }
@@ -204,12 +204,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Welcome to TextWarden"
         window.styleMask = [.titled, .closable]
-        window.isReleasedWhenClosed = false  // We manage the lifecycle manually
+        window.isReleasedWhenClosed = false // We manage the lifecycle manually
         window.setContentSize(NSSize(width: 640, height: 760))
         window.center()
 
         // Store strong reference to prevent premature deallocation
-        self.onboardingWindow = window
+        onboardingWindow = window
 
         // Clean up reference after window closes (with delay for animations)
         NotificationCenter.default.addObserver(
@@ -248,11 +248,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // Prevent app from quitting when all windows close (menu bar app)
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        return false
+    func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
+        false
     }
 
-    func applicationWillTerminate(_ notification: Notification) {
+    func applicationWillTerminate(_: Notification) {
         Logger.info("Application will terminate - cleaning up", category: Logger.lifecycle)
 
         // Stop crash recovery heartbeat for clean shutdown detection
@@ -277,7 +277,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Open or bring forward the settings window
     /// Creates window manually for reliable reopening behavior
     /// Tab selection is controlled by PreferencesWindowController.shared
-    @objc func openSettingsWindow(selectedTab: Int = 0) {
+    @objc func openSettingsWindow(selectedTab _: Int = 0) {
         Logger.debug("openSettingsWindow called - ActivationPolicy: \(NSApp.activationPolicy().rawValue)", category: Logger.ui)
 
         // If window exists, just show it (tab is already set by PreferencesWindowController)
@@ -310,7 +310,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let window = NSWindow(contentViewController: hostingController)
         window.title = "TextWarden Settings"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.isReleasedWhenClosed = false  // CRITICAL: Keep window alive when closed
+        window.isReleasedWhenClosed = false // CRITICAL: Keep window alive when closed
         window.setContentSize(NSSize(width: 850, height: 1000))
         window.minSize = NSSize(width: 750, height: 800)
         window.center()
@@ -347,6 +347,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 // MARK: - Window Delegate
+
 extension AppDelegate: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         // When settings window closes, return to menu bar only mode
@@ -603,7 +604,8 @@ extension AppDelegate: NSWindowDelegate {
 
                 // Handle grammar errors
                 if let error = SuggestionPopover.shared.currentError,
-                   let firstSuggestion = error.suggestions.first {
+                   let firstSuggestion = error.suggestions.first
+                {
                     Logger.debug("Keyboard shortcut: Accept grammar suggestion - \(firstSuggestion)", category: Logger.ui)
                     SuggestionPopover.shared.applySuggestion(firstSuggestion)
                     return

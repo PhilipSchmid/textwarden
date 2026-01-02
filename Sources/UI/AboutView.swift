@@ -51,6 +51,7 @@ struct AboutView: View {
     var body: some View {
         Form {
             // MARK: - About TextWarden (main group header with app info)
+
             Section {
                 // App identity row with larger logo
                 VStack(alignment: .leading, spacing: 16) {
@@ -159,11 +160,11 @@ struct AboutView: View {
                             .foregroundColor({
                                 switch updaterViewModel.checkStatus {
                                 case .idle, .checking:
-                                    return .secondary
+                                    .secondary
                                 case .success:
-                                    return .primary
+                                    .primary
                                 case .error:
-                                    return .red
+                                    .red
                                 }
                             }())
                     }
@@ -174,6 +175,7 @@ struct AboutView: View {
             }
 
             // MARK: - Resources (new main group)
+
             Section {
                 Link(destination: AppURLs.github) {
                     HStack {

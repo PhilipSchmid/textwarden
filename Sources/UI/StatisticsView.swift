@@ -5,8 +5,8 @@
 //  Statistics and usage analytics view for the preferences window.
 //
 
-import SwiftUI
 import Charts
+import SwiftUI
 
 // MARK: - Statistics View
 
@@ -56,7 +56,7 @@ struct StatisticsView: View {
                 LazyVGrid(columns: [
                     GridItem(.flexible()),
                     GridItem(.flexible()),
-                    GridItem(.flexible())
+                    GridItem(.flexible()),
                 ], spacing: 10) {
                     MetricCard(
                         title: "Issues Detected",
@@ -195,11 +195,11 @@ struct StatisticsView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 ForEach(Array(sortedApps.enumerated()), id: \.element.key) { index, app in
                                     let purpleShades: [Color] = [
-                                        Color(red: 0.7, green: 0.5, blue: 0.9),  // Light purple
-                                        Color(red: 0.6, green: 0.4, blue: 0.8),  // Medium-light purple
-                                        Color(red: 0.5, green: 0.3, blue: 0.7),  // Medium purple
-                                        Color(red: 0.4, green: 0.2, blue: 0.6),  // Medium-dark purple
-                                        Color(red: 0.3, green: 0.1, blue: 0.5)   // Dark purple
+                                        Color(red: 0.7, green: 0.5, blue: 0.9), // Light purple
+                                        Color(red: 0.6, green: 0.4, blue: 0.8), // Medium-light purple
+                                        Color(red: 0.5, green: 0.3, blue: 0.7), // Medium purple
+                                        Color(red: 0.4, green: 0.2, blue: 0.6), // Medium-dark purple
+                                        Color(red: 0.3, green: 0.1, blue: 0.5), // Dark purple
                                     ]
                                     AppRow(
                                         appName: statistics.friendlyAppName(from: app.key),
@@ -310,13 +310,13 @@ struct StatisticsView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 ForEach(Array(sortedCategories.enumerated()), id: \.element.0) { index, categoryPair in
                                     let orangeShades: [Color] = [
-                                        Color(red: 1.0, green: 0.7, blue: 0.4),  // Light orange
-                                        Color(red: 1.0, green: 0.6, blue: 0.3),  // Medium-light orange
-                                        Color(red: 0.9, green: 0.5, blue: 0.2),  // Medium orange
+                                        Color(red: 1.0, green: 0.7, blue: 0.4), // Light orange
+                                        Color(red: 1.0, green: 0.6, blue: 0.3), // Medium-light orange
+                                        Color(red: 0.9, green: 0.5, blue: 0.2), // Medium orange
                                         Color(red: 0.8, green: 0.45, blue: 0.15), // Medium-dark orange
-                                        Color(red: 0.7, green: 0.4, blue: 0.1),  // Dark orange
+                                        Color(red: 0.7, green: 0.4, blue: 0.1), // Dark orange
                                         Color(red: 0.6, green: 0.35, blue: 0.05), // Darker orange
-                                        Color(red: 0.5, green: 0.3, blue: 0.0)   // Darkest orange
+                                        Color(red: 0.5, green: 0.3, blue: 0.0), // Darkest orange
                                     ]
                                     CategoryRow(
                                         category: categoryPair.0,
@@ -563,7 +563,7 @@ struct StatisticsView: View {
                                     Color(red: 0.9, green: 0.5, blue: 0.2),
                                     Color(red: 0.8, green: 0.45, blue: 0.15),
                                     Color(red: 0.7, green: 0.4, blue: 0.1),
-                                    Color(red: 0.6, green: 0.35, blue: 0.05)
+                                    Color(red: 0.6, green: 0.35, blue: 0.05),
                                 ]
 
                                 CategoryRow(
@@ -599,7 +599,7 @@ struct StatisticsView: View {
                     }
                     .buttonStyle(.bordered)
                     .alert("Reset Statistics?", isPresented: $showResetConfirmation) {
-                        Button("Cancel", role: .cancel) { }
+                        Button("Cancel", role: .cancel) {}
                         Button("Reset", role: .destructive) {
                             statistics.resetAllStatistics()
                         }
@@ -615,11 +615,11 @@ struct StatisticsView: View {
 
     private func formatNumber(_ number: Int) -> String {
         if number >= 1_000_000 {
-            return String(format: "%.1fM", Double(number) / 1_000_000.0)
-        } else if number >= 1_000 {
-            return String(format: "%.1fK", Double(number) / 1_000.0)
+            String(format: "%.1fM", Double(number) / 1_000_000.0)
+        } else if number >= 1000 {
+            String(format: "%.1fK", Double(number) / 1000.0)
         } else {
-            return "\(number)"
+            "\(number)"
         }
     }
 
@@ -628,7 +628,7 @@ struct StatisticsView: View {
 
         var result = ""
         for (index, char) in category.enumerated() {
-            if index > 0 && char.isUppercase {
+            if index > 0, char.isUppercase {
                 result += " "
             }
             result.append(char)
@@ -737,7 +737,7 @@ private struct CategoryRow: View {
     private func formatCategoryName(_ category: String) -> String {
         var result = ""
         for (index, char) in category.enumerated() {
-            if index > 0 && char.isUppercase {
+            if index > 0, char.isUppercase {
                 result += " "
             }
             result.append(char)
@@ -988,4 +988,3 @@ private struct ActionRow: View {
         }
     }
 }
-

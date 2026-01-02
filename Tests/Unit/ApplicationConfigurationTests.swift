@@ -5,11 +5,10 @@
 //  Unit tests for ApplicationConfiguration
 //
 
-import XCTest
 @testable import TextWarden
+import XCTest
 
 final class ApplicationConfigurationTests: XCTestCase {
-
     // MARK: - Keyboard Operation Delay Tests
 
     func testKeyboardDelayForSlack() {
@@ -156,7 +155,7 @@ final class ApplicationConfigurationTests: XCTestCase {
             "com.apple.Safari",
             "org.mozilla.firefox",
             "com.operasoftware.Opera",
-            "com.brave.Browser"
+            "com.brave.Browser",
         ]
 
         for bundleID in browsers {
@@ -172,7 +171,7 @@ final class ApplicationConfigurationTests: XCTestCase {
             "com.microsoft.VSCode",
             "com.tinyspeck.slackmacgap",
             "com.hnc.Discord",
-            "com.electron.app"
+            "com.electron.app",
         ]
 
         for bundleID in electronApps {

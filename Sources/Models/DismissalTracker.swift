@@ -62,7 +62,7 @@ class DismissalTracker {
 
     /// Check if a rule is permanently ignored
     func isPermanentlyIgnored(_ ruleId: String) -> Bool {
-        return patterns[ruleId]?.isPermanentlyIgnored ?? false
+        patterns[ruleId]?.isPermanentlyIgnored ?? false
     }
 
     /// Re-enable a previously ignored rule
@@ -76,9 +76,9 @@ class DismissalTracker {
 
     /// Get all permanently ignored rules
     func getPermanentlyIgnoredRules() -> [String] {
-        return patterns.values
-            .filter { $0.isPermanentlyIgnored }
-            .map { $0.ruleId }
+        patterns.values
+            .filter(\.isPermanentlyIgnored)
+            .map(\.ruleId)
     }
 
     /// Clear all dismissal patterns

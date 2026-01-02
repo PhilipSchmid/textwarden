@@ -8,9 +8,9 @@
 //  All probes are non-invasive (read-only, no cursor/selection changes).
 //
 
-import Foundation
-import ApplicationServices
 import AppKit
+import ApplicationServices
+import Foundation
 
 /// Probes accessibility capabilities for unknown applications
 final class StrategyProfiler {
@@ -89,28 +89,29 @@ final class StrategyProfiler {
 
         guard result == .success,
               let bv = boundsValue,
-              let bounds = safeAXValueGetRect(bv) else {
+              let bounds = safeAXValueGetRect(bv)
+        else {
             return (.unsupported, false, false, false)
         }
 
         // Validate bounds quality
         let validWidth = bounds.width > 0
-        let validHeight = bounds.height > 0 && bounds.height < GeometryConstants.maximumLineHeight  // Suspiciously large = window frame
+        let validHeight = bounds.height > 0 && bounds.height < GeometryConstants.maximumLineHeight // Suspiciously large = window frame
 
         // Check if bounds match element frame (invalid - returns whole element)
         var notWindowFrame = true
         if let elementFrame = AccessibilityBridge.getElementFrame(element) {
             let widthSimilar = abs(bounds.width - elementFrame.width) < 10
             let heightSimilar = abs(bounds.height - elementFrame.height) < 10
-            if widthSimilar && heightSimilar {
+            if widthSimilar, heightSimilar {
                 notWindowFrame = false
             }
         }
 
         // Determine result
-        if validWidth && validHeight && notWindowFrame {
+        if validWidth, validHeight, notWindowFrame {
             return (.supported, validWidth, validHeight, notWindowFrame)
-        } else if bounds.width == 0 && bounds.height == 0 {
+        } else if bounds.width == 0, bounds.height == 0 {
             return (.invalid, validWidth, validHeight, notWindowFrame)
         } else {
             return (.invalid, validWidth, validHeight, notWindowFrame)
@@ -140,7 +141,8 @@ final class StrategyProfiler {
 
         guard result == .success,
               let bv = boundsValue,
-              let bounds = safeAXValueGetRect(bv) else {
+              let bounds = safeAXValueGetRect(bv)
+        else {
             return .unsupported
         }
 
@@ -153,7 +155,7 @@ final class StrategyProfiler {
         if let elementFrame = AccessibilityBridge.getElementFrame(element) {
             let widthSimilar = abs(bounds.width - elementFrame.width) < 10
             let heightSimilar = abs(bounds.height - elementFrame.height) < 10
-            if widthSimilar && heightSimilar {
+            if widthSimilar, heightSimilar {
                 return .invalid
             }
         }
@@ -246,7 +248,7 @@ final class StrategyProfiler {
         // Create a dictionary with start and end markers
         let markerDict: NSDictionary = [
             "AXTextMarkerRangeStart": start,
-            "AXTextMarkerRangeEnd": end
+            "AXTextMarkerRangeEnd": end,
         ]
 
         var rangeValue: CFTypeRef?
@@ -262,7 +264,8 @@ final class StrategyProfiler {
 
     private func getAppVersion(for bundleID: String) -> String? {
         guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID),
-              let bundle = Bundle(url: appURL) else {
+              let bundle = Bundle(url: appURL)
+        else {
             return nil
         }
         return bundle.infoDictionary?["CFBundleShortVersionString"] as? String
@@ -280,7 +283,7 @@ final class StrategyProfiler {
         Logger.info("  Text Replacement:", category: Logger.accessibility)
         Logger.info("    - AXValue settable: \(profile.axValueSettable) -> \(profile.textReplacementMethod)", category: Logger.accessibility)
         Logger.info("  Recommendations:", category: Logger.accessibility)
-        Logger.info("    - Strategies: \(profile.recommendedStrategies.map { $0.rawValue })", category: Logger.accessibility)
+        Logger.info("    - Strategies: \(profile.recommendedStrategies.map(\.rawValue))", category: Logger.accessibility)
         Logger.info("    - Visual underlines: \(profile.visualUnderlinesEnabled ? "enabled" : "disabled")", category: Logger.accessibility)
     }
 }

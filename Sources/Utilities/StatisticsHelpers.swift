@@ -5,7 +5,7 @@ import Foundation
 
 // MARK: - Array Extensions for Statistics
 
-extension Array where Element == Double {
+extension [Double] {
     /// Calculate mean (average) of array values
     func mean() -> Double {
         guard !isEmpty else { return 0 }
@@ -16,7 +16,7 @@ extension Array where Element == Double {
     /// Note: Array should be sorted before calling this
     func median() -> Double {
         guard !isEmpty else { return 0 }
-        let sorted = self.sorted()
+        let sorted = sorted()
         if sorted.count % 2 == 0 {
             return (sorted[sorted.count / 2 - 1] + sorted[sorted.count / 2]) / 2
         } else {
@@ -28,9 +28,9 @@ extension Array where Element == Double {
     /// Note: Array should be sorted before calling this
     func percentile(_ p: Double) -> Double {
         guard !isEmpty else { return 0 }
-        guard p >= 0 && p <= 100 else { return 0 }
+        guard p >= 0, p <= 100 else { return 0 }
 
-        let sorted = self.sorted()
+        let sorted = sorted()
         let index = (p / 100.0) * Double(sorted.count - 1)
         let lower = Int(floor(index))
         let upper = Int(ceil(index))
@@ -44,7 +44,7 @@ extension Array where Element == Double {
     }
 }
 
-extension Array where Element == UInt64 {
+extension [UInt64] {
     /// Calculate mean (average) of array values
     func mean() -> Double {
         guard !isEmpty else { return 0 }
@@ -55,7 +55,7 @@ extension Array where Element == UInt64 {
     /// Note: Array should be sorted before calling this
     func median() -> UInt64 {
         guard !isEmpty else { return 0 }
-        let sorted = self.sorted()
+        let sorted = sorted()
         if sorted.count % 2 == 0 {
             return (sorted[sorted.count / 2 - 1] + sorted[sorted.count / 2]) / 2
         } else {
@@ -67,9 +67,9 @@ extension Array where Element == UInt64 {
     /// Note: Array should be sorted before calling this
     func percentile(_ p: Double) -> UInt64 {
         guard !isEmpty else { return 0 }
-        guard p >= 0 && p <= 100 else { return 0 }
+        guard p >= 0, p <= 100 else { return 0 }
 
-        let sorted = self.sorted()
+        let sorted = sorted()
         let index = (p / 100.0) * Double(sorted.count - 1)
         let lower = Int(floor(index))
         let upper = Int(ceil(index))

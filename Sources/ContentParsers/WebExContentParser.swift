@@ -6,8 +6,8 @@
 //  Filters compose area from video/controls and uses AppRegistry for font config
 //
 
-import Foundation
 import AppKit
+import Foundation
 
 /// Content parser for Cisco WebEx
 /// Focuses on chat compose area, filtering out video area, participant list, and controls
@@ -27,26 +27,26 @@ class WebExContentParser: ContentParser {
         return nil
     }
 
-    func estimatedFontSize(context: String?) -> CGFloat {
-        return config.fontConfig.defaultSize
+    func estimatedFontSize(context _: String?) -> CGFloat {
+        config.fontConfig.defaultSize
     }
 
-    func spacingMultiplier(context: String?) -> CGFloat {
-        return config.fontConfig.spacingMultiplier
+    func spacingMultiplier(context _: String?) -> CGFloat {
+        config.fontConfig.spacingMultiplier
     }
 
-    func horizontalPadding(context: String?) -> CGFloat {
-        return config.horizontalPadding
+    func horizontalPadding(context _: String?) -> CGFloat {
+        config.horizontalPadding
     }
 
-    func fontFamily(context: String?) -> String? {
-        return config.fontConfig.fontFamily
+    func fontFamily(context _: String?) -> String? {
+        config.fontConfig.fontFamily
     }
 
     /// Only monitor compose area elements, not sent messages in conversation
     /// This prevents grammar checking of already-sent messages when clicked
     func shouldMonitorElement(_ element: AXUIElement) -> Bool {
-        return WebExContentParser.isComposeElement(element)
+        WebExContentParser.isComposeElement(element)
     }
 
     /// Check if element is WebEx chat compose area (not sent messages)
@@ -65,7 +65,8 @@ class WebExContentParser: ContentParser {
         // Check AXIdentifier - compose area has "ConversationInputTextView"
         var identifierRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXIdentifierAttribute as CFString, &identifierRef) == .success,
-           let identifier = identifierRef as? String {
+           let identifier = identifierRef as? String
+        {
             if identifier == "ConversationInputTextView" {
                 Logger.debug("WebExContentParser: Accepting compose area (ConversationInputTextView)", category: Logger.accessibility)
                 return true
@@ -76,11 +77,13 @@ class WebExContentParser: ContentParser {
         var parentRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXParentAttribute as CFString, &parentRef) == .success,
            let parent = parentRef,
-           CFGetTypeID(parent) == AXUIElementGetTypeID() {
+           CFGetTypeID(parent) == AXUIElementGetTypeID()
+        {
             let parentElement = parent as! AXUIElement
             var parentIdRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(parentElement, kAXIdentifierAttribute as CFString, &parentIdRef) == .success,
-               let parentId = parentIdRef as? String {
+               let parentId = parentIdRef as? String
+            {
                 if parentId == "Spark Text View" {
                     Logger.debug("WebExContentParser: Accepting element with Spark Text View parent", category: Logger.accessibility)
                     return true

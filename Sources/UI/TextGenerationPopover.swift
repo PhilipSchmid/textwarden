@@ -5,9 +5,9 @@
 //  Popover for AI text generation using Apple Intelligence
 //
 
-import SwiftUI
 import AppKit
 import Combine
+import SwiftUI
 
 // MARK: - Text Input Panel
 
@@ -15,11 +15,11 @@ import Combine
 /// Unlike NonActivatingPanel, this panel accepts keyboard focus for text editing
 class TextInputPanel: NSPanel {
     override var canBecomeKey: Bool {
-        return true  // Allow keyboard input
+        true // Allow keyboard input
     }
 
     override var canBecomeMain: Bool {
-        return false  // Don't become main window
+        false // Don't become main window
     }
 
     /// Handle keyboard shortcuts (Cmd+A, Cmd+C, Cmd+V, Cmd+X, Cmd+Z) that don't work
@@ -90,7 +90,7 @@ class TextInputPanel: NSPanel {
 struct GenerationCacheEntry {
     let instruction: String
     let style: WritingStyle
-    let results: [String]  // Multiple results for "try another"
+    let results: [String] // Multiple results for "try another"
     let timestamp: Date
 }
 
@@ -99,7 +99,6 @@ struct GenerationCacheEntry {
 /// Manages the text generation popover window
 @MainActor
 class TextGenerationPopover: NSObject, ObservableObject {
-
     // MARK: - Singleton
 
     static let shared = TextGenerationPopover()
@@ -184,7 +183,7 @@ class TextGenerationPopover: NSObject, ObservableObject {
 
     // MARK: - Initialization
 
-    private override init() {
+    override private init() {
         super.init()
     }
 
@@ -198,25 +197,25 @@ class TextGenerationPopover: NSObject, ObservableObject {
         Logger.debug("TextGenerationPopover: show at \(position), direction: \(direction)", category: Logger.ui)
 
         // Restore last session state instead of resetting to empty
-        self.instruction = lastInstruction
+        instruction = lastInstruction
         self.context = context
-        self.isGenerating = false
-        self.errorMessage = nil
-        self.generatedResults = lastResults
-        self.currentResultIndex = lastResultIndex
+        isGenerating = false
+        errorMessage = nil
+        generatedResults = lastResults
+        currentResultIndex = lastResultIndex
 
         // Store open direction for positioning
-        self.openDirection = direction
+        openDirection = direction
 
         // Style handling: use cached style if there's cached content, otherwise use preference
         // This preserves user's style choice during a session, while Clear resets to preference
-        if lastInstruction.isEmpty && lastResults.isEmpty {
+        if lastInstruction.isEmpty, lastResults.isEmpty {
             // Fresh session: use preference
             let styleName = UserPreferences.shared.selectedWritingStyle
-            self.selectedStyle = WritingStyle.allCases.first { $0.displayName == styleName } ?? .default
+            selectedStyle = WritingStyle.allCases.first { $0.displayName == styleName } ?? .default
         } else {
             // Cached content: preserve user's style choice
-            self.selectedStyle = lastStyle
+            selectedStyle = lastStyle
         }
 
         if panel == nil {
@@ -238,10 +237,10 @@ class TextGenerationPopover: NSObject, ObservableObject {
     /// Position panel using anchor-based positioning for consistent alignment with other popovers
     /// The anchor point represents where the popover's nearest edge should align
     private func positionPanel(at anchorPoint: CGPoint) {
-        guard let panel = panel else { return }
+        guard let panel else { return }
 
         let screen = NSScreen.screens.first(where: { $0.frame.contains(anchorPoint) }) ?? NSScreen.main
-        guard let screen = screen else { return }
+        guard let screen else { return }
 
         let panelSize = panel.frame.size
         let constraintFrame = screen.visibleFrame
@@ -325,7 +324,7 @@ class TextGenerationPopover: NSObject, ObservableObject {
     /// Schedule hiding after delay
     func scheduleHide(delay: TimeInterval = 0.3) {
         // Don't auto-hide while generating or showing results
-        guard !isGenerating && generatedResults.isEmpty else { return }
+        guard !isGenerating, generatedResults.isEmpty else { return }
 
         hideTimer?.invalidate()
         hideTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
@@ -344,8 +343,8 @@ class TextGenerationPopover: NSObject, ObservableObject {
     // MARK: - Panel Creation
 
     private let panelWidth: CGFloat = 400
-    private let panelHeightBase: CGFloat = 520  // Without selected text
-    private let panelHeightWithSelection: CGFloat = 650  // Extra space for selected text + quick actions
+    private let panelHeightBase: CGFloat = 520 // Without selected text
+    private let panelHeightWithSelection: CGFloat = 650 // Extra space for selected text + quick actions
 
     /// Current panel height based on context
     private var currentPanelHeight: CGFloat {
@@ -390,7 +389,7 @@ class TextGenerationPopover: NSObject, ObservableObject {
     }
 
     private func rebuildContentView() {
-        guard let panel = panel,
+        guard let panel,
               let trackingView = panel.contentView as? TextGenTrackingView else { return }
 
         trackingView.subviews.forEach { $0.removeFromSuperview() }
@@ -413,14 +412,14 @@ class TextGenerationPopover: NSObject, ObservableObject {
         removeClickOutsideMonitor()
 
         clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
-            guard let self = self, let panel = self.panel else { return }
+            guard let self, let panel else { return }
 
             let clickLocation = event.locationInWindow
             let panelFrame = panel.frame
 
             if !panelFrame.contains(clickLocation) {
                 Logger.debug("TextGenerationPopover: Click outside - hiding", category: Logger.ui)
-                self.hide()
+                hide()
             }
         }
     }
@@ -436,7 +435,7 @@ class TextGenerationPopover: NSObject, ObservableObject {
 
     /// Generate cache key from instruction and style
     private func cacheKey(instruction: String, style: WritingStyle) -> String {
-        return "\(instruction.lowercased().trimmingCharacters(in: .whitespacesAndNewlines))_\(style.rawValue)"
+        "\(instruction.lowercased().trimmingCharacters(in: .whitespacesAndNewlines))_\(style.rawValue)"
     }
 
     /// Get cached results if available
@@ -506,7 +505,7 @@ class TextGenerationPopover: NSObject, ObservableObject {
             return
         }
 
-        guard let onGenerate = onGenerate else {
+        guard let onGenerate else {
             Logger.warning("TextGenerationPopover: onGenerate callback not set", category: Logger.ui)
             return
         }
@@ -514,8 +513,8 @@ class TextGenerationPopover: NSObject, ObservableObject {
         // Check cache first
         if let cached = getCachedResults(instruction: trimmedInstruction, style: selectedStyle) {
             Logger.debug("TextGenerationPopover: Using cached results (\(cached.count))", category: Logger.ui)
-            self.generatedResults = cached
-            self.currentResultIndex = 0
+            generatedResults = cached
+            currentResultIndex = 0
             return
         }
 
@@ -551,7 +550,7 @@ class TextGenerationPopover: NSObject, ObservableObject {
             return
         }
 
-        guard let onGenerate = onGenerate else { return }
+        guard let onGenerate else { return }
 
         isGenerating = true
         errorMessage = nil
@@ -619,15 +618,16 @@ private class TextGenTrackingView: NSView {
         self.popover = popover
         super.init(frame: .zero)
 
-        self.wantsLayer = true
-        self.layer?.backgroundColor = .clear
-        self.layer?.cornerRadius = 10
-        self.layer?.masksToBounds = true
+        wantsLayer = true
+        layer?.backgroundColor = .clear
+        layer?.cornerRadius = 10
+        layer?.masksToBounds = true
 
         setupTracking()
     }
 
-    required init?(coder: NSCoder) {
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
@@ -641,13 +641,13 @@ private class TextGenTrackingView: NSView {
         addTrackingArea(trackingArea)
     }
 
-    override func mouseEntered(with event: NSEvent) {
+    override func mouseEntered(with _: NSEvent) {
         popover?.cancelHide()
     }
 
-    override func mouseExited(with event: NSEvent) {
+    override func mouseExited(with _: NSEvent) {
         // Don't auto-hide while generating or showing results
-        if popover?.isGenerating == false && (popover?.generatedResults.isEmpty ?? true) {
+        if popover?.isGenerating == false, popover?.generatedResults.isEmpty ?? true {
             popover?.scheduleHide(delay: 0.5)
         }
     }
@@ -664,11 +664,11 @@ struct TextGenerationContentView: View {
     private var effectiveColorScheme: ColorScheme {
         switch preferences.overlayTheme {
         case "Light":
-            return .light
+            .light
         case "Dark":
-            return .dark
+            .dark
         default:
-            return systemColorScheme
+            systemColorScheme
         }
     }
 
@@ -750,7 +750,7 @@ struct TextGenerationContentView: View {
     /// Whether there's content to clear (instruction or results)
     private var hasClearableContent: Bool {
         !popover.instruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-        !popover.generatedResults.isEmpty
+            !popover.generatedResults.isEmpty
     }
 
     private var headerView: some View {
@@ -879,11 +879,11 @@ struct TextGenerationContentView: View {
                 )
                 .disabled(popover.isGenerating)
                 .onKeyPress(phases: .down) { press in
-                    if press.key == .return && !press.modifiers.contains(.shift) {
+                    if press.key == .return, !press.modifiers.contains(.shift) {
                         popover.generate()
-                        return .handled  // Enter triggers Generate
+                        return .handled // Enter triggers Generate
                     }
-                    return .ignored  // Let other keys through (including Shift+Enter)
+                    return .ignored // Let other keys through (including Shift+Enter)
                 }
         }
     }
@@ -958,8 +958,8 @@ struct TextGenerationContentView: View {
             .background(
                 RoundedRectangle(cornerRadius: 5)
                     .fill(popover.isGenerating || popover.instruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                          ? colors.primary.opacity(0.5)
-                          : colors.primary)
+                        ? colors.primary.opacity(0.5)
+                        : colors.primary)
             )
             .disabled(popover.isGenerating || popover.instruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }

@@ -5,8 +5,8 @@
 //  Unit tests for UserStatistics model
 //
 
-import XCTest
 @testable import TextWarden
+import XCTest
 
 final class UserStatisticsTests: XCTestCase {
     var statistics: UserStatistics!
@@ -157,7 +157,7 @@ final class UserStatisticsTests: XCTestCase {
 
     func testTimeSavedFormatted() {
         // 65 seconds = 1m 5s
-        for _ in 0..<32 {
+        for _ in 0 ..< 32 {
             statistics.recordSuggestionApplied(category: "Spelling")
         }
         statistics.recordSuggestionApplied(category: "Grammar")
@@ -167,7 +167,7 @@ final class UserStatisticsTests: XCTestCase {
 
     func testTimeSavedFormattedWithHours() {
         // 3661 seconds = 1h 1m 1s
-        for _ in 0..<1830 {
+        for _ in 0 ..< 1830 {
             statistics.recordSuggestionApplied(category: "Spelling")
         }
         statistics.recordSuggestionApplied(category: "Grammar")
@@ -240,10 +240,10 @@ final class UserStatisticsTests: XCTestCase {
     }
 
     func testLargeNumbers() {
-        statistics.recordAnalysisSession(wordsProcessed: 1_000_000, errorsFound: 10_000)
+        statistics.recordAnalysisSession(wordsProcessed: 1_000_000, errorsFound: 10000)
 
         XCTAssertEqual(statistics.wordsAnalyzed, 1_000_000)
-        XCTAssertEqual(statistics.errorsFound, 10_000)
+        XCTAssertEqual(statistics.errorsFound, 10000)
     }
 
     // MARK: - Detailed Analysis Session Tests
@@ -468,7 +468,7 @@ final class UserStatisticsTests: XCTestCase {
 
     func testAnalysisSessionsInTimeRange() {
         // Add 2 sessions from today
-        for _ in 0..<2 {
+        for _ in 0 ..< 2 {
             let session = DetailedAnalysisSession(
                 timestamp: Date(),
                 wordsProcessed: 100,
@@ -510,7 +510,7 @@ final class UserStatisticsTests: XCTestCase {
 
     func testImprovementRateInTimeRange() {
         // Add 3 applied and 1 dismissed
-        for _ in 0..<3 {
+        for _ in 0 ..< 3 {
             let action = SuggestionAction(
                 timestamp: Date(),
                 action: .applied,
@@ -527,7 +527,7 @@ final class UserStatisticsTests: XCTestCase {
         statistics.suggestionActions.append(dismissedAction)
 
         let rate = statistics.improvementRate(in: .day)
-        XCTAssertEqual(rate, 75.0, accuracy: 0.01)  // 3/4 = 75%
+        XCTAssertEqual(rate, 75.0, accuracy: 0.01) // 3/4 = 75%
     }
 
     func testCategoryBreakdownInTimeRange() {
@@ -593,7 +593,7 @@ final class UserStatisticsTests: XCTestCase {
 
     func testLatencySamplesCappedAt100() {
         // Record 150 samples
-        for i in 0..<150 {
+        for i in 0 ..< 150 {
             statistics.recordLatency(milliseconds: Double(i))
         }
 
@@ -628,7 +628,7 @@ final class UserStatisticsTests: XCTestCase {
 
     func testP90Latency() {
         // Add 10 samples: 10, 20, 30, ..., 100
-        for i in 1...10 {
+        for i in 1 ... 10 {
             statistics.recordLatency(milliseconds: Double(i * 10))
         }
 
@@ -640,7 +640,7 @@ final class UserStatisticsTests: XCTestCase {
 
     func testP95Latency() {
         // Add 20 samples
-        for i in 1...20 {
+        for i in 1 ... 20 {
             statistics.recordLatency(milliseconds: Double(i * 10))
         }
 
@@ -652,7 +652,7 @@ final class UserStatisticsTests: XCTestCase {
 
     func testP99Latency() {
         // Add 100 samples
-        for i in 1...100 {
+        for i in 1 ... 100 {
             statistics.recordLatency(milliseconds: Double(i))
         }
 
@@ -730,7 +730,7 @@ final class UserStatisticsTests: XCTestCase {
             return
         }
 
-        XCTAssertEqual(top.name, "Slack")  // Friendly name mapping
+        XCTAssertEqual(top.name, "Slack") // Friendly name mapping
         XCTAssertEqual(top.errorCount, 15)
     }
 
@@ -846,7 +846,6 @@ final class UserStatisticsTests: XCTestCase {
     func testCurrentStreakWithNoActivity() {
         XCTAssertEqual(statistics.currentStreak, 0)
     }
-
 
     // MARK: - Data Cleanup Tests
 

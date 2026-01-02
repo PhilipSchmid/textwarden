@@ -1,12 +1,11 @@
 // SystemMetrics.swift
 // System resource monitoring using macOS Mach APIs
 
-import Foundation
 import Darwin.Mach
+import Foundation
 
 /// Utility for collecting system resource metrics using native macOS APIs
 public enum SystemMetrics {
-
     // MARK: - Memory Monitoring
 
     /// Get current memory usage in bytes (physical footprint)
@@ -73,8 +72,8 @@ public enum SystemMetrics {
             return 0
         }
 
-        if let threadsList = threadsList {
-            for i in 0..<Int(threadsCount) {
+        if let threadsList {
+            for i in 0 ..< Int(threadsCount) {
                 var threadInfo = thread_basic_info()
                 var threadInfoCount = mach_msg_type_number_t(THREAD_INFO_MAX)
 

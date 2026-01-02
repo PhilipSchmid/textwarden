@@ -6,13 +6,12 @@
 //  Works in TextEdit, Notes, Mail, and most native macOS apps
 //
 
-import Foundation
 import ApplicationServices
+import Foundation
 
 /// Range-based positioning using CFRange API
 /// Traditional approach that works well for native macOS apps
 class RangeBoundsStrategy: GeometryProvider {
-
     var strategyName: String { "RangeBounds" }
     var strategyType: StrategyType { .rangeBounds }
     var tier: StrategyTier { .precise }
@@ -26,7 +25,6 @@ class RangeBoundsStrategy: GeometryProvider {
         text: String,
         parser: ContentParser
     ) -> GeometryResult? {
-
         // Convert filtered coordinates to original coordinates
         let offset = parser.textReplacementOffset
         let adjustedRange = NSRange(
@@ -53,7 +51,8 @@ class RangeBoundsStrategy: GeometryProvider {
         // Use UTF-16 range for the API call
         let utf16NSRange = NSRange(location: utf16Range.location, length: utf16Range.length)
         if let quartzLineBounds = AccessibilityBridge.resolveMultiLineBounds(utf16NSRange, in: element),
-           quartzLineBounds.count > 1 {
+           quartzLineBounds.count > 1
+        {
             // Multi-line error detected - convert all line bounds to Cocoa coordinates
             let cocoaLineBounds = quartzLineBounds.map { CoordinateMapper.toCocoaCoordinates($0) }
 
@@ -79,7 +78,7 @@ class RangeBoundsStrategy: GeometryProvider {
                     "range_location": cfRange.location,
                     "range_length": cfRange.length,
                     "line_count": validLineBounds.count,
-                    "overall_bounds": NSStringFromRect(overallBounds)
+                    "overall_bounds": NSStringFromRect(overallBounds),
                 ]
             )
         }
@@ -121,7 +120,7 @@ class RangeBoundsStrategy: GeometryProvider {
                 "range_location": cfRange.location,
                 "range_length": cfRange.length,
                 "quartz_bounds": NSStringFromRect(quartzBounds),
-                "cocoa_bounds": NSStringFromRect(cocoaBounds)
+                "cocoa_bounds": NSStringFromRect(cocoaBounds),
             ]
         )
     }
@@ -214,7 +213,7 @@ class RangeBoundsStrategy: GeometryProvider {
                 "utf16_location": utf16Range.location,
                 "utf16_length": utf16Range.length,
                 "quartz_screen_bounds": NSStringFromRect(quartzBounds),
-                "cocoa_bounds": NSStringFromRect(cocoaBounds)
+                "cocoa_bounds": NSStringFromRect(cocoaBounds),
             ]
         )
     }
@@ -231,7 +230,8 @@ class RangeBoundsStrategy: GeometryProvider {
         var charCountRef: CFTypeRef?
         var textLength = 0
         if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &charCountRef) == .success,
-           let count = charCountRef as? Int {
+           let count = charCountRef as? Int
+        {
             textLength = count
         } else {
             // Fallback: use a large range
@@ -263,5 +263,4 @@ class RangeBoundsStrategy: GeometryProvider {
         // Now convert using the actual text from the element
         return TextIndexConverter.graphemeToUTF16Range(range, in: text)
     }
-
 }

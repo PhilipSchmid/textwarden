@@ -32,17 +32,17 @@ public class ResourceMonitor {
 
         // Start timer on main thread
         DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
 
-            self.samplingTimer = Timer.scheduledTimer(
-                withTimeInterval: self.samplingInterval,
+            samplingTimer = Timer.scheduledTimer(
+                withTimeInterval: samplingInterval,
                 repeats: true
             ) { [weak self] _ in
                 self?.collectSwiftAppSample()
             }
 
             // Fire immediately
-            self.collectSwiftAppSample()
+            collectSwiftAppSample()
         }
 
         Logger.debug("Started resource monitoring (interval: \(samplingInterval)s)", category: Logger.performance)

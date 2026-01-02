@@ -14,7 +14,7 @@ import Foundation
 /// a separate array to track LRU ordering.
 final class AIRephraseCache: @unchecked Sendable {
     private var cache: [String: String] = [:]
-    private var accessOrder: [String] = []  // Oldest at front, newest at back
+    private var accessOrder: [String] = [] // Oldest at front, newest at back
     private let queue = DispatchQueue(label: "com.textwarden.aiRephraseCache")
     private let maxEntries: Int
 

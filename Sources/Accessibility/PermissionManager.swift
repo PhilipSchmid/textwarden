@@ -5,10 +5,10 @@
 //  Manages Accessibility permissions and status
 //
 
-import Foundation
 import AppKit
 import ApplicationServices
 import Combine
+import Foundation
 
 /// Manages Accessibility API permissions
 @MainActor
@@ -55,7 +55,7 @@ class PermissionManager: ObservableObject {
         let isGranted = checkPermission()
 
         // Call callback if permission was just granted
-        if !wasGranted && isGranted {
+        if !wasGranted, isGranted {
             Logger.info("Permission just granted", category: Logger.permissions)
             onPermissionGranted?()
         }
@@ -64,7 +64,7 @@ class PermissionManager: ObservableObject {
     /// Check if app can request permission
     func canRequestPermission() -> Bool {
         // Always true on macOS 13.0+
-        return true
+        true
     }
 
     /// Request Accessibility permissions
@@ -73,7 +73,7 @@ class PermissionManager: ObservableObject {
         Logger.info("Requesting Accessibility permission", category: Logger.permissions)
 
         let options: NSDictionary = [
-            kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
+            kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true,
         ]
         let result = AXIsProcessTrustedWithOptions(options)
 
@@ -89,16 +89,16 @@ class PermissionManager: ObservableObject {
 
         pollTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
-                guard let self = self else { return }
+                guard let self else { return }
 
-                let wasGranted = self.isPermissionGranted
-                let isGranted = self.checkPermission()
+                let wasGranted = isPermissionGranted
+                let isGranted = checkPermission()
 
                 // Stop polling once permission is granted
-                if !wasGranted && isGranted {
-                    self.stopPolling()
+                if !wasGranted, isGranted {
+                    stopPolling()
                     // Start continuous monitoring for revocation
-                    self.startRevocationMonitoring()
+                    startRevocationMonitoring()
                 }
             }
         }
@@ -137,7 +137,7 @@ class PermissionManager: ObservableObject {
         let isGranted = checkPermission()
 
         // Permission was revoked
-        if wasGranted && !isGranted {
+        if wasGranted, !isGranted {
             Logger.critical("Accessibility permission was revoked!", category: Logger.permissions)
             Logger.logPermissionChange(granted: false)
 
@@ -174,9 +174,9 @@ extension PermissionManager {
     /// Get detailed permission status
     var permissionStatus: PermissionStatus {
         if isPermissionGranted {
-            return .granted
+            .granted
         } else {
-            return .denied
+            .denied
         }
     }
 
@@ -187,9 +187,9 @@ extension PermissionManager {
         var description: String {
             switch self {
             case .granted:
-                return "Accessibility permissions granted"
+                "Accessibility permissions granted"
             case .denied:
-                return "Accessibility permissions required"
+                "Accessibility permissions required"
             }
         }
     }

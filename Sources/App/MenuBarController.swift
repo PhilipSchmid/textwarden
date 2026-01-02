@@ -74,7 +74,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         // Check for pending milestones first (only if onboarding is complete)
         if UserPreferences.shared.hasCompletedOnboarding,
-           let milestone = MilestoneManager.shared.checkForMilestones() {
+           let milestone = MilestoneManager.shared.checkForMilestones()
+        {
             // Mark as shown immediately so it won't show again on next click
             MilestoneManager.shared.markMilestoneShown(milestone)
             showMilestoneCard(milestone, from: sender)
@@ -84,7 +85,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         // Rebuild menu with the captured app
         createMenu()
 
-        guard let menu = menu else { return }
+        guard let menu else { return }
         let buttonBounds = sender.bounds
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: buttonBounds.height), in: sender)
     }
@@ -219,8 +220,9 @@ class MenuBarController: NSObject, NSMenuDelegate {
         indefiniteItem.state = UserPreferences.shared.pauseDuration == .indefinite ? .on : .off
         menu?.addItem(indefiniteItem)
 
-        if (UserPreferences.shared.pauseDuration == .oneHour || UserPreferences.shared.pauseDuration == .twentyFourHours),
-           let until = UserPreferences.shared.pausedUntil {
+        if UserPreferences.shared.pauseDuration == .oneHour || UserPreferences.shared.pauseDuration == .twentyFourHours,
+           let until = UserPreferences.shared.pausedUntil
+        {
             let formatter = DateFormatter()
             formatter.timeStyle = .short
             let timeString = formatter.string(from: until)
@@ -236,7 +238,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
         // This was captured BEFORE the menu opened, so it's the app the user was in
         guard let targetApp = menuTargetApp,
               let bundleID = targetApp.bundleIdentifier,
-              bundleID != "io.textwarden.TextWarden" else {
+              bundleID != "io.textwarden.TextWarden"
+        else {
             return
         }
 
@@ -356,8 +359,9 @@ class MenuBarController: NSObject, NSMenuDelegate {
         indefiniteItem.state = currentPause == .indefinite ? .on : .off
         menu?.addItem(indefiniteItem)
 
-        if (currentPause == .oneHour || currentPause == .twentyFourHours),
-           let until = UserPreferences.shared.getPausedUntil(for: bundleID) {
+        if currentPause == .oneHour || currentPause == .twentyFourHours,
+           let until = UserPreferences.shared.getPausedUntil(for: bundleID)
+        {
             let formatter = DateFormatter()
             formatter.timeStyle = .short
             let timeString = formatter.string(from: until)
@@ -421,12 +425,11 @@ class MenuBarController: NSObject, NSMenuDelegate {
         previousIconState = state
 
         // Use disabled icon with strikethrough when paused, normal icon otherwise
-        let icon: NSImage
-        switch state {
+        let icon: NSImage = switch state {
         case .inactive:
-            icon = TextWardenIcon.createDisabled()
+            TextWardenIcon.createDisabled()
         case .active, .error, .restarting:
-            icon = TextWardenIcon.create()
+            TextWardenIcon.create()
         }
         button.image = icon
 

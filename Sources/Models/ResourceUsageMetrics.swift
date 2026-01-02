@@ -9,7 +9,7 @@ public struct ResourceUsageMetrics: Codable {
     public let cpuLoadMin: Double
     public let cpuLoadMax: Double
     public let cpuLoadAverage: Double
-    public let cpuLoadMedian: Double  // Middle value (50th percentile)
+    public let cpuLoadMedian: Double // Middle value (50th percentile)
 
     // System Load Averages (if available)
     public let systemLoad1mAverage: Double?
@@ -20,7 +20,7 @@ public struct ResourceUsageMetrics: Codable {
     public let memoryMin: UInt64
     public let memoryMax: UInt64
     public let memoryAverage: UInt64
-    public let memoryMedian: UInt64  // Middle value (50th percentile)
+    public let memoryMedian: UInt64 // Middle value (50th percentile)
 
     public let sampleCount: Int
 

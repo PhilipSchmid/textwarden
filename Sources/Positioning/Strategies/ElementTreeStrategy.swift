@@ -7,17 +7,17 @@
 //  Used for Notion and other apps where paragraph bounds are unreliable.
 //
 
-import Foundation
 import AppKit
 import ApplicationServices
+import Foundation
 
 // MARK: - Element Scoring
 
 /// Scoring criteria for selecting the best element
 struct ElementScore {
-    var sizeScore: Int      // Based on reasonable text height
-    var roleScore: Int      // Prefer AXStaticText
-    var widthScore: Int     // Prefer reasonable widths
+    var sizeScore: Int // Based on reasonable text height
+    var roleScore: Int // Prefer AXStaticText
+    var widthScore: Int // Prefer reasonable widths
 
     var total: Int { sizeScore + roleScore + widthScore }
 
@@ -25,17 +25,17 @@ struct ElementScore {
         var score = ElementScore(sizeScore: 0, roleScore: 0, widthScore: 0)
 
         // Height scoring: prefer elements with typical text line height (15-50px)
-        if height > 0 && height < GeometryConstants.typicalLineHeightRange.upperBound {
+        if height > 0, height < GeometryConstants.typicalLineHeightRange.upperBound {
             score.sizeScore = 100
-        } else if height >= GeometryConstants.typicalLineHeightRange.upperBound && height < GeometryConstants.conservativeMaxLineHeight {
+        } else if height >= GeometryConstants.typicalLineHeightRange.upperBound, height < GeometryConstants.conservativeMaxLineHeight {
             score.sizeScore = 50
-        } else if height >= GeometryConstants.conservativeMaxLineHeight && height < GeometryConstants.maximumLineHeight {
+        } else if height >= GeometryConstants.conservativeMaxLineHeight, height < GeometryConstants.maximumLineHeight {
             score.sizeScore = 10
         }
         // Height >= maximumLineHeight gets 0 (container elements)
 
         // Width scoring
-        if width > 20 && width < GeometryConstants.maximumTextWidth {
+        if width > 20, width < GeometryConstants.maximumTextWidth {
             score.widthScore = 20
         }
 
@@ -58,7 +58,6 @@ struct ElementScore {
 /// Element tree traversal strategy for element-based positioning
 /// Traverses AX hierarchy to find AXStaticText children containing the error text
 class ElementTreeStrategy: GeometryProvider {
-
     // MARK: - Properties
 
     var strategyName: String { "ElementTree" }
@@ -72,7 +71,7 @@ class ElementTreeStrategy: GeometryProvider {
     // Maximum number of children to process
     private let maxChildrenToProcess = 100
 
-    func canHandle(element: AXUIElement, bundleID: String) -> Bool {
+    func canHandle(element _: AXUIElement, bundleID: String) -> Bool {
         // Designed for Chromium-based apps where other strategies fail
         // Note: Teams is NOT included here - its child elements have broken frame data
         // (child element frames don't match their visual position)
@@ -82,7 +81,7 @@ class ElementTreeStrategy: GeometryProvider {
             "com.google.Chrome",
             "com.brave.Browser",
             "com.microsoft.edgemac",
-            "org.chromium.Chromium"
+            "org.chromium.Chromium",
         ]
         return targetApps.contains(bundleID)
     }
@@ -95,7 +94,6 @@ class ElementTreeStrategy: GeometryProvider {
         text: String,
         parser: ContentParser
     ) -> GeometryResult? {
-
         Logger.debug("ElementTreeStrategy: Starting for range \(errorRange)", category: Logger.ui)
 
         // Convert filtered coordinates to original coordinates
@@ -117,11 +115,12 @@ class ElementTreeStrategy: GeometryProvider {
         // Safe string slicing to handle UTF-16/character count mismatches
         guard let startIndex = text.index(text.startIndex, offsetBy: errorStart, limitedBy: text.endIndex),
               let endIndex = text.index(text.startIndex, offsetBy: errorEnd, limitedBy: text.endIndex),
-              startIndex <= endIndex else {
+              startIndex <= endIndex
+        else {
             Logger.debug("ElementTreeStrategy: String index out of bounds for error text", category: Logger.accessibility)
             return nil
         }
-        let errorText = String(text[startIndex..<endIndex])
+        let errorText = String(text[startIndex ..< endIndex])
 
         Logger.debug("ElementTreeStrategy: Looking for error text (\(errorText.count) chars)", category: Logger.ui)
 
@@ -189,7 +188,7 @@ class ElementTreeStrategy: GeometryProvider {
                                 "api": "element-tree-range-bounds-multiline",
                                 "element_role": role,
                                 "child_range": "\(childErrorRange)",
-                                "line_count": validLineBounds.count
+                                "line_count": validLineBounds.count,
                             ]
                         )
                     }
@@ -203,7 +202,7 @@ class ElementTreeStrategy: GeometryProvider {
                     metadata: [
                         "api": "element-tree-range-bounds",
                         "element_role": role,
-                        "child_range": "\(childErrorRange)"
+                        "child_range": "\(childErrorRange)",
                     ]
                 )
             }
@@ -230,7 +229,7 @@ class ElementTreeStrategy: GeometryProvider {
             let elementWidth = elementFrame.width
 
             var currentX: CGFloat = 0
-            var currentLine: Int = 0
+            var currentLine = 0
             let charsBeforeError = textBeforeError.count
 
             let words = elementText.components(separatedBy: " ")
@@ -240,13 +239,13 @@ class ElementTreeStrategy: GeometryProvider {
                 let wordWidth = (word as NSString).size(withAttributes: attributes).width
                 let spaceWidth: CGFloat = 5.0
 
-                if currentX + wordWidth > elementWidth && currentX > 0 {
+                if currentX + wordWidth > elementWidth, currentX > 0 {
                     currentLine += 1
                     currentX = 0
                 }
 
                 let wordEnd = charIndex + word.count
-                if charIndex <= charsBeforeError && wordEnd >= charsBeforeError {
+                if charIndex <= charsBeforeError, wordEnd >= charsBeforeError {
                     let offsetInWord = max(0, charsBeforeError - charIndex)
                     let textInWordBeforeError = String(word.prefix(offsetInWord))
                     errorX = elementFrame.origin.x + currentX + (textInWordBeforeError as NSString).size(withAttributes: attributes).width
@@ -285,7 +284,7 @@ class ElementTreeStrategy: GeometryProvider {
 
         Logger.debug("ElementTreeStrategy: Cocoa bounds: \(cocoaBounds)", category: Logger.ui)
 
-        guard cocoaBounds.width > 0 && cocoaBounds.height > 0 else {
+        guard cocoaBounds.width > 0, cocoaBounds.height > 0 else {
             Logger.debug("ElementTreeStrategy: Invalid bounds dimensions", category: Logger.accessibility)
             return nil
         }
@@ -300,7 +299,7 @@ class ElementTreeStrategy: GeometryProvider {
                 "api": "element-tree-statictext",
                 "element_role": role,
                 "element_frame": NSStringFromRect(elementFrame),
-                "text_offset": offsetInElement
+                "text_offset": offsetInElement,
             ]
         )
     }
@@ -311,7 +310,6 @@ class ElementTreeStrategy: GeometryProvider {
         _ targetText: String,
         in element: AXUIElement
     ) -> AXUIElement? {
-
         var candidates: [(element: AXUIElement, score: ElementScore, frame: CGRect)] = []
         collectCandidates(targetText, in: element, depth: 0, candidates: &candidates)
 
@@ -368,7 +366,7 @@ class ElementTreeStrategy: GeometryProvider {
         let height = frame.height
         let width = frame.width
 
-        guard height > 0 && width > 0 else {
+        guard height > 0, width > 0 else {
             return GeometryConstants.normalLineHeight
         }
 
@@ -380,7 +378,7 @@ class ElementTreeStrategy: GeometryProvider {
         let avgCharWidth: CGFloat = 8.0
         let expectedSingleLineWidth = CGFloat(text.count) * avgCharWidth
 
-        if expectedSingleLineWidth < width * 0.7 && height > GeometryConstants.multiLineThresholdHeight && height < 55.0 {
+        if expectedSingleLineWidth < width * 0.7, height > GeometryConstants.multiLineThresholdHeight, height < 55.0 {
             return 30.0
         }
 
@@ -390,11 +388,11 @@ class ElementTreeStrategy: GeometryProvider {
         let titleLines = round(height / titleLineHeight)
         let bodyLines = round(height / bodyLineHeight)
 
-        if titleLines >= 1 && titleLines <= 3 {
+        if titleLines >= 1, titleLines <= 3 {
             let titleRemainder = abs(height - (titleLines * titleLineHeight))
             let bodyRemainder = abs(height - (bodyLines * bodyLineHeight))
 
-            if titleRemainder < bodyRemainder && titleRemainder < 15.0 {
+            if titleRemainder < bodyRemainder, titleRemainder < 15.0 {
                 Logger.debug("ElementTreeStrategy: Detected title element (height=\(height), ~\(Int(titleLines)) lines)", category: Logger.ui)
                 return 30.0
             }
@@ -408,7 +406,8 @@ class ElementTreeStrategy: GeometryProvider {
     private func getElementRole(_ element: AXUIElement) -> String {
         var value: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &value) == .success,
-           let role = value as? String {
+           let role = value as? String
+        {
             return role
         }
         return "unknown"
@@ -418,17 +417,20 @@ class ElementTreeStrategy: GeometryProvider {
         var value: CFTypeRef?
 
         if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value) == .success,
-           let text = value as? String, !text.isEmpty {
+           let text = value as? String, !text.isEmpty
+        {
             return text
         }
 
         if AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &value) == .success,
-           let text = value as? String, !text.isEmpty {
+           let text = value as? String, !text.isEmpty
+        {
             return text
         }
 
         if AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute as CFString, &value) == .success,
-           let text = value as? String, !text.isEmpty {
+           let text = value as? String, !text.isEmpty
+        {
             return text
         }
 
@@ -444,7 +446,8 @@ class ElementTreeStrategy: GeometryProvider {
         )
 
         guard result == .success,
-              let children = value as? [AXUIElement] else {
+              let children = value as? [AXUIElement]
+        else {
             return nil
         }
 
@@ -467,11 +470,12 @@ class ElementTreeStrategy: GeometryProvider {
 
         guard result == .success,
               let bv = boundsValue,
-              let bounds = safeAXValueGetRect(bv) else {
+              let bounds = safeAXValueGetRect(bv)
+        else {
             return nil
         }
 
-        guard bounds.width > 0 && bounds.height > 0 && bounds.height < GeometryConstants.maximumLineHeight else {
+        guard bounds.width > 0, bounds.height > 0, bounds.height < GeometryConstants.maximumLineHeight else {
             return nil
         }
 
@@ -507,7 +511,8 @@ class ElementTreeStrategy: GeometryProvider {
 
         guard result == .success,
               let rv = rangeValue,
-              let cfRange = safeAXValueGetRange(rv) else {
+              let cfRange = safeAXValueGetRange(rv)
+        else {
             return nil
         }
 
@@ -529,7 +534,7 @@ class ElementTreeStrategy: GeometryProvider {
 
         let cocoaBounds = CoordinateMapper.toCocoaCoordinates(quartzBounds)
 
-        guard cocoaBounds.width > 0 && cocoaBounds.height > 0 else {
+        guard cocoaBounds.width > 0, cocoaBounds.height > 0 else {
             return nil
         }
 
@@ -541,7 +546,7 @@ class ElementTreeStrategy: GeometryProvider {
             strategy: strategyName,
             metadata: [
                 "api": "element-tree-frame-fallback",
-                "element_frame": NSStringFromRect(frame)
+                "element_frame": NSStringFromRect(frame),
             ]
         )
     }
@@ -569,7 +574,7 @@ class ElementTreeStrategy: GeometryProvider {
 
         Logger.debug("ElementTreeStrategy: Multi-line check - height: \(overallBounds.height), lineHeight: \(typicalLineHeight), estimatedLines: \(estimatedLineCount), likely: \(likelyMultiLine)", category: Logger.accessibility)
 
-        guard likelyMultiLine && estimatedLineCount > 1 else {
+        guard likelyMultiLine, estimatedLineCount > 1 else {
             return nil // Single line, no need for multi-line bounds
         }
 
@@ -577,12 +582,13 @@ class ElementTreeStrategy: GeometryProvider {
         // Get line number for start and end of our range
         if let startLine = getLineForIndex(range.location, in: element),
            let endLine = getLineForIndex(range.location + range.length - 1, in: element),
-           startLine != endLine {
+           startLine != endLine
+        {
             Logger.debug("ElementTreeStrategy: Using AXRangeForLine - range spans lines \(startLine) to \(endLine)", category: Logger.accessibility)
 
             var lineBounds: [CGRect] = []
 
-            for lineNum in startLine...endLine {
+            for lineNum in startLine ... endLine {
                 guard let fullLineRange = getRangeForLine(lineNum, in: element) else {
                     Logger.debug("ElementTreeStrategy: AXRangeForLine failed for line \(lineNum)", category: Logger.accessibility)
                     continue
@@ -601,7 +607,8 @@ class ElementTreeStrategy: GeometryProvider {
                 let lastCharRange = NSRange(location: intersectEnd - 1, length: 1)
 
                 if let firstBounds = getBoundsForRange(firstCharRange, in: element),
-                   let lastBounds = getBoundsForRange(lastCharRange, in: element) {
+                   let lastBounds = getBoundsForRange(lastCharRange, in: element)
+                {
                     // Construct line bounds from first to last character
                     let lineX = firstBounds.origin.x
                     let lineY = firstBounds.origin.y
@@ -649,7 +656,7 @@ class ElementTreeStrategy: GeometryProvider {
         var currentLineY = charYCoords[0].y
         var currentFirstBounds = charYCoords[0].bounds
 
-        for i in 1..<charYCoords.count {
+        for i in 1 ..< charYCoords.count {
             let (index, y, bounds) = charYCoords[i]
             let yDiff = abs(y - currentLineY)
 
@@ -700,7 +707,7 @@ class ElementTreeStrategy: GeometryProvider {
         Logger.debug("ElementTreeStrategy: Using geometric fallback to split into \(estimatedLineCount) lines", category: Logger.accessibility)
         lineBounds = []
 
-        for lineIndex in 0..<estimatedLineCount {
+        for lineIndex in 0 ..< estimatedLineCount {
             let lineY = overallBounds.origin.y + (CGFloat(lineIndex) * typicalLineHeight)
 
             let lineRect: CGRect

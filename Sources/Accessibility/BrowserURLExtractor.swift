@@ -5,8 +5,8 @@
 //  Extracts the current URL from browser windows via Accessibility API
 //
 
-import Foundation
 import AppKit
+import Foundation
 
 /// Extracts URLs from browser windows using the Accessibility API
 class BrowserURLExtractor {
@@ -48,7 +48,7 @@ class BrowserURLExtractor {
             "com.brave.Browser",
             "com.vivaldi.Vivaldi",
             "org.chromium.Chromium",
-            "ai.perplexity.comet"
+            "ai.perplexity.comet",
         ]
         return chromiumBrowsers.contains(bundleIdentifier)
     }
@@ -66,7 +66,8 @@ class BrowserURLExtractor {
                 var documentValue: CFTypeRef?
                 if AXUIElementCopyAttributeValue(window, "AXDocument" as CFString, &documentValue) == .success,
                    let urlString = documentValue as? String,
-                   let url = URL(string: urlString) {
+                   let url = URL(string: urlString)
+                {
                     Logger.debug("BrowserURLExtractor: Safari URL from AXDocument: \(url)", category: Logger.accessibility)
                     return url
                 }
@@ -159,7 +160,8 @@ class BrowserURLExtractor {
             var urlValue: CFTypeRef?
             if AXUIElementCopyAttributeValue(element, "AXURL" as CFString, &urlValue) == .success,
                let urlString = urlValue as? String,
-               let url = URL(string: urlString) {
+               let url = URL(string: urlString)
+            {
                 return url
             }
 
@@ -167,7 +169,8 @@ class BrowserURLExtractor {
             var docValue: CFTypeRef?
             if AXUIElementCopyAttributeValue(element, "AXDocument" as CFString, &docValue) == .success,
                let urlString = docValue as? String,
-               let url = URL(string: urlString) {
+               let url = URL(string: urlString)
+            {
                 return url
             }
         }
@@ -175,7 +178,8 @@ class BrowserURLExtractor {
         // Search children
         var childrenValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenValue) == .success,
-              let children = childrenValue as? [AXUIElement] else {
+              let children = childrenValue as? [AXUIElement]
+        else {
             return nil
         }
 
@@ -196,14 +200,15 @@ class BrowserURLExtractor {
             // Check if this is the main/focused window
             var mainValue: CFTypeRef?
             let isMain = AXUIElementCopyAttributeValue(window, kAXMainAttribute as CFString, &mainValue) == .success &&
-                         (mainValue as? Bool) == true
+                (mainValue as? Bool) == true
 
             if !isMain { continue }
 
             // Get the window title
             var titleValue: CFTypeRef?
             guard AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &titleValue) == .success,
-                  let title = titleValue as? String else {
+                  let title = titleValue as? String
+            else {
                 continue
             }
 
@@ -227,7 +232,7 @@ class BrowserURLExtractor {
             // Map of title patterns to domains (handles cases like "GitHub" appearing as site name)
             let domainMappings: [(pattern: String, domain: String)] = [
                 ("github.com", "github.com"),
-                ("github", "github.com"),  // Matches "... - GitHub" in title
+                ("github", "github.com"), // Matches "... - GitHub" in title
                 ("gitlab.com", "gitlab.com"),
                 ("gitlab", "gitlab.com"),
                 ("stackoverflow.com", "stackoverflow.com"),
@@ -296,17 +301,18 @@ class BrowserURLExtractor {
 
         // Check if this is any kind of text-holding element
         let isTextElement = role == kAXTextFieldRole as String ||
-                           role == kAXTextAreaRole as String ||
-                           role == "AXTextField" ||
-                           role == "AXComboBox" ||
-                           role == "AXStaticText"
+            role == kAXTextAreaRole as String ||
+            role == "AXTextField" ||
+            role == "AXComboBox" ||
+            role == "AXStaticText"
 
         if isTextElement {
             var valueRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
                let value = valueRef as? String,
                !value.isEmpty,
-               looksLikeURL(value) {
+               looksLikeURL(value)
+            {
                 // Make sure it's not the content we're analyzing (should be short URL-like string)
                 if value.count < 500 {
                     return value
@@ -317,7 +323,8 @@ class BrowserURLExtractor {
         // Search children
         var childrenValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenValue) == .success,
-              let children = childrenValue as? [AXUIElement] else {
+              let children = childrenValue as? [AXUIElement]
+        else {
             return nil
         }
 
@@ -397,7 +404,8 @@ class BrowserURLExtractor {
     private func getWindows(from appElement: AXUIElement) -> [AXUIElement]? {
         var windowsValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsValue) == .success,
-              let windows = windowsValue as? [AXUIElement] else {
+              let windows = windowsValue as? [AXUIElement]
+        else {
             return nil
         }
         return windows
@@ -413,7 +421,8 @@ class BrowserURLExtractor {
             var focusedValue: CFTypeRef?
             if AXUIElementCopyAttributeValue(window, kAXFocusedAttribute as CFString, &focusedValue) == .success,
                let isFocused = focusedValue as? Bool,
-               !isFocused {
+               !isFocused
+            {
                 // Skip non-focused windows for URL extraction
                 // We want the URL from the active window
             }
@@ -456,16 +465,17 @@ class BrowserURLExtractor {
         let role = roleValue as? String ?? ""
 
         let isTextField = role == kAXTextFieldRole as String ||
-                          role == kAXTextAreaRole as String ||
-                          role == "AXTextField" ||
-                          role == "AXComboBox"
+            role == kAXTextAreaRole as String ||
+            role == "AXTextField" ||
+            role == "AXComboBox"
 
-        if isURLBar && isTextField {
+        if isURLBar, isTextField {
             // Try to get the value
             var valueRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
                let value = valueRef as? String,
-               !value.isEmpty {
+               !value.isEmpty
+            {
                 // Validate it looks like a URL
                 if looksLikeURL(value) {
                     return value
@@ -476,7 +486,8 @@ class BrowserURLExtractor {
         // Search children
         var childrenValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenValue) == .success,
-              let children = childrenValue as? [AXUIElement] else {
+              let children = childrenValue as? [AXUIElement]
+        else {
             return nil
         }
 
@@ -524,7 +535,8 @@ class BrowserURLExtractor {
         // Continue searching children
         var childrenValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenValue) == .success,
-              let children = childrenValue as? [AXUIElement] else {
+              let children = childrenValue as? [AXUIElement]
+        else {
             return nil
         }
 
@@ -546,15 +558,16 @@ class BrowserURLExtractor {
         let role = roleValue as? String ?? ""
 
         let isTextField = role == kAXTextFieldRole as String ||
-                          role == kAXTextAreaRole as String ||
-                          role == "AXTextField" ||
-                          role == "AXComboBox"
+            role == kAXTextAreaRole as String ||
+            role == "AXTextField" ||
+            role == "AXComboBox"
 
         if isTextField {
             var valueRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
                let value = valueRef as? String,
-               looksLikeURL(value) {
+               looksLikeURL(value)
+            {
                 return value
             }
         }
@@ -562,7 +575,8 @@ class BrowserURLExtractor {
         // Search children
         var childrenValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenValue) == .success,
-              let children = childrenValue as? [AXUIElement] else {
+              let children = childrenValue as? [AXUIElement]
+        else {
             return nil
         }
 

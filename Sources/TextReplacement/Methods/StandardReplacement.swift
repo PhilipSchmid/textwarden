@@ -6,12 +6,11 @@
 //  Works for native macOS apps with proper accessibility support (Telegram, WebEx, etc.)
 //
 
-import Foundation
 @preconcurrency import ApplicationServices
+import Foundation
 
 /// Standard replacement method using AX API direct text manipulation
 struct StandardReplacement {
-
     // MARK: - Execution
 
     /// Execute text replacement using AX API setValue.

@@ -12,7 +12,6 @@ import Foundation
 
 /// Central registry for all app configurations
 final class AppRegistry {
-
     static let shared = AppRegistry()
 
     /// Bundle ID -> Configuration mapping
@@ -30,12 +29,12 @@ final class AppRegistry {
     /// Get configuration for a bundle ID
     /// Returns default configuration if not found
     func configuration(for bundleID: String) -> AppConfiguration {
-        return configurations[bundleID] ?? .default
+        configurations[bundleID] ?? .default
     }
 
     /// Get configuration by identifier (e.g., "slack", "notion")
     func configuration(identifier: String) -> AppConfiguration? {
-        return configsByIdentifier[identifier]
+        configsByIdentifier[identifier]
     }
 
     /// All registered configurations (excluding default)
@@ -45,7 +44,7 @@ final class AppRegistry {
 
     /// Check if a bundle ID has a specific configuration
     func hasConfiguration(for bundleID: String) -> Bool {
-        return configurations[bundleID] != nil
+        configurations[bundleID] != nil
     }
 
     /// Get effective configuration for a bundle ID.
@@ -112,7 +111,6 @@ final class AppRegistry {
 // MARK: - Built-in Configurations
 
 extension AppConfiguration {
-
     // MARK: - Slack
 
     static let slack = AppConfiguration(
@@ -127,16 +125,16 @@ extension AppConfiguration {
             spacingMultiplier: 0.97
         ),
         horizontalPadding: 12,
-        preferredStrategies: [.slack],  // Dedicated strategy only - returns unavailable on failure (no fallback)
+        preferredStrategies: [.slack], // Dedicated strategy only - returns unavailable on failure (no fallback)
         features: AppFeatures(
             visualUnderlinesEnabled: true,
             textReplacementMethod: .browserStyle,
             requiresTypingPause: true,
             supportsFormattedText: true,
             childElementTraversal: true,
-            delaysAXNotifications: false,  // Slack sends AX notifications immediately
+            delaysAXNotifications: false, // Slack sends AX notifications immediately
             focusBouncesDuringPaste: false,
-            requiresFullReanalysisAfterReplacement: true,  // Electron byte offsets are fragile
+            requiresFullReanalysisAfterReplacement: true, // Electron byte offsets are fragile
             defersTextExtraction: false,
             requiresFrameValidation: false,
             hasTextMarkerIndexOffset: false
@@ -150,7 +148,7 @@ extension AppConfiguration {
         displayName: "Claude",
         bundleIDs: ["com.anthropic.claudefordesktop"],
         category: .electron,
-        parserType: .claude,  // Dedicated parser without Slack's newline quirks
+        parserType: .claude, // Dedicated parser without Slack's newline quirks
         fontConfig: FontConfig(
             defaultSize: 16,
             fontFamily: nil,
@@ -162,11 +160,11 @@ extension AppConfiguration {
             visualUnderlinesEnabled: true,
             textReplacementMethod: .browserStyle,
             requiresTypingPause: true,
-            supportsFormattedText: false,  // Claude input is plain text
+            supportsFormattedText: false, // Claude input is plain text
             childElementTraversal: true,
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
-            requiresFullReanalysisAfterReplacement: true,  // Electron byte offsets are fragile
+            requiresFullReanalysisAfterReplacement: true, // Electron byte offsets are fragile
             defersTextExtraction: false,
             requiresFrameValidation: false,
             hasTextMarkerIndexOffset: false
@@ -180,7 +178,7 @@ extension AppConfiguration {
         displayName: "ChatGPT",
         bundleIDs: ["com.openai.chat"],
         category: .electron,
-        parserType: .generic,  // RangeBoundsStrategy works well
+        parserType: .generic, // RangeBoundsStrategy works well
         fontConfig: FontConfig(
             defaultSize: 16,
             fontFamily: nil,
@@ -191,12 +189,12 @@ extension AppConfiguration {
         features: AppFeatures(
             visualUnderlinesEnabled: true,
             textReplacementMethod: .browserStyle,
-            requiresTypingPause: false,  // Uses rangeBounds (direct AX API), no cursor manipulation needed
+            requiresTypingPause: false, // Uses rangeBounds (direct AX API), no cursor manipulation needed
             supportsFormattedText: false,
             childElementTraversal: true,
-            delaysAXNotifications: true,  // ChatGPT batches AX notifications, needs keyboard detection
+            delaysAXNotifications: true, // ChatGPT batches AX notifications, needs keyboard detection
             focusBouncesDuringPaste: false,
-            requiresFullReanalysisAfterReplacement: true,  // Electron byte offsets are fragile
+            requiresFullReanalysisAfterReplacement: true, // Electron byte offsets are fragile
             defersTextExtraction: false,
             requiresFrameValidation: false,
             hasTextMarkerIndexOffset: false
@@ -222,12 +220,12 @@ extension AppConfiguration {
         features: AppFeatures(
             visualUnderlinesEnabled: true,
             textReplacementMethod: .browserStyle,
-            requiresTypingPause: false,  // Uses anchorSearch (direct AX API), no cursor manipulation needed
+            requiresTypingPause: false, // Uses anchorSearch (direct AX API), no cursor manipulation needed
             supportsFormattedText: false,
             childElementTraversal: true,
-            delaysAXNotifications: true,  // Electron app, needs keyboard detection
+            delaysAXNotifications: true, // Electron app, needs keyboard detection
             focusBouncesDuringPaste: false,
-            requiresFullReanalysisAfterReplacement: true,  // Electron byte offsets are fragile
+            requiresFullReanalysisAfterReplacement: true, // Electron byte offsets are fragile
             defersTextExtraction: false,
             requiresFrameValidation: false,
             hasTextMarkerIndexOffset: false
@@ -252,16 +250,16 @@ extension AppConfiguration {
         // elements DO support it - same pattern as Slack (both are Chromium-based).
         // TeamsStrategy traverses the AX tree to find AXStaticText children and queries
         // AXBoundsForRange on them directly for precise positioning.
-        preferredStrategies: [.teams],  // Dedicated strategy using child element traversal
+        preferredStrategies: [.teams], // Dedicated strategy using child element traversal
         features: AppFeatures(
-            visualUnderlinesEnabled: true,  // Enabled - TeamsStrategy uses child element bounds
+            visualUnderlinesEnabled: true, // Enabled - TeamsStrategy uses child element bounds
             textReplacementMethod: .browserStyle,
-            requiresTypingPause: true,  // Wait for typing pause before querying AX tree
+            requiresTypingPause: true, // Wait for typing pause before querying AX tree
             supportsFormattedText: true,
             childElementTraversal: true,
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
-            requiresFullReanalysisAfterReplacement: true,  // Electron byte offsets are fragile
+            requiresFullReanalysisAfterReplacement: true, // Electron byte offsets are fragile
             defersTextExtraction: false,
             requiresFrameValidation: false,
             hasTextMarkerIndexOffset: false
@@ -284,11 +282,11 @@ extension AppConfiguration {
             "com.microsoft.edgemac.Dev",
             "com.operasoftware.Opera",
             "com.operasoftware.OperaGX",
-            "company.thebrowser.Browser",  // Arc
+            "company.thebrowser.Browser", // Arc
             "com.brave.Browser",
             "com.brave.Browser.beta",
             "com.vivaldi.Vivaldi",
-            "ai.perplexity.comet"  // Perplexity Comet browser
+            "ai.perplexity.comet", // Perplexity Comet browser
         ],
         category: .browser,
         parserType: .browser,
@@ -309,7 +307,7 @@ extension AppConfiguration {
         bundleIDs: [
             "notion.id",
             "com.notion.id",
-            "com.notion.desktop"
+            "com.notion.desktop",
         ],
         category: .electron,
         parserType: .notion,
@@ -325,14 +323,14 @@ extension AppConfiguration {
         // with local character ranges for precise positioning.
         preferredStrategies: [.notion],
         features: AppFeatures(
-            visualUnderlinesEnabled: true,  // Enabled - NotionStrategy uses child element bounds
+            visualUnderlinesEnabled: true, // Enabled - NotionStrategy uses child element bounds
             textReplacementMethod: .browserStyle,
-            requiresTypingPause: true,  // Wait for typing pause before querying AX tree
+            requiresTypingPause: true, // Wait for typing pause before querying AX tree
             supportsFormattedText: false,
             childElementTraversal: true,
-            delaysAXNotifications: true,  // Notion batches AX notifications, needs keyboard detection
+            delaysAXNotifications: true, // Notion batches AX notifications, needs keyboard detection
             focusBouncesDuringPaste: false,
-            requiresFullReanalysisAfterReplacement: true,  // Electron byte offsets are fragile
+            requiresFullReanalysisAfterReplacement: true, // Electron byte offsets are fragile
             defersTextExtraction: false,
             requiresFrameValidation: false,
             hasTextMarkerIndexOffset: false
@@ -358,13 +356,13 @@ extension AppConfiguration {
         preferredStrategies: [.mail],
         features: AppFeatures(
             visualUnderlinesEnabled: true,
-            textReplacementMethod: .browserStyle,  // WebKit needs selection + paste
+            textReplacementMethod: .browserStyle, // WebKit needs selection + paste
             requiresTypingPause: false,
-            supportsFormattedText: true,  // Mail supports rich text
-            childElementTraversal: true,  // May need to traverse AXWebArea children
-            delaysAXNotifications: false,  // Mail sends AX notifications promptly like Slack
-            focusBouncesDuringPaste: true,  // Mail's WebKit fires multiple focus events during Cmd+V
-            requiresFullReanalysisAfterReplacement: true,  // WebKit byte offsets are fragile
+            supportsFormattedText: true, // Mail supports rich text
+            childElementTraversal: true, // May need to traverse AXWebArea children
+            delaysAXNotifications: false, // Mail sends AX notifications promptly like Slack
+            focusBouncesDuringPaste: true, // Mail's WebKit fires multiple focus events during Cmd+V
+            requiresFullReanalysisAfterReplacement: true, // WebKit byte offsets are fragile
             defersTextExtraction: false,
             requiresFrameValidation: false,
             hasTextMarkerIndexOffset: false
@@ -380,11 +378,11 @@ extension AppConfiguration {
         category: .custom,
         parserType: .generic,
         fontConfig: FontConfig(
-            defaultSize: 13,  // Match previous behavior - font size affects text width calculations
+            defaultSize: 13, // Match previous behavior - font size affects text width calculations
             fontFamily: "SF Pro",
             spacingMultiplier: 1.0
         ),
-        horizontalPadding: 5,  // Offset for Messages text field padding
+        horizontalPadding: 5, // Offset for Messages text field padding
         // Messages is a Mac Catalyst app. Standard AX APIs (AXRangeForLine, AXBoundsForRange)
         // return slightly inaccurate X coordinates for wrapped lines with multi-codepoint characters
         // (emojis). The Y coordinate is correct. RangeBoundsStrategy handles this with UTF-16
@@ -392,13 +390,13 @@ extension AppConfiguration {
         preferredStrategies: [.textMarker, .rangeBounds, .lineIndex, .insertionPoint, .fontMetrics],
         features: AppFeatures(
             visualUnderlinesEnabled: true,
-            textReplacementMethod: .browserStyle,  // Catalyst apps need keyboard-based replacement
+            textReplacementMethod: .browserStyle, // Catalyst apps need keyboard-based replacement
             requiresTypingPause: false,
-            supportsFormattedText: false,  // Messages input is plain text
+            supportsFormattedText: false, // Messages input is plain text
             childElementTraversal: false,
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
-            requiresFullReanalysisAfterReplacement: true,  // Catalyst byte offsets may be fragile
+            requiresFullReanalysisAfterReplacement: true, // Catalyst byte offsets may be fragile
             defersTextExtraction: false,
             requiresFrameValidation: false,
             hasTextMarkerIndexOffset: false
@@ -415,7 +413,7 @@ extension AppConfiguration {
         parserType: .generic,
         fontConfig: FontConfig(
             defaultSize: 12,
-            fontFamily: nil,  // System font
+            fontFamily: nil, // System font
             spacingMultiplier: 1.0
         ),
         horizontalPadding: 0,
@@ -446,7 +444,7 @@ extension AppConfiguration {
         parserType: .generic,
         fontConfig: FontConfig(
             defaultSize: 12,
-            fontFamily: nil,  // System font
+            fontFamily: nil, // System font
             spacingMultiplier: 1.0
         ),
         horizontalPadding: 0,
@@ -477,7 +475,7 @@ extension AppConfiguration {
         parserType: .generic,
         fontConfig: FontConfig(
             defaultSize: 13,
-            fontFamily: nil,  // System font
+            fontFamily: nil, // System font
             spacingMultiplier: 1.0
         ),
         horizontalPadding: 0,
@@ -487,7 +485,7 @@ extension AppConfiguration {
             visualUnderlinesEnabled: true,
             textReplacementMethod: .standard,
             requiresTypingPause: false,
-            supportsFormattedText: false,  // Plain text tasks
+            supportsFormattedText: false, // Plain text tasks
             childElementTraversal: false,
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
@@ -508,7 +506,7 @@ extension AppConfiguration {
         parserType: .generic,
         fontConfig: FontConfig(
             defaultSize: 13,
-            fontFamily: nil,  // System font
+            fontFamily: nil, // System font
             spacingMultiplier: 1.0
         ),
         horizontalPadding: 0,
@@ -518,7 +516,7 @@ extension AppConfiguration {
             visualUnderlinesEnabled: true,
             textReplacementMethod: .standard,
             requiresTypingPause: false,
-            supportsFormattedText: false,  // Plain text event titles
+            supportsFormattedText: false, // Plain text event titles
             childElementTraversal: false,
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
@@ -539,7 +537,7 @@ extension AppConfiguration {
         parserType: .generic,
         fontConfig: FontConfig(
             defaultSize: 12,
-            fontFamily: nil,  // System font
+            fontFamily: nil, // System font
             spacingMultiplier: 1.0
         ),
         horizontalPadding: 0,
@@ -548,13 +546,13 @@ extension AppConfiguration {
         preferredStrategies: [.rangeBounds, .lineIndex, .fontMetrics],
         features: AppFeatures(
             visualUnderlinesEnabled: true,
-            textReplacementMethod: .browserStyle,  // Standard AX setValue reports success but doesn't work
+            textReplacementMethod: .browserStyle, // Standard AX setValue reports success but doesn't work
             requiresTypingPause: false,
             supportsFormattedText: true,
             childElementTraversal: false,
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
-            requiresFullReanalysisAfterReplacement: false,  // Native app with reliable AXValue
+            requiresFullReanalysisAfterReplacement: false, // Native app with reliable AXValue
             defersTextExtraction: false,
             requiresFrameValidation: false,
             hasTextMarkerIndexOffset: false
@@ -582,13 +580,13 @@ extension AppConfiguration {
         preferredStrategies: [.textMarker, .rangeBounds, .lineIndex, .insertionPoint, .fontMetrics],
         features: AppFeatures(
             visualUnderlinesEnabled: true,
-            textReplacementMethod: .browserStyle,  // Catalyst apps need keyboard-based replacement
+            textReplacementMethod: .browserStyle, // Catalyst apps need keyboard-based replacement
             requiresTypingPause: false,
             supportsFormattedText: false,
             childElementTraversal: false,
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
-            requiresFullReanalysisAfterReplacement: true,  // Catalyst byte offsets may be fragile
+            requiresFullReanalysisAfterReplacement: true, // Catalyst byte offsets may be fragile
             defersTextExtraction: false,
             requiresFrameValidation: false,
             hasTextMarkerIndexOffset: false
@@ -651,13 +649,13 @@ extension AppConfiguration {
         preferredStrategies: [.word],
         features: AppFeatures(
             visualUnderlinesEnabled: true,
-            textReplacementMethod: .browserStyle,  // Standard AX setValue doesn't work for Word
+            textReplacementMethod: .browserStyle, // Standard AX setValue doesn't work for Word
             requiresTypingPause: false,
             supportsFormattedText: true,
             childElementTraversal: false,
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
-            requiresFullReanalysisAfterReplacement: false,  // Word AXValue updates reliably
+            requiresFullReanalysisAfterReplacement: false, // Word AXValue updates reliably
             defersTextExtraction: false,
             requiresFrameValidation: false,
             hasTextMarkerIndexOffset: false
@@ -683,14 +681,14 @@ extension AppConfiguration {
         // Visual underlines disabled; floating error indicator still works for corrections.
         preferredStrategies: [],
         features: AppFeatures(
-            visualUnderlinesEnabled: false,  // Disabled (same AX API issues as Word)
-            textReplacementMethod: .browserStyle,  // Standard AX setValue doesn't work
+            visualUnderlinesEnabled: false, // Disabled (same AX API issues as Word)
+            textReplacementMethod: .browserStyle, // Standard AX setValue doesn't work
             requiresTypingPause: false,
             supportsFormattedText: true,
             childElementTraversal: false,
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
-            requiresFullReanalysisAfterReplacement: false,  // PowerPoint AXValue updates reliably
+            requiresFullReanalysisAfterReplacement: false, // PowerPoint AXValue updates reliably
             defersTextExtraction: false,
             requiresFrameValidation: false,
             hasTextMarkerIndexOffset: false
@@ -708,25 +706,25 @@ extension AppConfiguration {
         fontConfig: FontConfig(
             defaultSize: 12,
             fontFamily: "Aptos",
-            spacingMultiplier: 1.5  // Aptos font renders wider than system font metrics
+            spacingMultiplier: 1.5 // Aptos font renders wider than system font metrics
         ),
-        horizontalPadding: 20,  // Outlook compose has left margin with sparkle icon
+        horizontalPadding: 20, // Outlook compose has left margin with sparkle icon
         // Outlook uses a dedicated strategy that handles both subject field (AXTextField) and
         // compose body (AXTextArea). AXBoundsForRange works on both, with tree traversal fallback.
         // Text replacement needs browser-style to preserve formatting (AXSetValue strips rich text).
         preferredStrategies: [.outlook],
         features: AppFeatures(
             visualUnderlinesEnabled: true,
-            textReplacementMethod: .browserStyle,  // AXSetValue works but strips formatting
+            textReplacementMethod: .browserStyle, // AXSetValue works but strips formatting
             requiresTypingPause: false,
             supportsFormattedText: true,
             childElementTraversal: false,
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
-            requiresFullReanalysisAfterReplacement: false,  // Office apps update AXValue reliably
-            defersTextExtraction: true,  // Defer AX calls to prevent freeze with Copilot
-            requiresFrameValidation: true,  // Copilot chat panel changes frame dynamically
-            hasTextMarkerIndexOffset: true  // Copilot has invisible characters causing index mismatch
+            requiresFullReanalysisAfterReplacement: false, // Office apps update AXValue reliably
+            defersTextExtraction: true, // Defer AX calls to prevent freeze with Copilot
+            requiresFrameValidation: true, // Copilot chat panel changes frame dynamically
+            hasTextMarkerIndexOffset: true // Copilot has invisible characters causing index mismatch
         )
     )
 
@@ -740,7 +738,7 @@ extension AppConfiguration {
         parserType: .webex,
         fontConfig: FontConfig(
             defaultSize: 14,
-            fontFamily: nil,  // System font
+            fontFamily: nil, // System font
             spacingMultiplier: 1.0
         ),
         horizontalPadding: 8,
@@ -749,7 +747,7 @@ extension AppConfiguration {
         features: AppFeatures(
             visualUnderlinesEnabled: true,
             textReplacementMethod: .standard,
-            requiresTypingPause: true,  // Wait for typing pause to avoid flagging incomplete words
+            requiresTypingPause: true, // Wait for typing pause to avoid flagging incomplete words
             supportsFormattedText: false,
             childElementTraversal: false,
             delaysAXNotifications: false,
@@ -782,12 +780,12 @@ extension AppConfiguration {
         features: AppFeatures(
             visualUnderlinesEnabled: true,
             textReplacementMethod: .browserStyle,
-            requiresTypingPause: true,  // Wait for typing pause before querying AX tree
-            supportsFormattedText: true,  // Rich text email composer
-            childElementTraversal: true,  // Body has child AXStaticText elements
+            requiresTypingPause: true, // Wait for typing pause before querying AX tree
+            supportsFormattedText: true, // Rich text email composer
+            childElementTraversal: true, // Body has child AXStaticText elements
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
-            requiresFullReanalysisAfterReplacement: true,  // Electron byte offsets are fragile
+            requiresFullReanalysisAfterReplacement: true, // Electron byte offsets are fragile
             defersTextExtraction: false,
             requiresFrameValidation: false,
             hasTextMarkerIndexOffset: false

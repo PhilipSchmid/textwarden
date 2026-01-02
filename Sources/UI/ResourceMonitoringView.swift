@@ -5,8 +5,8 @@
 //  Resource monitoring view showing CPU and memory usage.
 //
 
-import SwiftUI
 import Charts
+import SwiftUI
 
 // MARK: - Resource Monitoring View
 
@@ -25,11 +25,11 @@ struct ResourceMonitoringView: View {
 
         var minutes: Int {
             switch self {
-            case .fifteenMin: return 15
-            case .oneHour: return 60
-            case .oneDay: return 24 * 60
-            case .sevenDays: return 7 * 24 * 60
-            case .thirtyDays: return 30 * 24 * 60
+            case .fifteenMin: 15
+            case .oneHour: 60
+            case .oneDay: 24 * 60
+            case .sevenDays: 7 * 24 * 60
+            case .thirtyDays: 30 * 24 * 60
             }
         }
     }
@@ -126,13 +126,13 @@ struct ResourceMonitoringView: View {
 
             // CPU Load Line Chart
             let peakLoad = samples.map(\.processLoad).max() ?? 0.0
-            let maxLoad = peakLoad * 1.2  // Add 20% headroom
+            let maxLoad = peakLoad * 1.2 // Add 20% headroom
 
             // Add horizontal padding by extending the time domain
-            let rawTimeRange = (samples.first?.timestamp ?? Date())...(samples.last?.timestamp ?? Date())
+            let rawTimeRange = (samples.first?.timestamp ?? Date()) ... (samples.last?.timestamp ?? Date())
             let duration = rawTimeRange.upperBound.timeIntervalSince(rawTimeRange.lowerBound)
-            let padding = duration * 0.045  // 4.5% padding on each side (~45pt equivalent)
-            let timeRange = rawTimeRange.lowerBound.addingTimeInterval(-padding)...rawTimeRange.upperBound.addingTimeInterval(padding)
+            let padding = duration * 0.045 // 4.5% padding on each side (~45pt equivalent)
+            let timeRange = rawTimeRange.lowerBound.addingTimeInterval(-padding) ... rawTimeRange.upperBound.addingTimeInterval(padding)
 
             // Filter app launches to only those within the raw time range (before padding)
             let visibleLaunches = statistics.appLaunchHistory.filter {
@@ -217,7 +217,7 @@ struct ResourceMonitoringView: View {
                     AxisGridLine()
                 }
             }
-            .chartYScale(domain: 0...maxLoad)
+            .chartYScale(domain: 0 ... maxLoad)
             .frame(height: 200)
 
             // Summary statistics
@@ -305,10 +305,10 @@ struct ResourceMonitoringView: View {
             let minMemoryMB = Double(samples.map(\.memoryBytes).min() ?? 0) / 1_048_576
 
             // Add horizontal padding by extending the time domain
-            let rawTimeRange = (samples.first?.timestamp ?? Date())...(samples.last?.timestamp ?? Date())
+            let rawTimeRange = (samples.first?.timestamp ?? Date()) ... (samples.last?.timestamp ?? Date())
             let duration = rawTimeRange.upperBound.timeIntervalSince(rawTimeRange.lowerBound)
-            let padding = duration * 0.045  // 4.5% padding on each side (~45pt equivalent)
-            let timeRange = rawTimeRange.lowerBound.addingTimeInterval(-padding)...rawTimeRange.upperBound.addingTimeInterval(padding)
+            let padding = duration * 0.045 // 4.5% padding on each side (~45pt equivalent)
+            let timeRange = rawTimeRange.lowerBound.addingTimeInterval(-padding) ... rawTimeRange.upperBound.addingTimeInterval(padding)
 
             // Filter app launches to only those within the raw time range (before padding)
             let visibleLaunches = statistics.appLaunchHistory.filter {
@@ -388,7 +388,7 @@ struct ResourceMonitoringView: View {
                     AxisGridLine()
                 }
             }
-            .chartYScale(domain: (minMemoryMB * 0.9)...(maxMemoryMB * 1.1))
+            .chartYScale(domain: (minMemoryMB * 0.9) ... (maxMemoryMB * 1.1))
             .frame(height: 200)
 
             // Summary statistics
@@ -488,7 +488,7 @@ struct ResourceMonitoringView: View {
                     minLevel <= .warning ? counts.warning : 0,
                     minLevel <= .info ? counts.info : 0,
                     minLevel <= .debug ? counts.debug : 0,
-                    minLevel <= .trace ? counts.trace : 0
+                    minLevel <= .trace ? counts.trace : 0,
                 ]
                 let maxCount = max(enabledCounts.max() ?? 1, 1)
 
@@ -556,7 +556,7 @@ struct ResourceMonitoringView: View {
 
         for i in stride(from: 0, to: allSamples.count, by: step) {
             let windowEnd = min(i + step, allSamples.count)
-            let window = Array(allSamples[i..<windowEnd])
+            let window = Array(allSamples[i ..< windowEnd])
 
             guard !window.isEmpty else { continue }
 
@@ -629,10 +629,10 @@ struct ResourceMonitoringView: View {
 
     private func loadColor(_ value: Double) -> Color {
         switch value {
-        case 0..<25: return .green
-        case 25..<50: return .yellow
-        case 50..<75: return .orange
-        default: return .red
+        case 0 ..< 25: .green
+        case 25 ..< 50: .yellow
+        case 50 ..< 75: .orange
+        default: .red
         }
     }
 
@@ -703,7 +703,8 @@ private struct LogVolumeRow: View {
                     Text("\(count)")
                         .font(.system(.subheadline, design: .monospaced))
                         .fontWeight(.medium)
-                        .foregroundColor(count > 0 ? color : .secondary)
+                        // swiftlint:disable:next empty_count
+                        .foregroundColor(count > 0 ? color : .secondary) // count is Int, not collection
                 }
             }
             .frame(height: 20)

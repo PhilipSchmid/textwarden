@@ -7,31 +7,31 @@ import Foundation
 
 /// Writing style for style suggestions
 public enum WritingStyle: String, CaseIterable, Identifiable, Sendable {
-    case `default` = "default"
-    case formal = "formal"
-    case informal = "informal"
-    case business = "business"
-    case concise = "concise"
+    case `default`
+    case formal
+    case informal
+    case business
+    case concise
 
     public var id: String { rawValue }
 
     public var displayName: String {
         switch self {
-        case .default: return "Default"
-        case .formal: return "Formal"
-        case .informal: return "Casual"
-        case .business: return "Business"
-        case .concise: return "Concise"
+        case .default: "Default"
+        case .formal: "Formal"
+        case .informal: "Casual"
+        case .business: "Business"
+        case .concise: "Concise"
         }
     }
 
     public var description: String {
         switch self {
-        case .default: return "Balanced style improvements"
-        case .formal: return "Professional tone, complete sentences"
-        case .informal: return "Friendly, conversational writing"
-        case .business: return "Clear, action-oriented communication"
-        case .concise: return "Brief and to the point, no filler"
+        case .default: "Balanced style improvements"
+        case .formal: "Professional tone, complete sentences"
+        case .informal: "Friendly, conversational writing"
+        case .business: "Clear, action-oriented communication"
+        case .concise: "Brief and to the point, no filler"
         }
     }
 }
@@ -95,7 +95,7 @@ public struct StyleSuggestionModel: Identifiable {
 
     /// Range of the original text
     public var range: Range<Int> {
-        originalStart..<originalEnd
+        originalStart ..< originalEnd
     }
 }
 
@@ -142,16 +142,16 @@ public enum SuggestionRejectionCategory: String, CaseIterable {
     case tooInformal = "too_informal"
     case unnecessaryChange = "unnecessary_change"
     case wrongTerm = "wrong_term"
-    case other = "other"
+    case other
 
     public var displayName: String {
         switch self {
-        case .wrongMeaning: return "Changes meaning"
-        case .tooFormal: return "Too formal"
-        case .tooInformal: return "Too informal"
-        case .unnecessaryChange: return "Unnecessary change"
-        case .wrongTerm: return "Wrong term/word"
-        case .other: return "Other reason"
+        case .wrongMeaning: "Changes meaning"
+        case .tooFormal: "Too formal"
+        case .tooInformal: "Too informal"
+        case .unnecessaryChange: "Unnecessary change"
+        case .wrongTerm: "Wrong term/word"
+        case .other: "Other reason"
         }
     }
 }

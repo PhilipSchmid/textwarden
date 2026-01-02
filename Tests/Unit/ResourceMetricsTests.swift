@@ -1,11 +1,10 @@
 // ResourceMetricsTests.swift
 // Unit tests for resource metrics models
 
-import XCTest
 @testable import TextWarden
+import XCTest
 
 final class ResourceMetricsTests: XCTestCase {
-
     func testResourceComponentEnum() {
         // Test all cases exist
         XCTAssertEqual(ResourceComponent.allCases.count, 3)

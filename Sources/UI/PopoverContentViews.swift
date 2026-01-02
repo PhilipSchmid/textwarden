@@ -82,7 +82,7 @@ struct SentenceContextView: View {
 
     /// Check if an error is the current one being displayed
     private func isCurrentError(_ err: GrammarErrorModel) -> Bool {
-        return err.start == error.start && err.end == error.end && err.lintId == error.lintId
+        err.start == error.start && err.end == error.end && err.lintId == error.lintId
     }
 
     /// Convert a Unicode scalar index to a String.Index
@@ -135,7 +135,7 @@ struct SentenceContextView: View {
     /// Sentence info containing the sentence text and error ranges within it
     private struct SentenceInfo {
         let sentence: String
-        let sentenceStartScalar: Int  // Offset in source text (Unicode scalar index)
+        let sentenceStartScalar: Int // Offset in source text (Unicode scalar index)
         let errorRanges: [(range: Range<String.Index>, category: String, isCurrent: Bool)]
         let isTruncated: Bool
     }
@@ -173,7 +173,7 @@ struct SentenceContextView: View {
             }
 
             // Colon followed by newline acts as sentence boundary (list headers)
-            if char == ":" && searchIndex < sourceText.endIndex && sourceText[searchIndex].isNewline {
+            if char == ":", searchIndex < sourceText.endIndex, sourceText[searchIndex].isNewline {
                 sentenceStart = searchIndex
                 break
             }
@@ -184,7 +184,7 @@ struct SentenceContextView: View {
             if char.isNewline {
                 // Check for multiple consecutive newlines (paragraph break)
                 // This is especially important for Notion's block-based structure
-                if searchIndex < sourceText.endIndex && sourceText[searchIndex].isNewline {
+                if searchIndex < sourceText.endIndex, sourceText[searchIndex].isNewline {
                     // Double newline found - treat as paragraph boundary
                     sentenceStart = searchIndex
                     break
@@ -193,7 +193,7 @@ struct SentenceContextView: View {
                 // Check if this newline starts a new logical sentence (e.g., list item)
                 var checkIndex = searchIndex
                 // Skip whitespace after newline
-                while checkIndex < sourceText.endIndex && sourceText[checkIndex].isWhitespace && !sourceText[checkIndex].isNewline {
+                while checkIndex < sourceText.endIndex, sourceText[checkIndex].isWhitespace, !sourceText[checkIndex].isNewline {
                     checkIndex = sourceText.index(after: checkIndex)
                 }
                 // If followed by list marker or error is on this line, treat newline as boundary
@@ -211,8 +211,9 @@ struct SentenceContextView: View {
         }
 
         // Skip leading whitespace and newlines
-        while sentenceStart < sourceText.endIndex &&
-              (sourceText[sentenceStart].isWhitespace || sourceText[sentenceStart].isNewline) {
+        while sentenceStart < sourceText.endIndex,
+              sourceText[sentenceStart].isWhitespace || sourceText[sentenceStart].isNewline
+        {
             sentenceStart = sourceText.index(after: sentenceStart)
         }
 
@@ -226,35 +227,38 @@ struct SentenceContextView: View {
             if listBullets.contains(char) {
                 // Skip bullet and following whitespace
                 sentenceStart = sourceText.index(after: sentenceStart)
-                while sentenceStart < sourceText.endIndex &&
-                      sourceText[sentenceStart].isWhitespace {
+                while sentenceStart < sourceText.endIndex,
+                      sourceText[sentenceStart].isWhitespace
+                {
                     sentenceStart = sourceText.index(after: sentenceStart)
                 }
             } else if char == "-" || char == "*" {
                 // Check if followed by whitespace (list marker) vs part of a word
                 let nextIndex = sourceText.index(after: sentenceStart)
-                if nextIndex < sourceText.endIndex && sourceText[nextIndex].isWhitespace {
+                if nextIndex < sourceText.endIndex, sourceText[nextIndex].isWhitespace {
                     sentenceStart = nextIndex
-                    while sentenceStart < sourceText.endIndex &&
-                          sourceText[sentenceStart].isWhitespace {
+                    while sentenceStart < sourceText.endIndex,
+                          sourceText[sentenceStart].isWhitespace
+                    {
                         sentenceStart = sourceText.index(after: sentenceStart)
                     }
                 }
             } else if char.isNumber {
                 // Check for numbered list like "1. " or "1) "
                 var checkIndex = sentenceStart
-                while checkIndex < sourceText.endIndex && sourceText[checkIndex].isNumber {
+                while checkIndex < sourceText.endIndex, sourceText[checkIndex].isNumber {
                     checkIndex = sourceText.index(after: checkIndex)
                 }
                 if checkIndex < sourceText.endIndex {
                     let afterNumber = sourceText[checkIndex]
                     if afterNumber == "." || afterNumber == ")" {
                         let afterPunc = sourceText.index(after: checkIndex)
-                        if afterPunc < sourceText.endIndex && sourceText[afterPunc].isWhitespace {
+                        if afterPunc < sourceText.endIndex, sourceText[afterPunc].isWhitespace {
                             // This is a numbered list marker, skip it
                             sentenceStart = afterPunc
-                            while sentenceStart < sourceText.endIndex &&
-                                  sourceText[sentenceStart].isWhitespace {
+                            while sentenceStart < sourceText.endIndex,
+                                  sourceText[sentenceStart].isWhitespace
+                            {
                                 sentenceStart = sourceText.index(after: sentenceStart)
                             }
                         }
@@ -283,7 +287,7 @@ struct SentenceContextView: View {
 
         // sentenceStartOffset is in scalar indices (for arithmetic with error.start/end)
         let sentenceStartScalarOffset = stringIndexToScalarIndex(sentenceStart, in: sourceText)
-        var sentence = String(sourceText[sentenceStart..<sentenceEnd])
+        var sentence = String(sourceText[sentenceStart ..< sentenceEnd])
 
         // Check if sentence is too long and needs truncation
         let wordCount = sentence.split(separator: " ").count
@@ -318,8 +322,9 @@ struct SentenceContextView: View {
             // Convert scalar indices to String.Index using the helper
             if let startIdx = scalarIndexToStringIndex(relativeStartScalar, in: sentence),
                let endIdx = scalarIndexToStringIndex(relativeEndScalar, in: sentence),
-               startIdx < endIdx {
-                errorRanges.append((range: startIdx..<endIdx, category: err.category, isCurrent: isCurrentError(err)))
+               startIdx < endIdx
+            {
+                errorRanges.append((range: startIdx ..< endIdx, category: err.category, isCurrent: isCurrentError(err)))
             }
         }
 
@@ -340,8 +345,8 @@ struct SentenceContextView: View {
         var charCount = 0
         var errorWordIndex = 0
         for (index, word) in words.enumerated() {
-            let wordEnd = charCount + word.count + 1  // +1 for space
-            if charCount <= errorOffset && errorOffset < wordEnd {
+            let wordEnd = charCount + word.count + 1 // +1 for space
+            if charCount <= errorOffset, errorOffset < wordEnd {
                 errorWordIndex = index
                 break
             }
@@ -357,7 +362,7 @@ struct SentenceContextView: View {
         if startWord > 0 {
             result += "..."
         }
-        result += words[startWord..<endWord].joined(separator: " ")
+        result += words[startWord ..< endWord].joined(separator: " ")
         if endWord < words.count {
             result += "..."
         }
@@ -391,7 +396,7 @@ struct SentenceContextView: View {
         for errorRange in sortedRanges {
             // Add text before this error (primary color for good contrast)
             if currentIndex < errorRange.range.lowerBound {
-                let beforeText = String(sentence[currentIndex..<errorRange.range.lowerBound])
+                let beforeText = String(sentence[currentIndex ..< errorRange.range.lowerBound])
                 result = result + Text(beforeText).foregroundColor(colors.textPrimary)
             }
 
@@ -457,11 +462,11 @@ struct PopoverContentView: View {
     private var effectiveColorScheme: ColorScheme {
         switch preferences.overlayTheme {
         case "Light":
-            return .light
+            .light
         case "Dark":
-            return .dark
+            .dark
         default: // "System"
-            return systemColorScheme
+            systemColorScheme
         }
     }
 
@@ -496,19 +501,19 @@ struct PopoverContentView: View {
     private func formatCategory(_ category: String) -> String {
         switch category.lowercased() {
         case "spelling":
-            return "Spelling mistake"
+            "Spelling mistake"
         case "capitalization":
-            return "Capitalization"
+            "Capitalization"
         case "grammar":
-            return "Grammar"
+            "Grammar"
         case "punctuation":
-            return "Punctuation"
+            "Punctuation"
         case "readability":
-            return "Readability"
+            "Readability"
         case "style":
-            return "Style suggestion"
+            "Style suggestion"
         default:
-            return category
+            category
         }
     }
 
@@ -690,7 +695,7 @@ struct PopoverContentView: View {
                     Spacer()
 
                     // Navigation controls - only shown when popover opened from indicator
-                    if popover.openedFromIndicator && popover.totalItemCount > 1 {
+                    if popover.openedFromIndicator, popover.totalItemCount > 1 {
                         Text("\(popover.unifiedIndex + 1) of \(popover.totalItemCount)")
                             .font(.system(size: captionTextSize - 1, weight: .medium))
                             .foregroundColor(colors.textSecondary.opacity(0.7))
@@ -761,7 +766,7 @@ struct PopoverContentView: View {
                         LinearGradient(
                             colors: [
                                 colors.border.opacity(0.5),
-                                colors.border.opacity(0.2)
+                                colors.border.opacity(0.2),
                             ],
                             startPoint: .top,
                             endPoint: .bottom
@@ -791,11 +796,11 @@ struct PopoverContentView: View {
     private func severityStyle(for severity: GrammarErrorSeverity) -> (Color, String) {
         switch severity {
         case .error:
-            return (.red, "exclamationmark.circle.fill")
+            (.red, "exclamationmark.circle.fill")
         case .warning:
-            return (.orange, "exclamationmark.triangle.fill")
+            (.orange, "exclamationmark.triangle.fill")
         case .info:
-            return (.blue, "info.circle.fill")
+            (.blue, "info.circle.fill")
         }
     }
 
@@ -803,14 +808,13 @@ struct PopoverContentView: View {
     private func severityColor(for severity: GrammarErrorSeverity) -> Color {
         switch severity {
         case .error:
-            return .red
+            .red
         case .warning:
-            return .orange
+            .orange
         case .info:
-            return .blue
+            .blue
         }
     }
-
 
     /// Get severity color for high contrast mode
     @ViewBuilder
@@ -829,11 +833,11 @@ struct PopoverContentView: View {
     private func severityAccessibilityLabel(for severity: GrammarErrorSeverity) -> String {
         switch severity {
         case .error:
-            return "Error: Critical grammar issue"
+            "Error: Critical grammar issue"
         case .warning:
-            return "Warning: Grammar suggestion"
+            "Warning: Grammar suggestion"
         case .info:
-            return "Info: Style recommendation"
+            "Info: Style recommendation"
         }
     }
 }

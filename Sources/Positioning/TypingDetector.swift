@@ -19,13 +19,12 @@
 //  rather than waiting for potentially delayed AX notifications.
 //
 
-import Foundation
 import AppKit
+import Foundation
 
 /// Typing detection for Electron-based apps
 /// Used by apps with `requiresTypingPause: true` in their AppConfiguration
 final class TypingDetector {
-
     // MARK: - Singleton
 
     static let shared = TypingDetector()
@@ -103,11 +102,11 @@ final class TypingDetector {
 
         // Dispatch to main thread for thread-safe access to shared state
         DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
 
             // Only trigger for apps that delay AX notifications (like Notion)
             // Apps like Slack send notifications immediately and don't need keyboard detection
-            guard let bundleID = self.currentBundleID else { return }
+            guard let bundleID = currentBundleID else { return }
             let appConfig = AppRegistry.shared.configuration(for: bundleID)
             guard appConfig.features.delaysAXNotifications else { return }
 
@@ -125,11 +124,11 @@ final class TypingDetector {
             // Check for function keys and navigation keys - don't hide on these
             // NOTE: Backspace (51) and Forward Delete (117) are NOT ignored because they change text
             let ignoredKeyCodes: Set<UInt16> = [
-                53,  // Escape
-                48,  // Tab (usually changes focus, not text)
-                123, 124, 125, 126,  // Arrow keys
-                115, 116, 119, 121,  // Home, Page Up, End, Page Down
-                122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111  // F1-F12
+                53, // Escape
+                48, // Tab (usually changes focus, not text)
+                123, 124, 125, 126, // Arrow keys
+                115, 116, 119, 121, // Home, Page Up, End, Page Down
+                122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111, // F1-F12
             ]
 
             if ignoredKeyCodes.contains(keyCode) {
@@ -138,7 +137,7 @@ final class TypingDetector {
 
             // This is likely a typing character - notify immediately
             Logger.debug("TypingDetector: Keyboard event detected in \(appConfig.displayName) - hiding underlines", category: Logger.ui)
-            self.notifyTypingEvent(viaKeyboard: true)
+            notifyTypingEvent(viaKeyboard: true)
         }
     }
 
@@ -176,14 +175,14 @@ final class TypingDetector {
 
         // Schedule new timer for after typing pause threshold
         typingStoppedTimer = Timer.scheduledTimer(withTimeInterval: typingPauseThreshold, repeats: false) { [weak self] _ in
-            guard let self = self else { return }
+            guard let self else { return }
 
             // Only trigger if typing was detected via keyboard (not just AX)
             // This ensures we proactively extract text for apps with delayed AX notifications
-            guard self.typingDetectedViaKeyboard else { return }
+            guard typingDetectedViaKeyboard else { return }
 
             Logger.debug("TypingDetector: Typing stopped - triggering text extraction", category: Logger.ui)
-            self.typingDetectedViaKeyboard = false
+            typingDetectedViaKeyboard = false
 
             DispatchQueue.main.async { [weak self] in
                 self?.onTypingStopped?()

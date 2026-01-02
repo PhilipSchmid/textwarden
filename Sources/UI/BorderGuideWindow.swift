@@ -16,12 +16,12 @@ class BorderGuideWindow: NSPanel {
             defer: false
         )
 
-        self.isOpaque = false
-        self.backgroundColor = .clear
-        self.level = .screenSaver
-        self.ignoresMouseEvents = true
-        self.hasShadow = false
-        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        isOpaque = false
+        backgroundColor = .clear
+        level = .screenSaver
+        ignoresMouseEvents = true
+        hasShadow = false
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
         setupBorderView()
     }
@@ -30,8 +30,8 @@ class BorderGuideWindow: NSPanel {
         let view = GradientBorderView()
         view.borderColor = Self.themeBasedColor()
         view.borderWidth = Self.borderWidth
-        self.contentView = view
-        self.borderView = view
+        contentView = view
+        borderView = view
     }
 
     /// Get color based on the current overlay theme preference
@@ -39,24 +39,23 @@ class BorderGuideWindow: NSPanel {
     private static func themeBasedColor() -> NSColor {
         let overlayTheme = UserPreferences.shared.overlayTheme
 
-        let isDark: Bool
-        switch overlayTheme {
+        let isDark: Bool = switch overlayTheme {
         case "Light":
-            isDark = false
+            false
         case "Dark":
-            isDark = true
+            true
         default: // "System"
-            isDark = UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
+            UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
         }
 
         if isDark {
             // Dark mode: Lighter gray to contrast with dark window backgrounds
             // Subtle warm tint for elegance
-            return NSColor(hue: 30/360, saturation: 0.03, brightness: 0.45, alpha: 1.0)
+            return NSColor(hue: 30 / 360, saturation: 0.03, brightness: 0.45, alpha: 1.0)
         } else {
             // Light mode: Darker gray to contrast with light window backgrounds
             // Subtle cool tint matching popover style
-            return NSColor(hue: 220/360, saturation: 0.04, brightness: 0.75, alpha: 1.0)
+            return NSColor(hue: 220 / 360, saturation: 0.04, brightness: 0.75, alpha: 1.0)
         }
     }
 
@@ -115,7 +114,7 @@ private class GradientBorderView: NSView {
     /// Note: Deployment target is macOS 14+, so we use the larger corner radius
     private var windowCornerRadius: CGFloat {
         // macOS 14+ (Sonoma/Sequoia) uses ~12pt corners
-        return 12.0
+        12.0
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -135,13 +134,13 @@ private class GradientBorderView: NSView {
 
         // Draw the gradient border using concentric rounded rectangles
         // This creates a smooth fade from edge to center while respecting corner radius
-        let steps = 100  // High number of steps for smooth gradient without visible banding
+        let steps = 100 // High number of steps for smooth gradient without visible banding
         let stepSize = borderWidth / CGFloat(steps)
 
-        for i in 0..<steps {
+        for i in 0 ..< steps {
             let inset = CGFloat(i) * stepSize
             let progress = CGFloat(i) / CGFloat(steps - 1)
-            let currentAlpha = outerAlpha * (1.0 - progress)  // Fade from outerAlpha to 0
+            let currentAlpha = outerAlpha * (1.0 - progress) // Fade from outerAlpha to 0
 
             // Calculate corner radius for this step (shrinks as we go inward)
             let currentCornerRadius = max(0, cornerRadius - inset)
@@ -169,7 +168,8 @@ private class GradientBorderView: NSView {
 
             // Fill with current alpha
             if let fillColor = CGColor(colorSpace: CGColorSpaceCreateDeviceRGB(),
-                                       components: [red, green, blue, currentAlpha]) {
+                                       components: [red, green, blue, currentAlpha])
+            {
                 context.setFillColor(fillColor)
             }
             context.fill(bounds)

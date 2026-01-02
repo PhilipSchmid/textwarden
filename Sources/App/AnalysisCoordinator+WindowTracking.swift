@@ -7,12 +7,11 @@
 //  for Mac Catalyst apps where AX notifications are unreliable.
 //
 
-import Foundation
 import AppKit
 @preconcurrency import ApplicationServices
+import Foundation
 
 extension AnalysisCoordinator {
-
     // MARK: - Window Movement Detection
 
     /// Start monitoring window position to detect movement
@@ -96,7 +95,8 @@ extension AnalysisCoordinator {
         // Browser/Catalyst text replacement can take 0.5-0.7 seconds total, plus delayed AX notifications
         // Use 1.5s grace period to match handleTextChange for consistency
         if let replacementTime = lastReplacementTime,
-           Date().timeIntervalSince(replacementTime) < 1.5 {
+           Date().timeIntervalSince(replacementTime) < 1.5
+        {
             return
         }
 
@@ -104,7 +104,8 @@ extension AnalysisCoordinator {
         // handleConversationSwitchInChatApp() handles this, and we must let it complete
         // before resuming validation to avoid race conditions
         if let switchTime = lastConversationSwitchTime,
-           Date().timeIntervalSince(switchTime) < 0.6 {
+           Date().timeIntervalSince(switchTime) < 0.6
+        {
             return
         }
 
@@ -125,18 +126,18 @@ extension AnalysisCoordinator {
         }
 
         // Text is now empty (e.g., message was sent in chat app)
-        if currentText.isEmpty && !analyzedText.isEmpty {
+        if currentText.isEmpty, !analyzedText.isEmpty {
             Logger.debug("Text validation: Text is now empty - clearing errors (message likely sent)", category: Logger.analysis)
             DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                if !self.isManualStyleCheckActive {
-                    self.floatingIndicator.hide()
+                guard let self else { return }
+                if !isManualStyleCheckActive {
+                    floatingIndicator.hide()
                 }
-                self.errorOverlay.hide()
-                self.suggestionPopover.hide()
+                errorOverlay.hide()
+                suggestionPopover.hide()
                 DebugBorderWindow.clearAll()
-                self.currentErrors.removeAll()
-                self.lastAnalyzedText = ""
+                currentErrors.removeAll()
+                lastAnalyzedText = ""
                 positionResolver.clearCache()
             }
             return
@@ -151,52 +152,52 @@ extension AnalysisCoordinator {
             // Mac Catalyst apps and Microsoft Office have unreliable AX notifications
             let isCatalystApp = textMonitor.currentContext?.isMacCatalystApp ?? false
             let isMicrosoftOffice = textMonitor.currentContext?.bundleIdentifier == "com.microsoft.Word" ||
-                                    textMonitor.currentContext?.bundleIdentifier == "com.microsoft.Powerpoint"
+                textMonitor.currentContext?.bundleIdentifier == "com.microsoft.Powerpoint"
             let needsReanalysis = isCatalystApp || isMicrosoftOffice
 
             Logger.debug("Text validation: Text content changed - \(needsReanalysis ? "triggering re-analysis" : "hiding indicator") (possibly switched conversation)", category: Logger.analysis)
 
             DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
+                guard let self else { return }
 
                 // For Microsoft Office, don't hide indicators during focus bounces
                 // Just trigger re-analysis to update errors
                 if isMicrosoftOffice {
-                    self.currentErrors.removeAll()
-                    self.lastAnalyzedText = ""
+                    currentErrors.removeAll()
+                    lastAnalyzedText = ""
                     positionResolver.clearCache()
 
                     // Trigger fresh analysis
                     DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.mediumDelay) { [weak self] in
-                        guard let self = self,
-                              let context = self.textMonitor.currentContext,
+                        guard let self,
+                              let context = textMonitor.currentContext,
                               !currentText.isEmpty else { return }
-                        self.handleTextChange(currentText, in: context)
+                        handleTextChange(currentText, in: context)
                     }
                     return
                 }
 
                 // Always hide UI elements for other apps
-                if !self.isManualStyleCheckActive {
-                    self.floatingIndicator.hide()
+                if !isManualStyleCheckActive {
+                    floatingIndicator.hide()
                 }
-                self.errorOverlay.hide()
-                self.suggestionPopover.hide()
+                errorOverlay.hide()
+                suggestionPopover.hide()
                 DebugBorderWindow.clearAll()
 
                 // For Mac Catalyst apps, clear errors and trigger fresh analysis
                 // For other apps, let the normal AXValueChanged notification handle re-analysis
                 if isCatalystApp {
-                    self.currentErrors.removeAll()
-                    self.lastAnalyzedText = ""
+                    currentErrors.removeAll()
+                    lastAnalyzedText = ""
                     positionResolver.clearCache()
 
                     // Trigger fresh analysis after a short delay
                     DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.longDelay) { [weak self] in
-                        guard let self = self,
-                              let context = self.textMonitor.currentContext,
+                        guard let self,
+                              let context = textMonitor.currentContext,
                               !currentText.isEmpty else { return }
-                        self.handleTextChange(currentText, in: context)
+                        handleTextChange(currentText, in: context)
                     }
                 }
             }
@@ -281,8 +282,8 @@ extension AnalysisCoordinator {
 
         // Check if position or size has changed
         if let lastFrame = lastWindowFrame {
-            let positionThreshold: CGFloat = 5.0  // Movement threshold in pixels
-            let sizeThreshold: CGFloat = 5.0  // Size change threshold in pixels
+            let positionThreshold: CGFloat = 5.0 // Movement threshold in pixels
+            let sizeThreshold: CGFloat = 5.0 // Size change threshold in pixels
 
             let positionDistance = hypot(currentFrame.origin.x - lastFrame.origin.x, currentFrame.origin.y - lastFrame.origin.y)
             let widthChange = abs(currentFrame.width - lastFrame.width)
@@ -294,7 +295,7 @@ extension AnalysisCoordinator {
             if positionChanged || sizeChanged {
                 if sizeChanged {
                     Logger.debug("Window monitoring: Resize detected - width: \(widthChange)px, height: \(heightChange)px", category: Logger.analysis)
-                    lastResizeTime = Date()  // Track resize time for Electron settling
+                    lastResizeTime = Date() // Track resize time for Electron settling
                 }
                 if positionChanged {
                     Logger.debug("Window monitoring: Movement detected - distance: \(positionDistance)px", category: Logger.analysis)
@@ -335,7 +336,7 @@ extension AnalysisCoordinator {
                 currentElementFrame.origin.y - lastFrame.origin.y
             )
             let significantHeightChange = abs(heightChange) > 5.0
-            let significantPositionChange = positionChange > 10.0  // Element moved significantly
+            let significantPositionChange = positionChange > 10.0 // Element moved significantly
 
             if significantHeightChange || significantPositionChange {
                 if isCatalyst {
@@ -344,11 +345,11 @@ extension AnalysisCoordinator {
                         // Element position changed significantly - conversation was likely switched
                         Logger.debug("Element monitoring: Element position changed by \(positionChange)px in Mac Catalyst app - triggering re-analysis (conversation switch)", category: Logger.analysis)
                         handleConversationSwitchInChatApp(element: element)
-                    } else if significantHeightChange && heightChange < 0 && (!currentErrors.isEmpty || floatingIndicator.isVisible) {
+                    } else if significantHeightChange, heightChange < 0, !currentErrors.isEmpty || floatingIndicator.isVisible {
                         // Text field shrunk - message was likely sent
                         Logger.debug("Element monitoring: Text field shrunk by \(abs(heightChange))px in Mac Catalyst app - clearing errors", category: Logger.analysis)
                         handleMessageSentInChatApp()
-                    } else if significantHeightChange && heightChange > 0 && !currentErrors.isEmpty {
+                    } else if significantHeightChange, heightChange > 0, !currentErrors.isEmpty {
                         // Text field grew - user is typing more, text positions shifted
                         Logger.debug("Element monitoring: Text field grew by \(heightChange)px in Mac Catalyst app - invalidating positions", category: Logger.analysis)
                         positionResolver.clearCache()
@@ -399,10 +400,11 @@ extension AnalysisCoordinator {
 
         // Maximum wait time of 1 second to prevent infinite loops
         if let startTime = sidebarToggleStartTime,
-           Date().timeIntervalSince(startTime) > 1.0 {
+           Date().timeIntervalSince(startTime) > 1.0
+        {
             Logger.debug("Element monitoring: Timeout waiting for stability - refreshing anyway", category: Logger.analysis)
             positionResolver.clearCache()
-            let _ = errorOverlay.update(errors: currentErrors, element: element, context: context)
+            _ = errorOverlay.update(errors: currentErrors, element: element, context: context)
             lastCharacterBounds = nil
             contentStabilityCount = 0
             sidebarToggleStartTime = nil
@@ -424,7 +426,7 @@ extension AnalysisCoordinator {
                 if contentStabilityCount >= 2 {
                     Logger.debug("Element monitoring: AX API settled - refreshing underlines", category: Logger.analysis)
                     positionResolver.clearCache()
-                    let _ = errorOverlay.update(errors: currentErrors, element: element, context: context)
+                    _ = errorOverlay.update(errors: currentErrors, element: element, context: context)
                     lastCharacterBounds = nil
                     contentStabilityCount = 0
                     sidebarToggleStartTime = nil
@@ -446,7 +448,7 @@ extension AnalysisCoordinator {
 
     /// Handle conversation switch in a Mac Catalyst chat app
     /// Hides overlays and triggers fresh analysis since the text content has likely changed
-    func handleConversationSwitchInChatApp(element: AXUIElement) {
+    func handleConversationSwitchInChatApp(element _: AXUIElement) {
         // Record the time to prevent validateCurrentText() from racing with us
         lastConversationSwitchTime = Date()
 
@@ -466,7 +468,7 @@ extension AnalysisCoordinator {
         // Clear current errors and text tracking - the text has changed
         currentErrors.removeAll()
         lastAnalyzedText = ""
-        previousText = ""  // Clear previousText so handleTextChange will process the text
+        previousText = "" // Clear previousText so handleTextChange will process the text
 
         // Get app-specific delay from MessengerBehavior
         let bundleID = textMonitor.currentContext?.bundleIdentifier ?? ""
@@ -474,12 +476,13 @@ extension AnalysisCoordinator {
 
         // Trigger fresh analysis after a delay (let the UI settle)
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
             // Re-read the text and trigger analysis
-            guard let monitoredElement = self.textMonitor.monitoredElement,
-                  let context = self.textMonitor.currentContext,
-                  let text = self.extractTextSynchronously(from: monitoredElement),
-                  !text.isEmpty else {
+            guard let monitoredElement = textMonitor.monitoredElement,
+                  let context = textMonitor.currentContext,
+                  let text = extractTextSynchronously(from: monitoredElement),
+                  !text.isEmpty
+            else {
                 return
             }
 
@@ -494,7 +497,7 @@ extension AnalysisCoordinator {
                 return
             }
 
-            self.handleTextChange(text, in: context)
+            handleTextChange(text, in: context)
         }
     }
 
@@ -508,7 +511,8 @@ extension AnalysisCoordinator {
         // replacement may trigger scroll events that would interfere with showing the next error
         // Use 1.5s grace period to match handleTextChange (replacement + delayed AX notifications)
         if let replacementTime = lastReplacementTime,
-           Date().timeIntervalSince(replacementTime) < 1.5 {
+           Date().timeIntervalSince(replacementTime) < 1.5
+        {
             Logger.debug("Scroll monitoring: Ignoring scroll - just applied suggestion", category: Logger.analysis)
             return
         }
@@ -549,7 +553,8 @@ extension AnalysisCoordinator {
         // Re-show underlines using cached errors (positions will be recalculated)
         if let element = textMonitor.monitoredElement,
            let context = textMonitor.currentContext,
-           !currentErrors.isEmpty {
+           !currentErrors.isEmpty
+        {
             let underlinesRestored = errorOverlay.update(errors: currentErrors, element: element, context: context)
             Logger.debug("Scroll monitoring: Restored \(underlinesRestored) underlines from \(currentErrors.count) cached errors", category: Logger.analysis)
         }
@@ -569,8 +574,8 @@ extension AnalysisCoordinator {
         for windowInfo in windowList {
             if let windowPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
                windowPID == pid,
-               let boundsDict = windowInfo[kCGWindowBounds as String] as? [String: CGFloat] {
-
+               let boundsDict = windowInfo[kCGWindowBounds as String] as? [String: CGFloat]
+            {
                 let x = boundsDict["X"] ?? 0
                 let y = boundsDict["Y"] ?? 0
                 let width = boundsDict["Width"] ?? 0
@@ -584,7 +589,7 @@ extension AnalysisCoordinator {
 
     /// Legacy method for compatibility - returns just the position
     func windowPosition(for element: AXUIElement) -> CGPoint? {
-        return windowFrame(for: element)?.origin
+        windowFrame(for: element)?.origin
     }
 
     /// Handle message sent in a Mac Catalyst chat app (text field shrunk)
@@ -605,8 +610,8 @@ extension AnalysisCoordinator {
 
         Logger.debug("Window monitoring: Movement started - hiding all overlays", category: Logger.analysis)
         overlaysHiddenDueToMovement = true
-        positionSyncRetryCount = 0  // Reset retry counter for new movement cycle
-        lastElementPosition = nil   // Reset element position tracking
+        positionSyncRetryCount = 0 // Reset retry counter for new movement cycle
+        lastElementPosition = nil // Reset element position tracking
 
         // Immediately hide all overlays
         errorOverlay.hide()
@@ -708,7 +713,7 @@ extension AnalysisCoordinator {
     /// Re-show overlays after window movement has stopped
     func reshowOverlaysAfterMovement() {
         Logger.debug("Window monitoring: Re-showing overlays at new position", category: Logger.analysis)
-        windowMovementDebounceTimer = nil  // Clear timer reference so new timer can be created
+        windowMovementDebounceTimer = nil // Clear timer reference so new timer can be created
 
         // CRITICAL: Verify that AX API position is in sync with CGWindow position
         // CGWindowList updates immediately, but AX API may lag behind
@@ -741,7 +746,7 @@ extension AnalysisCoordinator {
         var needsRetry = false
         if let axWindowPos = axWindowPosition(for: element) {
             let windowDelta = hypot(cgWindowPosition.x - axWindowPos.x, cgWindowPosition.y - axWindowPos.y)
-            let toleranceThreshold: CGFloat = 5.0  // Tighter tolerance for window position
+            let toleranceThreshold: CGFloat = 5.0 // Tighter tolerance for window position
 
             if windowDelta > toleranceThreshold {
                 Logger.debug("Window monitoring: Window position mismatch - AX: \(axWindowPos), CG: \(cgWindowPosition), delta: \(windowDelta)px", category: Logger.analysis)
@@ -753,7 +758,7 @@ extension AnalysisCoordinator {
         if let currentElementPos = axElementPosition(for: element) {
             if let lastPos = lastElementPosition {
                 let elementDelta = hypot(currentElementPos.x - lastPos.x, currentElementPos.y - lastPos.y)
-                let elementTolerance: CGFloat = 3.0  // Very tight tolerance for element stability
+                let elementTolerance: CGFloat = 3.0 // Very tight tolerance for element stability
 
                 if elementDelta > elementTolerance {
                     Logger.debug("Window monitoring: Element position still changing - last: \(lastPos), current: \(currentElementPos), delta: \(elementDelta)px", category: Logger.analysis)
@@ -764,14 +769,14 @@ extension AnalysisCoordinator {
         }
 
         // If either check failed and we have retries left, wait and retry
-        if needsRetry && positionSyncRetryCount < maxPositionSyncRetries {
+        if needsRetry, positionSyncRetryCount < maxPositionSyncRetries {
             positionSyncRetryCount += 1
             Logger.debug("Window monitoring: Position not stable - retry \(positionSyncRetryCount)/\(maxPositionSyncRetries) in 50ms", category: Logger.analysis)
 
             DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.shortDelay) { [weak self] in
-                guard let self = self else { return }
-                if self.overlaysHiddenDueToMovement {
-                    self.reshowOverlaysAfterMovement()
+                guard let self else { return }
+                if overlaysHiddenDueToMovement {
+                    reshowOverlaysAfterMovement()
                 }
             }
             return
@@ -784,9 +789,9 @@ extension AnalysisCoordinator {
             // which can have extra latency in propagating position changes
             Logger.debug("Window monitoring: Position stable - adding 100ms settling delay", category: Logger.analysis)
             DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.mediumDelay) { [weak self] in
-                guard let self = self else { return }
-                if self.overlaysHiddenDueToMovement {
-                    self.finalizeOverlayReshow()
+                guard let self else { return }
+                if overlaysHiddenDueToMovement {
+                    finalizeOverlayReshow()
                 }
             }
             return
@@ -821,7 +826,7 @@ extension AnalysisCoordinator {
                                           currBounds.origin.y - lastBounds.origin.y)
                 let widthDelta = abs(currBounds.width - lastBounds.width)
 
-                if positionDelta < 3.0 && widthDelta < 2.0 {
+                if positionDelta < 3.0, widthDelta < 2.0 {
                     // Content is stable - increment counter
                     contentStabilityCount += 1
                     Logger.debug("Window monitoring: Character bounds stable (count: \(contentStabilityCount)/4, pos delta: \(positionDelta)px)", category: Logger.analysis)
@@ -844,8 +849,8 @@ extension AnalysisCoordinator {
 
             // Schedule another stability check with 100ms interval
             DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.mediumDelay) { [weak self] in
-                guard let self = self, self.overlaysHiddenDueToMovement else { return }
-                self.finalizeOverlayReshow()
+                guard let self, overlaysHiddenDueToMovement else { return }
+                finalizeOverlayReshow()
             }
             return
         }
@@ -858,8 +863,8 @@ extension AnalysisCoordinator {
             if timeSinceResize < requiredSettleTime {
                 let remainingTime = requiredSettleTime - timeSinceResize
                 DispatchQueue.main.asyncAfter(deadline: .now() + remainingTime) { [weak self] in
-                    guard let self = self, self.overlaysHiddenDueToMovement else { return }
-                    self.completeOverlayReshow()
+                    guard let self, overlaysHiddenDueToMovement else { return }
+                    completeOverlayReshow()
                 }
                 return
             }
@@ -894,7 +899,8 @@ extension AnalysisCoordinator {
 
         guard error == .success,
               let value = boundsValue,
-              let bounds = safeAXValueGetRect(value) else {
+              let bounds = safeAXValueGetRect(value)
+        else {
             return nil
         }
 
@@ -939,7 +945,7 @@ extension AnalysisCoordinator {
         var windowElement: AXUIElement?
         var currentElement: AXUIElement? = element
 
-        for _ in 0..<10 {
+        for _ in 0 ..< 10 {
             guard let current = currentElement else { break }
 
             var roleValue: CFTypeRef?
@@ -979,5 +985,4 @@ extension AnalysisCoordinator {
 
         return AccessibilityBridge.getElementPosition(element)
     }
-
 }

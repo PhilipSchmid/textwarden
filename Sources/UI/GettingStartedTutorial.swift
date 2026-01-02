@@ -10,39 +10,39 @@ import SwiftUI
 // MARK: - Tutorial Step
 
 enum TutorialStep: Int, CaseIterable {
-    case clickUnderline        // Step 1: Grammar - click underlined word
-    case clickStyleSection     // Step 2: Style - click style section
-    case clickComposeSection   // Step 3: AI Compose - click compose section
-    case rightClickIndicator   // Step 4: Right-click for menu
+    case clickUnderline // Step 1: Grammar - click underlined word
+    case clickStyleSection // Step 2: Style - click style section
+    case clickComposeSection // Step 3: AI Compose - click compose section
+    case rightClickIndicator // Step 4: Right-click for menu
     case complete
 
     var instruction: String {
         switch self {
         case .clickUnderline:
-            return "Click the underlined word to see a grammar suggestion"
+            "Click the underlined word to see a grammar suggestion"
         case .clickStyleSection:
-            return "Click the sparkle icon for style suggestions"
+            "Click the sparkle icon for style suggestions"
         case .clickComposeSection:
-            return "Click the pen icon to compose with AI"
+            "Click the pen icon to compose with AI"
         case .rightClickIndicator:
-            return "Right-click the indicator for quick actions"
+            "Right-click the indicator for quick actions"
         case .complete:
-            return "Try it: Drag the indicator up and down"
+            "Try it: Drag the indicator up and down"
         }
     }
 
     var hint: String {
         switch self {
         case .clickUnderline:
-            return "TextWarden underlines grammar errors as you type. Click any underline to see suggestions."
+            "TextWarden underlines grammar errors as you type. Click any underline to see suggestions."
         case .clickStyleSection:
-            return "Apple Intelligence can rewrite your text for better clarity, tone, or style."
+            "Apple Intelligence can rewrite your text for better clarity, tone, or style."
         case .clickComposeSection:
-            return "Use AI to compose new text from your instructions - perfect for starting drafts."
+            "Use AI to compose new text from your instructions - perfect for starting drafts."
         case .rightClickIndicator:
-            return "Right-click for quick access to pause, settings, and app controls. Click anywhere on the menu to continue."
+            "Right-click for quick access to pause, settings, and app controls. Click anywhere on the menu to continue."
         case .complete:
-            return "In real use, drag the indicator to reposition it along any window edge. Click Continue when you're ready."
+            "In real use, drag the indicator to reposition it along any window edge. Click Continue when you're ready."
         }
     }
 }
@@ -52,7 +52,7 @@ enum TutorialStep: Int, CaseIterable {
 struct GettingStartedTutorialView: View {
     let onSkip: () -> Void
     let onComplete: () -> Void
-    let onBackToOnboarding: (() -> Void)?  // Go back to previous onboarding step
+    let onBackToOnboarding: (() -> Void)? // Go back to previous onboarding step
 
     @State private var tutorialStep: TutorialStep = .clickUnderline
     @State private var showSuggestionPopover = false
@@ -73,13 +73,13 @@ struct GettingStartedTutorialView: View {
     // Text content that changes as user progresses
     private var displayedText: String {
         if composeApplied {
-            return "I would greatly appreciate your detailed feedback."
+            "I would greatly appreciate your detailed feedback."
         } else if styleApplied {
-            return "I would appreciate your feedback."
+            "I would appreciate your feedback."
         } else if grammarFixed {
-            return "I wanted to receive your feedback."
+            "I wanted to receive your feedback."
         } else {
-            return "I wanted to recieve your feedback."
+            "I wanted to recieve your feedback."
         }
     }
 
@@ -90,10 +90,10 @@ struct GettingStartedTutorialView: View {
     // Which section to highlight in the indicator
     private var highlightedSection: IndicatorSection? {
         switch tutorialStep {
-        case .clickStyleSection: return .style
-        case .clickComposeSection: return .compose
-        case .rightClickIndicator: return nil  // Right-click works anywhere, no specific section
-        default: return nil
+        case .clickStyleSection: .style
+        case .clickComposeSection: .compose
+        case .rightClickIndicator: nil // Right-click works anywhere, no specific section
+        default: nil
         }
     }
 
@@ -122,12 +122,12 @@ struct GettingStartedTutorialView: View {
                 .disabled(tutorialStep != .clickUnderline)
                 // Arrow overlay - positioned relative to "recieve" button so it's always centered
                 .overlay(alignment: .bottom) {
-                    if tutorialStep == .clickUnderline && !showSuggestionPopover {
+                    if tutorialStep == .clickUnderline, !showSuggestionPopover {
                         VStack(spacing: 4) {
                             TutorialPointingArrow(direction: .up)
                             TutorialCallout(text: "Click underline")
                         }
-                        .offset(y: 75)  // Position below the underline with more spacing
+                        .offset(y: 75) // Position below the underline with more spacing
                     }
                 }
 
@@ -155,7 +155,7 @@ struct GettingStartedTutorialView: View {
 
                 // Progress indicator - 5 steps now
                 HStack(spacing: 6) {
-                    ForEach(0..<5) { index in
+                    ForEach(0 ..< 5) { index in
                         Circle()
                             .fill(index <= tutorialStep.rawValue ? Color.accentColor : Color.secondary.opacity(0.3))
                             .frame(width: 8, height: 8)
@@ -196,7 +196,7 @@ struct GettingStartedTutorialView: View {
                                 // Indicator positioned to the right of text area
                                 TutorialIndicatorInteractive(
                                     grammarCount: grammarCount,
-                                    onGrammarClick: {},  // Not used in this flow
+                                    onGrammarClick: {}, // Not used in this flow
                                     onStyleClick: handleStyleClick,
                                     onComposeClick: handleComposeClick,
                                     onRightClick: handleIndicatorRightClick,
@@ -208,28 +208,28 @@ struct GettingStartedTutorialView: View {
                                 // Pointing arrows as overlay - don't affect layout
                                 .overlay(alignment: .leading) {
                                     Group {
-                                        if tutorialStep == .clickStyleSection && !showStylePopover {
+                                        if tutorialStep == .clickStyleSection, !showStylePopover {
                                             HStack(spacing: 4) {
                                                 TutorialCallout(text: "Click sparkle")
                                                 TutorialPointingArrow(direction: .right)
                                             }
-                                            .offset(x: -130, y: 0)  // Point at style section (middle)
+                                            .offset(x: -130, y: 0) // Point at style section (middle)
                                         }
 
-                                        if tutorialStep == .clickComposeSection && !showComposePopover {
+                                        if tutorialStep == .clickComposeSection, !showComposePopover {
                                             HStack(spacing: 4) {
                                                 TutorialCallout(text: "Click pen")
                                                 TutorialPointingArrow(direction: .right)
                                             }
-                                            .offset(x: -115, y: 36)  // Point at compose section (bottom)
+                                            .offset(x: -115, y: 36) // Point at compose section (bottom)
                                         }
 
-                                        if tutorialStep == .rightClickIndicator && !showContextMenu {
+                                        if tutorialStep == .rightClickIndicator, !showContextMenu {
                                             HStack(spacing: 4) {
                                                 TutorialCallout(text: "Right-click")
                                                 TutorialPointingArrow(direction: .right)
                                             }
-                                            .offset(x: -115, y: 0)  // Point at center of capsule (right-click works anywhere)
+                                            .offset(x: -115, y: 0) // Point at center of capsule (right-click works anywhere)
                                         }
                                     }
                                 }
@@ -337,7 +337,7 @@ struct GettingStartedTutorialView: View {
                         .transition(.scale.combined(with: .opacity))
                     }
                 }
-                .frame(height: 300)  // Increased to accommodate context menu
+                .frame(height: 300) // Increased to accommodate context menu
                 .padding(.horizontal)
 
                 // Hint text - positioned below demo area (hidden when context menu is open)
@@ -419,7 +419,7 @@ struct GettingStartedTutorialView: View {
                 composeApplied = false
                 tutorialStep = .clickComposeSection
             case .complete:
-                break  // Can't go back from complete
+                break // Can't go back from complete
             }
         }
     }
@@ -460,14 +460,14 @@ private struct RightClickableArea: NSViewRepresentable {
     let onLeftClick: (() -> Void)?
     let onRightClick: (() -> Void)?
 
-    func makeNSView(context: Context) -> RightClickView {
+    func makeNSView(context _: Context) -> RightClickView {
         let view = RightClickView()
         view.onLeftClick = onLeftClick
         view.onRightClick = onRightClick
         return view
     }
 
-    func updateNSView(_ nsView: RightClickView, context: Context) {
+    func updateNSView(_ nsView: RightClickView, context _: Context) {
         nsView.onLeftClick = onLeftClick
         nsView.onRightClick = onRightClick
     }
@@ -477,7 +477,7 @@ private class RightClickView: NSView {
     var onLeftClick: (() -> Void)?
     var onRightClick: (() -> Void)?
 
-    override func mouseDown(with event: NSEvent) {
+    override func mouseDown(with _: NSEvent) {
         if let handler = onLeftClick {
             handler()
         }
@@ -494,8 +494,8 @@ private class RightClickView: NSView {
     }
 
     // Only become the hit target for right-click events
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
-        return onRightClick != nil
+    override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
+        onRightClick != nil
     }
 }
 
@@ -520,6 +520,7 @@ private struct TutorialIndicatorInteractive: View {
     private var styleColor: Color {
         isDarkMode ? Color(red: 0.95, green: 0.3, blue: 0.75) : Color(red: 0.6, green: 0.2, blue: 0.85)
     }
+
     private var textGenColor: Color {
         isDarkMode ? Color(red: 0.3, green: 0.7, blue: 1.0) : Color(red: 0.15, green: 0.5, blue: 0.8)
     }
@@ -646,14 +647,14 @@ private struct TutorialStylePopover: View {
         // Diff: "I " + removed("wanted to receive") + added("would appreciate") + " your feedback."
         Text("I ")
             .foregroundColor(.primary) +
-        Text("wanted to receive")
+            Text("wanted to receive")
             .foregroundColor(.red)
             .strikethrough(true, color: .red) +
-        Text(" ")
+            Text(" ")
             .foregroundColor(.primary) +
-        Text("would appreciate")
+            Text("would appreciate")
             .foregroundColor(.green) +
-        Text(" your feedback.")
+            Text(" your feedback.")
             .foregroundColor(.primary)
     }
 
@@ -735,9 +736,11 @@ private struct TutorialComposePopover: View {
     private var backgroundTop: Color {
         isDarkMode ? Color(white: 0.18) : Color(white: 0.99)
     }
+
     private var backgroundBottom: Color {
         isDarkMode ? Color(white: 0.14) : Color(white: 0.96)
     }
+
     private var elevatedBg: Color {
         isDarkMode ? Color(white: 0.22) : Color(white: 0.94)
     }
@@ -1054,7 +1057,7 @@ private struct TutorialSuggestionPopover: View {
                         LinearGradient(
                             colors: [
                                 Color.primary.opacity(0.15),
-                                Color.primary.opacity(0.05)
+                                Color.primary.opacity(0.05),
                             ],
                             startPoint: .top,
                             endPoint: .bottom
@@ -1134,92 +1137,92 @@ private struct TutorialContextMenu: View {
     var body: some View {
         // The actual menu - callouts are in overlay so they don't affect layout
         VStack(alignment: .leading, spacing: 2) {
-                // Global Grammar Checking header
-                Text("Grammar Checking:")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 12)
-                    .padding(.top, 8)
-                    .padding(.bottom, 4)
+            // Global Grammar Checking header
+            Text("Grammar Checking:")
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.top, 8)
+                .padding(.bottom, 4)
 
-                // Global options
-                TutorialMenuItem(
-                    text: "Active",
-                    isChecked: true,
-                    isHovered: hoveredItem == "active",
-                    onHover: { hoveredItem = $0 ? "active" : nil }
-                )
+            // Global options
+            TutorialMenuItem(
+                text: "Active",
+                isChecked: true,
+                isHovered: hoveredItem == "active",
+                onHover: { hoveredItem = $0 ? "active" : nil }
+            )
 
-                TutorialMenuItem(
-                    text: "Paused for 1 Hour",
-                    isChecked: false,
-                    isHovered: hoveredItem == "1hour",
-                    onHover: { hoveredItem = $0 ? "1hour" : nil }
-                )
+            TutorialMenuItem(
+                text: "Paused for 1 Hour",
+                isChecked: false,
+                isHovered: hoveredItem == "1hour",
+                onHover: { hoveredItem = $0 ? "1hour" : nil }
+            )
 
-                TutorialMenuItem(
-                    text: "Paused for 24 Hours",
-                    isChecked: false,
-                    isHovered: hoveredItem == "24hours",
-                    onHover: { hoveredItem = $0 ? "24hours" : nil }
-                )
+            TutorialMenuItem(
+                text: "Paused for 24 Hours",
+                isChecked: false,
+                isHovered: hoveredItem == "24hours",
+                onHover: { hoveredItem = $0 ? "24hours" : nil }
+            )
 
-                TutorialMenuItem(
-                    text: "Paused Until Resumed",
-                    isChecked: false,
-                    isHovered: hoveredItem == "indefinite",
-                    onHover: { hoveredItem = $0 ? "indefinite" : nil }
-                )
+            TutorialMenuItem(
+                text: "Paused Until Resumed",
+                isChecked: false,
+                isHovered: hoveredItem == "indefinite",
+                onHover: { hoveredItem = $0 ? "indefinite" : nil }
+            )
 
-                Divider()
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 8)
+            Divider()
+                .padding(.vertical, 4)
+                .padding(.horizontal, 8)
 
-                // App-specific header
-                Text("App XY:")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 4)
+            // App-specific header
+            Text("App XY:")
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 4)
 
-                TutorialMenuItem(
-                    text: "Active",
-                    isChecked: true,
-                    isHovered: hoveredItem == "appActive",
-                    onHover: { hoveredItem = $0 ? "appActive" : nil }
-                )
+            TutorialMenuItem(
+                text: "Active",
+                isChecked: true,
+                isHovered: hoveredItem == "appActive",
+                onHover: { hoveredItem = $0 ? "appActive" : nil }
+            )
 
-                TutorialMenuItem(
-                    text: "Paused for 1 Hour",
-                    isChecked: false,
-                    isHovered: hoveredItem == "app1hour",
-                    onHover: { hoveredItem = $0 ? "app1hour" : nil }
-                )
+            TutorialMenuItem(
+                text: "Paused for 1 Hour",
+                isChecked: false,
+                isHovered: hoveredItem == "app1hour",
+                onHover: { hoveredItem = $0 ? "app1hour" : nil }
+            )
 
-                TutorialMenuItem(
-                    text: "Paused for 24 Hours",
-                    isChecked: false,
-                    isHovered: hoveredItem == "app24hours",
-                    onHover: { hoveredItem = $0 ? "app24hours" : nil }
-                )
+            TutorialMenuItem(
+                text: "Paused for 24 Hours",
+                isChecked: false,
+                isHovered: hoveredItem == "app24hours",
+                onHover: { hoveredItem = $0 ? "app24hours" : nil }
+            )
 
-                TutorialMenuItem(
-                    text: "Paused Until Resumed",
-                    isChecked: false,
-                    isHovered: hoveredItem == "appIndefinite",
-                    onHover: { hoveredItem = $0 ? "appIndefinite" : nil }
-                )
+            TutorialMenuItem(
+                text: "Paused Until Resumed",
+                isChecked: false,
+                isHovered: hoveredItem == "appIndefinite",
+                onHover: { hoveredItem = $0 ? "appIndefinite" : nil }
+            )
 
-                Divider()
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 8)
+            Divider()
+                .padding(.vertical, 4)
+                .padding(.horizontal, 8)
 
-                TutorialMenuItem(
-                    text: "Preferences",
-                    isChecked: false,
-                    isHovered: hoveredItem == "prefs",
-                    onHover: { hoveredItem = $0 ? "prefs" : nil }
-                )
+            TutorialMenuItem(
+                text: "Preferences",
+                isChecked: false,
+                isHovered: hoveredItem == "prefs",
+                onHover: { hoveredItem = $0 ? "prefs" : nil }
+            )
         }
         .padding(.vertical, 4)
         .frame(width: 200)
@@ -1275,7 +1278,7 @@ private struct TutorialContextMenu: View {
 private struct TutorialMenuItem: View {
     let text: String
     let isChecked: Bool
-    var hasShortcut: String? = nil
+    var hasShortcut: String?
     let isHovered: Bool
     let onHover: (Bool) -> Void
 
@@ -1344,10 +1347,10 @@ private struct TutorialCallout: View {
 
 private struct TutorialPointingArrow: View {
     enum Direction {
-        case up     // Points up at target above
-        case down   // Points down at target below
-        case left   // Points left at target to the left
-        case right  // Points right at target to the right
+        case up // Points up at target above
+        case down // Points down at target below
+        case left // Points left at target to the left
+        case right // Points right at target to the right
     }
 
     let direction: Direction
@@ -1389,35 +1392,35 @@ private struct TutorialPointingArrow: View {
 
     private var animationOffsetX: CGFloat {
         switch direction {
-        case .left: return isAnimating ? -4 : 0
-        case .right: return isAnimating ? 4 : 0
-        case .up, .down: return 0
+        case .left: isAnimating ? -4 : 0
+        case .right: isAnimating ? 4 : 0
+        case .up, .down: 0
         }
     }
 
     private var animationOffsetY: CGFloat {
         switch direction {
-        case .up: return isAnimating ? -4 : 0
-        case .down: return isAnimating ? 4 : 0
-        case .left, .right: return 0
+        case .up: isAnimating ? -4 : 0
+        case .down: isAnimating ? 4 : 0
+        case .left, .right: 0
         }
     }
 
     private var gradientStart: UnitPoint {
         switch direction {
-        case .up: return .bottom
-        case .down: return .top
-        case .left: return .trailing
-        case .right: return .leading
+        case .up: .bottom
+        case .down: .top
+        case .left: .trailing
+        case .right: .leading
         }
     }
 
     private var gradientEnd: UnitPoint {
         switch direction {
-        case .up: return .top
-        case .down: return .bottom
-        case .left: return .leading
-        case .right: return .trailing
+        case .up: .top
+        case .down: .bottom
+        case .left: .leading
+        case .right: .trailing
         }
     }
 }
@@ -1486,7 +1489,7 @@ private struct TutorialDragDemo: View {
     }
 
     @State private var currentEdge: Edge = .right
-    @State private var edgePosition: CGFloat = 0.3  // 0-1 position along the edge
+    @State private var edgePosition: CGFloat = 0.3 // 0-1 position along the edge
     @State private var isDragging = false
     @State private var hasInteracted = false
 
@@ -1494,17 +1497,17 @@ private struct TutorialDragDemo: View {
 
     private var isDarkMode: Bool { colorScheme == .dark }
 
-    private let indicatorLength: CGFloat = 108  // Length along the edge
-    private let indicatorThickness: CGFloat = 36  // Thickness perpendicular to edge
+    private let indicatorLength: CGFloat = 108 // Length along the edge
+    private let indicatorThickness: CGFloat = 36 // Thickness perpendicular to edge
     private let windowHeight: CGFloat = 200
-    private let borderGuideWidth: CGFloat = 40  // Wide gradient band like real implementation
+    private let borderGuideWidth: CGFloat = 40 // Wide gradient band like real implementation
     private let edgePadding: CGFloat = 4
 
     // Border guide color - subtle gray matching real implementation
     private var borderGuideColor: Color {
         isDarkMode
-            ? Color(hue: 30/360, saturation: 0.03, brightness: 0.45)  // Warm gray for dark
-            : Color(hue: 220/360, saturation: 0.04, brightness: 0.75)  // Cool gray for light
+            ? Color(hue: 30 / 360, saturation: 0.03, brightness: 0.45) // Warm gray for dark
+            : Color(hue: 220 / 360, saturation: 0.04, brightness: 0.75) // Cool gray for light
     }
 
     var body: some View {
@@ -1562,7 +1565,7 @@ private struct TutorialDragDemo: View {
                                 LinearGradient(
                                     colors: [
                                         borderGuideColor.opacity(currentEdge == .right ? 0.7 : 0.4),
-                                        borderGuideColor.opacity(0)
+                                        borderGuideColor.opacity(0),
                                     ],
                                     startPoint: .trailing,
                                     endPoint: .leading
@@ -1578,7 +1581,7 @@ private struct TutorialDragDemo: View {
                                 LinearGradient(
                                     colors: [
                                         borderGuideColor.opacity(currentEdge == .left ? 0.7 : 0.4),
-                                        borderGuideColor.opacity(0)
+                                        borderGuideColor.opacity(0),
                                     ],
                                     startPoint: .leading,
                                     endPoint: .trailing
@@ -1595,7 +1598,7 @@ private struct TutorialDragDemo: View {
                                 LinearGradient(
                                     colors: [
                                         borderGuideColor.opacity(currentEdge == .top ? 0.7 : 0.4),
-                                        borderGuideColor.opacity(0)
+                                        borderGuideColor.opacity(0),
                                     ],
                                     startPoint: .top,
                                     endPoint: .bottom
@@ -1613,7 +1616,7 @@ private struct TutorialDragDemo: View {
                                 LinearGradient(
                                     colors: [
                                         borderGuideColor.opacity(currentEdge == .bottom ? 0.7 : 0.4),
-                                        borderGuideColor.opacity(0)
+                                        borderGuideColor.opacity(0),
                                     ],
                                     startPoint: .bottom,
                                     endPoint: .top
@@ -1695,19 +1698,18 @@ private struct TutorialDragDemo: View {
         let distToBottom = size.height - location.y
 
         let minDist = min(distToRight, distToLeft, distToTop, distToBottom)
-        let edgeThreshold: CGFloat = 60  // Snap to edge when within this distance
+        let edgeThreshold: CGFloat = 60 // Snap to edge when within this distance
 
         // Only change edge if clearly closer to a different edge
         if minDist < edgeThreshold {
-            let newEdge: Edge
-            if minDist == distToRight {
-                newEdge = .right
+            let newEdge: Edge = if minDist == distToRight {
+                .right
             } else if minDist == distToLeft {
-                newEdge = .left
+                .left
             } else if minDist == distToTop {
-                newEdge = .top
+                .top
             } else {
-                newEdge = .bottom
+                .bottom
             }
 
             if newEdge != currentEdge {
@@ -1734,7 +1736,7 @@ private struct TutorialDragDemo: View {
 
 private struct TutorialIndicatorDraggable: View {
     let isDragging: Bool
-    let isHorizontal: Bool  // true for top/bottom edges, false for left/right
+    let isHorizontal: Bool // true for top/bottom edges, false for left/right
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -1744,6 +1746,7 @@ private struct TutorialIndicatorDraggable: View {
     private var styleColor: Color {
         isDarkMode ? Color(red: 0.95, green: 0.3, blue: 0.75) : Color(red: 0.6, green: 0.2, blue: 0.85)
     }
+
     private var textGenColor: Color {
         isDarkMode ? Color(red: 0.3, green: 0.7, blue: 1.0) : Color(red: 0.15, green: 0.5, blue: 0.8)
     }

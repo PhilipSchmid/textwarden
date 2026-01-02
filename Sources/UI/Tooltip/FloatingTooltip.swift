@@ -5,8 +5,8 @@
 //  Floating tooltip panel and modifiers for use in NSPanel/floating windows
 //
 
-import SwiftUI
 import AppKit
+import SwiftUI
 
 // MARK: - Floating Tooltip Panel
 
@@ -39,8 +39,8 @@ class TooltipPanel {
     }
 
     /// Show tooltip at specified screen position
-    func show(_ text: String, at screenPosition: CGPoint, belowButton buttonFrame: CGRect) {
-        guard let panel = panel else {
+    func show(_ text: String, at _: CGPoint, belowButton buttonFrame: CGRect) {
+        guard let panel else {
             return
         }
 

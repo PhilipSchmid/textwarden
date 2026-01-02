@@ -11,7 +11,6 @@ import Foundation
 
 /// Centralized clipboard manager for pasteboard operations
 enum ClipboardManager {
-
     // MARK: - Simple Operations
 
     /// Copy text to the system clipboard.
@@ -25,7 +24,7 @@ enum ClipboardManager {
     /// Get current clipboard text content.
     /// - Returns: The string content, or nil if clipboard doesn't contain text
     static func currentText() -> String? {
-        return NSPasteboard.general.string(forType: .string)
+        NSPasteboard.general.string(forType: .string)
     }
 
     /// Clear clipboard contents.
@@ -60,7 +59,7 @@ enum ClipboardManager {
     /// - Parameters:
     ///   - text: The text to set on clipboard
     ///   - saved: Previously saved state (for change count tracking)
-    static func setForReplacement(_ text: String, savedState: SavedState) {
+    static func setForReplacement(_ text: String, savedState _: SavedState) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)

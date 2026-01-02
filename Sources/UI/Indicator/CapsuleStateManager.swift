@@ -23,14 +23,14 @@ class CapsuleStateManager {
 
     /// Current indicator shape based on style checking preference
     var indicatorShape: IndicatorShape {
-        return UserPreferences.shared.enableStyleChecking ? .capsule : .circle
+        UserPreferences.shared.enableStyleChecking ? .capsule : .circle
     }
 
     /// Current capsule orientation based on indicator position
     /// This is the default orientation from preferences; actual orientation should be determined
     /// from the real indicator position relative to window bounds
     var capsuleOrientation: CapsuleOrientation {
-        return CapsuleOrientation.from(position: UserPreferences.shared.indicatorPosition)
+        CapsuleOrientation.from(position: UserPreferences.shared.indicatorPosition)
     }
 
     /// Determine orientation from percentage position
@@ -117,7 +117,7 @@ class CapsuleStateManager {
         case .horizontal:
             // Multiple sections arranged horizontally
             let sectionCount = CGFloat(sections.count)
-            let totalWidth = (sectionCount * UIConstants.capsuleSectionHeight) +  // Section size is square
+            let totalWidth = (sectionCount * UIConstants.capsuleSectionHeight) + // Section size is square
                 ((sectionCount - 1) * UIConstants.capsuleSectionSpacing)
             return totalWidth
         }
@@ -188,13 +188,13 @@ class CapsuleStateManager {
     /// Get color for grammar errors based on severity
     private func colorForErrors(_ errors: [GrammarErrorModel]) -> NSColor {
         if errors.contains(where: { $0.category == "Spelling" || $0.category == "Typo" }) {
-            return .systemRed
+            .systemRed
         } else if errors.contains(where: {
             $0.category == "Grammar" || $0.category == "Agreement" || $0.category == "Punctuation"
         }) {
-            return .systemOrange
+            .systemOrange
         } else {
-            return .systemBlue
+            .systemBlue
         }
     }
 }

@@ -5,10 +5,10 @@
 //  Swift wrapper for Sparkle auto-update functionality.
 //
 
-import Foundation
-import Sparkle
 import Combine
+import Foundation
 import os.log
+import Sparkle
 
 /// Status of update check (for UI display)
 enum UpdateCheckStatus: String, Equatable {
@@ -27,14 +27,14 @@ final class UpdaterDelegate: NSObject, SPUUpdaterDelegate {
     /// Whether to include experimental channel in updates
     var includeExperimentalUpdates: Bool = false
 
-    func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: (any Error)?) {
+    func updater(_: SPUUpdater, didFinishUpdateCycleFor _: SPUUpdateCheck, error: (any Error)?) {
         DispatchQueue.main.async { [weak self] in
             let formatter = DateFormatter()
             formatter.dateStyle = .short
             formatter.timeStyle = .short
             let timestamp = formatter.string(from: Date())
 
-            if let error = error {
+            if let error {
                 Logger.warning("Update check failed: \(error.localizedDescription)", category: Logger.lifecycle)
                 self?.onError?(timestamp)
             } else {
@@ -44,7 +44,7 @@ final class UpdaterDelegate: NSObject, SPUUpdaterDelegate {
         }
     }
 
-    func allowedChannels(for updater: SPUUpdater) -> Set<String> {
+    func allowedChannels(for _: SPUUpdater) -> Set<String> {
         if includeExperimentalUpdates {
             Logger.debug("Experimental updates enabled - including experimental channel", category: Logger.lifecycle)
             return Set(["experimental"])
@@ -57,7 +57,6 @@ final class UpdaterDelegate: NSObject, SPUUpdaterDelegate {
 /// ViewModel for managing app updates via Sparkle
 @MainActor
 final class UpdaterViewModel: ObservableObject {
-
     /// User preference for automatic update checks (synced with Sparkle)
     @Published var automaticallyChecksForUpdates: Bool = false {
         didSet {
@@ -105,7 +104,7 @@ final class UpdaterViewModel: ObservableObject {
 
         // Create delegate first and set up callbacks
         let delegate = UpdaterDelegate()
-        self.updaterDelegate = delegate
+        updaterDelegate = delegate
 
         // Initialize the updater controller with our delegate
         // startingUpdater: false - we control when checks happen (startup + 24h interval)
@@ -148,7 +147,8 @@ final class UpdaterViewModel: ObservableObject {
             statusText = "Last checked: \(formatDate(lastUpdateCheckDate))"
         }
         if let savedStatusRaw = UserDefaults.standard.string(forKey: "TWUpdateCheckStatus"),
-           let savedStatus = UpdateCheckStatus(rawValue: savedStatusRaw) {
+           let savedStatus = UpdateCheckStatus(rawValue: savedStatusRaw)
+        {
             checkStatus = savedStatus
         }
 
@@ -162,10 +162,10 @@ final class UpdaterViewModel: ObservableObject {
 
         // Set up delegate callbacks (after self is initialized)
         delegate.onSuccess = { [weak self] date in
-            guard let self = self else { return }
-            self.checkStatus = .success
-            self.lastUpdateCheckDate = date
-            self.statusText = "Up to date (\(self.formatDate(date)))"
+            guard let self else { return }
+            checkStatus = .success
+            lastUpdateCheckDate = date
+            statusText = "Up to date (\(formatDate(date)))"
         }
 
         delegate.onError = { [weak self] timestamp in
@@ -197,7 +197,7 @@ final class UpdaterViewModel: ObservableObject {
 
     /// Format a date for display
     private func formatDate(_ date: Date?) -> String {
-        guard let date = date else {
+        guard let date else {
             return "Never"
         }
         let formatter = DateFormatter()

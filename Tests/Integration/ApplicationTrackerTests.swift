@@ -5,8 +5,8 @@
 //  Integration tests for per-app filtering
 //
 
-import XCTest
 @testable import TextWarden
+import XCTest
 
 final class ApplicationTrackerTests: XCTestCase {
     var tracker: ApplicationTracker!
@@ -100,7 +100,7 @@ final class ApplicationTrackerTests: XCTestCase {
         let context2 = ApplicationContext(
             applicationName: "TextEdit",
             bundleIdentifier: "com.apple.TextEdit",
-            processID: 67890  // Different PID
+            processID: 67890 // Different PID
         )
 
         // Should be equal based on bundle ID
@@ -117,7 +117,7 @@ final class ApplicationTrackerTests: XCTestCase {
         let context2 = ApplicationContext(
             applicationName: "VSCode",
             bundleIdentifier: "com.microsoft.VSCode",
-            processID: 12345  // Same PID
+            processID: 12345 // Same PID
         )
 
         // Should NOT be equal (different bundle IDs)

@@ -5,10 +5,10 @@
 //  General preferences including appearance, permissions, and keyboard shortcuts.
 //
 
-import SwiftUI
-import LaunchAtLogin
-import KeyboardShortcuts
 import AppKit
+import KeyboardShortcuts
+import LaunchAtLogin
+import SwiftUI
 
 // MARK: - General Preferences
 
@@ -20,6 +20,7 @@ struct GeneralPreferencesView: View {
     var body: some View {
         Form {
             // MARK: Application Settings Group
+
             Section {
                 VStack(alignment: .leading, spacing: 8) {
                     Picker("Grammar checking:", selection: $preferences.pauseDuration) {
@@ -83,8 +84,8 @@ struct GeneralPreferencesView: View {
                     }
 
                     Text(permissionManager.isPermissionGranted ?
-                         "TextWarden has the necessary permissions to monitor your text and provide grammar checking." :
-                         "TextWarden needs Accessibility permissions to monitor your text.")
+                        "TextWarden has the necessary permissions to monitor your text and provide grammar checking." :
+                        "TextWarden needs Accessibility permissions to monitor your text.")
                         .font(.caption)
                         .foregroundColor(.secondary)
 
@@ -119,6 +120,7 @@ struct GeneralPreferencesView: View {
             }
 
             // MARK: Appearance Settings Group
+
             Section {
                 Picker("Position:", selection: $preferences.suggestionPosition) {
                     ForEach(UserPreferences.suggestionPositions, id: \.self) { position in
@@ -137,7 +139,7 @@ struct GeneralPreferencesView: View {
                         Text(String(format: "%.0fpt", preferences.suggestionTextSize))
                             .foregroundColor(.secondary)
                     }
-                    Slider(value: $preferences.suggestionTextSize, in: 10.0...20.0, step: 1.0)
+                    Slider(value: $preferences.suggestionTextSize, in: 10.0 ... 20.0, step: 1.0)
                 }
 
                 Text("Position: Where the popover appears (Auto adjusts based on screen space). Show on hover: When disabled, click underlines or the indicator to show suggestions.")
@@ -199,7 +201,7 @@ struct GeneralPreferencesView: View {
                             Text(String(format: "%.1fpt", preferences.underlineThickness))
                                 .foregroundColor(.secondary)
                         }
-                        Slider(value: $preferences.underlineThickness, in: 1.0...5.0, step: 0.5)
+                        Slider(value: $preferences.underlineThickness, in: 1.0 ... 5.0, step: 0.5)
                     }
                     .padding(.top, 4)
 
@@ -215,7 +217,7 @@ struct GeneralPreferencesView: View {
                                 get: { Double(preferences.maxErrorsForUnderlines) },
                                 set: { preferences.maxErrorsForUnderlines = Int($0) }
                             ),
-                            in: 1...20,
+                            in: 1 ... 20,
                             step: 1
                         )
                     }
@@ -267,7 +269,7 @@ struct GeneralPreferencesView: View {
                             get: { Double(preferences.popoverHoverDelayMs) },
                             set: { preferences.popoverHoverDelayMs = Int($0) }
                         ),
-                        in: 0...1000,
+                        in: 0 ... 1000,
                         step: 50
                     )
                     Text("Delay before showing the suggestion popover when hovering over the indicator. Set to 0 for instant display.")
@@ -281,6 +283,7 @@ struct GeneralPreferencesView: View {
             }
 
             // MARK: Keyboard Shortcuts Group
+
             Section {
                 Toggle("Enable keyboard shortcuts", isOn: $preferences.keyboardShortcutsEnabled)
                     .help("Enable or disable all keyboard shortcuts")
@@ -378,4 +381,3 @@ struct GeneralPreferencesView: View {
         }
     }
 }
-

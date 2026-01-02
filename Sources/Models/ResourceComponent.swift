@@ -8,17 +8,17 @@ import SwiftUI
 public enum ResourceComponent: String, Codable, CaseIterable, Sendable {
     case swiftApp = "Swift Application"
     case grammarEngine = "Grammar Engine (Rust)"
-    case styleEngine = "Style Engine (Rust)"  // Future: LLM/AI model
+    case styleEngine = "Style Engine (Rust)" // Future: LLM/AI model
 
     var identifier: String {
-        return self.rawValue
+        rawValue
     }
 
     var color: Color {
         switch self {
-        case .swiftApp: return .blue
-        case .grammarEngine: return .orange
-        case .styleEngine: return .purple
+        case .swiftApp: .blue
+        case .grammarEngine: .orange
+        case .styleEngine: .purple
         }
     }
 }

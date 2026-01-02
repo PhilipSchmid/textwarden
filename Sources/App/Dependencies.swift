@@ -20,9 +20,9 @@
 //    ))
 //
 
-import Foundation
 import AppKit
 @preconcurrency import ApplicationServices
+import Foundation
 
 // MARK: - Service Protocols
 

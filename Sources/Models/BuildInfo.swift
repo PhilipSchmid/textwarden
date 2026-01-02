@@ -8,9 +8,9 @@
 import Foundation
 
 /// Build information captured at compile time
-struct BuildInfo {
+enum BuildInfo {
     /// Date when the app was launched
-    static let launchDate: Date = Date()
+    static let launchDate: Date = .init()
 
     /// Timestamp when the app was launched (UTC)
     static let launchTimestamp: String = {
@@ -75,12 +75,12 @@ struct BuildInfo {
 
     /// Full version string (e.g., "1.0.0 (42)")
     static var fullVersion: String {
-        return "\(appVersion) (\(buildNumber))"
+        "\(appVersion) (\(buildNumber))"
     }
 
     /// Complete build info for logging
     static var fullInfo: String {
-        return """
+        """
         Version: \(fullVersion)
         App Started: \(launchTimestamp)
         Uptime: \(uptime)

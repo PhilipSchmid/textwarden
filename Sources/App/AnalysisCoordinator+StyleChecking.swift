@@ -6,12 +6,12 @@
 //  Handles Apple Intelligence style analysis, AI-enhanced readability suggestions, and style caching.
 //
 
-import Foundation
 import AppKit
 @preconcurrency import ApplicationServices
+import Foundation
 
 #if canImport(FoundationModels)
-import FoundationModels
+    import FoundationModels
 #endif
 
 // MARK: - Performance Optimizations (User Story 4)
@@ -28,7 +28,7 @@ extension AnalysisCoordinator {
         var prefixLength = 0
         let minLength = min(oldChars.count, newChars.count)
 
-        while prefixLength < minLength && oldChars[prefixLength] == newChars[prefixLength] {
+        while prefixLength < minLength, oldChars[prefixLength] == newChars[prefixLength] {
             prefixLength += 1
         }
 
@@ -37,19 +37,21 @@ extension AnalysisCoordinator {
         let oldSuffixStart = oldChars.count - 1
         let newSuffixStart = newChars.count - 1
 
-        while suffixLength < minLength - prefixLength &&
-              oldChars[oldSuffixStart - suffixLength] == newChars[newSuffixStart - suffixLength] {
+        while suffixLength < minLength - prefixLength,
+              oldChars[oldSuffixStart - suffixLength] == newChars[newSuffixStart - suffixLength]
+        {
             suffixLength += 1
         }
 
         // Calculate changed region using safe index operations
         guard let changeStart = newText.index(newText.startIndex, offsetBy: prefixLength, limitedBy: newText.endIndex),
               let changeEnd = newText.index(newText.endIndex, offsetBy: -suffixLength, limitedBy: newText.startIndex),
-              changeStart <= changeEnd else {
+              changeStart <= changeEnd
+        else {
             return nil
         }
 
-        return changeStart..<changeEnd
+        return changeStart ..< changeEnd
     }
 
     /// Detect sentence boundaries for context-aware analysis
@@ -65,10 +67,11 @@ extension AnalysisCoordinator {
             let char = text[searchIndex]
 
             if let firstScalar = char.unicodeScalars.first,
-               sentenceTerminators.contains(firstScalar) {
+               sentenceTerminators.contains(firstScalar)
+            {
                 // Move past the terminator and any whitespace
                 sentenceStart = text.index(after: searchIndex)
-                while sentenceStart < text.endIndex && text[sentenceStart].isWhitespace {
+                while sentenceStart < text.endIndex, text[sentenceStart].isWhitespace {
                     sentenceStart = text.index(after: sentenceStart)
                 }
                 break
@@ -83,7 +86,8 @@ extension AnalysisCoordinator {
             let char = text[searchIndex]
 
             if let firstScalar = char.unicodeScalars.first,
-               sentenceTerminators.contains(firstScalar) {
+               sentenceTerminators.contains(firstScalar)
+            {
                 // Include the terminator
                 sentenceEnd = text.index(after: searchIndex)
                 break
@@ -92,7 +96,7 @@ extension AnalysisCoordinator {
             searchIndex = text.index(after: searchIndex)
         }
 
-        return sentenceStart..<sentenceEnd
+        return sentenceStart ..< sentenceEnd
     }
 
     /// Merge new analysis results with cached results
@@ -101,7 +105,7 @@ extension AnalysisCoordinator {
 
         // Keep cached errors outside changed range
         for error in cached {
-            let errorRange = error.start..<error.end
+            let errorRange = error.start ..< error.end
             if !errorRange.overlaps(changedRange) {
                 merged.append(error)
             }
@@ -150,7 +154,7 @@ extension AnalysisCoordinator {
         let sortedEntries = cacheMetadata.sorted { $0.value.lastAccessed < $1.value.lastAccessed }
 
         let toRemove = sortedEntries.count - maxCachedDocuments
-        for i in 0..<toRemove {
+        for i in 0 ..< toRemove {
             let key = sortedEntries[i].key
             errorCache.removeValue(forKey: key)
             cacheMetadata.removeValue(forKey: key)
@@ -213,7 +217,7 @@ extension AnalysisCoordinator {
         let sortedEntries = styleCacheMetadata.sorted { $0.value.lastAccessed < $1.value.lastAccessed }
         let toRemove = sortedEntries.count - maxStyleCacheEntries
 
-        for i in 0..<toRemove {
+        for i in 0 ..< toRemove {
             let key = sortedEntries[i].key
             styleCache.removeValue(forKey: key)
             styleCacheMetadata.removeValue(forKey: key)
@@ -239,7 +243,8 @@ extension AnalysisCoordinator {
 
         // Get current monitored element and context
         guard let element = textMonitor.monitoredElement,
-              let context = monitoredContext else {
+              let context = monitoredContext
+        else {
             Logger.debug("Style check: No monitored element", category: Logger.llm)
             return
         }
@@ -344,7 +349,7 @@ extension AnalysisCoordinator {
 
         // Run style analysis using Apple Intelligence
         Task { @MainActor [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
 
             let segmentContent = text
 
@@ -367,32 +372,32 @@ extension AnalysisCoordinator {
 
                 // Filter out suggestions that overlap with grammar errors (to avoid duplicating spelling/grammar fixes)
                 let beforeGrammarFilter = filteredSuggestions.count
-                filteredSuggestions = self.filterStyleSuggestionsNotOverlappingGrammarErrors(filteredSuggestions, grammarErrors: self.currentErrors)
+                filteredSuggestions = filterStyleSuggestionsNotOverlappingGrammarErrors(filteredSuggestions, grammarErrors: currentErrors)
                 let removedByGrammarFilter = beforeGrammarFilter - filteredSuggestions.count
 
                 Logger.debug("Style check: Completed in \(latencyMs)ms, \(suggestions.count) suggestion(s), \(filteredSuggestions.count) after filtering (\(removedByGrammarFilter) overlapped grammar errors)", category: Logger.llm)
 
                 // Update statistics
-                self.statistics.recordStyleSuggestions(
+                statistics.recordStyleSuggestions(
                     count: filteredSuggestions.count,
                     latencyMs: Double(latencyMs),
                     modelId: "apple-foundation-models",
                     preset: temperaturePresetName
                 )
 
-                self.currentStyleSuggestions = filteredSuggestions
-                self.styleAnalysisSourceText = capturedFullText
+                currentStyleSuggestions = filteredSuggestions
+                styleAnalysisSourceText = capturedFullText
 
                 // Cache the unfiltered results - filtering happens at display time
-                self.styleCache[cacheKey] = suggestions
-                self.styleCacheMetadata[cacheKey] = StyleCacheMetadata(
+                styleCache[cacheKey] = suggestions
+                styleCacheMetadata[cacheKey] = StyleCacheMetadata(
                     lastAccessed: Date(),
                     style: styleName
                 )
-                self.evictStyleCacheIfNeeded()
+                evictStyleCacheIfNeeded()
 
                 // Update indicator to show results (checkmark first, then transition)
-                self.floatingIndicator.showStyleSuggestionsReady(
+                floatingIndicator.showStyleSuggestionsReady(
                     count: filteredSuggestions.count,
                     styleSuggestions: filteredSuggestions
                 )
@@ -408,10 +413,10 @@ extension AnalysisCoordinator {
                 Logger.warning("Style check: Failed after \(latencyMs)ms", category: Logger.llm)
 
                 // Error occurred - still show checkmark to indicate completion, then hide
-                self.currentStyleSuggestions = []
+                currentStyleSuggestions = []
 
                 // Show checkmark even for errors so user knows check completed
-                self.floatingIndicator.showStyleSuggestionsReady(
+                floatingIndicator.showStyleSuggestionsReady(
                     count: 0,
                     styleSuggestions: []
                 )
@@ -463,7 +468,7 @@ extension AnalysisCoordinator {
                 customVocabulary: Array(UserPreferences.shared.customDictionary)
             )
 
-            if let newSuggestion = newSuggestion {
+            if let newSuggestion {
                 Logger.debug("AnalysisCoordinator: Regeneration successful - new suggestion: '\(newSuggestion.suggestedText.prefix(30))...'", category: Logger.analysis)
 
                 // Update the tracking
@@ -488,7 +493,8 @@ extension AnalysisCoordinator {
 
         // First check if there's a selection range with non-zero length
         guard let range = AccessibilityBridge.getSelectedTextRange(element),
-              range.length > 0 else {
+              range.length > 0
+        else {
             return nil
         }
 
@@ -523,7 +529,8 @@ extension AnalysisCoordinator {
             // Check if this is a readability error without suggestions
             guard error.category == "Readability",
                   error.message.lowercased().contains("words long"),
-                  error.suggestions.isEmpty else {
+                  error.suggestions.isEmpty
+            else {
                 continue
             }
 
@@ -534,11 +541,12 @@ extension AnalysisCoordinator {
             guard start >= 0, start < end,
                   let startIndex = sourceText.index(sourceText.startIndex, offsetBy: start, limitedBy: sourceText.endIndex),
                   let endIndex = sourceText.index(sourceText.startIndex, offsetBy: end, limitedBy: sourceText.endIndex),
-                  startIndex <= endIndex else {
+                  startIndex <= endIndex
+            else {
                 continue
             }
 
-            let sentence = String(sourceText[startIndex..<endIndex])
+            let sentence = String(sourceText[startIndex ..< endIndex])
 
             // Check if we have a cached AI suggestion (thread-safe via AIRephraseCache)
             if let cachedRephrase = aiRephraseCache.get(sentence) {
@@ -564,10 +572,10 @@ extension AnalysisCoordinator {
     /// Enhance readability errors (like LongSentences) with AI-generated rephrase suggestions
     /// Note: Auto-enhancement is disabled. Users can manually trigger style checking via the popover.
     func enhanceReadabilityErrorsWithAI(
-        errors: [GrammarErrorModel],
-        sourceText: String,
-        element: AXUIElement?,
-        segment: TextSegment
+        errors _: [GrammarErrorModel],
+        sourceText _: String,
+        element _: AXUIElement?,
+        segment _: TextSegment
     ) {
         // Auto AI enhancement for readability errors is disabled
         // Users can manually trigger style checking which uses FoundationModelsEngine
@@ -586,10 +594,10 @@ extension AnalysisCoordinator {
 
         return suggestions.filter { suggestion in
             // Check if this style suggestion overlaps with any grammar error
-            let suggestionRange = suggestion.originalStart..<suggestion.originalEnd
+            let suggestionRange = suggestion.originalStart ..< suggestion.originalEnd
 
             for error in grammarErrors {
-                let errorRange = error.start..<error.end
+                let errorRange = error.start ..< error.end
 
                 // Check for overlap
                 if suggestionRange.overlaps(errorRange) {
@@ -654,7 +662,8 @@ extension AnalysisCoordinator {
         // Safe index operations
         guard let startIdx = fullText.index(fullText.startIndex, offsetBy: windowStart, limitedBy: fullText.endIndex),
               let endIdx = fullText.index(fullText.startIndex, offsetBy: windowEnd, limitedBy: fullText.endIndex),
-              startIdx < endIdx else {
+              startIdx < endIdx
+        else {
             return GenerationContext(
                 selectedText: nil,
                 surroundingText: nil,
@@ -664,7 +673,7 @@ extension AnalysisCoordinator {
             )
         }
 
-        let window = String(fullText[startIdx..<endIdx])
+        let window = String(fullText[startIdx ..< endIdx])
         Logger.debug("AnalysisCoordinator: extractGenerationContext - using window (\(window.count) chars around cursor)", category: Logger.analysis)
 
         return GenerationContext(

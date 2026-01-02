@@ -19,15 +19,15 @@ enum LiquidGlassStyle {
 
 /// Tint color options for the Liquid Glass effect
 enum LiquidGlassTint {
-    case blue      // Grammar errors - primary
-    case purple    // Style suggestions
-    case clear     // Neutral/no tint
+    case blue // Grammar errors - primary
+    case purple // Style suggestions
+    case clear // Neutral/no tint
 
     var hue: Double {
         switch self {
-        case .blue: return 215.0 / 360.0
-        case .purple: return 280.0 / 360.0
-        case .clear: return 0
+        case .blue: 215.0 / 360.0
+        case .purple: 280.0 / 360.0
+        case .clear: 0
         }
     }
 }
@@ -78,17 +78,17 @@ struct LiquidGlassModifier: ViewModifier {
 
     private var shadowRadiusValue: CGFloat {
         switch style {
-        case .regular: return 16
-        case .prominent: return 20
-        case .subtle: return 10
+        case .regular: 16
+        case .prominent: 20
+        case .subtle: 10
         }
     }
 
     private var shadowYValue: CGFloat {
         switch style {
-        case .regular: return 6
-        case .prominent: return 8
-        case .subtle: return 4
+        case .regular: 6
+        case .prominent: 8
+        case .subtle: 4
         }
     }
 
@@ -151,7 +151,7 @@ struct LiquidGlassModifier: ViewModifier {
                     colors: [
                         Color.white.opacity(0),
                         Color.white.opacity(isDark ? 0.25 : 0.4),
-                        Color.white.opacity(0)
+                        Color.white.opacity(0),
                     ],
                     startPoint: .leading,
                     endPoint: .trailing
@@ -165,9 +165,9 @@ struct LiquidGlassModifier: ViewModifier {
 
     private func materialOpacityForMode(isDark: Bool) -> Double {
         switch style {
-        case .regular: return isDark ? 0.85 : 0.9
-        case .prominent: return isDark ? 0.95 : 0.95
-        case .subtle: return isDark ? 0.7 : 0.8
+        case .regular: isDark ? 0.85 : 0.9
+        case .prominent: isDark ? 0.95 : 0.95
+        case .subtle: isDark ? 0.7 : 0.8
         }
     }
 
@@ -179,7 +179,7 @@ struct LiquidGlassModifier: ViewModifier {
         return LinearGradient(
             colors: [
                 Color(hue: hue, saturation: baseSaturation, brightness: baseBrightness),
-                Color(hue: hue, saturation: baseSaturation * 1.2, brightness: baseBrightness * (isDark ? 0.85 : 0.98))
+                Color(hue: hue, saturation: baseSaturation * 1.2, brightness: baseBrightness * (isDark ? 0.85 : 0.98)),
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
@@ -188,9 +188,9 @@ struct LiquidGlassModifier: ViewModifier {
 
     private func tintOpacityForMode(isDark: Bool) -> Double {
         switch style {
-        case .regular: return isDark ? 0.4 : 0.35
-        case .prominent: return isDark ? 0.5 : 0.45
-        case .subtle: return isDark ? 0.25 : 0.2
+        case .regular: isDark ? 0.4 : 0.35
+        case .prominent: isDark ? 0.5 : 0.45
+        case .subtle: isDark ? 0.25 : 0.2
         }
     }
 
@@ -198,7 +198,7 @@ struct LiquidGlassModifier: ViewModifier {
         LinearGradient(
             colors: [
                 Color.white.opacity(isDark ? 0.08 : 0.15),
-                Color.clear
+                Color.clear,
             ],
             startPoint: .top,
             endPoint: .center
@@ -207,9 +207,9 @@ struct LiquidGlassModifier: ViewModifier {
 
     private var highlightOpacityValue: Double {
         switch style {
-        case .regular: return 1.0
-        case .prominent: return 1.2
-        case .subtle: return 0.7
+        case .regular: 1.0
+        case .prominent: 1.2
+        case .subtle: 0.7
         }
     }
 
@@ -225,7 +225,7 @@ struct LiquidGlassModifier: ViewModifier {
                         : Color.white.opacity(0.15),
                     hasTint
                         ? Color(hue: hue, saturation: 0.25, brightness: 0.3).opacity(0.3)
-                        : Color.white.opacity(0.08)
+                        : Color.white.opacity(0.08),
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -238,7 +238,7 @@ struct LiquidGlassModifier: ViewModifier {
                         : Color.black.opacity(0.08),
                     hasTint
                         ? Color(hue: hue, saturation: 0.2, brightness: 0.85).opacity(0.25)
-                        : Color.black.opacity(0.05)
+                        : Color.black.opacity(0.05),
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -248,9 +248,9 @@ struct LiquidGlassModifier: ViewModifier {
 
     private var borderWidthValue: CGFloat {
         switch style {
-        case .regular: return 1.0
-        case .prominent: return 1.5
-        case .subtle: return 0.5
+        case .regular: 1.0
+        case .prominent: 1.5
+        case .subtle: 0.5
         }
     }
 }
@@ -319,7 +319,7 @@ struct LiquidGlassButtonStyle: ButtonStyle {
             LinearGradient(
                 colors: [
                     Color(hue: hue, saturation: 0.7, brightness: colorScheme == .dark ? 0.6 : 0.55),
-                    Color(hue: hue, saturation: 0.75, brightness: colorScheme == .dark ? 0.5 : 0.48)
+                    Color(hue: hue, saturation: 0.75, brightness: colorScheme == .dark ? 0.5 : 0.48),
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing

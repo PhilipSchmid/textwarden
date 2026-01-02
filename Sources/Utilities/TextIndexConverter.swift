@@ -17,7 +17,6 @@ import Foundation
 
 /// Centralized utility for converting between different text indexing systems
 enum TextIndexConverter {
-
     // MARK: - Unicode Scalar ↔ String.Index (Grapheme Cluster)
 
     /// Convert Unicode scalar index to String.Index (grapheme cluster based).
@@ -77,7 +76,8 @@ enum TextIndexConverter {
         // Use safe index operations to prevent crashes on out-of-bounds access
         guard range.location >= 0, range.location <= endPosition,
               let startIndex = text.index(text.startIndex, offsetBy: range.location, limitedBy: text.endIndex),
-              let endIndex = text.index(text.startIndex, offsetBy: endPosition, limitedBy: text.endIndex) else {
+              let endIndex = text.index(text.startIndex, offsetBy: endPosition, limitedBy: text.endIndex)
+        else {
             return range // Out of bounds, return original
         }
 
@@ -133,7 +133,7 @@ enum TextIndexConverter {
     ///   - string: The string to convert within
     /// - Returns: The UTF-16 code unit offset
     static func utf16Offset(of index: String.Index, in string: String) -> Int {
-        return string.utf16.distance(from: string.utf16.startIndex, to: index)
+        string.utf16.distance(from: string.utf16.startIndex, to: index)
     }
 
     /// Convert UTF-16 code unit offset to String.Index.
@@ -164,10 +164,11 @@ enum TextIndexConverter {
     static func extractErrorText(start: Int, end: Int, from text: String) -> String? {
         guard let startIndex = scalarIndexToStringIndex(start, in: text),
               let endIndex = scalarIndexToStringIndex(end, in: text),
-              startIndex < endIndex else {
+              startIndex < endIndex
+        else {
             return nil
         }
-        return String(text[startIndex..<endIndex])
+        return String(text[startIndex ..< endIndex])
     }
 
     /// Convert Harper's scalar range to CFRange for accessibility APIs.
@@ -179,7 +180,8 @@ enum TextIndexConverter {
     /// - Returns: CFRange in UTF-16 code units for accessibility APIs
     static func scalarRangeToUTF16CFRange(start: Int, end: Int, in text: String) -> CFRange? {
         guard let startIndex = scalarIndexToStringIndex(start, in: text),
-              let endIndex = scalarIndexToStringIndex(end, in: text) else {
+              let endIndex = scalarIndexToStringIndex(end, in: text)
+        else {
             return nil
         }
 

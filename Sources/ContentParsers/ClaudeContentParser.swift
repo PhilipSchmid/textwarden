@@ -6,8 +6,8 @@
 //  Claude is an Electron app that shares Chromium's newline handling with Slack.
 //
 
-import Foundation
 import AppKit
+import Foundation
 
 /// Claude-specific content parser
 /// Uses ChromiumStrategy positioning with newline offset adjustments (like Slack)
@@ -22,12 +22,12 @@ class ClaudeContentParser: ContentParser {
 
     /// Visual underlines enabled from AppConfiguration
     var disablesVisualUnderlines: Bool {
-        return !config.features.visualUnderlinesEnabled
+        !config.features.visualUnderlinesEnabled
     }
 
     /// Claude needs UTF-16 conversion for correct emoji handling in Chromium selection APIs
     var requiresUTF16Conversion: Bool {
-        return true
+        true
     }
 
     /// Calculate selection offset for Claude
@@ -45,25 +45,25 @@ class ClaudeContentParser: ContentParser {
         let prefix = String(text[..<endStringIndex])
 
         // Count newlines - Chromium selection API treats these as zero-width
-        let newlineCount = prefix.filter { $0 == "\n" }.count
+        let newlineCount = prefix.count(where: { $0 == "\n" })
 
         return newlineCount
     }
 
-    func detectUIContext(element: AXUIElement) -> String? {
-        return "prompt-input"  // Claude has a single main input context
+    func detectUIContext(element _: AXUIElement) -> String? {
+        "prompt-input" // Claude has a single main input context
     }
 
-    func estimatedFontSize(context: String?) -> CGFloat {
-        return config.fontConfig.defaultSize
+    func estimatedFontSize(context _: String?) -> CGFloat {
+        config.fontConfig.defaultSize
     }
 
-    func spacingMultiplier(context: String?) -> CGFloat {
-        return config.fontConfig.spacingMultiplier
+    func spacingMultiplier(context _: String?) -> CGFloat {
+        config.fontConfig.spacingMultiplier
     }
 
-    func horizontalPadding(context: String?) -> CGFloat {
-        return config.horizontalPadding
+    func horizontalPadding(context _: String?) -> CGFloat {
+        config.horizontalPadding
     }
 
     /// Use the multi-strategy PositionResolver for positioning
@@ -73,7 +73,7 @@ class ClaudeContentParser: ContentParser {
         in element: AXUIElement,
         text: String
     ) -> GeometryResult {
-        return PositionResolver.shared.resolvePosition(
+        PositionResolver.shared.resolvePosition(
             for: errorRange,
             in: element,
             text: text,
@@ -108,7 +108,8 @@ class ClaudeContentParser: ContentParser {
 
         // Try direct AX bounds for the error range
         if let bounds = AccessibilityBridge.getBoundsForRange(errorRange, in: element),
-           bounds.origin.x > 0 && bounds.origin.y > 0 {
+           bounds.origin.x > 0, bounds.origin.y > 0
+        {
             return AdjustedBounds(
                 position: NSPoint(x: bounds.origin.x, y: bounds.origin.y),
                 errorWidth: bounds.width,
@@ -134,7 +135,7 @@ class ClaudeContentParser: ContentParser {
     private func getCursorAnchoredPosition(
         element: AXUIElement,
         errorRange: NSRange,
-        textBeforeError: String,
+        textBeforeError _: String,
         errorText: String,
         fullText: String,
         context: String?,
@@ -146,8 +147,9 @@ class ClaudeContentParser: ContentParser {
             kAXSelectedTextRangeAttribute as CFString,
             &selectedRangeValue
         ) == .success,
-              let rangeRef = selectedRangeValue,
-              let selectedRange = safeAXValueGetRange(rangeRef) else {
+            let rangeRef = selectedRangeValue,
+            let selectedRange = safeAXValueGetRange(rangeRef)
+        else {
             return nil
         }
 
@@ -160,8 +162,9 @@ class ClaudeContentParser: ContentParser {
         var insertionPointValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, "AXInsertionPointFrame" as CFString, &insertionPointValue) == .success,
            let axValue = insertionPointValue,
-           let frame = safeAXValueGetRect(axValue) {
-            if frame.width >= 0 && frame.height > GeometryConstants.minimumBoundsSize && frame.height < GeometryConstants.conservativeMaxLineHeight {
+           let frame = safeAXValueGetRect(axValue)
+        {
+            if frame.width >= 0, frame.height > GeometryConstants.minimumBoundsSize, frame.height < GeometryConstants.conservativeMaxLineHeight {
                 cursorBounds = frame
             }
         }
@@ -169,7 +172,8 @@ class ClaudeContentParser: ContentParser {
         // Method 2: Bounds for character at cursor
         if cursorBounds == nil {
             if let bounds = AccessibilityBridge.getBoundsForRange(NSRange(location: cursorPosition, length: 1), in: element),
-               bounds.origin.x > 0 && bounds.origin.y > 0 {
+               bounds.origin.x > 0, bounds.origin.y > 0
+            {
                 cursorBounds = bounds
             }
         }
@@ -210,7 +214,7 @@ class ClaudeContentParser: ContentParser {
 
     private func getTextMeasurementFallback(
         element: AXUIElement,
-        errorRange: NSRange,
+        errorRange _: NSRange,
         textBeforeError: String,
         errorText: String,
         context: String?,

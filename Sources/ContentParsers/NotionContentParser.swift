@@ -10,12 +10,11 @@
 //  (same approach as Slack and Teams).
 //
 
-import Foundation
 import AppKit
+import Foundation
 
 /// Notion-specific content parser for text preprocessing
 class NotionContentParser: ContentParser {
-
     // MARK: - Properties
 
     let bundleIdentifier: String
@@ -29,12 +28,12 @@ class NotionContentParser: ContentParser {
         "Add cover",
         "Add comment",
         "Type '/' for commands",
-        "Type \u{2018}/\u{2019} for commands",  // Curly quotes variant (U+2018/U+2019)
-        "Write, press 'space' for AI, '/' for commands",  // AI placeholder (straight quotes)
-        "Write, press \u{2018}space\u{2019} for AI, \u{2018}/\u{2019} for commands",  // Curly quotes variant
-        "Write, press 'space' for AI",  // Shorter variant (straight quotes)
-        "Write, press \u{2018}space\u{2019} for AI",  // Curly quotes shorter variant
-        "Write, press \u{2018}space\u{2019}",  // Even shorter (what Notion actually sends)
+        "Type \u{2018}/\u{2019} for commands", // Curly quotes variant (U+2018/U+2019)
+        "Write, press 'space' for AI, '/' for commands", // AI placeholder (straight quotes)
+        "Write, press \u{2018}space\u{2019} for AI, \u{2018}/\u{2019} for commands", // Curly quotes variant
+        "Write, press 'space' for AI", // Shorter variant (straight quotes)
+        "Write, press \u{2018}space\u{2019} for AI", // Curly quotes shorter variant
+        "Write, press \u{2018}space\u{2019}", // Even shorter (what Notion actually sends)
         "Press Enter to continue with an empty page",
         "Untitled",
     ]
@@ -59,21 +58,21 @@ class NotionContentParser: ContentParser {
     /// NOTE: Code blocks are virtualized (no AX element) so they're handled separately
     /// via the U+200B marker detection in preprocessText().
     private static let allowedContainerRoleDescriptions: Set<String> = [
-        "",                     // Empty - some elements don't have roleDesc
-        "group",                // Generic containers
-        "text entry area",      // Text blocks
-        "heading",              // Headers (H1, H2, H3)
-        "text",                 // AXStaticText elements
+        "", // Empty - some elements don't have roleDesc
+        "group", // Generic containers
+        "text entry area", // Text blocks
+        "heading", // Headers (H1, H2, H3)
+        "text", // AXStaticText elements
     ]
 
     /// Bullet characters used in Notion lists
     /// These appear as separate lines/characters in the fullText
     private static let bulletCharacters: Set<Character> = [
-        "\u{2022}",  // • Bullet
-        "\u{25AA}",  // ▪ Black Small Square
-        "\u{25E6}",  // ◦ White Bullet
-        "\u{2023}",  // ‣ Triangular Bullet
-        "\u{2043}",  // ⁃ Hyphen Bullet
+        "\u{2022}", // • Bullet
+        "\u{25AA}", // ▪ Black Small Square
+        "\u{25E6}", // ◦ White Bullet
+        "\u{2023}", // ‣ Triangular Bullet
+        "\u{2043}", // ⁃ Hyphen Bullet
     ]
 
     /// Offset of actual content within the full AX text
@@ -91,7 +90,7 @@ class NotionContentParser: ContentParser {
 
     /// Offset to add when mapping preprocessed error positions to original text
     var textReplacementOffset: Int {
-        return uiElementOffset
+        uiElementOffset
     }
 
     // MARK: - Text Preprocessing
@@ -157,9 +156,9 @@ class NotionContentParser: ContentParser {
         // Check both original trimmed and stripped versions against UI elements
         return Self.notionUIElements.contains { uiElement in
             trimmed == uiElement ||
-            trimmed.hasPrefix(uiElement) ||
-            strippedLine == uiElement ||
-            strippedLine.hasPrefix(uiElement)
+                trimmed.hasPrefix(uiElement) ||
+                strippedLine == uiElement ||
+                strippedLine.hasPrefix(uiElement)
         }
     }
 
@@ -200,7 +199,7 @@ class NotionContentParser: ContentParser {
         // e.g., "1.", "2.", "10.", "123."
         guard trimmed.last == "." else { return false }
         let withoutPeriod = trimmed.dropLast()
-        return !withoutPeriod.isEmpty && withoutPeriod.allSatisfy { $0.isNumber }
+        return !withoutPeriod.isEmpty && withoutPeriod.allSatisfy(\.isNumber)
     }
 
     /// Preprocess Notion text to filter out UI elements and code blocks
@@ -230,7 +229,7 @@ class NotionContentParser: ContentParser {
         }
 
         // Store offset for position mapping
-        self.uiElementOffset = removedChars
+        uiElementOffset = removedChars
 
         // Also remove trailing UI elements (like placeholders at the end)
         // Trailing removal doesn't affect position mapping since errors come before
@@ -246,12 +245,12 @@ class NotionContentParser: ContentParser {
         // Replace with newlines to preserve character positions while preventing
         // grammar checking of code content (newlines avoid Harper "multiple spaces" warnings)
         var codeBlocksFiltered = 0
-        for i in 0..<lines.count {
+        for i in 0 ..< lines.count {
             // Check if next line is a code block boundary (U+200B)
             if i + 1 < lines.count {
                 let nextLine = lines[i + 1]
                 if isCodeBlockBoundary(nextLine) {
-                    Logger.trace("NotionContentParser: Code block at line \(i), U+200B boundary at line \(i+1)", category: Logger.ui)
+                    Logger.trace("NotionContentParser: Code block at line \(i), U+200B boundary at line \(i + 1)", category: Logger.ui)
                     // This line is code block content - replace with newlines to preserve length
                     let originalLength = lines[i].count
                     lines[i] = String(repeating: "\n", count: originalLength)
@@ -263,7 +262,7 @@ class NotionContentParser: ContentParser {
         // Filter bulleted list items: bullet character followed by list item content
         // Structure: line N is "•" (bullet), line N+1 is the list item text
         var bulletListsFiltered = 0
-        for i in 0..<lines.count {
+        for i in 0 ..< lines.count {
             if isBulletLine(lines[i]) {
                 // Replace bullet line with newlines
                 lines[i] = String(repeating: "\n", count: lines[i].count)
@@ -271,7 +270,7 @@ class NotionContentParser: ContentParser {
                 if i + 1 < lines.count {
                     let originalLength = lines[i + 1].count
                     lines[i + 1] = String(repeating: "\n", count: originalLength)
-                    Logger.trace("NotionContentParser: Filtered bullet list item at line \(i+1)", category: Logger.ui)
+                    Logger.trace("NotionContentParser: Filtered bullet list item at line \(i + 1)", category: Logger.ui)
                 }
                 bulletListsFiltered += 1
             }
@@ -280,7 +279,7 @@ class NotionContentParser: ContentParser {
         // Filter numbered list items: number marker (e.g., "1.") followed by list item content
         // Structure: line N is "1." (number), line N+1 is the list item text
         var numberedListsFiltered = 0
-        for i in 0..<lines.count {
+        for i in 0 ..< lines.count {
             if isNumberedListMarker(lines[i]) {
                 // Replace number marker line with newlines
                 lines[i] = String(repeating: "\n", count: lines[i].count)
@@ -288,7 +287,7 @@ class NotionContentParser: ContentParser {
                 if i + 1 < lines.count {
                     let originalLength = lines[i + 1].count
                     lines[i + 1] = String(repeating: "\n", count: originalLength)
-                    Logger.trace("NotionContentParser: Filtered numbered list item at line \(i+1)", category: Logger.ui)
+                    Logger.trace("NotionContentParser: Filtered numbered list item at line \(i + 1)", category: Logger.ui)
                 }
                 numberedListsFiltered += 1
             }
@@ -317,18 +316,19 @@ class NotionContentParser: ContentParser {
         for skipRange in skipRanges {
             // Convert original text position to filtered text position
             let adjustedLocation = skipRange.location - removedChars
-            guard adjustedLocation >= 0 && adjustedLocation + skipRange.length <= filteredText.count else {
+            guard adjustedLocation >= 0, adjustedLocation + skipRange.length <= filteredText.count else {
                 continue
             }
 
             // Replace skip range with newlines (preserves character positions, avoids Harper space warnings)
             guard let startIdx = filteredText.index(filteredText.startIndex, offsetBy: adjustedLocation, limitedBy: filteredText.endIndex),
-                  let endIdx = filteredText.index(startIdx, offsetBy: skipRange.length, limitedBy: filteredText.endIndex) else {
+                  let endIdx = filteredText.index(startIdx, offsetBy: skipRange.length, limitedBy: filteredText.endIndex)
+            else {
                 continue
             }
 
             let replacement = String(repeating: "\n", count: skipRange.length)
-            filteredText.replaceSubrange(startIdx..<endIdx, with: replacement)
+            filteredText.replaceSubrange(startIdx ..< endIdx, with: replacement)
             skipRangesApplied += 1
         }
 
@@ -346,7 +346,8 @@ class NotionContentParser: ContentParser {
         // Try to get role description to identify Notion block type
         var roleDescValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXRoleDescriptionAttribute as CFString, &roleDescValue) == .success,
-           let roleDesc = roleDescValue as? String {
+           let roleDesc = roleDescValue as? String
+        {
             // Check for known Notion block types
             for blockType in Self.notionContentBlockTypes {
                 if roleDesc.contains(blockType) {
@@ -360,12 +361,14 @@ class NotionContentParser: ContentParser {
         var parentValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXParentAttribute as CFString, &parentValue) == .success,
            let pv = parentValue,
-           CFGetTypeID(pv) == AXUIElementGetTypeID() {
+           CFGetTypeID(pv) == AXUIElementGetTypeID()
+        {
             // Safe: type verified by CFGetTypeID check above
             let parent = unsafeBitCast(pv, to: AXUIElement.self)
             var parentRoleDesc: CFTypeRef?
             if AXUIElementCopyAttributeValue(parent, kAXRoleDescriptionAttribute as CFString, &parentRoleDesc) == .success,
-               let roleDesc = parentRoleDesc as? String {
+               let roleDesc = parentRoleDesc as? String
+            {
                 for blockType in Self.notionContentBlockTypes {
                     if roleDesc.contains(blockType) {
                         return String(blockType.dropFirst("notion-".count))
@@ -382,31 +385,31 @@ class NotionContentParser: ContentParser {
     func estimatedFontSize(context: String?) -> CGFloat {
         // Font sizes based on Notion's actual rendering
         switch context {
-        case "header-block": return 30.0            // H1 - large header
-        case "sub_header-block": return 24.0        // H2 - medium header
-        case "sub_sub_header-block": return 20.0    // H3 - small header
-        case "callout-block": return 15.0           // Callout blocks
-        case "toggle-block": return 16.0            // Toggle content
-        case "text-block", "page-block": return 16.0 // Body text
-        default: return 16.0  // Default Notion body text
+        case "header-block": 30.0 // H1 - large header
+        case "sub_header-block": 24.0 // H2 - medium header
+        case "sub_sub_header-block": 20.0 // H3 - small header
+        case "callout-block": 15.0 // Callout blocks
+        case "toggle-block": 16.0 // Toggle content
+        case "text-block", "page-block": 16.0 // Body text
+        default: 16.0 // Default Notion body text
         }
     }
 
-    func spacingMultiplier(context: String?) -> CGFloat {
-        return 1.0  // Notion's Electron/React rendering
+    func spacingMultiplier(context _: String?) -> CGFloat {
+        1.0 // Notion's Electron/React rendering
     }
 
-    func horizontalPadding(context: String?) -> CGFloat {
-        return 0.0  // Padding handled by strategy
+    func horizontalPadding(context _: String?) -> CGFloat {
+        0.0 // Padding handled by strategy
     }
 
     var disablesVisualUnderlines: Bool {
-        return false  // Underlines enabled - NotionStrategy handles positioning
+        false // Underlines enabled - NotionStrategy handles positioning
     }
 
     /// Notion's extractText returns preprocessed text (UI elements already filtered)
     var extractTextReturnsPreprocessed: Bool {
-        return true
+        true
     }
 
     // MARK: - Text Extraction
@@ -465,12 +468,13 @@ class NotionContentParser: ContentParser {
         var current = element
 
         // Check up to 3 levels of ancestors
-        for _ in 0..<3 {
+        for _ in 0 ..< 3 {
             // Get parent of current
             var parentRef: CFTypeRef?
             guard AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentRef) == .success,
                   let pRef = parentRef,
-                  CFGetTypeID(pRef) == AXUIElementGetTypeID() else {
+                  CFGetTypeID(pRef) == AXUIElementGetTypeID()
+            else {
                 return false
             }
             // Safe: type verified above
@@ -525,7 +529,7 @@ class NotionContentParser: ContentParser {
         let isDisallowed = !Self.allowedContainerRoleDescriptions.contains(roleDesc)
         var shouldSkip = insideDisallowedBlock || isDisallowed
 
-        if isDisallowed && !insideDisallowedBlock {
+        if isDisallowed, !insideDisallowedBlock {
             Logger.trace("NotionContentParser: Found disallowed container roleDesc='\(roleDesc)'", category: Logger.ui)
         }
 
@@ -534,16 +538,16 @@ class NotionContentParser: ContentParser {
 
         // Check for todo item context: if this text element has a "Tick box" sibling
         // This handles Notion's structure where Tick box is sibling, not parent
-        if !shouldSkip && !text.isEmpty && hasTodoSibling(element) {
+        if !shouldSkip, !text.isEmpty, hasTodoSibling(element) {
             shouldSkip = true
         }
 
         // Debug: log when we're inside a disallowed block and have text
-        if insideDisallowedBlock && !text.isEmpty && text.count < 100 {
+        if insideDisallowedBlock, !text.isEmpty, text.count < 100 {
             Logger.trace("NotionContentParser: Inside disallowed block, found text '\(text.prefix(30))...' roleDesc='\(roleDesc)'", category: Logger.ui)
         }
 
-        if shouldSkip && !text.isEmpty {
+        if shouldSkip, !text.isEmpty {
             // Find this text in fullText and mark as skip range
             if let range = findTextRange(text, in: fullText, startingAt: searchStart) {
                 ranges.append(range)
@@ -580,11 +584,12 @@ class NotionContentParser: ContentParser {
     /// Find text range in full text
     private func findTextRange(_ substring: String, in text: String, startingAt: Int) -> NSRange? {
         guard startingAt < text.count,
-              let searchStartIdx = text.index(text.startIndex, offsetBy: startingAt, limitedBy: text.endIndex) else {
+              let searchStartIdx = text.index(text.startIndex, offsetBy: startingAt, limitedBy: text.endIndex)
+        else {
             return nil
         }
 
-        let searchRange = searchStartIdx..<text.endIndex
+        let searchRange = searchStartIdx ..< text.endIndex
         if let foundRange = text.range(of: substring, range: searchRange) {
             let location = text.distance(from: text.startIndex, to: foundRange.lowerBound)
             return NSRange(location: location, length: substring.count)
@@ -597,7 +602,8 @@ class NotionContentParser: ContentParser {
     private func getText(_ element: AXUIElement) -> String {
         var textRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef) == .success,
-              let text = textRef as? String else {
+              let text = textRef as? String
+        else {
             return ""
         }
         return text
@@ -606,7 +612,8 @@ class NotionContentParser: ContentParser {
     private func getRoleDescription(_ element: AXUIElement) -> String {
         var roleDescRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXRoleDescriptionAttribute as CFString, &roleDescRef) == .success,
-              let roleDesc = roleDescRef as? String else {
+              let roleDesc = roleDescRef as? String
+        else {
             return ""
         }
         return roleDesc
@@ -615,7 +622,8 @@ class NotionContentParser: ContentParser {
     private func getChildren(_ element: AXUIElement) -> [AXUIElement]? {
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-              let children = childrenRef as? [AXUIElement] else {
+              let children = childrenRef as? [AXUIElement]
+        else {
             return nil
         }
         return children

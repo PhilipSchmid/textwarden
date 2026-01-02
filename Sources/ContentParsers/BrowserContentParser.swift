@@ -6,8 +6,8 @@
 //  Browsers have contenteditable areas with specific rendering characteristics
 //
 
-import Foundation
 import AppKit
+import Foundation
 
 /// Content parser for web browsers
 /// Handles Chrome, Safari, Firefox, Edge, and other browsers
@@ -20,51 +20,51 @@ class BrowserContentParser: ContentParser {
 
         // Derive parser name from bundle ID for display purposes
         if bundleIdentifier.contains("Chrome") {
-            self.parserName = "Chrome"
+            parserName = "Chrome"
         } else if bundleIdentifier.contains("Safari") {
-            self.parserName = "Safari"
+            parserName = "Safari"
         } else if bundleIdentifier.contains("firefox") {
-            self.parserName = "Firefox"
+            parserName = "Firefox"
         } else if bundleIdentifier.contains("edgemac") {
-            self.parserName = "Edge"
+            parserName = "Edge"
         } else if bundleIdentifier.contains("Opera") {
-            self.parserName = "Opera"
+            parserName = "Opera"
         } else if bundleIdentifier.contains("thebrowser") {
-            self.parserName = "Arc"
+            parserName = "Arc"
         } else if bundleIdentifier.contains("Brave") {
-            self.parserName = "Brave"
+            parserName = "Brave"
         } else if bundleIdentifier.contains("comet") || bundleIdentifier.contains("perplexity") {
-            self.parserName = "Comet"
+            parserName = "Comet"
         } else {
-            self.parserName = "Browser"
+            parserName = "Browser"
         }
     }
 
-    func detectUIContext(element: AXUIElement) -> String? {
+    func detectUIContext(element _: AXUIElement) -> String? {
         // Browsers mostly use contenteditable areas
         // Could differentiate between search bars vs text areas in the future
-        return "contenteditable"
+        "contenteditable"
     }
 
-    func estimatedFontSize(context: String?) -> CGFloat {
+    func estimatedFontSize(context _: String?) -> CGFloat {
         // Most browsers use 14-16px for contenteditable areas
-        return 15.0
+        15.0
     }
 
-    func spacingMultiplier(context: String?) -> CGFloat {
+    func spacingMultiplier(context _: String?) -> CGFloat {
         // Browsers render text with standard spacing
-        return 1.0
+        1.0
     }
 
-    func horizontalPadding(context: String?) -> CGFloat {
+    func horizontalPadding(context _: String?) -> CGFloat {
         // Browsers typically have minimal left padding in contenteditable areas
-        return 2.0
+        2.0
     }
 
     /// Disable visual underlines for browsers
     /// Browser positioning cannot account for zoom levels, custom CSS, or website-specific styling
     var disablesVisualUnderlines: Bool {
-        return true
+        true
     }
 
     /// Check if an element is a browser UI element (not web content)
@@ -118,7 +118,7 @@ class BrowserContentParser: ContentParser {
         let browserUIKeywords = [
             "find in page",
             "find on page",
-            "find",              // Common label for find-in-page dialogs
+            "find", // Common label for find-in-page dialogs
             "search",
             "address",
             "url",
@@ -127,7 +127,7 @@ class BrowserContentParser: ContentParser {
             "unified field",
             "navigation",
             "bookmark",
-            "tab"
+            "tab",
         ]
 
         // Check if any attribute contains browser UI keywords
@@ -155,12 +155,13 @@ class BrowserContentParser: ContentParser {
         // Check parent chain for browser chrome indicators (up to 5 levels)
         // Find-in-page dialogs are often in sheets, popovers, or panels
         var currentElement: AXUIElement? = element
-        for depth in 0..<5 {
+        for depth in 0 ..< 5 {
             var parentRef: CFTypeRef?
             guard let current = currentElement,
                   AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentRef) == .success,
                   let parent = parentRef,
-                  CFGetTypeID(parent) == AXUIElementGetTypeID() else {
+                  CFGetTypeID(parent) == AXUIElementGetTypeID()
+            else {
                 break
             }
             // Safe: type verified by CFGetTypeID check above
@@ -219,7 +220,8 @@ class BrowserContentParser: ContentParser {
         // Look for: word.tld or word.tld/path patterns
         let domainPattern = #"^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.[a-zA-Z]{2,}(/|$)"#
         if let regex = try? NSRegularExpression(pattern: domainPattern),
-           regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)) != nil {
+           regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)) != nil
+        {
             return true
         }
 

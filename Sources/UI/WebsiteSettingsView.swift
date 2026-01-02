@@ -5,8 +5,8 @@
 //  Per-website settings for disabling grammar checking.
 //
 
-import SwiftUI
 import AppKit
+import SwiftUI
 
 // MARK: - Website Settings
 
@@ -73,7 +73,7 @@ struct WebsiteSettingsView: View {
             // Website list
             List {
                 Section {
-                    if filteredWebsites.isEmpty && !preferences.disabledWebsites.isEmpty {
+                    if filteredWebsites.isEmpty, !preferences.disabledWebsites.isEmpty {
                         // Search returned no results
                         HStack {
                             Spacer()

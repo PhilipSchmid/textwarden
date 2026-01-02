@@ -5,8 +5,8 @@
 //  Performance tests for incremental re-analysis
 //
 
-import XCTest
 @testable import TextWarden
+import XCTest
 
 final class IncrementalAnalysisPerformanceTests: XCTestCase {
     var coordinator: AnalysisCoordinator!
@@ -121,7 +121,7 @@ final class IncrementalAnalysisPerformanceTests: XCTestCase {
     }
 
     private func createMockContext() -> ApplicationContext {
-        return ApplicationContext(
+        ApplicationContext(
             applicationName: "Test App",
             bundleIdentifier: "com.test.app",
             processID: 12345
@@ -151,12 +151,12 @@ final class IncrementalAnalysisPerformanceTests: XCTestCase {
         for (index, char) in text.enumerated() {
             if char == "." || char == "!" || char == "?" {
                 let endIndex = text.index(text.startIndex, offsetBy: index + 1)
-                boundaries.append(currentStart..<endIndex)
+                boundaries.append(currentStart ..< endIndex)
                 currentStart = endIndex
 
                 // Skip whitespace
                 if currentStart < text.endIndex {
-                    while currentStart < text.endIndex && text[currentStart].isWhitespace {
+                    while currentStart < text.endIndex, text[currentStart].isWhitespace {
                         currentStart = text.index(after: currentStart)
                     }
                 }

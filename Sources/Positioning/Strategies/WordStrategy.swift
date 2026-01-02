@@ -19,7 +19,6 @@ import ApplicationServices
 
 /// Dedicated Word positioning using AXBoundsForRange
 class WordStrategy: GeometryProvider {
-
     var strategyName: String { "Word" }
     var strategyType: StrategyType { .word }
     var tier: StrategyTier { .precise }
@@ -52,7 +51,6 @@ class WordStrategy: GeometryProvider {
         text: String,
         parser: ContentParser
     ) -> GeometryResult? {
-
         Logger.debug("WordStrategy: Calculating for range \(errorRange) in text length \(text.count)", category: Logger.ui)
 
         // Convert filtered coordinates to original coordinates
@@ -76,7 +74,8 @@ class WordStrategy: GeometryProvider {
     /// Calculate bounds for potentially multi-line error ranges
     private func calculateMultiLineBounds(utf16Range: NSRange, element: AXUIElement) -> GeometryResult? {
         guard let quartzLineBounds = AccessibilityBridge.resolveMultiLineBounds(utf16Range, in: element),
-              quartzLineBounds.count > 1 else {
+              quartzLineBounds.count > 1
+        else {
             return nil
         }
 
@@ -104,7 +103,7 @@ class WordStrategy: GeometryProvider {
                 "api": "word-multiline-bounds",
                 "utf16_location": utf16Range.location,
                 "utf16_length": utf16Range.length,
-                "line_count": validLineBounds.count
+                "line_count": validLineBounds.count,
             ]
         )
     }
@@ -129,7 +128,8 @@ class WordStrategy: GeometryProvider {
 
         guard result == .success,
               let bv = boundsRef,
-              CFGetTypeID(bv) == AXValueGetTypeID() else {
+              CFGetTypeID(bv) == AXValueGetTypeID()
+        else {
             Logger.debug("WordStrategy: AXBoundsForRange failed with error \(result.rawValue)", category: Logger.ui)
             return nil
         }
@@ -163,7 +163,7 @@ class WordStrategy: GeometryProvider {
             metadata: [
                 "api": "word-bounds-for-range",
                 "utf16_location": utf16Range.location,
-                "utf16_length": utf16Range.length
+                "utf16_length": utf16Range.length,
             ]
         )
     }

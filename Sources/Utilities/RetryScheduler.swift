@@ -20,14 +20,14 @@ struct RetryConfig {
 
     /// Default configuration for accessibility API retries
     static let accessibilityAPI = RetryConfig(
-        initialDelay: 0.3,  // 300ms
+        initialDelay: 0.3, // 300ms
         multiplier: 1.25,
-        maxAttempts: 10     // ~10 seconds total
+        maxAttempts: 10 // ~10 seconds total
     )
 
     /// Calculate delay for a specific retry attempt
     func delay(for attempt: Int) -> TimeInterval {
-        return initialDelay * pow(multiplier, Double(attempt))
+        initialDelay * pow(multiplier, Double(attempt))
     }
 }
 
@@ -76,10 +76,10 @@ final class RetryScheduler: @unchecked Sendable {
             let result = operation()
 
             switch result {
-            case .success(let value):
+            case let .success(value):
                 return value
 
-            case .retry(let error):
+            case let .retry(error):
                 if attempt < config.maxAttempts {
                     // Calculate delay and sleep
                     let delay = config.delay(for: attempt)
@@ -91,7 +91,7 @@ final class RetryScheduler: @unchecked Sendable {
                     throw RetryError.maxAttemptsExceeded(config.maxAttempts, lastError: error)
                 }
 
-            case .failure(let error):
+            case let .failure(error):
                 throw error
             }
         }
@@ -105,7 +105,7 @@ final class RetryScheduler: @unchecked Sendable {
     ///   - operation: Closure that returns RetryResult
     ///   - completion: Called with final success or failure
     func execute<T>(
-        attempt: Int = 0,
+        attempt _: Int = 0,
         operation: @escaping () -> RetryResult<T>,
         completion: @escaping (Result<T, Error>) -> Void
     ) {
@@ -130,8 +130,8 @@ enum RetryError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .maxAttemptsExceeded(let attempts, let lastError):
-            if let lastError = lastError {
+        case let .maxAttemptsExceeded(attempts, lastError):
+            if let lastError {
                 return "Maximum retry attempts (\(attempts)) exceeded. Last error: \(lastError.localizedDescription)"
             }
             return "Maximum retry attempts (\(attempts)) exceeded"

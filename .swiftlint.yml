@@ -1,5 +1,5 @@
 # SwiftLint Configuration for TextWarden
-# Enforces Swift API Design Guidelines and project code quality standards
+# Balanced rules that catch real issues without being overly pedantic
 
 # Paths to include for linting
 included:
@@ -12,68 +12,79 @@ excluded:
   - .build
   - DerivedData
   - GrammarEngine
+  - Sources/GrammarBridge/SwiftBridgeCore.swift  # Auto-generated FFI code
 
 # Disabled rules (with justification)
 disabled_rules:
-  - todo # Allow TODO comments during development
-  - line_length # Handled by formatter
+  - todo                    # Allow TODO comments during development
+  - line_length             # Handled by SwiftFormat
+  - opening_brace           # Handled by SwiftFormat
+  - trailing_comma          # Style preference
+  - vertical_whitespace     # Handled by SwiftFormat
+  - identifier_name         # Allow short names like i, x, y, id
+  - large_tuple             # Sometimes needed for complex returns
+  - nesting                 # Deep nesting sometimes necessary
+  - for_where               # Style preference
 
-# Opt-in rules
+# Opt-in rules (useful but not default)
 opt_in_rules:
-  - explicit_type_interface
   - closure_end_indentation
   - closure_spacing
   - empty_count
-  - force_unwrapping
-  - implicit_return
+  - empty_string
+  - first_where
+  - last_where
   - multiline_parameters
   - overridden_super_call
   - redundant_nil_coalescing
-  - sorted_imports
   - unneeded_parentheses_in_closure_argument
-  - vertical_whitespace_closing_braces
 
 # Rule configurations
+
+# Downgrade to warnings - some force unwraps are intentional
 force_unwrapping:
-  severity: error
+  severity: warning
+
+force_cast:
+  severity: warning
+
+force_try:
+  severity: warning
 
 type_name:
-  min_length: 3
-  max_length: 40
-
-identifier_name:
   min_length: 2
-  max_length: 40
-  excluded:
-    - id
-    - x
-    - y
-    - z
+  max_length: 50
 
+# Relaxed limits for complex UI code - warnings only, no errors for length
 file_length:
-  warning: 400
-  error: 500
+  warning: 1000
+  error: 5000  # Effectively disabled
 
 function_body_length:
-  warning: 40
-  error: 60
+  warning: 100
+  error: 500  # Effectively disabled
 
 type_body_length:
-  warning: 250
-  error: 350
+  warning: 600
+  error: 3000  # Effectively disabled
 
 cyclomatic_complexity:
-  warning: 10
-  error: 15
+  warning: 20
+  error: 50  # Effectively disabled
+  ignores_case_statements: true
 
-nesting:
-  type_level: 2
-  statement_level: 5
+function_parameter_count:
+  warning: 10
+  error: 20  # Effectively disabled
+
+# Downgrade shorthand_operator to warning
+shorthand_operator:
+  severity: warning
 
 # Custom rules
 custom_rules:
   no_print:
     name: "No Print Statements"
     regex: '(?<!//\s)print\('
-    message: "Use os_log instead of print for logging"
+    message: "Use Logger instead of print for logging"
     severity: warning

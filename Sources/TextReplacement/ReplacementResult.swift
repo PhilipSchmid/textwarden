@@ -22,7 +22,6 @@ enum ReplacementResult: Equatable {
 
 /// Errors that can occur during text replacement
 enum ReplacementError: Error, Equatable, CustomStringConvertible {
-
     // MARK: - Validation Errors (abort immediately)
 
     /// The text at the error position doesn't match what was expected
@@ -46,16 +45,16 @@ enum ReplacementError: Error, Equatable, CustomStringConvertible {
 
     var description: String {
         switch self {
-        case .textMismatch(let expected, let actual):
-            return "Text mismatch: expected '\(expected)' but found '\(actual)'"
-        case .indexOutOfBounds(let index, let textLength):
-            return "Index \(index) out of bounds (text length: \(textLength))"
+        case let .textMismatch(expected, actual):
+            "Text mismatch: expected '\(expected)' but found '\(actual)'"
+        case let .indexOutOfBounds(index, textLength):
+            "Index \(index) out of bounds (text length: \(textLength))"
         case .elementInvalid:
-            return "Monitored element is no longer valid"
-        case .selectionFailed(let error):
-            return "Selection failed with AX error: \(error)"
-        case .axSetValueFailed(let error):
-            return "AX setValue failed with error: \(error)"
+            "Monitored element is no longer valid"
+        case let .selectionFailed(error):
+            "Selection failed with AX error: \(error)"
+        case let .axSetValueFailed(error):
+            "AX setValue failed with error: \(error)"
         }
     }
 }

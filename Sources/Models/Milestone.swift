@@ -5,8 +5,8 @@
 //  Milestone definitions for donation prompts
 //
 
-import Foundation
 import Combine
+import Foundation
 
 /// Types of milestones that can be reached
 enum MilestoneType: String, Codable, CaseIterable {
@@ -16,25 +16,25 @@ enum MilestoneType: String, Codable, CaseIterable {
 
     var emoji: String {
         switch self {
-        case .activeDays: return "📅"
-        case .appliedFixes: return "✨"
-        case .styleSuggestions: return "🎨"
+        case .activeDays: "📅"
+        case .appliedFixes: "✨"
+        case .styleSuggestions: "🎨"
         }
     }
 
     var label: String {
         switch self {
-        case .activeDays: return "Active Days"
-        case .appliedFixes: return "Fixes Applied"
-        case .styleSuggestions: return "Style Improvements"
+        case .activeDays: "Active Days"
+        case .appliedFixes: "Fixes Applied"
+        case .styleSuggestions: "Style Improvements"
         }
     }
 
     var thresholds: [Int] {
         switch self {
-        case .activeDays: return [30, 90, 365]
-        case .appliedFixes: return [100, 500, 1000]
-        case .styleSuggestions: return [50, 200]
+        case .activeDays: [30, 90, 365]
+        case .appliedFixes: [100, 500, 1000]
+        case .styleSuggestions: [50, 200]
         }
     }
 }
@@ -54,11 +54,11 @@ struct Milestone: Codable, Hashable, Identifiable {
 
     var celebrationEmoji: String {
         switch threshold {
-        case 1...10: return "🎉"
-        case 11...50: return "🏆"
-        case 51...100: return "⭐"
-        case 101...500: return "🌟"
-        default: return "🚀"
+        case 1 ... 10: "🎉"
+        case 11 ... 50: "🏆"
+        case 51 ... 100: "⭐"
+        case 101 ... 500: "🌟"
+        default: "🚀"
         }
     }
 
@@ -67,23 +67,23 @@ struct Milestone: Codable, Hashable, Identifiable {
         switch type {
         case .activeDays:
             switch threshold {
-            case 30: return "A full month of polished prose!"
-            case 90: return "Three months of writing excellence!"
-            case 365: return "A whole year of flawless writing!"
-            default: return "\(threshold) days of great writing!"
+            case 30: "A full month of polished prose!"
+            case 90: "Three months of writing excellence!"
+            case 365: "A whole year of flawless writing!"
+            default: "\(threshold) days of great writing!"
             }
         case .appliedFixes:
             switch threshold {
-            case 100: return "100 errors fixed!"
-            case 500: return "500 corrections made!"
-            case 1000: return "1,000 improvements applied!"
-            default: return "\(threshold) fixes applied!"
+            case 100: "100 errors fixed!"
+            case 500: "500 corrections made!"
+            case 1000: "1,000 improvements applied!"
+            default: "\(threshold) fixes applied!"
             }
         case .styleSuggestions:
             switch threshold {
-            case 50: return "50 clearer sentences!"
-            case 200: return "200 polished phrases!"
-            default: return "\(threshold) style enhancements!"
+            case 50: "50 clearer sentences!"
+            case 200: "200 polished phrases!"
+            default: "\(threshold) style enhancements!"
             }
         }
     }
@@ -91,10 +91,10 @@ struct Milestone: Codable, Hashable, Identifiable {
     /// Headline for the celebration card
     var headline: String {
         switch threshold {
-        case 1...25: return "Great Start!"
-        case 26...100: return "Impressive Progress!"
-        case 101...500: return "Amazing Achievement!"
-        default: return "Legendary Milestone!"
+        case 1 ... 25: "Great Start!"
+        case 26 ... 100: "Impressive Progress!"
+        case 101 ... 500: "Amazing Achievement!"
+        default: "Legendary Milestone!"
         }
     }
 }
@@ -149,18 +149,18 @@ class MilestoneManager: ObservableObject {
     /// Returns a milestone that can be shown regardless of actual user statistics
     func createPreviewMilestone() -> Milestone {
         // Use the first threshold of applied fixes as a representative milestone
-        return Milestone(type: .appliedFixes, threshold: 100)
+        Milestone(type: .appliedFixes, threshold: 100)
     }
 
     /// Get current value for a milestone type
     private func currentValue(for type: MilestoneType) -> Int {
         switch type {
         case .activeDays:
-            return statistics.activeDays.count
+            statistics.activeDays.count
         case .appliedFixes:
-            return statistics.suggestionsApplied
+            statistics.suggestionsApplied
         case .styleSuggestions:
-            return statistics.styleSuggestionsAccepted
+            statistics.styleSuggestionsAccepted
         }
     }
 

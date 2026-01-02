@@ -5,8 +5,8 @@
 //  Checks words against macOS system spell checker (words added via "Learn Spelling")
 //
 
-import Foundation
 import AppKit
+import Foundation
 
 /// Checks words against the macOS system spell checker
 /// Uses NSSpellChecker API to check if words have been learned via "Learn Spelling" in other apps

@@ -7,13 +7,12 @@
 //  direct AX API setValue doesn't work reliably.
 //
 
-import Foundation
 import AppKit
 @preconcurrency import ApplicationServices
+import Foundation
 
 /// Keyboard-based replacement using selection + clipboard paste
 struct KeyboardReplacement {
-
     // MARK: - Execution
 
     /// Execute text replacement using keyboard simulation.
@@ -126,7 +125,7 @@ struct KeyboardReplacement {
 
     /// Try to paste via Edit > Paste menu action
     /// Returns true if menu paste succeeded
-    private func tryMenuPaste(_ context: ReplacementContext) -> Bool {
+    private func tryMenuPaste(_: ReplacementContext) -> Bool {
         guard let frontmostApp = NSWorkspace.shared.frontmostApplication else {
             return false
         }
@@ -151,14 +150,16 @@ struct KeyboardReplacement {
         var menuBarValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(appElement, kAXMenuBarAttribute as CFString, &menuBarValue) == .success,
               let menuBarRef = menuBarValue,
-              CFGetTypeID(menuBarRef) == AXUIElementGetTypeID() else {
+              CFGetTypeID(menuBarRef) == AXUIElementGetTypeID()
+        else {
             return nil
         }
         let menuBar = unsafeBitCast(menuBarRef, to: AXUIElement.self)
 
         var childrenValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(menuBar, kAXChildrenAttribute as CFString, &childrenValue) == .success,
-              let children = childrenValue as? [AXUIElement] else {
+              let children = childrenValue as? [AXUIElement]
+        else {
             return nil
         }
 
@@ -166,22 +167,23 @@ struct KeyboardReplacement {
             var titleValue: CFTypeRef?
             if AXUIElementCopyAttributeValue(child, kAXTitleAttribute as CFString, &titleValue) == .success,
                let title = titleValue as? String,
-               title.lowercased().contains("edit") {
-
+               title.lowercased().contains("edit")
+            {
                 var menuChildrenValue: CFTypeRef?
                 if AXUIElementCopyAttributeValue(child, kAXChildrenAttribute as CFString, &menuChildrenValue) == .success,
-                   let menuChildren = menuChildrenValue as? [AXUIElement] {
-
+                   let menuChildren = menuChildrenValue as? [AXUIElement]
+                {
                     for menuChild in menuChildren {
                         var itemChildrenValue: CFTypeRef?
                         if AXUIElementCopyAttributeValue(menuChild, kAXChildrenAttribute as CFString, &itemChildrenValue) == .success,
-                           let items = itemChildrenValue as? [AXUIElement] {
-
+                           let items = itemChildrenValue as? [AXUIElement]
+                        {
                             for item in items {
                                 var itemTitleValue: CFTypeRef?
                                 if AXUIElementCopyAttributeValue(item, kAXTitleAttribute as CFString, &itemTitleValue) == .success,
                                    let itemTitle = itemTitleValue as? String,
-                                   itemTitle.lowercased().contains("paste") {
+                                   itemTitle.lowercased().contains("paste")
+                                {
                                     return item
                                 }
                             }
@@ -197,9 +199,9 @@ struct KeyboardReplacement {
     // MARK: - Keyboard Events
 
     /// Get keyboard operation delay for the app
-    private func keyboardDelay(for appConfig: AppConfiguration) -> TimeInterval {
+    private func keyboardDelay(for _: AppConfiguration) -> TimeInterval {
         // Most Electron apps work with minimal delay
-        return TimingConstants.shortDelay
+        TimingConstants.shortDelay
     }
 
     /// Simulate a key press event

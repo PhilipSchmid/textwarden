@@ -12,10 +12,10 @@ import Foundation
 
 /// Technology category for grouping similar apps with shared defaults
 enum AppCategory {
-    case native      // Standard macOS apps (TextEdit, Notes, Mail)
-    case electron    // Electron-based apps (Slack, Notion, VSCode)
-    case browser     // Web browsers (Chrome, Safari, Firefox)
-    case custom      // Apps with fully custom behavior
+    case native // Standard macOS apps (TextEdit, Notes, Mail)
+    case electron // Electron-based apps (Slack, Notion, VSCode)
+    case browser // Web browsers (Chrome, Safari, Firefox)
+    case custom // Apps with fully custom behavior
 }
 
 // MARK: - Parser Type
@@ -39,15 +39,15 @@ enum ParserType {
 
 /// Identifies a positioning strategy
 enum StrategyType: String, CaseIterable {
-    case slack      // Dedicated strategy for Slack's Quill editor
-    case teams      // Dedicated strategy for Microsoft Teams' WebView2 compose
-    case notion     // Dedicated strategy for Notion's block-based editor
-    case outlook    // Dedicated strategy for Microsoft Outlook compose
-    case word       // Dedicated strategy for Microsoft Word documents
-    case webex      // Dedicated strategy for Cisco WebEx chat
-    case mail       // Dedicated strategy for Apple Mail's WebKit compose
+    case slack // Dedicated strategy for Slack's Quill editor
+    case teams // Dedicated strategy for Microsoft Teams' WebView2 compose
+    case notion // Dedicated strategy for Notion's block-based editor
+    case outlook // Dedicated strategy for Microsoft Outlook compose
+    case word // Dedicated strategy for Microsoft Word documents
+    case webex // Dedicated strategy for Cisco WebEx chat
+    case mail // Dedicated strategy for Apple Mail's WebKit compose
     case protonMail // Dedicated strategy for Proton Mail's Rooster editor
-    case chromium   // Selection-based marker range positioning for Chromium apps (Slack, Teams, etc.)
+    case chromium // Selection-based marker range positioning for Chromium apps (Slack, Teams, etc.)
     case textMarker
     case rangeBounds
     case elementTree
@@ -55,9 +55,10 @@ enum StrategyType: String, CaseIterable {
     case origin
     case anchorSearch
     case fontMetrics
-    case insertionPoint  // Cursor/caret based positioning for Mac Catalyst apps
+    case insertionPoint // Cursor/caret based positioning for Mac Catalyst apps
 
     // MARK: - Legacy (not registered in PositionResolver)
+
     // These strategies interfere with typing (manipulate cursor/selection)
     // Kept for compilation of Legacy/ strategy files
     case selectionBounds
@@ -67,9 +68,9 @@ enum StrategyType: String, CaseIterable {
     var isLegacy: Bool {
         switch self {
         case .selectionBounds, .navigation:
-            return true
+            true
         default:
-            return false
+            false
         }
     }
 }
@@ -78,8 +79,8 @@ enum StrategyType: String, CaseIterable {
 
 /// How text corrections are applied
 enum TextReplacementMethod {
-    case standard       // AX API setValue - works for native macOS apps
-    case browserStyle   // Selection + keyboard paste - for Electron/browser apps where AX API fails
+    case standard // AX API setValue - works for native macOS apps
+    case browserStyle // Selection + keyboard paste - for Electron/browser apps where AX API fails
 }
 
 // MARK: - Font Configuration
@@ -162,12 +163,11 @@ struct AppFeatures: Equatable {
 // MARK: - App Category Defaults
 
 extension AppCategory {
-
     /// Default features for this category
     var defaultFeatures: AppFeatures {
         switch self {
         case .native:
-            return AppFeatures(
+            AppFeatures(
                 visualUnderlinesEnabled: true,
                 textReplacementMethod: .standard,
                 requiresTypingPause: false,
@@ -181,21 +181,21 @@ extension AppCategory {
                 hasTextMarkerIndexOffset: false
             )
         case .electron:
-            return AppFeatures(
+            AppFeatures(
                 visualUnderlinesEnabled: true,
                 textReplacementMethod: .browserStyle,
                 requiresTypingPause: false,
                 supportsFormattedText: false,
                 childElementTraversal: true,
-                delaysAXNotifications: false,  // Most Electron apps send notifications immediately
+                delaysAXNotifications: false, // Most Electron apps send notifications immediately
                 focusBouncesDuringPaste: false,
-                requiresFullReanalysisAfterReplacement: true,  // Electron byte offsets are fragile
+                requiresFullReanalysisAfterReplacement: true, // Electron byte offsets are fragile
                 defersTextExtraction: false,
                 requiresFrameValidation: false,
                 hasTextMarkerIndexOffset: false
             )
         case .browser:
-            return AppFeatures(
+            AppFeatures(
                 visualUnderlinesEnabled: false,
                 textReplacementMethod: .browserStyle,
                 requiresTypingPause: false,
@@ -203,13 +203,13 @@ extension AppCategory {
                 childElementTraversal: true,
                 delaysAXNotifications: false,
                 focusBouncesDuringPaste: false,
-                requiresFullReanalysisAfterReplacement: true,  // Browser byte offsets are fragile
+                requiresFullReanalysisAfterReplacement: true, // Browser byte offsets are fragile
                 defersTextExtraction: false,
                 requiresFrameValidation: false,
                 hasTextMarkerIndexOffset: false
             )
         case .custom:
-            return .standard
+            .standard
         }
     }
 
@@ -217,31 +217,31 @@ extension AppCategory {
     var defaultStrategies: [StrategyType] {
         switch self {
         case .native:
-            return [.rangeBounds, .lineIndex, .anchorSearch, .fontMetrics]
+            [.rangeBounds, .lineIndex, .anchorSearch, .fontMetrics]
         case .electron:
-            return [.textMarker, .rangeBounds, .elementTree, .lineIndex, .fontMetrics]
+            [.textMarker, .rangeBounds, .elementTree, .lineIndex, .fontMetrics]
         case .browser:
-            return [.textMarker, .rangeBounds, .elementTree, .lineIndex]
+            [.textMarker, .rangeBounds, .elementTree, .lineIndex]
         case .custom:
             // Exclude legacy strategies that interfere with typing
-            return StrategyType.allCases.filter { !$0.isLegacy }
+            StrategyType.allCases.filter { !$0.isLegacy }
         }
     }
 
     /// Strategies disabled by default for this category
     /// Note: Legacy strategies (selectionBounds, navigation) have been removed entirely
     var defaultDisabledStrategies: Set<StrategyType> {
-        return []
+        []
     }
 
     /// Default font configuration
     var defaultFontConfig: FontConfig {
-        return .standard
+        .standard
     }
 
     /// Default horizontal padding
     var defaultPadding: CGFloat {
-        return 8
+        8
     }
 }
 
@@ -281,11 +281,11 @@ struct AppConfiguration {
         self.bundleIDs = bundleIDs
         self.category = category
         self.parserType = parserType
-        self._fontConfig = fontConfig
-        self._horizontalPadding = horizontalPadding
-        self._preferredStrategies = preferredStrategies
-        self._disabledStrategies = disabledStrategies
-        self._features = features
+        _fontConfig = fontConfig
+        _horizontalPadding = horizontalPadding
+        _preferredStrategies = preferredStrategies
+        _disabledStrategies = disabledStrategies
+        _features = features
     }
 
     // MARK: - Effective Values (with category fallbacks)

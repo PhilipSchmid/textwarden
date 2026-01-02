@@ -1,5 +1,5 @@
-import Foundation
 import AppKit
+import Foundation
 
 /// Snap position for error indicator
 struct IndicatorSnapPosition: Equatable, Hashable {
@@ -21,25 +21,25 @@ struct IndicatorSnapPosition: Equatable, Hashable {
 
     var preferenceKey: String {
         switch (edge, alignment) {
-        case (.top, .start): return "Top Left"
-        case (.top, .end): return "Top Right"
-        case (.left, .center): return "Center Left"
-        case (.right, .center): return "Center Right"
-        case (.bottom, .start): return "Bottom Left"
-        case (.bottom, .end): return "Bottom Right"
-        default: return "Bottom Right"
+        case (.top, .start): "Top Left"
+        case (.top, .end): "Top Right"
+        case (.left, .center): "Center Left"
+        case (.right, .center): "Center Right"
+        case (.bottom, .start): "Bottom Left"
+        case (.bottom, .end): "Bottom Right"
+        default: "Bottom Right"
         }
     }
 
     static func from(preferenceKey: String) -> IndicatorSnapPosition? {
         switch preferenceKey {
-        case "Top Left": return IndicatorSnapPosition(edge: .top, alignment: .start)
-        case "Top Right": return IndicatorSnapPosition(edge: .top, alignment: .end)
-        case "Center Left": return IndicatorSnapPosition(edge: .left, alignment: .center)
-        case "Center Right": return IndicatorSnapPosition(edge: .right, alignment: .center)
-        case "Bottom Left": return IndicatorSnapPosition(edge: .bottom, alignment: .start)
-        case "Bottom Right": return IndicatorSnapPosition(edge: .bottom, alignment: .end)
-        default: return nil
+        case "Top Left": IndicatorSnapPosition(edge: .top, alignment: .start)
+        case "Top Right": IndicatorSnapPosition(edge: .top, alignment: .end)
+        case "Center Left": IndicatorSnapPosition(edge: .left, alignment: .center)
+        case "Center Right": IndicatorSnapPosition(edge: .right, alignment: .center)
+        case "Bottom Left": IndicatorSnapPosition(edge: .bottom, alignment: .start)
+        case "Bottom Right": IndicatorSnapPosition(edge: .bottom, alignment: .end)
+        default: nil
         }
     }
 }
@@ -75,7 +75,7 @@ class IndicatorSnapModel {
 
             // Bottom Right
             (CGPoint(x: bounds.maxX - indicatorSize - padding, y: bounds.minY + padding),
-             IndicatorSnapPosition(edge: .bottom, alignment: .end))
+             IndicatorSnapPosition(edge: .bottom, alignment: .end)),
         ]
 
         // Array is always non-empty, but guard against nil for safety
@@ -95,28 +95,27 @@ class IndicatorSnapModel {
         indicatorSize: CGFloat = 40,
         padding: CGFloat = 10
     ) -> CGPoint {
-
         switch (snapPosition.edge, snapPosition.alignment) {
         case (.top, .start):
-            return CGPoint(x: bounds.minX + padding, y: bounds.maxY - indicatorSize - padding)
+            CGPoint(x: bounds.minX + padding, y: bounds.maxY - indicatorSize - padding)
 
         case (.top, .end):
-            return CGPoint(x: bounds.maxX - indicatorSize - padding, y: bounds.maxY - indicatorSize - padding)
+            CGPoint(x: bounds.maxX - indicatorSize - padding, y: bounds.maxY - indicatorSize - padding)
 
         case (.left, .center):
-            return CGPoint(x: bounds.minX + padding, y: bounds.midY - indicatorSize / 2)
+            CGPoint(x: bounds.minX + padding, y: bounds.midY - indicatorSize / 2)
 
         case (.right, .center):
-            return CGPoint(x: bounds.maxX - indicatorSize - padding, y: bounds.midY - indicatorSize / 2)
+            CGPoint(x: bounds.maxX - indicatorSize - padding, y: bounds.midY - indicatorSize / 2)
 
         case (.bottom, .start):
-            return CGPoint(x: bounds.minX + padding, y: bounds.minY + padding)
+            CGPoint(x: bounds.minX + padding, y: bounds.minY + padding)
 
         case (.bottom, .end):
-            return CGPoint(x: bounds.maxX - indicatorSize - padding, y: bounds.minY + padding)
+            CGPoint(x: bounds.maxX - indicatorSize - padding, y: bounds.minY + padding)
 
         default:
-            return CGPoint(x: bounds.maxX - indicatorSize - padding, y: bounds.minY + padding)
+            CGPoint(x: bounds.maxX - indicatorSize - padding, y: bounds.minY + padding)
         }
     }
 
@@ -125,7 +124,6 @@ class IndicatorSnapModel {
         indicatorSize: CGFloat = 40,
         padding: CGFloat = 10
     ) -> [IndicatorSnapPosition: CGPoint] {
-
         var positions: [IndicatorSnapPosition: CGPoint] = [:]
 
         let allSnapPositions: [IndicatorSnapPosition] = [
@@ -134,7 +132,7 @@ class IndicatorSnapModel {
             IndicatorSnapPosition(edge: .left, alignment: .center),
             IndicatorSnapPosition(edge: .right, alignment: .center),
             IndicatorSnapPosition(edge: .bottom, alignment: .start),
-            IndicatorSnapPosition(edge: .bottom, alignment: .end)
+            IndicatorSnapPosition(edge: .bottom, alignment: .end),
         ]
 
         for snapPos in allSnapPositions {
@@ -160,7 +158,6 @@ class IndicatorSnapModel {
         padding: CGFloat = 10,
         threshold: CGFloat = 50
     ) -> IndicatorSnapPosition? {
-
         let (nearestPoint, snapPosition) = snapToNearest(
             currentPoint: point,
             within: bounds,

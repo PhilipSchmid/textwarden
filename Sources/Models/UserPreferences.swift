@@ -5,8 +5,8 @@
 //  User preferences with UserDefaults persistence
 //
 
-import Foundation
 import Combine
+import Foundation
 
 /// Pause duration options for grammar checking
 enum PauseDuration: String, CaseIterable, Codable {
@@ -28,7 +28,7 @@ class UserPreferences: ObservableObject {
     private var cleanupTimer: Timer?
 
     /// Helper to encode and persist a value with logging on failure
-    private func persist<T: Encodable>(_ value: T, forKey key: String) {
+    private func persist(_ value: some Encodable, forKey key: String) {
         do {
             let encoded = try encoder.encode(value)
             defaults.set(encoded, forKey: key)
@@ -174,7 +174,7 @@ class UserPreferences: ObservableObject {
         "Style",
         "Typo",
         "Usage",
-        "WordChoice"
+        "WordChoice",
     ]
 
     // MARK: - Individual Rule Toggles
@@ -211,9 +211,8 @@ class UserPreferences: ObservableObject {
         "org.alacritty",
         "net.kovidgoyal.kitty",
         "com.github.wez.wezterm",
-        "com.mitchellh.ghostty"
+        "com.mitchellh.ghostty",
     ]
-
 
     /// Always open settings window in foreground on launch
     @Published var openInForeground: Bool {
@@ -250,10 +249,11 @@ class UserPreferences: ObservableObject {
         "American",
         "British",
         "Canadian",
-        "Australian"
+        "Australian",
     ]
 
     // MARK: - Predefined Wordlists
+
     // Each wordlist has a Bool toggle that enables/disables it
     // To add a new wordlist:
     // 1. Add a @Published var property here (e.g., enableITTerminology)
@@ -334,29 +334,29 @@ class UserPreferences: ObservableObject {
         "Arabic", "Dutch", "English", "French", "German",
         "Hindi", "Italian", "Japanese", "Korean", "Mandarin",
         "Portuguese", "Russian", "Spanish", "Swedish",
-        "Turkish", "Vietnamese"
+        "Turkish", "Vietnamese",
     ]
 
     /// Map UI-friendly names to language codes for Rust
     static func languageCode(for name: String) -> String {
         switch name {
-        case "Arabic": return "arabic"
-        case "Dutch": return "dutch"
-        case "English": return "english"
-        case "French": return "french"
-        case "German": return "german"
-        case "Hindi": return "hindi"
-        case "Italian": return "italian"
-        case "Japanese": return "japanese"
-        case "Korean": return "korean"
-        case "Mandarin": return "mandarin"
-        case "Portuguese": return "portuguese"
-        case "Russian": return "russian"
-        case "Spanish": return "spanish"
-        case "Swedish": return "swedish"
-        case "Turkish": return "turkish"
-        case "Vietnamese": return "vietnamese"
-        default: return name.lowercased()
+        case "Arabic": "arabic"
+        case "Dutch": "dutch"
+        case "English": "english"
+        case "French": "french"
+        case "German": "german"
+        case "Hindi": "hindi"
+        case "Italian": "italian"
+        case "Japanese": "japanese"
+        case "Korean": "korean"
+        case "Mandarin": "mandarin"
+        case "Portuguese": "portuguese"
+        case "Russian": "russian"
+        case "Spanish": "spanish"
+        case "Swedish": "swedish"
+        case "Turkish": "turkish"
+        case "Vietnamese": "vietnamese"
+        default: name.lowercased()
         }
     }
 
@@ -396,7 +396,7 @@ class UserPreferences: ObservableObject {
     static let suggestionPositions = [
         "Auto",
         "Above",
-        "Below"
+        "Below",
     ]
 
     /// App theme (for the TextWarden application UI itself)
@@ -417,7 +417,7 @@ class UserPreferences: ObservableObject {
     static let themeOptions = [
         "System",
         "Light",
-        "Dark"
+        "Dark",
     ]
 
     /// Whether to show error underlines (global toggle)
@@ -456,7 +456,7 @@ class UserPreferences: ObservableObject {
         "Center Left",
         "Center Right",
         "Bottom Left",
-        "Bottom Right"
+        "Bottom Right",
     ]
 
     /// Enable hover-to-show popover behavior
@@ -601,213 +601,226 @@ class UserPreferences: ObservableObject {
         "Concise",
         "Formal",
         "Casual",
-        "Business"
+        "Business",
     ]
 
     private init() {
         // Initialize with default values first
-        self.pauseDuration = .active
-        self.pausedUntil = nil
-        self.disabledApplications = []
-        self.discoveredApplications = []
-        self.appUnderlinesDisabled = []
-        self.disabledWebsites = []
-        self.appPauseDurations = [:]
-        self.appPausedUntil = [:]
-        self.customDictionary = []
-        self.ignoredRules = []
-        self.ignoredErrorTexts = []
-        self.enabledCategories = UserPreferences.allCategories // All categories enabled by default
-        self.openInForeground = false
+        pauseDuration = .active
+        pausedUntil = nil
+        disabledApplications = []
+        discoveredApplications = []
+        appUnderlinesDisabled = []
+        disabledWebsites = []
+        appPauseDurations = [:]
+        appPausedUntil = [:]
+        customDictionary = []
+        ignoredRules = []
+        ignoredErrorTexts = []
+        enabledCategories = UserPreferences.allCategories // All categories enabled by default
+        openInForeground = false
 
         // Individual Rule Toggles (all enabled by default to match Harper defaults)
-        self.enforceOxfordComma = true
-        self.checkEllipsis = true
-        self.checkUnclosedQuotes = true
-        self.checkDashes = true
+        enforceOxfordComma = true
+        checkEllipsis = true
+        checkUnclosedQuotes = true
+        checkDashes = true
 
         // Language & Dialect
-        self.selectedDialect = "American"
-        self.enableInternetAbbreviations = true
-        self.enableGenZSlang = true
-        self.enableITTerminology = true
-        self.enableBrandNames = true
-        self.enablePersonNames = true
-        self.enableLastNames = true
-        self.enableMacOSDictionary = true  // Uses NSSpellChecker API, no special permissions
-        self.enableLanguageDetection = false  // Opt-in feature
-        self.excludedLanguages = []
+        selectedDialect = "American"
+        enableInternetAbbreviations = true
+        enableGenZSlang = true
+        enableITTerminology = true
+        enableBrandNames = true
+        enablePersonNames = true
+        enableLastNames = true
+        enableMacOSDictionary = true // Uses NSSpellChecker API, no special permissions
+        enableLanguageDetection = false // Opt-in feature
+        excludedLanguages = []
 
         // Keyboard Shortcuts
-        self.keyboardShortcutsEnabled = true
+        keyboardShortcutsEnabled = true
 
         // Suggestion Appearance
-        self.suggestionOpacity = 0.80
-        self.suggestionTextSize = 13.0
-        self.suggestionPosition = "Auto"
-        self.appTheme = "System"
-        self.overlayTheme = "System"
-        self.showUnderlines = true
-        self.underlineThickness = 2.0
-        self.maxErrorsForUnderlines = 10
-        self.indicatorPosition = "Center Right"
-        self.enableHoverPopover = true
-        self.popoverHoverDelayMs = 0
+        suggestionOpacity = 0.80
+        suggestionTextSize = 13.0
+        suggestionPosition = "Auto"
+        appTheme = "System"
+        overlayTheme = "System"
+        showUnderlines = true
+        underlineThickness = 2.0
+        maxErrorsForUnderlines = 10
+        indicatorPosition = "Center Right"
+        enableHoverPopover = true
+        popoverHoverDelayMs = 0
 
         // Diagnostics
-        self.showDebugBorderTextFieldBounds = false
-        self.showDebugBorderCGWindowCoords = false
-        self.showDebugBorderCocoaCoords = false
-        self.showDebugCharacterMarkers = false
+        showDebugBorderTextFieldBounds = false
+        showDebugBorderCGWindowCoords = false
+        showDebugBorderCocoaCoords = false
+        showDebugCharacterMarkers = false
 
         // Milestones
-        self.shownMilestones = []
-        self.milestonesDisabled = false
+        shownMilestones = []
+        milestonesDisabled = false
 
         // LLM Style Checking
-        self.enableStyleChecking = false  // Off by default
-        self.autoStyleChecking = false    // Manual-only by default
-        self.alwaysShowCapsule = false    // Hide capsule when no errors by default
-        self.selectedWritingStyle = "Default"
-        self.selectedModelId = "qwen2.5-1.5b"  // Balanced model
-        self.styleMinSentenceWords = 5
-        self.styleConfidenceThreshold = 0.7
-        self.styleAutoLoadModel = true
-        self.styleInferencePreset = "balanced"  // Default to balanced
-        self.styleTemperaturePreset = "balanced"  // Default FM temperature
+        enableStyleChecking = false // Off by default
+        autoStyleChecking = false // Manual-only by default
+        alwaysShowCapsule = false // Hide capsule when no errors by default
+        selectedWritingStyle = "Default"
+        selectedModelId = "qwen2.5-1.5b" // Balanced model
+        styleMinSentenceWords = 5
+        styleConfidenceThreshold = 0.7
+        styleAutoLoadModel = true
+        styleInferencePreset = "balanced" // Default to balanced
+        styleTemperaturePreset = "balanced" // Default FM temperature
 
         // Then load saved preferences
         if let pauseString = defaults.string(forKey: Keys.pauseDuration),
-           let pause = PauseDuration(rawValue: pauseString) {
-            self.pauseDuration = pause
+           let pause = PauseDuration(rawValue: pauseString)
+        {
+            pauseDuration = pause
         }
 
-        self.pausedUntil = defaults.object(forKey: Keys.pausedUntil) as? Date
+        pausedUntil = defaults.object(forKey: Keys.pausedUntil) as? Date
 
         if let data = defaults.data(forKey: Keys.disabledApplications),
-           let set = try? decoder.decode(Set<String>.self, from: data) {
-            self.disabledApplications = set
+           let set = try? decoder.decode(Set<String>.self, from: data)
+        {
+            disabledApplications = set
         }
 
         if let data = defaults.data(forKey: Keys.discoveredApplications),
-           let set = try? decoder.decode(Set<String>.self, from: data) {
-            self.discoveredApplications = set
+           let set = try? decoder.decode(Set<String>.self, from: data)
+        {
+            discoveredApplications = set
         }
 
         if let data = defaults.data(forKey: Keys.appUnderlinesDisabled),
-           let set = try? decoder.decode(Set<String>.self, from: data) {
-            self.appUnderlinesDisabled = set
+           let set = try? decoder.decode(Set<String>.self, from: data)
+        {
+            appUnderlinesDisabled = set
         }
 
         if let data = defaults.data(forKey: Keys.disabledWebsites),
-           let set = try? decoder.decode(Set<String>.self, from: data) {
-            self.disabledWebsites = set
+           let set = try? decoder.decode(Set<String>.self, from: data)
+        {
+            disabledWebsites = set
         }
 
         if let data = defaults.data(forKey: Keys.appPauseDurations),
-           let dict = try? decoder.decode([String: PauseDuration].self, from: data) {
-            self.appPauseDurations = dict
+           let dict = try? decoder.decode([String: PauseDuration].self, from: data)
+        {
+            appPauseDurations = dict
         }
 
         if let data = defaults.data(forKey: Keys.appPausedUntil),
-           let dict = try? decoder.decode([String: Date].self, from: data) {
-            self.appPausedUntil = dict
+           let dict = try? decoder.decode([String: Date].self, from: data)
+        {
+            appPausedUntil = dict
         }
 
         if let data = defaults.data(forKey: Keys.customDictionary),
-           let set = try? decoder.decode(Set<String>.self, from: data) {
-            self.customDictionary = set
+           let set = try? decoder.decode(Set<String>.self, from: data)
+        {
+            customDictionary = set
         }
 
         if let data = defaults.data(forKey: Keys.ignoredRules),
-           let set = try? decoder.decode(Set<String>.self, from: data) {
-            self.ignoredRules = set
+           let set = try? decoder.decode(Set<String>.self, from: data)
+        {
+            ignoredRules = set
         }
 
         if let data = defaults.data(forKey: Keys.ignoredErrorTexts),
-           let set = try? decoder.decode(Set<String>.self, from: data) {
-            self.ignoredErrorTexts = set
+           let set = try? decoder.decode(Set<String>.self, from: data)
+        {
+            ignoredErrorTexts = set
         }
 
         if let data = defaults.data(forKey: Keys.enabledCategories),
-           let set = try? decoder.decode(Set<String>.self, from: data) {
-            self.enabledCategories = set
+           let set = try? decoder.decode(Set<String>.self, from: data)
+        {
+            enabledCategories = set
         }
 
-        self.openInForeground = defaults.object(forKey: Keys.openInForeground) as? Bool ?? false
-        self.hasCompletedOnboarding = defaults.object(forKey: Keys.hasCompletedOnboarding) as? Bool ?? false
-        self.hasShownMenuBarTooltip = defaults.object(forKey: Keys.hasShownMenuBarTooltip) as? Bool ?? false
+        openInForeground = defaults.object(forKey: Keys.openInForeground) as? Bool ?? false
+        hasCompletedOnboarding = defaults.object(forKey: Keys.hasCompletedOnboarding) as? Bool ?? false
+        hasShownMenuBarTooltip = defaults.object(forKey: Keys.hasShownMenuBarTooltip) as? Bool ?? false
 
         // Individual Rule Toggles
-        self.enforceOxfordComma = defaults.object(forKey: Keys.enforceOxfordComma) as? Bool ?? true
-        self.checkEllipsis = defaults.object(forKey: Keys.checkEllipsis) as? Bool ?? true
-        self.checkUnclosedQuotes = defaults.object(forKey: Keys.checkUnclosedQuotes) as? Bool ?? true
-        self.checkDashes = defaults.object(forKey: Keys.checkDashes) as? Bool ?? true
+        enforceOxfordComma = defaults.object(forKey: Keys.enforceOxfordComma) as? Bool ?? true
+        checkEllipsis = defaults.object(forKey: Keys.checkEllipsis) as? Bool ?? true
+        checkUnclosedQuotes = defaults.object(forKey: Keys.checkUnclosedQuotes) as? Bool ?? true
+        checkDashes = defaults.object(forKey: Keys.checkDashes) as? Bool ?? true
 
         // Language & Dialect
-        self.selectedDialect = defaults.string(forKey: Keys.selectedDialect) ?? "American"
-        self.enableInternetAbbreviations = defaults.object(forKey: Keys.enableInternetAbbreviations) as? Bool ?? true
-        self.enableGenZSlang = defaults.object(forKey: Keys.enableGenZSlang) as? Bool ?? true
-        self.enableITTerminology = defaults.object(forKey: Keys.enableITTerminology) as? Bool ?? true
-        self.enableBrandNames = defaults.object(forKey: Keys.enableBrandNames) as? Bool ?? true
-        self.enablePersonNames = defaults.object(forKey: Keys.enablePersonNames) as? Bool ?? true
-        self.enableLastNames = defaults.object(forKey: Keys.enableLastNames) as? Bool ?? true
-        self.enableMacOSDictionary = defaults.object(forKey: Keys.enableMacOSDictionary) as? Bool ?? true
-        self.enableLanguageDetection = defaults.object(forKey: Keys.enableLanguageDetection) as? Bool ?? false
+        selectedDialect = defaults.string(forKey: Keys.selectedDialect) ?? "American"
+        enableInternetAbbreviations = defaults.object(forKey: Keys.enableInternetAbbreviations) as? Bool ?? true
+        enableGenZSlang = defaults.object(forKey: Keys.enableGenZSlang) as? Bool ?? true
+        enableITTerminology = defaults.object(forKey: Keys.enableITTerminology) as? Bool ?? true
+        enableBrandNames = defaults.object(forKey: Keys.enableBrandNames) as? Bool ?? true
+        enablePersonNames = defaults.object(forKey: Keys.enablePersonNames) as? Bool ?? true
+        enableLastNames = defaults.object(forKey: Keys.enableLastNames) as? Bool ?? true
+        enableMacOSDictionary = defaults.object(forKey: Keys.enableMacOSDictionary) as? Bool ?? true
+        enableLanguageDetection = defaults.object(forKey: Keys.enableLanguageDetection) as? Bool ?? false
         if let data = defaults.data(forKey: Keys.excludedLanguages),
-           let set = try? decoder.decode(Set<String>.self, from: data) {
-            self.excludedLanguages = set
+           let set = try? decoder.decode(Set<String>.self, from: data)
+        {
+            excludedLanguages = set
         }
 
         // Keyboard Shortcuts
-        self.keyboardShortcutsEnabled = defaults.object(forKey: Keys.keyboardShortcutsEnabled) as? Bool ?? true
+        keyboardShortcutsEnabled = defaults.object(forKey: Keys.keyboardShortcutsEnabled) as? Bool ?? true
 
         // Suggestion Appearance
-        self.suggestionOpacity = defaults.object(forKey: Keys.suggestionOpacity) as? Double ?? 0.80
-        self.suggestionTextSize = defaults.object(forKey: Keys.suggestionTextSize) as? Double ?? 13.0
-        self.suggestionPosition = defaults.string(forKey: Keys.suggestionPosition) ?? "Auto"
-        self.appTheme = defaults.string(forKey: Keys.appTheme) ?? "System"
+        suggestionOpacity = defaults.object(forKey: Keys.suggestionOpacity) as? Double ?? 0.80
+        suggestionTextSize = defaults.object(forKey: Keys.suggestionTextSize) as? Double ?? 13.0
+        suggestionPosition = defaults.string(forKey: Keys.suggestionPosition) ?? "Auto"
+        appTheme = defaults.string(forKey: Keys.appTheme) ?? "System"
         // Migration: if overlayTheme not set, try old suggestionTheme key for backward compatibility
         if let savedOverlayTheme = defaults.string(forKey: Keys.overlayTheme) {
-            self.overlayTheme = savedOverlayTheme
+            overlayTheme = savedOverlayTheme
         } else if let oldTheme = defaults.string(forKey: "suggestionTheme") {
             // Migrate from old key name
-            self.overlayTheme = oldTheme
+            overlayTheme = oldTheme
             defaults.set(oldTheme, forKey: Keys.overlayTheme)
         } else {
-            self.overlayTheme = "System"
+            overlayTheme = "System"
         }
-        self.showUnderlines = defaults.object(forKey: Keys.showUnderlines) as? Bool ?? true
-        self.underlineThickness = defaults.object(forKey: Keys.underlineThickness) as? Double ?? 2.0
-        self.maxErrorsForUnderlines = defaults.object(forKey: Keys.maxErrorsForUnderlines) as? Int ?? 10
-        self.indicatorPosition = defaults.string(forKey: Keys.indicatorPosition) ?? "Center Right"
-        self.enableHoverPopover = defaults.object(forKey: Keys.enableHoverPopover) as? Bool ?? true
-        self.popoverHoverDelayMs = defaults.object(forKey: Keys.popoverHoverDelayMs) as? Int ?? 0
+        showUnderlines = defaults.object(forKey: Keys.showUnderlines) as? Bool ?? true
+        underlineThickness = defaults.object(forKey: Keys.underlineThickness) as? Double ?? 2.0
+        maxErrorsForUnderlines = defaults.object(forKey: Keys.maxErrorsForUnderlines) as? Int ?? 10
+        indicatorPosition = defaults.string(forKey: Keys.indicatorPosition) ?? "Center Right"
+        enableHoverPopover = defaults.object(forKey: Keys.enableHoverPopover) as? Bool ?? true
+        popoverHoverDelayMs = defaults.object(forKey: Keys.popoverHoverDelayMs) as? Int ?? 0
 
         // Diagnostics
-        self.showDebugBorderTextFieldBounds = defaults.object(forKey: Keys.showDebugBorderTextFieldBounds) as? Bool ?? false
-        self.showDebugBorderCGWindowCoords = defaults.object(forKey: Keys.showDebugBorderCGWindowCoords) as? Bool ?? false
-        self.showDebugBorderCocoaCoords = defaults.object(forKey: Keys.showDebugBorderCocoaCoords) as? Bool ?? false
-        self.showDebugCharacterMarkers = defaults.object(forKey: Keys.showDebugCharacterMarkers) as? Bool ?? false
+        showDebugBorderTextFieldBounds = defaults.object(forKey: Keys.showDebugBorderTextFieldBounds) as? Bool ?? false
+        showDebugBorderCGWindowCoords = defaults.object(forKey: Keys.showDebugBorderCGWindowCoords) as? Bool ?? false
+        showDebugBorderCocoaCoords = defaults.object(forKey: Keys.showDebugBorderCocoaCoords) as? Bool ?? false
+        showDebugCharacterMarkers = defaults.object(forKey: Keys.showDebugCharacterMarkers) as? Bool ?? false
 
         // Milestones
         if let data = defaults.data(forKey: Keys.shownMilestones),
-           let set = try? decoder.decode(Set<String>.self, from: data) {
-            self.shownMilestones = set
+           let set = try? decoder.decode(Set<String>.self, from: data)
+        {
+            shownMilestones = set
         }
-        self.milestonesDisabled = defaults.object(forKey: Keys.milestonesDisabled) as? Bool ?? false
+        milestonesDisabled = defaults.object(forKey: Keys.milestonesDisabled) as? Bool ?? false
 
         // LLM Style Checking
-        self.enableStyleChecking = defaults.object(forKey: Keys.enableStyleChecking) as? Bool ?? false
-        self.autoStyleChecking = defaults.object(forKey: Keys.autoStyleChecking) as? Bool ?? false
-        self.alwaysShowCapsule = defaults.object(forKey: Keys.alwaysShowCapsule) as? Bool ?? false
-        self.selectedWritingStyle = defaults.string(forKey: Keys.selectedWritingStyle) ?? "Default"
-        self.selectedModelId = defaults.string(forKey: Keys.selectedModelId) ?? "qwen2.5-1.5b"
-        self.styleMinSentenceWords = defaults.object(forKey: Keys.styleMinSentenceWords) as? Int ?? 5
-        self.styleConfidenceThreshold = defaults.object(forKey: Keys.styleConfidenceThreshold) as? Double ?? 0.7
-        self.styleAutoLoadModel = defaults.object(forKey: Keys.styleAutoLoadModel) as? Bool ?? true
-        self.styleInferencePreset = defaults.string(forKey: Keys.styleInferencePreset) ?? "balanced"
-        self.styleTemperaturePreset = defaults.string(forKey: Keys.styleTemperaturePreset) ?? "balanced"
+        enableStyleChecking = defaults.object(forKey: Keys.enableStyleChecking) as? Bool ?? false
+        autoStyleChecking = defaults.object(forKey: Keys.autoStyleChecking) as? Bool ?? false
+        alwaysShowCapsule = defaults.object(forKey: Keys.alwaysShowCapsule) as? Bool ?? false
+        selectedWritingStyle = defaults.string(forKey: Keys.selectedWritingStyle) ?? "Default"
+        selectedModelId = defaults.string(forKey: Keys.selectedModelId) ?? "qwen2.5-1.5b"
+        styleMinSentenceWords = defaults.object(forKey: Keys.styleMinSentenceWords) as? Int ?? 5
+        styleConfidenceThreshold = defaults.object(forKey: Keys.styleConfidenceThreshold) as? Double ?? 0.7
+        styleAutoLoadModel = defaults.object(forKey: Keys.styleAutoLoadModel) as? Bool ?? true
+        styleInferencePreset = defaults.string(forKey: Keys.styleInferencePreset) ?? "balanced"
+        styleTemperaturePreset = defaults.string(forKey: Keys.styleTemperaturePreset) ?? "balanced"
 
         // This prevents grammar checking in terminals where command output can cause false positives
         // Users can still enable terminals individually via Applications preferences
@@ -957,7 +970,7 @@ class UserPreferences: ObservableObject {
     /// Check if underlines are enabled for a specific application
     /// Returns true if underlines should be shown (not in the disabled set)
     func areUnderlinesEnabled(for bundleIdentifier: String) -> Bool {
-        return !appUnderlinesDisabled.contains(bundleIdentifier)
+        !appUnderlinesDisabled.contains(bundleIdentifier)
     }
 
     /// Set whether underlines are enabled for a specific application
@@ -1056,7 +1069,7 @@ class UserPreferences: ObservableObject {
 
     /// Check if an error text is ignored
     func isErrorTextIgnored(_ text: String) -> Bool {
-        return ignoredErrorTexts.contains(text)
+        ignoredErrorTexts.contains(text)
     }
 
     // MARK: - App-Specific Pause Management
@@ -1118,7 +1131,7 @@ class UserPreferences: ObservableObject {
     /// - Parameter bundleIdentifier: The bundle identifier of the application
     /// - Returns: The date when the pause will expire, or `nil` if no timed pause is set
     func getPausedUntil(for bundleIdentifier: String) -> Date? {
-        return appPausedUntil[bundleIdentifier]
+        appPausedUntil[bundleIdentifier]
     }
 
     /// Reset all preferences to defaults

@@ -5,14 +5,13 @@
 //  Monitors text changes in accessible applications using AX API
 //
 
-import Foundation
 import ApplicationServices
 import Combine
+import Foundation
 
 /// Monitors text changes in applications via Accessibility API
 @MainActor
 class TextMonitor: ObservableObject {
-
     // MARK: - Published State
 
     /// Published text changes
@@ -27,7 +26,7 @@ class TextMonitor: ObservableObject {
     private var observer: AXObserver?
 
     /// Current UI element being monitored
-    internal var monitoredElement: AXUIElement?
+    var monitoredElement: AXUIElement?
 
     /// Debounce timer for text changes
     private var debounceTimer: Timer?
@@ -100,7 +99,7 @@ class TextMonitor: ObservableObject {
             return
         }
 
-        self.currentContext = context
+        currentContext = context
 
         let appElement = AXUIElementCreateApplication(processID)
 
@@ -167,7 +166,7 @@ class TextMonitor: ObservableObject {
         // Cancel any pending retry attempts
         cancelPendingRetries()
 
-        if let observer = observer {
+        if let observer {
             CFRunLoopRemoveSource(
                 CFRunLoopGetCurrent(),
                 AXObserverGetRunLoopSource(observer),
@@ -189,7 +188,7 @@ class TextMonitor: ObservableObject {
     /// Used when focus changes to an invalid element (e.g., sent message in WebEx)
     private func clearMonitoringAndHideOverlays() {
         // Remove observer from current element
-        if let observer = observer, let previousElement = monitoredElement {
+        if let observer, let previousElement = monitoredElement {
             AXObserverRemoveNotification(observer, previousElement, kAXValueChangedNotification as CFString)
         }
         monitoredElement = nil
@@ -227,7 +226,7 @@ class TextMonitor: ObservableObject {
 
         guard error == .success, let element = focusedElement else {
             // Retry if we haven't reached max attempts AND watchdog isn't active
-            if retryAttempt < maxAttempts && !AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            if retryAttempt < maxAttempts, !AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
                 scheduleRetry(attempt: retryAttempt) { [weak self] in
                     self?.monitorFocusedElement(in: appElement, retryAttempt: retryAttempt + 1)
                 }
@@ -301,7 +300,8 @@ class TextMonitor: ObservableObject {
             // For apps with explicit content filters (WebEx, Outlook, etc.), don't monitor
             // invalid elements - clear overlays and return instead
             if let bundleID = currentContext?.bundleIdentifier,
-               !isValidContentElement(axElement, bundleID: bundleID) {
+               !isValidContentElement(axElement, bundleID: bundleID)
+            {
                 Logger.debug("TextMonitor: Invalid element for \(bundleID) - clearing and not monitoring", category: Logger.accessibility)
                 clearMonitoringAndHideOverlays()
                 return
@@ -354,7 +354,7 @@ class TextMonitor: ObservableObject {
         // Set timeout on the element to ensure all subsequent calls are protected
         AXUIElementSetMessagingTimeout(element, 1.0)
 
-        guard let observer = observer else {
+        guard let observer else {
             Logger.debug("TextMonitor: No observer available", category: Logger.accessibility)
             return
         }
@@ -362,7 +362,8 @@ class TextMonitor: ObservableObject {
         // For browsers, skip UI elements like search fields, URL bars, find-in-page
         // These are not meaningful for grammar checking - we want actual web content
         if let bundleID = currentContext?.bundleIdentifier,
-           AppRegistry.shared.configuration(for: bundleID).parserType == .browser {
+           AppRegistry.shared.configuration(for: bundleID).parserType == .browser
+        {
             if BrowserContentParser.isBrowserUIElement(element) {
                 Logger.debug("TextMonitor: Skipping browser UI element (not web content)", category: Logger.accessibility)
                 // Clear any existing monitoring and notify to hide overlays
@@ -384,7 +385,8 @@ class TextMonitor: ObservableObject {
         // Mail's WebKit fires focus events for parent AXGroup elements even while editing,
         // so preserve the monitored element if it's already a valid composition area.
         if let bundleID = currentContext?.bundleIdentifier,
-           AppRegistry.shared.configuration(for: bundleID).parserType == .mail {
+           AppRegistry.shared.configuration(for: bundleID).parserType == .mail
+        {
             if !MailContentParser.isMailCompositionElement(element) {
                 // If we already have a valid composition element monitored, preserve it
                 // and just ignore this non-composition focus event.
@@ -393,7 +395,8 @@ class TextMonitor: ObservableObject {
                 // when focus has temporarily moved to a toolbar or other element.
                 // Instead, just verify the existing element is still a valid text element with content.
                 if let existingElement = monitoredElement,
-                   isStillValidMailCompositionElement(existingElement) {
+                   isStillValidMailCompositionElement(existingElement)
+                {
                     Logger.trace("TextMonitor: Ignoring non-composition Mail focus event - preserving existing composition element", category: Logger.accessibility)
                     return
                 }
@@ -419,8 +422,8 @@ class TextMonitor: ObservableObject {
         // bounces to non-editable elements (AXGroup, AXUnknown, AXScrollArea, etc.).
         if let bundleID = currentContext?.bundleIdentifier,
            bundleID == "com.microsoft.Powerpoint",
-           let existingElement = monitoredElement {
-
+           let existingElement = monitoredElement
+        {
             // Check if new element is the Notes AXTextArea
             var newRoleRef: CFTypeRef?
             AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &newRoleRef)
@@ -437,9 +440,10 @@ class TextMonitor: ObservableObject {
                 // New element is NOT editable - this is focus bounce noise, preserve existing
                 var existingValueRef: CFTypeRef?
                 if AXUIElementCopyAttributeValue(existingElement, kAXValueAttribute as CFString, &existingValueRef) == .success,
-                   existingValueRef != nil {
+                   existingValueRef != nil
+                {
                     Logger.debug("TextMonitor: PowerPoint focus bounce - preserving existing monitoring", category: Logger.accessibility)
-                    return  // Keep monitoring existing element, ignore this focus change
+                    return // Keep monitoring existing element, ignore this focus change
                 }
             }
         }
@@ -447,8 +451,8 @@ class TextMonitor: ObservableObject {
         // For Outlook, clicking in the compose body may focus on AXStaticText instead of the editable area.
         // Search for the actual compose element when this happens.
         if let bundleID = currentContext?.bundleIdentifier,
-           bundleID == "com.microsoft.Outlook" {
-
+           bundleID == "com.microsoft.Outlook"
+        {
             var newRoleRef: CFTypeRef?
             AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &newRoleRef)
             let newRole = newRoleRef as? String ?? ""
@@ -500,17 +504,17 @@ class TextMonitor: ObservableObject {
             // Roles that are definitively non-editable - don't retry, clear monitoring immediately
             // This ensures overlays hide promptly when focus moves to navigation elements
             let readOnlyRoles: Set<String> = [
-                kAXStaticTextRole as String,  // Static labels
-                "AXScrollArea",               // Scroll containers
-                "AXLayoutArea",               // Layout containers
-                "AXTable",                    // Tables (e.g., WebEx conversation list)
-                "AXWindow",                   // Window itself
-                "AXList",                     // List views
-                "AXOutline"                   // Tree/outline views (e.g., sidebar navigation)
+                kAXStaticTextRole as String, // Static labels
+                "AXScrollArea", // Scroll containers
+                "AXLayoutArea", // Layout containers
+                "AXTable", // Tables (e.g., WebEx conversation list)
+                "AXWindow", // Window itself
+                "AXList", // List views
+                "AXOutline", // Tree/outline views (e.g., sidebar navigation)
             ]
 
             // Only retry if it's not explicitly a read-only role (e.g., AXGroup might become editable)
-            if retryAttempt < maxAttempts && !readOnlyRoles.contains(roleString) {
+            if retryAttempt < maxAttempts, !readOnlyRoles.contains(roleString) {
                 scheduleRetry(attempt: retryAttempt) { [weak self] in
                     self?.monitorElement(element, retryAttempt: retryAttempt + 1)
                 }
@@ -709,12 +713,12 @@ class TextMonitor: ObservableObject {
         debounceTimer?.invalidate()
 
         debounceTimer = Timer.scheduledTimer(withTimeInterval: debounceInterval, repeats: false) { [weak self] _ in
-            guard let self = self else { return }
+            guard let self else { return }
 
             DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                self.currentText = text
-                self.onTextChange?(text, context)
+                guard let self else { return }
+                currentText = text
+                onTextChange?(text, context)
             }
         }
     }
@@ -742,16 +746,16 @@ class TextMonitor: ObservableObject {
             withTimeInterval: debounceInterval,
             repeats: false
         ) { [weak self] _ in
-            guard let self = self else { return }
+            guard let self else { return }
 
             DispatchQueue.main.async { [weak self] in
-                guard let self = self,
-                      let element = self.pendingExtractionElement else { return }
+                guard let self,
+                      let element = pendingExtractionElement else { return }
 
                 // NOW extract text (typing has paused)
                 Logger.debug("TextMonitor: Deferred extraction - typing paused, extracting text now", category: Logger.accessibility)
-                self.extractText(from: element)
-                self.pendingExtractionElement = nil
+                extractText(from: element)
+                pendingExtractionElement = nil
             }
         }
     }
@@ -761,14 +765,14 @@ class TextMonitor: ObservableObject {
 
 /// Callback function for AX observer notifications
 private func axObserverCallback(
-    observer: AXObserver,
+    observer _: AXObserver,
     element: AXUIElement,
     notification: CFString,
     userData: UnsafeMutableRawPointer?
 ) {
     Logger.debug("axObserverCallback: Received notification: \(notification as String)", category: Logger.accessibility)
 
-    guard let userData = userData else {
+    guard let userData else {
         Logger.debug("axObserverCallback: No userData", category: Logger.accessibility)
         return
     }
@@ -826,7 +830,7 @@ private func axObserverCallback(
             // Check if this app uses deferred extraction (for slow AX APIs like Outlook)
             let appConfig = AppRegistry.shared.configuration(for: bundleID)
             let shouldDefer = appConfig.features.defersTextExtraction ||
-                              AXWatchdog.shared.shouldDeferExtraction(for: bundleID)
+                AXWatchdog.shared.shouldDeferExtraction(for: bundleID)
 
             if shouldDefer {
                 // Deferred path: store element, defer extraction until typing pauses
@@ -892,23 +896,23 @@ extension TextMonitor {
     /// Roles that are containers unlikely to contain editable text - skip recursing into these
     /// Note: AXGroup is NOT included because some apps (e.g., Apple Mail compose) nest editable content in groups
     private static let nonEditableContainerRoles: Set<String> = [
-        "AXCell",           // Table cells (email list rows)
-        "AXRow",            // Table rows
-        "AXColumn",         // Table columns
-        "AXTable",          // Tables (email lists, spreadsheet-like views)
-        "AXOutline",        // Outline views (folder trees)
-        "AXOutlineRow",     // Outline rows
-        "AXList",           // List views
-        "AXBrowser",        // Browser/column views
-        "AXImage",          // Images
-        "AXButton",         // Buttons
-        "AXCheckBox",       // Checkboxes
-        "AXRadioButton",    // Radio buttons
-        "AXMenuItem",       // Menu items
-        "AXMenuBar",        // Menu bar
-        "AXMenu",           // Menus
-        "AXToolbar",        // Toolbars
-        "AXStaticText"      // Static text (read-only)
+        "AXCell", // Table cells (email list rows)
+        "AXRow", // Table rows
+        "AXColumn", // Table columns
+        "AXTable", // Tables (email lists, spreadsheet-like views)
+        "AXOutline", // Outline views (folder trees)
+        "AXOutlineRow", // Outline rows
+        "AXList", // List views
+        "AXBrowser", // Browser/column views
+        "AXImage", // Images
+        "AXButton", // Buttons
+        "AXCheckBox", // Checkboxes
+        "AXRadioButton", // Radio buttons
+        "AXMenuItem", // Menu items
+        "AXMenuBar", // Menu bar
+        "AXMenu", // Menus
+        "AXToolbar", // Toolbars
+        "AXStaticText", // Static text (read-only)
     ]
 
     /// Recursively search for an editable child element
@@ -956,7 +960,7 @@ extension TextMonitor {
             }
 
             // Check watchdog periodically during traversal
-            if elementsChecked % 10 == 0 && AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            if elementsChecked % 10 == 0, AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
                 Logger.debug("TextMonitor: Aborting traversal mid-loop - watchdog active", category: Logger.accessibility)
                 return nil
             }
@@ -1013,7 +1017,8 @@ extension TextMonitor {
         // Check role - must be AXWebArea or AXTextArea
         var roleRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef) == .success,
-              let role = roleRef as? String else {
+              let role = roleRef as? String
+        else {
             return false
         }
 
@@ -1027,14 +1032,16 @@ extension TextMonitor {
         var charCountRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &charCountRef) == .success,
            let charCount = charCountRef as? Int,
-           charCount > 0 {
+           charCount > 0
+        {
             return true
         }
 
         // Fallback: try to get AXValue
         var valueRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
-           valueRef != nil {
+           valueRef != nil
+        {
             return true
         }
 
@@ -1058,8 +1065,8 @@ extension TextMonitor {
         // These are what we want to EXCLUDE (terminal output, chat history)
         let readOnlyRoles = [
             kAXStaticTextRole as String,
-            "AXScrollArea",          // Often used for terminal buffers
-            "AXGroup"                // Generic groups (often contain read-only content)
+            "AXScrollArea", // Often used for terminal buffers
+            "AXGroup", // Generic groups (often contain read-only content)
         ]
 
         if readOnlyRoles.contains(roleString) {
@@ -1070,7 +1077,8 @@ extension TextMonitor {
         // AXLayoutArea is usually read-only, but PowerPoint uses it for editable text boxes
         if roleString == "AXLayoutArea" {
             if let bundleID = currentContext?.bundleIdentifier,
-               bundleID == "com.microsoft.Powerpoint" {
+               bundleID == "com.microsoft.Powerpoint"
+            {
                 // PowerPoint uses AXLayoutArea for slide text boxes - check if it has content
                 var valueRef: CFTypeRef?
                 if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success {
@@ -1084,13 +1092,13 @@ extension TextMonitor {
 
         // Only allow known editable roles
         let editableRoles = [
-            kAXTextFieldRole as String,   // Single-line text input
-            kAXTextAreaRole as String,    // Multi-line text input
-            kAXComboBoxRole as String,    // Combo boxes with text input
-            "AXWebArea",                  // Web content area (Electron/Chrome)
-            "AXTextField",                // Web-based text fields (Electron/Chrome)
-            "AXTextMarker",               // Contenteditable areas (Electron/Chrome)
-            "AXHTMLElement"               // HTML elements with contenteditable (Electron)
+            kAXTextFieldRole as String, // Single-line text input
+            kAXTextAreaRole as String, // Multi-line text input
+            kAXComboBoxRole as String, // Combo boxes with text input
+            "AXWebArea", // Web content area (Electron/Chrome)
+            "AXTextField", // Web-based text fields (Electron/Chrome)
+            "AXTextMarker", // Contenteditable areas (Electron/Chrome)
+            "AXHTMLElement", // HTML elements with contenteditable (Electron)
         ]
 
         if !editableRoles.contains(roleString) {
@@ -1121,7 +1129,8 @@ extension TextMonitor {
                 // Microsoft Office AXTextArea reports AXEnabled=false even when editable
                 // Accept AXTextArea for Word/PowerPoint/Outlook since we've validated via content parser
                 if roleString == kAXTextAreaRole as String,
-                   (bundleID == "com.microsoft.Word" || bundleID == "com.microsoft.Powerpoint" || bundleID == "com.microsoft.Outlook") {
+                   bundleID == "com.microsoft.Word" || bundleID == "com.microsoft.Powerpoint" || bundleID == "com.microsoft.Outlook"
+                {
                     Logger.trace("TextMonitor: Office AXTextArea reports disabled, but accepting anyway", category: Logger.accessibility)
                     return true
                 }
@@ -1170,5 +1179,4 @@ extension TextMonitor {
         // For other apps, assume the element is valid
         return true
     }
-
 }

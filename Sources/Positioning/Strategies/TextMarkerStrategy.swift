@@ -12,7 +12,6 @@ import ApplicationServices
 /// Positioning using opaque text marker API
 /// Works where traditional CFRange fails (Electron, Chrome)
 class TextMarkerStrategy: GeometryProvider {
-
     var strategyName: String { "TextMarker" }
     var strategyType: StrategyType { .textMarker }
     var tier: StrategyTier { .precise }
@@ -43,7 +42,6 @@ class TextMarkerStrategy: GeometryProvider {
         text: String,
         parser: ContentParser
     ) -> GeometryResult? {
-
         let bundleID = getBundleID(from: element)
 
         // Double-check watchdog (in case status changed between canHandle and calculateGeometry)
@@ -74,16 +72,17 @@ class TextMarkerStrategy: GeometryProvider {
             let probeCandidates = [startIndex, endIndex, max(0, startIndex - 5), min(text.count - 1, endIndex + 5)]
 
             for probeIndex in probeCandidates {
-                guard probeIndex >= 0 && probeIndex < text.count else { continue }
+                guard probeIndex >= 0, probeIndex < text.count else { continue }
 
                 if let probeMarker = AccessibilityBridge.requestOpaqueMarker(at: probeIndex, from: element),
                    let actualProbeIndex = AccessibilityBridge.indexForMarker(probeMarker, in: element),
-                   actualProbeIndex >= 0 && actualProbeIndex < Int.max / 2 {
+                   actualProbeIndex >= 0, actualProbeIndex < Int.max / 2
+                {
                     if actualProbeIndex != probeIndex {
                         indexOffset = probeIndex - actualProbeIndex
                         Logger.debug("TextMarkerStrategy: Detected index offset of \(indexOffset) via probe at \(probeIndex) (got \(actualProbeIndex))", category: Logger.ui)
                     }
-                    break  // Use first successful probe
+                    break // Use first successful probe
                 }
             }
         }
@@ -157,19 +156,19 @@ class TextMarkerStrategy: GeometryProvider {
         // The fix: Calculate the delta between AXWebArea origin and first character origin,
         // then apply this delta to correct all bounds.
         // For parsers with custom bounds (like Mail's WebKit), handle coordinate conversion
-        if !AccessibilityBridge.supportsLayoutToScreenConversion(element) &&
-           parser.getBoundsForRange(range: NSRange(location: 0, length: 1), in: element) != nil {
+        if !AccessibilityBridge.supportsLayoutToScreenConversion(element),
+           parser.getBoundsForRange(range: NSRange(location: 0, length: 1), in: element) != nil
+        {
             // Get AXWebArea position
             if let areaPosition = AccessibilityBridge.getElementPosition(element) {
-
                 // Get first character bounds to find where text actually starts
                 var cfRange = CFRange(location: 0, length: 1)
                 if let rangeValue = AXValueCreate(.cfRange, &cfRange) {
                     var firstCharBoundsRef: CFTypeRef?
                     if AXUIElementCopyParameterizedAttributeValue(element, "AXBoundsForRange" as CFString, rangeValue, &firstCharBoundsRef) == .success,
                        let fcb = firstCharBoundsRef,
-                       let firstCharBounds = safeAXValueGetRect(fcb) {
-
+                       let firstCharBounds = safeAXValueGetRect(fcb)
+                    {
                         // Calculate the delta: how much the text content is offset from AXWebArea
                         // If first char is at X=327 and AXWebArea is at X=303, delta = 24
                         // The bounds we get are in the coordinate system where AXWebArea.origin = (0,0)
@@ -228,7 +227,7 @@ class TextMarkerStrategy: GeometryProvider {
                 "raw_layout_bounds": NSStringFromRect(rawBounds),
                 "screen_bounds": NSStringFromRect(screenBounds),
                 "cocoa_bounds": NSStringFromRect(cocoaBounds),
-                "used_layout_conversion": usedLayoutConversion
+                "used_layout_conversion": usedLayoutConversion,
             ]
         )
     }

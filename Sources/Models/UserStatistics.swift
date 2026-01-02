@@ -5,8 +5,8 @@
 //  User statistics tracking with UserDefaults persistence
 //
 
-import Foundation
 import Combine
+import Foundation
 
 // MARK: - Time Range
 
@@ -66,7 +66,7 @@ struct SuggestionAction: Codable {
 struct StyleLatencySample: Codable {
     let timestamp: Date
     let modelId: String
-    let preset: String  // "fast", "balanced", "quality"
+    let preset: String // "fast", "balanced", "quality"
     let latencyMs: Double
 }
 
@@ -82,14 +82,14 @@ struct LogVolumeSample: Codable, Identifiable {
     var critical: Int
 
     init(timestamp: Date = Date()) {
-        self.id = UUID()
+        id = UUID()
         self.timestamp = timestamp
-        self.trace = 0
-        self.debug = 0
-        self.info = 0
-        self.warning = 0
-        self.error = 0
-        self.critical = 0
+        trace = 0
+        debug = 0
+        info = 0
+        warning = 0
+        error = 0
+        critical = 0
     }
 
     /// Total log count across all severities
@@ -113,7 +113,7 @@ class UserStatistics: ObservableObject {
     private let decoder = JSONDecoder()
 
     /// Helper to encode and persist a value with logging on failure
-    private func persist<T: Encodable>(_ value: T, forKey key: String) {
+    private func persist(_ value: some Encodable, forKey key: String) {
         do {
             let encoded = try encoder.encode(value)
             defaults.set(encoded, forKey: key)
@@ -242,7 +242,7 @@ class UserStatistics: ObservableObject {
 
     // Retention configuration
     private let maxResourceAge: TimeInterval = TimingConstants.statisticsMaxAge
-    private let maxInMemorySamples = 720  // 1 hour at 5s interval
+    private let maxInMemorySamples = 720 // 1 hour at 5s interval
     private var persistBatchCounter = 0
 
     // MARK: - Log Volume Tracking
@@ -257,7 +257,7 @@ class UserStatistics: ObservableObject {
     /// Current minute's log accumulator (not persisted, aggregates logs within the minute)
     private var currentLogSample: LogVolumeSample?
     private var logPersistBatchCounter = 0
-    private let logSampleInterval: TimeInterval = 60  // Aggregate logs per minute
+    private let logSampleInterval: TimeInterval = 60 // Aggregate logs per minute
 
     // MARK: - Milestone Card Statistics
 
@@ -362,7 +362,7 @@ class UserStatistics: ObservableObject {
 
     /// Estimated time saved in seconds (2 seconds per applied suggestion)
     var timeSavedInSeconds: Int {
-        return suggestionsApplied * 2
+        suggestionsApplied * 2
     }
 
     /// Formatted time saved string (e.g., "5m 30s" or "1h 15m")
@@ -383,7 +383,7 @@ class UserStatistics: ObservableObject {
 
     /// Number of custom dictionary words (from UserPreferences)
     var customDictionarySize: Int {
-        return UserPreferences.shared.customDictionary.count
+        UserPreferences.shared.customDictionary.count
     }
 
     /// Current consecutive active days streak
@@ -432,25 +432,25 @@ class UserStatistics: ObservableObject {
 
     /// Median (P50) latency in milliseconds - middle value, less affected by outliers
     var medianLatencyMs: Double {
-        return percentile(of: latencySamples, percentile: 0.50)
+        percentile(of: latencySamples, percentile: 0.50)
     }
 
     /// P90 (90th percentile) latency in milliseconds
     /// 90% of analyses complete faster than this time
     var p90LatencyMs: Double {
-        return percentile(of: latencySamples, percentile: 0.90)
+        percentile(of: latencySamples, percentile: 0.90)
     }
 
     /// P95 (95th percentile) latency in milliseconds
     /// 95% of analyses complete faster than this time
     var p95LatencyMs: Double {
-        return percentile(of: latencySamples, percentile: 0.95)
+        percentile(of: latencySamples, percentile: 0.95)
     }
 
     /// P99 (99th percentile) latency in milliseconds
     /// 99% of analyses complete faster than this time
     var p99LatencyMs: Double {
-        return percentile(of: latencySamples, percentile: 0.99)
+        percentile(of: latencySamples, percentile: 0.99)
     }
 
     /// Top application where TextWarden is most active
@@ -491,32 +491,32 @@ class UserStatistics: ObservableObject {
 
     /// Get errors found in time range
     func errorsFound(in timeRange: TimeRange) -> Int {
-        return filteredSessions(for: timeRange).reduce(0) { $0 + $1.errorsFound }
+        filteredSessions(for: timeRange).reduce(0) { $0 + $1.errorsFound }
     }
 
     /// Get words analyzed in time range
     func wordsAnalyzed(in timeRange: TimeRange) -> Int {
-        return filteredSessions(for: timeRange).reduce(0) { $0 + $1.wordsProcessed }
+        filteredSessions(for: timeRange).reduce(0) { $0 + $1.wordsProcessed }
     }
 
     /// Get analysis sessions count in time range
     func analysisSessions(in timeRange: TimeRange) -> Int {
-        return filteredSessions(for: timeRange).count
+        filteredSessions(for: timeRange).count
     }
 
     /// Get suggestions applied in time range
     func suggestionsApplied(in timeRange: TimeRange) -> Int {
-        return filteredActions(for: timeRange).filter { $0.action == .applied }.count
+        filteredActions(for: timeRange).count(where: { $0.action == .applied })
     }
 
     /// Get suggestions dismissed in time range
     func suggestionsDismissed(in timeRange: TimeRange) -> Int {
-        return filteredActions(for: timeRange).filter { $0.action == .dismissed }.count
+        filteredActions(for: timeRange).count(where: { $0.action == .dismissed })
     }
 
     /// Get words added to dictionary in time range
     func wordsAddedToDictionary(in timeRange: TimeRange) -> Int {
-        return filteredActions(for: timeRange).filter { $0.action == .addedToDictionary }.count
+        filteredActions(for: timeRange).count(where: { $0.action == .addedToDictionary })
     }
 
     /// Get improvement rate in time range
@@ -566,7 +566,7 @@ class UserStatistics: ObservableObject {
 
     /// Get latency samples for time range
     func latencySamples(in timeRange: TimeRange) -> [Double] {
-        return filteredSessions(for: timeRange).map { $0.latencyMs }
+        filteredSessions(for: timeRange).map(\.latencyMs)
     }
 
     /// Get mean latency for time range
@@ -578,22 +578,22 @@ class UserStatistics: ObservableObject {
 
     /// Get median latency for time range
     func medianLatencyMs(in timeRange: TimeRange) -> Double {
-        return percentile(of: latencySamples(in: timeRange), percentile: 0.50)
+        percentile(of: latencySamples(in: timeRange), percentile: 0.50)
     }
 
     /// Get P90 latency for time range
     func p90LatencyMs(in timeRange: TimeRange) -> Double {
-        return percentile(of: latencySamples(in: timeRange), percentile: 0.90)
+        percentile(of: latencySamples(in: timeRange), percentile: 0.90)
     }
 
     /// Get P95 latency for time range
     func p95LatencyMs(in timeRange: TimeRange) -> Double {
-        return percentile(of: latencySamples(in: timeRange), percentile: 0.95)
+        percentile(of: latencySamples(in: timeRange), percentile: 0.95)
     }
 
     /// Get P99 latency for time range
     func p99LatencyMs(in timeRange: TimeRange) -> Double {
-        return percentile(of: latencySamples(in: timeRange), percentile: 0.99)
+        percentile(of: latencySamples(in: timeRange), percentile: 0.99)
     }
 
     /// Get most common category for time range
@@ -616,10 +616,10 @@ class UserStatistics: ObservableObject {
     }
 
     /// Get current streak (still uses activeDays, not time-filtered)
-    func currentStreak(in timeRange: TimeRange) -> Int {
+    func currentStreak(in _: TimeRange) -> Int {
         // Streak calculation doesn't really make sense with time filtering
         // Always return the full streak
-        return currentStreak
+        currentStreak
     }
 
     /// Get resource usage metrics for a time range
@@ -627,8 +627,8 @@ class UserStatistics: ObservableObject {
         let filtered = filteredResourceSamples(for: timeRange)
         guard !filtered.isEmpty else { return nil }
 
-        let loadValues = filtered.map { $0.processLoad }
-        let memoryValues = filtered.map { $0.memoryBytes }
+        let loadValues = filtered.map(\.processLoad)
+        let memoryValues = filtered.map(\.memoryBytes)
 
         let loadMin = loadValues.min() ?? 0
         let loadMax = loadValues.max() ?? 0
@@ -641,9 +641,9 @@ class UserStatistics: ObservableObject {
         let memoryMedian = median(of: memoryValues)
 
         // Calculate system load averages if available
-        let systemLoad1m = filtered.compactMap { $0.systemLoad1m }
-        let systemLoad5m = filtered.compactMap { $0.systemLoad5m }
-        let systemLoad15m = filtered.compactMap { $0.systemLoad15m }
+        let systemLoad1m = filtered.compactMap(\.systemLoad1m)
+        let systemLoad5m = filtered.compactMap(\.systemLoad5m)
+        let systemLoad15m = filtered.compactMap(\.systemLoad15m)
 
         return ResourceUsageMetrics(
             cpuLoadMin: loadMin,
@@ -689,8 +689,8 @@ class UserStatistics: ObservableObject {
         let filtered = resourceSamples.filter { $0.component == .swiftApp }
         guard !filtered.isEmpty else { return nil }
 
-        let loadValues = filtered.map { $0.processLoad }
-        let memoryValues = filtered.map { $0.memoryBytes }
+        let loadValues = filtered.map(\.processLoad)
+        let memoryValues = filtered.map(\.memoryBytes)
 
         let loadMin = loadValues.min() ?? 0
         let loadMax = loadValues.max() ?? 0
@@ -703,9 +703,9 @@ class UserStatistics: ObservableObject {
         let memoryMedian = median(of: memoryValues)
 
         // Calculate system load averages if available
-        let systemLoad1m = filtered.compactMap { $0.systemLoad1m }
-        let systemLoad5m = filtered.compactMap { $0.systemLoad5m }
-        let systemLoad15m = filtered.compactMap { $0.systemLoad15m }
+        let systemLoad1m = filtered.compactMap(\.systemLoad1m)
+        let systemLoad5m = filtered.compactMap(\.systemLoad5m)
+        let systemLoad15m = filtered.compactMap(\.systemLoad15m)
 
         return ResourceUsageMetrics(
             cpuLoadMin: loadMin,
@@ -725,13 +725,12 @@ class UserStatistics: ObservableObject {
 
     /// Filter resource samples by time range (process-level metrics only)
     private func filteredResourceSamples(for timeRange: TimeRange) -> [ResourceMetricSample] {
-        let threshold: Date
-        if timeRange == .session {
-            threshold = appLaunchTimestamp
+        let threshold: Date = if timeRange == .session {
+            appLaunchTimestamp
         } else if let date = timeRange.dateThreshold {
-            threshold = date
+            date
         } else {
-            threshold = Date.distantPast
+            Date.distantPast
         }
 
         // Only return swiftApp component (process-level metrics)
@@ -746,110 +745,120 @@ class UserStatistics: ObservableObject {
         self.defaults = defaults
 
         // Initialize with default values first
-        self.errorsFound = 0
-        self.suggestionsApplied = 0
-        self.suggestionsDismissed = 0
-        self.wordsAddedToDictionary = 0
-        self.wordsAnalyzed = 0
-        self.analysisSessions = 0
-        self.sessionCount = 0
-        self.activeDays = []
-        self.categoryBreakdown = [:]
-        self.appUsageBreakdown = [:]
-        self.latencySamples = []
-        self.detailedSessions = []
-        self.suggestionActions = []
-        self.appLaunchTimestamp = Date()
-        self.appLaunchHistory = []
+        errorsFound = 0
+        suggestionsApplied = 0
+        suggestionsDismissed = 0
+        wordsAddedToDictionary = 0
+        wordsAnalyzed = 0
+        analysisSessions = 0
+        sessionCount = 0
+        activeDays = []
+        categoryBreakdown = [:]
+        appUsageBreakdown = [:]
+        latencySamples = []
+        detailedSessions = []
+        suggestionActions = []
+        appLaunchTimestamp = Date()
+        appLaunchHistory = []
 
         // Milestone Card defaults
-        self.milestoneSupportClicks = 0
-        self.milestoneDismissClicks = 0
-        self.milestoneDisableClicks = 0
+        milestoneSupportClicks = 0
+        milestoneDismissClicks = 0
+        milestoneDisableClicks = 0
 
         // LLM Style Checking defaults
-        self.styleSuggestionsShown = 0
-        self.styleSuggestionsAccepted = 0
-        self.styleSuggestionsRejected = 0
-        self.styleSuggestionsIgnored = 0
-        self.styleRejectionCategories = [:]
-        self.styleLatencySamples = []
-        self.detailedStyleLatencySamples = []
+        styleSuggestionsShown = 0
+        styleSuggestionsAccepted = 0
+        styleSuggestionsRejected = 0
+        styleSuggestionsIgnored = 0
+        styleRejectionCategories = [:]
+        styleLatencySamples = []
+        detailedStyleLatencySamples = []
 
         // Then load saved values
-        self.errorsFound = defaults.integer(forKey: Keys.errorsFound)
-        self.suggestionsApplied = defaults.integer(forKey: Keys.suggestionsApplied)
-        self.suggestionsDismissed = defaults.integer(forKey: Keys.suggestionsDismissed)
-        self.wordsAddedToDictionary = defaults.integer(forKey: Keys.wordsAddedToDictionary)
-        self.wordsAnalyzed = defaults.integer(forKey: Keys.wordsAnalyzed)
-        self.analysisSessions = defaults.integer(forKey: Keys.analysisSessions)
-        self.sessionCount = defaults.integer(forKey: Keys.sessionCount)
+        errorsFound = defaults.integer(forKey: Keys.errorsFound)
+        suggestionsApplied = defaults.integer(forKey: Keys.suggestionsApplied)
+        suggestionsDismissed = defaults.integer(forKey: Keys.suggestionsDismissed)
+        wordsAddedToDictionary = defaults.integer(forKey: Keys.wordsAddedToDictionary)
+        wordsAnalyzed = defaults.integer(forKey: Keys.wordsAnalyzed)
+        analysisSessions = defaults.integer(forKey: Keys.analysisSessions)
+        sessionCount = defaults.integer(forKey: Keys.sessionCount)
 
         if let data = defaults.data(forKey: Keys.activeDays),
-           let set = try? decoder.decode(Set<Date>.self, from: data) {
-            self.activeDays = set
+           let set = try? decoder.decode(Set<Date>.self, from: data)
+        {
+            activeDays = set
         }
 
         if let data = defaults.data(forKey: Keys.categoryBreakdown),
-           let dict = try? decoder.decode([String: Int].self, from: data) {
-            self.categoryBreakdown = dict
+           let dict = try? decoder.decode([String: Int].self, from: data)
+        {
+            categoryBreakdown = dict
         }
 
         if let data = defaults.data(forKey: Keys.appUsageBreakdown),
-           let dict = try? decoder.decode([String: Int].self, from: data) {
-            self.appUsageBreakdown = dict
+           let dict = try? decoder.decode([String: Int].self, from: data)
+        {
+            appUsageBreakdown = dict
         }
 
         if let data = defaults.data(forKey: Keys.latencySamples),
-           let array = try? decoder.decode([Double].self, from: data) {
-            self.latencySamples = array
+           let array = try? decoder.decode([Double].self, from: data)
+        {
+            latencySamples = array
         }
 
         // Load timestamped data
         if let data = defaults.data(forKey: Keys.detailedSessions),
-           let sessions = try? decoder.decode([DetailedAnalysisSession].self, from: data) {
-            self.detailedSessions = sessions
+           let sessions = try? decoder.decode([DetailedAnalysisSession].self, from: data)
+        {
+            detailedSessions = sessions
         }
 
         if let data = defaults.data(forKey: Keys.suggestionActions),
-           let actions = try? decoder.decode([SuggestionAction].self, from: data) {
-            self.suggestionActions = actions
+           let actions = try? decoder.decode([SuggestionAction].self, from: data)
+        {
+            suggestionActions = actions
         }
 
         let launchTime = defaults.double(forKey: Keys.appLaunchTimestamp)
         if launchTime > 0 {
-            self.appLaunchTimestamp = Date(timeIntervalSince1970: launchTime)
+            appLaunchTimestamp = Date(timeIntervalSince1970: launchTime)
         }
 
         if let data = defaults.data(forKey: Keys.appLaunchHistory),
-           let history = try? decoder.decode([Date].self, from: data) {
-            self.appLaunchHistory = history
+           let history = try? decoder.decode([Date].self, from: data)
+        {
+            appLaunchHistory = history
         }
 
         // Load Milestone Card statistics
-        self.milestoneSupportClicks = defaults.integer(forKey: Keys.milestoneSupportClicks)
-        self.milestoneDismissClicks = defaults.integer(forKey: Keys.milestoneDismissClicks)
-        self.milestoneDisableClicks = defaults.integer(forKey: Keys.milestoneDisableClicks)
+        milestoneSupportClicks = defaults.integer(forKey: Keys.milestoneSupportClicks)
+        milestoneDismissClicks = defaults.integer(forKey: Keys.milestoneDismissClicks)
+        milestoneDisableClicks = defaults.integer(forKey: Keys.milestoneDisableClicks)
 
         // Load LLM style checking statistics
-        self.styleSuggestionsShown = defaults.integer(forKey: Keys.styleSuggestionsShown)
-        self.styleSuggestionsAccepted = defaults.integer(forKey: Keys.styleSuggestionsAccepted)
-        self.styleSuggestionsRejected = defaults.integer(forKey: Keys.styleSuggestionsRejected)
-        self.styleSuggestionsIgnored = defaults.integer(forKey: Keys.styleSuggestionsIgnored)
+        styleSuggestionsShown = defaults.integer(forKey: Keys.styleSuggestionsShown)
+        styleSuggestionsAccepted = defaults.integer(forKey: Keys.styleSuggestionsAccepted)
+        styleSuggestionsRejected = defaults.integer(forKey: Keys.styleSuggestionsRejected)
+        styleSuggestionsIgnored = defaults.integer(forKey: Keys.styleSuggestionsIgnored)
 
         if let data = defaults.data(forKey: Keys.styleRejectionCategories),
-           let dict = try? decoder.decode([String: Int].self, from: data) {
-            self.styleRejectionCategories = dict
+           let dict = try? decoder.decode([String: Int].self, from: data)
+        {
+            styleRejectionCategories = dict
         }
 
         if let data = defaults.data(forKey: Keys.styleLatencySamples),
-           let array = try? decoder.decode([Double].self, from: data) {
-            self.styleLatencySamples = array
+           let array = try? decoder.decode([Double].self, from: data)
+        {
+            styleLatencySamples = array
         }
 
         if let data = defaults.data(forKey: Keys.detailedStyleLatencySamples),
-           let samples = try? decoder.decode([StyleLatencySample].self, from: data) {
-            self.detailedStyleLatencySamples = samples
+           let samples = try? decoder.decode([StyleLatencySample].self, from: data)
+        {
+            detailedStyleLatencySamples = samples
         }
 
         // Load resource monitoring data
@@ -888,13 +897,13 @@ class UserStatistics: ObservableObject {
         detailedSessions.append(session)
 
         // Update cumulative totals (for backward compatibility)
-        self.analysisSessions += 1
-        self.wordsAnalyzed += wordsProcessed
+        analysisSessions += 1
+        wordsAnalyzed += wordsProcessed
         self.errorsFound += errorsFound
 
         // Record active day (start of day to avoid duplicates)
         let today = Calendar.current.startOfDay(for: Date())
-        self.activeDays.insert(today)
+        activeDays.insert(today)
 
         // Cleanup old data (older than 90 days)
         cleanupOldData()
@@ -905,13 +914,13 @@ class UserStatistics: ObservableObject {
         // Prevent negative values
         guard wordsProcessed >= 0, errorsFound >= 0 else { return }
 
-        self.analysisSessions += 1
-        self.wordsAnalyzed += wordsProcessed
+        analysisSessions += 1
+        wordsAnalyzed += wordsProcessed
         self.errorsFound += errorsFound
 
         // Record active day (start of day to avoid duplicates)
         let today = Calendar.current.startOfDay(for: Date())
-        self.activeDays.insert(today)
+        activeDays.insert(today)
     }
 
     /// Record a suggestion being applied
@@ -925,7 +934,7 @@ class UserStatistics: ObservableObject {
         suggestionActions.append(action)
 
         // Update cumulative totals (for backward compatibility)
-        self.suggestionsApplied += 1
+        suggestionsApplied += 1
 
         let currentCount = categoryBreakdown[category] ?? 0
         categoryBreakdown[category] = currentCount + 1
@@ -945,7 +954,7 @@ class UserStatistics: ObservableObject {
         suggestionActions.append(action)
 
         // Update cumulative totals (for backward compatibility)
-        self.suggestionsDismissed += 1
+        suggestionsDismissed += 1
 
         // Cleanup old data
         cleanupOldData()
@@ -962,7 +971,7 @@ class UserStatistics: ObservableObject {
         suggestionActions.append(action)
 
         // Update cumulative totals (for backward compatibility)
-        self.wordsAddedToDictionary += 1
+        wordsAddedToDictionary += 1
 
         // Cleanup old data
         cleanupOldData()
@@ -970,7 +979,7 @@ class UserStatistics: ObservableObject {
 
     /// Record a new app session (launch)
     func recordSession() {
-        self.sessionCount += 1
+        sessionCount += 1
 
         // Add current timestamp to launch history
         let now = Date()
@@ -1022,8 +1031,8 @@ class UserStatistics: ObservableObject {
         let filtered = filteredResourceSamples(for: component, in: timeRange)
         guard !filtered.isEmpty else { return nil }
 
-        let cpuValues = filtered.map { $0.cpuPercent }.sorted()
-        let memValues = filtered.map { $0.memoryBytes }.sorted()
+        let cpuValues = filtered.map(\.cpuPercent).sorted()
+        let memValues = filtered.map(\.memoryBytes).sorted()
 
         let loadAvgs = cpuLoadAverages(for: component)
 
@@ -1041,7 +1050,7 @@ class UserStatistics: ObservableObject {
             memoryP95: memValues.percentile(95),
             memoryP99: memValues.percentile(99),
             memoryMax: memValues.max() ?? 0,
-            memoryPeak: filtered.compactMap { $0.memoryPeakBytes }.max() ?? 0,
+            memoryPeak: filtered.compactMap(\.memoryPeakBytes).max() ?? 0,
             cpuLoad1m: loadAvgs.load1m,
             cpuLoad5m: loadAvgs.load5m,
             cpuLoad15m: loadAvgs.load15m,
@@ -1063,9 +1072,9 @@ class UserStatistics: ObservableObject {
             .filter { $0.component == component && now.timeIntervalSince($0.timestamp) <= 900 }
 
         return (
-            load1m: samples1m.map { $0.cpuPercent }.mean(),
-            load5m: samples5m.map { $0.cpuPercent }.mean(),
-            load15m: samples15m.map { $0.cpuPercent }.mean()
+            load1m: samples1m.map(\.cpuPercent).mean(),
+            load5m: samples5m.map(\.cpuPercent).mean(),
+            load15m: samples15m.map(\.cpuPercent).mean()
         )
     }
 
@@ -1074,13 +1083,12 @@ class UserStatistics: ObservableObject {
         for component: ResourceComponent,
         in timeRange: TimeRange
     ) -> [ResourceMetricSample] {
-        let threshold: Date
-        if timeRange == .session {
-            threshold = appLaunchTimestamp
+        let threshold: Date = if timeRange == .session {
+            appLaunchTimestamp
         } else if let date = timeRange.dateThreshold {
-            threshold = date
+            date
         } else {
-            threshold = Date.distantPast
+            Date.distantPast
         }
 
         return resourceSamples.filter {
@@ -1115,7 +1123,8 @@ class UserStatistics: ObservableObject {
     /// Load resource samples from UserDefaults
     private func loadResourceSamples() {
         guard let data = defaults.data(forKey: Keys.resourceSamples),
-              let decoded = try? decoder.decode([ResourceMetricSample].self, from: data) else {
+              let decoded = try? decoder.decode([ResourceMetricSample].self, from: data)
+        else {
             return
         }
         resourceSamples = decoded
@@ -1135,9 +1144,9 @@ class UserStatistics: ObservableObject {
 
     /// Perform periodic cleanup (call on app launch)
     func performPeriodicCleanup() {
-        cleanupOldData()  // Existing 90-day cleanup
-        cleanupOldResourceSamples()  // New 30-day cleanup for resource samples
-        cleanupOldLogVolumeSamples()  // 30-day cleanup for log volume samples
+        cleanupOldData() // Existing 90-day cleanup
+        cleanupOldResourceSamples() // New 30-day cleanup for resource samples
+        cleanupOldLogVolumeSamples() // 30-day cleanup for log volume samples
     }
 
     // MARK: - Log Volume Methods
@@ -1189,7 +1198,8 @@ class UserStatistics: ObservableObject {
     /// Load log volume samples from UserDefaults
     private func loadLogVolumeSamples() {
         guard let data = defaults.data(forKey: Keys.logVolumeSamples),
-              let decoded = try? decoder.decode([LogVolumeSample].self, from: data) else {
+              let decoded = try? decoder.decode([LogVolumeSample].self, from: data)
+        else {
             return
         }
         logVolumeSamples = decoded
@@ -1284,7 +1294,7 @@ class UserStatistics: ObservableObject {
     /// Calculate percentile from sorted samples
     private func percentile(of samples: [Double], percentile: Double) -> Double {
         guard !samples.isEmpty else { return 0.0 }
-        guard percentile >= 0.0 && percentile <= 1.0 else { return 0.0 }
+        guard percentile >= 0.0, percentile <= 1.0 else { return 0.0 }
 
         let sorted = samples.sorted()
         let index = Int(Double(sorted.count - 1) * percentile)
@@ -1405,7 +1415,7 @@ class UserStatistics: ObservableObject {
 
     /// Get unique model IDs that have latency data
     var modelsWithLatencyData: [String] {
-        var modelIds = Set(detailedStyleLatencySamples.map { $0.modelId })
+        var modelIds = Set(detailedStyleLatencySamples.map(\.modelId))
         // Always include Apple Intelligence so it appears in the dropdown
         modelIds.insert(Self.appleIntelligenceModelId)
         return Array(modelIds).sorted()
@@ -1420,7 +1430,7 @@ class UserStatistics: ObservableObject {
     func styleLatencySamples(forModel modelId: String, preset: String) -> [Double] {
         detailedStyleLatencySamples
             .filter { $0.modelId == modelId && $0.preset == preset.lowercased() }
-            .map { $0.latencyMs }
+            .map(\.latencyMs)
     }
 
     /// Get average latency for a model and preset combination
@@ -1495,27 +1505,27 @@ class UserStatistics: ObservableObject {
 
     /// Median LLM latency in milliseconds
     var medianStyleLatencyMs: Double {
-        return percentile(of: styleLatencySamples, percentile: 0.50)
+        percentile(of: styleLatencySamples, percentile: 0.50)
     }
 
     /// P90 LLM latency in milliseconds
     var p90StyleLatencyMs: Double {
-        return percentile(of: styleLatencySamples, percentile: 0.90)
+        percentile(of: styleLatencySamples, percentile: 0.90)
     }
 
     /// P95 LLM latency in milliseconds
     var p95StyleLatencyMs: Double {
-        return percentile(of: styleLatencySamples, percentile: 0.95)
+        percentile(of: styleLatencySamples, percentile: 0.95)
     }
 
     /// P99 LLM latency in milliseconds
     var p99StyleLatencyMs: Double {
-        return percentile(of: styleLatencySamples, percentile: 0.99)
+        percentile(of: styleLatencySamples, percentile: 0.99)
     }
 
     /// Number of LLM analysis runs (total evaluations)
     var llmAnalysisRuns: Int {
-        return styleLatencySamples.count
+        styleLatencySamples.count
     }
 
     // MARK: - Reset

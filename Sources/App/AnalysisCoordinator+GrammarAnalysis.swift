@@ -6,14 +6,13 @@
 //  Handles text analysis, Harper grammar engine integration, and LLM style analysis dispatch.
 //
 
-import Foundation
 import AppKit
 @preconcurrency import ApplicationServices
+import Foundation
 
 // MARK: - Grammar Analysis
 
 extension AnalysisCoordinator {
-
     // MARK: - Configuration Capture
 
     /// Configuration for grammar analysis captured from UserPreferences
@@ -139,7 +138,7 @@ extension AnalysisCoordinator {
         // Simplified: For large docs, still analyze full text but async
         // Full incremental diff would require text diffing algorithm
         analysisQueue.async { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
 
             let result = grammarEngineRef.analyzeText(
                 segmentContent,
@@ -159,9 +158,9 @@ extension AnalysisCoordinator {
             )
 
             DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                self.updateErrorCache(for: segment, with: result.errors)
-                self.applyFilters(to: result.errors, sourceText: segmentContent, element: capturedElement)
+                guard let self else { return }
+                updateErrorCache(for: segment, with: result.errors)
+                applyFilters(to: result.errors, sourceText: segmentContent, element: capturedElement)
 
                 // Record statistics with full details
                 let wordCount = segmentContent.split(separator: " ").count
@@ -172,10 +171,10 @@ extension AnalysisCoordinator {
                     categoryBreakdown[error.category, default: 0] += 1
                 }
 
-                self.statistics.recordDetailedAnalysisSession(
+                statistics.recordDetailedAnalysisSession(
                     wordsProcessed: wordCount,
                     errorsFound: result.errors.count,
-                    bundleIdentifier: self.monitoredContext?.bundleIdentifier,
+                    bundleIdentifier: monitoredContext?.bundleIdentifier,
                     categoryBreakdown: categoryBreakdown,
                     latencyMs: Double(result.analysisTimeMs)
                 )
@@ -196,7 +195,7 @@ extension AnalysisCoordinator {
         let grammarEngineRef = grammarEngine
 
         analysisQueue.async { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
 
             Logger.debug("AnalysisCoordinator: Calling Harper grammar engine...", category: Logger.analysis)
 
@@ -220,8 +219,8 @@ extension AnalysisCoordinator {
             Logger.debug("AnalysisCoordinator: Harper returned \(grammarResult.errors.count) error(s)", category: Logger.analysis)
 
             DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                self.handleGrammarResults(
+                guard let self else { return }
+                handleGrammarResults(
                     grammarResult,
                     segment: segment,
                     text: text,
@@ -291,7 +290,7 @@ extension AnalysisCoordinator {
             guard !trimmed.isEmpty else { continue }
 
             // Count words in this sentence
-            let wordCount = trimmed.split(separator: " ").filter { !$0.isEmpty }.count
+            let wordCount = trimmed.split(separator: " ").count(where: { !$0.isEmpty })
             if wordCount >= minWords {
                 return true
             }
@@ -368,7 +367,8 @@ extension AnalysisCoordinator {
 
         // Guard: Must have monitored element and context
         guard let element = textMonitor.monitoredElement,
-              let context = monitoredContext else {
+              let context = monitoredContext
+        else {
             Logger.debug("Auto style check: Skipping - no monitored element", category: Logger.llm)
             return
         }
@@ -386,7 +386,7 @@ extension AnalysisCoordinator {
 
     /// Run auto style check using Foundation Models (Apple Intelligence)
     @available(macOS 26.0, *)
-    private func runAutoStyleCheckWithFM(text: String, element: AXUIElement, context: ApplicationContext) {
+    private func runAutoStyleCheckWithFM(text: String, element _: AXUIElement, context _: ApplicationContext) {
         let fmEngine = FoundationModelsEngine()
         fmEngine.checkAvailability()
 
@@ -468,7 +468,7 @@ extension AnalysisCoordinator {
 
     /// Execute style analysis
     /// Note: This is now a no-op - use FoundationModelsEngine for style analysis
-    func executeLLMStyleAnalysis(text: String, cacheKey: String, generation: UInt64) {
+    func executeLLMStyleAnalysis(text _: String, cacheKey _: String, generation _: UInt64) {
         // Style analysis via Rust LLM is removed
         // Use FoundationModelsEngine for Apple Intelligence style analysis
     }

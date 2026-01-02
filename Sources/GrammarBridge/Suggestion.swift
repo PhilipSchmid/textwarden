@@ -40,7 +40,7 @@ import Foundation
         super.init()
     }
 
-    public override var description: String {
+    override public var description: String {
         "[\(Int(confidence * 100))%] \(replacementText) - \(explanation)"
     }
 }
@@ -58,6 +58,6 @@ import Foundation
 
     /// Get the top N suggestions
     @objc public func top(_ count: Int) -> [SuggestionModel] {
-        return Array(suggestions.prefix(count))
+        Array(suggestions.prefix(count))
     }
 }

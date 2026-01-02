@@ -12,7 +12,7 @@
 import Foundation
 
 /// Utility for collecting and sanitizing logs
-struct LogCollector {
+enum LogCollector {
     // MARK: - Sensitive Data Patterns
 
     /// Patterns that might indicate sensitive data in logs
@@ -24,7 +24,7 @@ struct LogCollector {
         "credential",
         "token",
         "secret",
-        "api_key"
+        "api_key",
     ]
 
     // MARK: - Log Collection
@@ -76,7 +76,7 @@ struct LogCollector {
 
         // SECURITY: Remove any quoted strings that might contain user text
         // Only in lines that might have text parameters
-        if sanitized.contains("\"") && (lowerLine.contains("text") || lowerLine.contains("content")) {
+        if sanitized.contains("\""), lowerLine.contains("text") || lowerLine.contains("content") {
             sanitized = sanitized.replacingOccurrences(
                 of: "\"[^\"]{20,}\"",
                 with: "\"[REDACTED]\"",
@@ -97,7 +97,7 @@ struct LogCollector {
         guard FileManager.default.fileExists(atPath: logPath) else {
             return [
                 "exists": false,
-                "path": logPath
+                "path": logPath,
             ]
         }
 
@@ -132,12 +132,12 @@ struct LogCollector {
                 "size_bytes": fileSize,
                 "line_count": lineCount,
                 "last_modified": ISO8601DateFormatter().string(from: modificationDate),
-                "level_counts": levelCounts
+                "level_counts": levelCounts,
             ]
         } catch {
             return [
                 "exists": true,
-                "error": error.localizedDescription
+                "error": error.localizedDescription,
             ]
         }
     }

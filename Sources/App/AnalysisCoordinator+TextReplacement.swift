@@ -6,14 +6,13 @@
 //  Handles applying grammar suggestions to text via accessibility APIs or keyboard simulation
 //
 
-import Foundation
 import AppKit
 @preconcurrency import ApplicationServices
+import Foundation
 
 // MARK: - Text Replacement
 
 extension AnalysisCoordinator {
-
     /// Remove error from tracking and update UI immediately
     /// Called after successfully applying a suggestion to remove underlines
     /// Also adjusts positions of remaining errors to account for text length change
@@ -37,11 +36,12 @@ extension AnalysisCoordinator {
             // Example: "👨‍👩‍👧" is 1 grapheme cluster but 7 Unicode scalars
             guard let startIdx = TextIndexConverter.scalarIndexToStringIndex(error.start, in: newContent),
                   let endIdx = TextIndexConverter.scalarIndexToStringIndex(error.end, in: newContent),
-                  startIdx < endIdx else {
+                  startIdx < endIdx
+            else {
                 Logger.warning("removeErrorAndUpdateUI: Invalid range for string replacement (error: \(error.start)-\(error.end), scalar count: \(newContent.unicodeScalars.count))", category: Logger.analysis)
                 return
             }
-            newContent.replaceSubrange(startIdx..<endIdx, with: suggestion)
+            newContent.replaceSubrange(startIdx ..< endIdx, with: suggestion)
             currentSegment = segment.with(content: newContent)
             Logger.debug("removeErrorAndUpdateUI: Updated currentSegment content (new length: \(newContent.count))", category: Logger.analysis)
         }
@@ -96,9 +96,10 @@ extension AnalysisCoordinator {
         if !lastAnalyzedText.isEmpty,
            let startIndex = TextIndexConverter.scalarIndexToStringIndex(error.start, in: lastAnalyzedText),
            let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: lastAnalyzedText),
-           startIndex <= endIndex {
+           startIndex <= endIndex
+        {
             var updatedText = lastAnalyzedText
-            updatedText.replaceSubrange(startIndex..<endIndex, with: suggestion)
+            updatedText.replaceSubrange(startIndex ..< endIndex, with: suggestion)
             lastAnalyzedText = updatedText
             Logger.debug("removeErrorAndUpdateUI: Updated lastAnalyzedText to reflect replacement", category: Logger.analysis)
         }
@@ -163,11 +164,11 @@ extension AnalysisCoordinator {
             removeErrorAndUpdateUI(error, suggestion: suggestion, lengthDelta: lengthDelta)
 
             // Invalidate cache
-            invalidateCacheAfterReplacement(at: error.start..<error.end)
+            invalidateCacheAfterReplacement(at: error.start ..< error.end)
 
             return true
 
-        case .failed(let error):
+        case let .failed(error):
             Logger.warning("Replacement via coordinator failed: \(error)", category: Logger.analysis)
             return false
         }
@@ -249,7 +250,7 @@ extension AnalysisCoordinator {
         let replaceError = AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, suggestion as CFTypeRef)
         if replaceError == .success {
             statistics.recordSuggestionApplied(category: error.category)
-            invalidateCacheAfterReplacement(at: error.start..<error.end)
+            invalidateCacheAfterReplacement(at: error.start ..< error.end)
 
             var newPosition = CFRange(location: error.start + suggestion.count, length: 0)
             if let newRangeValue = AXValueCreate(.cfRange, &newPosition) {
@@ -292,7 +293,8 @@ extension AnalysisCoordinator {
         let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
 
         guard textResult == .success,
-              let currentText = currentTextRef as? String else {
+              let currentText = currentTextRef as? String
+        else {
             Logger.debug("Could not get current text for style replacement, using keyboard fallback", category: Logger.analysis)
             applyStyleReplacementViaKeyboard(for: suggestion, element: element)
             return
@@ -313,7 +315,7 @@ extension AnalysisCoordinator {
 
         // Step 1: Save current selection
         var originalSelection: CFTypeRef?
-        let _ = AXUIElementCopyAttributeValue(
+        _ = AXUIElementCopyAttributeValue(
             element,
             kAXSelectedTextRangeAttribute as CFString,
             &originalSelection
@@ -393,7 +395,7 @@ extension AnalysisCoordinator {
 
     /// Apply style replacement via keyboard simulation (for Electron apps and fallback)
     func applyStyleReplacementViaKeyboard(for suggestion: StyleSuggestionModel, element: AXUIElement) {
-        guard let context = self.monitoredContext else {
+        guard let context = monitoredContext else {
             Logger.debug("No context available for style keyboard replacement", category: Logger.analysis)
             return
         }
@@ -417,7 +419,8 @@ extension AnalysisCoordinator {
         let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
 
         guard textResult == .success,
-              let currentText = currentTextRef as? String else {
+              let currentText = currentTextRef as? String
+        else {
             Logger.debug("Could not get current text for style keyboard replacement", category: Logger.analysis)
             return
         }
@@ -508,7 +511,7 @@ extension AnalysisCoordinator {
         // Select the text to replace (handles Notion child element traversal internally)
         guard selectTextForReplacement(
             targetText: suggestion.originalText,
-            fallbackRange: nil,  // Style suggestions use text search, not byte offsets
+            fallbackRange: nil, // Style suggestions use text search, not byte offsets
             element: element,
             context: context
         ) else {
@@ -629,27 +632,27 @@ extension AnalysisCoordinator {
         let delay = TimingConstants.replacementGracePeriod + 0.1
 
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let self = self else { return }
-            guard let element = self.textMonitor.monitoredElement else {
+            guard let self else { return }
+            guard let element = textMonitor.monitoredElement else {
                 Logger.debug("Post-style replacement analysis: no monitored element", category: Logger.analysis)
                 return
             }
 
             // Extract current text and trigger analysis
-            if let text = self.extractTextSynchronously(from: element) {
+            if let text = extractTextSynchronously(from: element) {
                 Logger.debug("Post-style replacement analysis: triggering re-analysis (\(text.count) chars)", category: Logger.analysis)
 
                 // Clear previousText to force re-analysis (otherwise analyzeText skips if text matches)
-                self.previousText = ""
+                previousText = ""
 
                 let segment = TextSegment(
                     content: text,
                     startIndex: 0,
                     endIndex: text.count,
-                    context: self.monitoredContext ?? ApplicationContext(bundleIdentifier: "", processID: 0, applicationName: "")
+                    context: monitoredContext ?? ApplicationContext(bundleIdentifier: "", processID: 0, applicationName: "")
                 )
-                self.currentSegment = segment
-                self.analyzeText(segment)
+                currentSegment = segment
+                analyzeText(segment)
             }
         }
     }
@@ -666,8 +669,8 @@ extension AnalysisCoordinator {
 
         // Wait 300ms for focus to settle after focus bounce
         DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.hoverDelay) { [weak self] in
-            guard let self = self else { return }
-            guard let context = self.monitoredContext else { return }
+            guard let self else { return }
+            guard let context = monitoredContext else { return }
 
             let appConfig = appRegistry.configuration(for: context.bundleIdentifier)
             guard appConfig.features.focusBouncesDuringPaste else {
@@ -678,10 +681,10 @@ extension AnalysisCoordinator {
             Logger.trace("Focus bounce reanalysis: T=\(Int(Date().timeIntervalSince(startTime) * 1000))ms starting", category: Logger.analysis)
 
             // If we have a monitored element and remaining errors, just refresh the overlay
-            if self.textMonitor.monitoredElement != nil && !self.currentErrors.isEmpty {
+            if textMonitor.monitoredElement != nil, !currentErrors.isEmpty {
                 Logger.trace("Focus bounce reanalysis: have element and errors, refreshing overlay", category: Logger.analysis)
-                if let element = self.textMonitor.monitoredElement {
-                    self.showErrorUnderlines(self.currentErrors, element: element)
+                if let element = textMonitor.monitoredElement {
+                    showErrorUnderlines(currentErrors, element: element)
                 }
                 return
             }
@@ -689,8 +692,8 @@ extension AnalysisCoordinator {
             // No monitored element - restart monitoring to re-acquire the composition element
             Logger.trace("Focus bounce reanalysis: no element, restarting monitoring", category: Logger.analysis)
 
-            self.textMonitor.stopMonitoring()
-            self.textMonitor.startMonitoring(
+            textMonitor.stopMonitoring()
+            textMonitor.startMonitoring(
                 processID: context.processID,
                 bundleIdentifier: context.bundleIdentifier,
                 appName: context.applicationName
@@ -698,11 +701,11 @@ extension AnalysisCoordinator {
 
             // After monitoring restarts, extract text to trigger analysis
             DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.mediumDelay) { [weak self] in
-                guard let self = self else { return }
+                guard let self else { return }
                 Logger.trace("Focus bounce reanalysis: T=\(Int(Date().timeIntervalSince(startTime) * 1000))ms extracting text", category: Logger.analysis)
 
-                if let element = self.textMonitor.monitoredElement {
-                    self.textMonitor.extractText(from: element)
+                if let element = textMonitor.monitoredElement {
+                    textMonitor.extractText(from: element)
                 } else {
                     Logger.debug("Focus bounce reanalysis: still no element after restart", category: Logger.analysis)
                 }
@@ -717,7 +720,8 @@ extension AnalysisCoordinator {
         var menuBarValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(appElement, kAXMenuBarAttribute as CFString, &menuBarValue) == .success,
               let menuBarRef = menuBarValue,
-              CFGetTypeID(menuBarRef) == AXUIElementGetTypeID() else {
+              CFGetTypeID(menuBarRef) == AXUIElementGetTypeID()
+        else {
             return nil
         }
         // Safe: type verified by CFGetTypeID check above
@@ -726,7 +730,8 @@ extension AnalysisCoordinator {
         // Try to find "Edit" menu
         var childrenValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(menuBar, kAXChildrenAttribute as CFString, &childrenValue) == .success,
-              let childrenArray = childrenValue as? [AXUIElement] else {
+              let childrenArray = childrenValue as? [AXUIElement]
+        else {
             return nil
         }
 
@@ -736,23 +741,24 @@ extension AnalysisCoordinator {
             var titleValue: CFTypeRef?
             if AXUIElementCopyAttributeValue(child, kAXTitleAttribute as CFString, &titleValue) == .success,
                let title = titleValue as? String,
-               title.lowercased().contains("edit") {
-
+               title.lowercased().contains("edit")
+            {
                 // Found Edit menu, now look for Paste
                 var menuChildrenValue: CFTypeRef?
                 if AXUIElementCopyAttributeValue(child, kAXChildrenAttribute as CFString, &menuChildrenValue) == .success,
-                   let menuChildren = menuChildrenValue as? [AXUIElement] {
-
+                   let menuChildren = menuChildrenValue as? [AXUIElement]
+                {
                     for menuChild in menuChildren {
                         var itemChildrenValue: CFTypeRef?
                         if AXUIElementCopyAttributeValue(menuChild, kAXChildrenAttribute as CFString, &itemChildrenValue) == .success,
-                           let items = itemChildrenValue as? [AXUIElement] {
-
+                           let items = itemChildrenValue as? [AXUIElement]
+                        {
                             for item in items {
                                 var itemTitleValue: CFTypeRef?
                                 if AXUIElementCopyAttributeValue(item, kAXTitleAttribute as CFString, &itemTitleValue) == .success,
                                    let itemTitle = itemTitleValue as? String,
-                                   itemTitle.lowercased().contains("paste") {
+                                   itemTitle.lowercased().contains("paste")
+                                {
                                     return item
                                 }
                             }
@@ -792,11 +798,12 @@ extension AnalysisCoordinator {
                 } else {
                     Logger.debug("Mail: WebKit selection failed - paste may go to wrong location", category: Logger.analysis)
                 }
-                return true  // Always try paste even if selection fails
+                return true // Always try paste even if selection fails
             } else {
                 // Try to find the text position
                 if let currentText = extractCurrentText(from: element),
-                   let textRange = currentText.range(of: targetText) {
+                   let textRange = currentText.range(of: targetText)
+                {
                     let start = currentText.distance(from: currentText.startIndex, to: textRange.lowerBound)
                     let nsRange = NSRange(location: start, length: targetText.count)
                     let success = MailContentParser.selectTextForReplacement(range: nsRange, in: element)
@@ -804,7 +811,7 @@ extension AnalysisCoordinator {
                     return true
                 }
                 Logger.debug("Mail: Could not find text to select", category: Logger.analysis)
-                return true  // Still try paste
+                return true // Still try paste
             }
         }
 
@@ -833,7 +840,7 @@ extension AnalysisCoordinator {
             // Count newlines before the start position (Chromium treats them as zero-width)
             let prefixEndIndex = currentText.index(currentText.startIndex, offsetBy: startIndex, limitedBy: currentText.endIndex) ?? currentText.endIndex
             let prefix = String(currentText[..<prefixEndIndex])
-            let newlineCount = prefix.filter { $0 == "\n" }.count
+            let newlineCount = prefix.count(where: { $0 == "\n" })
 
             // Convert to UTF-16 and apply newline offset
             let utf16Range = TextIndexConverter.graphemeToUTF16Range(NSRange(location: startIndex, length: targetText.count), in: currentText)
@@ -872,7 +879,8 @@ extension AnalysisCoordinator {
                 // Slack/Notion use Chromium which expects UTF-16 indices, not grapheme clusters
                 var childTextRef: CFTypeRef?
                 guard AXUIElementCopyAttributeValue(childElement, kAXValueAttribute as CFString, &childTextRef) == .success,
-                      let childText = childTextRef as? String else {
+                      let childText = childTextRef as? String
+                else {
                     Logger.debug("\(appName): Could not get child element text for UTF-16 conversion", category: Logger.analysis)
                     return false
                 }
@@ -903,7 +911,7 @@ extension AnalysisCoordinator {
                 return true
             } else {
                 Logger.debug("\(appName): Could not find child element, falling back to main element", category: Logger.analysis)
-                return true  // Let caller try paste anyway
+                return true // Let caller try paste anyway
             }
         } else {
             // Standard browser / Mac Catalyst: try AX API selection directly
@@ -919,7 +927,7 @@ extension AnalysisCoordinator {
 
             guard var range = fallbackRange else {
                 // Need to find text in current element content
-                guard let currentText = currentText else {
+                guard let currentText else {
                     Logger.debug("Could not get current text for browser replacement", category: Logger.analysis)
                     return false
                 }
@@ -935,8 +943,8 @@ extension AnalysisCoordinator {
                 // Skip for native macOS apps (Microsoft Office) which use grapheme indices
                 // Note: Pages is handled via the Office-style replacement path for better reliability
                 let isNativeApp = context.bundleIdentifier == "com.microsoft.Word" ||
-                                  context.bundleIdentifier == "com.microsoft.Powerpoint" ||
-                                  context.bundleIdentifier == "com.microsoft.Outlook"
+                    context.bundleIdentifier == "com.microsoft.Powerpoint" ||
+                    context.bundleIdentifier == "com.microsoft.Outlook"
                 let startIndex = currentText.distance(from: currentText.startIndex, to: textRange.lowerBound)
                 var calculatedRange: CFRange
                 if isNativeApp {
@@ -972,8 +980,8 @@ extension AnalysisCoordinator {
             // Skip for native macOS apps (Microsoft Office) which use grapheme indices
             // Note: Pages is handled via the Office-style replacement path
             let isNativeAppForFallback = context.bundleIdentifier == "com.microsoft.Word" ||
-                                         context.bundleIdentifier == "com.microsoft.Powerpoint" ||
-                                         context.bundleIdentifier == "com.microsoft.Outlook"
+                context.bundleIdentifier == "com.microsoft.Powerpoint" ||
+                context.bundleIdentifier == "com.microsoft.Outlook"
             if let text = currentText, !isNativeAppForFallback {
                 let graphemeRange = NSRange(location: range.location, length: range.length)
                 let utf16Range = TextIndexConverter.graphemeToUTF16Range(graphemeRange, in: text)
@@ -1017,7 +1025,8 @@ extension AnalysisCoordinator {
         // Create key down event with the Unicode string
         // Virtual key 0 is 'a', but the Unicode string overrides it
         guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
-              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) else {
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
+        else {
             Logger.error("Failed to create CGEvent for typing", category: Logger.analysis)
             return
         }
@@ -1041,7 +1050,8 @@ extension AnalysisCoordinator {
         var valueRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
            let text = valueRef as? String,
-           !text.isEmpty {
+           !text.isEmpty
+        {
             return text
         }
 
@@ -1086,18 +1096,19 @@ extension AnalysisCoordinator {
         var textValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textValue) == .success,
            let text = textValue as? String,
-           text.contains(targetText) {
-
+           text.contains(targetText)
+        {
             var sizeValue: CFTypeRef?
             var height: CGFloat = 0
             if AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
                let size = sizeValue,
-               let rectSize = safeAXValueGetSize(size) {
+               let rectSize = safeAXValueGetSize(size)
+            {
                 height = rectSize.height
             }
 
             // Prefer smaller elements (paragraph-level, not document-level)
-            if height > 0 && height < GeometryConstants.maximumLineHeight {
+            if height > 0, height < GeometryConstants.maximumLineHeight {
                 candidates.append((element: element, text: text, offset: 0))
                 Logger.trace("Candidate element: height=\(Int(height)), length=\(text.count)", category: Logger.analysis)
             }
@@ -1105,7 +1116,8 @@ extension AnalysisCoordinator {
 
         var childrenValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenValue) == .success,
-           let children = childrenValue as? [AXUIElement] {
+           let children = childrenValue as? [AXUIElement]
+        {
             for child in children.prefix(100) {
                 collectTextElements(in: child, depth: depth + 1, maxDepth: maxDepth, candidates: &candidates, targetText: targetText)
             }
@@ -1116,7 +1128,7 @@ extension AnalysisCoordinator {
     /// Flattened async/await implementation for better readability
     @MainActor
     func applyTextReplacementViaKeyboardAsync(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement) async {
-        guard let context = self.monitoredContext else {
+        guard let context = monitoredContext else {
             Logger.debug("No context available for keyboard replacement", category: Logger.analysis)
             return
         }
@@ -1137,8 +1149,8 @@ extension AnalysisCoordinator {
         let isChatGPT = context.bundleIdentifier == "com.openai.chat"
         let isMessages = context.bundleIdentifier == "com.apple.MobileSMS"
         let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
-                                context.bundleIdentifier == "com.microsoft.Powerpoint" ||
-                                context.bundleIdentifier == "com.microsoft.Outlook"
+            context.bundleIdentifier == "com.microsoft.Powerpoint" ||
+            context.bundleIdentifier == "com.microsoft.Outlook"
 
         // SLACK: Try format-preserving replacement first (preserves bold, italic, code, etc.)
         if isSlack {
@@ -1180,7 +1192,7 @@ extension AnalysisCoordinator {
                     Logger.info("Slack: Format-preserving failed, falling back to plain text replacement", category: Logger.analysis)
                     // Continue to browser replacement below
 
-                case .failed(let reason):
+                case let .failed(reason):
                     Logger.warning("Slack: Format-preserving failed: \(reason), falling back to plain text", category: Logger.analysis)
                     // Continue to browser replacement below
                 }
@@ -1218,7 +1230,7 @@ extension AnalysisCoordinator {
         if MailContentParser.replaceText(range: range, with: suggestion, in: element) {
             Logger.info("Mail: AXReplaceRangeWithText succeeded", category: Logger.analysis)
             statistics.recordSuggestionApplied(category: currentError.category)
-            invalidateCacheAfterReplacement(at: currentError.start..<currentError.end)
+            invalidateCacheAfterReplacement(at: currentError.start ..< currentError.end)
             removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
             return
         }
@@ -1226,7 +1238,7 @@ extension AnalysisCoordinator {
         // Fallback: selection + keyboard typing (preserves formatting)
         // Using keyboard typing instead of paste preserves the formatting of the selected text
         Logger.debug("Mail: AXReplaceRangeWithText failed, falling back to selection + keyboard typing", category: Logger.analysis)
-        let _ = MailContentParser.selectTextForReplacement(range: range, in: element)
+        _ = MailContentParser.selectTextForReplacement(range: range, in: element)
 
         // Activate Mail
         if let mailApp = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.mail").first {
@@ -1261,8 +1273,8 @@ extension AnalysisCoordinator {
         lastReplacementTime = Date()
 
         let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
-                                context.bundleIdentifier == "com.microsoft.Powerpoint" ||
-                                context.bundleIdentifier == "com.microsoft.Outlook"
+            context.bundleIdentifier == "com.microsoft.Powerpoint" ||
+            context.bundleIdentifier == "com.microsoft.Outlook"
         let isPages = context.bundleIdentifier == "com.apple.iWork.Pages"
         let usesOfficeStyleReplacement = isMicrosoftOffice || isPages
 
@@ -1313,14 +1325,14 @@ extension AnalysisCoordinator {
             }
 
             // Small delay for activation and selection to take effect
-            try? await Task.sleep(nanoseconds: 100_000_000)  // 100ms
+            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
 
             // Step 5: Paste via keyboard
             pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
             Logger.debug("Office: Pasted via Cmd+V", category: Logger.analysis)
 
             // Restore clipboard
-            try? await Task.sleep(nanoseconds: 100_000_000)  // 100ms
+            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
             if let original = originalString {
                 pasteboard.clearContents()
                 pasteboard.setString(original, forType: .string)
@@ -1337,14 +1349,15 @@ extension AnalysisCoordinator {
 
         // Teams: Validate selection before paste to prevent wrong placement for scrolled-out content
         let isTeams = context.bundleIdentifier == "com.microsoft.teams2"
-        if isTeams && !targetText.isEmpty {
+        if isTeams, !targetText.isEmpty {
             // Small delay for selection to take effect
-            try? await Task.sleep(nanoseconds: 50_000_000)  // 50ms
+            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
 
             // Check if selection matches expected text
             var selectedTextRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &selectedTextRef) == .success,
-               let selectedText = selectedTextRef as? String {
+               let selectedText = selectedTextRef as? String
+            {
                 if selectedText != targetText {
                     Logger.warning("Teams: Selection mismatch (got \(selectedText.count) chars, expected \(targetText.count) chars) - error may be scrolled out of view, aborting", category: Logger.analysis)
                     SuggestionPopover.shared.showStatusMessage("Scroll to see this error first")
@@ -1373,20 +1386,21 @@ extension AnalysisCoordinator {
         var liveTextRef: CFTypeRef?
         var liveText = ""
         if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &liveTextRef) == .success,
-           let text = liveTextRef as? String {
+           let text = liveTextRef as? String
+        {
             liveText = text
         }
 
         // Primary strategy: Extract exact error text from cached content using Harper's positions
         // This is the most reliable approach because it uses the precise error location
-        let cachedText = self.lastAnalyzedText.isEmpty ? (self.currentSegment?.content ?? "") : self.lastAnalyzedText
+        let cachedText = lastAnalyzedText.isEmpty ? (currentSegment?.content ?? "") : lastAnalyzedText
         let scalarCount = cachedText.unicodeScalars.count
 
-        if !cachedText.isEmpty && error.start < scalarCount && error.end <= scalarCount,
+        if !cachedText.isEmpty, error.start < scalarCount, error.end <= scalarCount,
            let startIdx = TextIndexConverter.scalarIndexToStringIndex(error.start, in: cachedText),
-           let endIdx = TextIndexConverter.scalarIndexToStringIndex(error.end, in: cachedText) {
-
-            let errorText = String(cachedText[startIdx..<endIdx])
+           let endIdx = TextIndexConverter.scalarIndexToStringIndex(error.end, in: cachedText)
+        {
+            let errorText = String(cachedText[startIdx ..< endIdx])
             Logger.debug("Office: Looking for error text (\(errorText.count) chars) in live document", category: Logger.analysis)
 
             // Find this exact error text in the live document
@@ -1412,13 +1426,14 @@ extension AnalysisCoordinator {
             err.message == error.message && err.lintId == error.lintId && err.category == error.category
         } ?? error
 
-        let cachedText = self.lastAnalyzedText.isEmpty ? (self.currentSegment?.content ?? self.previousText) : self.lastAnalyzedText
+        let cachedText = lastAnalyzedText.isEmpty ? (currentSegment?.content ?? previousText) : lastAnalyzedText
         let scalarCount = cachedText.unicodeScalars.count
 
-        if !cachedText.isEmpty && currentError.start < scalarCount && currentError.end <= scalarCount,
+        if !cachedText.isEmpty, currentError.start < scalarCount, currentError.end <= scalarCount,
            let startIdx = TextIndexConverter.scalarIndexToStringIndex(currentError.start, in: cachedText),
-           let endIdx = TextIndexConverter.scalarIndexToStringIndex(currentError.end, in: cachedText) {
-            let errorText = String(cachedText[startIdx..<endIdx])
+           let endIdx = TextIndexConverter.scalarIndexToStringIndex(currentError.end, in: cachedText)
+        {
+            let errorText = String(cachedText[startIdx ..< endIdx])
             return (errorText, nil, currentError)
         } else {
             let fallbackRange = CFRange(location: currentError.start, length: currentError.end - currentError.start)
@@ -1502,7 +1517,7 @@ extension AnalysisCoordinator {
         if isMicrosoftOffice {
             positionResolver.clearCache()
         } else {
-            invalidateCacheAfterReplacement(at: currentError.start..<currentError.end)
+            invalidateCacheAfterReplacement(at: currentError.start ..< currentError.end)
         }
 
         Logger.debug("Browser text replacement complete", category: Logger.analysis)
@@ -1525,19 +1540,19 @@ extension AnalysisCoordinator {
         try? await Task.sleep(nanoseconds: UInt64(typingDelay * 1_000_000_000))
 
         statistics.recordSuggestionApplied(category: currentError.category)
-        invalidateCacheAfterReplacement(at: currentError.start..<currentError.end)
+        invalidateCacheAfterReplacement(at: currentError.start ..< currentError.end)
         let lengthDelta = suggestion.count - (currentError.end - currentError.start)
         removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
     }
 
     /// Convert String.Index to UTF-16 offset
     private func utf16Offset(of index: String.Index, in string: String) -> Int {
-        return string.utf16.distance(from: string.utf16.startIndex, to: index)
+        string.utf16.distance(from: string.utf16.startIndex, to: index)
     }
 
     /// Standard keyboard-based text replacement (async version)
     @MainActor
-    private func applyStandardKeyboardReplacementAsync(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement, context: ApplicationContext) async {
+    private func applyStandardKeyboardReplacementAsync(for error: GrammarErrorModel, with suggestion: String, element _: AXUIElement, context: ApplicationContext) async {
         // Activate target application
         if let targetApp = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier).first {
             Logger.debug("Activating \(context.applicationName) to make it frontmost", category: Logger.analysis)
@@ -1575,14 +1590,14 @@ extension AnalysisCoordinator {
 
         // Record statistics and update UI
         statistics.recordSuggestionApplied(category: error.category)
-        invalidateCacheAfterReplacement(at: error.start..<error.end)
+        invalidateCacheAfterReplacement(at: error.start ..< error.end)
         let lengthDelta = suggestion.count - (error.end - error.start)
         removeErrorAndUpdateUI(error, suggestion: suggestion, lengthDelta: lengthDelta)
     }
 
     /// Try to replace text using AX API selection (for Terminal)
     /// Returns true if successful, false if needs to fall back to keyboard simulation
-    func tryAXSelectionReplacement(element: AXUIElement, start: Int, end: Int, suggestion: String, error: GrammarErrorModel) -> Bool {
+    func tryAXSelectionReplacement(element: AXUIElement, start: Int, end: Int, suggestion: String, error _: GrammarErrorModel) -> Bool {
         Logger.debug("Attempting AX API selection-based replacement for range \(start)-\(end)", category: Logger.analysis)
 
         // Read the original text before modification (verify we can access the element)
@@ -1634,15 +1649,15 @@ extension AnalysisCoordinator {
         // Selection worked - caller will handle paste after activating Terminal
         Logger.debug("AX API selection successful at \(start)-\(end), returning for paste", category: Logger.analysis)
 
-        return true  // Success - selection is set, caller will paste
+        return true // Success - selection is set, caller will paste
     }
 
     /// Send multiple arrow keys with delay between each (async version)
     func sendArrowKeysAsync(count: Int, keyCode: CGKeyCode, flags: CGEventFlags, delay: TimeInterval) async {
         guard count > 0 else { return }
 
-        for i in 0..<count {
-            self.pressKey(key: keyCode, flags: flags)
+        for i in 0 ..< count {
+            pressKey(key: keyCode, flags: flags)
 
             // Add delay between keys (except after the last one)
             if i < count - 1 {
@@ -1746,7 +1761,7 @@ extension AnalysisCoordinator {
             Logger.trace("Cache invalidation: incremental update for native app", category: Logger.analysis)
             // For native apps: Just clear overlapping errors and trigger re-analysis
             currentErrors.removeAll { error in
-                let errorRange = error.start..<error.end
+                let errorRange = error.start ..< error.end
                 return errorRange.overlaps(range)
             }
 
@@ -1778,7 +1793,7 @@ extension AnalysisCoordinator {
         let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
         if textResult == .success, let currentText = currentTextRef as? String {
             // Compare with lastAnalyzedText to ensure positions are still valid
-            if !lastAnalyzedText.isEmpty && currentText != lastAnalyzedText {
+            if !lastAnalyzedText.isEmpty, currentText != lastAnalyzedText {
                 Logger.warning("Fix all obvious: Text content changed since analysis, skipping to avoid wrong positions", category: Logger.analysis)
                 // Trigger re-analysis so errors get updated positions
                 textMonitor.extractText(from: element)

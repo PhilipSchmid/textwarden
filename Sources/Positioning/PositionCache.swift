@@ -6,13 +6,12 @@
 //  Dramatically reduces expensive AX API calls
 //
 
-import Foundation
 import ApplicationServices
+import Foundation
 
 /// High-performance cache for geometry calculations
 /// Uses LRU eviction with hit count weighting and time-based expiration
 class PositionCache {
-
     // MARK: - Cache Entry
 
     private struct CacheEntry {
@@ -41,7 +40,7 @@ class PositionCache {
     /// Get cached result for key
     /// Returns nil if not in cache or expired
     func get(key: CacheKey) -> GeometryResult? {
-        return queue.sync {
+        queue.sync {
             guard let entry = cache[key] else {
                 misses += 1
                 return nil
@@ -130,7 +129,7 @@ class PositionCache {
 
     /// Get cache statistics for debugging
     func statistics() -> CacheStatistics {
-        return queue.sync {
+        queue.sync {
             // Calculate hit rate inline to avoid deadlock (hitRate() also uses queue.sync)
             let total = hits + misses
             let rate = total > 0 ? Double(hits) / Double(total) : 0.0
@@ -166,39 +165,43 @@ struct CacheKey: Hashable {
         // Get element role (e.g., "AXTextArea", "AXTextField")
         var roleValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue) == .success,
-           let role = roleValue as? String {
-            self.elementRole = role
+           let role = roleValue as? String
+        {
+            elementRole = role
         } else {
-            self.elementRole = "unknown"
+            elementRole = "unknown"
         }
 
         // Get element identifier if available (some apps provide unique IDs)
         var identifierValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXIdentifierAttribute as CFString, &identifierValue) == .success,
-           let identifier = identifierValue as? String {
-            self.elementIdentifier = identifier
+           let identifier = identifierValue as? String
+        {
+            elementIdentifier = identifier
         } else {
             // Fall back to element description or position hash for uniqueness
             var descValue: CFTypeRef?
             if AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute as CFString, &descValue) == .success,
-               let desc = descValue as? String {
-                self.elementIdentifier = desc
+               let desc = descValue as? String
+            {
+                elementIdentifier = desc
             } else {
                 // Use frame position as a last resort (less stable but better than pointer)
                 var posValue: CFTypeRef?
                 if AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &posValue) == .success,
                    let positionValue = posValue,
-                   CFGetTypeID(positionValue) == AXValueGetTypeID() {
+                   CFGetTypeID(positionValue) == AXValueGetTypeID()
+                {
                     var point = CGPoint.zero
                     // Safe cast after type check
                     let axValue = positionValue as! AXValue
                     if AXValueGetValue(axValue, .cgPoint, &point) {
-                        self.elementIdentifier = "pos:\(Int(point.x)),\(Int(point.y))"
+                        elementIdentifier = "pos:\(Int(point.x)),\(Int(point.y))"
                     } else {
-                        self.elementIdentifier = "fallback"
+                        elementIdentifier = "fallback"
                     }
                 } else {
-                    self.elementIdentifier = "fallback"
+                    elementIdentifier = "fallback"
                 }
             }
         }
@@ -208,7 +211,7 @@ struct CacheKey: Hashable {
     }
 
     var description: String {
-        return "pid:\(pid) role:\(elementRole) id:\(elementIdentifier) range:(\(range.location),\(range.length)) text:\(textHash)"
+        "pid:\(pid) role:\(elementRole) id:\(elementIdentifier) range:(\(range.location),\(range.length)) text:\(textHash)"
     }
 }
 
@@ -222,6 +225,6 @@ struct CacheStatistics {
     let hitRate: Double
 
     var description: String {
-        return "PositionCache: \(entries) entries, \(hits) hits, \(misses) misses, \(String(format: "%.1f%%", hitRate * 100)) hit rate"
+        "PositionCache: \(entries) entries, \(hits) hits, \(misses) misses, \(String(format: "%.1f%%", hitRate * 100)) hit rate"
     }
 }

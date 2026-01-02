@@ -5,8 +5,8 @@
 //  Custom vocabulary management with JSON persistence
 //
 
-import Foundation
 import Combine
+import Foundation
 
 /// Manages custom vocabulary words with JSON file persistence
 @MainActor
@@ -163,9 +163,9 @@ enum VocabularyError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .limitExceeded:
-            return "Custom vocabulary limit of 1000 words exceeded"
+            "Custom vocabulary limit of 1000 words exceeded"
         case .invalidWord:
-            return "Invalid word (empty or whitespace only)"
+            "Invalid word (empty or whitespace only)"
         }
     }
 }

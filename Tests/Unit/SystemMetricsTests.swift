@@ -1,11 +1,10 @@
 // SystemMetricsTests.swift
 // Unit tests for SystemMetrics utility
 
-import XCTest
 @testable import TextWarden
+import XCTest
 
 final class SystemMetricsTests: XCTestCase {
-
     func testGetMemoryUsage() {
         let memory = SystemMetrics.getMemoryUsage()
 
@@ -66,7 +65,7 @@ final class SystemMetricsTests: XCTestCase {
         // Take multiple readings to ensure consistency
         var readings: [(cpu: Double, memory: UInt64)] = []
 
-        for _ in 0..<5 {
+        for _ in 0 ..< 5 {
             let snapshot = SystemMetrics.getResourceSnapshot()
             readings.append((cpu: snapshot.cpu, memory: snapshot.memory))
             Thread.sleep(forTimeInterval: 0.1)
@@ -81,7 +80,7 @@ final class SystemMetricsTests: XCTestCase {
 
     func testPerformanceOfMemoryReading() {
         measure {
-            for _ in 0..<100 {
+            for _ in 0 ..< 100 {
                 _ = SystemMetrics.getMemoryUsage()
             }
         }
@@ -90,7 +89,7 @@ final class SystemMetricsTests: XCTestCase {
 
     func testPerformanceOfCPUReading() {
         measure {
-            for _ in 0..<100 {
+            for _ in 0 ..< 100 {
                 _ = SystemMetrics.getCPUUsage()
             }
         }

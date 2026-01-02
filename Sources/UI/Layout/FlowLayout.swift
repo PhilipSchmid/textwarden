@@ -13,12 +13,12 @@ struct FlowLayout: Layout {
     /// Minimum width before wrapping - use a generous default to prevent premature wrapping
     var minWidthBeforeWrap: CGFloat = 350
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache _: inout ()) -> CGSize {
         let result = arrangeSubviews(proposal: proposal, subviews: subviews)
         return result.size
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache _: inout ()) {
         let arrangement = arrangeSubviews(proposal: proposal, subviews: subviews)
 
         for (index, position) in arrangement.positions.enumerated() {
@@ -45,7 +45,7 @@ struct FlowLayout: Layout {
             let size = subview.sizeThatFits(.unspecified)
 
             // Check if we need to wrap to next line
-            if currentX + size.width > maxWidth && currentX > 0 {
+            if currentX + size.width > maxWidth, currentX > 0 {
                 currentX = 0
                 currentY += lineHeight + spacing
                 lineHeight = 0

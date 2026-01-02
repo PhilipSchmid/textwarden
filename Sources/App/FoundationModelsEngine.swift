@@ -1,12 +1,12 @@
 // FoundationModelsEngine.swift
 // Apple Foundation Models integration for style analysis
 
-import Foundation
 import Combine
+import Foundation
 import os.log
 
 #if canImport(FoundationModels)
-import FoundationModels
+    import FoundationModels
 #endif
 
 // MARK: - Style Engine Status
@@ -23,15 +23,15 @@ enum StyleEngineStatus: Equatable {
     var userMessage: String {
         switch self {
         case .available:
-            return "Ready"
+            "Ready"
         case .appleIntelligenceNotEnabled:
-            return "Enable Apple Intelligence in System Settings → Apple Intelligence & Siri"
+            "Enable Apple Intelligence in System Settings → Apple Intelligence & Siri"
         case .deviceNotEligible:
-            return "Style suggestions require a Mac with Apple Silicon"
+            "Style suggestions require a Mac with Apple Silicon"
         case .modelNotReady:
-            return "Apple Intelligence is preparing the language model..."
-        case .unknown(let reason):
-            return "Style suggestions unavailable: \(reason)"
+            "Apple Intelligence is preparing the language model..."
+        case let .unknown(reason):
+            "Style suggestions unavailable: \(reason)"
         }
     }
 
@@ -39,9 +39,9 @@ enum StyleEngineStatus: Equatable {
     var canRetry: Bool {
         switch self {
         case .modelNotReady:
-            return true
+            true
         case .available, .appleIntelligenceNotEnabled, .deviceNotEligible, .unknown:
-            return false
+            false
         }
     }
 
@@ -54,15 +54,15 @@ enum StyleEngineStatus: Equatable {
     var symbolName: String {
         switch self {
         case .available:
-            return "checkmark.circle.fill"
+            "checkmark.circle.fill"
         case .appleIntelligenceNotEnabled:
-            return "apple.intelligence"
+            "apple.intelligence"
         case .deviceNotEligible:
-            return "exclamationmark.triangle.fill"
+            "exclamationmark.triangle.fill"
         case .modelNotReady:
-            return "clock.fill"
+            "clock.fill"
         case .unknown:
-            return "questionmark.circle.fill"
+            "questionmark.circle.fill"
         }
     }
 }
@@ -73,7 +73,6 @@ enum StyleEngineStatus: Equatable {
 @available(macOS 26.0, *)
 @MainActor
 final class FoundationModelsEngine: ObservableObject {
-
     // MARK: - Published State
 
     @Published private(set) var status: StyleEngineStatus = .unknown("")
@@ -96,7 +95,7 @@ final class FoundationModelsEngine: ObservableObject {
             status = .available
             Logger.debug("Apple Intelligence: Available", category: Logger.llm)
 
-        case .unavailable(let reason):
+        case let .unavailable(reason):
             switch reason {
             case .appleIntelligenceNotEnabled:
                 status = .appleIntelligenceNotEnabled
@@ -169,11 +168,10 @@ final class FoundationModelsEngine: ObservableObject {
 
         // Configure generation options based on preset
         // Use greedy sampling for consistent mode (deterministic), otherwise use temperature
-        let options: GenerationOptions
-        if temperaturePreset.usesGreedySampling {
-            options = GenerationOptions(sampling: .greedy)
+        let options = if temperaturePreset.usesGreedySampling {
+            GenerationOptions(sampling: .greedy)
         } else {
-            options = GenerationOptions(temperature: temperaturePreset.temperature)
+            GenerationOptions(temperature: temperaturePreset.temperature)
         }
 
         let samplingInfo = temperaturePreset.usesGreedySampling ? "greedy" : "temp=\(temperaturePreset.temperature)"
@@ -358,17 +356,16 @@ final class FoundationModelsEngine: ObservableObject {
         // Configure generation options based on whether we want variation
         // For regeneration (variationSeed != nil), use random sampling with higher temperature
         // This ensures different outputs for each attempt while maintaining quality
-        let options: GenerationOptions
-        if let seed = variationSeed {
+        let options = if let seed = variationSeed {
             // Random top-k sampling with seed for varied but reproducible outputs
             // Higher temperature (0.8) encourages more creative alternatives
-            options = GenerationOptions(
+            GenerationOptions(
                 sampling: .random(top: 40, seed: seed),
                 temperature: 0.8
             )
         } else {
             // Default: balanced temperature for first generation
-            options = GenerationOptions(temperature: TemperatureValues.low)
+            GenerationOptions(temperature: TemperatureValues.low)
         }
 
         let samplingInfo = variationSeed.map { "random(seed:\($0), temp:0.8)" } ?? "temp:\(TemperatureValues.low)"
@@ -406,12 +403,12 @@ enum FoundationModelsError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .notAvailable(let status):
-            return "Foundation Models not available: \(status.userMessage)"
-        case .generationFailed(let message):
-            return "Generation failed: \(message)"
-        case .analysisError(let message):
-            return "Analysis error: \(message)"
+        case let .notAvailable(status):
+            "Foundation Models not available: \(status.userMessage)"
+        case let .generationFailed(message):
+            "Generation failed: \(message)"
+        case let .analysisError(message):
+            "Analysis error: \(message)"
         }
     }
 }
@@ -451,9 +448,9 @@ private enum TemperatureValues {
 /// which prioritize accuracy over creativity. All values are intentionally
 /// kept low to minimize hallucinations and incorrect suggestions.
 enum StyleTemperaturePreset: String, CaseIterable, Identifiable {
-    case consistent = "consistent"
-    case balanced = "balanced"
-    case creative = "creative"
+    case consistent
+    case balanced
+    case creative
 
     var id: String { rawValue }
 
@@ -465,9 +462,9 @@ enum StyleTemperaturePreset: String, CaseIterable, Identifiable {
     /// - `creative`: Moderate temperature (0.5) for some variety
     var temperature: Double {
         switch self {
-        case .consistent: return TemperatureValues.greedy
-        case .balanced: return TemperatureValues.low
-        case .creative: return TemperatureValues.moderate
+        case .consistent: TemperatureValues.greedy
+        case .balanced: TemperatureValues.low
+        case .creative: TemperatureValues.moderate
         }
     }
 
@@ -479,9 +476,9 @@ enum StyleTemperaturePreset: String, CaseIterable, Identifiable {
     /// Display name for UI
     var label: String {
         switch self {
-        case .consistent: return "Consistent"
-        case .balanced: return "Balanced"
-        case .creative: return "Creative"
+        case .consistent: "Consistent"
+        case .balanced: "Balanced"
+        case .creative: "Creative"
         }
     }
 
@@ -489,29 +486,29 @@ enum StyleTemperaturePreset: String, CaseIterable, Identifiable {
     var description: String {
         switch self {
         case .consistent:
-            return "Deterministic, most accurate"
+            "Deterministic, most accurate"
         case .balanced:
-            return "Reliable with slight variation"
+            "Reliable with slight variation"
         case .creative:
-            return "More variety, still accurate"
+            "More variety, still accurate"
         }
     }
 
     /// SF Symbol name for UI
     var symbolName: String {
         switch self {
-        case .consistent: return "checkmark.seal.fill"
-        case .balanced: return "dial.medium.fill"
-        case .creative: return "wand.and.stars"
+        case .consistent: "checkmark.seal.fill"
+        case .balanced: "dial.medium.fill"
+        case .creative: "wand.and.stars"
         }
     }
 
     /// Color for statistics charts (RGB values)
     var color: (r: Double, g: Double, b: Double) {
         switch self {
-        case .consistent: return (0.2, 0.8, 0.4)   // Green
-        case .balanced: return (0.3, 0.5, 0.9)     // Blue
-        case .creative: return (0.7, 0.3, 0.8)     // Purple
+        case .consistent: (0.2, 0.8, 0.4) // Green
+        case .balanced: (0.3, 0.5, 0.9) // Blue
+        case .creative: (0.7, 0.3, 0.8) // Purple
         }
     }
 }

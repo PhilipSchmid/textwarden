@@ -5,21 +5,21 @@
 //  Displays grammar error suggestions in a popover near the cursor
 //
 
-import SwiftUI
 import AppKit
-import Combine
 import ApplicationServices
+import Combine
 import KeyboardShortcuts
+import SwiftUI
 
 /// Custom NSPanel subclass that prevents becoming key window
 /// This is CRITICAL to prevent TextWarden from stealing focus from other apps
 class NonActivatingPanel: NSPanel {
     override var canBecomeKey: Bool {
-        return false
+        false
     }
 
     override var canBecomeMain: Bool {
-        return false
+        false
     }
 }
 
@@ -37,8 +37,8 @@ enum PopoverItem {
     /// Start position for sorting
     var startPosition: Int {
         switch self {
-        case .grammar(let error): return error.start
-        case .style(let suggestion): return suggestion.originalStart
+        case let .grammar(error): error.start
+        case let .style(suggestion): suggestion.originalStart
         }
     }
 }
@@ -46,7 +46,6 @@ enum PopoverItem {
 /// Manages the suggestion popover window
 @MainActor
 class SuggestionPopover: NSObject, ObservableObject {
-
     // MARK: - Singleton
 
     static let shared = SuggestionPopover()
@@ -122,7 +121,7 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     /// Total count of all items (grammar + style)
     var totalItemCount: Int {
-        return allErrors.count + allStyleSuggestions.count
+        allErrors.count + allStyleSuggestions.count
     }
 
     /// Callback for applying suggestion (grammar mode)
@@ -163,18 +162,18 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     /// Check if popover is currently visible
     var isVisible: Bool {
-        return panel?.isVisible == true && (currentError != nil || currentStyleSuggestion != nil)
+        panel?.isVisible == true && (currentError != nil || currentStyleSuggestion != nil)
     }
 
     /// Check if a screen point is within the popover's frame
     func containsPoint(_ screenPoint: CGPoint) -> Bool {
-        guard isVisible, let panel = panel else { return false }
+        guard isVisible, let panel else { return false }
         return panel.frame.contains(screenPoint)
     }
 
     // MARK: - Initialization
 
-    private override init() {
+    override private init() {
         super.init()
     }
 
@@ -218,9 +217,9 @@ class SuggestionPopover: NSObject, ObservableObject {
         Logger.debug("SuggestionPopover.show() - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
 
         // Mark as hover-triggered - popover auto-hides when mouse leaves
-        self.openedFromIndicator = false
+        openedFromIndicator = false
 
-        self.mode = .grammarError
+        mode = .grammarError
         self.allErrors = allErrors
         self.sourceText = sourceText
 
@@ -228,16 +227,16 @@ class SuggestionPopover: NSObject, ObservableObject {
         // This ensures AI-enhanced errors (with suggestions) are used even if the overlay
         // passed an older version of the error
         let matchingError = allErrors.first(where: { $0.start == error.start && $0.end == error.end && $0.lintId == error.lintId })
-        self.currentError = matchingError ?? error
-        self.currentIndex = allErrors.firstIndex(where: { $0.start == error.start && $0.end == error.end }) ?? 0
+        currentError = matchingError ?? error
+        currentIndex = allErrors.firstIndex(where: { $0.start == error.start && $0.end == error.end }) ?? 0
 
         // Clear style data
-        self.currentStyleSuggestion = nil
-        self.allStyleSuggestions = []
-        self.currentStyleIndex = 0
+        currentStyleSuggestion = nil
+        allStyleSuggestions = []
+        currentStyleIndex = 0
 
         // Notify about current error change (for locked highlight)
-        onCurrentErrorChanged?(self.currentError)
+        onCurrentErrorChanged?(currentError)
 
         showPanelAtPosition(position, constrainToWindow: constrainToWindow)
     }
@@ -252,17 +251,17 @@ class SuggestionPopover: NSObject, ObservableObject {
         Logger.debug("SuggestionPopover.show(styleSuggestion:) - showing style suggestion", category: Logger.ui)
 
         // Mark as hover-triggered - popover auto-hides when mouse leaves
-        self.openedFromIndicator = false
+        openedFromIndicator = false
 
-        self.mode = .styleSuggestion
-        self.currentStyleSuggestion = suggestion
-        self.allStyleSuggestions = allSuggestions
-        self.currentStyleIndex = allSuggestions.firstIndex(where: { $0.id == suggestion.id }) ?? 0
+        mode = .styleSuggestion
+        currentStyleSuggestion = suggestion
+        allStyleSuggestions = allSuggestions
+        currentStyleIndex = allSuggestions.firstIndex(where: { $0.id == suggestion.id }) ?? 0
 
         // Clear grammar data
-        self.currentError = nil
-        self.allErrors = []
-        self.currentIndex = 0
+        currentError = nil
+        allErrors = []
+        currentIndex = 0
 
         showPanelAtPosition(position, constrainToWindow: constrainToWindow)
     }
@@ -277,14 +276,14 @@ class SuggestionPopover: NSObject, ObservableObject {
     func showStyleWithExistingErrors(suggestion: StyleSuggestionModel, allSuggestions: [StyleSuggestionModel], existingErrors: [GrammarErrorModel], at position: CGPoint, constrainToWindow: CGRect? = nil) {
         Logger.debug("SuggestionPopover.showStyleWithExistingErrors - showing style suggestion with \(existingErrors.count) grammar errors", category: Logger.ui)
 
-        self.mode = .styleSuggestion
-        self.currentStyleSuggestion = suggestion
-        self.allStyleSuggestions = allSuggestions
-        self.currentStyleIndex = allSuggestions.firstIndex(where: { $0.id == suggestion.id }) ?? 0
+        mode = .styleSuggestion
+        currentStyleSuggestion = suggestion
+        allStyleSuggestions = allSuggestions
+        currentStyleIndex = allSuggestions.firstIndex(where: { $0.id == suggestion.id }) ?? 0
 
         // Keep existing grammar errors for unified cycling
-        self.currentError = nil
-        self.allErrors = existingErrors
+        currentError = nil
+        allErrors = existingErrors
         // currentIndex stays as it was
 
         // Update unified index
@@ -414,7 +413,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         // When user clicks outside, hide the popover
         // The click will naturally activate the clicked app (we can't prevent event propagation)
         clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
-            guard let self = self, let panel = self.panel else { return }
+            guard let self, let panel else { return }
 
             // Check if click is inside the popover panel - if so, don't hide
             // Global events report screen coordinates, panel.frame is also in screen coords
@@ -430,13 +429,13 @@ class SuggestionPopover: NSObject, ObservableObject {
             Logger.debug("Popover: Global click detected outside popover - hiding", category: Logger.ui)
 
             // CRITICAL: Cancel any pending auto-hide timer
-            self.hideTimer?.invalidate()
-            self.hideTimer = nil
+            hideTimer?.invalidate()
+            hideTimer = nil
 
             // Record the time so ErrorOverlay click handler can debounce
-            self.lastClickOutsideHideTime = Date()
+            lastClickOutsideHideTime = Date()
 
-            self.hide()
+            hide()
         }
     }
 
@@ -477,7 +476,7 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         panel?.contentView = trackingView
         panel?.isFloatingPanel = true
-        panel?.level = .popUpMenu + 1  // Above error overlay (.popUpMenu) so underlines don't cover popover
+        panel?.level = .popUpMenu + 1 // Above error overlay (.popUpMenu) so underlines don't cover popover
         panel?.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel?.isMovableByWindowBackground = true
         panel?.title = mode == .grammarError ? "Grammar Suggestion" : "Style Suggestion"
@@ -485,7 +484,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         // Make panel background transparent so SwiftUI content's opacity works
         panel?.backgroundColor = .clear
         panel?.isOpaque = false
-        panel?.hasShadow = true  // System shadow (SwiftUI shadow gets clipped by masksToBounds)
+        panel?.hasShadow = true // System shadow (SwiftUI shadow gets clipped by masksToBounds)
         // CRITICAL: Prevent this panel from affecting app activation
         panel?.hidesOnDeactivate = false
         panel?.worksWhenModal = false
@@ -510,11 +509,11 @@ class SuggestionPopover: NSObject, ObservableObject {
     ///   - cursorPosition: The screen position for the popover (anchor point when from indicator)
     ///   - constrainToWindow: Optional window frame to constrain positioning (keeps popover inside app window)
     private func positionPanel(at cursorPosition: CGPoint, constrainToWindow: CGRect? = nil) {
-        guard let panel = panel else { return }
+        guard let panel else { return }
 
         // Find the screen containing the cursor position (important for multi-monitor setups)
         let screen = NSScreen.screens.first(where: { $0.frame.contains(cursorPosition) }) ?? NSScreen.main
-        guard let screen = screen else { return }
+        guard let screen else { return }
 
         Logger.debug("Popover: Input cursor position (screen): \(cursorPosition)", category: Logger.ui)
 
@@ -547,7 +546,8 @@ class SuggestionPopover: NSObject, ObservableObject {
             adjustedPanelSize.width = max(320, totalHorizontalRoom)
 
             if let trackingView = panel.contentView as? PopoverTrackingView,
-               let hostingView = trackingView.subviews.first {
+               let hostingView = trackingView.subviews.first
+            {
                 hostingView.frame = NSRect(x: 0, y: 0, width: adjustedPanelSize.width, height: adjustedPanelSize.height)
                 trackingView.frame = NSRect(x: 0, y: 0, width: adjustedPanelSize.width, height: adjustedPanelSize.height)
                 panel.setContentSize(NSSize(width: adjustedPanelSize.width, height: adjustedPanelSize.height))
@@ -563,7 +563,7 @@ class SuggestionPopover: NSObject, ObservableObject {
             shouldPositionAbove = false
         default:
             shouldPositionAbove = roomBelow < adjustedPanelSize.height + verticalSpacing + padding
-            if shouldPositionAbove && roomAbove < adjustedPanelSize.height + verticalSpacing + padding {
+            if shouldPositionAbove, roomAbove < adjustedPanelSize.height + verticalSpacing + padding {
                 shouldPositionAbove = roomAbove > roomBelow
             }
         }
@@ -587,7 +587,7 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Position panel using anchor-based positioning when opened from indicator
     /// This ensures consistent positioning with other indicator popovers (TextGenerationPopover)
     private func positionPanelFromIndicator(at anchorPoint: CGPoint, panelSize: NSSize, constraintFrame: CGRect, padding: CGFloat) {
-        guard let panel = panel else { return }
+        guard let panel else { return }
 
         var origin = CGPoint.zero
 
@@ -707,7 +707,7 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Rebuild the content view from scratch for clean rendering
     /// This ensures no artifacts when switching between errors of different sizes
     private func rebuildContentView() {
-        guard let panel = panel,
+        guard let panel,
               let trackingView = panel.contentView as? PopoverTrackingView else { return }
 
         // Increment counter to force SwiftUI to treat this as a completely new view
@@ -776,20 +776,20 @@ class SuggestionPopover: NSObject, ObservableObject {
     ///   - duration: How long to show the message (default 3 seconds)
     func showStatusMessage(_ message: String, duration: TimeInterval = 3.0) {
         DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
 
             // Cancel any existing timer
-            self.statusMessageTimer?.invalidate()
+            statusMessageTimer?.invalidate()
 
             // Set the message
-            self.statusMessage = message
+            statusMessage = message
             Logger.trace("Popover: Showing status message", category: Logger.ui)
 
             // Rebuild content to resize popover for the new message
-            self.rebuildContentView()
+            rebuildContentView()
 
             // Auto-hide after duration
-            self.statusMessageTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
+            statusMessageTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
                 DispatchQueue.main.async {
                     self?.statusMessage = nil
                     // Rebuild again when message is hidden to shrink popover
@@ -841,7 +841,7 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         // Update currentError if in grammar mode
         if mode == .grammarError {
-            if allErrors.isEmpty && allStyleSuggestions.isEmpty {
+            if allErrors.isEmpty, allStyleSuggestions.isEmpty {
                 hide()
             } else if allErrors.isEmpty {
                 // Switch to style mode if no errors left but style suggestions exist
@@ -888,9 +888,9 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         // Call the replacement asynchronously
         Task { @MainActor [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
 
-            await self.onApplySuggestion?(error, suggestion)
+            await onApplySuggestion?(error, suggestion)
 
             // NOTE: The coordinator's syncErrorsAfterReplacement has already:
             // 1. Updated allErrors with adjusted positions (error removed, positions shifted)
@@ -901,23 +901,24 @@ class SuggestionPopover: NSObject, ObservableObject {
             // Just update the local sourceText and handle UI state.
 
             // Update sourceText to reflect the applied correction
-            if !self.sourceText.isEmpty,
+            if !sourceText.isEmpty,
                error.start <= error.end,
-               let startIndex = TextIndexConverter.scalarIndexToStringIndex(error.start, in: self.sourceText),
-               let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: self.sourceText),
-               startIndex <= endIndex {
-                self.sourceText.replaceSubrange(startIndex..<endIndex, with: suggestion)
+               let startIndex = TextIndexConverter.scalarIndexToStringIndex(error.start, in: sourceText),
+               let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: sourceText),
+               startIndex <= endIndex
+            {
+                sourceText.replaceSubrange(startIndex ..< endIndex, with: suggestion)
             }
 
             // Check if we should hide or continue showing
-            if self.allErrors.isEmpty {
-                self.hide()
+            if allErrors.isEmpty {
+                hide()
             } else {
                 // Rebuild to show the next error (currentError was already updated by syncErrorsAfterReplacement)
-                self.rebuildContentView()
+                rebuildContentView()
             }
 
-            self.isProcessing = false
+            isProcessing = false
         }
     }
 
@@ -1123,18 +1124,18 @@ class SuggestionPopover: NSObject, ObservableObject {
         Logger.info("SuggestionPopover.showUnified START - errors=\(errors.count), styleSuggestions=\(styleSuggestions.count)", category: Logger.ui)
 
         // Mark as opened from indicator - popover persists until explicitly dismissed
-        self.openedFromIndicator = true
+        openedFromIndicator = true
 
         // Store open direction for positioning
-        self.indicatorOpenDirection = openDirection
+        indicatorOpenDirection = openDirection
 
         // Store both collections for unified cycling
-        self.allErrors = errors
-        self.allStyleSuggestions = styleSuggestions
+        allErrors = errors
+        allStyleSuggestions = styleSuggestions
         self.sourceText = sourceText
 
         // Start at unified index 0 (first item sorted by position)
-        self.unifiedIndex = 0
+        unifiedIndex = 0
 
         // Determine which type of item comes first
         let items = unifiedItems
@@ -1145,19 +1146,19 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         // Set mode and current item based on first unified item
         switch items[0] {
-        case .grammar(let error):
-            self.mode = .grammarError
-            self.currentError = error
-            self.currentStyleSuggestion = nil
-            self.currentIndex = 0
+        case let .grammar(error):
+            mode = .grammarError
+            currentError = error
+            currentStyleSuggestion = nil
+            currentIndex = 0
             // Notify about current error change (for locked highlight)
             onCurrentErrorChanged?(error)
 
-        case .style(let suggestion):
-            self.mode = .styleSuggestion
-            self.currentStyleSuggestion = suggestion
-            self.currentError = nil
-            self.currentStyleIndex = 0
+        case let .style(suggestion):
+            mode = .styleSuggestion
+            currentStyleSuggestion = suggestion
+            currentError = nil
+            currentStyleIndex = 0
             // Clear locked highlight when showing style suggestion
             onCurrentErrorChanged?(nil)
         }
@@ -1219,7 +1220,7 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Show the item at the given unified index
     private func showUnifiedItem(at index: Int) {
         let items = unifiedItems
-        guard index >= 0 && index < items.count else {
+        guard index >= 0, index < items.count else {
             Logger.debug("Popover: showUnifiedItem - invalid index \(index), items.count=\(items.count)", category: Logger.ui)
             return
         }
@@ -1227,7 +1228,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         Logger.debug("Popover: showUnifiedItem at index \(index)", category: Logger.ui)
 
         switch items[index] {
-        case .grammar(let error):
+        case let .grammar(error):
             mode = .grammarError
             currentError = error
             currentStyleSuggestion = nil
@@ -1239,7 +1240,7 @@ class SuggestionPopover: NSObject, ObservableObject {
             // Notify about current error change (for locked highlight)
             onCurrentErrorChanged?(error)
 
-        case .style(let suggestion):
+        case let .style(suggestion):
             mode = .styleSuggestion
             currentStyleSuggestion = suggestion
             currentError = nil
@@ -1263,7 +1264,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         case .grammarError:
             guard let error = currentError else { return }
             if let idx = items.firstIndex(where: {
-                if case .grammar(let e) = $0 { return e.start == error.start && e.end == error.end }
+                if case let .grammar(e) = $0 { return e.start == error.start && e.end == error.end }
                 return false
             }) {
                 unifiedIndex = idx
@@ -1272,7 +1273,7 @@ class SuggestionPopover: NSObject, ObservableObject {
         case .styleSuggestion:
             guard let suggestion = currentStyleSuggestion else { return }
             if let idx = items.firstIndex(where: {
-                if case .style(let s) = $0 { return s.id == suggestion.id }
+                if case let .style(s) = $0 { return s.id == suggestion.id }
                 return false
             }) {
                 unifiedIndex = idx
@@ -1280,7 +1281,6 @@ class SuggestionPopover: NSObject, ObservableObject {
         }
     }
 }
-
 
 // MARK: - Position Helper
 
@@ -1305,7 +1305,8 @@ extension SuggestionPopover {
 
         guard boundsError == .success,
               let axValue = boundsValue,
-              let rect = safeAXValueGetRect(axValue) else {
+              let rect = safeAXValueGetRect(axValue)
+        else {
             return cursorPosition(in: element)
         }
 
@@ -1332,7 +1333,8 @@ extension SuggestionPopover {
         )
 
         guard rangeError == .success,
-              let range = rangeValue else {
+              let range = rangeValue
+        else {
             return nil
         }
 
@@ -1346,7 +1348,8 @@ extension SuggestionPopover {
 
         guard boundsError == .success,
               let axValue = boundsValue,
-              let rect = safeAXValueGetRect(axValue) else {
+              let rect = safeAXValueGetRect(axValue)
+        else {
             return fallbackCursorPosition()
         }
 
@@ -1379,8 +1382,8 @@ extension SuggestionPopover {
 /// Standard NSHostingView doesn't accept first mouse, causing SwiftUI buttons
 /// to be unresponsive until the panel is clicked once to "activate" it.
 class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
-        return true
+    override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
+        true
     }
 }
 
@@ -1395,22 +1398,23 @@ class PopoverTrackingView: NSView {
         super.init(frame: .zero)
 
         // Make the tracking view transparent with rounded corners
-        self.wantsLayer = true
-        self.layer?.backgroundColor = .clear
-        self.layer?.cornerRadius = 10
-        self.layer?.masksToBounds = true
+        wantsLayer = true
+        layer?.backgroundColor = .clear
+        layer?.cornerRadius = 10
+        layer?.masksToBounds = true
 
         setupTracking()
     }
 
-    required init?(coder: NSCoder) {
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
     // CRITICAL: Accept first mouse click without requiring panel activation
     // This allows buttons to be clicked immediately in non-activating panels
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
-        return true
+    override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
+        true
     }
 
     private func setupTracking() {
@@ -1426,13 +1430,13 @@ class PopoverTrackingView: NSView {
         Logger.trace("Popover: Tracking area set up with bounds: \(bounds)", category: Logger.ui)
     }
 
-    override func mouseEntered(with event: NSEvent) {
+    override func mouseEntered(with _: NSEvent) {
         Logger.trace("Popover: Mouse ENTERED tracking view", category: Logger.ui)
         popover?.cancelHide()
         popover?.onMouseEntered?()
     }
 
-    override func mouseExited(with event: NSEvent) {
+    override func mouseExited(with _: NSEvent) {
         Logger.trace("Popover: Mouse EXITED tracking view", category: Logger.ui)
         popover?.scheduleHide()
     }
@@ -1470,7 +1474,8 @@ class TransparentHoverView: NSView {
         setupTracking()
     }
 
-    required init?(coder: NSCoder) {
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
@@ -1479,7 +1484,7 @@ class TransparentHoverView: NSView {
         let options: NSTrackingArea.Options = [
             .mouseEnteredAndExited,
             .inVisibleRect,
-            .activeAlways  // Critical for NSPanel
+            .activeAlways, // Critical for NSPanel
         ]
 
         let trackingArea = NSTrackingArea(
@@ -1492,19 +1497,19 @@ class TransparentHoverView: NSView {
         addTrackingArea(trackingArea)
     }
 
-    override func mouseEntered(with event: NSEvent) {
+    override func mouseEntered(with _: NSEvent) {
         onHoverChange?(true)
     }
 
-    override func mouseExited(with event: NSEvent) {
+    override func mouseExited(with _: NSEvent) {
         onHoverChange?(false)
     }
 
-    override func hitTest(_ point: NSPoint) -> NSView? {
+    override func hitTest(_: NSPoint) -> NSView? {
         // Return nil to let clicks pass through to buttons below
         // But tracking areas still work because mouseEntered/mouseExited
         // are called before hitTest determines the event target
-        return nil
+        nil
     }
 }
 
@@ -1531,17 +1536,17 @@ struct ReliableHoverRepresentable: NSViewRepresentable {
     let mouseIsInside: (Bool) -> Void
     let frame: NSRect
 
-    func makeNSView(context: Context) -> TransparentHoverView {
+    func makeNSView(context _: Context) -> TransparentHoverView {
         let view = TransparentHoverView(frame: frame)
         view.onHoverChange = mouseIsInside
         return view
     }
 
-    func updateNSView(_ nsView: TransparentHoverView, context: Context) {
+    func updateNSView(_ nsView: TransparentHoverView, context _: Context) {
         nsView.onHoverChange = mouseIsInside
     }
 
-    static func dismantleNSView(_ nsView: TransparentHoverView, coordinator: Void) {
+    static func dismantleNSView(_ nsView: TransparentHoverView, coordinator _: Void) {
         nsView.trackingAreas.forEach { nsView.removeTrackingArea($0) }
     }
 }
@@ -1567,11 +1572,11 @@ struct StylePopoverContentView: View {
     private var effectiveColorScheme: ColorScheme {
         switch preferences.overlayTheme {
         case "Light":
-            return .light
+            .light
         case "Dark":
-            return .dark
+            .dark
         default:
-            return systemColorScheme
+            systemColorScheme
         }
     }
 
@@ -1726,7 +1731,7 @@ struct StylePopoverContentView: View {
                     Spacer()
 
                     // Navigation controls - only shown when popover opened from indicator
-                    if popover.openedFromIndicator && popover.totalItemCount > 1 {
+                    if popover.openedFromIndicator, popover.totalItemCount > 1 {
                         Text("\(popover.unifiedIndex + 1) of \(popover.totalItemCount)")
                             .font(.system(size: baseTextSize * 0.8))
                             .foregroundColor(colors.textSecondary)
@@ -1797,7 +1802,7 @@ struct StylePopoverContentView: View {
                         LinearGradient(
                             colors: [
                                 colors.border.opacity(0.5),
-                                colors.border.opacity(0.2)
+                                colors.border.opacity(0.2),
                             ],
                             startPoint: .top,
                             endPoint: .bottom
@@ -1811,7 +1816,6 @@ struct StylePopoverContentView: View {
         .fixedSize(horizontal: false, vertical: true)
         .colorScheme(effectiveColorScheme)
     }
-
 }
 
 // FlowLayout extracted to Sources/UI/Layout/FlowLayout.swift

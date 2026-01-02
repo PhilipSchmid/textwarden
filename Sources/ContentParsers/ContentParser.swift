@@ -5,8 +5,8 @@
 //  Protocol for app-specific content parsing and bounds adjustment
 //
 
-import Foundation
 import AppKit
+import Foundation
 
 /// Result of bounds adjustment containing position and metadata
 struct AdjustedBounds {
@@ -172,62 +172,62 @@ protocol ContentParser {
 
 extension ContentParser {
     func supports(bundleID: String) -> Bool {
-        return bundleID == bundleIdentifier
+        bundleID == bundleIdentifier
     }
 
     /// Default implementation: no preprocessing, return text as-is
     func preprocessText(_ text: String) -> String? {
-        return text
+        text
     }
 
     /// Default: no custom extraction, use standard AXValue
-    func extractText(from element: AXUIElement) -> String? {
-        return nil
+    func extractText(from _: AXUIElement) -> String? {
+        nil
     }
 
     /// Default: extractText returns raw text that needs preprocessing
     var extractTextReturnsPreprocessed: Bool {
-        return false
+        false
     }
 
     /// Default: allow visual underlines
     var disablesVisualUnderlines: Bool {
-        return false
+        false
     }
 
     /// Default: no offset needed for text replacement
     var textReplacementOffset: Int {
-        return 0
+        0
     }
 
     /// Default: no selection offset adjustment needed
-    func selectionOffset(at position: Int, in text: String) -> Int {
-        return 0
+    func selectionOffset(at _: Int, in _: String) -> Int {
+        0
     }
 
     /// Default: no UTF-16 conversion needed (preserves existing behavior for Slack, etc.)
     var requiresUTF16Conversion: Bool {
-        return false
+        false
     }
 
     /// Default: no embedded image positioning issues
     var hasEmbeddedImagePositioningIssues: Bool {
-        return false
+        false
     }
 
     /// Default: monitor all elements (no filtering)
-    func shouldMonitorElement(_ element: AXUIElement) -> Bool {
-        return true
+    func shouldMonitorElement(_: AXUIElement) -> Bool {
+        true
     }
 
     /// Default: no custom bounds calculation, return nil to use standard API
-    func getBoundsForRange(range: NSRange, in element: AXUIElement) -> CGRect? {
-        return nil
+    func getBoundsForRange(range _: NSRange, in _: AXUIElement) -> CGRect? {
+        nil
     }
 
     /// Default: no configured font family, use system font
-    func fontFamily(context: String?) -> String? {
-        return nil
+    func fontFamily(context _: String?) -> String? {
+        nil
     }
 
     /// Default bounds adjustment using generic text measurement
@@ -237,7 +237,7 @@ extension ContentParser {
         errorRange: NSRange,
         textBeforeError: String,
         errorText: String,
-        fullText: String
+        fullText _: String
     ) -> AdjustedBounds? {
         // Try to get AX bounds first
         if let axBounds = getAXBounds(element: element, range: errorRange) {
@@ -300,7 +300,7 @@ extension ContentParser {
             &boundsValue
         )
 
-        guard result == .success, let boundsValue = boundsValue else {
+        guard result == .success, let boundsValue else {
             return nil
         }
 
@@ -311,8 +311,9 @@ extension ContentParser {
         // Validate bounds (check for Electron/Chromium bugs)
         // Only reject truly invalid values: negative dimensions or extreme negative positions
         // X=0 and Y=0 are valid (element at screen edge)
-        guard bounds.origin.x >= -1000 && bounds.origin.y >= -1000 &&
-              bounds.width > 0 && bounds.height > 0 else {
+        guard bounds.origin.x >= -1000, bounds.origin.y >= -1000,
+              bounds.width > 0, bounds.height > 0
+        else {
             return nil
         }
 
@@ -335,7 +336,7 @@ extension ContentParser {
         text: String,
         actualBundleID: String? = nil
     ) -> GeometryResult {
-        return PositionResolver.shared.resolvePosition(
+        PositionResolver.shared.resolvePosition(
             for: errorRange,
             in: element,
             text: text,

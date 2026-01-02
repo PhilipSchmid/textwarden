@@ -6,8 +6,8 @@
 //  Uses standard AX API and reads from AppConfiguration when available
 //
 
-import Foundation
 import AppKit
+import Foundation
 
 /// Generic content parser for apps without specific implementations
 /// Reads configuration from AppRegistry when available, otherwise uses conservative defaults
@@ -35,29 +35,29 @@ class GenericContentParser: ContentParser {
         Self.currentBundleID = bundleID
     }
 
-    func detectUIContext(element: AXUIElement) -> String? {
+    func detectUIContext(element _: AXUIElement) -> String? {
         // Generic parser doesn't distinguish UI contexts
-        return nil
+        nil
     }
 
-    func estimatedFontSize(context: String?) -> CGFloat {
+    func estimatedFontSize(context _: String?) -> CGFloat {
         // Use font size from AppConfiguration if available, otherwise conservative default
-        return config.fontConfig.defaultSize
+        config.fontConfig.defaultSize
     }
 
-    func spacingMultiplier(context: String?) -> CGFloat {
+    func spacingMultiplier(context _: String?) -> CGFloat {
         // Use spacing multiplier from AppConfiguration if available
-        return config.fontConfig.spacingMultiplier
+        config.fontConfig.spacingMultiplier
     }
 
-    func fontFamily(context: String?) -> String? {
+    func fontFamily(context _: String?) -> String? {
         // Use font family from AppConfiguration if available
-        return config.fontConfig.fontFamily
+        config.fontConfig.fontFamily
     }
 
-    func horizontalPadding(context: String?) -> CGFloat {
+    func horizontalPadding(context _: String?) -> CGFloat {
         // Use horizontal padding from AppConfiguration
-        return config.horizontalPadding
+        config.horizontalPadding
     }
 
     /// Generic parser uses default implementation from protocol

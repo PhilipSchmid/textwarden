@@ -8,8 +8,7 @@
 import Foundation
 
 /// Preprocesses text to exclude patterns that shouldn't be grammar checked
-struct TextPreprocessor {
-
+enum TextPreprocessor {
     // MARK: - Code Block Exclusion
 
     /// Exclude code blocks from grammar checking
@@ -41,7 +40,7 @@ struct TextPreprocessor {
         let patterns = [
             "https?://[^\\s]+",
             "ftp://[^\\s]+",
-            "www\\.[^\\s]+"
+            "www\\.[^\\s]+",
         ]
 
         for pattern in patterns {
@@ -226,10 +225,10 @@ struct ExclusionRange {
     let length: Int
 
     var range: Range<Int> {
-        return location..<(location + length)
+        location ..< (location + length)
     }
 
     func overlaps(_ errorRange: Range<Int>) -> Bool {
-        return range.overlaps(errorRange)
+        range.overlaps(errorRange)
     }
 }

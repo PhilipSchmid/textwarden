@@ -15,7 +15,6 @@ import Foundation
 
 /// Encapsulates behavioral patterns shared across messenger applications
 enum MessengerBehavior {
-
     // MARK: - Bundle IDs
 
     /// Apple Messages bundle ID
@@ -31,13 +30,13 @@ enum MessengerBehavior {
     static let allBundleIDs: Set<String> = [
         messagesBundleID,
         whatsAppBundleID,
-        telegramBundleID
+        telegramBundleID,
     ]
 
     /// Mac Catalyst messenger apps (share similar AX behavior)
     static let catalystMessengerBundleIDs: Set<String> = [
         messagesBundleID,
-        whatsAppBundleID
+        whatsAppBundleID,
     ]
 
     // MARK: - Timing Constants
@@ -49,15 +48,15 @@ enum MessengerBehavior {
         case whatsAppBundleID:
             // WhatsApp's AX API is notoriously slow to update after conversation switch
             // May still return stale text from previous conversation if read too quickly
-            return 0.5
+            0.5
         case messagesBundleID:
             // Messages updates faster but still needs settling time
-            return 0.2
+            0.2
         case telegramBundleID:
             // Telegram is native and updates quickly
-            return 0.15
+            0.15
         default:
-            return 0.2
+            0.2
         }
     }
 

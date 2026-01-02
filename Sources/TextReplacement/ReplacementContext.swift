@@ -6,8 +6,8 @@
 //  Built once at the start of replacement with resolved indices.
 //
 
-import Foundation
 @preconcurrency import ApplicationServices
+import Foundation
 
 // MARK: - Index System
 
@@ -25,7 +25,6 @@ enum IndexSystem {
 /// Complete context for a text replacement operation.
 /// Captures everything needed upfront to avoid re-reading element state during replacement.
 struct ReplacementContext {
-
     // MARK: - Core Elements
 
     /// The AX element where replacement will occur
@@ -84,7 +83,7 @@ struct ReplacementContext {
         self.appConfig = appConfig
         self.currentText = currentText
         self.replacement = replacement
-        self.harperRange = harperStart..<harperEnd
+        harperRange = harperStart ..< harperEnd
 
         // Extract error text using Harper's scalar indices
         guard let extractedText = TextIndexConverter.extractErrorText(
@@ -98,7 +97,7 @@ struct ReplacementContext {
             )
             return nil
         }
-        self.errorText = extractedText
+        errorText = extractedText
 
         // Determine index system based on app category
         let indexSystem = Self.determineIndexSystem(for: appConfig)
@@ -127,14 +126,14 @@ struct ReplacementContext {
         // Electron and browser apps use UTF-16 (JavaScript/Chromium-based)
         switch appConfig.category {
         case .electron, .browser:
-            return .utf16
+            .utf16
         case .native, .custom:
             // Mail and Office apps use WebKit, which also uses UTF-16
             switch appConfig.parserType {
             case .mail, .word, .powerpoint, .outlook:
-                return .utf16
+                .utf16
             default:
-                return .grapheme
+                .grapheme
             }
         }
     }
@@ -157,7 +156,8 @@ struct ReplacementContext {
         case .grapheme:
             // Convert scalars to String.Index, then count graphemes
             guard let startIndex = TextIndexConverter.scalarIndexToStringIndex(harperStart, in: text),
-                  let endIndex = TextIndexConverter.scalarIndexToStringIndex(harperEnd, in: text) else {
+                  let endIndex = TextIndexConverter.scalarIndexToStringIndex(harperEnd, in: text)
+            else {
                 return nil
             }
             let startOffset = text.distance(from: text.startIndex, to: startIndex)
@@ -165,5 +165,4 @@ struct ReplacementContext {
             return CFRange(location: startOffset, length: max(1, length))
         }
     }
-
 }

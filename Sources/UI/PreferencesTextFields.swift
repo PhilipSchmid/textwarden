@@ -5,8 +5,8 @@
 //  Native macOS text field wrappers for use in preferences UI.
 //
 
-import SwiftUI
 import AppKit
+import SwiftUI
 
 // MARK: - Native macOS Text Field (left-aligned)
 
@@ -27,7 +27,7 @@ struct LeftAlignedTextField: NSViewRepresentable {
         return textField
     }
 
-    func updateNSView(_ nsView: NSTextField, context: Context) {
+    func updateNSView(_ nsView: NSTextField, context _: Context) {
         if nsView.stringValue != text {
             nsView.stringValue = text
         }
@@ -42,7 +42,7 @@ struct LeftAlignedTextField: NSViewRepresentable {
         var onSubmit: (() -> Void)?
 
         init(text: Binding<String>, onSubmit: (() -> Void)?) {
-            self._text = text
+            _text = text
             self.onSubmit = onSubmit
         }
 
@@ -52,7 +52,7 @@ struct LeftAlignedTextField: NSViewRepresentable {
             }
         }
 
-        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        func control(_: NSControl, textView _: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
             if commandSelector == #selector(NSResponder.insertNewline(_:)) {
                 onSubmit?()
                 return true
@@ -78,7 +78,7 @@ struct SearchField: NSViewRepresentable {
         return searchField
     }
 
-    func updateNSView(_ nsView: NSSearchField, context: Context) {
+    func updateNSView(_ nsView: NSSearchField, context _: Context) {
         if nsView.stringValue != text {
             nsView.stringValue = text
         }
@@ -92,7 +92,7 @@ struct SearchField: NSViewRepresentable {
         @Binding var text: String
 
         init(text: Binding<String>) {
-            self._text = text
+            _text = text
         }
 
         func controlTextDidChange(_ obj: Notification) {

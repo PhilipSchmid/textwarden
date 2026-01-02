@@ -5,8 +5,8 @@
 //  Unit tests for per-app settings
 //
 
-import XCTest
 @testable import TextWarden
+import XCTest
 
 final class UserPreferencesTests: XCTestCase {
     var preferences: UserPreferences!
@@ -91,7 +91,7 @@ final class UserPreferencesTests: XCTestCase {
 
     func testCustomDictionaryLimit() {
         // Add 1000 words (limit)
-        for i in 0..<1000 {
+        for i in 0 ..< 1000 {
             preferences.addToCustomDictionary("word\(i)")
         }
 

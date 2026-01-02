@@ -8,23 +8,22 @@
 //  Designed for Mac Catalyst apps where standard AX bounds APIs fail.
 //
 
-import Foundation
 import AppKit
 import ApplicationServices
+import Foundation
 
 /// Insertion point strategy for Mac Catalyst apps
 /// Uses cursor position and selection range as anchors since AXBoundsForRange
 /// returns invalid values (0 width/height) for Catalyst apps like Apple Messages.
 class InsertionPointStrategy: GeometryProvider {
-
     var strategyName: String { "InsertionPoint" }
     var strategyType: StrategyType { .insertionPoint }
     var tier: StrategyTier { .reliable }
     var tierPriority: Int { 5 }
 
-    func canHandle(element: AXUIElement, bundleID: String) -> Bool {
+    func canHandle(element: AXUIElement, bundleID _: String) -> Bool {
         // Try to get insertion point info - if available, we can handle it
-        return getSelectedTextRange(from: element) != nil || getInsertionPoint(from: element) != nil
+        getSelectedTextRange(from: element) != nil || getInsertionPoint(from: element) != nil
     }
 
     func calculateGeometry(
@@ -33,12 +32,12 @@ class InsertionPointStrategy: GeometryProvider {
         text: String,
         parser: ContentParser
     ) -> GeometryResult? {
-
         Logger.debug("InsertionPointStrategy: Starting for range \(errorRange)", category: Logger.ui)
 
         // Get element frame - this is our baseline for positioning
         guard let elementFrame = AccessibilityBridge.getElementFrame(element),
-              elementFrame.width > 0, elementFrame.height > 0 else {
+              elementFrame.width > 0, elementFrame.height > 0
+        else {
             Logger.debug("InsertionPointStrategy: Could not get element frame", category: Logger.accessibility)
             return nil
         }
@@ -97,11 +96,12 @@ class InsertionPointStrategy: GeometryProvider {
         // Get error text
         let errorEndLocation = min(originalErrorLocation + errorRange.length, text.count)
         guard let errorEndIdx = text.index(text.startIndex, offsetBy: errorEndLocation, limitedBy: text.endIndex),
-              errorStartIdx <= errorEndIdx else {
+              errorStartIdx <= errorEndIdx
+        else {
             Logger.debug("InsertionPointStrategy: Could not get error end index", category: Logger.accessibility)
             return nil
         }
-        let errorText = String(text[errorStartIdx..<errorEndIdx])
+        let errorText = String(text[errorStartIdx ..< errorEndIdx])
 
         // === LINE HEIGHT CALCULATION ===
         // Messages uses approximately 20-22pt line height for 13pt font
@@ -149,12 +149,12 @@ class InsertionPointStrategy: GeometryProvider {
         // Calculate TOTAL line count for the entire text (not just up to the error)
         // This is needed to derive accurate line height from element height
         let (totalVisualLines, _) = findLineAndPosition(
-            textBeforeError: text,  // Use full text to count all lines
+            textBeforeError: text, // Use full text to count all lines
             availableWidth: availableWidth,
             attributes: attributes,
             multiplier: widthEstimationMultiplier
         )
-        let totalLineCount = totalVisualLines + 1  // +1 because it's 0-indexed
+        let totalLineCount = totalVisualLines + 1 // +1 because it's 0-indexed
 
         // Use the height-based line estimate as ground truth since it matches actual rendering
         // Our word-wrap simulation often overcounts due to font metric differences
@@ -252,11 +252,10 @@ class InsertionPointStrategy: GeometryProvider {
         }
 
         // Confidence based on whether we have cursor info
-        let confidence: Double
-        if insertionPoint != nil || selectedRange != nil {
-            confidence = GeometryConstants.mediumConfidence
+        let confidence: Double = if insertionPoint != nil || selectedRange != nil {
+            GeometryConstants.mediumConfidence
         } else {
-            confidence = GeometryConstants.lowerConfidence
+            GeometryConstants.lowerConfidence
         }
 
         Logger.debug("InsertionPointStrategy: SUCCESS - bounds: \(cocoaBounds), confidence: \(confidence)", category: Logger.ui)
@@ -272,7 +271,7 @@ class InsertionPointStrategy: GeometryProvider {
                 "line_height": adjustedLineHeight,
                 "estimated_lines": estimatedLinesFromHeight,
                 "total_lines": totalLineCount,
-                "has_cursor_info": insertionPoint != nil || selectedRange != nil
+                "has_cursor_info": insertionPoint != nil || selectedRange != nil,
             ]
         )
     }
@@ -283,8 +282,8 @@ class InsertionPointStrategy: GeometryProvider {
     private struct LinePositionResult {
         let visualLineNumber: Int
         let textOnCurrentLine: String
-        let hardLineIndex: Int  // Which hard line (newline-separated) we're on
-        let wrapsBeforeThisHardLine: Int  // Total soft wraps before this hard line
+        let hardLineIndex: Int // Which hard line (newline-separated) we're on
+        let wrapsBeforeThisHardLine: Int // Total soft wraps before this hard line
     }
 
     /// Find which visual line the error is on and the text on that line before the error
@@ -322,7 +321,7 @@ class InsertionPointStrategy: GeometryProvider {
         }
 
         // Check for no newlines case first (common case)
-        if !textBeforeError.contains(where: { $0.isNewline }) {
+        if !textBeforeError.contains(where: \.isNewline) {
             // No newlines - just do word wrap simulation
             let (wrappedLines, finalLineText) = simulateWordWrap(
                 text: textBeforeError,
@@ -372,10 +371,10 @@ class InsertionPointStrategy: GeometryProvider {
             // This causes extra wrapping that our simulation doesn't account for.
             // Only apply when: text is 70-100% width AND didn't wrap (wrappedLines == 0)
             // If text is >100% width, it already wraps naturally - don't double-count.
-            if hardLineIndex == 0 && !hardLine.isEmpty && wrappedLines == 0 {
+            if hardLineIndex == 0, !hardLine.isEmpty, wrappedLines == 0 {
                 let firstLineWidth = (hardLine as NSString).size(withAttributes: attributes).width
                 let widthUsage = firstLineWidth / availableWidth
-                if widthUsage > 0.70 && widthUsage <= 1.0 {
+                if widthUsage > 0.70, widthUsage <= 1.0 {
                     // First line is close to wrapping but doesn't - emoji might push it over
                     wrappedLines += 1
                     Logger.debug("InsertionPointStrategy: Emoji compensation - first line uses \(Int(widthUsage * 100))% width (close to wrap), adding extra wrap", category: Logger.ui)
@@ -445,10 +444,10 @@ class InsertionPointStrategy: GeometryProvider {
             let wordWithSpace = index == 0 ? word : " " + word
             let wordWidth = (wordWithSpace as NSString).size(withAttributes: attributes).width * multiplier
 
-            if currentLineWidth + wordWidth > availableWidth && !currentLineText.isEmpty {
+            if currentLineWidth + wordWidth > availableWidth, !currentLineText.isEmpty {
                 // Word doesn't fit - wrap to new line
                 wrapCount += 1
-                currentLineText = word  // Start new line with this word (no leading space)
+                currentLineText = word // Start new line with this word (no leading space)
                 currentLineWidth = (word as NSString).size(withAttributes: attributes).width * multiplier
             } else {
                 // Word fits on current line
@@ -489,7 +488,8 @@ class InsertionPointStrategy: GeometryProvider {
 
         guard result == .success,
               let axValue = value,
-              let range = safeAXValueGetRange(axValue) else {
+              let range = safeAXValueGetRange(axValue)
+        else {
             return nil
         }
 
@@ -551,7 +551,7 @@ class InsertionPointStrategy: GeometryProvider {
         let minY = elementFrame.origin.y - 50
         let maxY = elementFrame.origin.y + elementFrame.height + 50
 
-        guard axBounds.origin.y >= minY && axBounds.origin.y <= maxY else {
+        guard axBounds.origin.y >= minY, axBounds.origin.y <= maxY else {
             Logger.debug("InsertionPointStrategy: Hybrid - Y coordinate \(axBounds.origin.y) outside element bounds [\(minY), \(maxY)]", category: Logger.ui)
             return nil
         }
@@ -569,7 +569,8 @@ class InsertionPointStrategy: GeometryProvider {
 
         // Use grapheme cluster indices for Swift string operations
         guard originalLocation <= text.count,
-              let errorStartIdx = text.index(text.startIndex, offsetBy: originalLocation, limitedBy: text.endIndex) else {
+              let errorStartIdx = text.index(text.startIndex, offsetBy: originalLocation, limitedBy: text.endIndex)
+        else {
             Logger.debug("InsertionPointStrategy: Hybrid - originalLocation \(originalLocation) out of bounds", category: Logger.ui)
             return nil
         }
@@ -618,18 +619,17 @@ class InsertionPointStrategy: GeometryProvider {
             Logger.debug("InsertionPointStrategy: Hybrid - errorEndLocation out of bounds", category: Logger.ui)
             return nil
         }
-        let errorText = String(text[errorStartIdx..<errorEndIdx])
+        let errorText = String(text[errorStartIdx ..< errorEndIdx])
         let errorWidth = max((errorText as NSString).size(withAttributes: attributes).width, 10.0)
 
         // Use AX height if reasonable (single line), otherwise default to normal line height
         // If we detected multi-line bounds earlier, always use normalLineHeight
-        let lineHeight: CGFloat
-        if axBounds.height > suspiciousHeightThreshold {
-            lineHeight = normalLineHeight
-        } else if axBounds.height > GeometryConstants.minimumBoundsSize && axBounds.height <= GeometryConstants.maxSingleLineHeight {
-            lineHeight = axBounds.height
+        let lineHeight: CGFloat = if axBounds.height > suspiciousHeightThreshold {
+            normalLineHeight
+        } else if axBounds.height > GeometryConstants.minimumBoundsSize, axBounds.height <= GeometryConstants.maxSingleLineHeight {
+            axBounds.height
         } else {
-            lineHeight = normalLineHeight
+            normalLineHeight
         }
 
         Logger.debug("InsertionPointStrategy: Hybrid - AX Y + font metrics X: x=\(errorX), y=\(errorY), w=\(errorWidth), lineLen=\(textOnCurrentLine.count)", category: Logger.ui)
@@ -645,7 +645,7 @@ class InsertionPointStrategy: GeometryProvider {
         Logger.debug("InsertionPointStrategy: Hybrid SUCCESS - quartzBounds: \(quartzBounds) (y=\(errorY), x=\(errorX))", category: Logger.ui)
 
         // Validate bounds
-        guard quartzBounds.width > 0 && quartzBounds.height > 0 else {
+        guard quartzBounds.width > 0, quartzBounds.height > 0 else {
             return nil
         }
 
@@ -665,7 +665,7 @@ class InsertionPointStrategy: GeometryProvider {
                 "api": "hybrid-ax-y-font-x",
                 "ax_y": errorY,
                 "font_x": errorX,
-                "ax_height": axBounds.height
+                "ax_height": axBounds.height,
             ]
         )
     }
@@ -673,7 +673,7 @@ class InsertionPointStrategy: GeometryProvider {
     /// Query AXBoundsForRange for a single character at the given location.
     /// Returns bounds in Quartz screen coordinates, or nil if the query fails.
     private func getCharacterBounds(location: Int, in element: AXUIElement, textLength: Int) -> CGRect? {
-        guard location >= 0 && location < textLength else { return nil }
+        guard location >= 0, location < textLength else { return nil }
 
         var cfRange = CFRange(location: location, length: 1)
         guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else { return nil }
@@ -691,7 +691,7 @@ class InsertionPointStrategy: GeometryProvider {
               let bounds = safeAXValueGetRect(bv) else { return nil }
 
         // Validate we got something reasonable
-        guard bounds.width > 0 && bounds.height > 0 else { return nil }
+        guard bounds.width > 0, bounds.height > 0 else { return nil }
 
         return bounds
     }

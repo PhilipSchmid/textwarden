@@ -9,24 +9,23 @@
 //  AXInsertionPointFrame which often works even when AXBoundsForRange fails.
 //
 
-import Foundation
-import ApplicationServices
 import AppKit
+import ApplicationServices
+import Foundation
 
 /// Selection-based positioning strategy using insertion point frame
 /// Sets cursor position, gets AXInsertionPointFrame, then calculates bounds
 class SelectionBoundsStrategy: GeometryProvider {
-
     var strategyName: String { "SelectionBounds" }
     var strategyType: StrategyType { .selectionBounds }
     var tier: StrategyTier { .fallback }
     var tierPriority: Int { 5 }
 
-    func canHandle(element: AXUIElement, bundleID: String) -> Bool {
+    func canHandle(element _: AXUIElement, bundleID _: String) -> Bool {
         // DISABLED: This strategy manipulates cursor position which interferes with typing.
         // The selection movement is visible to the user and makes the app unusable.
         // We need a non-invasive approach for Chromium apps.
-        return false
+        false
     }
 
     func calculateGeometry(
@@ -35,7 +34,6 @@ class SelectionBoundsStrategy: GeometryProvider {
         text: String,
         parser: ContentParser
     ) -> GeometryResult? {
-
         Logger.debug("SelectionBoundsStrategy: Attempting for range \(errorRange) in text of \(text.count) chars", category: Logger.ui)
 
         // Step 1: Save current selection
@@ -124,7 +122,7 @@ class SelectionBoundsStrategy: GeometryProvider {
         }
 
         // Validate bounds
-        guard quartzBounds.width > 0 && quartzBounds.height > 0 && quartzBounds.height < GeometryConstants.maximumLineHeight else {
+        guard quartzBounds.width > 0, quartzBounds.height > 0, quartzBounds.height < GeometryConstants.maximumLineHeight else {
             Logger.debug("SelectionBoundsStrategy: Invalid bounds \(quartzBounds)", category: Logger.accessibility)
             return nil
         }
@@ -147,7 +145,7 @@ class SelectionBoundsStrategy: GeometryProvider {
                 "api": "insertion-point-frame",
                 "start_frame": "\(startFrame)",
                 "end_frame": "\(endFrame)",
-                "same_line": sameY
+                "same_line": sameY,
             ]
         )
     }
@@ -215,7 +213,7 @@ class SelectionBoundsStrategy: GeometryProvider {
         }
 
         // Validate frame - Chromium bug may return zero dimensions or negative coordinates
-        guard frame.height > GeometryConstants.minimumBoundsSize && frame.height < GeometryConstants.conservativeMaxLineHeight else {
+        guard frame.height > GeometryConstants.minimumBoundsSize, frame.height < GeometryConstants.conservativeMaxLineHeight else {
             Logger.debug("SelectionBoundsStrategy: Invalid frame height: \(frame)", category: Logger.accessibility)
             return nil
         }

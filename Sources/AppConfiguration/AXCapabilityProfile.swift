@@ -12,10 +12,10 @@ import Foundation
 
 /// Result of probing a single accessibility capability
 enum ProbeResult: String, Codable, CaseIterable {
-    case supported      // API works and returns valid values
-    case unsupported    // API not available or returns error
-    case invalid        // API works but returns invalid values (zeros, window frame)
-    case unknown        // Could not be tested (no text element available)
+    case supported // API works and returns valid values
+    case unsupported // API not available or returns error
+    case invalid // API works but returns invalid values (zeros, window frame)
+    case unknown // Could not be tested (no text element available)
 }
 
 // MARK: - Capability Profile
@@ -49,16 +49,16 @@ struct AXCapabilityProfile: Codable {
         var strategies: [StrategyType] = []
 
         // Tier 1: Precise strategies (best quality)
-        if boundsForTextMarkerRange == .supported && boundsNotWindowFrame {
+        if boundsForTextMarkerRange == .supported, boundsNotWindowFrame {
             strategies.append(.textMarker)
         }
 
-        if boundsForRange == .supported && boundsReturnsValidWidth && boundsReturnsValidHeight && boundsNotWindowFrame {
+        if boundsForRange == .supported, boundsReturnsValidWidth, boundsReturnsValidHeight, boundsNotWindowFrame {
             strategies.append(.rangeBounds)
         }
 
         // Tier 2: Reliable strategies
-        if lineForIndex == .supported && rangeForLine == .supported {
+        if lineForIndex == .supported, rangeForLine == .supported {
             strategies.append(.lineIndex)
         }
 
@@ -92,13 +92,13 @@ struct AXCapabilityProfile: Codable {
             textReplacementMethod: textReplacementMethod,
             requiresTypingPause: false,
             supportsFormattedText: false,
-            childElementTraversal: true,  // Safe default - enables element tree search
+            childElementTraversal: true, // Safe default - enables element tree search
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
-            requiresFullReanalysisAfterReplacement: true,  // Conservative - safe for all apps
-            defersTextExtraction: false,  // Dynamic detection handles slow apps
-            requiresFrameValidation: false,  // Only needed for apps with dynamic frame changes
-            hasTextMarkerIndexOffset: false  // Only needed for apps with invisible characters in AXValue
+            requiresFullReanalysisAfterReplacement: true, // Conservative - safe for all apps
+            defersTextExtraction: false, // Dynamic detection handles slow apps
+            requiresFrameValidation: false, // Only needed for apps with dynamic frame changes
+            hasTextMarkerIndexOffset: false // Only needed for apps with invisible characters in AXValue
         )
     }
 

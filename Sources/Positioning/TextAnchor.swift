@@ -6,8 +6,8 @@
 //  Abstracts over multiple Apple Accessibility position types
 //
 
-import Foundation
 import ApplicationServices
+import Foundation
 
 /// TextAnchor - Universal text position reference
 /// Abstracts over Apple's various accessibility position types
@@ -43,7 +43,8 @@ enum TextAnchor {
     /// Create anchor range from start and end indices
     static func anchorRange(from start: Int, to end: Int, in element: AXUIElement) -> (TextAnchor, TextAnchor)? {
         guard let startAnchor = anchor(at: start, in: element),
-              let endAnchor = anchor(at: end, in: element) else {
+              let endAnchor = anchor(at: end, in: element)
+        else {
             return nil
         }
 
@@ -54,19 +55,19 @@ enum TextAnchor {
 
     /// Get screen position for this anchor
     /// Returns bounds in Cocoa coordinate system (bottom-left origin)
-    func resolvePosition(in element: AXUIElement, length: Int = 1) -> CGRect? {
+    func resolvePosition(in element: AXUIElement, length _: Int = 1) -> CGRect? {
         switch self {
         case .opaqueMarker:
             // Need both start and end markers for bounds
             // This is handled by AccessibilityBridge.calculateBounds
-            return nil  // Use anchorRange instead
+            nil // Use anchorRange instead
 
-        case .characterRange(let range):
-            return AccessibilityBridge.resolveBoundsUsingRange(range, in: element)
+        case let .characterRange(range):
+            AccessibilityBridge.resolveBoundsUsingRange(range, in: element)
 
-        case .indexBased(let index, let element):
+        case let .indexBased(index, element):
             // Last resort estimation
-            return AccessibilityBridge.estimatePosition(at: index, in: element)
+            AccessibilityBridge.estimatePosition(at: index, in: element)
         }
     }
 }
@@ -86,11 +87,11 @@ extension TextAnchor {
     var debugDescription: String {
         switch self {
         case .opaqueMarker:
-            return "opaque-marker"
-        case .characterRange(let range):
-            return "range(\(range.location), \(range.length))"
-        case .indexBased(let index, _):
-            return "index(\(index))"
+            "opaque-marker"
+        case let .characterRange(range):
+            "range(\(range.location), \(range.length))"
+        case let .indexBased(index, _):
+            "index(\(index))"
         }
     }
 }

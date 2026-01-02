@@ -7,8 +7,8 @@
 //  Excludes sidebar (folders), message list, search fields, etc.
 //
 
-import Foundation
 import AppKit
+import Foundation
 
 /// Content parser for Apple Mail
 /// Focuses only on email composition text, ignoring navigation UI
@@ -24,23 +24,23 @@ class MailContentParser: ContentParser {
         return nil
     }
 
-    func estimatedFontSize(context: String?) -> CGFloat {
+    func estimatedFontSize(context _: String?) -> CGFloat {
         // Apple Mail uses system default font size (typically 13-14pt)
-        return 13.0
+        13.0
     }
 
-    func spacingMultiplier(context: String?) -> CGFloat {
-        return 1.0
+    func spacingMultiplier(context _: String?) -> CGFloat {
+        1.0
     }
 
-    func horizontalPadding(context: String?) -> CGFloat {
-        return 4.0
+    func horizontalPadding(context _: String?) -> CGFloat {
+        4.0
     }
 
     /// Custom bounds calculation for Mail's WebKit accessibility API.
     /// Handles coordinate conversion from layout to screen space.
     func getBoundsForRange(range: NSRange, in element: AXUIElement) -> CGRect? {
-        return MailContentParser.getBoundsForRange(range: range, in: element)
+        MailContentParser.getBoundsForRange(range: range, in: element)
     }
 
     /// Custom text extraction for Apple Mail's WebKit-based composition area
@@ -62,7 +62,8 @@ class MailContentParser: ContentParser {
         var valueRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
            let text = valueRef as? String,
-           !text.isEmpty {
+           !text.isEmpty
+        {
             Logger.debug("MailContentParser: extractText - got AXValue (\(text.count) chars)", category: Logger.accessibility)
             extractedText = text
         }
@@ -75,11 +76,12 @@ class MailContentParser: ContentParser {
             var charCountRef: CFTypeRef?
             var mailCharCount = 0
             if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &charCountRef) == .success,
-               let count = charCountRef as? Int {
+               let count = charCountRef as? Int
+            {
                 mailCharCount = count
             } else {
                 Logger.debug("MailContentParser: AXNumberOfCharacters failed, trying with large range", category: Logger.accessibility)
-                mailCharCount = 100_000  // Try with a large range
+                mailCharCount = 100_000 // Try with a large range
             }
 
             if mailCharCount > 0 {
@@ -89,7 +91,8 @@ class MailContentParser: ContentParser {
                     let axResult = AXUIElementCopyParameterizedAttributeValue(element, "AXStringForRange" as CFString, rangeValue, &stringRef)
                     if axResult == .success,
                        let text = stringRef as? String,
-                       !text.isEmpty {
+                       !text.isEmpty
+                    {
                         Logger.debug("MailContentParser: AXStringForRange succeeded (\(text.count) chars)", category: Logger.accessibility)
                         extractedText = text
                     }
@@ -140,7 +143,8 @@ class MailContentParser: ContentParser {
         // Log standard attributes
         var attrNamesRef: CFArray?
         if AXUIElementCopyAttributeNames(element, &attrNamesRef) == .success,
-           let attrNames = attrNamesRef as? [String] {
+           let attrNames = attrNamesRef as? [String]
+        {
             Logger.info("MailContentParser: Standard attributes (\(attrNames.count)):", category: Logger.accessibility)
             for attr in attrNames.sorted() {
                 Logger.debug("  - \(attr)", category: Logger.accessibility)
@@ -150,7 +154,8 @@ class MailContentParser: ContentParser {
         // Log parameterized attributes (critical for WebKit)
         var paramAttrNamesRef: CFArray?
         if AXUIElementCopyParameterizedAttributeNames(element, &paramAttrNamesRef) == .success,
-           let paramAttrNames = paramAttrNamesRef as? [String] {
+           let paramAttrNames = paramAttrNamesRef as? [String]
+        {
             Logger.info("MailContentParser: Parameterized attributes (\(paramAttrNames.count)):", category: Logger.accessibility)
             for attr in paramAttrNames.sorted() {
                 Logger.debug("  - \(attr)", category: Logger.accessibility)
@@ -211,7 +216,8 @@ class MailContentParser: ContentParser {
 
         if result == .success,
            let bounds = boundsValue,
-           let rect = safeAXValueGetRect(bounds) {
+           let rect = safeAXValueGetRect(bounds)
+        {
             // Heuristic: Determine if coordinates are layout or screen
             // Layout coords have small X values, screen coords are larger
             let elementPosition = AccessibilityBridge.getElementPosition(element) ?? .zero
@@ -240,7 +246,8 @@ class MailContentParser: ContentParser {
     private static func tryTextMarkerBounds(range: NSRange, element: AXUIElement) -> CGRect? {
         guard let startMarker = createTextMarker(at: range.location, in: element),
               let endMarker = createTextMarker(at: range.location + range.length, in: element),
-              let markerRange = createTextMarkerRange(start: startMarker, end: endMarker, in: element) else {
+              let markerRange = createTextMarkerRange(start: startMarker, end: endMarker, in: element)
+        else {
             return nil
         }
 
@@ -254,7 +261,8 @@ class MailContentParser: ContentParser {
 
         if markerResult == .success,
            let bounds = markerBoundsValue,
-           let rect = safeAXValueGetRect(bounds) {
+           let rect = safeAXValueGetRect(bounds)
+        {
             // Check if conversion is needed (same heuristic as CFRange method)
             let elementPosition = AccessibilityBridge.getElementPosition(element) ?? .zero
 
@@ -282,9 +290,9 @@ class MailContentParser: ContentParser {
     /// - AXSelectedText: returns success but doesn't actually change the text
     /// This method always returns false to force fallback to keyboard typing.
     static func replaceText(
-        range: NSRange,
-        with replacement: String,
-        in element: AXUIElement
+        range _: NSRange,
+        with _: String,
+        in _: AXUIElement
     ) -> Bool {
         Logger.info("MailContentParser: replaceText - Mail's AX APIs are broken, using keyboard fallback", category: Logger.accessibility)
         // Mail's WebKit AX APIs don't work for text replacement.
@@ -306,8 +314,8 @@ class MailContentParser: ContentParser {
 
         // Method 1: Use text markers (most reliable for WebKit)
         if let startMarker = createTextMarker(at: utf16Range.location, in: element),
-           let endMarker = createTextMarker(at: utf16Range.location + utf16Range.length, in: element) {
-
+           let endMarker = createTextMarker(at: utf16Range.location + utf16Range.length, in: element)
+        {
             // Create marker range
             if let markerRange = createTextMarkerRange(start: startMarker, end: endMarker, in: element) {
                 let result = AXUIElementSetAttributeValue(
@@ -418,7 +426,8 @@ class MailContentParser: ContentParser {
         var charCountRef: CFTypeRef?
         var textLength = 0
         if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &charCountRef) == .success,
-           let count = charCountRef as? Int {
+           let count = charCountRef as? Int
+        {
             textLength = count
         } else {
             // Fallback: use a large range
@@ -452,7 +461,8 @@ class MailContentParser: ContentParser {
 
         // Get String.Index for the grapheme cluster positions
         guard let startIndex = text.index(text.startIndex, offsetBy: safeLocation, limitedBy: text.endIndex),
-              let endIndex = text.index(text.startIndex, offsetBy: safeEndLocation, limitedBy: text.endIndex) else {
+              let endIndex = text.index(text.startIndex, offsetBy: safeEndLocation, limitedBy: text.endIndex)
+        else {
             // Fallback to original range if conversion fails
             return range
         }
@@ -484,16 +494,18 @@ class MailContentParser: ContentParser {
             var valueRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
                let text = valueRef as? String,
-               !text.isEmpty {
+               !text.isEmpty
+            {
                 texts.append(text)
             }
-            return  // Don't recurse into static text children
+            return // Don't recurse into static text children
         }
 
         // Get children and recurse
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-              let children = childrenRef as? [AXUIElement] else {
+              let children = childrenRef as? [AXUIElement]
+        else {
             return
         }
 
@@ -581,7 +593,8 @@ class MailContentParser: ContentParser {
 
             // EXCLUDE: Address fields (To, CC, BCC) - these contain email addresses, not prose
             if fieldText.contains("to") || fieldText.contains("cc") || fieldText.contains("bcc") ||
-               fieldText.contains("recipient") || fieldText.contains("address") {
+                fieldText.contains("recipient") || fieldText.contains("address")
+            {
                 Logger.debug("MailContentParser: Rejecting - address field (To/CC/BCC)", category: Logger.accessibility)
                 return false
             }
@@ -609,7 +622,8 @@ class MailContentParser: ContentParser {
             // SECONDARY: Check if AXValue is settable
             var isSettable: DarwinBoolean = false
             if AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &isSettable) == .success,
-               isSettable.boolValue {
+               isSettable.boolValue
+            {
                 Logger.debug("MailContentParser: Accepting - text area AXValue is settable", category: Logger.accessibility)
                 return true
             }
@@ -638,7 +652,8 @@ class MailContentParser: ContentParser {
             // SECONDARY CHECK: Verify AXValue is settable (indicates editable content)
             var isSettable: DarwinBoolean = false
             if AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &isSettable) == .success,
-               isSettable.boolValue {
+               isSettable.boolValue
+            {
                 Logger.debug("MailContentParser: Accepting - web area AXValue is settable (composition)", category: Logger.accessibility)
                 return true
             }
@@ -671,12 +686,13 @@ class MailContentParser: ContentParser {
         var currentElement: AXUIElement? = element
 
         // Walk up the parent hierarchy looking for main viewer indicators
-        for depth in 0..<15 {
+        for depth in 0 ..< 15 {
             var parentRef: CFTypeRef?
             guard let current = currentElement,
                   AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentRef) == .success,
                   let parent = parentRef,
-                  CFGetTypeID(parent) == AXUIElementGetTypeID() else {
+                  CFGetTypeID(parent) == AXUIElementGetTypeID()
+            else {
                 break
             }
             let parentElement = unsafeBitCast(parent, to: AXUIElement.self)
@@ -698,7 +714,7 @@ class MailContentParser: ContentParser {
             }
 
             // REJECT: Split group containing message list = main viewer layout
-            if parentRoleStr == "AXSplitGroup" && splitGroupContainsMessageList(parentElement) {
+            if parentRoleStr == "AXSplitGroup", splitGroupContainsMessageList(parentElement) {
                 Logger.debug("MailContentParser: Found split group with message list at depth \(depth) - main viewer", category: Logger.accessibility)
                 return false
             }
@@ -718,7 +734,8 @@ class MailContentParser: ContentParser {
         // Check AXEditableAncestor - WebKit exposes this for elements inside editable content
         var editableAncestorRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, "AXEditableAncestor" as CFString, &editableAncestorRef) == .success,
-           editableAncestorRef != nil {
+           editableAncestorRef != nil
+        {
             Logger.debug("MailContentParser: Element has AXEditableAncestor", category: Logger.accessibility)
             return true
         }
@@ -726,7 +743,8 @@ class MailContentParser: ContentParser {
         // Also check AXHighestEditableAncestor as a fallback
         var highestEditableRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, "AXHighestEditableAncestor" as CFString, &highestEditableRef) == .success,
-           highestEditableRef != nil {
+           highestEditableRef != nil
+        {
             Logger.debug("MailContentParser: Element has AXHighestEditableAncestor", category: Logger.accessibility)
             return true
         }
@@ -738,7 +756,8 @@ class MailContentParser: ContentParser {
     private static func splitGroupContainsMessageList(_ splitGroup: AXUIElement) -> Bool {
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(splitGroup, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-              let children = childrenRef as? [AXUIElement] else {
+              let children = childrenRef as? [AXUIElement]
+        else {
             return false
         }
 
@@ -753,7 +772,8 @@ class MailContentParser: ContentParser {
             // Also check one level deeper (split groups can be nested)
             var grandchildrenRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(child, kAXChildrenAttribute as CFString, &grandchildrenRef) == .success,
-               let grandchildren = grandchildrenRef as? [AXUIElement] {
+               let grandchildren = grandchildrenRef as? [AXUIElement]
+            {
                 for grandchild in grandchildren {
                     var grandRoleRef: CFTypeRef?
                     AXUIElementCopyAttributeValue(grandchild, kAXRoleAttribute as CFString, &grandRoleRef)
@@ -883,7 +903,7 @@ class MailContentParser: ContentParser {
 
                 // === FROM HEADER (appears in forwarded messages) ===
                 // Multiple languages: "From:", "Von:", "De:", "Da:", "Van:", "От:", etc.
-                #"^(From|Von|De|Da|Van|От|Från)\s*:\s+.+@"#
+                #"^(From|Von|De|Da|Van|От|Från)\s*:\s+.+@"#,
             ]
             return patterns.compactMap { try? NSRegularExpression(pattern: $0, options: [.caseInsensitive]) }
         }()

@@ -7,7 +7,7 @@
 
 import Cocoa
 
-struct TextWardenIcon {
+enum TextWardenIcon {
     /// Create the TextWarden menu bar icon (monochrome template for menu bar)
     static func create(size: NSSize = NSSize(width: 22, height: 22)) -> NSImage {
         // Load feather logo from asset catalog for menubar
@@ -25,9 +25,9 @@ struct TextWardenIcon {
 
             // Draw the logo scaled to fit
             logo.draw(in: NSRect(origin: .zero, size: size),
-                     from: NSRect(origin: .zero, size: logo.size),
-                     operation: .sourceOver,
-                     fraction: 1.0)
+                      from: NSRect(origin: .zero, size: logo.size),
+                      operation: .sourceOver,
+                      fraction: 1.0)
 
             context.restoreGState()
         }
@@ -57,9 +57,9 @@ struct TextWardenIcon {
 
             // Draw the logo scaled to fit
             logo.draw(in: NSRect(origin: .zero, size: size),
-                     from: NSRect(origin: .zero, size: logo.size),
-                     operation: .sourceOver,
-                     fraction: 1.0)
+                      from: NSRect(origin: .zero, size: logo.size),
+                      operation: .sourceOver,
+                      fraction: 1.0)
 
             // Draw strikethrough line from bottom-left to top-right (slightly inset)
             let inset: CGFloat = 2.5

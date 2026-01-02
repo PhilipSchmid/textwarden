@@ -23,14 +23,13 @@ import ApplicationServices
 /// A segment of text with its visual bounds from the AX tree
 private struct TextPart {
     let text: String
-    let range: NSRange          // Character range in the full text
-    let frame: CGRect           // Visual bounds from AXFrame (Quartz coordinates)
-    let element: AXUIElement    // Reference to query AXBoundsForRange directly
+    let range: NSRange // Character range in the full text
+    let frame: CGRect // Visual bounds from AXFrame (Quartz coordinates)
+    let element: AXUIElement // Reference to query AXBoundsForRange directly
 }
 
 /// Dedicated Teams positioning using AX tree traversal for bounds
 class TeamsStrategy: GeometryProvider {
-
     var strategyName: String { "Teams" }
     var strategyType: StrategyType { .teams }
     var tier: StrategyTier { .precise }
@@ -54,7 +53,7 @@ class TeamsStrategy: GeometryProvider {
 
     // MARK: - GeometryProvider
 
-    func canHandle(element: AXUIElement, bundleID: String) -> Bool {
+    func canHandle(element _: AXUIElement, bundleID: String) -> Bool {
         guard bundleID == Self.teamsBundleID else { return false }
 
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
@@ -71,7 +70,6 @@ class TeamsStrategy: GeometryProvider {
         text: String,
         parser: ContentParser
     ) -> GeometryResult? {
-
         Logger.trace("TeamsStrategy: Calculating for range \(errorRange) in text length \(text.count)", category: Logger.ui)
 
         // Convert filtered coordinates to original coordinates
@@ -94,7 +92,7 @@ class TeamsStrategy: GeometryProvider {
         let textHash = text.hashValue
         let textParts: [TextPart]
 
-        if textHash == cachedTextHash && elementFrame == cachedElementFrame && !cachedTextParts.isEmpty {
+        if textHash == cachedTextHash, elementFrame == cachedElementFrame, !cachedTextParts.isEmpty {
             // Use cached TextParts
             textParts = cachedTextParts
         } else {
@@ -128,9 +126,10 @@ class TeamsStrategy: GeometryProvider {
         // Teams' AXBoundsForRange sometimes returns coordinates for scrolled-out content
         // or in a different coordinate space. Reject these to avoid wrong underlines.
         let elementBottom = elementFrame.origin.y + elementFrame.height
-        guard quartzBounds.origin.y >= elementFrame.origin.y - 20 &&
-              quartzBounds.origin.y <= elementBottom + 20 &&
-              quartzBounds.height > 0 && quartzBounds.height < 100 else {
+        guard quartzBounds.origin.y >= elementFrame.origin.y - 20,
+              quartzBounds.origin.y <= elementBottom + 20,
+              quartzBounds.height > 0, quartzBounds.height < 100
+        else {
             Logger.debug("TeamsStrategy: Bounds validation failed - Y=\(quartzBounds.origin.y) not in [\(elementFrame.origin.y)-20, \(elementBottom)+20]", category: Logger.ui)
             return GeometryResult.unavailable(reason: "Bounds outside visible element area")
         }
@@ -159,7 +158,7 @@ class TeamsStrategy: GeometryProvider {
             strategy: strategyName,
             metadata: [
                 "api": "textpart-tree",
-                "textparts": "\(textParts.count)"
+                "textparts": "\(textParts.count)",
             ]
         )
     }
@@ -199,7 +198,7 @@ class TeamsStrategy: GeometryProvider {
         let frame = getFrame(element)
 
         // If this is an AXStaticText with valid bounds, add it as a TextPart
-        if role == "AXStaticText" && !text.isEmpty && frame.width > 0 && frame.height > 0 {
+        if role == "AXStaticText", !text.isEmpty, frame.width > 0, frame.height > 0 {
             // Try to find text starting from searchStart
             if let foundRange = findTextRange(text, in: fullText, startingAt: searchStart) {
                 textParts.append(TextPart(text: text, range: foundRange, frame: frame, element: element))
@@ -235,7 +234,7 @@ class TeamsStrategy: GeometryProvider {
             return nil
         }
 
-        let searchRange = searchStartIdx..<text.endIndex
+        let searchRange = searchStartIdx ..< text.endIndex
         if let foundRange = text.range(of: substring, range: searchRange) {
             let location = text.distance(from: text.startIndex, to: foundRange.lowerBound)
             return NSRange(location: location, length: substring.count)
@@ -248,7 +247,7 @@ class TeamsStrategy: GeometryProvider {
 
     /// Find visual bounds for a character range using TextPart map
     /// For multi-TextPart errors, unions overlapping bounds
-    private func findBoundsForRange(_ targetRange: NSRange, in textParts: [TextPart], fullText: String, element: AXUIElement) -> CGRect? {
+    private func findBoundsForRange(_ targetRange: NSRange, in textParts: [TextPart], fullText _: String, element: AXUIElement) -> CGRect? {
         let targetEnd = targetRange.location + targetRange.length
 
         // Find ALL TextParts that overlap with the error range
@@ -282,7 +281,7 @@ class TeamsStrategy: GeometryProvider {
     /// Calculate bounds for error within a single TextPart
     /// Uses AXBoundsForRange on the child element for pixel-perfect positioning
     /// Returns nil if AX query fails - let FontMetricsStrategy handle fallback
-    private func calculateSubElementBounds(targetRange: NSRange, in part: TextPart, element: AXUIElement) -> CGRect? {
+    private func calculateSubElementBounds(targetRange: NSRange, in part: TextPart, element _: AXUIElement) -> CGRect? {
         let offsetInPart = targetRange.location - part.range.location
         let errorLength = min(targetRange.location + targetRange.length, part.range.location + part.range.length) - targetRange.location
 
@@ -290,7 +289,7 @@ class TeamsStrategy: GeometryProvider {
         // The local range is relative to the TextPart, not the full text
         if let bounds = getBoundsForRange(location: offsetInPart, length: errorLength, in: part.element) {
             // Validate bounds are reasonable
-            if bounds.width > 0 && bounds.height > 0 && bounds.height < 50 {
+            if bounds.width > 0, bounds.height > 0, bounds.height < 50 {
                 Logger.trace("TeamsStrategy: AXBoundsForRange on child SUCCESS: \(bounds)", category: Logger.ui)
                 return bounds
             }
@@ -318,7 +317,8 @@ class TeamsStrategy: GeometryProvider {
 
         guard result == .success,
               let bv = boundsRef,
-              CFGetTypeID(bv) == AXValueGetTypeID() else {
+              CFGetTypeID(bv) == AXValueGetTypeID()
+        else {
             return nil
         }
 
@@ -335,7 +335,8 @@ class TeamsStrategy: GeometryProvider {
     private func getChildren(_ element: AXUIElement) -> [AXUIElement]? {
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-              let children = childrenRef as? [AXUIElement] else {
+              let children = childrenRef as? [AXUIElement]
+        else {
             return nil
         }
         return children
@@ -344,7 +345,8 @@ class TeamsStrategy: GeometryProvider {
     private func getRole(_ element: AXUIElement) -> String {
         var roleRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef) == .success,
-              let role = roleRef as? String else {
+              let role = roleRef as? String
+        else {
             return ""
         }
         return role
@@ -353,7 +355,8 @@ class TeamsStrategy: GeometryProvider {
     private func getText(_ element: AXUIElement) -> String {
         var textRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef) == .success,
-              let text = textRef as? String else {
+              let text = textRef as? String
+        else {
             return ""
         }
         return text
@@ -363,7 +366,8 @@ class TeamsStrategy: GeometryProvider {
         var frameRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, "AXFrame" as CFString, &frameRef) == .success,
               let fRef = frameRef,
-              CFGetTypeID(fRef) == AXValueGetTypeID() else {
+              CFGetTypeID(fRef) == AXValueGetTypeID()
+        else {
             return .zero
         }
         var frame = CGRect.zero

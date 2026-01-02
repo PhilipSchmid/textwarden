@@ -5,8 +5,8 @@
 //  Memory footprint tests for <100MB target
 //
 
-import XCTest
 @testable import TextWarden
+import XCTest
 
 final class MemoryFootprintTests: XCTestCase {
     var coordinator: AnalysisCoordinator!
@@ -30,7 +30,7 @@ final class MemoryFootprintTests: XCTestCase {
         let context = createMockContext()
 
         // Analyze 10 large documents
-        for i in 0..<10 {
+        for i in 0 ..< 10 {
             let text = generateLargeDocument(wordCount: 10000, seed: i)
             let segment = TextSegment(
                 content: text,
@@ -40,7 +40,7 @@ final class MemoryFootprintTests: XCTestCase {
             )
 
             // Simulate analysis (in real app, this would trigger async analysis)
-            let _ = GrammarEngine.shared.analyzeText(text)
+            _ = GrammarEngine.shared.analyzeText(text)
         }
 
         // If we haven't crashed, memory is managed reasonably
@@ -52,7 +52,7 @@ final class MemoryFootprintTests: XCTestCase {
         let context = createMockContext()
 
         // Analyze 20 documents (should purge old ones)
-        for i in 0..<20 {
+        for i in 0 ..< 20 {
             let text = generateLargeDocument(wordCount: 1000, seed: i)
             let segment = TextSegment(
                 content: text,
@@ -61,7 +61,7 @@ final class MemoryFootprintTests: XCTestCase {
                 context: context
             )
 
-            let _ = GrammarEngine.shared.analyzeText(text)
+            _ = GrammarEngine.shared.analyzeText(text)
         }
 
         // Memory should be bounded (cache should have evicted old entries)
@@ -75,7 +75,7 @@ final class MemoryFootprintTests: XCTestCase {
         var segments: [TextSegment] = []
 
         // Create 15 documents (should exceed 10-document limit)
-        for i in 0..<15 {
+        for i in 0 ..< 15 {
             let text = "Document \(i) with some text."
             let segment = TextSegment(
                 content: text,
@@ -85,7 +85,7 @@ final class MemoryFootprintTests: XCTestCase {
             )
             segments.append(segment)
 
-            let _ = GrammarEngine.shared.analyzeText(text)
+            _ = GrammarEngine.shared.analyzeText(text)
         }
 
         // If we get here, cache eviction works
@@ -99,7 +99,7 @@ final class MemoryFootprintTests: XCTestCase {
         // Analyze same document multiple times
         let text = generateLargeDocument(wordCount: 5000, seed: 42)
 
-        for _ in 0..<100 {
+        for _ in 0 ..< 100 {
             let segment = TextSegment(
                 content: text,
                 startIndex: 0,
@@ -107,7 +107,7 @@ final class MemoryFootprintTests: XCTestCase {
                 context: context
             )
 
-            let _ = GrammarEngine.shared.analyzeText(text)
+            _ = GrammarEngine.shared.analyzeText(text)
         }
 
         // Should not accumulate memory indefinitely
@@ -119,7 +119,7 @@ final class MemoryFootprintTests: XCTestCase {
         let preferences = UserPreferences.shared
 
         // Try to add 1500 words
-        for i in 0..<1500 {
+        for i in 0 ..< 1500 {
             preferences.addToCustomDictionary("word\(i)")
         }
 
@@ -132,7 +132,7 @@ final class MemoryFootprintTests: XCTestCase {
         let preferences = UserPreferences.shared
 
         // Add many ignored rules
-        for i in 0..<500 {
+        for i in 0 ..< 500 {
             preferences.ignoreRule("rule-\(i)")
         }
 
@@ -151,7 +151,7 @@ final class MemoryFootprintTests: XCTestCase {
             "She sells seashells by the seashore.",
             "How much wood would a woodchuck chuck?",
             "Peter Piper picked a peck of pickled peppers.",
-            "A journey of a thousand miles begins."
+            "A journey of a thousand miles begins.",
         ]
 
         var words: [String] = []
@@ -169,7 +169,7 @@ final class MemoryFootprintTests: XCTestCase {
     }
 
     private func createMockContext() -> ApplicationContext {
-        return ApplicationContext(
+        ApplicationContext(
             applicationName: "Test App",
             bundleIdentifier: "com.test.app",
             processID: 12345

@@ -16,6 +16,7 @@ struct StyleCheckingSettingsView: View {
     var body: some View {
         Form {
             // MARK: - Enable Section
+
             Section {
                 Toggle(isOn: $preferences.enableStyleChecking) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -45,6 +46,7 @@ struct StyleCheckingSettingsView: View {
 
             if preferences.enableStyleChecking {
                 // MARK: - Writing Style Section
+
                 Section {
                     // Custom segmented control with tooltips
                     HStack(spacing: 0) {
@@ -79,6 +81,7 @@ struct StyleCheckingSettingsView: View {
                 }
 
                 // MARK: - Creativity Section
+
                 Section {
                     // Temperature Preset (Creativity vs Consistency)
                     VStack(alignment: .leading, spacing: 8) {
@@ -125,6 +128,7 @@ struct StyleCheckingSettingsView: View {
                 }
 
                 // MARK: - Apple Intelligence Status Section
+
                 Section {
                     HStack(spacing: 12) {
                         Image(systemName: fmStatus.symbolName)
@@ -178,17 +182,17 @@ struct StyleCheckingSettingsView: View {
     private func styleDescription(for style: String) -> String {
         switch style {
         case "Default":
-            return "Balanced style improvements that work for most situations. Suggests clarity and readability enhancements without changing your tone."
+            "Balanced style improvements that work for most situations. Suggests clarity and readability enhancements without changing your tone."
         case "Concise":
-            return "Brief and to the point. Removes filler words, redundant phrases, and unnecessary verbosity."
+            "Brief and to the point. Removes filler words, redundant phrases, and unnecessary verbosity."
         case "Formal":
-            return "Professional tone with complete sentences. Ideal for business emails, reports, and official documents."
+            "Professional tone with complete sentences. Ideal for business emails, reports, and official documents."
         case "Casual":
-            return "Friendly and conversational. Great for personal messages, social media, and informal communication."
+            "Friendly and conversational. Great for personal messages, social media, and informal communication."
         case "Business":
-            return "Clear, action-oriented communication. Perfect for professional correspondence and presentations."
+            "Clear, action-oriented communication. Perfect for professional correspondence and presentations."
         default:
-            return "Balanced style improvements that work for most situations."
+            "Balanced style improvements that work for most situations."
         }
     }
 

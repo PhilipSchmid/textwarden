@@ -14,10 +14,10 @@
 //  - AIRephraseCache.swift - Thread-safe LRU cache for AI rephrase suggestions
 //
 
-import Foundation
 import AppKit
 @preconcurrency import ApplicationServices
 import Combine
+import Foundation
 
 /// Coordinates grammar analysis workflow: monitoring → analysis → UI
 ///
@@ -37,7 +37,6 @@ import Combine
 /// ```
 @MainActor
 class AnalysisCoordinator: ObservableObject {
-
     // MARK: - Singleton
 
     static let shared = AnalysisCoordinator()
@@ -147,13 +146,13 @@ class AnalysisCoordinator: ObservableObject {
     var overlaysHiddenDueToMovement = false
     var overlaysHiddenDueToWindowOffScreen = false
     var positionSyncRetryCount = 0
-    let maxPositionSyncRetries = 20  // Max 20 retries * 50ms = 1000ms max wait
-    var lastElementPosition: CGPoint?  // Track element position for stability check
-    var lastResizeTime: Date?  // Track when window was last resized (for Electron settling)
-    var contentStabilityCount = 0  // Count consecutive stable position samples (for resize)
-    var lastCharacterBounds: CGRect?  // Track actual character position to detect content reflow
-    var lastElementFrame: CGRect?  // Track AXUIElement frame for text field resize detection (Mac Catalyst)
-    var sidebarToggleStartTime: Date?  // Track when sidebar toggle started (for timeout)
+    let maxPositionSyncRetries = 20 // Max 20 retries * 50ms = 1000ms max wait
+    var lastElementPosition: CGPoint? // Track element position for stability check
+    var lastResizeTime: Date? // Track when window was last resized (for Electron settling)
+    var contentStabilityCount = 0 // Count consecutive stable position samples (for resize)
+    var lastCharacterBounds: CGRect? // Track actual character position to detect content reflow
+    var lastElementFrame: CGRect? // Track AXUIElement frame for text field resize detection (Mac Catalyst)
+    var sidebarToggleStartTime: Date? // Track when sidebar toggle started (for timeout)
 
     /// Scroll detection - uses global scroll wheel event observer
     var overlaysHiddenDueToScroll = false
@@ -269,8 +268,8 @@ class AnalysisCoordinator: ObservableObject {
     // MARK: - Thread-Safe Replacement Mode Check
 
     /// Thread-safe storage for last replacement time (for non-MainActor access)
-    nonisolated private static let replacementTimeLock = NSLock()
-    nonisolated(unsafe) private static var _threadSafeLastReplacementTime: Date?
+    private nonisolated static let replacementTimeLock = NSLock()
+    private nonisolated(unsafe) static var _threadSafeLastReplacementTime: Date?
 
     /// Thread-safe check if we're in replacement mode
     /// Can be called from any thread (e.g., from PositionResolver)
@@ -317,21 +316,21 @@ class AnalysisCoordinator: ObservableObject {
     /// Initialize with custom dependencies (for testing)
     /// - Parameter dependencies: Container with all dependencies
     init(dependencies: DependencyContainer) {
-        self.textMonitor = dependencies.textMonitor
-        self.applicationTracker = dependencies.applicationTracker
-        self.permissionManager = dependencies.permissionManager
-        self.grammarEngine = dependencies.grammarEngine
-        self.userPreferences = dependencies.userPreferences
-        self.appRegistry = dependencies.appRegistry
-        self.customVocabulary = dependencies.customVocabulary
-        self.browserURLExtractor = dependencies.browserURLExtractor
-        self.positionResolver = dependencies.positionResolver
-        self.statistics = dependencies.statistics
-        self.contentParserFactory = dependencies.contentParserFactory
-        self.typingDetector = dependencies.typingDetector
-        self.textReplacementCoordinator = dependencies.textReplacementCoordinator
-        self.suggestionPopover = dependencies.suggestionPopover
-        self.floatingIndicator = dependencies.floatingIndicator
+        textMonitor = dependencies.textMonitor
+        applicationTracker = dependencies.applicationTracker
+        permissionManager = dependencies.permissionManager
+        grammarEngine = dependencies.grammarEngine
+        userPreferences = dependencies.userPreferences
+        appRegistry = dependencies.appRegistry
+        customVocabulary = dependencies.customVocabulary
+        browserURLExtractor = dependencies.browserURLExtractor
+        positionResolver = dependencies.positionResolver
+        statistics = dependencies.statistics
+        contentParserFactory = dependencies.contentParserFactory
+        typingDetector = dependencies.typingDetector
+        textReplacementCoordinator = dependencies.textReplacementCoordinator
+        suggestionPopover = dependencies.suggestionPopover
+        floatingIndicator = dependencies.floatingIndicator
 
         setupMonitoring()
         setupPopoverCallbacks()
@@ -349,11 +348,11 @@ class AnalysisCoordinator: ObservableObject {
     /// TypingDetector is notified for ALL apps, so this works for Slack, Notion, and other Electron apps
     private func setupTypingCallback() {
         typingDetector.onTypingStarted = { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
 
             // Check if we're monitoring an app that requires typing pause
-            guard let bundleID = self.textMonitor.currentContext?.bundleIdentifier else { return }
-            let appConfig = self.appRegistry.configuration(for: bundleID)
+            guard let bundleID = textMonitor.currentContext?.bundleIdentifier else { return }
+            let appConfig = appRegistry.configuration(for: bundleID)
 
             // Only act on keyboard events for apps that delay AX notifications (like Notion)
             // For apps like Slack that send immediate AX notifications, this callback won't fire
@@ -361,8 +360,9 @@ class AnalysisCoordinator: ObservableObject {
             if appConfig.features.delaysAXNotifications {
                 // Skip if we just applied a suggestion programmatically
                 // (prevents paste-triggered AX notifications from hiding overlays we just showed)
-                if let lastReplacement = self.lastReplacementTime,
-                   Date().timeIntervalSince(lastReplacement) < TimingConstants.replacementGracePeriod {
+                if let lastReplacement = lastReplacementTime,
+                   Date().timeIntervalSince(lastReplacement) < TimingConstants.replacementGracePeriod
+                {
                     Logger.debug("AnalysisCoordinator: Ignoring typing callback - just applied suggestion", category: Logger.ui)
                     return
                 }
@@ -370,25 +370,25 @@ class AnalysisCoordinator: ObservableObject {
                 // Don't hide overlay - that causes flickering while typing
                 // Just clear position cache so underlines update correctly after re-analysis
                 Logger.trace("AnalysisCoordinator: Typing detected in \(appConfig.displayName) - clearing position cache", category: Logger.ui)
-                self.positionResolver.clearCache()
+                positionResolver.clearCache()
             }
         }
 
         // Setup callback for when typing stops
         // This is critical for apps like Notion that don't send timely AX notifications
         typingDetector.onTypingStopped = { [weak self] in
-            guard let self = self else { return }
-            guard let element = self.textMonitor.monitoredElement else { return }
+            guard let self else { return }
+            guard let element = textMonitor.monitoredElement else { return }
 
             Logger.debug("AnalysisCoordinator: Typing stopped - clearing errors and extracting text", category: Logger.ui)
 
             // Clear errors and previous text to force complete re-analysis
             // This ensures fresh positions are calculated after text reflow
-            self.currentErrors = []
-            self.previousText = ""
+            currentErrors = []
+            previousText = ""
 
             // Proactively extract text since Notion may not send AX notifications
-            self.textMonitor.extractText(from: element)
+            textMonitor.extractText(from: element)
         }
     }
 
@@ -396,15 +396,15 @@ class AnalysisCoordinator: ObservableObject {
     private func setupIndicatorCallbacks() {
         // Handle click on style section when no suggestions exist - trigger style check
         floatingIndicator.onRequestStyleCheck = { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
             Logger.debug("AnalysisCoordinator: Style check requested from capsule click", category: Logger.analysis)
-            self.runManualStyleCheck()
+            runManualStyleCheck()
         }
 
         // Handle request for generation context
         floatingIndicator.onRequestGenerationContext = { [weak self] in
-            guard let self = self else { return .empty }
-            return self.extractGenerationContext()
+            guard let self else { return .empty }
+            return extractGenerationContext()
         }
 
         // Setup text generation popover callbacks
@@ -444,8 +444,8 @@ class AnalysisCoordinator: ObservableObject {
 
         // Handle text insertion from AI Compose
         TextGenerationPopover.shared.onInsertText = { [weak self] text in
-            guard let self = self,
-                  let element = self.textMonitor.monitoredElement else { return }
+            guard let self,
+                  let element = textMonitor.monitoredElement else { return }
 
             Logger.debug("AnalysisCoordinator: Inserting generated text (\(text.count) chars)", category: Logger.analysis)
 
@@ -474,7 +474,7 @@ class AnalysisCoordinator: ObservableObject {
         let usesBrowserStyleReplacement = appConfig.features.textReplacementMethod == .browserStyle
 
         // For native macOS apps, try AX API first (it's faster and preserves formatting)
-        if !isElectronApp && !isBrowser && !isMacCatalyst && !usesBrowserStyleReplacement {
+        if !isElectronApp, !isBrowser, !isMacCatalyst, !usesBrowserStyleReplacement {
             let result = AXUIElementSetAttributeValue(
                 element,
                 kAXSelectedTextAttribute as CFString,
@@ -607,14 +607,14 @@ class AnalysisCoordinator: ObservableObject {
     /// Setup global scroll wheel event monitor for detecting scroll events
     private func setupScrollWheelMonitor() {
         scrollWheelMonitor = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-            guard let self = self else { return }
+            guard let self else { return }
 
             // Only process if we're actively monitoring and have errors displayed
-            guard self.textMonitor.monitoredElement != nil, !self.currentErrors.isEmpty else { return }
+            guard textMonitor.monitoredElement != nil, !currentErrors.isEmpty else { return }
 
             // Verify scroll is from the monitored app's window
             guard event.windowNumber > 0,
-                  let monitoredBundleID = self.textMonitor.currentContext?.bundleIdentifier,
+                  let monitoredBundleID = textMonitor.currentContext?.bundleIdentifier,
                   let frontApp = NSWorkspace.shared.frontmostApplication,
                   frontApp.bundleIdentifier == monitoredBundleID else { return }
 
@@ -639,57 +639,57 @@ class AnalysisCoordinator: ObservableObject {
     private func setupPopoverCallbacks() {
         // Handle apply suggestion
         suggestionPopover.onApplySuggestion = { [weak self] error, suggestion in
-            guard let self = self else { return }
-            await self.applyTextReplacementAsync(for: error, with: suggestion)
+            guard let self else { return }
+            await applyTextReplacementAsync(for: error, with: suggestion)
         }
 
         // Handle dismiss error
         suggestionPopover.onDismissError = { [weak self] error in
-            guard let self = self else { return }
-            self.dismissError(error)
+            guard let self else { return }
+            dismissError(error)
         }
 
         // Handle ignore rule
         suggestionPopover.onIgnoreRule = { [weak self] ruleId in
-            guard let self = self else { return }
-            self.ignoreRulePermanently(ruleId)
+            guard let self else { return }
+            ignoreRulePermanently(ruleId)
         }
 
         // Handle add to dictionary
         suggestionPopover.onAddToDictionary = { [weak self] error in
-            guard let self = self else { return }
-            self.addToDictionary(error)
+            guard let self else { return }
+            addToDictionary(error)
         }
 
         // Handle accept style suggestion - apply text replacement
         suggestionPopover.onAcceptStyleSuggestion = { [weak self] suggestion in
-            guard let self = self else { return }
-            self.applyStyleTextReplacement(for: suggestion)
+            guard let self else { return }
+            applyStyleTextReplacement(for: suggestion)
         }
 
         // Handle reject style suggestion - remove from tracking (indicator update handled in removeSuggestionFromTracking)
         suggestionPopover.onRejectStyleSuggestion = { [weak self] suggestion, category in
-            guard let self = self else { return }
+            guard let self else { return }
             Logger.debug("AnalysisCoordinator: Style suggestion rejected with reason: \(category.rawValue)", category: Logger.analysis)
-            self.removeSuggestionFromTracking(suggestion)
+            removeSuggestionFromTracking(suggestion)
         }
 
         // Handle regenerate style suggestion - get alternative suggestion
         if #available(macOS 26.0, *) {
             suggestionPopover.onRegenerateStyleSuggestion = { [weak self] suggestion in
-                guard let self = self else { return nil }
-                return await self.regenerateStyleSuggestion(suggestion)
+                guard let self else { return nil }
+                return await regenerateStyleSuggestion(suggestion)
             }
         }
 
         // Handle mouse entered popover - cancel any pending delayed switches
         suggestionPopover.onMouseEntered = { [weak self] in
-            guard let self = self else { return }
-            if self.hoverSwitchTimer != nil {
+            guard let self else { return }
+            if hoverSwitchTimer != nil {
                 Logger.debug("AnalysisCoordinator: Mouse entered popover - cancelling delayed switch", category: Logger.analysis)
-                self.hoverSwitchTimer?.invalidate()
-                self.hoverSwitchTimer = nil
-                self.pendingHoverError = nil
+                hoverSwitchTimer?.invalidate()
+                hoverSwitchTimer = nil
+                pendingHoverError = nil
             }
         }
 
@@ -707,43 +707,43 @@ class AnalysisCoordinator: ObservableObject {
     /// Setup overlay callbacks for hover-based popup
     private func setupOverlayCallbacks() {
         errorOverlay.onErrorHover = { [weak self] error, position, windowFrame in
-            guard let self = self else { return }
+            guard let self else { return }
 
             Logger.debug("AnalysisCoordinator: onErrorHover - error at \(error.start)-\(error.end)", category: Logger.analysis)
 
             // Cancel any pending hide when mouse enters ANY error
-            self.suggestionPopover.cancelHide()
+            suggestionPopover.cancelHide()
 
             // Check if popover is currently showing
-            let isPopoverShowing = self.suggestionPopover.currentError != nil
+            let isPopoverShowing = suggestionPopover.currentError != nil
 
             if !isPopoverShowing {
                 // No popover showing - show immediately (first hover)
                 Logger.debug("AnalysisCoordinator: First hover - showing popover immediately", category: Logger.analysis)
-                self.hoverSwitchTimer?.invalidate()
-                self.hoverSwitchTimer = nil
-                self.pendingHoverError = nil
-                self.suggestionPopover.show(
+                hoverSwitchTimer?.invalidate()
+                hoverSwitchTimer = nil
+                pendingHoverError = nil
+                suggestionPopover.show(
                     error: error,
-                    allErrors: self.currentErrors,
+                    allErrors: currentErrors,
                     at: position,
                     constrainToWindow: windowFrame
                 )
-            } else if self.isSameError(error, as: self.suggestionPopover.currentError) {
+            } else if isSameError(error, as: suggestionPopover.currentError) {
                 // Same error - just keep showing (cancel any pending switches)
                 Logger.debug("AnalysisCoordinator: Same error - keeping popover visible", category: Logger.analysis)
-                self.hoverSwitchTimer?.invalidate()
-                self.hoverSwitchTimer = nil
-                self.pendingHoverError = nil
+                hoverSwitchTimer?.invalidate()
+                hoverSwitchTimer = nil
+                pendingHoverError = nil
             } else {
                 // Different error - switch immediately for snappy UX
                 Logger.debug("AnalysisCoordinator: Different error - switching immediately", category: Logger.analysis)
-                self.hoverSwitchTimer?.invalidate()
-                self.hoverSwitchTimer = nil
-                self.pendingHoverError = nil
-                self.suggestionPopover.show(
+                hoverSwitchTimer?.invalidate()
+                hoverSwitchTimer = nil
+                pendingHoverError = nil
+                suggestionPopover.show(
                     error: error,
-                    allErrors: self.currentErrors,
+                    allErrors: currentErrors,
                     at: position,
                     constrainToWindow: windowFrame
                 )
@@ -753,16 +753,16 @@ class AnalysisCoordinator: ObservableObject {
         // Cancel delayed switch when hover ends on underline
         // This prevents the switch if user quickly moves mouse away
         errorOverlay.onHoverEnd = { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
 
             Logger.debug("AnalysisCoordinator: Hover ended on underline", category: Logger.analysis)
 
             // Cancel any pending delayed switch
-            if self.hoverSwitchTimer != nil {
+            if hoverSwitchTimer != nil {
                 Logger.debug("AnalysisCoordinator: Cancelling delayed switch (mouse left underline)", category: Logger.analysis)
-                self.hoverSwitchTimer?.invalidate()
-                self.hoverSwitchTimer = nil
-                self.pendingHoverError = nil
+                hoverSwitchTimer?.invalidate()
+                hoverSwitchTimer = nil
+                pendingHoverError = nil
             }
 
             // Schedule popover hide with delay - if user moves into popover, it will cancel
@@ -771,48 +771,50 @@ class AnalysisCoordinator: ObservableObject {
 
         // Handle click on underline - toggle popover (show if hidden, hide if showing same error)
         errorOverlay.onErrorClick = { [weak self] error, position, windowFrame in
-            guard let self = self else { return }
+            guard let self else { return }
 
             Logger.debug("AnalysisCoordinator: onErrorClick - error at \(error.start)-\(error.end)", category: Logger.analysis)
 
             // Debounce: ignore click if popover was just hidden by its own click-outside handler
             // This prevents the race condition where both monitors receive the same click event
-            if let lastClose = self.suggestionPopover.lastClickOutsideHideTime,
-               Date().timeIntervalSince(lastClose) < 0.3 {
+            if let lastClose = suggestionPopover.lastClickOutsideHideTime,
+               Date().timeIntervalSince(lastClose) < 0.3
+            {
                 Logger.debug("AnalysisCoordinator: Ignoring click - popover just closed by click outside", category: Logger.analysis)
                 return
             }
 
             // Check if popover is showing the same error - if so, hide it (toggle behavior)
-            if self.suggestionPopover.isVisible && self.isSameError(error, as: self.suggestionPopover.currentError) {
+            if suggestionPopover.isVisible, isSameError(error, as: suggestionPopover.currentError) {
                 Logger.debug("AnalysisCoordinator: Click on same error - hiding popover (toggle)", category: Logger.analysis)
-                self.lastClickCloseTime = Date()
-                self.suggestionPopover.hide()
-                self.errorOverlay.setLockedHighlight(for: nil)
+                lastClickCloseTime = Date()
+                suggestionPopover.hide()
+                errorOverlay.setLockedHighlight(for: nil)
             } else {
                 // Different error or popover not showing - show this error
                 Logger.debug("AnalysisCoordinator: Click - showing popover for error", category: Logger.analysis)
-                self.suggestionPopover.show(
+                suggestionPopover.show(
                     error: error,
-                    allErrors: self.currentErrors,
+                    allErrors: currentErrors,
                     at: position,
                     constrainToWindow: windowFrame
                 )
                 // Lock highlight on clicked error
-                self.errorOverlay.setLockedHighlight(for: error)
+                errorOverlay.setLockedHighlight(for: error)
             }
         }
 
         // Re-show underlines when frame stabilizes after resize
         errorOverlay.onFrameStabilized = { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
             Logger.debug("AnalysisCoordinator: Frame stabilized - clearing position cache and re-showing underlines", category: Logger.ui)
             // Clear position cache to force fresh position calculations
-            self.positionResolver.clearCache()
+            positionResolver.clearCache()
             // Re-show cached errors at new positions
-            if !self.currentErrors.isEmpty,
-               let element = self.textMonitor.monitoredElement {
-                self.showErrorUnderlines(self.currentErrors, element: element)
+            if !currentErrors.isEmpty,
+               let element = textMonitor.monitoredElement
+            {
+                showErrorUnderlines(currentErrors, element: element)
             }
         }
     }
@@ -831,96 +833,96 @@ class AnalysisCoordinator: ObservableObject {
         applicationTracker.onApplicationChange = { [weak self] context in
             MenuBarController.shared?.updateMenu()
 
-            guard let self = self else { return }
+            guard let self else { return }
 
             Logger.debug("AnalysisCoordinator: App switched to \(context.applicationName) (\(context.bundleIdentifier))", category: Logger.analysis)
 
             // Check if this is the same app we're already monitoring
-            let isSameApp = self.monitoredContext?.bundleIdentifier == context.bundleIdentifier
+            let isSameApp = monitoredContext?.bundleIdentifier == context.bundleIdentifier
 
             // CRITICAL: Stop monitoring the previous app to prevent delayed AX notifications
             // from showing overlays for the old app after switching
             if !isSameApp {
                 Logger.trace("AnalysisCoordinator: Stopping monitoring for previous app", category: Logger.analysis)
-                self.textMonitor.stopMonitoring()
+                textMonitor.stopMonitoring()
                 // CRITICAL: Clear all cached errors when switching apps to prevent
                 // showing stale errors from the previous application
-                self.currentErrors = []
-                self.currentSegment = nil
-                self.previousText = ""
+                currentErrors = []
+                currentSegment = nil
+                previousText = ""
                 // Don't clear style suggestions if manual style check is in progress
                 // The user triggered it and wants to see results when they return
-                if !self.isManualStyleCheckActive {
-                    self.currentStyleSuggestions = []
+                if !isManualStyleCheckActive {
+                    currentStyleSuggestions = []
                 }
             }
 
-            self.errorOverlay.hide()
-            self.suggestionPopover.hide()
+            errorOverlay.hide()
+            suggestionPopover.hide()
             // Don't hide floating indicator if manual style check is in progress
             // Keep showing results (or spinner) so user sees them when they return
-            if !self.isManualStyleCheckActive {
-                self.floatingIndicator.hide()
+            if !isManualStyleCheckActive {
+                floatingIndicator.hide()
             }
 
             // Cancel any pending delayed switches
-            self.hoverSwitchTimer?.invalidate()
-            self.hoverSwitchTimer = nil
-            self.pendingHoverError = nil
+            hoverSwitchTimer?.invalidate()
+            hoverSwitchTimer = nil
+            pendingHoverError = nil
 
             // Start monitoring new application if enabled
             if context.shouldCheck() {
                 if isSameApp {
                     Logger.debug("AnalysisCoordinator: Returning to same app - forcing immediate re-analysis", category: Logger.analysis)
                     // CRITICAL: Set context even for same app (might have been cleared when switching away)
-                    self.monitoredContext = context
+                    monitoredContext = context
                     // Same app - force immediate re-analysis by clearing previousText
-                    self.previousText = ""
+                    previousText = ""
 
-                    if let element = self.textMonitor.monitoredElement {
-                        self.textMonitor.extractText(from: element)
+                    if let element = textMonitor.monitoredElement {
+                        textMonitor.extractText(from: element)
 
                         // Mac Catalyst apps need extra time for accessibility to stabilize
                         if context.isMacCatalystApp {
                             DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.catalystAccessibilityDelay) { [weak self] in
-                                guard let self = self else { return }
-                                self.previousText = ""
-                                if let el = self.textMonitor.monitoredElement {
+                                guard let self else { return }
+                                previousText = ""
+                                if let el = textMonitor.monitoredElement {
                                     Logger.debug("AnalysisCoordinator: Same app Catalyst retry - forcing re-analysis", category: Logger.analysis)
-                                    self.textMonitor.extractText(from: el)
+                                    textMonitor.extractText(from: el)
                                 }
                             }
                         }
                     } else {
                         // Element was cleared by stopMonitoring - restart monitoring to find text field
                         Logger.debug("AnalysisCoordinator: Same app but element nil (was stopped) - restarting monitoring", category: Logger.analysis)
-                        self.startMonitoring(context: context)
+                        startMonitoring(context: context)
                     }
                 } else {
                     Logger.debug("AnalysisCoordinator: New application - starting monitoring", category: Logger.analysis)
-                    self.monitoredContext = context  // Set BEFORE startMonitoring
-                    self.startMonitoring(context: context)
+                    monitoredContext = context // Set BEFORE startMonitoring
+                    startMonitoring(context: context)
 
                     // Trigger immediate extraction, then retry a few times to catch delayed element readiness
-                    if let element = self.textMonitor.monitoredElement {
+                    if let element = textMonitor.monitoredElement {
                         Logger.debug("AnalysisCoordinator: Immediate text extraction", category: Logger.analysis)
-                        self.textMonitor.extractText(from: element)
+                        textMonitor.extractText(from: element)
                     }
 
                     // Retry after short delays to catch cases where element wasn't ready immediately
                     DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.mediumDelay) { [weak self] in
-                        guard let self = self else { return }
-                        if let element = self.textMonitor.monitoredElement {
+                        guard let self else { return }
+                        if let element = textMonitor.monitoredElement {
                             Logger.debug("AnalysisCoordinator: Retry 1 - extracting text", category: Logger.analysis)
-                            self.textMonitor.extractText(from: element)
+                            textMonitor.extractText(from: element)
                         }
                     }
 
                     DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.hoverDelay) { [weak self] in
-                        guard let self = self else { return }
-                        if let element = self.textMonitor.monitoredElement {
+                        guard let self else { return }
+                        if let element = textMonitor.monitoredElement {
                             Logger.debug("AnalysisCoordinator: Retry 2 - extracting text", category: Logger.analysis)
-                            self.textMonitor.extractText(from: element)
+                            textMonitor.extractText(from: element)
                         }
                     }
 
@@ -928,41 +930,41 @@ class AnalysisCoordinator: ObservableObject {
                     // to fully stabilize after focus change. Add a longer retry to catch late updates.
                     if context.isMacCatalystApp {
                         DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.catalystAccessibilityDelay) { [weak self] in
-                            guard let self = self else { return }
+                            guard let self else { return }
                             // Force re-analysis by clearing previousText
-                            self.previousText = ""
-                            if let element = self.textMonitor.monitoredElement {
+                            previousText = ""
+                            if let element = textMonitor.monitoredElement {
                                 Logger.debug("AnalysisCoordinator: Catalyst retry 3 - forcing re-analysis", category: Logger.analysis)
-                                self.textMonitor.extractText(from: element)
+                                textMonitor.extractText(from: element)
                             }
                         }
                     }
                 }
             } else {
                 Logger.trace("AnalysisCoordinator: Application not in check list - stopping monitoring", category: Logger.analysis)
-                self.stopMonitoring()
-                self.monitoredContext = nil
+                stopMonitoring()
+                monitoredContext = nil
             }
         }
 
         // Monitor text changes
         textMonitor.onTextChange = { [weak self] text, context in
-            guard let self = self else { return }
-            self.handleTextChange(text, in: context)
+            guard let self else { return }
+            handleTextChange(text, in: context)
         }
 
         // Monitor IMMEDIATE text changes (before debounce)
         // Note: We no longer hide overlays here to avoid flickering during typing
         // Overlays will update naturally after the debounced re-analysis completes
-        textMonitor.onImmediateTextChange = { [weak self] text, context in
-            guard let self = self else { return }
+        textMonitor.onImmediateTextChange = { [weak self] _, context in
+            guard let self else { return }
 
             // Just clear the position cache so underlines update correctly after re-analysis
             // Don't hide overlays - that causes flickering while typing
-            let appConfig = self.appRegistry.configuration(for: context.bundleIdentifier)
+            let appConfig = appRegistry.configuration(for: context.bundleIdentifier)
             if appConfig.features.requiresTypingPause {
                 Logger.trace("AnalysisCoordinator: Immediate text change in \(context.applicationName) - clearing position cache", category: Logger.ui)
-                self.positionResolver.clearCache()
+                positionResolver.clearCache()
             }
         }
 
@@ -982,16 +984,16 @@ class AnalysisCoordinator: ObservableObject {
         UserPreferences.shared.$pauseDuration
             .dropFirst() // Skip initial value to avoid hiding on launch
             .sink { [weak self] duration in
-                guard let self = self else { return }
+                guard let self else { return }
                 if duration != .active {
                     Logger.info("AnalysisCoordinator: Global pause activated (\(duration.rawValue)) - hiding overlays", category: Logger.analysis)
-                    self.hideAllOverlays()
-                    self.suggestionPopover.hide()
-                    self.floatingIndicator.hide()
+                    hideAllOverlays()
+                    suggestionPopover.hide()
+                    floatingIndicator.hide()
                 } else {
                     // Resumed - trigger re-analysis to show errors again
                     Logger.info("AnalysisCoordinator: Global pause deactivated - triggering re-analysis", category: Logger.analysis)
-                    self.triggerReanalysis()
+                    triggerReanalysis()
                 }
             }
             .store(in: &cancellables)
@@ -1002,8 +1004,9 @@ class AnalysisCoordinator: ObservableObject {
         UserPreferences.shared.$appPauseDurations
             .dropFirst() // Skip initial value
             .sink { [weak self] pauseDurations in
-                guard let self = self,
-                      let currentBundleID = self.monitoredContext?.bundleIdentifier else {
+                guard let self,
+                      let currentBundleID = monitoredContext?.bundleIdentifier
+                else {
                     previousAppPauses = pauseDurations
                     return
                 }
@@ -1014,13 +1017,13 @@ class AnalysisCoordinator: ObservableObject {
                 if let appPause = pauseDurations[currentBundleID], appPause != .active {
                     // App is now paused
                     Logger.info("AnalysisCoordinator: App-specific pause activated for \(currentBundleID) (\(appPause.rawValue)) - hiding overlays", category: Logger.analysis)
-                    self.hideAllOverlays()
-                    self.suggestionPopover.hide()
-                    self.floatingIndicator.hide()
-                } else if wasCurrentAppPaused && !isCurrentAppNowPaused {
+                    hideAllOverlays()
+                    suggestionPopover.hide()
+                    floatingIndicator.hide()
+                } else if wasCurrentAppPaused, !isCurrentAppNowPaused {
                     // App was paused, but key was removed (means it's now active)
                     Logger.info("AnalysisCoordinator: App-specific pause deactivated for \(currentBundleID) - triggering re-analysis", category: Logger.analysis)
-                    self.triggerReanalysis()
+                    triggerReanalysis()
                 }
 
                 previousAppPauses = pauseDurations
@@ -1031,12 +1034,12 @@ class AnalysisCoordinator: ObservableObject {
         UserPreferences.shared.$disabledApplications
             .dropFirst() // Skip initial value
             .sink { [weak self] disabledApps in
-                guard let self = self,
-                      let currentBundleID = self.monitoredContext?.bundleIdentifier else { return }
+                guard let self,
+                      let currentBundleID = monitoredContext?.bundleIdentifier else { return }
                 // Check if the currently monitored app was just disabled
                 if disabledApps.contains(currentBundleID) {
                     Logger.info("AnalysisCoordinator: App disabled for \(currentBundleID) - hiding overlays and stopping monitoring", category: Logger.analysis)
-                    self.stopMonitoring()
+                    stopMonitoring()
                 }
             }
             .store(in: &cancellables)
@@ -1045,20 +1048,21 @@ class AnalysisCoordinator: ObservableObject {
         UserPreferences.shared.$enableStyleChecking
             .dropFirst() // Skip initial value
             .sink { [weak self] enabled in
-                guard let self = self else { return }
+                guard let self else { return }
                 if !enabled {
                     Logger.info("AnalysisCoordinator: Style checking disabled - clearing style cache and suggestions", category: Logger.analysis)
-                    self.clearStyleCache()
-                    self.currentStyleSuggestions = []
+                    clearStyleCache()
+                    currentStyleSuggestions = []
                     // Update indicator to hide style section
-                    if let element = self.textMonitor.monitoredElement,
-                       let context = self.monitoredContext {
-                        self.floatingIndicator.update(
-                            errors: self.currentErrors,
+                    if let element = textMonitor.monitoredElement,
+                       let context = monitoredContext
+                    {
+                        floatingIndicator.update(
+                            errors: currentErrors,
                             styleSuggestions: [],
                             element: element,
                             context: context,
-                            sourceText: self.lastAnalyzedText
+                            sourceText: lastAnalyzedText
                         )
                     }
                 }
@@ -1074,7 +1078,7 @@ class AnalysisCoordinator: ObservableObject {
             Logger.debug("AnalysisCoordinator: Is in disabled apps? \(userPreferences.disabledApplications.contains(currentApp.bundleIdentifier))", category: Logger.analysis)
             if currentApp.shouldCheck() {
                 Logger.debug("AnalysisCoordinator: Starting monitoring for existing app", category: Logger.analysis)
-                self.monitoredContext = currentApp  // Set BEFORE startMonitoring
+                monitoredContext = currentApp // Set BEFORE startMonitoring
                 startMonitoring(context: currentApp)
             } else {
                 Logger.debug("AnalysisCoordinator: Existing app not in check list", category: Logger.analysis)
@@ -1133,7 +1137,7 @@ class AnalysisCoordinator: ObservableObject {
         textMonitor.stopMonitoring()
         currentErrors = []
         currentSegment = nil
-        previousText = ""  // Clear previous text so analysis runs when we return
+        previousText = "" // Clear previous text so analysis runs when we return
 
         // Clear typing detector state
         typingDetector.currentBundleID = nil
@@ -1141,24 +1145,25 @@ class AnalysisCoordinator: ObservableObject {
 
         // Reset Slack parser state (clipboard monitoring, exclusion cache)
         if let context = monitoredContext,
-           let slackParser = contentParserFactory.parser(for: context.bundleIdentifier) as? SlackContentParser {
+           let slackParser = contentParserFactory.parser(for: context.bundleIdentifier) as? SlackContentParser
+        {
             slackParser.resetState()
         }
 
         // Only clear style state if not in a manual style check
         // During manual style check, preserve results so user sees them when returning
         if !isManualStyleCheckActive {
-            currentStyleSuggestions = []  // Clear style suggestions
-            dismissedStyleSuggestionHashes.removeAll()  // Reset dismissed tracking for new context
-            styleDebounceTimer?.invalidate()  // Cancel pending style analysis
+            currentStyleSuggestions = [] // Clear style suggestions
+            dismissedStyleSuggestionHashes.removeAll() // Reset dismissed tracking for new context
+            styleDebounceTimer?.invalidate() // Cancel pending style analysis
             styleDebounceTimer = nil
-            styleAnalysisGeneration &+= 1  // Invalidate any in-flight analysis
+            styleAnalysisGeneration &+= 1 // Invalidate any in-flight analysis
             floatingIndicator.hide()
         }
 
         errorOverlay.hide()
         suggestionPopover.hide()
-        DebugBorderWindow.clearAll()  // Clear debug borders when stopping
+        DebugBorderWindow.clearAll() // Clear debug borders when stopping
         MenuBarController.shared?.setIconState(.active)
         stopWindowPositionMonitoring()
     }
@@ -1166,8 +1171,9 @@ class AnalysisCoordinator: ObservableObject {
     /// Resume monitoring after permission grant
     private func resumeMonitoring() {
         if let context = applicationTracker.activeApplication,
-           context.shouldCheck() {
-            self.monitoredContext = context  // Set BEFORE startMonitoring
+           context.shouldCheck()
+        {
+            monitoredContext = context // Set BEFORE startMonitoring
             startMonitoring(context: context)
         }
     }
@@ -1250,9 +1256,9 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Window info structure for debug border display
     private struct WindowInfo {
-        let cgFrame: CGRect      // CGWindow coordinates (top-left origin)
-        let cocoaFrame: CGRect   // Cocoa coordinates (bottom-left origin)
-        let isFrontmost: Bool    // Whether this window is the frontmost for its app
+        let cgFrame: CGRect // CGWindow coordinates (top-left origin)
+        let cocoaFrame: CGRect // Cocoa coordinates (bottom-left origin)
+        let isFrontmost: Bool // Whether this window is the frontmost for its app
     }
 
     /// Get window info for the monitored element, including frontmost status
@@ -1269,10 +1275,11 @@ class AnalysisCoordinator: ObservableObject {
         var frontmostNormalWindowPID: Int32?
         for windowInfo in windowList {
             if let layer = windowInfo[kCGWindowLayer as String] as? Int,
-               layer == 0,  // Normal window layer
-               let windowPID = windowInfo[kCGWindowOwnerPID as String] as? Int32 {
+               layer == 0, // Normal window layer
+               let windowPID = windowInfo[kCGWindowOwnerPID as String] as? Int32
+            {
                 frontmostNormalWindowPID = windowPID
-                break  // First match is frontmost
+                break // First match is frontmost
             }
         }
 
@@ -1284,9 +1291,9 @@ class AnalysisCoordinator: ObservableObject {
             if let windowPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
                windowPID == pid,
                let layer = windowInfo[kCGWindowLayer as String] as? Int,
-               layer == 0,  // Normal window layer
-               let boundsDict = windowInfo[kCGWindowBounds as String] as? [String: CGFloat] {
-
+               layer == 0, // Normal window layer
+               let boundsDict = windowInfo[kCGWindowBounds as String] as? [String: CGFloat]
+            {
                 let x = boundsDict["X"] ?? 0
                 let y = boundsDict["Y"] ?? 0
                 let width = boundsDict["Width"] ?? 0
@@ -1294,7 +1301,7 @@ class AnalysisCoordinator: ObservableObject {
                 let area = width * height
 
                 // Skip tiny windows (< 100x100, likely tooltips or popups)
-                guard width >= 100 && height >= 100 else { continue }
+                guard width >= 100, height >= 100 else { continue }
 
                 let cgFrame = CGRect(x: x, y: y, width: width, height: height)
 
@@ -1334,7 +1341,8 @@ class AnalysisCoordinator: ObservableObject {
 
         // Don't process text changes during a conversation switch in Mac Catalyst apps
         if let switchTime = lastConversationSwitchTime,
-           Date().timeIntervalSince(switchTime) < 0.6 {
+           Date().timeIntervalSince(switchTime) < 0.6
+        {
             Logger.debug("AnalysisCoordinator: Ignoring text change - conversation switch in progress", category: Logger.analysis)
             return
         }
@@ -1421,17 +1429,17 @@ class AnalysisCoordinator: ObservableObject {
     /// Invalidate caches based on text changes
     private func invalidateCachesForTextChange(
         text: String,
-        context: ApplicationContext,
+        context _: ApplicationContext,
         appConfig: AppConfiguration,
         isInReplacementGracePeriod: Bool
     ) {
         // Skip during active replacement
-        if text != previousText && isApplyingReplacement {
+        if text != previousText, isApplyingReplacement {
             Logger.debug("AnalysisCoordinator: Text changed during replacement - skipping cache clear", category: Logger.analysis)
             return
         }
 
-        guard text != previousText && !isApplyingReplacement && !isInReplacementGracePeriod else {
+        guard text != previousText, !isApplyingReplacement, !isInReplacementGracePeriod else {
             return
         }
 
@@ -1457,13 +1465,13 @@ class AnalysisCoordinator: ObservableObject {
         }
 
         // Electron/browser apps need full cache clear on significant changes
-        if (appConfig.category == .electron || appConfig.category == .browser) && !isTyping {
+        if appConfig.category == .electron || appConfig.category == .browser, !isTyping {
             Logger.debug("AnalysisCoordinator: Electron/browser significant change - clearing errors", category: Logger.analysis)
             currentErrors.removeAll()
         }
 
         // Clear style suggestions if source text changed
-        if !currentStyleSuggestions.isEmpty && text != styleAnalysisSourceText {
+        if !currentStyleSuggestions.isEmpty, text != styleAnalysisSourceText {
             Logger.debug("AnalysisCoordinator: Clearing style suggestions - source text changed", category: Logger.analysis)
             currentStyleSuggestions.removeAll()
             styleAnalysisSourceText = ""
@@ -1482,9 +1490,9 @@ class AnalysisCoordinator: ObservableObject {
         let newSuffix = newText.suffix(max(0, newText.count - 5))
 
         return newText.hasPrefix(oldPrefix) ||
-               oldText.hasPrefix(newPrefix) ||
-               newText.hasSuffix(oldSuffix) ||
-               oldText.hasSuffix(newSuffix)
+            oldText.hasPrefix(newPrefix) ||
+            newText.hasSuffix(oldSuffix) ||
+            oldText.hasSuffix(newSuffix)
     }
 
     /// Restore cached errors and style suggestions
@@ -1493,20 +1501,23 @@ class AnalysisCoordinator: ObservableObject {
         if let cachedSegment = currentSegment,
            cachedSegment.content == text,
            !currentErrors.isEmpty,
-           let element = textMonitor.monitoredElement {
+           let element = textMonitor.monitoredElement
+        {
             Logger.debug("AnalysisCoordinator: Restoring cached errors (\(currentErrors.count) errors)", category: Logger.analysis)
             showErrorUnderlines(currentErrors, element: element)
         }
 
         // Restore cached style suggestions
         guard currentStyleSuggestions.isEmpty,
-              styleAnalysisSourceText.isEmpty || text == styleAnalysisSourceText else {
+              styleAnalysisSourceText.isEmpty || text == styleAnalysisSourceText
+        else {
             return
         }
 
         let styleCacheKey = computeStyleCacheKey(text: text)
         guard let cachedStyleSuggestions = styleCache[styleCacheKey],
-              !cachedStyleSuggestions.isEmpty else {
+              !cachedStyleSuggestions.isEmpty
+        else {
             return
         }
 
@@ -1569,17 +1580,18 @@ class AnalysisCoordinator: ObservableObject {
         var deduplicated: [GrammarErrorModel] = []
         var currentGroup: [GrammarErrorModel] = [errors[0]]
 
-        for i in 1..<errors.count {
+        for i in 1 ..< errors.count {
             let current = errors[i]
-            let previous = errors[i-1]
+            let previous = errors[i - 1]
 
             // Check if this error is identical to the previous one AND at the same position
             // Errors at different positions should NOT be deduplicated (e.g., same typo twice)
-            if current.message == previous.message &&
-               current.category == previous.category &&
-               current.lintId == previous.lintId &&
-               current.start == previous.start &&
-               current.end == previous.end {
+            if current.message == previous.message,
+               current.category == previous.category,
+               current.lintId == previous.lintId,
+               current.start == previous.start,
+               current.end == previous.end
+            {
                 // Same error at same position - add to current group
                 currentGroup.append(current)
             } else {
@@ -1648,11 +1660,12 @@ class AnalysisCoordinator: ObservableObject {
             // Extract error text from source using scalar indices
             guard error.start < sourceScalarCount, error.end <= sourceScalarCount, error.start < error.end,
                   let startIndex = TextIndexConverter.scalarIndexToStringIndex(error.start, in: sourceText),
-                  let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: sourceText) else {
+                  let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: sourceText)
+            else {
                 return true // Keep error if indices are invalid
             }
 
-            let errorText = String(sourceText[startIndex..<endIndex])
+            let errorText = String(sourceText[startIndex ..< endIndex])
 
             // Check custom vocabulary
             if vocabulary.containsAnyWord(in: errorText) {
@@ -1660,7 +1673,7 @@ class AnalysisCoordinator: ObservableObject {
             }
 
             // Check macOS system dictionary if enabled
-            if useMacOSDictionary && MacOSDictionary.shared.containsAnyWord(in: errorText) {
+            if useMacOSDictionary, MacOSDictionary.shared.containsAnyWord(in: errorText) {
                 return false
             }
 
@@ -1674,11 +1687,12 @@ class AnalysisCoordinator: ObservableObject {
             // Extract error text from source using scalar indices
             guard error.start < sourceScalarCount, error.end <= sourceScalarCount, error.start < error.end,
                   let startIndex = TextIndexConverter.scalarIndexToStringIndex(error.start, in: sourceText),
-                  let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: sourceText) else {
+                  let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: sourceText)
+            else {
                 return true // Keep error if indices are invalid
             }
 
-            let errorText = String(sourceText[startIndex..<endIndex])
+            let errorText = String(sourceText[startIndex ..< endIndex])
 
             return !ignoredTexts.contains(errorText)
         }
@@ -1687,17 +1701,19 @@ class AnalysisCoordinator: ObservableObject {
         // French spaces errors in Notion are often triggered by placeholder text artifacts
         // (e.g., "Write, press 'space' for AI" placeholder creates invisible whitespace patterns)
         if let context = monitoredContext,
-           appRegistry.configuration(for: context.bundleIdentifier).parserType == .notion {
+           appRegistry.configuration(for: context.bundleIdentifier).parserType == .notion
+        {
             filteredErrors = filteredErrors.filter { error in
                 // Filter French spaces errors where the error text is just whitespace
                 // These are false positives from Notion's placeholder handling
                 if error.message.lowercased().contains("french spaces") {
                     guard error.start < sourceScalarCount, error.end <= sourceScalarCount, error.start < error.end,
                           let startIdx = TextIndexConverter.scalarIndexToStringIndex(error.start, in: sourceText),
-                          let endIdx = TextIndexConverter.scalarIndexToStringIndex(error.end, in: sourceText) else {
+                          let endIdx = TextIndexConverter.scalarIndexToStringIndex(error.end, in: sourceText)
+                    else {
                         return true
                     }
-                    let errorText = String(sourceText[startIdx..<endIdx])
+                    let errorText = String(sourceText[startIdx ..< endIdx])
                     // Filter if error text is just whitespace
                     if errorText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Logger.debug("Filtering Notion French spaces false positive", category: Logger.analysis)
@@ -1713,7 +1729,7 @@ class AnalysisCoordinator: ObservableObject {
         if !listMarkerExclusions.isEmpty {
             let beforeCount = filteredErrors.count
             filteredErrors = filteredErrors.filter { error in
-                let errorRange = error.start..<error.end
+                let errorRange = error.start ..< error.end
                 for exclusion in listMarkerExclusions {
                     if exclusion.overlaps(errorRange) {
                         return false
@@ -1730,25 +1746,28 @@ class AnalysisCoordinator: ObservableObject {
         // Filter out exclusions for Slack and Teams (code blocks, blockquotes, links, mentions)
         // Both are Chromium-based and use AX attribute detection for formatted content
         if let context = monitoredContext,
-           let axElement = element {
+           let axElement = element
+        {
             let parserType = appRegistry.configuration(for: context.bundleIdentifier).parserType
             var exclusions: [ExclusionRange] = []
 
             // Slack exclusions
             if parserType == .slack,
-               let slackParser = contentParserFactory.parser(for: context.bundleIdentifier) as? SlackContentParser {
+               let slackParser = contentParserFactory.parser(for: context.bundleIdentifier) as? SlackContentParser
+            {
                 exclusions = slackParser.extractExclusions(from: axElement, text: sourceText)
             }
             // Teams exclusions
             else if parserType == .teams,
-                    let teamsParser = contentParserFactory.parser(for: context.bundleIdentifier) as? TeamsContentParser {
+                    let teamsParser = contentParserFactory.parser(for: context.bundleIdentifier) as? TeamsContentParser
+            {
                 exclusions = teamsParser.extractExclusions(from: axElement, text: sourceText)
             }
 
             if !exclusions.isEmpty {
                 let beforeCount = filteredErrors.count
                 filteredErrors = filteredErrors.filter { error in
-                    let errorRange = error.start..<error.end
+                    let errorRange = error.start ..< error.end
                     // Check if error overlaps with any exclusion range
                     for exclusion in exclusions {
                         if exclusion.overlaps(errorRange) {
@@ -1767,7 +1786,7 @@ class AnalysisCoordinator: ObservableObject {
         // During replacement mode, skip updating currentErrors from re-analysis
         // because re-analysis has stale data (positions before adjustment).
         // Only allow updates from removeErrorAndUpdateUI which has correct adjusted positions.
-        if isInReplacementMode && !isFromReplacementUI {
+        if isInReplacementMode, !isFromReplacementUI {
             Logger.debug("AnalysisCoordinator: Skipping currentErrors update during replacement mode (from re-analysis)", category: Logger.analysis)
             return
         }
@@ -1791,7 +1810,7 @@ class AnalysisCoordinator: ObservableObject {
 
         // During replacement mode, skip calls from re-analysis (async completion with stale data)
         // Only allow calls from removeErrorAndUpdateUI which has the correct updated error list
-        if isInReplacementMode && !isFromReplacementUI {
+        if isInReplacementMode, !isFromReplacementUI {
             Logger.debug("AnalysisCoordinator: Skipping showErrorUnderlines during replacement mode (from re-analysis)", category: Logger.analysis)
             return
         }
@@ -1829,7 +1848,6 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Internal method to actually show underlines (after any stabilization delay)
     private func showErrorUnderlinesInternal(_ errors: [GrammarErrorModel], element: AXUIElement?) {
-
         guard let providedElement = element else {
             Logger.debug("AnalysisCoordinator: No monitored element - hiding overlays", category: Logger.analysis)
             errorOverlay.hide()
@@ -1864,16 +1882,16 @@ class AnalysisCoordinator: ObservableObject {
         // Check if we should always show the indicator (provides visual confirmation even with no issues)
         let shouldAlwaysShowIndicator = UserPreferences.shared.alwaysShowCapsule
 
-        if !hasErrors && !hasStyleSuggestions {
+        if !hasErrors, !hasStyleSuggestions {
             Logger.debug("AnalysisCoordinator: No errors or style suggestions", category: Logger.analysis)
             errorOverlay.hide()
 
             // Don't hide indicator if:
             // - Manual style check is active (showing checkmark/results), OR
             // - Always show indicator is enabled (provides visual confirmation)
-            if !isManualStyleCheckActive && !shouldAlwaysShowIndicator {
+            if !isManualStyleCheckActive, !shouldAlwaysShowIndicator {
                 floatingIndicator.hide()
-            } else if shouldAlwaysShowIndicator && !isManualStyleCheckActive {
+            } else if shouldAlwaysShowIndicator, !isManualStyleCheckActive {
                 // Update indicator with empty errors to show success state
                 Logger.debug("AnalysisCoordinator: Always show indicator enabled - updating with 0 errors", category: Logger.analysis)
                 floatingIndicator.update(
@@ -1959,13 +1977,14 @@ class AnalysisCoordinator: ObservableObject {
             let scalarCount = sourceText.unicodeScalars.count
             guard error.start < scalarCount, error.end <= scalarCount, error.start < error.end,
                   let startIndex = TextIndexConverter.scalarIndexToStringIndex(error.start, in: sourceText),
-                  let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: sourceText) else {
+                  let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: sourceText)
+            else {
                 // Invalid indices, just remove from current errors
                 currentErrors.removeAll { $0.start == error.start && $0.end == error.end }
                 return
             }
 
-            let errorText = String(sourceText[startIndex..<endIndex])
+            let errorText = String(sourceText[startIndex ..< endIndex])
 
             // Persist this error text globally
             userPreferences.ignoreErrorText(errorText)
@@ -1996,11 +2015,12 @@ class AnalysisCoordinator: ObservableObject {
         let scalarCount = sourceText.unicodeScalars.count
         guard error.start < scalarCount, error.end <= scalarCount, error.start < error.end,
               let startIndex = TextIndexConverter.scalarIndexToStringIndex(error.start, in: sourceText),
-              let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: sourceText) else {
+              let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: sourceText)
+        else {
             return
         }
 
-        let errorText = String(sourceText[startIndex..<endIndex])
+        let errorText = String(sourceText[startIndex ..< endIndex])
 
         do {
             try customVocabulary.addWord(errorText)
@@ -2026,7 +2046,6 @@ class AnalysisCoordinator: ObservableObject {
         styleCacheMetadata.removeAll()
         currentStyleSuggestions.removeAll()
     }
-
 }
 
 // MARK: - Error Handling
@@ -2035,7 +2054,7 @@ extension AnalysisCoordinator {
     /// Priority error for overlapping range
     func priorityError(for range: Range<Int>) -> GrammarErrorModel? {
         let overlappingErrors = currentErrors.filter { error in
-            let errorRange = error.start..<error.end
+            let errorRange = error.start ..< error.end
             return errorRange.overlaps(range)
         }
 
@@ -2048,9 +2067,9 @@ extension AnalysisCoordinator {
     /// Get severity priority (higher = more important)
     private func severityPriority(_ severity: GrammarErrorSeverity) -> Int {
         switch severity {
-        case .error: return 3
-        case .warning: return 2
-        case .info: return 1
+        case .error: 3
+        case .warning: 2
+        case .info: 1
         }
     }
 }
@@ -2083,4 +2102,3 @@ extension AnalysisCoordinator: PositionRefreshDelegate {
         positionResolver.clearCache()
     }
 }
-

@@ -19,7 +19,6 @@ import ApplicationServices
 
 /// Dedicated positioning strategy for Apple Mail's WebKit-based compose windows
 class MailStrategy: GeometryProvider {
-
     var strategyName: String { "Mail" }
     var strategyType: StrategyType { .mail }
     var tier: StrategyTier { .precise }
@@ -29,7 +28,7 @@ class MailStrategy: GeometryProvider {
 
     // MARK: - GeometryProvider
 
-    func canHandle(element: AXUIElement, bundleID: String) -> Bool {
+    func canHandle(element _: AXUIElement, bundleID: String) -> Bool {
         guard bundleID == Self.mailBundleID else { return false }
 
         // Check watchdog protection
@@ -47,7 +46,6 @@ class MailStrategy: GeometryProvider {
         text: String,
         parser: ContentParser
     ) -> GeometryResult? {
-
         Logger.debug("MailStrategy: Calculating for range \(errorRange) in text length \(text.count)", category: Logger.ui)
 
         // Convert filtered coordinates to original coordinates
@@ -117,7 +115,7 @@ class MailStrategy: GeometryProvider {
                 "utf16_location": utf16Range.location,
                 "utf16_length": utf16Range.length,
                 "quartz_bounds": NSStringFromRect(quartzBounds),
-                "cocoa_bounds": NSStringFromRect(cocoaBounds)
+                "cocoa_bounds": NSStringFromRect(cocoaBounds),
             ]
         )
     }
@@ -142,7 +140,8 @@ class MailStrategy: GeometryProvider {
 
         guard result == .success,
               let bounds = boundsValue,
-              let rect = safeAXValueGetRect(bounds) else {
+              let rect = safeAXValueGetRect(bounds)
+        else {
             return nil
         }
 
@@ -178,7 +177,8 @@ class MailStrategy: GeometryProvider {
         var charCountRef: CFTypeRef?
         var textLength = 0
         if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &charCountRef) == .success,
-           let count = charCountRef as? Int {
+           let count = charCountRef as? Int
+        {
             textLength = count
         } else {
             // Fallback: use a large range
