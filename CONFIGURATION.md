@@ -271,6 +271,24 @@ You can drag the indicator to any position along the window border, and position
 
 **Default:** Off. The indicator only appears when there are grammar errors or style suggestions.
 
+#### Show Readability Score
+
+**What it does:** Displays a Flesch Reading Ease score in the floating indicator for text with 30 or more words. The score ranges from 0-100, with higher scores indicating easier-to-read text.
+
+**Score interpretation:**
+| Score | Label | What it means |
+|-------|-------|---------------|
+| 90-100 | Very Easy | Easily understood by an average 11-year-old |
+| 70-89 | Easy | Conversational English for consumers |
+| 60-69 | Standard | Easily understood by 13-15 year olds |
+| 50-59 | Fairly Difficult | Fairly difficult to read |
+| 30-49 | Difficult | College-level reading |
+| 0-29 | Very Difficult | Best understood by university graduates |
+
+**How it works:** Click on the readability score in the indicator to see a detailed breakdown with improvement tips when your score is below 60.
+
+**Default:** On. The readability section appears in the capsule indicator alongside grammar and style sections.
+
 #### Hover Delay
 
 **What it does:** Controls how long you need to hover over the indicator before the suggestion popover appears.

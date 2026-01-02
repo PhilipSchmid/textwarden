@@ -256,6 +256,16 @@ struct GeneralPreferencesView: View {
                 }
                 .toggleStyle(.switch)
 
+                Toggle(isOn: $preferences.showReadabilityScore) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Show readability score")
+                        Text("Display Flesch Reading Ease score in the indicator for text with 30+ words")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .toggleStyle(.switch)
+
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text("Hover delay:")
@@ -330,9 +340,10 @@ struct GeneralPreferencesView: View {
                 KeyboardShortcuts.Recorder("Show Grammar Suggestions:", name: .showGrammarSuggestions)
                 KeyboardShortcuts.Recorder("Show Style Suggestions:", name: .showStyleSuggestions)
                 KeyboardShortcuts.Recorder("Show AI Compose:", name: .showAICompose)
+                KeyboardShortcuts.Recorder("Show Readability:", name: .showReadability)
                 KeyboardShortcuts.Recorder("Run Style Check:", name: .runStyleCheck)
 
-                Text("Quick access to grammar, style, and AI writing features")
+                Text("Quick access to grammar, style, readability, and AI writing features")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .padding(.top, 4)

@@ -523,6 +523,17 @@ class UserPreferences: ObservableObject {
 
     // MARK: - LLM Style Checking
 
+    // MARK: - Readability Score Settings
+
+    /// Show Flesch Reading Ease score in the capsule indicator (enabled by default)
+    @Published var showReadabilityScore: Bool {
+        didSet {
+            defaults.set(showReadabilityScore, forKey: Keys.showReadabilityScore)
+        }
+    }
+
+    // MARK: - Style Checking Settings
+
     /// Enable LLM-powered style suggestions
     @Published var enableStyleChecking: Bool {
         didSet {
@@ -809,6 +820,9 @@ class UserPreferences: ObservableObject {
             shownMilestones = set
         }
         milestonesDisabled = defaults.object(forKey: Keys.milestonesDisabled) as? Bool ?? false
+
+        // Readability Score - enabled by default
+        showReadabilityScore = defaults.object(forKey: Keys.showReadabilityScore) as? Bool ?? true
 
         // LLM Style Checking
         enableStyleChecking = defaults.object(forKey: Keys.enableStyleChecking) as? Bool ?? false
@@ -1234,6 +1248,9 @@ class UserPreferences: ObservableObject {
         // Milestones
         static let shownMilestones = "shownMilestones"
         static let milestonesDisabled = "milestonesDisabled"
+
+        // Readability Score
+        static let showReadabilityScore = "showReadabilityScore"
 
         // LLM Style Checking
         static let enableStyleChecking = "enableStyleChecking"
