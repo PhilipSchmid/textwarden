@@ -32,6 +32,9 @@ class FloatingErrorIndicator: NSPanel {
     /// Current style suggestions being displayed
     private var styleSuggestions: [StyleSuggestionModel] = []
 
+    /// Current readability result (nil if text too short or feature disabled)
+    private var readabilityResult: ReadabilityResult?
+
     /// Source text for error context display
     private var sourceText: String = ""
 
@@ -310,9 +313,10 @@ class FloatingErrorIndicator: NSPanel {
             if let section = sectionType {
                 self?.showSectionPopover(section)
             } else {
-                // Hide both popovers when hover ends
+                // Hide all popovers when hover ends
                 SuggestionPopover.shared.scheduleHide()
                 TextGenerationPopover.shared.scheduleHide()
+                ReadabilityPopover.shared.scheduleHide()
             }
         }
         view.onDragStart = { [weak self] in
@@ -490,6 +494,7 @@ class FloatingErrorIndicator: NSPanel {
         capsuleStateManager.updateGrammar(errors: errors)
         capsuleStateManager.updateStyle(suggestions: styleSuggestions, isLoading: false)
         capsuleStateManager.updateTextGeneration(isGenerating: false)
+        capsuleStateManager.updateReadability(result: readabilityResult)
     }
 
     /// Handle section click in capsule mode
@@ -503,6 +508,8 @@ class FloatingErrorIndicator: NSPanel {
             showStylePopover()
         case .textGeneration:
             showTextGenerationPopover()
+        case .readability:
+            showReadabilityPopover()
         }
     }
 
@@ -515,6 +522,8 @@ class FloatingErrorIndicator: NSPanel {
             showStylePopover()
         case .textGeneration:
             showTextGenerationPopover()
+        case .readability:
+            showReadabilityPopover()
         }
     }
 
@@ -524,6 +533,7 @@ class FloatingErrorIndicator: NSPanel {
 
         // Close other popovers first
         TextGenerationPopover.shared.hide()
+        ReadabilityPopover.shared.hide()
 
         let indicatorFrame = frame
         let anchor = calculatePopoverAnchor(for: indicatorFrame)
@@ -545,6 +555,7 @@ class FloatingErrorIndicator: NSPanel {
 
         // Close other popovers first
         TextGenerationPopover.shared.hide()
+        ReadabilityPopover.shared.hide()
 
         // If no style suggestions yet and not currently loading, trigger a style check
         if styleSuggestions.isEmpty, capsuleStateManager.styleState.displayState != .styleLoading {
@@ -597,6 +608,7 @@ class FloatingErrorIndicator: NSPanel {
 
         // Close other popovers first
         SuggestionPopover.shared.hide()
+        ReadabilityPopover.shared.hide()
 
         // Get context from AnalysisCoordinator
         let context = onRequestGenerationContext?() ?? .empty
@@ -609,12 +621,34 @@ class FloatingErrorIndicator: NSPanel {
         TextGenerationPopover.shared.show(at: anchor.anchorPoint, direction: anchor.edge, context: context)
     }
 
+    /// Show readability score popover
+    private func showReadabilityPopover() {
+        Logger.debug("FloatingErrorIndicator: Showing readability popover", category: Logger.ui)
+
+        // Close other popovers first
+        SuggestionPopover.shared.hide()
+        TextGenerationPopover.shared.hide()
+
+        guard let result = readabilityResult else {
+            Logger.debug("FloatingErrorIndicator: No readability result to display", category: Logger.ui)
+            return
+        }
+
+        // Calculate popover position (same logic as grammar/style popovers)
+        let indicatorFrame = frame
+        let anchor = calculatePopoverAnchor(for: indicatorFrame)
+
+        // Show the readability popover
+        ReadabilityPopover.shared.show(at: anchor.anchorPoint, direction: anchor.edge, result: result)
+    }
+
     // MARK: - Public API
 
     /// Update indicator with errors and optional style suggestions
     func update(
         errors: [GrammarErrorModel],
         styleSuggestions: [StyleSuggestionModel] = [],
+        readabilityResult: ReadabilityResult? = nil,
         element: AXUIElement,
         context: ApplicationContext?,
         sourceText: String = ""
@@ -638,6 +672,7 @@ class FloatingErrorIndicator: NSPanel {
 
         self.errors = errors
         self.styleSuggestions = styleSuggestions
+        self.readabilityResult = readabilityResult
         monitoredElement = element
         self.context = context
         self.sourceText = sourceText
@@ -709,6 +744,7 @@ class FloatingErrorIndicator: NSPanel {
     func updateWithContext(
         errors: [GrammarErrorModel],
         styleSuggestions: [StyleSuggestionModel] = [],
+        readabilityResult: ReadabilityResult? = nil,
         context: ApplicationContext,
         sourceText: String = ""
     ) {
@@ -722,6 +758,7 @@ class FloatingErrorIndicator: NSPanel {
 
         self.errors = errors
         self.styleSuggestions = styleSuggestions
+        self.readabilityResult = readabilityResult
         self.context = context
         self.sourceText = sourceText
         // Don't set monitoredElement - we don't have one
@@ -1427,6 +1464,24 @@ class FloatingErrorIndicator: NSPanel {
 
         Logger.debug("FloatingErrorIndicator: showAIComposeFromKeyboard - showing AI compose popover", category: Logger.ui)
         showTextGenerationPopover()
+        return true
+    }
+
+    /// Show readability popover from keyboard shortcut
+    @discardableResult
+    func showReadabilityFromKeyboard() -> Bool {
+        guard isVisible else {
+            Logger.debug("FloatingErrorIndicator: showReadabilityFromKeyboard - indicator not visible", category: Logger.ui)
+            return false
+        }
+
+        guard readabilityResult != nil else {
+            Logger.debug("FloatingErrorIndicator: showReadabilityFromKeyboard - no readability result", category: Logger.ui)
+            return false
+        }
+
+        Logger.debug("FloatingErrorIndicator: showReadabilityFromKeyboard - showing readability popover", category: Logger.ui)
+        showReadabilityPopover()
         return true
     }
 
@@ -2833,6 +2888,10 @@ private class CapsuleIndicatorView: NSView {
             drawPenIcon(in: rect)
         case .textGenActive:
             drawPenIcon(in: rect)
+        case let .readabilityScore(score, color):
+            drawReadabilityScore(score, in: rect, color: color, isDarkMode: isDarkMode)
+        case .readabilityNA:
+            break // Don't show anything for N/A state
         case .hidden:
             break
         }
@@ -2943,6 +3002,34 @@ private class CapsuleIndicatorView: NSView {
                          from: .zero, operation: .sourceOver, fraction: 1.0)
     }
 
+    /// Draw readability score with colored background indicator
+    private func drawReadabilityScore(_ score: Int, in rect: CGRect, color: NSColor, isDarkMode _: Bool) {
+        // Draw the score as a number - always use the readability color for instant visual feedback
+        let scoreString = "\(score)"
+
+        let fontSize: CGFloat = score >= 100 ? 9 : 11
+        let font = NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .bold)
+        // Always use the score's color (green/yellow/orange/red) for immediate visual feedback
+        let textColor = color
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: textColor,
+        ]
+
+        let attrString = NSAttributedString(string: scoreString, attributes: attributes)
+        let textSize = attrString.size()
+
+        let textRect = NSRect(
+            x: rect.midX - textSize.width / 2,
+            y: rect.midY - textSize.height / 2,
+            width: textSize.width,
+            height: textSize.height
+        )
+
+        attrString.draw(in: textRect)
+    }
+
     // MARK: - Mouse Events
 
     override func mouseDown(with event: NSEvent) {
@@ -3003,7 +3090,6 @@ private class CapsuleIndicatorView: NSView {
         let section = sectionAtPoint(locationInView)
 
         if section != hoveredSection {
-            let previousSection = hoveredSection
             hoveredSection = section
 
             // Update section hover states
@@ -3015,8 +3101,12 @@ private class CapsuleIndicatorView: NSView {
 
             // If a hover popover is active, immediately switch to the new section's popover
             // Also switch if any popover is currently visible (from click)
-            if hoverPopoverActive || SuggestionPopover.shared.isVisible || TextGenerationPopover.shared.isVisible {
-                if previousSection != nil, section != nil {
+            let anyPopoverVisible = SuggestionPopover.shared.isVisible ||
+                TextGenerationPopover.shared.isVisible ||
+                ReadabilityPopover.shared.isVisible
+            if hoverPopoverActive || anyPopoverVisible {
+                // Show popover for new section (even if previousSection was nil - initial hover case)
+                if let section {
                     onHover?(section)
                 }
             }
@@ -3032,11 +3122,14 @@ private class CapsuleIndicatorView: NSView {
         let delayMs = UserPreferences.shared.popoverHoverDelayMs
         if delayMs <= 0 {
             hoverPopoverActive = true
-            onHover?(hoveredSection)
+            // Don't call onHover here - mouseMoved will handle it once hoveredSection is set
         } else {
             hoverTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(delayMs) / 1000.0, repeats: false) { [weak self] _ in
                 self?.hoverPopoverActive = true
-                self?.onHover?(self?.hoveredSection)
+                // Only trigger hover if we have a valid section
+                if let section = self?.hoveredSection {
+                    self?.onHover?(section)
+                }
             }
         }
     }
@@ -3118,6 +3211,10 @@ private class CapsuleIndicatorView: NSView {
                 parts.append("AI compose available")
             case .textGenActive:
                 parts.append("Generating text")
+            case let .readabilityScore(score, _):
+                parts.append("Readability score: \(score)")
+            case .readabilityNA:
+                break
             case .hidden:
                 break
             }
@@ -3160,6 +3257,10 @@ private class CapsuleIndicatorView: NSView {
                 element.setAccessibilityLabel("AI compose section: Click to write")
             case .textGenActive:
                 element.setAccessibilityLabel("AI compose section: Generating...")
+            case let .readabilityScore(score, _):
+                element.setAccessibilityLabel("Readability section: Score \(score)")
+            case .readabilityNA:
+                continue
             case .hidden:
                 continue
             }

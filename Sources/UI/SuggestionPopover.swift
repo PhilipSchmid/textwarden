@@ -294,6 +294,10 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     /// Common panel display logic
     private func showPanelAtPosition(_ position: CGPoint, constrainToWindow: CGRect?) {
+        // Close other popovers first
+        TextGenerationPopover.shared.hide()
+        ReadabilityPopover.shared.hide()
+
         // Always recreate panel to ensure correct content view for current mode
         if panel != nil {
             panel?.orderOut(nil)

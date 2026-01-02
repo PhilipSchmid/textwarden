@@ -196,6 +196,10 @@ class TextGenerationPopover: NSObject, ObservableObject {
     func show(at position: CGPoint, direction: PopoverOpenDirection = .top, context: GenerationContext) {
         Logger.debug("TextGenerationPopover: show at \(position), direction: \(direction)", category: Logger.ui)
 
+        // Close other popovers first
+        SuggestionPopover.shared.hide()
+        ReadabilityPopover.shared.hide()
+
         // Restore last session state instead of resetting to empty
         instruction = lastInstruction
         self.context = context

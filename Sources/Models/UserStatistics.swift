@@ -741,7 +741,7 @@ class UserStatistics: ObservableObject {
 
     // MARK: - Initialization
 
-    private init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
 
         // Initialize with default values first

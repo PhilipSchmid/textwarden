@@ -85,6 +85,9 @@ protocol UserPreferencesProviding: AnyObject {
     var styleMinSentenceWords: Int { get }
     var styleTemperaturePreset: String { get }
 
+    // Readability settings
+    var showReadabilityScore: Bool { get }
+
     // Debug settings
     var showDebugBorderCGWindowCoords: Bool { get }
     var showDebugBorderCocoaCoords: Bool { get }

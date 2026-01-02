@@ -595,6 +595,23 @@ extension AppDelegate: NSWindowDelegate {
             }
         }
 
+        // Show Readability popover (Option+Control+R by default)
+        KeyboardShortcuts.onKeyUp(for: .showReadability) {
+            Task { @MainActor in
+                let preferences = UserPreferences.shared
+                guard preferences.keyboardShortcutsEnabled else { return }
+
+                // Toggle: hide if visible, show if hidden
+                if ReadabilityPopover.shared.isVisible {
+                    Logger.debug("Keyboard shortcut: Hide Readability (toggle)", category: Logger.ui)
+                    ReadabilityPopover.shared.hide()
+                } else {
+                    Logger.debug("Keyboard shortcut: Show Readability", category: Logger.ui)
+                    FloatingErrorIndicator.shared.showReadabilityFromKeyboard()
+                }
+            }
+        }
+
         // Accept current suggestion (Tab by default)
         KeyboardShortcuts.onKeyUp(for: .acceptSuggestion) {
             Task { @MainActor in

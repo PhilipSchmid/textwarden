@@ -28,6 +28,9 @@ extension KeyboardShortcuts.Name {
     /// Show AI Compose popover - "W" for Write
     static let showAICompose = Self("showAICompose", default: .init(.w, modifiers: [.option, .control]))
 
+    /// Show Readability popover - "R" for Readability
+    static let showReadability = Self("showReadability", default: .init(.r, modifiers: [.option, .control]))
+
     /// Trigger style check on current text - "S" for Style check
     static let runStyleCheck = Self("runStyleCheck", default: .init(.s, modifiers: [.option, .control]))
 
