@@ -54,6 +54,18 @@ jobs:
         with:
           workspaces: GrammarEngine
 
+      - name: Install SwiftFormat
+        run: brew install swiftformat
+
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
+      - name: Check Swift formatting
+        run: swiftformat Sources Tests --lint
+
+      - name: Run SwiftLint
+        run: swiftlint lint --quiet Sources Tests
+
       - name: Build Rust library (arm64 only, without LLM)
         working-directory: GrammarEngine
         run: |
@@ -71,5 +83,13 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
-      # Swift tests skipped: UI tests require accessibility permissions not available in CI
-      # Tests run locally on developer machines
+      - name: Run Swift unit tests
+        run: |
+          xcodebuild test \
+            -project TextWarden.xcodeproj \
+            -scheme TextWarden \
+            -destination 'platform=macOS,arch=arm64' \
+            -only-testing:TextWardenTests/ReadabilityTests \
+            -only-testing:TextWardenTests/UserStatisticsTests \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
