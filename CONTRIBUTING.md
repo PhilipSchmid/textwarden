@@ -30,9 +30,21 @@ Thank you for your interest in contributing to TextWarden! This guide will help 
    rustup target list --installed
    ```
 
-4. **Homebrew** (for additional build tools if needed) - [brew.sh](https://brew.sh)
+4. **Homebrew** (for additional build tools) - [brew.sh](https://brew.sh)
 
-5. **Pandoc** (for building Help documentation)
+5. **SwiftFormat** (for code formatting)
+   ```bash
+   brew install swiftformat
+   swiftformat --version  # Verify installation
+   ```
+
+6. **SwiftLint** (for linting)
+   ```bash
+   brew install swiftlint
+   swiftlint --version  # Verify installation
+   ```
+
+7. **Pandoc** (for building Help documentation)
    ```bash
    brew install pandoc
    pandoc --version  # Verify installation
@@ -46,6 +58,8 @@ Run these commands to ensure everything is installed correctly:
 sw_vers                           # macOS 26+
 xcodebuild -version               # Xcode 26+
 rustc --version                   # Rust 1.75+
+swiftformat --version             # SwiftFormat
+swiftlint --version               # SwiftLint
 pandoc --version                  # Pandoc (any recent version)
 ```
 
