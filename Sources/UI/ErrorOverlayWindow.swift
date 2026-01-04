@@ -34,6 +34,9 @@ class ErrorOverlayWindow: NSPanel {
     /// Last known element frame for detecting resize/movement
     private var lastElementFrame: CGRect?
 
+    /// Last known visible character range for detecting scroll
+    private var lastVisibleRange: NSRange?
+
     /// Timer for periodic frame validation (detects resize/scroll during visibility)
     private var frameValidationTimer: Timer?
 
@@ -639,7 +642,13 @@ class ErrorOverlayWindow: NSPanel {
         underlineView?.firstCharDebugMarker = nil
 
         let underlines = errors.compactMap { error -> ErrorUnderline? in
-            let errorRange = NSRange(location: error.start, length: error.end - error.start)
+            var errorRange = NSRange(location: error.start, length: error.end - error.start)
+
+            // Expand single-character errors to include adjacent words for better visibility
+            // e.g., "7 day" -> "7-day" should underline both "7" and "day", not just the space
+            if errorRange.length == 1 {
+                errorRange = expandSingleCharacterError(errorRange, in: fullTextValue)
+            }
 
             // Filter out errors that are completely outside the visible character range
             if let visibleRange {
@@ -696,11 +705,15 @@ class ErrorOverlayWindow: NSPanel {
                 underlineView?.firstCharDebugMarker = firstCharLocal
             }
 
+            // Check if strategy opts out of edit area validation (e.g., ClaudeStrategy uses different coordinate system)
+            let skipEditAreaValidation = geometryResult.metadata["skip_edit_area_validation"] as? Bool ?? false
+
             for (lineIndex, screenBounds) in allScreenBounds.enumerated() {
                 // CRITICAL: Filter out underlines whose screen bounds fall outside the visible element frame
                 // This handles scrolled text where underlines would appear outside the window
                 // Check in screen coordinates BEFORE converting to local
-                if !elementFrame.intersects(screenBounds) {
+                // Skip this check for strategies that opt out (their bounds are in a different coordinate system)
+                if !skipEditAreaValidation, !elementFrame.intersects(screenBounds) {
                     Logger.debug("ErrorOverlay: Skipping line \(lineIndex) outside element frame - screen: \(screenBounds), element: \(elementFrame)", category: Logger.ui)
                     continue
                 }
@@ -1229,16 +1242,34 @@ class ErrorOverlayWindow: NSPanel {
             return
         }
 
-        // Check for significant changes
+        // Check for significant frame changes
         let positionChanged = abs(currentFrame.origin.x - lastFrame.origin.x) > 3 ||
             abs(currentFrame.origin.y - lastFrame.origin.y) > 3
         let sizeChanged = abs(currentFrame.width - lastFrame.width) > 3 ||
             abs(currentFrame.height - lastFrame.height) > 3
 
-        if positionChanged || sizeChanged {
-            // Frame changed - update tracking and reset stabilization timer
+        // Check for scroll by comparing visible character range
+        var scrollDetected = false
+        if let currentVisibleRange = AccessibilityBridge.getVisibleCharacterRange(element) {
+            if let lastRange = lastVisibleRange {
+                // Significant scroll if visible range location changed by more than a few characters
+                if abs(currentVisibleRange.location - lastRange.location) > 10 {
+                    scrollDetected = true
+                    Logger.debug("ErrorOverlay: Scroll detected - visible range changed from \(lastRange.location) to \(currentVisibleRange.location)", category: Logger.ui)
+                }
+            }
+            lastVisibleRange = currentVisibleRange
+        }
+
+        if positionChanged || sizeChanged || scrollDetected {
+            // Frame/scroll changed - update tracking and reset stabilization timer
             frameLastChangedAt = Date()
             lastElementFrame = currentFrame
+
+            // If scroll detected, invalidate positioning cache (bounds are now stale)
+            if scrollDetected {
+                ClaudeStrategy.invalidateCache()
+            }
 
             // IMPORTANT: Set flag BEFORE hide() so timer keeps running
             waitingForFrameStabilization = true
@@ -1606,6 +1637,70 @@ class ErrorOverlayWindow: NSPanel {
         }
 
         return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
+
+    // MARK: - Error Range Expansion
+
+    /// Expand single-character errors to include adjacent words for better visibility
+    /// e.g., "7 day" -> "7-day" should underline "7 day" not just the space
+    private func expandSingleCharacterError(_ range: NSRange, in text: String) -> NSRange {
+        guard range.length == 1 else { return range }
+        guard range.location < text.count else { return range }
+
+        let startIndex = text.index(text.startIndex, offsetBy: range.location, limitedBy: text.endIndex) ?? text.endIndex
+        guard startIndex < text.endIndex else { return range }
+
+        let char = text[startIndex]
+        Logger.debug("ErrorOverlay: Single-char error at \(range.location), char='\(char)' (isWhitespace=\(char.isWhitespace), isPunctuation=\(char.isPunctuation))", category: Logger.ui)
+
+        // Expand for whitespace (space that should be hyphen) or punctuation between words
+        // This makes tiny single-character underlines visible by extending to adjacent words
+        guard char.isWhitespace || char.isPunctuation else { return range }
+
+        // Find the word before the character by scanning backward
+        var wordStart = range.location
+        if wordStart > 0 {
+            var idx = text.index(text.startIndex, offsetBy: wordStart - 1, limitedBy: text.endIndex) ?? text.startIndex
+            // Scan backward while character at idx is NOT whitespace/newline
+            while true {
+                let c = text[idx]
+                if c.isWhitespace || c.isNewline {
+                    // Stop here - wordStart should be the position AFTER this whitespace
+                    wordStart = text.distance(from: text.startIndex, to: idx) + 1
+                    break
+                }
+                // This character is part of the word
+                wordStart = text.distance(from: text.startIndex, to: idx)
+                if idx == text.startIndex {
+                    break // Can't go further back
+                }
+                idx = text.index(before: idx)
+            }
+        }
+
+        // Find the word after the character by scanning forward
+        var wordEnd = range.location + 1
+        if wordEnd < text.count {
+            var idx = text.index(text.startIndex, offsetBy: wordEnd, limitedBy: text.endIndex) ?? text.endIndex
+            while idx < text.endIndex {
+                let c = text[idx]
+                if c.isWhitespace || c.isNewline {
+                    break
+                }
+                idx = text.index(after: idx)
+                wordEnd = text.distance(from: text.startIndex, to: idx)
+            }
+        }
+
+        // Only expand if we found words on both sides
+        let expandedLength = wordEnd - wordStart
+        Logger.debug("ErrorOverlay: Single-char expansion check - wordStart=\(wordStart), wordEnd=\(wordEnd), expandedLength=\(expandedLength)", category: Logger.ui)
+        if expandedLength > 1, wordStart < range.location, wordEnd > range.location + 1 {
+            Logger.debug("ErrorOverlay: Expanded single-char error at \(range.location) to \(wordStart)-\(wordEnd) (length \(expandedLength))", category: Logger.ui)
+            return NSRange(location: wordStart, length: expandedLength)
+        }
+
+        return range
     }
 
     // MARK: - Coordinate Conversion
