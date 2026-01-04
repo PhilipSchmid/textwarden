@@ -52,8 +52,6 @@ textReplacementMethod: .browserStyle  // Selection + Cmd+V paste
 3. Copy suggestion to clipboard
 4. Paste via Cmd+V keyboard event
 
-**Single-character errors:** For errors like "7 day" → "7-day" where only the space needs replacing, TextWarden searches for the full context ("7 day") to find the correct location, then selects only the space character.
-
 ### Font Configuration
 
 ```swift
