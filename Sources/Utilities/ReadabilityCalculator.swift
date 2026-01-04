@@ -30,13 +30,21 @@ enum TargetAudience: String, CaseIterable, Codable, Sendable {
     /// Sentences scoring below this threshold are flagged as too complex
     var minimumFleschScore: Double {
         switch self {
-        case .accessible: 70.0 // ~7th grade
-        case .general: 60.0 // ~9th grade
-        case .professional: 50.0 // ~11th grade
-        case .technical: 40.0 // College level
-        case .academic: 30.0 // Graduate level
+        case .accessible: 65.0 // ~8th grade
+        case .general: 50.0 // ~10th grade
+        case .professional: 40.0 // ~12th grade
+        case .technical: 30.0 // College level
+        case .academic: 20.0 // Graduate level
         }
     }
+
+    /// Minimum word count for a sentence to be flagged as complex
+    /// Short sentences are rarely problematic even if technically "complex"
+    static let minimumWordsForComplexityCheck = 12
+
+    /// Margin below threshold before flagging
+    /// Only flag sentences that are significantly below the threshold, not borderline
+    static let complexityMargin: Double = 10.0
 
     var displayName: String {
         switch self {
@@ -50,9 +58,9 @@ enum TargetAudience: String, CaseIterable, Codable, Sendable {
 
     var gradeLevel: String {
         switch self {
-        case .accessible: "7th grade"
-        case .general: "9th grade"
-        case .professional: "11th grade"
+        case .accessible: "8th grade"
+        case .general: "10th grade"
+        case .professional: "12th grade"
         case .technical: "College"
         case .academic: "Graduate"
         }
@@ -450,8 +458,18 @@ final class ReadabilityCalculator: Sendable {
             }
 
             let words = wordCount(sentence)
-            let isComplex = score < targetAudience.minimumFleschScore
-            Logger.debug("ReadabilityCalculator: sentence score=\(Int(score)), words=\(words), isComplex=\(isComplex) - '\(sentence.prefix(50))...'", category: Logger.analysis)
+
+            // Skip short sentences - they're rarely problematic even if technically "complex"
+            guard words >= TargetAudience.minimumWordsForComplexityCheck else {
+                Logger.trace("ReadabilityCalculator: skipping short sentence (\(words) words) - '\(sentence.prefix(30))...'", category: Logger.analysis)
+                continue
+            }
+
+            // Only flag as complex if SIGNIFICANTLY below threshold (not just borderline)
+            // This reduces noise from sentences that are just barely below the threshold
+            let effectiveThreshold = targetAudience.minimumFleschScore - TargetAudience.complexityMargin
+            let isComplex = score < effectiveThreshold
+            Logger.debug("ReadabilityCalculator: sentence score=\(Int(score)), words=\(words), threshold=\(Int(effectiveThreshold)), isComplex=\(isComplex) - '\(sentence.prefix(50))...'", category: Logger.analysis)
 
             let result = SentenceReadabilityResult(
                 sentence: sentence,
