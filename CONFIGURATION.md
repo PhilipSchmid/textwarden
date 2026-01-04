@@ -296,15 +296,15 @@ You can drag the indicator to any position along the window border, and position
 **Options:**
 | Audience | Min Flesch Score | Description |
 |----------|------------------|-------------|
-| Accessible | 70+ | Everyone should understand (7th grade level) |
-| General | 60+ | Average adult reader (9th grade level) |
-| Professional | 50+ | Business readers (11th grade level) |
-| Technical | 40+ | Specialized readers (college level) |
-| Academic | 30+ | Academic/research (graduate level) |
+| Accessible | 65+ | Everyone should understand (~8th grade level) |
+| General | 50+ | Average adult reader (~10th grade level) |
+| Professional | 40+ | Business readers (~12th grade level) |
+| Technical | 30+ | Specialized readers (college level) |
+| Academic | 20+ | Academic/research (graduate level) |
 
-**How it works:** Sentences with a Flesch score below the threshold for your selected audience are marked with violet dashed underlines. Hover over them to get AI-powered simplification suggestions.
+**How it works:** Sentences with a Flesch score significantly below (10+ points) the threshold for your selected audience are marked with violet dashed underlines. Short sentences (<12 words) are not flagged. Hover over underlines to get AI-powered simplification suggestions.
 
-**Default:** General (60+ Flesch score)
+**Default:** General (50+ Flesch score)
 
 **Recommendation:** Match this to your audience. Use "Accessible" for public-facing content, "Professional" for business documents, "Technical" for developer documentation.
 

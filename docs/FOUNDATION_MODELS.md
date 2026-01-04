@@ -288,11 +288,13 @@ When readability analysis identifies sentences that are too complex for the sele
 
 | Audience | Min Flesch Score | Grade Level | Description |
 |----------|------------------|-------------|-------------|
-| Accessible | 70+ | ~7th grade | Everyone should understand |
-| General | 60+ | ~9th grade | Average adult reader |
-| Professional | 50+ | ~11th grade | Business readers |
-| Technical | 40+ | College | Specialized readers |
-| Academic | 30+ | Graduate | Academic/research |
+| Accessible | 65+ | ~8th grade | Everyone should understand |
+| General | 50+ | ~10th grade | Average adult reader |
+| Professional | 40+ | ~12th grade | Business readers |
+| Technical | 30+ | College | Specialized readers |
+| Academic | 20+ | Graduate | Academic/research |
+
+**Noise reduction:** Sentences must have ≥12 words and score 10+ points below the threshold to be flagged.
 
 ### Configuration
 
