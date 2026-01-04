@@ -47,6 +47,7 @@ enum StrategyType: String, CaseIterable {
     case webex // Dedicated strategy for Cisco WebEx chat
     case mail // Dedicated strategy for Apple Mail's WebKit compose
     case protonMail // Dedicated strategy for Proton Mail's Rooster editor
+    case claude // Fast selection-based positioning for Claude Desktop (Electron)
     case chromium // Selection-based marker range positioning for Chromium apps (Slack, Teams, etc.)
     case textMarker
     case rangeBounds
@@ -145,6 +146,38 @@ struct AppFeatures: Equatable {
     /// TextMarkerStrategy probes the actual index mapping and adjusts accordingly.
     let hasTextMarkerIndexOffset: Bool
 
+    /// Whether this app uses WebKit-specific TextMarker APIs for text selection.
+    /// Apple Mail uses this because its WebKit compose view requires marker-based selection.
+    let usesWebKitMarkerSelection: Bool
+
+    init(
+        visualUnderlinesEnabled: Bool,
+        textReplacementMethod: TextReplacementMethod,
+        requiresTypingPause: Bool,
+        supportsFormattedText: Bool,
+        childElementTraversal: Bool,
+        delaysAXNotifications: Bool,
+        focusBouncesDuringPaste: Bool,
+        requiresFullReanalysisAfterReplacement: Bool,
+        defersTextExtraction: Bool,
+        requiresFrameValidation: Bool,
+        hasTextMarkerIndexOffset: Bool,
+        usesWebKitMarkerSelection: Bool = false // Default to false for backwards compatibility
+    ) {
+        self.visualUnderlinesEnabled = visualUnderlinesEnabled
+        self.textReplacementMethod = textReplacementMethod
+        self.requiresTypingPause = requiresTypingPause
+        self.supportsFormattedText = supportsFormattedText
+        self.childElementTraversal = childElementTraversal
+        self.delaysAXNotifications = delaysAXNotifications
+        self.focusBouncesDuringPaste = focusBouncesDuringPaste
+        self.requiresFullReanalysisAfterReplacement = requiresFullReanalysisAfterReplacement
+        self.defersTextExtraction = defersTextExtraction
+        self.requiresFrameValidation = requiresFrameValidation
+        self.hasTextMarkerIndexOffset = hasTextMarkerIndexOffset
+        self.usesWebKitMarkerSelection = usesWebKitMarkerSelection
+    }
+
     static let standard = AppFeatures(
         visualUnderlinesEnabled: true,
         textReplacementMethod: .standard,
@@ -156,7 +189,8 @@ struct AppFeatures: Equatable {
         requiresFullReanalysisAfterReplacement: false,
         defersTextExtraction: false,
         requiresFrameValidation: false,
-        hasTextMarkerIndexOffset: false
+        hasTextMarkerIndexOffset: false,
+        usesWebKitMarkerSelection: false
     )
 }
 
@@ -178,7 +212,8 @@ extension AppCategory {
                 requiresFullReanalysisAfterReplacement: false,
                 defersTextExtraction: false,
                 requiresFrameValidation: false,
-                hasTextMarkerIndexOffset: false
+                hasTextMarkerIndexOffset: false,
+                usesWebKitMarkerSelection: false
             )
         case .electron:
             AppFeatures(
@@ -192,7 +227,8 @@ extension AppCategory {
                 requiresFullReanalysisAfterReplacement: true, // Electron byte offsets are fragile
                 defersTextExtraction: false,
                 requiresFrameValidation: false,
-                hasTextMarkerIndexOffset: false
+                hasTextMarkerIndexOffset: false,
+                usesWebKitMarkerSelection: false
             )
         case .browser:
             AppFeatures(
@@ -206,7 +242,8 @@ extension AppCategory {
                 requiresFullReanalysisAfterReplacement: true, // Browser byte offsets are fragile
                 defersTextExtraction: false,
                 requiresFrameValidation: false,
-                hasTextMarkerIndexOffset: false
+                hasTextMarkerIndexOffset: false,
+                usesWebKitMarkerSelection: false
             )
         case .custom:
             .standard

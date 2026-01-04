@@ -367,7 +367,8 @@ extension AppConfiguration {
             requiresFullReanalysisAfterReplacement: true, // WebKit byte offsets are fragile
             defersTextExtraction: false,
             requiresFrameValidation: false,
-            hasTextMarkerIndexOffset: false
+            hasTextMarkerIndexOffset: false,
+            usesWebKitMarkerSelection: true // Mail uses WebKit TextMarker APIs for selection
         )
     )
 
