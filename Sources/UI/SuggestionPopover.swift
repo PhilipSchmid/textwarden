@@ -405,6 +405,7 @@ class SuggestionPopover: NSObject, ObservableObject {
     func hide() {
         hideTimer?.invalidate()
         hideTimer = nil
+        isGeneratingSimplification = false // Reset loading state
         performHide()
     }
 
@@ -1165,6 +1166,9 @@ class SuggestionPopover: NSObject, ObservableObject {
         // Remove current from list
         allStyleSuggestions.removeAll { $0.id == current.id }
 
+        // Reset loading state when switching suggestions
+        isGeneratingSimplification = false
+
         if allStyleSuggestions.isEmpty {
             hide()
         } else {
@@ -1192,6 +1196,9 @@ class SuggestionPopover: NSObject, ObservableObject {
     func showUnified(errors: [GrammarErrorModel], styleSuggestions: [StyleSuggestionModel], at position: CGPoint, openDirection: PopoverOpenDirection = .top, constrainToWindow: CGRect? = nil, sourceText: String = "") {
         let startTime = Date()
         Logger.info("SuggestionPopover.showUnified START - errors=\(errors.count), styleSuggestions=\(styleSuggestions.count)", category: Logger.ui)
+
+        // Reset loading state when showing new unified view
+        isGeneratingSimplification = false
 
         // Mark as opened from indicator - popover persists until explicitly dismissed
         openedFromIndicator = true
