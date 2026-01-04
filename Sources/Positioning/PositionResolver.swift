@@ -46,6 +46,7 @@ class PositionResolver {
             WebExStrategy(), // Dedicated strategy for Cisco WebEx chat
             MailStrategy(), // Dedicated strategy for Apple Mail's WebKit compose
             ProtonMailStrategy(), // Dedicated strategy for Proton Mail's Rooster editor
+            ClaudeStrategy(), // Fast selection-based strategy for Claude Desktop
             ChromiumStrategy(),
             TextMarkerStrategy(),
             RangeBoundsStrategy(),

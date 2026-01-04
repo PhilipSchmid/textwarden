@@ -706,8 +706,9 @@ class TextMonitor: ObservableObject {
         // This enables hiding underlines during typing for Electron apps (Slack, Notion, etc.)
         TypingDetector.shared.notifyTextChange()
 
-        // Also notify ChromiumStrategy for its internal cache/cursor management
+        // Also notify positioning strategies for their internal cache/cursor management
         ChromiumStrategy.notifyTextChange()
+        ClaudeStrategy.notifyTextChange()
 
         // Invalidate existing timer
         debounceTimer?.invalidate()
@@ -737,6 +738,7 @@ class TextMonitor: ObservableObject {
         // This uses cached text, no AX calls
         TypingDetector.shared.notifyTextChange()
         ChromiumStrategy.notifyTextChange()
+        ClaudeStrategy.notifyTextChange()
 
         // Invalidate existing timer
         deferredExtractionTimer?.invalidate()

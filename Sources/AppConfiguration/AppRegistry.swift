@@ -155,9 +155,9 @@ extension AppConfiguration {
             spacingMultiplier: 1.0
         ),
         horizontalPadding: 12,
-        // Note: Avoid .chromium as first strategy - it manipulates cursor/selection for positioning
-        // which causes annoying cursor jumps and word selection. Try .rangeBounds first.
-        preferredStrategies: [.rangeBounds, .textMarker, .elementTree, .lineIndex],
+        // Use dedicated ClaudeStrategy for accurate positioning.
+        // Selection-based measurement provides pixel-perfect bounds.
+        preferredStrategies: [.claude],
         features: AppFeatures(
             visualUnderlinesEnabled: true,
             textReplacementMethod: .browserStyle,
