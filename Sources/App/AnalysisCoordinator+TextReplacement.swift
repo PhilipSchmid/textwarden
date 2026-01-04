@@ -798,7 +798,7 @@ extension AnalysisCoordinator {
     }
 
     /// Select text in an AX element for replacement
-    /// Handles Notion/Electron apps by traversing child elements to find paragraph-relative offsets
+    /// Handles Electron/WebKit apps using app configuration features
     /// Returns true if selection succeeded (or was attempted), false if it failed critically
     func selectTextForReplacement(
         targetText: String,
@@ -806,23 +806,21 @@ extension AnalysisCoordinator {
         element: AXUIElement,
         context: ApplicationContext
     ) -> Bool {
-        let isNotion = context.bundleIdentifier == "notion.id" || context.bundleIdentifier == "com.notion.id"
-        let isSlack = context.bundleIdentifier == "com.tinyspeck.slackmacgap"
-        let isTeams = context.bundleIdentifier == "com.microsoft.teams2"
-        let isClaude = context.bundleIdentifier == "com.anthropic.claudefordesktop"
-        let isMail = context.bundleIdentifier == "com.apple.mail"
+        // Get app configuration for feature-based decisions
+        let appConfig = AppRegistry.shared.effectiveConfiguration(for: context.bundleIdentifier)
+        let appName = appConfig.displayName
 
-        // Apple Mail: use WebKit-specific marker-based selection
-        if isMail {
-            Logger.debug("Mail: Using WebKit-specific text selection", category: Logger.analysis)
+        // WebKit-based apps (Mail): use TextMarker APIs for text selection
+        if appConfig.features.usesWebKitMarkerSelection {
+            Logger.debug("\(appName): Using WebKit-specific text selection", category: Logger.analysis)
 
             if let range = fallbackRange {
                 let nsRange = NSRange(location: range.location, length: range.length)
                 let success = MailContentParser.selectTextForReplacement(range: nsRange, in: element)
                 if success {
-                    Logger.debug("Mail: WebKit selection succeeded", category: Logger.analysis)
+                    Logger.debug("\(appName): WebKit selection succeeded", category: Logger.analysis)
                 } else {
-                    Logger.debug("Mail: WebKit selection failed - paste may go to wrong location", category: Logger.analysis)
+                    Logger.debug("\(appName): WebKit selection failed - paste may go to wrong location", category: Logger.analysis)
                 }
                 return true // Always try paste even if selection fails
             } else {
@@ -833,74 +831,42 @@ extension AnalysisCoordinator {
                     let start = currentText.distance(from: currentText.startIndex, to: textRange.lowerBound)
                     let nsRange = NSRange(location: start, length: targetText.count)
                     let success = MailContentParser.selectTextForReplacement(range: nsRange, in: element)
-                    Logger.debug("Mail: Text search + selection \(success ? "succeeded" : "failed")", category: Logger.analysis)
+                    Logger.debug("\(appName): Text search + selection \(success ? "succeeded" : "failed")", category: Logger.analysis)
                     return true
                 }
-                Logger.debug("Mail: Could not find text to select", category: Logger.analysis)
+                Logger.debug("\(appName): Could not find text to select", category: Logger.analysis)
                 return true // Still try paste
             }
         }
 
-        // Claude: standard selection with newline offset adjustment
-        // Claude's Chromium selection API treats newlines as zero-width, same as for underline positioning
-        // Note: Perplexity and ChatGPT use standard browser selection without newline offset
-        if isClaude {
-            let appName = "Claude"
-            Logger.debug("\(appName): Using selection with newline offset adjustment", category: Logger.analysis)
-
-            var currentTextRef: CFTypeRef?
-            let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
-
-            guard textResult == .success, let currentText = currentTextRef as? String else {
-                Logger.debug("\(appName): Could not get current text", category: Logger.analysis)
-                return false
-            }
-
-            guard let textRange = currentText.range(of: targetText) else {
-                Logger.debug("\(appName): Could not find target text in content", category: Logger.analysis)
-                return false
-            }
-
-            let startIndex = currentText.distance(from: currentText.startIndex, to: textRange.lowerBound)
-
-            // Count newlines before the start position (Chromium treats them as zero-width)
-            let prefixEndIndex = currentText.index(currentText.startIndex, offsetBy: startIndex, limitedBy: currentText.endIndex) ?? currentText.endIndex
-            let prefix = String(currentText[..<prefixEndIndex])
-            let newlineCount = prefix.count(where: { $0 == "\n" })
-
-            // Convert to UTF-16 and apply newline offset
-            let utf16Range = TextIndexConverter.graphemeToUTF16Range(NSRange(location: startIndex, length: targetText.count), in: currentText)
-            let adjustedLocation = max(0, utf16Range.location - newlineCount)
-
-            Logger.debug("\(appName) selection: grapheme \(startIndex) -> UTF-16 \(utf16Range.location) -> adjusted \(adjustedLocation) (newlines: \(newlineCount))", category: Logger.analysis)
-
-            var selectionRange = CFRange(location: adjustedLocation, length: utf16Range.length)
-            guard let rangeValue = AXValueCreate(.cfRange, &selectionRange) else {
-                Logger.debug("\(appName): Failed to create AXValue for range", category: Logger.analysis)
-                return false
-            }
-
-            let selectResult = AXUIElementSetAttributeValue(
-                element,
-                kAXSelectedTextRangeAttribute as CFString,
-                rangeValue
-            )
-
-            if selectResult == .success {
-                Logger.debug("\(appName): Selection succeeded at \(adjustedLocation)-\(adjustedLocation + utf16Range.length)", category: Logger.analysis)
-            } else {
-                Logger.debug("\(appName): Selection failed (\(selectResult.rawValue)) - will try paste anyway", category: Logger.analysis)
-            }
-            return true
-        }
-
-        // Electron apps (Notion, Slack, Teams) need child element traversal for selection
-        if isNotion || isSlack || isTeams {
-            let appName = isNotion ? "Notion" : (isSlack ? "Slack" : "Teams")
+        // Electron apps with child element traversal (Slack, Teams, Notion, Claude, etc.)
+        if appConfig.features.childElementTraversal {
             Logger.trace("\(appName): Looking for text to select (\(targetText.count) chars)", category: Logger.analysis)
 
+            // For single-character whitespace/punctuation errors, searching for just " " is ambiguous.
+            // Instead, search for expanded context (e.g., "7 day") but only select the single character.
+            let cachedText = lastAnalyzedText.isEmpty ? (currentSegment?.content ?? previousText) : lastAnalyzedText
+            var searchText = targetText
+            var singleCharOffsetInContext: Int? = nil
+
+            if targetText.count == 1, let char = targetText.first, char.isWhitespace || char.isPunctuation {
+                // Get the fallback range position to find context
+                if let range = fallbackRange {
+                    let dummyError = GrammarErrorModel(
+                        start: range.location,
+                        end: range.location + range.length,
+                        message: "", severity: .info, category: "", lintId: ""
+                    )
+                    if let context = findSingleCharErrorContext(error: dummyError, in: cachedText) {
+                        searchText = context.context
+                        singleCharOffsetInContext = context.offset
+                        Logger.debug("\(appName): Using context '\(searchText)' for single-char selection (offset: \(context.offset))", category: Logger.analysis)
+                    }
+                }
+            }
+
             // Try to find child element containing the text and select within it
-            if let (childElement, offsetInChild) = findChildElementContainingText(targetText, in: element) {
+            if let (childElement, offsetInChild) = findChildElementContainingText(searchText, in: element) {
                 // Get the child element's text for UTF-16 conversion
                 // Slack/Notion use Chromium which expects UTF-16 indices, not grapheme clusters
                 var childTextRef: CFTypeRef?
@@ -911,14 +877,28 @@ extension AnalysisCoordinator {
                     return false
                 }
 
+                // Calculate the actual selection range
+                // For single-char errors with context, adjust to select only the character
+                let selectionOffset: Int
+                let selectionLength: Int
+                if let singleCharOffset = singleCharOffsetInContext {
+                    // Select only the single character within the found context
+                    selectionOffset = offsetInChild + singleCharOffset
+                    selectionLength = 1
+                    Logger.trace("\(appName): Adjusted selection to single char at offset \(selectionOffset)", category: Logger.analysis)
+                } else {
+                    selectionOffset = offsetInChild
+                    selectionLength = searchText.count
+                }
+
                 // Convert grapheme indices to UTF-16 indices
                 let utf16Range = TextIndexConverter.graphemeToUTF16Range(
-                    NSRange(location: offsetInChild, length: targetText.count),
+                    NSRange(location: selectionOffset, length: selectionLength),
                     in: childText
                 )
                 var childRange = CFRange(location: utf16Range.location, length: utf16Range.length)
 
-                Logger.trace("\(appName): UTF-16 range \(utf16Range.location)-\(utf16Range.location + utf16Range.length) (from grapheme \(offsetInChild)-\(offsetInChild + targetText.count))", category: Logger.analysis)
+                Logger.trace("\(appName): UTF-16 range \(utf16Range.location)-\(utf16Range.location + utf16Range.length) (from grapheme \(selectionOffset)-\(selectionOffset + selectionLength))", category: Logger.analysis)
 
                 guard let childRangeValue = AXValueCreate(.cfRange, &childRange) else {
                     Logger.debug("\(appName): Failed to create AXValue for child range", category: Logger.analysis)
@@ -1444,6 +1424,9 @@ extension AnalysisCoordinator {
     }
 
     /// Find error position for browsers and standard apps
+    /// Returns: (errorText, fallbackRange, currentError)
+    /// - errorText: The actual error text to replace
+    /// - fallbackRange: Position of error (always provided for single-char errors to enable context lookup)
     private func findBrowserErrorPosition(error: GrammarErrorModel) -> (errorText: String, fallbackRange: CFRange?, currentError: GrammarErrorModel) {
         // Match by position first (most reliable), then fall back to message/lintId matching
         let currentError = currentErrors.first { err in
@@ -1460,11 +1443,100 @@ extension AnalysisCoordinator {
            let endIdx = TextIndexConverter.scalarIndexToStringIndex(currentError.end, in: cachedText)
         {
             let errorText = String(cachedText[startIdx ..< endIdx])
+
+            // For single-character whitespace/punctuation errors, ALWAYS provide the fallback range
+            // This allows selectTextForReplacement to use context-aware selection
+            if errorText.count == 1, let char = errorText.first, char.isWhitespace || char.isPunctuation {
+                let fallbackRange = CFRange(location: currentError.start, length: currentError.end - currentError.start)
+                Logger.debug("Browser position: Single-char error '\(errorText)', providing position \(currentError.start)-\(currentError.end) for context lookup", category: Logger.analysis)
+                return (errorText, fallbackRange, currentError)
+            }
+
             return (errorText, nil, currentError)
         } else {
             let fallbackRange = CFRange(location: currentError.start, length: currentError.end - currentError.start)
             return ("", fallbackRange, currentError)
         }
+    }
+
+    /// For single-character errors, find expanded context for disambiguation but return offset within that context
+    /// Returns: (contextText, offsetWithinContext) or nil if not applicable
+    private func findSingleCharErrorContext(error: GrammarErrorModel, in text: String) -> (context: String, offset: Int)? {
+        let errorLength = error.end - error.start
+        guard errorLength == 1 else { return nil }
+
+        let scalarCount = text.unicodeScalars.count
+        guard error.start < scalarCount, error.end <= scalarCount else {
+            Logger.debug("findSingleCharErrorContext: Error position \(error.start)-\(error.end) outside text bounds (\(scalarCount) scalars)", category: Logger.analysis)
+            return nil
+        }
+
+        guard let errorIdx = TextIndexConverter.scalarIndexToStringIndex(error.start, in: text) else {
+            Logger.debug("findSingleCharErrorContext: Failed to convert scalar index \(error.start) to string index", category: Logger.analysis)
+            return nil
+        }
+
+        let char = text[errorIdx]
+        guard char.isWhitespace || char.isPunctuation else { return nil }
+
+        // Find word boundaries around the error
+        var expandedStart = error.start
+        var expandedEnd = error.end
+
+        // Scan backward for word start
+        if expandedStart > 0 {
+            guard let idx = TextIndexConverter.scalarIndexToStringIndex(expandedStart - 1, in: text) else {
+                Logger.debug("findSingleCharErrorContext: Failed to convert backward scan index \(expandedStart - 1)", category: Logger.analysis)
+                return nil
+            }
+            var searchIdx = idx
+            while searchIdx >= text.startIndex {
+                let c = text[searchIdx]
+                if c.isWhitespace || c.isNewline {
+                    let nextIdx = text.index(after: searchIdx)
+                    expandedStart = text.distance(from: text.startIndex, to: nextIdx)
+                    break
+                }
+                expandedStart = text.distance(from: text.startIndex, to: searchIdx)
+                if searchIdx == text.startIndex { break }
+                searchIdx = text.index(before: searchIdx)
+            }
+        }
+
+        // Scan forward for word end
+        if expandedEnd < scalarCount {
+            guard let idx = TextIndexConverter.scalarIndexToStringIndex(expandedEnd, in: text) else {
+                Logger.debug("findSingleCharErrorContext: Failed to convert forward scan index \(expandedEnd)", category: Logger.analysis)
+                return nil
+            }
+            var searchIdx = idx
+            while searchIdx < text.endIndex {
+                let c = text[searchIdx]
+                if c.isWhitespace || c.isNewline {
+                    expandedEnd = text.distance(from: text.startIndex, to: searchIdx)
+                    break
+                }
+                searchIdx = text.index(after: searchIdx)
+                expandedEnd = text.distance(from: text.startIndex, to: searchIdx)
+            }
+        }
+
+        // Extract context and calculate offset
+        guard let startIdx = TextIndexConverter.scalarIndexToStringIndex(expandedStart, in: text),
+              let endIdx = TextIndexConverter.scalarIndexToStringIndex(expandedEnd, in: text),
+              startIdx < endIdx
+        else {
+            Logger.debug("findSingleCharErrorContext: Failed to extract context at \(expandedStart)-\(expandedEnd)", category: Logger.analysis)
+            return nil
+        }
+
+        let contextText = String(text[startIdx ..< endIdx])
+        let offsetWithinContext = error.start - expandedStart
+
+        // Only return if we actually expanded
+        guard contextText.count > 1 else { return nil }
+
+        return (contextText, offsetWithinContext)
     }
 
     /// Perform clipboard-based text replacement with activation, paste, and restore
