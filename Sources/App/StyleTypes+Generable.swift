@@ -116,6 +116,13 @@ struct GenerationContext {
                 return nil
             }
 
+            // Reject suggestions with very short original text (likely AI hallucination or garbage)
+            // A meaningful style suggestion should have at least a few words
+            if normalizedOriginal.count < 5 {
+                Logger.debug("Style suggestion rejected - original text too short (\(normalizedOriginal.count) chars)", category: Logger.analysis)
+                return nil
+            }
+
             // Find the position of the original text in the input
             guard let range = text.range(of: original) else {
                 Logger.debug("Style suggestion rejected - original text not found in input", category: Logger.analysis)
