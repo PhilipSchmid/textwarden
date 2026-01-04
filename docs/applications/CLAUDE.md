@@ -4,12 +4,13 @@ This document describes how TextWarden handles Claude, Anthropic's Electron-base
 
 ## Overview
 
-Claude (`com.anthropic.claudefordesktop`) is an Electron app that provides a native desktop experience for Anthropic's Claude AI. Due to AX API quirks, TextWarden uses cursor-based positioning for accurate underline placement.
+Claude (`com.anthropic.claudefordesktop`) is an Electron app that provides a native desktop experience for Anthropic's Claude AI. TextWarden uses a dedicated positioning strategy that traverses the AX tree to find child elements with accurate bounds.
 
 TextWarden provides:
 1. Visual underlines for grammar errors
 2. Text replacement via browser-style selection + paste
 3. Dedicated content parser for Claude-specific handling
+4. Tree-traversal positioning for pixel-perfect underlines
 
 ## Technical Details
 
@@ -25,15 +26,17 @@ TextWarden provides:
 
 ### Positioning Strategy
 
-Claude uses the ChromiumStrategy which requires cursor manipulation:
+Claude uses a dedicated `ClaudeStrategy` for accurate positioning:
 
-1. **Chromium** (primary) - Selection-based marker range positioning
-2. **TextMarker** - Apple's text marker API
-3. **RangeBounds** - Direct `AXBoundsForRange` queries
-4. **ElementTree** - Child element traversal
-5. **LineIndex** - Line-based calculation as last resort
+**Key insight:** Claude's main `AXTextArea` returns garbage for `AXBoundsForRange`, BUT child `AXStaticText` elements have VALID bounds. ClaudeStrategy traverses the tree to find these child elements.
 
-**Why ChromiumStrategy:** Claude's `AXBoundsForRange` returns inconsistent results in some scenarios. The ChromiumStrategy sets a temporary selection to get accurate bounds via `AXBoundsForTextMarkerRange`, then restores the original cursor position.
+**How it works:**
+1. Traverse the AX tree to collect all `AXStaticText` children
+2. Map each segment's position in the full text
+3. Find the segment containing the error
+4. Query `AXBoundsForRange` on that specific child element
+
+**Why not ChromiumStrategy:** Claude's `AXVisibleCharacterRange` always returns the full text range regardless of scroll position, making scroll detection impossible. This breaks the caching mechanisms that ChromiumStrategy relies on.
 
 ### Text Replacement
 
@@ -44,9 +47,12 @@ textReplacementMethod: .browserStyle  // Selection + Cmd+V paste
 ```
 
 **Replacement Flow:**
-1. Select error text using AX selection APIs
-2. Copy suggestion to clipboard
-3. Paste via Cmd+V keyboard event
+1. Find child element containing the error text
+2. Select error range within the child element (UTF-16 indices)
+3. Copy suggestion to clipboard
+4. Paste via Cmd+V keyboard event
+
+**Single-character errors:** For errors like "7 day" → "7-day" where only the space needs replacing, TextWarden searches for the full context ("7 day") to find the correct location, then selects only the space character.
 
 ### Font Configuration
 
@@ -73,18 +79,16 @@ parserType: .claude  // Dedicated parser without Slack's newline quirks
 
 ## Timing Behavior
 
-### Typing Pause Required
+### Typing Pause Detection
 
-Claude uses a 1.0s debounce before analysis:
+ClaudeStrategy includes built-in typing detection:
 
 ```swift
-requiresTypingPause: true  // ChromiumStrategy requires cursor manipulation
+/// Minimum time text must be stable before measuring
+private static let typingPauseThreshold: TimeInterval = 0.3
 ```
 
-This delay is necessary because:
-1. ChromiumStrategy temporarily moves the cursor to measure positions
-2. Moving the cursor during active typing would interfere with user input
-3. The 1.0s pause ensures typing has stopped before position queries
+This prevents measuring bounds while the user is actively typing, which could cause flickering.
 
 ### AX Notifications
 
@@ -92,42 +96,52 @@ This delay is necessary because:
 delaysAXNotifications: false  // Claude sends AX notifications promptly
 ```
 
-Unlike ChatGPT, Claude sends accessibility notifications reliably.
+Claude sends accessibility notifications reliably without batching.
 
 ## Implementation Files
 
-- `Sources/AppConfiguration/AppRegistry.swift`: App configuration (line ~143)
+- `Sources/AppConfiguration/AppRegistry.swift`: App configuration
 - `Sources/ContentParsers/ClaudeContentParser.swift`: Dedicated parser
-- `Sources/Positioning/Strategies/ChromiumStrategy.swift`: Primary positioning strategy
+- `Sources/Positioning/Strategies/ClaudeStrategy.swift`: Tree-traversal positioning strategy
 
 ## Debugging
 
 ### Positioning Issues
 
-If underlines appear misaligned:
+If underlines appear misaligned or at wrong positions:
 
 ```
-Claude uses ChromiumStrategy (selection-based marker positioning)
-Check logs for cursor save/restore and selection range
+ClaudeStrategy uses tree traversal to find AXStaticText children
+Check logs for segment collection and bounds queries
 ```
 
 Typical log output:
 ```
-ChromiumStrategy: Saving cursor position
-ChromiumStrategy: Setting selection for grapheme range (5, 10)
-ChromiumStrategy: Restoring cursor position
+ClaudeStrategy: Built fresh segments (9 segments)
+ClaudeStrategy: Found bounds in segment at offset 214, local range {51, 5}
+ClaudeStrategy: Found bounds (969.0, 313.0, 39.0, 21.0) for range {265, 5}
 ```
 
 ### Text Replacement
 
 Browser-style replacement logs:
 ```
-AnalysisCoordinator: Using browser-style text replacement
+Claude: Using context '7 day' for single-char selection (offset: 1)
+Claude: Adjusted selection to single char at offset 52
+```
+
+### Scroll Issues
+
+If underlines appear after scrolling away from the text:
+
+```
+ClaudeStrategy cannot detect scroll (AXVisibleCharacterRange always returns full text)
+Bounds are recalculated fresh on each request to avoid stale cache
 ```
 
 ## Known Limitations
 
-1. **1.0s analysis delay** - Required for cursor-based positioning; underlines appear after typing pause
-2. **Plain text only** - Claude input doesn't support rich text formatting
-3. **Cursor flicker** - Brief cursor movement during position measurement (usually not visible)
+1. **No caching** - Claude's AX tree is unpredictable during scroll, so bounds are always recalculated fresh
+2. **Scroll detection impossible** - `AXVisibleCharacterRange` always returns full text range
+3. **Plain text only** - Claude input doesn't support rich text formatting
 4. **Electron quirks** - Requires full re-analysis after replacement due to fragile byte offsets
