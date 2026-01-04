@@ -100,10 +100,14 @@ class PositionResolver {
                 strategiesByType[type]
             }
 
-            // Add any remaining strategies not in the preferred list (maintaining tier order)
-            let preferredSet = Set(config.preferredStrategies)
-            let remaining = allStrategies.filter { !preferredSet.contains($0.strategyType) }
-            orderedStrategies.append(contentsOf: remaining)
+            // For apps with a single dedicated strategy (Slack, Claude, Teams, etc.),
+            // don't add fallback strategies - they would give incorrect positions.
+            // Only add fallbacks for apps with multiple preferred strategies.
+            if config.preferredStrategies.count > 1 {
+                let preferredSet = Set(config.preferredStrategies)
+                let remaining = allStrategies.filter { !preferredSet.contains($0.strategyType) }
+                orderedStrategies.append(contentsOf: remaining)
+            }
         } else {
             // Use default tier-based ordering
             orderedStrategies = allStrategies
@@ -128,6 +132,10 @@ class PositionResolver {
         parser: ContentParser,
         bundleID: String
     ) -> GeometryResult {
+        // Check if this app uses a dedicated strategy (single preferred strategy = no fallback)
+        let config = AppRegistry.shared.effectiveConfiguration(for: bundleID)
+        let hasDedicatedStrategy = config.preferredStrategies.count == 1
+
         let cacheKey = CacheKey(
             element: element,
             range: errorRange,
@@ -215,11 +223,20 @@ class PositionResolver {
                     return result
                 }
 
-                // Validate bounds are within edit area
-                if let editArea = editAreaFrame {
-                    let quartzBounds = CoordinateMapper.toQuartzCoordinates(result.bounds)
-                    if !AccessibilityBridge.validateBoundsWithinEditArea(quartzBounds, editAreaFrame: editArea) {
-                        Logger.debug("PositionResolver: Strategy \(strategy.strategyName) bounds outside edit area", category: Logger.accessibility)
+                // Validate bounds are within edit area (unless strategy opts out)
+                // Some strategies like ClaudeStrategy skip this because their bounds come from a different
+                // coordinate system that's known to be correct for the target app
+                let skipEditAreaValidation = result.metadata["skip_edit_area_validation"] as? Bool ?? false
+                if !skipEditAreaValidation, let editArea = editAreaFrame {
+                    // Edit area is in Quartz coordinates (from AX). Most strategies return Cocoa coordinates.
+                    let boundsForValidation = CoordinateMapper.toQuartzCoordinates(result.bounds)
+                    if !AccessibilityBridge.validateBoundsWithinEditArea(boundsForValidation, editAreaFrame: editArea) {
+                        Logger.debug("PositionResolver: Strategy \(strategy.strategyName) bounds outside edit area. Bounds: \(boundsForValidation), EditArea: \(editArea)", category: Logger.accessibility)
+                        // For apps with a single dedicated strategy, return unavailable immediately
+                        // instead of trying fallback strategies that would give incorrect positions
+                        if hasDedicatedStrategy {
+                            return GeometryResult.unavailable(reason: "Text scrolled out of visible area")
+                        }
                         continue
                     }
                 }
