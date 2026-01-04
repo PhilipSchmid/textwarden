@@ -53,6 +53,7 @@ protocol UserPreferencesProviding: AnyObject {
     // Global state
     var isEnabled: Bool { get }
     var disabledApplications: Set<String> { get }
+    var appPauseDurations: [String: PauseDuration] { get }
 
     // Grammar settings
     var selectedDialect: String { get }

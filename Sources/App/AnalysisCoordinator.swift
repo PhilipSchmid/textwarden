@@ -1422,6 +1422,15 @@ class AnalysisCoordinator: ObservableObject {
     /// Start monitoring a specific application
     func startMonitoring(context: ApplicationContext) {
         Logger.debug("AnalysisCoordinator: startMonitoring called for \(context.applicationName)", category: Logger.analysis)
+
+        // Check if app is paused - don't start monitoring if so
+        if let pauseDuration = userPreferences.appPauseDurations[context.bundleIdentifier],
+           pauseDuration != .active
+        {
+            Logger.debug("AnalysisCoordinator: App is paused (\(pauseDuration.rawValue)) - not starting monitoring", category: Logger.analysis)
+            return
+        }
+
         guard permissionManager.isPermissionGranted else {
             Logger.debug("AnalysisCoordinator: Accessibility permissions not granted", category: Logger.analysis)
             return
@@ -1669,6 +1678,14 @@ class AnalysisCoordinator: ObservableObject {
     /// Handle text change and trigger analysis
     func handleTextChange(_ text: String, in context: ApplicationContext) {
         Logger.debug("AnalysisCoordinator: Text changed in \(context.applicationName) (\(text.count) chars)", category: Logger.analysis)
+
+        // Check if app is paused - skip all analysis if so
+        if let pauseDuration = userPreferences.appPauseDurations[context.bundleIdentifier],
+           pauseDuration != .active
+        {
+            Logger.debug("AnalysisCoordinator: App is paused (\(pauseDuration.rawValue)) - skipping analysis", category: Logger.analysis)
+            return
+        }
 
         // Don't process text changes during a conversation switch in Mac Catalyst apps
         if let switchTime = lastConversationSwitchTime,
