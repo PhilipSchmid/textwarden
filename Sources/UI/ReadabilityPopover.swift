@@ -276,6 +276,14 @@ struct ReadabilityPopoverContentView: View {
         CGFloat(preferences.suggestionTextSize)
     }
 
+    /// Score color that's audience-relative when analysis is available
+    private func scoreColor(for result: ReadabilityResult) -> NSColor {
+        if let analysis = popover.analysis {
+            return result.colorForAudience(analysis.targetAudience)
+        }
+        return result.color
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let result = popover.result {
@@ -283,7 +291,7 @@ struct ReadabilityPopoverContentView: View {
                 HStack(alignment: .center, spacing: 8) {
                     Image(systemName: "text.book.closed")
                         .font(.system(size: 14))
-                        .foregroundColor(Color(result.color))
+                        .foregroundColor(Color(scoreColor(for: result)))
 
                     Text("Readability Score")
                         .font(.system(size: baseTextSize * 0.9, weight: .semibold))
@@ -312,7 +320,7 @@ struct ReadabilityPopoverContentView: View {
                     // Large score number
                     Text("\(result.displayScore)")
                         .font(.system(size: 48, weight: .bold, design: .rounded))
-                        .foregroundColor(Color(result.color))
+                        .foregroundColor(Color(scoreColor(for: result)))
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(result.label)
@@ -400,9 +408,13 @@ struct ReadabilityPopoverContentView: View {
                     Divider()
                         .padding(.horizontal, 12)
 
-                    ScoreLegendView(colors: colors, fontSize: baseTextSize * 0.75)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
+                    ScoreLegendView(
+                        colors: colors,
+                        fontSize: baseTextSize * 0.75,
+                        targetAudience: popover.analysis?.targetAudience
+                    )
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
                 }
 
             } else {
@@ -446,15 +458,29 @@ struct ReadabilityPopoverContentView: View {
 struct ScoreLegendView: View {
     let colors: AppColors
     let fontSize: CGFloat
+    let targetAudience: TargetAudience?
 
-    private let legendItems: [(range: String, label: String, color: NSColor)] = [
-        ("90-100", "Very Easy", .systemGreen),
-        ("70-89", "Easy", .systemGreen),
-        ("60-69", "Standard", .systemYellow),
-        ("50-59", "Fairly Difficult", .systemOrange),
-        ("30-49", "Difficult", .systemOrange),
-        ("0-29", "Very Difficult", .systemRed),
-    ]
+    /// Generate audience-relative legend items based on the threshold
+    private var legendItems: [(range: String, label: String, color: NSColor)] {
+        guard let audience = targetAudience else {
+            // Fallback to default ranges if no audience specified
+            return [
+                ("70+", "Easy to read", .systemGreen),
+                ("50-69", "Moderate", .systemYellow),
+                ("30-49", "Difficult", .systemOrange),
+                ("0-29", "Very difficult", .systemRed),
+            ]
+        }
+
+        let threshold = Int(audience.minimumFleschScore)
+
+        return [
+            ("\(threshold + 10)+", "Excellent", .systemGreen),
+            ("\(threshold)-\(threshold + 9)", "Meeting target", .systemYellow),
+            ("\(threshold - 10)-\(threshold - 1)", "Slightly complex", .systemOrange),
+            ("<\(threshold - 10)", "Too complex", .systemRed),
+        ]
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
