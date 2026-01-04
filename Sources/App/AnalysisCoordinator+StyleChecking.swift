@@ -705,6 +705,52 @@ extension AnalysisCoordinator {
         }
     }
 
+    /// Clean up stale readability suggestions that no longer correspond to complex sentences.
+    /// Called when readability analysis completes with updated complex sentence list.
+    func cleanupStaleReadabilitySuggestions(currentComplexRanges: [NSRange]) {
+        let before = currentStyleSuggestions.count
+        let readabilityBefore = currentStyleSuggestions.filter(\.isReadabilitySuggestion).count
+
+        if currentComplexRanges.isEmpty {
+            // No complex sentences - remove ALL readability suggestions
+            currentStyleSuggestions.removeAll(where: \.isReadabilitySuggestion)
+        } else {
+            // Remove readability suggestions that don't match any current complex sentence range
+            currentStyleSuggestions.removeAll { suggestion in
+                guard suggestion.isReadabilitySuggestion else { return false }
+
+                let suggestionRange = NSRange(location: suggestion.originalStart, length: suggestion.originalEnd - suggestion.originalStart)
+
+                // Check if this suggestion's range matches any current complex sentence
+                let hasMatchingComplexSentence = currentComplexRanges.contains { complexRange in
+                    // Allow some tolerance for range matching (text might have shifted slightly)
+                    complexRange.location == suggestionRange.location &&
+                        abs(complexRange.length - suggestionRange.length) <= 2
+                }
+
+                return !hasMatchingComplexSentence
+            }
+        }
+
+        let removed = before - currentStyleSuggestions.count
+        if removed > 0 {
+            Logger.debug("AnalysisCoordinator: Cleaned up \(removed) stale readability suggestions (\(readabilityBefore) before, \(currentComplexRanges.count) current complex sentences)", category: Logger.analysis)
+
+            // Update the indicator to reflect the change
+            if let element = textMonitor.monitoredElement {
+                floatingIndicator.update(
+                    errors: currentErrors,
+                    styleSuggestions: currentStyleSuggestions,
+                    readabilityResult: currentReadabilityResult,
+                    readabilityAnalysis: currentReadabilityAnalysis,
+                    element: element,
+                    context: monitoredContext,
+                    sourceText: lastAnalyzedText
+                )
+            }
+        }
+    }
+
     // MARK: - Text Generation Context
 
     /// Extract context for text generation from the current monitored element

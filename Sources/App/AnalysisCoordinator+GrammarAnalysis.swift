@@ -280,16 +280,23 @@ extension AnalysisCoordinator {
                 } else {
                     errorOverlay.clearReadabilityUnderlines()
                 }
+
+                // Clean up stale readability suggestions that no longer match complex sentences
+                cleanupStaleReadabilitySuggestions(currentComplexRanges: analysis.complexSentences.map(\.range))
             } else {
                 // Feature disabled - just calculate overall readability without sentence analysis
                 currentReadabilityResult = ReadabilityCalculator.shared.fleschReadingEase(for: text)
                 currentReadabilityAnalysis = nil
                 errorOverlay.clearReadabilityUnderlines()
+                // Clear all readability suggestions since feature is disabled
+                cleanupStaleReadabilitySuggestions(currentComplexRanges: [])
             }
         } else {
             currentReadabilityResult = nil
             currentReadabilityAnalysis = nil
             errorOverlay.clearReadabilityUnderlines()
+            // Clear all readability suggestions since readability is disabled
+            cleanupStaleReadabilitySuggestions(currentComplexRanges: [])
         }
 
         Logger.debug("AnalysisCoordinator: Grammar analysis complete, UI updated", category: Logger.analysis)
