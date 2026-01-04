@@ -155,7 +155,9 @@ extension AppConfiguration {
             spacingMultiplier: 1.0
         ),
         horizontalPadding: 12,
-        preferredStrategies: [.chromium, .textMarker, .rangeBounds, .elementTree, .lineIndex],
+        // Note: Avoid .chromium as first strategy - it manipulates cursor/selection for positioning
+        // which causes annoying cursor jumps and word selection. Try .rangeBounds first.
+        preferredStrategies: [.rangeBounds, .textMarker, .elementTree, .lineIndex],
         features: AppFeatures(
             visualUnderlinesEnabled: true,
             textReplacementMethod: .browserStyle,
