@@ -149,21 +149,24 @@ extension AnalysisCoordinator {
         let textChanged = !currentText.hasPrefix(analyzedText) && !analyzedText.hasPrefix(currentText)
         if textChanged {
             // Check if this app needs special handling for text validation
-            // Mac Catalyst apps and Microsoft Office have unreliable AX notifications
+            // Some apps have unreliable AX notifications that cause text to appear changed
+            // TODO: Long-term, consider a more general solution (e.g., per-app config flag)
             let isCatalystApp = textMonitor.currentContext?.isMacCatalystApp ?? false
-            let isMicrosoftOffice = textMonitor.currentContext?.bundleIdentifier == "com.microsoft.Word" ||
-                textMonitor.currentContext?.bundleIdentifier == "com.microsoft.Powerpoint" ||
-                textMonitor.currentContext?.bundleIdentifier == "com.microsoft.Outlook"
-            let needsReanalysis = isCatalystApp || isMicrosoftOffice
+            let bundleID = textMonitor.currentContext?.bundleIdentifier
+            let needsSpecialHandling = bundleID == "com.microsoft.Word" ||
+                bundleID == "com.microsoft.Powerpoint" ||
+                bundleID == "com.microsoft.Outlook" ||
+                bundleID == "com.tinyspeck.slackmacgap"
+            let needsReanalysis = isCatalystApp || needsSpecialHandling
 
             Logger.debug("Text validation: Text content changed - \(needsReanalysis ? "triggering re-analysis" : "hiding indicator") (possibly switched conversation)", category: Logger.analysis)
 
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
 
-                // For Microsoft Office, don't hide indicators during focus bounces
+                // For apps with unreliable AX, don't hide indicators during focus bounces
                 // Just trigger re-analysis to update errors
-                if isMicrosoftOffice {
+                if needsSpecialHandling {
                     currentErrors.removeAll()
                     lastAnalyzedText = ""
                     positionResolver.clearCache()
