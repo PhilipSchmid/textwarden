@@ -3,6 +3,16 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.1.0-beta.5</title>
+            <pubDate>Mon, 05 Jan 2026 11:20:44 +0100</pubDate>
+            <sparkle:version>14</sparkle:version>
+            <sparkle:shortVersionString>0.1.0-beta.5</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:channel>experimental</sparkle:channel>
+            <description>See GitHub release for details</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-beta.5/TextWarden-0.1.0-beta.5-Universal.dmg" length="19700605" type="application/octet-stream" sparkle:edSignature="hsb1sXozbD3DBFlshxrEhp7pEBSo9iHp1r7p+xU83p1Yp5+iFpkpDuWmbZio1z/IDB3/F11k2gu15/ewbC+XCw=="/>
+        </item>
+        <item>
             <title>0.1.0-beta.4</title>
             <pubDate>Mon, 05 Jan 2026 00:24:43 +0100</pubDate>
             <sparkle:version>13</sparkle:version>
