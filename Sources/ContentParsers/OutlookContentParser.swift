@@ -45,6 +45,7 @@ class OutlookContentParser: ContentParser {
 
     /// Custom text extraction for Microsoft Outlook
     /// Avoids parameterized AX queries that crash mso99 framework
+    /// Strips quoted content from reply/forward emails to only analyze user's new text
     func extractText(from element: AXUIElement) -> String? {
         var roleRef: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
@@ -59,7 +60,14 @@ class OutlookContentParser: ContentParser {
            !text.isEmpty
         {
             Logger.debug("OutlookContentParser: extractText - got AXValue (\(text.count) chars)", category: Logger.accessibility)
-            return text
+
+            // Strip quoted content from reply/forward emails
+            // Only analyze the user's new text, not quoted previous messages
+            let strippedText = MailContentParser.stripQuotedContent(from: text)
+            if strippedText.count != text.count {
+                Logger.debug("OutlookContentParser: Stripped quoted content (\(text.count) -> \(strippedText.count) chars)", category: Logger.accessibility)
+            }
+            return strippedText
         }
 
         Logger.debug("OutlookContentParser: extractText - no text found via AXValue", category: Logger.accessibility)
