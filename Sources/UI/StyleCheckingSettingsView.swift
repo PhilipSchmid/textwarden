@@ -92,6 +92,40 @@ struct StyleCheckingSettingsView: View {
             // MARK: - AI Style Suggestions Section
 
             Section {
+                // Availability status (always visible at top)
+                HStack(spacing: 12) {
+                    Image(systemName: fmStatus.symbolName)
+                        .font(.title2)
+                        .foregroundColor(fmStatus.isAvailable ? .green : .orange)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(fmStatus.isAvailable ? "Ready" : "Not Available")
+                            .font(.system(size: 13, weight: .semibold))
+
+                        Text(fmStatus.userMessage)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+
+                    if fmStatus == .appleIntelligenceNotEnabled {
+                        Button("Open Settings") {
+                            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.appleintelli") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                    } else if fmStatus.canRetry {
+                        Button("Check Again") {
+                            checkFMAvailability()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+
                 Toggle(isOn: $preferences.enableStyleChecking) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Enable AI Style Suggestions")
@@ -101,65 +135,47 @@ struct StyleCheckingSettingsView: View {
                     }
                 }
                 .toggleStyle(.switch)
-            } header: {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "sparkles")
-                            .font(.title2)
-                            .foregroundColor(.purple)
-                        Text("AI Style Suggestions")
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                    }
+                .disabled(!fmStatus.isAvailable)
 
-                    Text("AI-powered suggestions to improve your writing. Includes AI Compose for generating text from instructions. All processing happens on your device.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            if preferences.enableStyleChecking {
-                // MARK: - Writing Style Section
-
-                Section {
-                    // Custom segmented control with tooltips
-                    HStack(spacing: 0) {
-                        ForEach(UserPreferences.writingStyles, id: \.self) { style in
-                            Button {
-                                preferences.selectedWritingStyle = style
-                            } label: {
-                                Text(style)
-                                    .font(.system(size: 12, weight: preferences.selectedWritingStyle == style ? .semibold : .regular))
-                                    .foregroundColor(preferences.selectedWritingStyle == style ? .white : .primary)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 6)
-                                    .background(
-                                        preferences.selectedWritingStyle == style
-                                            ? Color.accentColor
-                                            : Color.clear
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                            .help(styleDescription(for: style))
-                        }
-                    }
-                    .background(Color(.separatorColor).opacity(0.2))
-                    .cornerRadius(6)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color(.separatorColor), lineWidth: 0.5)
-                    )
-                } header: {
-                    Text("Writing Style")
-                        .font(.headline)
-                }
-
-                // MARK: - Creativity Section
-
-                Section {
-                    // Temperature Preset (Creativity vs Consistency)
+                if preferences.enableStyleChecking {
+                    // Writing Style segmented control
                     VStack(alignment: .leading, spacing: 8) {
-                        // Segmented control for temperature presets
+                        Text("Writing Style")
+                            .font(.headline)
+
+                        HStack(spacing: 0) {
+                            ForEach(UserPreferences.writingStyles, id: \.self) { style in
+                                Button {
+                                    preferences.selectedWritingStyle = style
+                                } label: {
+                                    Text(style)
+                                        .font(.system(size: 12, weight: preferences.selectedWritingStyle == style ? .semibold : .regular))
+                                        .foregroundColor(preferences.selectedWritingStyle == style ? .white : .primary)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 6)
+                                        .background(
+                                            preferences.selectedWritingStyle == style
+                                                ? Color.accentColor
+                                                : Color.clear
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                                .help(styleDescription(for: style))
+                            }
+                        }
+                        .background(Color(.separatorColor).opacity(0.2))
+                        .cornerRadius(6)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color(.separatorColor), lineWidth: 0.5)
+                        )
+                    }
+
+                    // Creativity segmented control
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Creativity")
+                            .font(.headline)
+
                         HStack(spacing: 0) {
                             ForEach(StyleTemperaturePreset.allCases) { preset in
                                 Button {
@@ -195,56 +211,25 @@ struct StyleCheckingSettingsView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
-                    .padding(.vertical, 4)
-                } header: {
-                    Text("Creativity")
-                        .font(.headline)
                 }
-
-                // MARK: - AI Features Status Section
-
-                Section {
-                    HStack(spacing: 12) {
-                        Image(systemName: fmStatus.symbolName)
+            } header: {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "sparkles")
                             .font(.title2)
-                            .foregroundColor(fmStatus.isAvailable ? .green : .orange)
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(fmStatus.isAvailable ? "AI Features Ready" : "AI Features")
-                                .font(.system(size: 13, weight: .semibold))
-
-                            Text(fmStatus.userMessage)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-
-                        Spacer()
-
-                        if fmStatus == .appleIntelligenceNotEnabled {
-                            Button("Open Settings") {
-                                // Open System Settings → Apple Intelligence
-                                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.appleintelli") {
-                                    NSWorkspace.shared.open(url)
-                                }
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                        } else if fmStatus.canRetry {
-                            Button("Check Again") {
-                                checkFMAvailability()
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                        }
+                            .foregroundColor(.purple)
+                        Text("AI Style Suggestions")
+                            .font(.title3)
+                            .fontWeight(.semibold)
                     }
-                    .padding(.vertical, 4)
-                } header: {
-                    Text("Availability")
-                        .font(.headline)
+
+                    Text("AI-powered suggestions to improve your writing. Includes AI Compose for generating text from instructions. All processing happens on your device.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
-                .onAppear {
-                    checkFMAvailability()
-                }
+            }
+            .onAppear {
+                checkFMAvailability()
             }
         }
         .formStyle(.grouped)
