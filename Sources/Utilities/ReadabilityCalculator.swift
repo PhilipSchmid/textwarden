@@ -440,10 +440,10 @@ final class ReadabilityCalculator: Sendable {
                 let parentheticalIsInline = isParentheticalInline(currentSentence)
 
                 // Also check for unclosed brackets (split happened inside parentheses)
-                let openParens = currentSentence.filter { $0 == "(" }.count
-                let closeParens = currentSentence.filter { $0 == ")" }.count
-                let openBrackets = currentSentence.filter { $0 == "[" }.count
-                let closeBrackets = currentSentence.filter { $0 == "]" }.count
+                let openParens = currentSentence.count { $0 == "(" }
+                let closeParens = currentSentence.count { $0 == ")" }
+                let openBrackets = currentSentence.count { $0 == "[" }
+                let closeBrackets = currentSentence.count { $0 == "]" }
                 let hasUnclosedParenthesis = openParens > closeParens || openBrackets > closeBrackets
 
                 // Must have inline parenthetical OR unclosed brackets to merge
