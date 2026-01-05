@@ -6,15 +6,58 @@ This guide helps you diagnose and resolve common issues with TextWarden.
 
 ### App doesn't launch when double-clicked
 
-If TextWarden doesn't open when you double-click it in `/Applications`:
+TextWarden is a menu bar app (no dock icon), which can cause silent launch failures on first run. Try these solutions in order:
 
-1. **First launch after download**: Right-click the app and select "Open" to approve it through Gatekeeper
-2. **Verify installation source**: Only install from the official DMG download (GitHub releases)
-3. **Check for development builds**: If you previously ran `make run`, remove and reinstall:
-   ```bash
-   rm -rf /Applications/TextWarden.app
-   # Then reinstall from the official DMG
-   ```
+#### Solution 1: Right-click to Open (Recommended)
+
+Since TextWarden runs in the menu bar only, the standard Gatekeeper approval dialog may not appear. Force the approval:
+
+1. Right-click (or Control-click) on `/Applications/TextWarden.app`
+2. Select **"Open"** from the context menu
+3. Click **"Open"** in the dialog that appears
+4. Look for the TextWarden icon in your menu bar
+
+#### Solution 2: Remove Quarantine Attribute
+
+Downloaded files have a quarantine attribute that triggers Gatekeeper. Remove it:
+
+```bash
+xattr -cr /Applications/TextWarden.app
+```
+
+Then double-click the app or right-click → Open.
+
+#### Solution 3: Clean Installation (After Upgrade)
+
+If you upgraded by dragging over an existing installation, the old app's attributes may cause conflicts:
+
+```bash
+# 1. Quit TextWarden if running
+killall TextWarden 2>/dev/null
+
+# 2. Remove the old installation completely
+rm -rf /Applications/TextWarden.app
+
+# 3. Reinstall from the DMG
+# Mount the DMG and drag TextWarden to Applications
+
+# 4. Register the new app with LaunchServices
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister /Applications/TextWarden.app
+
+# 5. Right-click → Open for first launch
+```
+
+#### Solution 4: Check System Logs
+
+If the app still doesn't launch, check for errors:
+
+```bash
+# Check for recent TextWarden-related logs
+log show --predicate 'process == "TextWarden" OR subsystem == "com.textwarden.app"' --last 5m
+
+# Check for Gatekeeper blocks
+log show --predicate 'subsystem == "com.apple.launchservices" AND eventMessage CONTAINS "TextWarden"' --last 5m
+```
 
 **Verify your installation is properly signed:**
 ```bash
