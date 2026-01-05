@@ -16,6 +16,86 @@ import Foundation
 import KeyboardShortcuts
 import LaunchAtLogin
 
+// MARK: - Path Sanitization
+
+/// Utility for anonymizing file paths to protect user privacy
+enum PathSanitizer {
+    /// Patterns to detect and replace usernames in paths
+    private static let userPathPattern = try! NSRegularExpression(
+        pattern: "/Users/[^/]+/",
+        options: []
+    )
+
+    /// Anonymize a file path by replacing username with placeholder
+    static func anonymize(_ path: String) -> String {
+        let range = NSRange(path.startIndex..., in: path)
+        return userPathPattern.stringByReplacingMatches(
+            in: path,
+            options: [],
+            range: range,
+            withTemplate: "/Users/[REDACTED]/"
+        )
+    }
+}
+
+// MARK: - Log Sanitization
+
+/// Utility for sanitizing log file contents before export
+enum LogSanitizer {
+    /// Keywords that indicate sensitive content - lines containing these are removed
+    private static let sensitiveKeywords = [
+        "password", "passwd", "token", "secret", "credential",
+        "apikey", "api_key", "api-key", "auth_token", "authtoken",
+        "access_token", "accesstoken", "private_key", "privatekey",
+    ]
+
+    /// Sanitize log file contents for safe export
+    /// - Removes lines containing sensitive keywords
+    /// - Anonymizes file paths containing usernames
+    /// - Returns the sanitized content
+    static func sanitize(_ content: String) -> String {
+        let lines = content.components(separatedBy: .newlines)
+        var sanitizedLines: [String] = []
+
+        for line in lines {
+            let lowercaseLine = line.lowercased()
+
+            // Skip lines containing sensitive keywords
+            if sensitiveKeywords.contains(where: { lowercaseLine.contains($0) }) {
+                sanitizedLines.append("[LINE REDACTED - SENSITIVE KEYWORD]")
+                continue
+            }
+
+            // Anonymize any file paths in the line
+            let sanitizedLine = PathSanitizer.anonymize(line)
+            sanitizedLines.append(sanitizedLine)
+        }
+
+        return sanitizedLines.joined(separator: "\n")
+    }
+
+    /// Sanitize a log file and write to destination
+    /// - Parameters:
+    ///   - sourcePath: Path to the original log file
+    ///   - destinationURL: URL to write the sanitized log
+    /// - Returns: True if successful
+    static func sanitizeFile(from sourcePath: String, to destinationURL: URL) -> Bool {
+        guard let content = try? String(contentsOfFile: sourcePath, encoding: .utf8) else {
+            return false
+        }
+
+        let sanitized = sanitize(content)
+
+        do {
+            try sanitized.write(to: destinationURL, atomically: true, encoding: .utf8)
+            return true
+        } catch {
+            Logger.warning("Failed to write sanitized log: \(error.localizedDescription)", category: Logger.errors)
+            return false
+        }
+    }
+}
+
 #if canImport(FoundationModels)
     import FoundationModels
 #endif
@@ -394,10 +474,20 @@ struct SettingsDump: Codable {
     let enableLanguageDetection: Bool
     let excludedLanguages: [String]
 
+    // Punctuation Rules
+    let enforceOxfordComma: Bool
+    let checkEllipsis: Bool
+    let checkUnclosedQuotes: Bool
+    let checkDashes: Bool
+
     // Predefined Wordlists
     let internetAbbreviationsEnabled: Bool
     let genZSlangEnabled: Bool
     let itTerminologyEnabled: Bool
+    let brandNamesEnabled: Bool
+    let personNamesEnabled: Bool
+    let lastNamesEnabled: Bool
+    let macOSDictionaryEnabled: Bool
 
     // Appearance
     let appTheme: String
@@ -405,8 +495,25 @@ struct SettingsDump: Codable {
     let suggestionOpacity: Double
     let suggestionTextSize: Double
     let suggestionPosition: String
+    let showUnderlines: Bool
     let underlineThickness: Double
+    let maxErrorsForUnderlines: Int
     let indicatorPosition: String
+    let enableHoverPopover: Bool
+    let popoverHoverDelayMs: Int
+
+    // Readability
+    let readabilityEnabled: Bool
+    let showReadabilityUnderlines: Bool
+    let selectedTargetAudience: String
+
+    // Style Checking
+    let autoStyleChecking: Bool
+    let alwaysShowCapsule: Bool
+
+    // Website & App Overrides (counts only for privacy)
+    let disabledWebsitesCount: Int
+    let appUnderlinesDisabledCount: Int
 
     // Logging
     let logLevel: String
@@ -418,6 +525,7 @@ struct SettingsDump: Codable {
     let showTextFieldBounds: Bool
     let showCGWindowCoords: Bool
     let showCocoaCoords: Bool
+    let showCharacterMarkers: Bool
 
     // Keyboard Shortcuts
     let keyboardShortcutsEnabled: Bool
@@ -431,25 +539,46 @@ struct SettingsDump: Codable {
             enabledCategories: Array(preferences.enabledCategories).sorted(),
             enableLanguageDetection: preferences.enableLanguageDetection,
             excludedLanguages: Array(preferences.excludedLanguages).sorted(),
+            enforceOxfordComma: preferences.enforceOxfordComma,
+            checkEllipsis: preferences.checkEllipsis,
+            checkUnclosedQuotes: preferences.checkUnclosedQuotes,
+            checkDashes: preferences.checkDashes,
             internetAbbreviationsEnabled: preferences.enableInternetAbbreviations,
             genZSlangEnabled: preferences.enableGenZSlang,
             itTerminologyEnabled: preferences.enableITTerminology,
+            brandNamesEnabled: preferences.enableBrandNames,
+            personNamesEnabled: preferences.enablePersonNames,
+            lastNamesEnabled: preferences.enableLastNames,
+            macOSDictionaryEnabled: preferences.enableMacOSDictionary,
             appTheme: preferences.appTheme,
             overlayTheme: preferences.overlayTheme,
             suggestionOpacity: preferences.suggestionOpacity,
             suggestionTextSize: preferences.suggestionTextSize,
             suggestionPosition: preferences.suggestionPosition,
+            showUnderlines: preferences.showUnderlines,
             underlineThickness: preferences.underlineThickness,
+            maxErrorsForUnderlines: preferences.maxErrorsForUnderlines,
             indicatorPosition: preferences.indicatorPosition,
+            enableHoverPopover: preferences.enableHoverPopover,
+            popoverHoverDelayMs: preferences.popoverHoverDelayMs,
+            readabilityEnabled: preferences.readabilityEnabled,
+            showReadabilityUnderlines: preferences.showReadabilityUnderlines,
+            selectedTargetAudience: preferences.selectedTargetAudience,
+            autoStyleChecking: preferences.autoStyleChecking,
+            alwaysShowCapsule: preferences.alwaysShowCapsule,
+            disabledWebsitesCount: preferences.disabledWebsites.count,
+            appUnderlinesDisabledCount: preferences.appUnderlinesDisabled.count,
             logLevel: Logger.minimumLogLevel.rawValue,
             fileLoggingEnabled: Logger.fileLoggingEnabled,
-            logFilePath: Logger.logFilePath,
+            logFilePath: PathSanitizer.anonymize(Logger.logFilePath),
             debugOverlaysEnabled: preferences.showDebugBorderTextFieldBounds ||
                 preferences.showDebugBorderCGWindowCoords ||
-                preferences.showDebugBorderCocoaCoords,
+                preferences.showDebugBorderCocoaCoords ||
+                preferences.showDebugCharacterMarkers,
             showTextFieldBounds: preferences.showDebugBorderTextFieldBounds,
             showCGWindowCoords: preferences.showDebugBorderCGWindowCoords,
             showCocoaCoords: preferences.showDebugBorderCocoaCoords,
+            showCharacterMarkers: preferences.showDebugCharacterMarkers,
             keyboardShortcutsEnabled: preferences.keyboardShortcutsEnabled,
             shortcuts: shortcuts
         )
@@ -503,7 +632,7 @@ struct StrategyProfileDiagnostics: Codable {
         let cache = StrategyProfileCache.shared
         return StrategyProfileDiagnostics(
             profileCount: cache.profileCount,
-            profileCachePath: cache.cacheFileURL.path,
+            profileCachePath: PathSanitizer.anonymize(cache.cacheFileURL.path),
             profiles: cache.allProfiles
         )
     }
@@ -550,7 +679,7 @@ struct DiagnosticReport: Codable {
     ) -> DiagnosticReport {
         DiagnosticReport(
             reportTimestamp: Date(),
-            reportVersion: "6.0", // Bumped to 6.0 for Apple Intelligence migration
+            reportVersion: "7.0", // Bumped to 7.0 for enhanced privacy sanitization
             appVersion: BuildInfo.appVersion,
             buildNumber: BuildInfo.buildNumber,
             buildTimestamp: BuildInfo.buildTimestamp,
@@ -617,20 +746,20 @@ struct DiagnosticReport: Codable {
             let overviewURL = tempDir.appendingPathComponent("diagnostic_overview.json")
             try jsonString.write(to: overviewURL, atomically: true, encoding: .utf8)
 
-            // 3. Copy log files (all rotated logs if they exist)
+            // 3. Sanitize and copy log files (removes sensitive content, anonymizes paths)
             let logPath = Logger.logFilePath
             if fileManager.fileExists(atPath: logPath) {
                 let logFileName = (logPath as NSString).lastPathComponent
                 let destLogURL = tempDir.appendingPathComponent(logFileName)
-                try fileManager.copyItem(atPath: logPath, toPath: destLogURL.path)
+                _ = LogSanitizer.sanitizeFile(from: logPath, to: destLogURL)
 
-                // Copy rotated logs
+                // Sanitize rotated logs
                 for i in 1 ..< 5 {
                     let rotatedLog = "\(logPath).\(i)"
                     if fileManager.fileExists(atPath: rotatedLog) {
                         let rotatedFileName = "\(logFileName).\(i)"
                         let destRotatedURL = tempDir.appendingPathComponent(rotatedFileName)
-                        try fileManager.copyItem(atPath: rotatedLog, toPath: destRotatedURL.path)
+                        _ = LogSanitizer.sanitizeFile(from: rotatedLog, to: destRotatedURL)
                     }
                 }
             }
