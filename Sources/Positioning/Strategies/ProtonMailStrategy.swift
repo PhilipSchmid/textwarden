@@ -21,7 +21,7 @@ import AppKit
 import ApplicationServices
 
 /// A segment of text with its visual bounds from the AX tree
-private struct TextPart {
+private struct TextPart: BoundedTextPart {
     let text: String
     let range: NSRange // Character range in the full text
     let frame: CGRect // Visual bounds from AXFrame (Quartz coordinates)
@@ -302,13 +302,14 @@ class ProtonMailStrategy: GeometryProvider {
             return calculateSubElementBounds(targetRange: targetRange, in: part, element: element)
         }
 
-        // Multiple overlapping parts: union their bounds
-        var unionBounds = overlappingParts[0].frame
-        for part in overlappingParts.dropFirst() {
-            unionBounds = unionBounds.union(part.frame)
-        }
+        // Multiple overlapping parts: use shared utility for correct sub-element bounds calculation
+        let unionBounds = TextPartBoundsCalculator.calculateMultiPartBounds(
+            targetRange: targetRange,
+            overlappingParts: overlappingParts,
+            getBoundsForRange: getBoundsForRange
+        )
 
-        Logger.debug("ProtonMailStrategy: Unioned \(overlappingParts.count) TextParts for range \(targetRange)", category: Logger.ui)
+        Logger.debug("ProtonMailStrategy: Calculated sub-bounds for \(overlappingParts.count) TextParts for range \(targetRange)", category: Logger.ui)
         return unionBounds
     }
 

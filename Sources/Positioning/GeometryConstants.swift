@@ -6,8 +6,80 @@
 //  These values are used to filter out invalid or suspicious AX API results.
 //
 
+import ApplicationServices
 import CoreGraphics
 import Foundation
+
+// MARK: - BoundedTextPart Protocol
+
+/// Protocol for text parts that can provide bounds for a character range
+/// Used by positioning strategies to calculate precise sub-element bounds
+protocol BoundedTextPart {
+    /// Character range in the full text
+    var range: NSRange { get }
+
+    /// Visual bounds from AXFrame (Quartz coordinates)
+    var frame: CGRect { get }
+
+    /// AX element reference for querying AXBoundsForRange
+    var element: AXUIElement { get }
+}
+
+// MARK: - Multi-Part Bounds Calculation
+
+/// Utility for calculating correct bounds when text spans multiple TextParts
+enum TextPartBoundsCalculator {
+    /// Calculate union bounds for a target range that spans multiple TextParts.
+    /// For each overlapping part, calculates sub-element bounds for just the portion within the target range,
+    /// rather than using the entire TextPart frame (which could extend into adjacent text).
+    ///
+    /// - Parameters:
+    ///   - targetRange: The character range to calculate bounds for
+    ///   - overlappingParts: All TextParts that overlap with the target range
+    ///   - getBoundsForRange: Closure to query AXBoundsForRange on a child element
+    /// - Returns: Union bounds for all parts, or nil if no bounds could be calculated
+    static func calculateMultiPartBounds(
+        targetRange: NSRange,
+        overlappingParts: [some BoundedTextPart],
+        getBoundsForRange: (_ location: Int, _ length: Int, _ element: AXUIElement) -> CGRect?
+    ) -> CGRect? {
+        let targetEnd = targetRange.location + targetRange.length
+        var unionBounds: CGRect?
+
+        for part in overlappingParts {
+            // Calculate the intersection of the target range with this part's range
+            let partEnd = part.range.location + part.range.length
+            let overlapStart = max(targetRange.location, part.range.location)
+            let overlapEnd = min(targetEnd, partEnd)
+            let overlapLength = overlapEnd - overlapStart
+
+            guard overlapLength > 0 else { continue }
+
+            // Calculate local offset within this TextPart
+            let offsetInPart = overlapStart - part.range.location
+
+            // Get sub-element bounds for just this portion
+            if let partBounds = getBoundsForRange(offsetInPart, overlapLength, part.element),
+               partBounds.width > 0, partBounds.height > 0, partBounds.height < 50
+            {
+                if let existing = unionBounds {
+                    unionBounds = existing.union(partBounds)
+                } else {
+                    unionBounds = partBounds
+                }
+            } else {
+                // Fallback to full frame if sub-element bounds fail
+                if let existing = unionBounds {
+                    unionBounds = existing.union(part.frame)
+                } else {
+                    unionBounds = part.frame
+                }
+            }
+        }
+
+        return unionBounds
+    }
+}
 
 /// Constants for validating geometry bounds from accessibility APIs
 enum GeometryConstants {

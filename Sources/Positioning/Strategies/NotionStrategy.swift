@@ -25,7 +25,7 @@ import AppKit
 import ApplicationServices
 
 /// A segment of text with its visual bounds from the AX tree
-private struct TextPart {
+private struct TextPart: BoundedTextPart {
     let text: String
     let range: NSRange // Character range in the full text
     let frame: CGRect // Visual bounds from AXFrame (Quartz coordinates)
@@ -326,14 +326,14 @@ class NotionStrategy: GeometryProvider {
             return nil
         }
 
-        // Multiple containing parts (shouldn't happen with non-overlapping TextParts)
-        // Union their bounds as a fallback
-        var unionBounds = containingParts[0].frame
-        for part in containingParts.dropFirst() {
-            unionBounds = unionBounds.union(part.frame)
-        }
+        // Multiple containing parts: use shared utility for correct sub-element bounds calculation
+        let unionBounds = TextPartBoundsCalculator.calculateMultiPartBounds(
+            targetRange: targetRange,
+            overlappingParts: containingParts,
+            getBoundsForRange: getBoundsForRange
+        )
 
-        Logger.trace("NotionStrategy: Unioned \(containingParts.count) TextParts for range \(targetRange)", category: Logger.ui)
+        Logger.trace("NotionStrategy: Calculated sub-bounds for \(containingParts.count) TextParts for range \(targetRange)", category: Logger.ui)
         return unionBounds
     }
 
