@@ -256,16 +256,6 @@ struct GeneralPreferencesView: View {
                 }
                 .toggleStyle(.switch)
 
-                Toggle(isOn: $preferences.showReadabilityScore) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Show readability score")
-                        Text("Display Flesch Reading Ease score in the indicator for text with 30+ words")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .toggleStyle(.switch)
-
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text("Hover delay:")

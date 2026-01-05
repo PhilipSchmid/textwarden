@@ -9,6 +9,7 @@ This guide explains all the settings available in TextWarden and how they affect
 - [Updates](#updates)
 - [Grammar \& Language](#grammar--language)
 - [Custom Vocabulary](#custom-vocabulary)
+- [Readability](#readability)
 - [Style Checking (Apple Intelligence)](#style-checking-apple-intelligence)
 - [Appearance](#appearance)
 - [Application Controls](#application-controls)
@@ -164,6 +165,72 @@ TextWarden includes optional word lists you can enable:
 
 ---
 
+## Readability
+
+TextWarden analyzes text complexity using the Flesch Reading Ease formula. These settings are found in **Settings → Style** under the Readability section.
+
+> **Note:** Readability features work independently of Apple Intelligence and are available on all supported macOS versions.
+
+### Show Readability Score
+
+**What it does:** Displays a Flesch Reading Ease score in the floating indicator for text with 30 or more words. The score ranges from 0-100, with higher scores indicating easier-to-read text.
+
+**Score interpretation:**
+| Score | Label | What it means |
+|-------|-------|---------------|
+| 90-100 | Very Easy | Easily understood by an average 11-year-old |
+| 70-89 | Easy | Conversational English for consumers |
+| 60-69 | Standard | Easily understood by 13-15 year olds |
+| 50-59 | Fairly Difficult | Fairly difficult to read |
+| 30-49 | Difficult | College-level reading |
+| 0-29 | Very Difficult | Best understood by university graduates |
+
+**How it works:** Click on the readability score in the indicator to see a detailed breakdown with improvement tips.
+
+**Default:** On
+
+### Target Audience
+
+**What it does:** Sets the expected reading level for your audience. TextWarden uses this to determine which sentences are "too complex" and need simplification suggestions.
+
+**Options:**
+| Audience | Min Flesch Score | Description |
+|----------|------------------|-------------|
+| Accessible | 65+ | Everyone should understand (~8th grade level) |
+| General | 50+ | Average adult reader (~10th grade level) |
+| Professional | 40+ | Business readers (~12th grade level) |
+| Technical | 30+ | Specialized readers (college level) |
+| Academic | 20+ | Academic/research (graduate level) |
+
+**How it works:** Sentences with a Flesch score significantly below (10+ points) the threshold for your selected audience are flagged. Short sentences (<12 words) are not flagged.
+
+**Default:** General (50+ Flesch score)
+
+**Recommendation:** Match this to your audience. Use "Accessible" for public-facing content, "Professional" for business documents, "Technical" for developer documentation.
+
+### Highlight Complex Sentences
+
+**What it does:** Master toggle for sentence-level complexity analysis. When enabled, TextWarden analyzes individual sentences and provides AI-powered simplification suggestions for complex ones.
+
+**Features enabled:**
+- Per-sentence Flesch score analysis
+- Complex sentence detection based on target audience
+- AI-powered simplification suggestions in the Style popover (requires Apple Intelligence)
+
+**Default:** On
+
+**Recommendation:** Keep enabled for most writing. Disable if you intentionally write at a higher reading level.
+
+### Show Readability Underlines
+
+**What it does:** Controls whether violet dashed underlines appear under complex sentences. Only available when "Highlight Complex Sentences" is enabled.
+
+**Default:** On
+
+**Use case:** Disable this if you want sentence analysis and AI simplification suggestions (accessible via the style popover) but find the visual underlines distracting.
+
+---
+
 ## Style Checking (Apple Intelligence)
 
 > **Requires:** macOS 26 (Tahoe) or later with Apple Intelligence enabled
@@ -270,64 +337,6 @@ You can drag the indicator to any position along the window border, and position
 **Why you'd enable it:** Provides constant visual feedback about your text quality. When Apple Intelligence is enabled, also gives quick mouse access to Style Check and AI Compose features.
 
 **Default:** Off. The indicator only appears when there are grammar errors or style suggestions.
-
-#### Show Readability Score
-
-**What it does:** Displays a Flesch Reading Ease score in the floating indicator for text with 30 or more words. The score ranges from 0-100, with higher scores indicating easier-to-read text.
-
-**Score interpretation:**
-| Score | Label | What it means |
-|-------|-------|---------------|
-| 90-100 | Very Easy | Easily understood by an average 11-year-old |
-| 70-89 | Easy | Conversational English for consumers |
-| 60-69 | Standard | Easily understood by 13-15 year olds |
-| 50-59 | Fairly Difficult | Fairly difficult to read |
-| 30-49 | Difficult | College-level reading |
-| 0-29 | Very Difficult | Best understood by university graduates |
-
-**How it works:** Click on the readability score in the indicator to see a detailed breakdown with improvement tips when your score is below 60.
-
-**Default:** On. The readability section appears in the capsule indicator alongside grammar and style sections.
-
-#### Target Audience
-
-**What it does:** Sets the expected reading level for your audience. TextWarden uses this to determine which sentences are "too complex" and need simplification suggestions.
-
-**Options:**
-| Audience | Min Flesch Score | Description |
-|----------|------------------|-------------|
-| Accessible | 65+ | Everyone should understand (~8th grade level) |
-| General | 50+ | Average adult reader (~10th grade level) |
-| Professional | 40+ | Business readers (~12th grade level) |
-| Technical | 30+ | Specialized readers (college level) |
-| Academic | 20+ | Academic/research (graduate level) |
-
-**How it works:** Sentences with a Flesch score significantly below (10+ points) the threshold for your selected audience are marked with violet dashed underlines. Short sentences (<12 words) are not flagged. Hover over underlines to get AI-powered simplification suggestions.
-
-**Default:** General (50+ Flesch score)
-
-**Recommendation:** Match this to your audience. Use "Accessible" for public-facing content, "Professional" for business documents, "Technical" for developer documentation.
-
-#### Highlight Complex Sentences
-
-**What it does:** When enabled, analyzes individual sentences for readability and marks those that are too complex for your target audience with violet dashed underlines.
-
-**Features enabled:**
-- Per-sentence Flesch score analysis
-- Violet dashed underlines on complex sentences
-- AI-powered simplification suggestions on hover (requires Apple Intelligence)
-
-**Default:** On
-
-**Recommendation:** Keep enabled for most writing. Disable if you intentionally write at a higher reading level or find the underlines distracting.
-
-#### Show Readability Underlines
-
-**What it does:** Controls whether violet dashed underlines appear under complex sentences. Only applies when "Highlight Complex Sentences" is enabled.
-
-**Default:** On
-
-**Use case:** Disable this if you want sentence-level analysis and AI simplification (accessible via the style popover) but find the visual underlines distracting.
 
 #### Hover Delay
 

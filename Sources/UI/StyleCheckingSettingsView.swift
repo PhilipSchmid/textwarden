@@ -18,6 +18,16 @@ struct StyleCheckingSettingsView: View {
             // MARK: - Readability Section (always visible)
 
             Section {
+                Toggle(isOn: $preferences.showReadabilityScore) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Show Readability Score")
+                        Text("Display Flesch Reading Ease score in the indicator for text with 30+ words")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .toggleStyle(.switch)
+
                 // Target audience segmented control (matches Writing Style UI)
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Target Audience")
