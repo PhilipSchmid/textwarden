@@ -694,12 +694,22 @@ class AnalysisCoordinator: ObservableObject {
         // Handle mouse entered popover - cancel any pending delayed switches
         suggestionPopover.onMouseEntered = { [weak self] in
             guard let self else { return }
-            if hoverSwitchTimer != nil {
-                Logger.debug("AnalysisCoordinator: Mouse entered popover - cancelling delayed switch", category: Logger.analysis)
-                hoverSwitchTimer?.invalidate()
-                hoverSwitchTimer = nil
-                pendingHoverError = nil
-            }
+            Logger.debug("AnalysisCoordinator: Mouse entered popover - cancelling pending switches", category: Logger.analysis)
+
+            // Cancel the old hover switch timer (AnalysisCoordinator level)
+            hoverSwitchTimer?.invalidate()
+            hoverSwitchTimer = nil
+            pendingHoverError = nil
+
+            // Cancel the new specificity-based debounce timer (ErrorOverlay level)
+            errorOverlay.cancelPendingHoverSwitch()
+        }
+
+        // Handle mouse exited popover - re-enable hover switches
+        suggestionPopover.onMouseExited = { [weak self] in
+            guard let self else { return }
+            Logger.debug("AnalysisCoordinator: Mouse exited popover - re-enabling hover switches", category: Logger.analysis)
+            errorOverlay.notifyPopoverExited()
         }
 
         // Handle popover hidden - clear locked highlight
@@ -1741,6 +1751,9 @@ class AnalysisCoordinator: ObservableObject {
 
         Logger.debug("AnalysisCoordinator: Calling analyzeText()", category: Logger.analysis)
         analyzeText(segment)
+
+        // Update previousText so we can detect actual changes on the next call
+        previousText = text
     }
 
     // MARK: - handleTextChange Helpers
@@ -1812,10 +1825,17 @@ class AnalysisCoordinator: ObservableObject {
             positionResolver.clearCache()
         }
 
-        // Electron/browser apps need full cache clear on significant changes
+        // Electron/browser apps: Clear errors on truly significant text changes
+        // (e.g., conversation switch, large paste). But avoid clearing on minor AX fluctuations
+        // which cause flickering. We consider it "truly significant" if >20% of chars changed.
         if appConfig.category == .electron || appConfig.category == .browser, !isTyping {
-            Logger.debug("AnalysisCoordinator: Electron/browser significant change - clearing errors", category: Logger.analysis)
-            currentErrors.removeAll()
+            let changeRatio = computeTextChangeRatio(oldText: previousText, newText: text)
+            if changeRatio > 0.2 {
+                Logger.debug("AnalysisCoordinator: Electron/browser significant change (\(Int(changeRatio * 100))% changed) - clearing errors", category: Logger.analysis)
+                currentErrors.removeAll()
+            } else {
+                Logger.trace("AnalysisCoordinator: Electron/browser minor change (\(Int(changeRatio * 100))% changed) - keeping errors", category: Logger.analysis)
+            }
         }
 
         // Clear style suggestions if source text changed
@@ -1841,6 +1861,42 @@ class AnalysisCoordinator: ObservableObject {
             oldText.hasPrefix(newPrefix) ||
             newText.hasSuffix(oldSuffix) ||
             oldText.hasSuffix(newSuffix)
+    }
+
+    /// Compute how much of the text changed between old and new versions
+    /// Returns a ratio from 0.0 (identical) to 1.0 (completely different)
+    private func computeTextChangeRatio(oldText: String, newText: String) -> Double {
+        guard !oldText.isEmpty || !newText.isEmpty else { return 0.0 }
+        guard oldText != newText else { return 0.0 }
+
+        // For very different lengths, use length-based estimation
+        let lengthRatio = Double(abs(oldText.count - newText.count)) / Double(max(oldText.count, newText.count, 1))
+        if lengthRatio > 0.5 {
+            return lengthRatio
+        }
+
+        // Count matching characters from start and end
+        let oldChars = Array(oldText)
+        let newChars = Array(newText)
+
+        var matchingFromStart = 0
+        let minLen = min(oldChars.count, newChars.count)
+        while matchingFromStart < minLen, oldChars[matchingFromStart] == newChars[matchingFromStart] {
+            matchingFromStart += 1
+        }
+
+        var matchingFromEnd = 0
+        while matchingFromEnd < minLen - matchingFromStart,
+              oldChars[oldChars.count - 1 - matchingFromEnd] == newChars[newChars.count - 1 - matchingFromEnd]
+        {
+            matchingFromEnd += 1
+        }
+
+        let totalMatching = matchingFromStart + matchingFromEnd
+        let maxLen = max(oldChars.count, newChars.count)
+        let changedRatio = 1.0 - (Double(totalMatching) / Double(maxLen))
+
+        return changedRatio
     }
 
     /// Restore cached errors and style suggestions
