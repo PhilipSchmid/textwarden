@@ -1212,7 +1212,7 @@ class UserPreferences: ObservableObject {
         appTheme = "System"
         overlayTheme = "System"
         showUnderlines = true
-        underlineThickness = 3.0
+        underlineThickness = 2.0
         maxErrorsForUnderlines = 10
         indicatorPosition = "Center Right"
     }
