@@ -2,6 +2,36 @@
 
 This guide helps you diagnose and resolve common issues with TextWarden.
 
+## Installation Issues
+
+### App doesn't launch when double-clicked
+
+If TextWarden doesn't open when you double-click it in `/Applications`:
+
+1. **First launch after download**: Right-click the app and select "Open" to approve it through Gatekeeper
+2. **Verify installation source**: Only install from the official DMG download (GitHub releases)
+3. **Check for development builds**: If you previously ran `make run`, remove and reinstall:
+   ```bash
+   rm -rf /Applications/TextWarden.app
+   # Then reinstall from the official DMG
+   ```
+
+**Verify your installation is properly signed:**
+```bash
+spctl -a -vv /Applications/TextWarden.app
+```
+Should show: `accepted` and `source=Notarized Developer ID`
+
+If it shows `rejected` or `origin=Apple Development`, you have a development build installed.
+
+### "TextWarden is damaged" or similar Gatekeeper warnings
+
+1. Remove the quarantine attribute:
+   ```bash
+   xattr -cr /Applications/TextWarden.app
+   ```
+2. Right-click → Open to approve through Gatekeeper
+
 ## Common Issues
 
 ### TextWarden doesn't detect text in an application
