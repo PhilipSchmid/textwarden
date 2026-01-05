@@ -350,7 +350,7 @@ class TextGenerationPopover: NSObject, ObservableObject {
     }
 
     /// Schedule hiding after delay
-    func scheduleHide(delay: TimeInterval = 0.3) {
+    func scheduleHide(delay: TimeInterval = TimingConstants.popoverAutoHide) {
         // Don't auto-hide while generating or showing results
         guard !isGenerating, generatedResults.isEmpty else { return }
 

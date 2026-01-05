@@ -29,6 +29,15 @@ class ReadabilityPopover: NSObject, ObservableObject {
     /// Event monitor for mouse clicks outside popover
     private var clickOutsideMonitor: Any?
 
+    /// Tracking view for hover detection
+    private var trackingView: ReadabilityTrackingView?
+
+    /// Callback when mouse enters popover
+    var onMouseEntered: (() -> Void)?
+
+    /// Callback when mouse exits popover
+    var onMouseExited: (() -> Void)?
+
     /// Current readability result
     @Published var result: ReadabilityResult?
 
@@ -153,7 +162,7 @@ class ReadabilityPopover: NSObject, ObservableObject {
     }
 
     /// Schedule hiding after delay
-    func scheduleHide(delay: TimeInterval = 0.3) {
+    func scheduleHide(delay: TimeInterval = TimingConstants.popoverAutoHide) {
         hideTimer?.invalidate()
         hideTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -174,6 +183,11 @@ class ReadabilityPopover: NSObject, ObservableObject {
     private let panelHeight: CGFloat = 300
 
     private func createPanel() {
+        // Create tracking view for hover detection
+        let tracking = ReadabilityTrackingView(popover: self)
+        tracking.frame = NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight)
+        trackingView = tracking
+
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -186,12 +200,15 @@ class ReadabilityPopover: NSObject, ObservableObject {
         panel.backgroundColor = .clear
         panel.hasShadow = true
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
+        panel.hidesOnDeactivate = false
+        panel.becomesKeyOnlyIfNeeded = true
+        panel.contentView = tracking
 
         self.panel = panel
     }
 
     private func rebuildContentView() {
-        guard let panel else { return }
+        guard let panel, let trackingView else { return }
 
         let contentView = ReadabilityPopoverContentView(popover: self)
         let hostingView = NSHostingView(rootView: contentView)
@@ -200,8 +217,15 @@ class ReadabilityPopover: NSObject, ObservableObject {
         let fittingSize = hostingView.fittingSize
         let actualHeight = min(fittingSize.height, 500) // Cap at 500pt max
 
-        hostingView.frame = NSRect(x: 0, y: 0, width: panelWidth, height: actualHeight)
-        panel.contentView = hostingView
+        // Update tracking view and hosting view sizes
+        trackingView.frame = NSRect(x: 0, y: 0, width: panelWidth, height: actualHeight)
+        hostingView.frame = trackingView.bounds
+        hostingView.autoresizingMask = [.width, .height]
+
+        // Add hosting view as subview of tracking view
+        trackingView.subviews.forEach { $0.removeFromSuperview() }
+        trackingView.addSubview(hostingView)
+
         panel.setContentSize(NSSize(width: panelWidth, height: actualHeight))
     }
 
@@ -501,5 +525,57 @@ struct ScoreLegendView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Readability Tracking View
+
+/// Custom view that handles mouse tracking for the readability popover
+class ReadabilityTrackingView: NSView {
+    weak var popover: ReadabilityPopover?
+
+    init(popover: ReadabilityPopover) {
+        self.popover = popover
+        super.init(frame: .zero)
+
+        // Make the tracking view transparent with rounded corners
+        wantsLayer = true
+        layer?.backgroundColor = .clear
+        layer?.cornerRadius = 10
+        layer?.masksToBounds = true
+
+        setupTracking()
+    }
+
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    // CRITICAL: Accept first mouse click without requiring panel activation
+    override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
+        true
+    }
+
+    private func setupTracking() {
+        let trackingArea = NSTrackingArea(
+            rect: bounds,
+            options: [.activeAlways, .mouseEnteredAndExited, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(trackingArea)
+    }
+
+    override func mouseEntered(with _: NSEvent) {
+        Logger.trace("ReadabilityPopover: Mouse ENTERED tracking view", category: Logger.ui)
+        popover?.cancelHide()
+        popover?.onMouseEntered?()
+    }
+
+    override func mouseExited(with _: NSEvent) {
+        Logger.trace("ReadabilityPopover: Mouse EXITED tracking view", category: Logger.ui)
+        popover?.onMouseExited?()
+        popover?.scheduleHide()
     }
 }
