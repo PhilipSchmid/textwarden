@@ -167,8 +167,9 @@ enum TimingConstants {
 
     // MARK: - Onboarding
 
-    /// Maximum wait time for permission grant (5 minutes)
-    static let maxPermissionWait: TimeInterval = 300
+    /// Maximum wait time before showing permission troubleshooting (30 seconds)
+    /// Reduced from 5 minutes to help users who have stale permission entries from previous installations
+    static let maxPermissionWait: TimeInterval = 30
 
     // MARK: - Statistics
 

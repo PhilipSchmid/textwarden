@@ -243,6 +243,8 @@ struct OnboardingView: View {
         }
     }
 
+    @State private var showStaleEntryHelp = false
+
     private var permissionRequestStep: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Grant Accessibility Permission")
@@ -277,17 +279,77 @@ struct OnboardingView: View {
                 .padding(.top, 8)
             }
 
-            if showTimeoutWarning {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Having trouble?")
+            // Proactive help for users who already had TextWarden
+            if !showTimeoutWarning, !showStaleEntryHelp {
+                Button {
+                    showStaleEntryHelp = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "questionmark.circle")
+                        Text("Already enabled TextWarden before?")
+                    }
+                    .font(.subheadline)
+                    .foregroundColor(.accentColor)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 4)
+            }
+
+            if showTimeoutWarning || showStaleEntryHelp {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(showStaleEntryHelp && !showTimeoutWarning ? "Upgrading from a previous version?" : "Having trouble?")
                         .font(.title3)
                         .fontWeight(.semibold)
 
-                    Text("• Make sure you're enabling 'TextWarden' in the Accessibility list\n• You may need to unlock the settings pane first\n• Click 'Open System Settings' again to retry")
+                    Text("If you already see TextWarden enabled but it's not working, you likely have a **stale permission entry** from a previous installation.")
                         .font(.body)
                         .foregroundColor(.secondary)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("To fix this:")
+                            .font(.body)
+                            .fontWeight(.medium)
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(alignment: .top, spacing: 8) {
+                                Text("1.")
+                                    .font(.body)
+                                    .fontWeight(.semibold)
+                                    .frame(width: 20)
+                                Text("In System Settings → Accessibility, **remove** TextWarden from the list (select it and click the minus button)")
+                                    .font(.body)
+                                    .foregroundColor(.secondary)
+                            }
+                            HStack(alignment: .top, spacing: 8) {
+                                Text("2.")
+                                    .font(.body)
+                                    .fontWeight(.semibold)
+                                    .frame(width: 20)
+                                Text("Click the **plus button** and add TextWarden from /Applications")
+                                    .font(.body)
+                                    .foregroundColor(.secondary)
+                            }
+                            HStack(alignment: .top, spacing: 8) {
+                                Text("3.")
+                                    .font(.body)
+                                    .fontWeight(.semibold)
+                                    .frame(width: 20)
+                                Text("Make sure the **new entry** is enabled")
+                                    .font(.body)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+
+                    Text("This happens when upgrading from a previous version with a different code signature.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .italic()
                 }
                 .padding(.top, 12)
+                .padding(12)
+                .background(Color.orange.opacity(0.1))
+                .cornerRadius(8)
             }
         }
     }
