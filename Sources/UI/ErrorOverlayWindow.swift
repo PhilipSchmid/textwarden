@@ -70,6 +70,15 @@ class ErrorOverlayWindow: NSPanel {
     /// Whether the popover is currently being hovered - prevents new debounce timers from starting
     private var isPopoverHovered = false
 
+    // MARK: - Slack Popover Detection
+
+    /// Timer for detecting Slack's internal popovers (channel/mention previews)
+    private var slackPopoverDetectionTimer: Timer?
+
+    /// Whether a Slack ReactModal popover is currently detected (underlines should be faded)
+    private var isSlackPopoverVisible = false
+    private var isMouseInsideOverlay = false
+
     /// Callback when user hovers over an error (includes window frame for smart positioning)
     var onErrorHover: ((GrammarErrorModel, CGPoint, CGRect?) -> Void)?
 
@@ -104,7 +113,9 @@ class ErrorOverlayWindow: NSPanel {
         // DEBUG: Clear background - border and label shown in UnderlineView
         backgroundColor = .clear
         hasShadow = false
-        // CRITICAL: Use .popUpMenu level - these windows NEVER activate the app
+        // Use .popUpMenu level to stay above app content
+        // Note: This may appear above some app-native popovers (e.g., Slack channel previews)
+        // but is necessary to ensure underlines are visible above text content
         level = .popUpMenu
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         // CRITICAL: Prevent this panel from affecting app activation
@@ -140,12 +151,18 @@ class ErrorOverlayWindow: NSPanel {
     // MARK: - Mouse Monitoring
 
     private func setupGlobalMouseMonitor() {
+        Logger.info("ErrorOverlay: Setting up global mouse monitor", category: Logger.ui)
         // Monitor mouse moved events globally
         mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
             guard let self else { return }
 
+            // Only log at trace level due to high frequency
+            let pos = NSEvent.mouseLocation
+            Logger.trace("ErrorOverlay: Mouse event at \(pos), visible=\(isCurrentlyVisible)", category: Logger.ui)
+
             // Only process if window is visible
             guard isCurrentlyVisible else { return }
+            Logger.trace("ErrorOverlay: Mouse monitor processing, frame=\(frame)", category: Logger.ui)
 
             let mouseLocation = NSEvent.mouseLocation
 
@@ -158,15 +175,37 @@ class ErrorOverlayWindow: NSPanel {
             }
 
             // Check if mouse is within our window bounds
-            guard frame.contains(mouseLocation) else {
-                // Mouse left the window - clear hover state
+            let isInsideFrame = frame.contains(mouseLocation)
+            Logger.trace("ErrorOverlay: Mouse tracking - at \(mouseLocation), overlay: \(frame), inside: \(isInsideFrame)", category: Logger.ui)
+
+            guard isInsideFrame else {
+                // Mouse left the window - clear hover state and fade underlines
                 if hoveredUnderline != nil {
                     hoveredUnderline = nil
                     self.underlineView?.hoveredUnderline = nil
                     self.underlineView?.needsDisplay = true
                     onHoverEnd?()
                 }
+                // Fade underlines when mouse leaves to avoid obscuring app-native popovers
+                if isMouseInsideOverlay {
+                    isMouseInsideOverlay = false
+                    Logger.info("ErrorOverlay: Mouse LEFT overlay bounds - fading underlines to 25%", category: Logger.ui)
+                    NSAnimationContext.runAnimationGroup { context in
+                        context.duration = 0.15
+                        self.animator().alphaValue = 0.25
+                    }
+                }
                 return
+            }
+
+            // Mouse entered the overlay - restore full opacity
+            if !isMouseInsideOverlay {
+                isMouseInsideOverlay = true
+                Logger.debug("ErrorOverlay: Mouse ENTERED overlay bounds - restoring full opacity", category: Logger.ui)
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.1
+                    self.animator().alphaValue = 1.0
+                }
             }
 
             // Convert to window-local coordinates
@@ -745,6 +784,9 @@ class ErrorOverlayWindow: NSPanel {
             // Only order window if not already visible to avoid window ordering spam
             if !isCurrentlyVisible {
                 Logger.info("ErrorOverlay: Showing overlay window (first time) with \(underlines.count) underlines", category: Logger.ui)
+                // Reset alpha and mouse tracking state when showing
+                alphaValue = 1.0
+                isMouseInsideOverlay = true
                 // Use order(.above) instead of orderFrontRegardless() to avoid activating the app
                 order(.above, relativeTo: 0)
                 isCurrentlyVisible = true
@@ -753,6 +795,8 @@ class ErrorOverlayWindow: NSPanel {
                 if appConfig.features.requiresFrameValidation {
                     startFrameValidationTimer()
                 }
+                // Start Slack popover detection (only applies to Slack app)
+                startSlackPopoverDetection()
             } else {
                 Logger.debug("ErrorOverlay: Updating overlay (already visible, not reordering)", category: Logger.ui)
             }
@@ -769,6 +813,9 @@ class ErrorOverlayWindow: NSPanel {
         // Cancel any pending hover timer
         hoverTimer?.invalidate()
         hoverTimer = nil
+
+        // Stop Slack popover detection
+        stopSlackPopoverDetection()
 
         if isCurrentlyVisible {
             orderOut(nil)
@@ -997,6 +1044,8 @@ class ErrorOverlayWindow: NSPanel {
             Logger.info("ErrorOverlay: Showing overlay for readability underlines only", category: Logger.ui)
             order(.above, relativeTo: 0)
             isCurrentlyVisible = true
+            // Start Slack popover detection (only applies to Slack app)
+            startSlackPopoverDetection()
         }
     }
 
@@ -1079,6 +1128,117 @@ class ErrorOverlayWindow: NSPanel {
     private func stopFrameValidationTimer() {
         frameValidationTimer?.invalidate()
         frameValidationTimer = nil
+    }
+
+    // MARK: - Slack Popover Detection
+
+    /// Start monitoring for Slack's internal popovers (only for Slack app)
+    /// Detects ReactModal__Content elements which Slack uses for channel/mention preview popovers
+    private func startSlackPopoverDetection() {
+        guard currentBundleID == "com.tinyspeck.slackmacgap" else { return }
+        stopSlackPopoverDetection()
+
+        isSlackPopoverVisible = false
+
+        Logger.debug("ErrorOverlay: Starting Slack ReactModal popover detection", category: Logger.ui)
+
+        // Poll every 100ms for ReactModal popover appearance/disappearance
+        slackPopoverDetectionTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            self?.checkForSlackPopover()
+        }
+    }
+
+    /// Stop Slack popover detection
+    private func stopSlackPopoverDetection() {
+        slackPopoverDetectionTimer?.invalidate()
+        slackPopoverDetectionTimer = nil
+        isSlackPopoverVisible = false
+    }
+
+    /// Check if a Slack React Modal popover is visible in the accessibility tree
+    /// Slack uses React Modal for channel/mention preview popovers, identifiable by AXDOMClassList
+    private func hasReactModalPopover() -> Bool {
+        guard let element = monitoredElement else { return false }
+
+        // Get the app element from the monitored text element
+        var appRef: CFTypeRef?
+        var current = element
+        while AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &appRef) == .success,
+              let parent = appRef
+        {
+            // swiftlint:disable:next force_cast
+            current = (parent as! AXUIElement)
+        }
+
+        // Search for ReactModal__Content elements
+        return findReactModalElement(current)
+    }
+
+    /// Recursively search for an AXGroup element with ReactModal__Content in its DOM class list
+    private func findReactModalElement(_ element: AXUIElement, depth: Int = 0, maxDepth: Int = 30) -> Bool {
+        guard depth < maxDepth else { return false }
+
+        var roleRef: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
+        let role = roleRef as? String ?? ""
+
+        if role == "AXGroup" {
+            // Check AXDOMClassList for ReactModal__Content
+            var domClassRef: CFTypeRef?
+            AXUIElementCopyAttributeValue(element, "AXDOMClassList" as CFString, &domClassRef)
+            if let domClasses = domClassRef as? [String] {
+                for className in domClasses {
+                    if className.hasPrefix("ReactModal__Content") {
+                        return true
+                    }
+                }
+            }
+        }
+
+        var childrenRef: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef)
+        if let children = childrenRef as? [AXUIElement] {
+            for child in children {
+                if findReactModalElement(child, depth: depth + 1, maxDepth: maxDepth) {
+                    return true
+                }
+            }
+        }
+
+        return false
+    }
+
+    /// Check if a Slack popover has appeared or disappeared
+    private func checkForSlackPopover() {
+        let popoverVisible = hasReactModalPopover()
+
+        // Popover appeared
+        if popoverVisible, !isSlackPopoverVisible {
+            isSlackPopoverVisible = true
+            Logger.debug("ErrorOverlay: Slack ReactModal popover detected - fading underlines and hiding popovers", category: Logger.ui)
+
+            // Hide any open TextWarden popovers to avoid overlap with Slack's popover
+            SuggestionPopover.shared.hide()
+            ReadabilityPopover.shared.hide()
+            TextGenerationPopover.shared.hide()
+
+            // Fade underlines to let the popover show through
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.1
+                self.animator().alphaValue = 0.15
+            }
+        }
+        // Popover disappeared
+        else if !popoverVisible, isSlackPopoverVisible {
+            isSlackPopoverVisible = false
+            Logger.debug("ErrorOverlay: Slack ReactModal popover hidden - restoring underlines", category: Logger.ui)
+
+            // Restore underlines
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.1
+                self.animator().alphaValue = 1.0
+            }
+        }
     }
 
     /// Check if element frame has changed and hide underlines if so

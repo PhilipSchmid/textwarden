@@ -275,6 +275,39 @@ If you see "fallbackToPlainText", check the logs for:
 2. "Child selection validation failed" - Selection was set but wrong text was selected
 3. "Could not get child element text" - AX API failed to read child element's text
 
+## Popover Detection
+
+TextWarden automatically fades error underlines when Slack's native popovers (channel previews, @mention previews) are displayed to avoid visual clutter.
+
+### Technical Approach
+
+Slack uses [React Modal](https://github.com/reactjs/react-modal) for hover popovers. TextWarden detects these by polling the accessibility tree for elements with `AXDOMClassList` containing `ReactModal__Content`.
+
+**Detection flow:**
+1. When underlines are shown in Slack, start polling every 100ms
+2. Search the AX tree for `AXGroup` elements with `ReactModal__Content` class
+3. When found: hide any open TextWarden popovers and fade underlines to 15% opacity
+4. When gone: restore underlines to 100% opacity
+
+### Why This Approach
+
+Alternative approaches were considered:
+
+| Approach | Issue |
+|----------|-------|
+| `AXObserver` notifications | Slack's Electron app doesn't fire notifications for modal appearance |
+| Window-based detection | Popovers render inside the main Slack window, not as separate windows |
+| Size-based heuristics | Too fragile; other UI elements match popover dimensions |
+| Mouse position tracking | Can't reliably detect if user is interacting with popover content |
+
+The `ReactModal__Content` class is a reliable identifier since it's part of React Modal's public API.
+
+### Implementation
+
+- `ErrorOverlayWindow.startSlackPopoverDetection()`: Starts the 100ms polling timer
+- `ErrorOverlayWindow.hasReactModalPopover()`: Returns true if a ReactModal element exists
+- `ErrorOverlayWindow.findReactModalElement()`: Recursively searches AX tree for the modal
+
 ## Positioning Strategy
 
 TextWarden uses a dedicated positioning strategy for Slack (`SlackStrategy`) that provides pixel-perfect underline positioning.
