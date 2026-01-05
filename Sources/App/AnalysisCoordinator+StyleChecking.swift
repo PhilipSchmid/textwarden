@@ -498,7 +498,7 @@ extension AnalysisCoordinator {
     /// Regenerate a style suggestion to get an alternative
     @available(macOS 26.0, *)
     func regenerateStyleSuggestion(_ suggestion: StyleSuggestionModel) async -> StyleSuggestionModel? {
-        Logger.debug("AnalysisCoordinator: Regenerating suggestion for '\(suggestion.originalText.prefix(30))...' (readability: \(suggestion.isReadabilitySuggestion))", category: Logger.analysis)
+        Logger.debug("AnalysisCoordinator: Regenerating suggestion for text (\(suggestion.originalText.count) chars, readability: \(suggestion.isReadabilitySuggestion))", category: Logger.analysis)
 
         // Create engine on demand
         let fmEngine = FoundationModelsEngine()

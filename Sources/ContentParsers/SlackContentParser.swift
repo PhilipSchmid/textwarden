@@ -1015,7 +1015,7 @@ class SlackContentParser: ContentParser {
                         !Self.blockLevelAttributeKeys.contains(key)
                     }
                     if !inlineAttributes.isEmpty {
-                        Logger.debug("SlackContentParser: Text '\(searchText)' found in op with text '\(String(insert.prefix(30)))'", category: Logger.analysis)
+                        Logger.debug("SlackContentParser: Text (\(searchText.count) chars) found in op with text (\(insert.count) chars)", category: Logger.analysis)
                         return inlineAttributes
                     }
                 }
@@ -1044,19 +1044,15 @@ class SlackContentParser: ContentParser {
             guard let insert = op["insert"] else { continue }
 
             // Calculate the length of this insert
-            let insertLength: Int
-            let insertPreview: String
-            if let text = insert as? String {
-                insertLength = text.unicodeScalars.count
-                insertPreview = String(text.prefix(30))
+            // Embedded objects (images, etc.) count as 1
+            let insertLength = if let text = insert as? String {
+                text.unicodeScalars.count
             } else {
-                // Embedded objects (images, etc.) count as 1
-                insertLength = 1
-                insertPreview = "[object]"
+                1
             }
 
             let hasAttrs = op["attributes"] != nil
-            Logger.trace("SlackContentParser: Op \(index): pos \(currentPos)-\(currentPos + insertLength), hasAttrs=\(hasAttrs), text='\(insertPreview)'", category: Logger.analysis)
+            Logger.trace("SlackContentParser: Op \(index): pos \(currentPos)-\(currentPos + insertLength), hasAttrs=\(hasAttrs), length=\(insertLength)", category: Logger.analysis)
 
             // Check if position falls within this op
             if position >= currentPos, position < currentPos + insertLength {
@@ -1201,9 +1197,7 @@ class SlackContentParser: ContentParser {
             return delta
         }
 
-        Logger.info("SlackContentParser: Stripped block-level attributes from Quill Delta", category: Logger.analysis)
-        Logger.debug("SlackContentParser: BEFORE strip: \(delta.prefix(500))...", category: Logger.analysis)
-        Logger.debug("SlackContentParser: AFTER strip: \(resultString.prefix(500))...", category: Logger.analysis)
+        Logger.info("SlackContentParser: Stripped block-level attributes from Quill Delta (\(delta.count) → \(resultString.count) chars)", category: Logger.analysis)
         return resultString
     }
 
@@ -1985,11 +1979,11 @@ class SlackContentParser: ContentParser {
             }
 
             if let range = getTextRange(for: element, in: element) {
-                Logger.info("SlackContentParser: Found block quote at level \(level), range \(range.location)-\(range.location + range.length), text: '\(quoteText.prefix(50))'", category: Logger.analysis)
+                Logger.info("SlackContentParser: Found block quote at level \(level), range \(range.location)-\(range.location + range.length), length: \(quoteText.count) chars", category: Logger.analysis)
                 quoteRanges.append(range)
             } else {
                 // Still log even if we couldn't get the range
-                Logger.debug("SlackContentParser: Found block quote at level \(level) but couldn't determine range, text: '\(quoteText.prefix(50))'", category: Logger.analysis)
+                Logger.debug("SlackContentParser: Found block quote at level \(level) but couldn't determine range, length: \(quoteText.count) chars", category: Logger.analysis)
             }
         }
 

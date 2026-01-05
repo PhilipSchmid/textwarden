@@ -966,7 +966,7 @@ class ErrorOverlayWindow: NSPanel {
         for sentence in sentencesToProcess {
             let range = sentence.range
 
-            Logger.debug("ErrorOverlay: Resolving position for sentence '\(sentence.sentence.prefix(30))...' at range \(range.location)-\(range.location + range.length)", category: Logger.ui)
+            Logger.debug("ErrorOverlay: Resolving position for sentence (\(sentence.sentence.count) chars) at range \(range.location)-\(range.location + range.length)", category: Logger.ui)
 
             // Get bounds for this sentence
             let geometryResult = parser.resolvePosition(

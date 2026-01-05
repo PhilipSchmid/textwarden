@@ -251,7 +251,7 @@ final class FoundationModelsEngine: ObservableObject {
         // Use moderate temperature for variety in regeneration
         let options = GenerationOptions(temperature: TemperatureValues.moderate)
 
-        Logger.debug("Apple Intelligence: Regenerating suggestion for '\(previousSuggestion.originalText.prefix(30))...', style=\(style.displayName)", category: Logger.llm)
+        Logger.debug("Apple Intelligence: Regenerating suggestion for text (\(previousSuggestion.originalText.count) chars), style=\(style.displayName)", category: Logger.llm)
 
         do {
             let response = try await session.respond(
@@ -369,7 +369,7 @@ final class FoundationModelsEngine: ObservableObject {
         }
 
         let samplingInfo = variationSeed.map { "random(seed:\($0), temp:0.8)" } ?? "temp:\(TemperatureValues.low)"
-        Logger.debug("Apple Intelligence: Generating text for instruction '\(instruction.prefix(50))...', style=\(style.displayName), \(samplingInfo)", category: Logger.llm)
+        Logger.debug("Apple Intelligence: Generating text for instruction (\(instruction.count) chars), style=\(style.displayName), \(samplingInfo)", category: Logger.llm)
 
         do {
             let response = try await session.respond(

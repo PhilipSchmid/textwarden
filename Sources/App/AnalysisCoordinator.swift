@@ -429,7 +429,7 @@ class AnalysisCoordinator: ObservableObject {
             }
 
             let seedInfo = variationSeed.map { " (retry seed: \($0))" } ?? ""
-            Logger.debug("AnalysisCoordinator: Text generation requested - instruction: '\(instruction.prefix(30))...'\(seedInfo)", category: Logger.analysis)
+            Logger.debug("AnalysisCoordinator: Text generation requested - instruction length: \(instruction.count) chars\(seedInfo)", category: Logger.analysis)
 
             if #available(macOS 26.0, *) {
                 // Create engine on demand
