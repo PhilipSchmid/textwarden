@@ -91,19 +91,19 @@ struct StyleCheckingSettingsView: View {
 
             // MARK: - AI Style Suggestions Section
 
+            // Availability status (small section with the header)
             Section {
-                // Availability status (always visible at top)
                 HStack(spacing: 12) {
                     Image(systemName: fmStatus.symbolName)
-                        .font(.title2)
+                        .font(.title3)
                         .foregroundColor(fmStatus.isAvailable ? .green : .orange)
 
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 2) {
                         Text(fmStatus.isAvailable ? "Ready" : "Not Available")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.system(size: 12, weight: .medium))
 
                         Text(fmStatus.userMessage)
-                            .font(.caption)
+                            .font(.caption2)
                             .foregroundColor(.secondary)
                     }
 
@@ -116,16 +116,37 @@ struct StyleCheckingSettingsView: View {
                             }
                         }
                         .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
+                        .controlSize(.mini)
                     } else if fmStatus.canRetry {
                         Button("Check Again") {
                             checkFMAvailability()
                         }
                         .buttonStyle(.bordered)
-                        .controlSize(.small)
+                        .controlSize(.mini)
                     }
                 }
+            } header: {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "sparkles")
+                            .font(.title2)
+                            .foregroundColor(.purple)
+                        Text("AI Style Suggestions")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                    }
 
+                    Text("AI-powered suggestions to improve your writing. Includes AI Compose for generating text from instructions. All processing happens on your device.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .onAppear {
+                checkFMAvailability()
+            }
+
+            // Main toggle and options (no header, continues the section visually)
+            Section {
                 Toggle(isOn: $preferences.enableStyleChecking) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Enable AI Style Suggestions")
@@ -212,24 +233,6 @@ struct StyleCheckingSettingsView: View {
                             .foregroundColor(.secondary)
                     }
                 }
-            } header: {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "sparkles")
-                            .font(.title2)
-                            .foregroundColor(.purple)
-                        Text("AI Style Suggestions")
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                    }
-
-                    Text("AI-powered suggestions to improve your writing. Includes AI Compose for generating text from instructions. All processing happens on your device.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .onAppear {
-                checkFMAvailability()
             }
         }
         .formStyle(.grouped)

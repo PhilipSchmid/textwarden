@@ -226,6 +226,14 @@ TextWarden analyzes text complexity using the Flesch Reading Ease formula. These
 
 > **Requires:** macOS 26 (Tahoe) or later with Apple Intelligence enabled
 
+### Availability Status
+
+At the top of this section, you'll see the current availability status of AI features:
+- **Ready** - Apple Intelligence is available and working
+- **Not Available** - Shows the reason (not enabled, device not eligible, or macOS version too old)
+
+If Apple Intelligence isn't enabled, you can click "Open Settings" to configure it in System Settings.
+
 ### Enable AI Style Suggestions
 
 **What it does:** Activates AI-powered writing enhancement features:
