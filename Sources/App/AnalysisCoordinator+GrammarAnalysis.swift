@@ -267,17 +267,9 @@ extension AnalysisCoordinator {
                 currentReadabilityResult = analysis.overallResult
                 Logger.debug("AnalysisCoordinator: Readability analysis complete - \(analysis.complexSentenceCount) complex sentences for \(targetAudience.displayName) audience", category: Logger.analysis)
 
-                // Update readability underlines if there are complex sentences and element is available
-                if let element, userPreferences.showReadabilityUnderlines, !analysis.complexSentences.isEmpty {
-                    errorOverlay.updateReadabilityUnderlines(
-                        complexSentences: analysis.complexSentences,
-                        element: element,
-                        context: monitoredContext,
-                        text: text
-                    )
-                } else {
-                    errorOverlay.clearReadabilityUnderlines()
-                }
+                // NOTE: Readability underlines are updated in showErrorUnderlinesInternal()
+                // This ensures they're shown AFTER the Electron layout delay (if applicable)
+                // so the overlay window is properly set up first.
 
                 // Clean up stale readability suggestions that no longer match complex sentences
                 cleanupStaleReadabilitySuggestions(currentComplexRanges: analysis.complexSentences.map(\.range))
@@ -285,14 +277,12 @@ extension AnalysisCoordinator {
                 // Feature disabled - just calculate overall readability without sentence analysis
                 currentReadabilityResult = ReadabilityCalculator.shared.fleschReadingEase(for: text)
                 currentReadabilityAnalysis = nil
-                errorOverlay.clearReadabilityUnderlines()
                 // Clear all readability suggestions since feature is disabled
                 cleanupStaleReadabilitySuggestions(currentComplexRanges: [])
             }
         } else {
             currentReadabilityResult = nil
             currentReadabilityAnalysis = nil
-            errorOverlay.clearReadabilityUnderlines()
             // Clear all readability suggestions since readability is disabled
             cleanupStaleReadabilitySuggestions(currentComplexRanges: [])
         }

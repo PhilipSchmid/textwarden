@@ -641,7 +641,8 @@ class FloatingErrorIndicator: NSPanel {
         let anchor = calculatePopoverAnchor(for: indicatorFrame)
 
         // Show the popover with explicit direction
-        TextGenerationPopover.shared.show(at: anchor.anchorPoint, direction: anchor.edge, context: context)
+        // fromIndicator: true - popover persists until manually dismissed (consistent with grammar/style popovers)
+        TextGenerationPopover.shared.show(at: anchor.anchorPoint, direction: anchor.edge, context: context, fromIndicator: true)
     }
 
     /// Show readability score popover
@@ -662,7 +663,8 @@ class FloatingErrorIndicator: NSPanel {
         let anchor = calculatePopoverAnchor(for: indicatorFrame)
 
         // Show the readability popover with analysis for target audience info
-        ReadabilityPopover.shared.show(at: anchor.anchorPoint, direction: anchor.edge, result: result, analysis: readabilityAnalysis)
+        // fromIndicator: true - popover persists until manually dismissed (consistent with grammar/style popovers)
+        ReadabilityPopover.shared.show(at: anchor.anchorPoint, direction: anchor.edge, result: result, analysis: readabilityAnalysis, fromIndicator: true)
     }
 
     // MARK: - Public API

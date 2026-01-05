@@ -2292,8 +2292,20 @@ class AnalysisCoordinator: ObservableObject {
 
         if !hasErrors, !hasStyleSuggestions {
             Logger.debug("AnalysisCoordinator: No errors or style suggestions", category: Logger.analysis)
-            // Only hide overlay if there are no readability underlines to preserve
-            if !hasReadabilityUnderlines {
+
+            // Update readability underlines if available (even without grammar errors)
+            // This ensures readability underlines show after Electron layout delay
+            if hasReadabilityUnderlines,
+               let analysis = currentReadabilityAnalysis
+            {
+                errorOverlay.updateReadabilityUnderlines(
+                    complexSentences: analysis.complexSentences,
+                    element: providedElement,
+                    context: monitoredContext,
+                    text: lastAnalyzedText
+                )
+            } else {
+                // No readability underlines - hide overlay completely
                 errorOverlay.hide()
             }
 
@@ -2340,6 +2352,23 @@ class AnalysisCoordinator: ObservableObject {
                 if !hasReadabilityUnderlines {
                     errorOverlay.hide()
                 }
+            }
+
+            // Update readability underlines (after overlay is set up)
+            // This is done here rather than in handleGrammarResults to ensure it happens
+            // AFTER the Electron layout delay, when the overlay window is properly configured
+            if let analysis = currentReadabilityAnalysis,
+               UserPreferences.shared.showReadabilityUnderlines,
+               !analysis.complexSentences.isEmpty
+            {
+                errorOverlay.updateReadabilityUnderlines(
+                    complexSentences: analysis.complexSentences,
+                    element: providedElement,
+                    context: monitoredContext,
+                    text: lastAnalyzedText
+                )
+            } else {
+                errorOverlay.clearReadabilityUnderlines()
             }
 
             // Show floating indicator with errors and/or style suggestions

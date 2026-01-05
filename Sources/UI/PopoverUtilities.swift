@@ -186,6 +186,9 @@ class BasePopoverTrackingView: NSView {
     /// Callback when mouse exits
     var onMouseExited: (() -> Void)?
 
+    /// Track last size to avoid unnecessary tracking area updates during rebuild cycles
+    private var lastTrackingSize: NSSize = .zero
+
     override init(frame: NSRect) {
         super.init(frame: frame)
         setupView()
@@ -205,6 +208,30 @@ class BasePopoverTrackingView: NSView {
     }
 
     private func setupTracking() {
+        // Initial setup - will be properly configured in updateTrackingAreas()
+        updateTrackingAreas()
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+
+        // Only update tracking areas if size actually changed significantly
+        // This prevents unnecessary recreation during rebuild cycles
+        if abs(newSize.width - lastTrackingSize.width) > 1 || abs(newSize.height - lastTrackingSize.height) > 1 {
+            lastTrackingSize = newSize
+            updateTrackingAreas()
+        }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+
+        // Remove existing tracking areas
+        trackingAreas.forEach { removeTrackingArea($0) }
+
+        // Only add tracking area if we have valid bounds
+        guard bounds.width > 0, bounds.height > 0 else { return }
+
         let trackingArea = NSTrackingArea(
             rect: bounds,
             options: [.activeAlways, .mouseEnteredAndExited, .inVisibleRect],

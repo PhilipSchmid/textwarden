@@ -149,6 +149,14 @@ class ErrorOverlayWindow: NSPanel {
 
             let mouseLocation = NSEvent.mouseLocation
 
+            // CRITICAL: Don't process underline hover if mouse is over a popover
+            // This prevents the underline detection from triggering when the user
+            // is interacting with a popover that's floating above the underlines
+            if isMouseOverAnyPopover(mouseLocation) {
+                Logger.trace("ErrorOverlay: Mouse is over popover - skipping underline hover detection", category: Logger.ui)
+                return
+            }
+
             // Check if mouse is within our window bounds
             guard frame.contains(mouseLocation) else {
                 // Mouse left the window - clear hover state
@@ -189,7 +197,7 @@ class ErrorOverlayWindow: NSPanel {
                 .filter { $0.bounds.contains(localPoint) }
                 .map { HoverTarget.style($0) }
             allMatches += underlineView.readabilityUnderlines
-                .filter { $0.bounds.contains(localPoint) }
+                .filter { $0.containsPointInVisibleArea(localPoint) }
                 .map { HoverTarget.readability($0) }
 
             // Select the most specific (smallest span) - this is the key UX improvement
@@ -250,7 +258,7 @@ class ErrorOverlayWindow: NSPanel {
                 .filter { $0.bounds.contains(localPoint) }
                 .map { HoverTarget.style($0) }
             allClickMatches += underlineView.readabilityUnderlines
-                .filter { $0.bounds.contains(localPoint) }
+                .filter { $0.containsPointInVisibleArea(localPoint) }
                 .map { HoverTarget.readability($0) }
 
             // Select the most specific (smallest span) - same logic as hover
@@ -1774,6 +1782,36 @@ class ErrorOverlayWindow: NSPanel {
         isPopoverHovered = false
         Logger.debug("ErrorOverlay: Popover exited - hover switches allowed", category: Logger.ui)
     }
+
+    /// Check if mouse is over any visible popover
+    /// This prevents underline hover detection from triggering when user is interacting with a popover
+    private func isMouseOverAnyPopover(_ mouseLocation: CGPoint) -> Bool {
+        // Check SuggestionPopover
+        if SuggestionPopover.shared.isVisible,
+           let panel = SuggestionPopover.shared.panel,
+           panel.frame.contains(mouseLocation)
+        {
+            return true
+        }
+
+        // Check ReadabilityPopover
+        if ReadabilityPopover.shared.isVisible,
+           let panel = ReadabilityPopover.shared.panel,
+           panel.frame.contains(mouseLocation)
+        {
+            return true
+        }
+
+        // Check TextGenerationPopover
+        if TextGenerationPopover.shared.isVisible,
+           let panel = TextGenerationPopover.shared.panel,
+           panel.frame.contains(mouseLocation)
+        {
+            return true
+        }
+
+        return false
+    }
 }
 
 // MARK: - Hover Target (Unified hit detection)
@@ -1915,6 +1953,21 @@ struct ReadabilityUnderline {
 
 extension ReadabilityUnderline {
     static let color = NSColor.systemPurple // Violet/purple for readability issues
+
+    /// Check if a point is within the visible underline areas
+    /// For segmented underlines, only checks the first and last segment bounds
+    /// For non-segmented, checks all drawing bounds
+    func containsPointInVisibleArea(_ point: CGPoint) -> Bool {
+        if isSegmented {
+            // Only check the visible segments (first + last words)
+            let firstContains = firstSegmentBounds?.contains { $0.contains(point) } ?? false
+            let lastContains = lastSegmentBounds?.contains { $0.contains(point) } ?? false
+            return firstContains || lastContains
+        } else {
+            // Check all drawing bounds
+            return allDrawingBounds.contains { $0.contains(point) }
+        }
+    }
 }
 
 // MARK: - Underline View
@@ -1969,7 +2022,14 @@ class UnderlineView: NSView {
         // For multi-line underlines, highlight all lines
         let highlightUnderline = hoveredUnderline ?? lockedHighlightUnderline
         if let highlighted = highlightUnderline {
-            for lineBounds in highlighted.allDrawingBounds {
+            Logger.debug("UnderlineView: Drawing GRAMMAR hover highlight - allDrawingBounds.count=\(highlighted.allDrawingBounds.count), bounds=\(highlighted.bounds), color=\(highlighted.color)", category: Logger.ui)
+            for (index, lineBounds) in highlighted.allDrawingBounds.enumerated() {
+                // Defensive check: skip highlights that are unreasonably tall (> 50px indicates bad bounds)
+                guard lineBounds.height <= 50 else {
+                    Logger.warning("UnderlineView: Skipping GRAMMAR highlight \(index) with unreasonable height: \(lineBounds)", category: Logger.ui)
+                    continue
+                }
+                Logger.debug("UnderlineView: Drawing GRAMMAR highlight \(index) at bounds: \(lineBounds)", category: Logger.ui)
                 drawHighlight(in: context, bounds: lineBounds, color: highlighted.color)
             }
         }
@@ -2001,8 +2061,31 @@ class UnderlineView: NSView {
         }
 
         // Draw highlight for hovered readability underline
+        // For segmented underlines, only highlight the visible segments (first + last words)
+        // not the entire sentence which would span multiple lines
         if let hovered = hoveredReadabilityUnderline {
-            for lineBounds in hovered.allDrawingBounds {
+            let boundsToHighlight: [CGRect]
+            if hovered.isSegmented,
+               let firstBounds = hovered.firstSegmentBounds,
+               let lastBounds = hovered.lastSegmentBounds
+            {
+                // Segmented: only highlight the visible underline segments
+                boundsToHighlight = firstBounds + lastBounds
+                Logger.debug("UnderlineView: Drawing segmented readability HOVER highlight - first:\(firstBounds.count) + last:\(lastBounds.count) bounds", category: Logger.ui)
+            } else {
+                // Non-segmented: highlight all bounds
+                boundsToHighlight = hovered.allDrawingBounds
+                Logger.debug("UnderlineView: Drawing readability HOVER highlight - allDrawingBounds.count=\(hovered.allDrawingBounds.count)", category: Logger.ui)
+            }
+
+            for (index, lineBounds) in boundsToHighlight.enumerated() {
+                // Defensive check: skip highlights that are unreasonably tall (> 50px indicates bad bounds)
+                // A single line of text should never be taller than ~30px
+                guard lineBounds.height <= 50 else {
+                    Logger.warning("UnderlineView: Skipping readability highlight \(index) with unreasonable height: \(lineBounds)", category: Logger.ui)
+                    continue
+                }
+                Logger.debug("UnderlineView: Drawing readability highlight \(index) at bounds: \(lineBounds)", category: Logger.ui)
                 drawHighlight(in: context, bounds: lineBounds, color: ReadabilityUnderline.color)
             }
         }

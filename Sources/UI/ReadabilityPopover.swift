@@ -20,8 +20,8 @@ class ReadabilityPopover: NSObject, ObservableObject {
 
     // MARK: - Properties
 
-    /// The popover panel
-    private var panel: NSPanel?
+    /// The popover panel (read-only access for hit testing)
+    private(set) var panel: NSPanel?
 
     /// Timer for delayed hiding
     private var hideTimer: Timer?
@@ -47,6 +47,9 @@ class ReadabilityPopover: NSObject, ObservableObject {
     /// Stored open direction from indicator
     private var openDirection: PopoverOpenDirection = .top
 
+    /// Whether the popover was opened from the capsule indicator (persists until manually dismissed)
+    @Published private(set) var openedFromIndicator: Bool = false
+
     // MARK: - Visibility
 
     var isVisible: Bool {
@@ -62,12 +65,19 @@ class ReadabilityPopover: NSObject, ObservableObject {
     // MARK: - Show/Hide
 
     /// Show the readability popover
-    func show(at position: CGPoint, direction: PopoverOpenDirection = .top, result: ReadabilityResult, analysis: TextReadabilityAnalysis? = nil) {
-        Logger.debug("ReadabilityPopover: show at \(position), direction: \(direction), score: \(result.displayScore)", category: Logger.ui)
+    /// - Parameters:
+    ///   - position: Screen position to anchor the popover
+    ///   - direction: Preferred direction for popover to open
+    ///   - result: The readability result to display
+    ///   - analysis: Optional sentence-level analysis
+    ///   - fromIndicator: If true, popover persists until manually dismissed (opened from capsule)
+    func show(at position: CGPoint, direction: PopoverOpenDirection = .top, result: ReadabilityResult, analysis: TextReadabilityAnalysis? = nil, fromIndicator: Bool = false) {
+        Logger.debug("ReadabilityPopover: show at \(position), direction: \(direction), score: \(result.displayScore), fromIndicator: \(fromIndicator)", category: Logger.ui)
 
         self.result = result
         self.analysis = analysis
         openDirection = direction
+        openedFromIndicator = fromIndicator
 
         if panel == nil {
             createPanel()
@@ -109,13 +119,22 @@ class ReadabilityPopover: NSObject, ObservableObject {
 
         hideTimer?.invalidate()
         hideTimer = nil
+        openedFromIndicator = false
         removeClickOutsideMonitor()
         panel?.orderOut(nil)
     }
 
     /// Schedule hiding after delay
+    /// Does nothing if popover was opened from indicator (must be manually dismissed)
     func scheduleHide(delay: TimeInterval = TimingConstants.popoverAutoHide) {
         hideTimer?.invalidate()
+
+        // Don't auto-hide popovers opened from indicator
+        guard !openedFromIndicator else {
+            Logger.trace("ReadabilityPopover: skipping scheduleHide - opened from indicator", category: Logger.ui)
+            return
+        }
+
         hideTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.hide()
@@ -486,6 +505,9 @@ struct ScoreLegendView: View {
 class ReadabilityTrackingView: NSView {
     weak var popover: ReadabilityPopover?
 
+    /// Track last size to avoid unnecessary tracking area updates during rebuild cycles
+    private var lastTrackingSize: NSSize = .zero
+
     init(popover: ReadabilityPopover) {
         self.popover = popover
         super.init(frame: .zero)
@@ -510,6 +532,30 @@ class ReadabilityTrackingView: NSView {
     }
 
     private func setupTracking() {
+        // Initial setup - will be properly configured in updateTrackingAreas()
+        updateTrackingAreas()
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+
+        // Only update tracking areas if size actually changed significantly
+        // This prevents unnecessary recreation during rebuild cycles
+        if abs(newSize.width - lastTrackingSize.width) > 1 || abs(newSize.height - lastTrackingSize.height) > 1 {
+            lastTrackingSize = newSize
+            updateTrackingAreas()
+        }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+
+        // Remove existing tracking areas
+        trackingAreas.forEach { removeTrackingArea($0) }
+
+        // Only add tracking area if we have valid bounds
+        guard bounds.width > 0, bounds.height > 0 else { return }
+
         let trackingArea = NSTrackingArea(
             rect: bounds,
             options: [.activeAlways, .mouseEnteredAndExited, .inVisibleRect],

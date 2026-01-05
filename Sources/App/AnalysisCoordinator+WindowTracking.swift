@@ -152,7 +152,8 @@ extension AnalysisCoordinator {
             // Mac Catalyst apps and Microsoft Office have unreliable AX notifications
             let isCatalystApp = textMonitor.currentContext?.isMacCatalystApp ?? false
             let isMicrosoftOffice = textMonitor.currentContext?.bundleIdentifier == "com.microsoft.Word" ||
-                textMonitor.currentContext?.bundleIdentifier == "com.microsoft.Powerpoint"
+                textMonitor.currentContext?.bundleIdentifier == "com.microsoft.Powerpoint" ||
+                textMonitor.currentContext?.bundleIdentifier == "com.microsoft.Outlook"
             let needsReanalysis = isCatalystApp || isMicrosoftOffice
 
             Logger.debug("Text validation: Text content changed - \(needsReanalysis ? "triggering re-analysis" : "hiding indicator") (possibly switched conversation)", category: Logger.analysis)

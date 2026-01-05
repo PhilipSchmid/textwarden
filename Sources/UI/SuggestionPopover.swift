@@ -52,8 +52,8 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     // MARK: - Properties
 
-    /// The popover panel
-    private var panel: NonActivatingPanel?
+    /// The popover panel (read-only access for hit testing)
+    private(set) var panel: NonActivatingPanel?
 
     /// Timer for delayed hiding
     private var hideTimer: Timer?
@@ -1455,8 +1455,33 @@ class PopoverTrackingView: NSView {
     }
 
     private func setupTracking() {
-        // Use .activeAlways to always track mouse position
-        // Use .inVisibleRect so tracking area auto-updates with view size
+        // Initial setup - will be properly configured in updateTrackingAreas()
+        updateTrackingAreas()
+    }
+
+    /// Track last size to avoid unnecessary tracking area updates
+    private var lastTrackingSize: NSSize = .zero
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+
+        // Only update tracking areas if size actually changed significantly
+        // This prevents unnecessary recreation during rebuild cycles
+        if abs(newSize.width - lastTrackingSize.width) > 1 || abs(newSize.height - lastTrackingSize.height) > 1 {
+            lastTrackingSize = newSize
+            updateTrackingAreas()
+        }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+
+        // Remove existing tracking areas
+        trackingAreas.forEach { removeTrackingArea($0) }
+
+        // Only add tracking area if we have valid bounds
+        guard bounds.width > 0, bounds.height > 0 else { return }
+
         let trackingArea = NSTrackingArea(
             rect: bounds,
             options: [.activeAlways, .mouseEnteredAndExited, .inVisibleRect],

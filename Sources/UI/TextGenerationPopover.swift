@@ -105,8 +105,8 @@ class TextGenerationPopover: NSObject, ObservableObject {
 
     // MARK: - Properties
 
-    /// The popover panel
-    private var panel: TextInputPanel?
+    /// The popover panel (read-only access for hit testing)
+    private(set) var panel: TextInputPanel?
 
     /// Timer for delayed hiding
     private var hideTimer: Timer?
@@ -192,9 +192,17 @@ class TextGenerationPopover: NSObject, ObservableObject {
     /// Stored open direction from indicator - used for positioning
     private var openDirection: PopoverOpenDirection = .top
 
+    /// Whether the popover was opened from the capsule indicator (persists until manually dismissed)
+    @Published private(set) var openedFromIndicator: Bool = false
+
     /// Show the text generation popover
-    func show(at position: CGPoint, direction: PopoverOpenDirection = .top, context: GenerationContext) {
-        Logger.debug("TextGenerationPopover: show at \(position), direction: \(direction)", category: Logger.ui)
+    /// - Parameters:
+    ///   - position: Screen position to anchor the popover
+    ///   - direction: Preferred direction for popover to open
+    ///   - context: Generation context with text information
+    ///   - fromIndicator: If true, popover persists until manually dismissed (opened from capsule)
+    func show(at position: CGPoint, direction: PopoverOpenDirection = .top, context: GenerationContext, fromIndicator: Bool = false) {
+        Logger.debug("TextGenerationPopover: show at \(position), direction: \(direction), fromIndicator: \(fromIndicator)", category: Logger.ui)
 
         // Close other popovers first
         SuggestionPopover.shared.hide()
@@ -208,8 +216,9 @@ class TextGenerationPopover: NSObject, ObservableObject {
         generatedResults = lastResults
         currentResultIndex = lastResultIndex
 
-        // Store open direction for positioning
+        // Store open direction and indicator flag
         openDirection = direction
+        openedFromIndicator = fromIndicator
 
         // Style handling: use cached style if there's cached content, otherwise use preference
         // This preserves user's style choice during a session, while Clear resets to preference
@@ -269,6 +278,7 @@ class TextGenerationPopover: NSObject, ObservableObject {
 
         hideTimer?.invalidate()
         hideTimer = nil
+        openedFromIndicator = false
         removeClickOutsideMonitor()
         panel?.orderOut(nil)
     }
@@ -302,9 +312,16 @@ class TextGenerationPopover: NSObject, ObservableObject {
     }
 
     /// Schedule hiding after delay
+    /// Does nothing if popover was opened from indicator (must be manually dismissed)
     func scheduleHide(delay: TimeInterval = TimingConstants.popoverAutoHide) {
         // Don't auto-hide while generating or showing results
         guard !isGenerating, generatedResults.isEmpty else { return }
+
+        // Don't auto-hide popovers opened from indicator
+        guard !openedFromIndicator else {
+            Logger.trace("TextGenerationPopover: skipping scheduleHide - opened from indicator", category: Logger.ui)
+            return
+        }
 
         hideTimer?.invalidate()
         hideTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
@@ -594,6 +611,9 @@ class TextGenerationPopover: NSObject, ObservableObject {
 private class TextGenTrackingView: NSView {
     weak var popover: TextGenerationPopover?
 
+    /// Track last size to avoid unnecessary tracking area updates during rebuild cycles
+    private var lastTrackingSize: NSSize = .zero
+
     init(popover: TextGenerationPopover) {
         self.popover = popover
         super.init(frame: .zero)
@@ -603,7 +623,8 @@ private class TextGenTrackingView: NSView {
         layer?.cornerRadius = 10
         layer?.masksToBounds = true
 
-        setupTracking()
+        // Initial setup - will be properly configured in updateTrackingAreas()
+        updateTrackingAreas()
     }
 
     @available(*, unavailable)
@@ -611,10 +632,29 @@ private class TextGenTrackingView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    private func setupTracking() {
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+
+        // Only update tracking areas if size actually changed significantly
+        // This prevents unnecessary recreation during rebuild cycles
+        if abs(newSize.width - lastTrackingSize.width) > 1 || abs(newSize.height - lastTrackingSize.height) > 1 {
+            lastTrackingSize = newSize
+            updateTrackingAreas()
+        }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+
+        // Remove existing tracking areas
+        trackingAreas.forEach { removeTrackingArea($0) }
+
+        // Only add tracking area if we have valid bounds
+        guard bounds.width > 0, bounds.height > 0 else { return }
+
         let trackingArea = NSTrackingArea(
             rect: bounds,
-            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            options: [.activeAlways, .mouseEnteredAndExited, .inVisibleRect],
             owner: self,
             userInfo: nil
         )
