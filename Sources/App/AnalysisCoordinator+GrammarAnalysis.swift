@@ -257,14 +257,12 @@ extension AnalysisCoordinator {
         )
 
         // Calculate readability score if enabled and text has sufficient length
-        if userPreferences.showReadabilityScore, wordCount >= 30 {
+        if userPreferences.readabilityEnabled, wordCount >= 30 {
             // Get target audience from user preference
             let targetAudience = TargetAudience(fromDisplayName: userPreferences.selectedTargetAudience) ?? .general
 
-            // Run sentence-level analysis if feature is enabled
-            if userPreferences.sentenceComplexityHighlightingEnabled,
-               let analysis = ReadabilityCalculator.shared.analyzeForTargetAudience(text, targetAudience: targetAudience)
-            {
+            // Run sentence-level analysis
+            if let analysis = ReadabilityCalculator.shared.analyzeForTargetAudience(text, targetAudience: targetAudience) {
                 currentReadabilityAnalysis = analysis
                 currentReadabilityResult = analysis.overallResult
                 Logger.debug("AnalysisCoordinator: Readability analysis complete - \(analysis.complexSentenceCount) complex sentences for \(targetAudience.displayName) audience", category: Logger.analysis)
@@ -470,7 +468,7 @@ extension AnalysisCoordinator {
         let capturedGeneration = styleAnalysisGeneration
 
         // Capture readability settings
-        let sentenceComplexityEnabled = userPreferences.sentenceComplexityHighlightingEnabled
+        let readabilityEnabled = userPreferences.readabilityEnabled
         let targetAudienceName = userPreferences.selectedTargetAudience
         let targetAudience = TargetAudience(fromDisplayName: targetAudienceName) ?? .general
         let readabilityAnalysis = currentReadabilityAnalysis
@@ -497,7 +495,7 @@ extension AnalysisCoordinator {
                 }
 
                 // Generate readability simplifications for complex sentences (if enabled)
-                if sentenceComplexityEnabled,
+                if readabilityEnabled,
                    let analysis = readabilityAnalysis,
                    !analysis.complexSentences.isEmpty
                 {

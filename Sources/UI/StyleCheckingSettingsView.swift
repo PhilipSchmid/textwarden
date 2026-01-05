@@ -18,63 +18,53 @@ struct StyleCheckingSettingsView: View {
             // MARK: - Readability Section (always visible)
 
             Section {
-                Toggle(isOn: $preferences.showReadabilityScore) {
+                Toggle(isOn: $preferences.readabilityEnabled) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Show Readability Score")
-                        Text("Display Flesch Reading Ease score in the indicator for text with 30+ words")
+                        Text("Enable Readability Analysis")
+                        Text("Show readability score and analyze sentence complexity")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
                 }
                 .toggleStyle(.switch)
 
-                // Target audience segmented control (matches Writing Style UI)
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Target Audience")
-                        .font(.headline)
+                if preferences.readabilityEnabled {
+                    // Target audience segmented control
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Target Audience")
+                            .font(.headline)
 
-                    HStack(spacing: 0) {
-                        ForEach(UserPreferences.targetAudienceOptions, id: \.self) { audience in
-                            Button {
-                                preferences.selectedTargetAudience = audience
-                            } label: {
-                                Text(audience)
-                                    .font(.system(size: 12, weight: preferences.selectedTargetAudience == audience ? .semibold : .regular))
-                                    .foregroundColor(preferences.selectedTargetAudience == audience ? .white : .primary)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 6)
-                                    .background(
-                                        preferences.selectedTargetAudience == audience
-                                            ? Color.accentColor
-                                            : Color.clear
-                                    )
+                        HStack(spacing: 0) {
+                            ForEach(UserPreferences.targetAudienceOptions, id: \.self) { audience in
+                                Button {
+                                    preferences.selectedTargetAudience = audience
+                                } label: {
+                                    Text(audience)
+                                        .font(.system(size: 12, weight: preferences.selectedTargetAudience == audience ? .semibold : .regular))
+                                        .foregroundColor(preferences.selectedTargetAudience == audience ? .white : .primary)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 6)
+                                        .background(
+                                            preferences.selectedTargetAudience == audience
+                                                ? Color.accentColor
+                                                : Color.clear
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                                .help(audienceDescription(for: audience))
                             }
-                            .buttonStyle(.plain)
-                            .help(audienceDescription(for: audience))
                         }
+                        .background(Color(.separatorColor).opacity(0.2))
+                        .cornerRadius(6)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color(.separatorColor), lineWidth: 0.5)
+                        )
                     }
-                    .background(Color(.separatorColor).opacity(0.2))
-                    .cornerRadius(6)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color(.separatorColor), lineWidth: 0.5)
-                    )
-                }
 
-                Toggle(isOn: $preferences.sentenceComplexityHighlightingEnabled) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Highlight Complex Sentences")
-                        Text("Mark sentences too difficult for your target audience")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .toggleStyle(.switch)
-
-                if preferences.sentenceComplexityHighlightingEnabled {
                     Toggle(isOn: $preferences.showReadabilityUnderlines) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Show Readability Underlines")
+                            Text("Show Complexity Underlines")
                             Text("Violet dashed underlines under complex sentences")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -99,13 +89,13 @@ struct StyleCheckingSettingsView: View {
                 }
             }
 
-            // MARK: - Apple Intelligence Section
+            // MARK: - AI Style Suggestions Section
 
             Section {
                 Toggle(isOn: $preferences.enableStyleChecking) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Enable Apple Intelligence Features")
-                        Text("Style suggestions and AI Compose for text generation")
+                        Text("Enable AI Style Suggestions")
+                        Text("Get suggestions for clarity, tone, and conciseness")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -114,15 +104,15 @@ struct StyleCheckingSettingsView: View {
             } header: {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 8) {
-                        Image(systemName: "apple.intelligence")
+                        Image(systemName: "sparkles")
                             .font(.title2)
                             .foregroundColor(.purple)
-                        Text("Apple Intelligence")
+                        Text("AI Style Suggestions")
                             .font(.title3)
                             .fontWeight(.semibold)
                     }
 
-                    Text("Uses Apple Intelligence for style suggestions and AI Compose text generation. All processing happens on your device.")
+                    Text("AI-powered suggestions to improve your writing. Includes AI Compose for generating text from instructions. All processing happens on your device.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -211,7 +201,7 @@ struct StyleCheckingSettingsView: View {
                         .font(.headline)
                 }
 
-                // MARK: - Apple Intelligence Status Section
+                // MARK: - AI Features Status Section
 
                 Section {
                     HStack(spacing: 12) {
@@ -220,7 +210,7 @@ struct StyleCheckingSettingsView: View {
                             .foregroundColor(fmStatus.isAvailable ? .green : .orange)
 
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(fmStatus.isAvailable ? "Apple Intelligence Ready" : "Apple Intelligence")
+                            Text(fmStatus.isAvailable ? "AI Features Ready" : "AI Features")
                                 .font(.system(size: 13, weight: .semibold))
 
                             Text(fmStatus.userMessage)
@@ -249,7 +239,7 @@ struct StyleCheckingSettingsView: View {
                     }
                     .padding(.vertical, 4)
                 } header: {
-                    Text("Status")
+                    Text("Availability")
                         .font(.headline)
                 }
                 .onAppear {

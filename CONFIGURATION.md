@@ -10,7 +10,7 @@ This guide explains all the settings available in TextWarden and how they affect
 - [Grammar \& Language](#grammar--language)
 - [Custom Vocabulary](#custom-vocabulary)
 - [Readability](#readability)
-- [Style Checking (Apple Intelligence)](#style-checking-apple-intelligence)
+- [AI Style Suggestions](#ai-style-suggestions)
 - [Appearance](#appearance)
 - [Application Controls](#application-controls)
   - [Supported Applications](#supported-applications)
@@ -171,9 +171,13 @@ TextWarden analyzes text complexity using the Flesch Reading Ease formula. These
 
 > **Note:** Readability features work independently of Apple Intelligence and are available on all supported macOS versions.
 
-### Show Readability Score
+### Enable Readability Analysis
 
-**What it does:** Displays a Flesch Reading Ease score in the floating indicator for text with 30 or more words. The score ranges from 0-100, with higher scores indicating easier-to-read text.
+**What it does:** Master toggle for all readability features. When enabled:
+- Displays a Flesch Reading Ease score in the floating indicator (for text with 30+ words)
+- Analyzes individual sentences for complexity
+- Flags sentences that are too difficult for your target audience
+- Provides AI-powered simplification suggestions (when Apple Intelligence is available)
 
 **Score interpretation:**
 | Score | Label | What it means |
@@ -208,38 +212,27 @@ TextWarden analyzes text complexity using the Flesch Reading Ease formula. These
 
 **Recommendation:** Match this to your audience. Use "Accessible" for public-facing content, "Professional" for business documents, "Technical" for developer documentation.
 
-### Highlight Complex Sentences
+### Show Complexity Underlines
 
-**What it does:** Master toggle for sentence-level complexity analysis. When enabled, TextWarden analyzes individual sentences and provides AI-powered simplification suggestions for complex ones.
-
-**Features enabled:**
-- Per-sentence Flesch score analysis
-- Complex sentence detection based on target audience
-- AI-powered simplification suggestions in the Style popover (requires Apple Intelligence)
+**What it does:** Controls whether violet dashed underlines appear under complex sentences. Only available when readability analysis is enabled.
 
 **Default:** On
 
-**Recommendation:** Keep enabled for most writing. Disable if you intentionally write at a higher reading level.
-
-### Show Readability Underlines
-
-**What it does:** Controls whether violet dashed underlines appear under complex sentences. Only available when "Highlight Complex Sentences" is enabled.
-
-**Default:** On
-
-**Use case:** Disable this if you want sentence analysis and AI simplification suggestions (accessible via the style popover) but find the visual underlines distracting.
+**Use case:** Disable this if you want readability scoring and AI simplification suggestions but find the visual underlines distracting.
 
 ---
 
-## Style Checking (Apple Intelligence)
+## AI Style Suggestions
 
 > **Requires:** macOS 26 (Tahoe) or later with Apple Intelligence enabled
 
-### Enable Apple Intelligence Features
+### Enable AI Style Suggestions
 
-**What it does:** Activates AI-powered features using Apple Intelligence:
-- **Style Suggestions** - Get suggestions for clearer, more effective phrasing
+**What it does:** Activates AI-powered writing enhancement features:
+- **Style Suggestions** - Get suggestions for clarity, tone, and conciseness
 - **AI Compose** - Generate text from instructions by clicking the pen icon in the indicator
+
+All processing happens locally on your device using Apple Intelligence.
 
 Style checking runs automatically after grammar analysis with smart rate limiting. You can also trigger it manually via keyboard shortcut or by clicking the style section of the indicator.
 

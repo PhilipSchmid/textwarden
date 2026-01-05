@@ -523,25 +523,18 @@ class UserPreferences: ObservableObject {
 
     // MARK: - LLM Style Checking
 
-    // MARK: - Readability Score Settings
+    // MARK: - Readability Settings
 
-    /// Show Flesch Reading Ease score in the capsule indicator (enabled by default)
-    @Published var showReadabilityScore: Bool {
+    /// Master toggle for all readability features (enabled by default)
+    /// When enabled: Shows Flesch score in indicator, analyzes sentence complexity,
+    /// and generates AI simplification suggestions for complex sentences
+    @Published var readabilityEnabled: Bool {
         didSet {
-            defaults.set(showReadabilityScore, forKey: Keys.showReadabilityScore)
+            defaults.set(readabilityEnabled, forKey: Keys.readabilityEnabled)
         }
     }
 
-    /// Enable sentence complexity highlighting feature (enabled by default)
-    /// When enabled: Analyzes sentences for readability, shows violet dashed underlines
-    /// for sentences too complex for the target audience, and generates AI simplification suggestions
-    @Published var sentenceComplexityHighlightingEnabled: Bool {
-        didSet {
-            defaults.set(sentenceComplexityHighlightingEnabled, forKey: Keys.sentenceComplexityHighlightingEnabled)
-        }
-    }
-
-    /// Show violet dashed underlines for complex sentences (only applies when sentenceComplexityHighlightingEnabled is true)
+    /// Show violet dashed underlines for complex sentences (only applies when readabilityEnabled is true)
     @Published var showReadabilityUnderlines: Bool {
         didSet {
             defaults.set(showReadabilityUnderlines, forKey: Keys.showReadabilityUnderlines)
@@ -848,11 +841,19 @@ class UserPreferences: ObservableObject {
         }
         milestonesDisabled = defaults.object(forKey: Keys.milestonesDisabled) as? Bool ?? false
 
-        // Readability Score - enabled by default
-        showReadabilityScore = defaults.object(forKey: Keys.showReadabilityScore) as? Bool ?? true
-
-        // Sentence Complexity Highlighting - enabled by default
-        sentenceComplexityHighlightingEnabled = defaults.object(forKey: Keys.sentenceComplexityHighlightingEnabled) as? Bool ?? true
+        // Readability - enabled by default
+        // Migration: if user had either old setting enabled, keep readability enabled
+        if let existingValue = defaults.object(forKey: Keys.readabilityEnabled) as? Bool {
+            readabilityEnabled = existingValue
+        } else {
+            // Migrate from old settings: enabled if either old setting was enabled (or defaults to true)
+            let oldShowScore = defaults.object(forKey: "showReadabilityScore") as? Bool ?? true
+            let oldSentenceComplexity = defaults.object(forKey: "sentenceComplexityHighlightingEnabled") as? Bool ?? true
+            let migratedValue = oldShowScore || oldSentenceComplexity
+            readabilityEnabled = migratedValue
+            // Persist the migrated value
+            defaults.set(migratedValue, forKey: Keys.readabilityEnabled)
+        }
         showReadabilityUnderlines = defaults.object(forKey: Keys.showReadabilityUnderlines) as? Bool ?? true
         selectedTargetAudience = defaults.string(forKey: Keys.selectedTargetAudience) ?? TargetAudience.general.displayName
 
@@ -1281,11 +1282,8 @@ class UserPreferences: ObservableObject {
         static let shownMilestones = "shownMilestones"
         static let milestonesDisabled = "milestonesDisabled"
 
-        // Readability Score
-        static let showReadabilityScore = "showReadabilityScore"
-
-        // Sentence Complexity Highlighting
-        static let sentenceComplexityHighlightingEnabled = "sentenceComplexityHighlightingEnabled"
+        // Readability
+        static let readabilityEnabled = "readabilityEnabled"
         static let showReadabilityUnderlines = "showReadabilityUnderlines"
         static let selectedTargetAudience = "selectedTargetAudience"
 

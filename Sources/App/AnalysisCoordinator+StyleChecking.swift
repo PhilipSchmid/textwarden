@@ -348,7 +348,7 @@ extension AnalysisCoordinator {
         let vocabulary = customVocabulary.allWords()
 
         // Capture readability settings for simplification
-        let sentenceComplexityEnabled = userPreferences.sentenceComplexityHighlightingEnabled
+        let readabilityEnabled = userPreferences.readabilityEnabled
         let targetAudienceName = userPreferences.selectedTargetAudience
         let targetAudience = TargetAudience(fromDisplayName: targetAudienceName) ?? .general
         let readabilityAnalysis = currentReadabilityAnalysis
@@ -395,7 +395,7 @@ extension AnalysisCoordinator {
                 styleAnalysisSourceText = capturedFullText
 
                 // Generate readability simplifications for complex sentences (if enabled)
-                if sentenceComplexityEnabled,
+                if readabilityEnabled,
                    let analysis = readabilityAnalysis,
                    !analysis.complexSentences.isEmpty
                 {

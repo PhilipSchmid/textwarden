@@ -135,8 +135,8 @@ struct OnboardingView: View {
                                 verificationStep
                             case .launchAtLogin:
                                 launchAtLoginStep
-                            case .appleIntelligence:
-                                appleIntelligenceStep
+                            case .writingEnhancements:
+                                writingEnhancementsStep
                             case .languageDetection:
                                 languageDetectionStep
                             case .websiteExclusion:
@@ -455,20 +455,21 @@ struct OnboardingView: View {
     @State private var enableLaunchAtLogin: Bool = false
     @State private var enableAutoUpdates: Bool = true
     @State private var enableStyleChecking: Bool = true
+    @State private var enableReadability: Bool = true
 
-    private var appleIntelligenceStep: some View {
+    private var writingEnhancementsStep: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 12) {
-                Image(systemName: appleIntelligenceStatusIcon)
+                Image(systemName: "text.badge.star")
                     .font(.system(size: 40))
-                    .foregroundColor(appleIntelligenceStatusColor)
+                    .foregroundColor(.accentColor)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Apple Intelligence")
+                    Text("Writing Enhancements")
                         .font(.title3)
                         .fontWeight(.semibold)
 
-                    Text(appleIntelligenceStatusSubtitle)
+                    Text("Improve clarity, tone, and readability")
                         .font(.body)
                         .foregroundColor(.secondary)
                 }
@@ -476,7 +477,95 @@ struct OnboardingView: View {
 
             Divider()
 
-            appleIntelligenceContent
+            VStack(alignment: .leading, spacing: 20) {
+                // Readability Analysis section
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Readability Analysis")
+                                .font(.body)
+                                .fontWeight(.medium)
+                            Text("Show a Flesch Reading Ease score and highlight complex sentences")
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Toggle("", isOn: $enableReadability)
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                    }
+                }
+
+                Divider()
+
+                // AI Style Suggestions section
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Text("AI Style Suggestions")
+                                    .font(.body)
+                                    .fontWeight(.medium)
+                                if appleIntelligenceStatus == .available {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                        .font(.caption)
+                                }
+                            }
+                            Text("Get AI-powered suggestions for clarity, tone, and conciseness")
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        if appleIntelligenceStatus == .available {
+                            Toggle("", isOn: $enableStyleChecking)
+                                .toggleStyle(.switch)
+                                .labelsHidden()
+                        }
+                    }
+
+                    // Status message for AI features
+                    switch appleIntelligenceStatus {
+                    case .checking:
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                            Text("Checking availability...")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    case .available:
+                        if enableStyleChecking {
+                            Text("Includes AI Compose for generating text from instructions. All processing happens on your device.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    case .notEnabled:
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Requires Apple Intelligence to be enabled in System Settings.")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                            Button("Open Settings") {
+                                NSWorkspace.shared.open(AppURLs.appleIntelligenceSettings)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    case .notEligible:
+                        Text("Requires a Mac with Apple Silicon (M1 or later).")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    case .notSupported:
+                        Text("Requires macOS 26 (Tahoe) or later.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Text("You can change these settings anytime in Settings → Style.")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+            }
         }
         .onAppear {
             checkAppleIntelligenceStatus()
@@ -805,133 +894,6 @@ struct OnboardingView: View {
         }
     }
 
-    @ViewBuilder
-    private var appleIntelligenceContent: some View {
-        switch appleIntelligenceStatus {
-        case .checking:
-            HStack(spacing: 12) {
-                ProgressView()
-                    .scaleEffect(0.8)
-                Text("Checking Apple Intelligence availability...")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-            }
-
-        case .available:
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Uses Apple Intelligence for style suggestions and AI Compose text generation - all processed locally on your Mac.")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-
-                HStack(spacing: 16) {
-                    FeatureCard(icon: "sparkles", title: "Style Suggestions", description: "AI rewrites for clarity")
-                    FeatureCard(icon: "pencil.and.outline", title: "AI Compose", description: "Generate text from instructions")
-                    FeatureCard(icon: "lock.shield", title: "On-Device", description: "Private & local")
-                }
-                .fixedSize(horizontal: false, vertical: true)
-
-                Divider()
-
-                // Enable Apple Intelligence toggle
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Enable Apple Intelligence Features")
-                            .font(.body)
-                            .fontWeight(.medium)
-                        Text("Style suggestions and AI Compose for text generation")
-                            .font(.body)
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                    Toggle("", isOn: $enableStyleChecking)
-                        .toggleStyle(.switch)
-                        .labelsHidden()
-                }
-
-                // Info text (only shown if enabled)
-                if enableStyleChecking {
-                    Text("Style checking runs automatically after grammar analysis. You can also trigger it manually via keyboard shortcut or by clicking the indicator.")
-                        .font(.body)
-                        .foregroundColor(.secondary)
-                }
-
-                Text("You can change these settings anytime in Settings → Style.")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-            }
-
-        case .notEnabled:
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Apple Intelligence is not enabled on your Mac. Enable it to unlock AI-powered style suggestions.")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-
-                VStack(alignment: .leading, spacing: 12) {
-                    StepRow(number: 1, text: "Click 'Open Settings' below")
-                    StepRow(number: 2, text: "Enable Apple Intelligence")
-                    StepRow(number: 3, text: "Wait for the model to download")
-                }
-                .padding(.vertical, 8)
-
-                Text("This is optional - grammar checking works without it.")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-            }
-
-        case .notEligible:
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Apple Intelligence requires a Mac with Apple Silicon (M1 or later). Style suggestions are not available on this Mac.")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-
-                Text("Grammar and spelling checking work normally without this feature.")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 8)
-            }
-
-        case .notSupported:
-            VStack(alignment: .leading, spacing: 12) {
-                Text("AI style suggestions require macOS 26 (Tahoe) or later. Your current macOS version does not support this feature.")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-
-                Text("Grammar and spelling checking work normally without this feature.")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 8)
-            }
-        }
-    }
-
-    private var appleIntelligenceStatusIcon: String {
-        switch appleIntelligenceStatus {
-        case .checking: "hourglass"
-        case .available: "checkmark.circle.fill"
-        case .notEnabled: "exclamationmark.circle.fill"
-        case .notEligible, .notSupported: "xmark.circle.fill"
-        }
-    }
-
-    private var appleIntelligenceStatusColor: Color {
-        switch appleIntelligenceStatus {
-        case .checking: .secondary
-        case .available: .green
-        case .notEnabled: .orange
-        case .notEligible, .notSupported: .secondary
-        }
-    }
-
-    private var appleIntelligenceStatusSubtitle: String {
-        switch appleIntelligenceStatus {
-        case .checking: "Checking availability..."
-        case .available: "Available on your Mac"
-        case .notEnabled: "Requires setup"
-        case .notEligible: "Not available on this Mac"
-        case .notSupported: "Requires macOS 26+"
-        }
-    }
-
     /// Close the onboarding window properly
     private func closeOnboardingWindow() {
         Logger.info("Finishing onboarding setup", category: Logger.ui)
@@ -963,7 +925,7 @@ struct OnboardingView: View {
             false // During permission flow, don't allow back
         case .launchAtLogin:
             true // Can go back to verification
-        case .appleIntelligence:
+        case .writingEnhancements:
             true
         case .languageDetection:
             true
@@ -982,10 +944,10 @@ struct OnboardingView: View {
             break // Can't go back from these
         case .launchAtLogin:
             currentStep = .verification
-        case .appleIntelligence:
+        case .writingEnhancements:
             currentStep = .launchAtLogin
         case .languageDetection:
-            currentStep = .appleIntelligence
+            currentStep = .writingEnhancements
         case .websiteExclusion:
             currentStep = .languageDetection
         case .sponsoring:
@@ -1019,8 +981,8 @@ struct OnboardingView: View {
         case .verification:
             "Double tap to continue to the next step"
         case .launchAtLogin:
-            "Double tap to continue to AI style checking setup"
-        case .appleIntelligence:
+            "Double tap to continue to writing enhancements setup"
+        case .writingEnhancements:
             "Double tap to continue to language detection setup"
         case .languageDetection:
             "Double tap to continue to website exclusions"
@@ -1045,7 +1007,7 @@ struct OnboardingView: View {
             "Continue"
         case .launchAtLogin:
             "Continue"
-        case .appleIntelligence:
+        case .writingEnhancements:
             "Continue"
         case .languageDetection:
             "Continue"
@@ -1102,12 +1064,13 @@ struct OnboardingView: View {
             updaterViewModel.automaticallyChecksForUpdates = enableAutoUpdates
             Logger.info("Onboarding: Auto update checks: \(enableAutoUpdates)", category: Logger.general)
 
-            currentStep = .appleIntelligence
+            currentStep = .writingEnhancements
 
-        case .appleIntelligence:
-            // Save style checking settings
+        case .writingEnhancements:
+            // Save writing enhancement settings
             UserPreferences.shared.enableStyleChecking = enableStyleChecking
-            Logger.info("Onboarding: Style checking: \(enableStyleChecking)", category: Logger.general)
+            UserPreferences.shared.readabilityEnabled = enableReadability
+            Logger.info("Onboarding: Style checking: \(enableStyleChecking), Readability: \(enableReadability)", category: Logger.general)
             currentStep = .languageDetection
 
         case .languageDetection:
@@ -1328,7 +1291,7 @@ private enum OnboardingStep {
     case permissionRequest
     case verification
     case launchAtLogin
-    case appleIntelligence
+    case writingEnhancements // Renamed from appleIntelligence - covers readability + style
     case languageDetection
     case websiteExclusion
     case gettingStarted

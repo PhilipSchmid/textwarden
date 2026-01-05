@@ -87,8 +87,7 @@ protocol UserPreferencesProviding: AnyObject {
     var styleTemperaturePreset: String { get }
 
     // Readability settings
-    var showReadabilityScore: Bool { get }
-    var sentenceComplexityHighlightingEnabled: Bool { get }
+    var readabilityEnabled: Bool { get }
     var showReadabilityUnderlines: Bool { get }
     var selectedTargetAudience: String { get }
 
