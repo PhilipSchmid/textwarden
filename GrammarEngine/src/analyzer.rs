@@ -124,6 +124,87 @@ fn deduplicate_overlapping_errors(mut errors: Vec<GrammarError>) -> Vec<GrammarE
     result
 }
 
+/// Filter out spelling errors for valid possessive forms.
+///
+/// Harper's custom dictionary words (added via extend_words) don't automatically
+/// recognize possessive forms. This function filters out spelling errors for words
+/// ending in possessive markers when the base word is in the dictionary.
+///
+/// Handles both standard possessive forms:
+/// - "'s" suffix (e.g., "Oliver's" - Chicago Manual of Style)
+/// - "'" suffix for words ending in 's' (e.g., "Kubernetes'" - AP Style)
+/// - Both straight (') and curly (') apostrophes
+///
+/// For example:
+/// - If "Oliver" is in the dictionary, "Oliver's" should not be flagged
+/// - If "Kubernetes" is in the dictionary, both "Kubernetes's" and "Kubernetes'" pass
+fn filter_valid_possessive_errors<D: harper_core::spell::Dictionary>(
+    errors: Vec<GrammarError>,
+    text: &str,
+    dictionary: &D,
+) -> Vec<GrammarError> {
+    let chars: Vec<char> = text.chars().collect();
+
+    errors
+        .into_iter()
+        .filter(|error| {
+            // Only process spelling errors
+            if error.category.to_uppercase() != "SPELLING" {
+                return true;
+            }
+
+            // Extract the error word from text
+            if error.start >= chars.len() || error.end > chars.len() {
+                return true;
+            }
+            let error_word: String = chars[error.start..error.end].iter().collect();
+
+            // Try to extract the base word from possessive forms
+            // Order matters: check "'s" suffixes first, then lone apostrophe for words ending in 's'
+            let base_word = error_word
+                // Standard possessive with straight apostrophe: Oliver's → Oliver
+                .strip_suffix("'s")
+                // Standard possessive with curly apostrophe: Oliver's → Oliver
+                .or_else(|| error_word.strip_suffix("\u{2019}s"))
+                // AP-style for words ending in s (straight apostrophe): Kubernetes' → Kubernetes
+                .or_else(|| {
+                    error_word
+                        .strip_suffix('\'')
+                        .filter(|base| base.ends_with('s') || base.ends_with('S'))
+                })
+                // AP-style for words ending in s (curly apostrophe): Kubernetes' → Kubernetes
+                .or_else(|| {
+                    error_word
+                        .strip_suffix('\u{2019}')
+                        .filter(|base| base.ends_with('s') || base.ends_with('S'))
+                });
+
+            let Some(base) = base_word else {
+                return true; // Not a possessive form, keep the error
+            };
+
+            if base.is_empty() {
+                return true; // Just an apostrophe alone, keep the error
+            }
+
+            // Check if the base word is in the dictionary (case-insensitive)
+            // Harper stores words in lowercase and matches case-insensitively
+            let base_chars: Vec<char> = base.to_lowercase().chars().collect();
+
+            if dictionary.contains_word(&base_chars) {
+                tracing::debug!(
+                    "Filtering possessive form: '{}' (base '{}' is in dictionary)",
+                    error_word,
+                    base
+                );
+                return false; // Base word is valid, filter out this possessive error
+            }
+
+            true // Keep the error
+        })
+        .collect()
+}
+
 /// Analyze text for grammar errors using Harper
 ///
 /// # Arguments
@@ -408,6 +489,19 @@ pub fn analyze_text(
             errors_before_dedupe,
             errors.len(),
             errors_before_dedupe - errors.len()
+        );
+    }
+
+    // Filter out spelling errors for valid possessive forms
+    // Harper doesn't automatically recognize possessives of custom dictionary words
+    let errors_before_possessive = errors.len();
+    errors = filter_valid_possessive_errors(errors, text, dictionary.as_ref());
+    if errors_before_possessive != errors.len() {
+        tracing::debug!(
+            "Possessive filter: {} errors before, {} after (filtered {})",
+            errors_before_possessive,
+            errors.len(),
+            errors_before_possessive - errors.len()
         );
     }
 
@@ -4445,5 +4539,301 @@ mod tests {
             }
         }
         println!("\n=== END TEST ===\n");
+    }
+
+    /// Test Harper's behavior with possessive forms of words
+    /// This helps understand whether possessives of known words are correctly handled
+    #[test]
+    fn test_harper_possessive_behavior() {
+        use harper_core::spell::{MergedDictionary, MutableDictionary};
+        use harper_core::{
+            linting::{LintGroup, Linter},
+            CharString, Dialect, DictWordMetadata, Document,
+        };
+        use std::sync::Arc;
+
+        println!("\n=== HARPER POSSESSIVE BEHAVIOR TEST ===");
+
+        // Create dictionary with a custom name
+        let mut custom_dict = MutableDictionary::new();
+        let custom_name: CharString = "testname".chars().collect();
+        custom_dict.extend_words(vec![(custom_name.clone(), DictWordMetadata::default())]);
+
+        let mut merged = MergedDictionary::new();
+        merged.add_dictionary(MutableDictionary::curated());
+        merged.add_dictionary(Arc::new(custom_dict));
+        let dictionary = Arc::new(merged);
+
+        // Test 1: Base word should not be flagged
+        println!("\n--- Test 1: Base word in dictionary ---");
+        let text1 = "Testname is working on it.";
+        let document1 = Document::new_plain_english(text1, dictionary.as_ref());
+        let mut linter1 = LintGroup::new_curated(dictionary.clone(), Dialect::American);
+        let lints1 = linter1.lint(&document1);
+        println!("Text: '{}'", text1);
+        println!("Errors: {}", lints1.len());
+        for lint in &lints1 {
+            let chars: Vec<char> = text1.chars().collect();
+            let word = chars[lint.span.start..lint.span.end]
+                .iter()
+                .collect::<String>();
+            println!("  - '{}': {}", word, lint.message);
+        }
+
+        // Test 2: Possessive form of known word
+        println!("\n--- Test 2: Possessive of known word ---");
+        let text2 = "Testname's pull request is ready.";
+        let document2 = Document::new_plain_english(text2, dictionary.as_ref());
+        let mut linter2 = LintGroup::new_curated(dictionary.clone(), Dialect::American);
+        let lints2 = linter2.lint(&document2);
+        println!("Text: '{}'", text2);
+        println!("Errors: {}", lints2.len());
+        for lint in &lints2 {
+            let chars: Vec<char> = text2.chars().collect();
+            let word = chars[lint.span.start..lint.span.end]
+                .iter()
+                .collect::<String>();
+            println!(
+                "  - '{}': {} (suggestions: {:?})",
+                word, lint.message, lint.suggestions
+            );
+        }
+
+        // Test 3: Unknown word and its possessive
+        println!("\n--- Test 3: Unknown word and possessive ---");
+        let text3 = "Xyzfoo is here. Xyzfoo's code is great.";
+        let document3 = Document::new_plain_english(text3, dictionary.as_ref());
+        let mut linter3 = LintGroup::new_curated(dictionary.clone(), Dialect::American);
+        let lints3 = linter3.lint(&document3);
+        println!("Text: '{}'", text3);
+        println!("Errors: {}", lints3.len());
+        for lint in &lints3 {
+            let chars: Vec<char> = text3.chars().collect();
+            let word = chars[lint.span.start..lint.span.end]
+                .iter()
+                .collect::<String>();
+            println!(
+                "  - '{}': {} (suggestions: {:?})",
+                word, lint.message, lint.suggestions
+            );
+        }
+
+        // Test 4: Common name with possessive (John should be in curated dict)
+        println!("\n--- Test 4: Common name (John) with possessive ---");
+        let text4 = "John is here. John's car is blue.";
+        let document4 = Document::new_plain_english(text4, dictionary.as_ref());
+        let mut linter4 = LintGroup::new_curated(dictionary.clone(), Dialect::American);
+        let lints4 = linter4.lint(&document4);
+        println!("Text: '{}'", text4);
+        println!("Errors: {}", lints4.len());
+        for lint in &lints4 {
+            let chars: Vec<char> = text4.chars().collect();
+            let word = chars[lint.span.start..lint.span.end]
+                .iter()
+                .collect::<String>();
+            println!("  - '{}': {}", word, lint.message);
+        }
+
+        println!("\n=== END POSSESSIVE TEST ===\n");
+    }
+
+    /// Test that our analyze_text function correctly handles possessive forms
+    #[test]
+    fn test_analyze_possessive_forms() {
+        println!("\n=== ANALYZE POSSESSIVE FORMS TEST ===");
+
+        // Test with a name that would be unknown - possessive should be flagged
+        let text1 = "Xyzname's work is excellent.";
+        let result1 = analyze_text(
+            text1,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+            true,
+            true,
+            true,
+            true,
+        );
+        println!("\nText: '{}'", text1);
+        println!("Errors found: {}", result1.errors.len());
+        for error in &result1.errors {
+            let chars: Vec<char> = text1.chars().collect();
+            let word = chars[error.start..error.end].iter().collect::<String>();
+            println!(
+                "  - '{}' at {}-{}: {} ({})",
+                word, error.start, error.end, error.message, error.category
+            );
+            println!("    Suggestions: {:?}", error.suggestions);
+        }
+        // Unknown word's possessive should still be flagged
+        assert!(
+            !result1.errors.is_empty(),
+            "Unknown word's possessive should be flagged"
+        );
+
+        // Test with person names enabled - known name's possessive should NOT be flagged
+        let text2 = "Oliver's presentation was great.";
+        let result2 = analyze_text(
+            text2,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            true, // enable person names
+            false,
+            false,
+            vec![],
+            true,
+            true,
+            true,
+            true,
+            true,
+        );
+        println!("\nText: '{}' (with person names enabled)", text2);
+        println!("Errors found: {}", result2.errors.len());
+        for error in &result2.errors {
+            let chars: Vec<char> = text2.chars().collect();
+            let word = chars[error.start..error.end].iter().collect::<String>();
+            println!(
+                "  - '{}' at {}-{}: {} ({})",
+                word, error.start, error.end, error.message, error.category
+            );
+            println!("    Suggestions: {:?}", error.suggestions);
+        }
+        // Known name's possessive should NOT be flagged
+        assert!(
+            result2.errors.is_empty(),
+            "Known name's possessive should NOT be flagged when base word is in dictionary"
+        );
+
+        println!("\n=== END TEST ===\n");
+    }
+
+    /// Test possessive filter with person names from our custom dictionary
+    /// This tests the core functionality: possessive forms of custom dictionary words
+    /// are correctly filtered when the base word is in the dictionary.
+    #[test]
+    fn test_possessive_filter_custom_dictionary() {
+        // Test person name possessive with an uncommon name from our person_names.txt
+        // "Aaban" is in our person_names.txt but unlikely to be in Harper's curated dict
+        let text1 = "Aaban's presentation was excellent.";
+        let result1 = analyze_text(
+            text1,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            true, // enable person names
+            false,
+            false,
+            vec![],
+            true,
+            true,
+            true,
+            true,
+            true,
+        );
+        assert!(
+            result1.errors.is_empty(),
+            "Aaban's should not be flagged when person names are enabled: {:?}",
+            result1.errors
+        );
+
+        // Test with multiple possessives in the same sentence
+        let text2 = "Oliver's code and Maria's design work well together.";
+        let result2 = analyze_text(
+            text2,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            true, // enable person names
+            false,
+            false,
+            vec![],
+            true,
+            true,
+            true,
+            true,
+            true,
+        );
+        assert!(
+            result2.errors.is_empty(),
+            "Multiple name possessives should not be flagged: {:?}",
+            result2.errors
+        );
+
+        // Test that completely unknown words are still flagged
+        let text3 = "Xyzfoobar's implementation is buggy.";
+        let result3 = analyze_text(
+            text3,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            true, // person names enabled but Xyzfoobar is not a name
+            false,
+            false,
+            vec![],
+            true,
+            true,
+            true,
+            true,
+            true,
+        );
+        assert!(
+            !result3.errors.is_empty(),
+            "Unknown word's possessive should still be flagged"
+        );
+    }
+
+    /// Test AP-style possessive (just apostrophe for words ending in 's')
+    /// E.g., "Kubernetes'" instead of "Kubernetes's"
+    #[test]
+    fn test_possessive_ap_style() {
+        // Test AP-style possessive for a word ending in 's'
+        // "James'" should be valid when "James" is in dictionary
+        let text1 = "James' car is parked outside.";
+        let result1 = analyze_text(
+            text1,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            true, // enable person names (James should be there)
+            false,
+            false,
+            vec![],
+            true,
+            true,
+            true,
+            true,
+            true,
+        );
+        // Note: Harper may or may not flag AP-style possessives depending on how it tokenizes
+        // This test documents the expected behavior
+        println!("\n=== AP-STYLE POSSESSIVE TEST ===");
+        println!("Text: '{}'", text1);
+        println!("Errors found: {}", result1.errors.len());
+        for error in &result1.errors {
+            let chars: Vec<char> = text1.chars().collect();
+            if error.start < chars.len() && error.end <= chars.len() {
+                let word: String = chars[error.start..error.end].iter().collect();
+                println!("  - '{}': {}", word, error.message);
+            }
+        }
+        println!("=== END TEST ===\n");
     }
 }
