@@ -374,7 +374,7 @@ final class ReadabilityCalculator: Sendable {
     func splitIntoSentences(_ text: String) -> [(sentence: String, range: NSRange)] {
         guard !text.isEmpty else { return [] }
 
-        var results: [(String, NSRange)] = []
+        var rawResults: [(String, NSRange)] = []
 
         text.enumerateSubstrings(
             in: text.startIndex ..< text.endIndex,
@@ -394,13 +394,126 @@ final class ReadabilityCalculator: Sendable {
                 let offset = sentence.distance(from: sentence.startIndex, to: trimmedRange.lowerBound)
                 let adjustedLocation = nsRange.location + offset
                 let adjustedRange = NSRange(location: adjustedLocation, length: trimmed.count)
-                results.append((trimmed, adjustedRange))
+                rawResults.append((trimmed, adjustedRange))
             } else {
-                results.append((trimmed, nsRange))
+                rawResults.append((trimmed, nsRange))
             }
         }
 
-        return results
+        // Post-process to merge sentence fragments split by parenthetical punctuation.
+        // Example: "I wanted to ask (next week?) to discuss..." incorrectly splits at "?"
+        // A fragment starting with lowercase after a parenthetical ending should be merged.
+        return mergeParentheticalFragments(rawResults, in: text)
+    }
+
+    /// Merge sentence fragments that were incorrectly split by punctuation inside parentheses.
+    /// Example: "Please call me (maybe tomorrow?) and we can discuss." may split at "?" incorrectly.
+    /// We detect this by checking what precedes the opening parenthesis - if it's a word (not
+    /// sentence-ending punctuation), the parenthetical is part of the same sentence.
+    private func mergeParentheticalFragments(_ sentences: [(String, NSRange)], in text: String) -> [(String, NSRange)] {
+        guard sentences.count > 1 else { return sentences }
+
+        var merged: [(String, NSRange)] = []
+
+        var i = 0
+        while i < sentences.count {
+            var (currentSentence, currentRange) = sentences[i]
+
+            // Look ahead and merge fragments that appear to be continuations
+            while i + 1 < sentences.count {
+                let (nextSentence, nextRange) = sentences[i + 1]
+                guard let firstChar = nextSentence.first else { break }
+
+                // Check if next fragment looks like a continuation:
+                // 1. Starts with lowercase letter (e.g., "to continue...")
+                // 2. Starts with closing bracket (e.g., ") and then...")
+                let startsWithLowercase = firstChar.isLowercase
+                let startsWithClosingBracket = firstChar == ")" || firstChar == "]"
+
+                guard startsWithLowercase || startsWithClosingBracket else {
+                    break
+                }
+
+                // Key check: Was the parenthetical part of a sentence or a standalone?
+                // Look at what comes BEFORE the opening parenthesis in the current fragment.
+                // If the "(" is preceded by a word (not . ! ?), the parenthetical is inline.
+                let parentheticalIsInline = isParentheticalInline(currentSentence)
+
+                // Also check for unclosed brackets (split happened inside parentheses)
+                let openParens = currentSentence.filter { $0 == "(" }.count
+                let closeParens = currentSentence.filter { $0 == ")" }.count
+                let openBrackets = currentSentence.filter { $0 == "[" }.count
+                let closeBrackets = currentSentence.filter { $0 == "]" }.count
+                let hasUnclosedParenthesis = openParens > closeParens || openBrackets > closeBrackets
+
+                // Must have inline parenthetical OR unclosed brackets to merge
+                guard parentheticalIsInline || hasUnclosedParenthesis else {
+                    break
+                }
+
+                // Merge: extract the combined text from the original
+                let combinedEnd = nextRange.location + nextRange.length
+                let combinedLength = combinedEnd - currentRange.location
+
+                // Get the merged text from the original string
+                if let startIdx = text.index(text.startIndex, offsetBy: currentRange.location, limitedBy: text.endIndex),
+                   let endIdx = text.index(startIdx, offsetBy: combinedLength, limitedBy: text.endIndex)
+                {
+                    currentSentence = String(text[startIdx ..< endIdx]).trimmingCharacters(in: .whitespacesAndNewlines)
+                    currentRange = NSRange(location: currentRange.location, length: currentSentence.count)
+                } else {
+                    // Fallback: simple concatenation
+                    currentSentence = currentSentence + " " + nextSentence
+                    currentRange = NSRange(location: currentRange.location, length: combinedLength)
+                }
+
+                i += 1
+            }
+
+            merged.append((currentSentence, currentRange))
+            i += 1
+        }
+
+        return merged
+    }
+
+    /// Check if a parenthetical in the sentence is inline (part of the sentence) vs standalone.
+    /// Returns true if the opening "(" is preceded by a word character (not sentence-ending punctuation).
+    /// Example: "I asked (yesterday?) about..." -> true (inline, "asked" precedes "(")
+    /// Example: "I asked. (Yesterday?) He replied." -> false (standalone, "." precedes "(")
+    private func isParentheticalInline(_ sentence: String) -> Bool {
+        // Find the last opening parenthesis or bracket
+        guard let lastOpenParen = sentence.lastIndex(where: { $0 == "(" || $0 == "[" }) else {
+            return false
+        }
+
+        // Get the character before the opening parenthesis (skipping whitespace)
+        var checkIndex = lastOpenParen
+        while checkIndex > sentence.startIndex {
+            checkIndex = sentence.index(before: checkIndex)
+            let char = sentence[checkIndex]
+
+            // Skip whitespace
+            if char.isWhitespace {
+                continue
+            }
+
+            // If we find sentence-ending punctuation, it's NOT inline
+            if char == "." || char == "!" || char == "?" || char == ":" || char == ";" {
+                return false
+            }
+
+            // If we find a word character or closing quote, it IS inline
+            if char.isLetter || char.isNumber || char == "\"" || char == "'" || char == ")" || char == "]" {
+                return true
+            }
+
+            // Any other character (like comma), consider it inline
+            return true
+        }
+
+        // Opening paren is at the start of the sentence
+        return false
     }
 
     /// Calculate Flesch Reading Ease for a single sentence
