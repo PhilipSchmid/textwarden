@@ -492,6 +492,32 @@ These settings are found in **Preferences → Diagnostics**.
 
 **Recommendation:** Keep disabled unless troubleshooting. These are developer tools.
 
+### Diagnostic Export
+
+**What it does:** Creates a ZIP file containing system information, settings, and logs to help troubleshoot issues. Access via **Preferences → Diagnostics → Export Diagnostics**.
+
+**What's Included:**
+- System information (macOS version, hardware, memory)
+- All TextWarden settings (grammar rules, word lists, UI preferences)
+- Usage statistics (words analyzed, corrections applied, app usage)
+- Recent log files (sanitized for privacy)
+- Crash reports (if any)
+- List of applications used with TextWarden
+
+**Privacy Protections:**
+- **No personal text content** - Logs only contain metadata (e.g., "analyzed 50 chars"), never the actual text you typed
+- **Path anonymization** - File paths are sanitized (e.g., `/Users/[REDACTED]/Documents/...`)
+- **Sensitive data filtering** - Lines containing passwords, tokens, keys, or secrets are automatically removed from logs
+- **Custom dictionary excluded** - Your personal dictionary words are not included
+
+**What's NOT Included:**
+- Text you've typed or analyzed
+- Personal dictionary entries
+- Authentication credentials
+- Private document content
+
+**Recommendation:** Before sharing a diagnostic export, unzip it and review the contents. This lets you verify exactly what's included and feel confident about what you're sharing.
+
 ---
 
 ## Troubleshooting Tips
@@ -522,4 +548,4 @@ These settings are found in **Preferences → Diagnostics**.
 
 - **Troubleshooting Guide:** See [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 - **Report Issues:** [GitHub Issues](https://github.com/philipschmid/textwarden/issues)
-- **Export Diagnostics:** Help → Export Diagnostics (includes logs, settings, no personal text)
+- **Export Diagnostics:** Preferences → Diagnostics (see [Diagnostic Export](#diagnostic-export) for privacy details)
