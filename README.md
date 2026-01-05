@@ -227,17 +227,15 @@ TextWarden uses the macOS Accessibility API and works with most applications. Vi
 | **WhatsApp** | Full | Full |
 | **Webex** | Full | Full |
 | **Microsoft Word** | Full | Full |
-| **Microsoft PowerPoint** | Notes only*** | Indicator only* |
+| **Microsoft PowerPoint** | Notes only* | Notes only* |
 | **Microsoft Outlook** | Full | Full |
 | **Microsoft Excel** | Not supported | N/A |
 | **Microsoft Teams** | Full | Full |
 | **Proton Mail** | Full | Full |
 
-*\*PowerPoint uses a floating indicator instead of inline underlines due to accessibility API limitations (crashes on parameterized accessibility attribute queries).*
+*\*PowerPoint exposes only the Notes section via the macOS Accessibility API. Slide text boxes are not accessible programmatically (Microsoft limitation), so grammar checking and visual underlines are limited to speaker notes. See [PowerPoint documentation](docs/applications/POWERPOINT.md) for details.*
 
 *\*\*Notion: Underlines appear for ~50% of text blocks. Due to Notion's React/Electron virtualization, some blocks aren't exposed in the accessibility tree. Errors in virtualized blocks show in the indicator count but without underlines. Shift+Enter (soft breaks) work; Enter (new blocks) may not. See [Notion documentation](docs/applications/NOTION.md) for details.*
-
-*\*\*\*PowerPoint exposes only the Notes section via the macOS Accessibility API. Slide text boxes are not accessible programmatically, so grammar checking is limited to speaker notes.*
 
 > [!NOTE]
 > Terminal apps are not supported as their accessibility APIs typically don't expose text content in a way that's useful for grammar checking.

@@ -43,6 +43,7 @@ class PositionResolver {
             NotionStrategy(), // Dedicated strategy for Notion - same tree traversal approach
             OutlookStrategy(), // Dedicated strategy for Outlook compose
             WordStrategy(), // Dedicated strategy for Word documents
+            PowerPointStrategy(), // Dedicated strategy for PowerPoint Notes
             WebExStrategy(), // Dedicated strategy for Cisco WebEx chat
             MailStrategy(), // Dedicated strategy for Apple Mail's WebKit compose
             ProtonMailStrategy(), // Dedicated strategy for Proton Mail's Rooster editor

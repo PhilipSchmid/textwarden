@@ -679,12 +679,11 @@ extension AppConfiguration {
             spacingMultiplier: 1.0
         ),
         horizontalPadding: 4,
-        // PowerPoint uses the same mso99 framework as Word and likely has the same crash issue
-        // with parameterized accessibility attribute queries.
-        // Visual underlines disabled; floating error indicator still works for corrections.
-        preferredStrategies: [],
+        // PowerPoint Notes section has working AXBoundsForRange (tested Jan 2025).
+        // Note: Only the Notes section is accessible - slide text boxes are NOT exposed via AX API.
+        preferredStrategies: [.powerpoint],
         features: AppFeatures(
-            visualUnderlinesEnabled: false, // Disabled (same AX API issues as Word)
+            visualUnderlinesEnabled: true, // Works for Notes section
             textReplacementMethod: .browserStyle, // Standard AX setValue doesn't work
             requiresTypingPause: false,
             supportsFormattedText: true,
