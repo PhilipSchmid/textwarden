@@ -157,6 +157,9 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Callback when mouse enters popover (for cancelling delayed switches)
     var onMouseEntered: (() -> Void)?
 
+    /// Callback when mouse exits popover (for re-enabling hover switches)
+    var onMouseExited: (() -> Void)?
+
     /// Callback when popover is hidden (for clearing locked highlight)
     var onPopoverHidden: (() -> Void)?
 
@@ -1515,6 +1518,7 @@ class PopoverTrackingView: NSView {
 
     override func mouseExited(with _: NSEvent) {
         Logger.trace("Popover: Mouse EXITED tracking view", category: Logger.ui)
+        popover?.onMouseExited?()
         popover?.scheduleHide()
     }
 }

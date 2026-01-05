@@ -58,6 +58,18 @@ class ErrorOverlayWindow: NSPanel {
     /// Timer for hover delay before showing popover
     private var hoverTimer: Timer?
 
+    /// Timer for debouncing hover switches to less specific (larger span) errors
+    private var hoverSwitchDebounceTimer: Timer?
+
+    /// Current hover target for debounce comparison
+    private var currentHoverTarget: HoverTarget?
+
+    /// Debounce delay when switching to a less specific (larger span) error (in seconds)
+    private let hoverSwitchDebounceDelay: TimeInterval = 0.2 // 200ms
+
+    /// Whether the popover is currently being hovered - prevents new debounce timers from starting
+    private var isPopoverHovered = false
+
     /// Callback when user hovers over an error (includes window frame for smart positioning)
     var onErrorHover: ((GrammarErrorModel, CGPoint, CGRect?) -> Void)?
 
@@ -165,142 +177,36 @@ class ErrorOverlayWindow: NSPanel {
 
             Logger.trace("ErrorOverlay: Global mouse at screen: \(mouseLocation), window-local (flipped): \(localPoint)", category: Logger.ui)
 
-            // Check if hovering over any underline
+            // Check if hovering over any underline using unified specificity-based detection
             guard let underlineView else { return }
 
-            if let newHoveredUnderline = underlineView.underlines.first(where: { $0.bounds.contains(localPoint) }) {
-                Logger.debug("ErrorOverlay: Hovering over error at bounds: \(newHoveredUnderline.bounds)", category: Logger.ui)
+            // Find ALL underlines at this point (all types)
+            var allMatches: [HoverTarget] = []
+            allMatches += underlineView.underlines
+                .filter { $0.bounds.contains(localPoint) }
+                .map { HoverTarget.grammar($0) }
+            allMatches += underlineView.styleUnderlines
+                .filter { $0.bounds.contains(localPoint) }
+                .map { HoverTarget.style($0) }
+            allMatches += underlineView.readabilityUnderlines
+                .filter { $0.bounds.contains(localPoint) }
+                .map { HoverTarget.readability($0) }
 
-                if hoveredUnderline?.error.start != newHoveredUnderline.error.start ||
-                    hoveredUnderline?.error.end != newHoveredUnderline.error.end
-                {
-                    hoveredUnderline = newHoveredUnderline
-                    underlineView.hoveredUnderline = newHoveredUnderline
-                    underlineView.needsDisplay = true
-                }
+            // Select the most specific (smallest span) - this is the key UX improvement
+            if let mostSpecific = allMatches.min(by: { $0.spanSize < $1.spanSize }) {
+                Logger.debug("ErrorOverlay: Found \(allMatches.count) overlapping underlines, selected span size \(mostSpecific.spanSize)", category: Logger.ui)
 
-                // Convert underline bounds to screen coordinates for popup positioning
-                // The underline bounds are in flipped local coordinates (Y from top)
-                // Screen coordinates are in Cocoa (Y from bottom)
-                let underlineBounds = newHoveredUnderline.drawingBounds
-
-                // Position the anchor at the CENTER-BOTTOM of the underlined word
-                // The popover will position itself relative to this anchor
-                let localX = underlineBounds.midX
-                // Use maxY (bottom of underline in flipped coords) without extra offset
-                // The SuggestionPopover will handle spacing
-                let localY = underlineBounds.maxY
-
-                // Convert from flipped local to Cocoa screen coordinates
-                // Flipped local Y → Cocoa local Y: cocoaLocalY = windowHeight - flippedLocalY
-                // Then add window origin to get screen coords
-                let screenLocation = CGPoint(
-                    x: windowOrigin.x + localX,
-                    y: windowOrigin.y + (windowHeight - localY)
+                // Handle hover target with debounce for switching to larger spans
+                handleHoverTarget(
+                    mostSpecific,
+                    mouseLocation: mouseLocation,
+                    windowOrigin: windowOrigin,
+                    windowHeight: windowHeight,
+                    underlineView: underlineView
                 )
-
-                Logger.debug("ErrorOverlay: Popup anchor - underline bounds: \(underlineBounds), screen: \(screenLocation)", category: Logger.ui)
-
-                // Only trigger hover callback if:
-                // 1. Hover popover is enabled in settings
-                // 2. Mouse is not over the popover (underline is not hidden by popover)
-                // 3. Popover is not already showing this same error
-                let popover = SuggestionPopover.shared
-                let isMouseOverPopover = popover.containsPoint(mouseLocation)
-                let isSameErrorAlreadyShowing = popover.isVisible &&
-                    popover.currentError?.start == newHoveredUnderline.error.start &&
-                    popover.currentError?.end == newHoveredUnderline.error.end
-
-                if UserPreferences.shared.enableHoverPopover,
-                   !isMouseOverPopover,
-                   !isSameErrorAlreadyShowing
-                {
-                    let appWindowFrame = getApplicationWindowFrame()
-
-                    // Cancel any existing hover timer
-                    hoverTimer?.invalidate()
-
-                    let delayMs = UserPreferences.shared.popoverHoverDelayMs
-                    if delayMs <= 0 {
-                        // Instant display
-                        onErrorHover?(newHoveredUnderline.error, screenLocation, appWindowFrame)
-                    } else {
-                        // Delayed display
-                        hoverTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(delayMs) / 1000.0, repeats: false) { [weak self] _ in
-                            self?.onErrorHover?(newHoveredUnderline.error, screenLocation, appWindowFrame)
-                        }
-                    }
-                }
-            }
-            // Check if hovering over any readability underline
-            else if let newHoveredReadability = underlineView.readabilityUnderlines.first(where: { $0.bounds.contains(localPoint) }) {
-                Logger.debug("ErrorOverlay: Hovering over readability underline at bounds: \(newHoveredReadability.bounds)", category: Logger.ui)
-
-                // Update hovered state
-                if underlineView.hoveredReadabilityUnderline?.sentenceResult.range != newHoveredReadability.sentenceResult.range {
-                    underlineView.hoveredReadabilityUnderline = newHoveredReadability
-                    underlineView.needsDisplay = true
-                }
-
-                // Clear grammar error hover
-                if hoveredUnderline != nil {
-                    hoveredUnderline = nil
-                    underlineView.hoveredUnderline = nil
-                }
-
-                // Calculate screen position for popover
-                let underlineBounds = newHoveredReadability.drawingBounds
-                let localX = underlineBounds.midX
-                let localY = underlineBounds.maxY
-
-                let screenLocation = CGPoint(
-                    x: windowOrigin.x + localX,
-                    y: windowOrigin.y + (windowHeight - localY)
-                )
-
-                // Trigger hover callback with delay
-                if UserPreferences.shared.enableHoverPopover,
-                   !SuggestionPopover.shared.containsPoint(mouseLocation)
-                {
-                    let appWindowFrame = getApplicationWindowFrame()
-
-                    hoverTimer?.invalidate()
-                    let delayMs = UserPreferences.shared.popoverHoverDelayMs
-                    if delayMs <= 0 {
-                        onReadabilityHover?(newHoveredReadability.sentenceResult, screenLocation, appWindowFrame)
-                    } else {
-                        hoverTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(delayMs) / 1000.0, repeats: false) { [weak self] _ in
-                            self?.onReadabilityHover?(newHoveredReadability.sentenceResult, screenLocation, appWindowFrame)
-                        }
-                    }
-                }
             } else {
-                // Clear hovered state for both grammar and readability
-                var needsRedraw = false
-
-                if hoveredUnderline != nil {
-                    hoveredUnderline = nil
-                    underlineView.hoveredUnderline = nil
-                    needsRedraw = true
-                }
-
-                if underlineView.hoveredReadabilityUnderline != nil {
-                    underlineView.hoveredReadabilityUnderline = nil
-                    needsRedraw = true
-                }
-
-                if needsRedraw {
-                    underlineView.needsDisplay = true
-
-                    // Cancel pending hover timer
-                    hoverTimer?.invalidate()
-                    hoverTimer = nil
-
-                    // Only trigger hover end if mouse is not over the popover
-                    if !SuggestionPopover.shared.containsPoint(mouseLocation) {
-                        onHoverEnd?()
-                    }
-                }
+                // No matches - clear all hover states
+                clearAllHoverStates(underlineView: underlineView, mouseLocation: mouseLocation)
             }
         }
 
@@ -332,45 +238,52 @@ class ErrorOverlayWindow: NSPanel {
 
             Logger.trace("ErrorOverlay: Click at screen: \(mouseLocation), window-local (flipped): \(localPoint)", category: Logger.ui)
 
-            // Check if clicking on any underline
+            // Check if clicking on any underline - use specificity-based selection
             guard let underlineView else { return }
 
-            if let clickedUnderline = underlineView.underlines.first(where: { $0.bounds.contains(localPoint) }) {
-                Logger.debug("ErrorOverlay: Clicked on error at bounds: \(clickedUnderline.bounds)", category: Logger.ui)
+            // Find ALL underlines at click point (all types)
+            var allClickMatches: [HoverTarget] = []
+            allClickMatches += underlineView.underlines
+                .filter { $0.bounds.contains(localPoint) }
+                .map { HoverTarget.grammar($0) }
+            allClickMatches += underlineView.styleUnderlines
+                .filter { $0.bounds.contains(localPoint) }
+                .map { HoverTarget.style($0) }
+            allClickMatches += underlineView.readabilityUnderlines
+                .filter { $0.bounds.contains(localPoint) }
+                .map { HoverTarget.readability($0) }
 
-                // Convert underline bounds to screen coordinates for popup positioning
-                let underlineBounds = clickedUnderline.drawingBounds
-                let localX = underlineBounds.midX
-                let localY = underlineBounds.maxY
+            // Select the most specific (smallest span) - same logic as hover
+            guard let mostSpecific = allClickMatches.min(by: { $0.spanSize < $1.spanSize }) else { return }
 
-                let screenLocation = CGPoint(
-                    x: windowOrigin.x + localX,
-                    y: windowOrigin.y + (windowHeight - localY)
-                )
+            Logger.debug("ErrorOverlay: Click found \(allClickMatches.count) overlapping underlines, selected span size \(mostSpecific.spanSize)", category: Logger.ui)
 
-                Logger.debug("ErrorOverlay: Click popup anchor - underline bounds: \(underlineBounds), screen: \(screenLocation)", category: Logger.ui)
+            // Calculate screen location for popup
+            let underlineBounds = mostSpecific.drawingBounds
+            let localX = underlineBounds.midX
+            let localY = underlineBounds.maxY
 
-                let appWindowFrame = getApplicationWindowFrame()
-                onErrorClick?(clickedUnderline.error, screenLocation, appWindowFrame)
-            }
-            // Check if clicking on any readability underline
-            else if let clickedReadability = underlineView.readabilityUnderlines.first(where: { $0.bounds.contains(localPoint) }) {
-                Logger.debug("ErrorOverlay: Clicked on readability underline at bounds: \(clickedReadability.bounds)", category: Logger.ui)
+            let screenLocation = CGPoint(
+                x: windowOrigin.x + localX,
+                y: windowOrigin.y + (windowHeight - localY)
+            )
 
-                // Convert underline bounds to screen coordinates for popup positioning
-                let underlineBounds = clickedReadability.drawingBounds
-                let localX = underlineBounds.midX
-                let localY = underlineBounds.maxY
+            let appWindowFrame = getApplicationWindowFrame()
 
-                let screenLocation = CGPoint(
-                    x: windowOrigin.x + localX,
-                    y: windowOrigin.y + (windowHeight - localY)
-                )
+            // Trigger appropriate click callback based on target type
+            switch mostSpecific {
+            case let .grammar(underline):
+                Logger.debug("ErrorOverlay: Click on grammar error at bounds: \(underline.bounds)", category: Logger.ui)
+                onErrorClick?(underline.error, screenLocation, appWindowFrame)
 
-                Logger.debug("ErrorOverlay: Click popup anchor - readability bounds: \(underlineBounds), screen: \(screenLocation)", category: Logger.ui)
+            case .style:
+                // Style underlines currently don't have a click callback
+                // They use the same popover as grammar errors when clicked
+                Logger.debug("ErrorOverlay: Click on style underline (no click handler)", category: Logger.ui)
 
-                let appWindowFrame = getApplicationWindowFrame()
-                onReadabilityClick?(clickedReadability.sentenceResult, screenLocation, appWindowFrame)
+            case let .readability(underline):
+                Logger.debug("ErrorOverlay: Click on readability underline at bounds: \(underline.bounds)", category: Logger.ui)
+                onReadabilityClick?(underline.sentenceResult, screenLocation, appWindowFrame)
             }
         }
 
@@ -968,70 +881,11 @@ class ErrorOverlayWindow: NSPanel {
 
             Logger.debug("ErrorOverlay: Resolving position for sentence (\(sentence.sentence.count) chars) at range \(range.location)-\(range.location + range.length)", category: Logger.ui)
 
-            // Get bounds for this sentence
-            let geometryResult = parser.resolvePosition(
-                for: range,
-                in: element,
-                text: text,
-                actualBundleID: bundleID
-            )
-
-            Logger.debug("ErrorOverlay: Position result - isUsable=\(geometryResult.isUsable), isUnavailable=\(geometryResult.isUnavailable), bounds=\(geometryResult.bounds)", category: Logger.ui)
-
-            // If full sentence bounds work, use them
-            if geometryResult.isUsable, !geometryResult.isUnavailable {
-                // Convert screen bounds to local coordinates
-                let allScreenBounds = geometryResult.allLineBounds
-                var allLocalBounds: [CGRect] = []
-
-                for screenBounds in allScreenBounds {
-                    if !elementFrame.intersects(screenBounds) {
-                        continue
-                    }
-
-                    let localBounds = convertToLocal(screenBounds, from: elementFrame)
-
-                    // Validate bounds
-                    let maxValidHeight: CGFloat = UIConstants.maximumTextLineHeight
-                    if localBounds.origin.y < -10 || localBounds.height > maxValidHeight {
-                        continue
-                    }
-
-                    if localBounds.origin.y > elementFrame.height || localBounds.maxY < 0 {
-                        continue
-                    }
-
-                    allLocalBounds.append(localBounds)
-                }
-
-                if !allLocalBounds.isEmpty {
-                    // Calculate overall bounds
-                    let overallLocalBounds = calculateOverallBounds(from: allLocalBounds)
-                    let thickness = CGFloat(UserPreferences.shared.underlineThickness)
-                    let offsetAmount = max(2.0, thickness / 2.0)
-
-                    let expandedBounds = CGRect(
-                        x: overallLocalBounds.minX,
-                        y: overallLocalBounds.minY - offsetAmount - thickness - 2.0,
-                        width: overallLocalBounds.width,
-                        height: overallLocalBounds.height + offsetAmount + thickness + 2.0
-                    )
-
-                    if let primaryDrawingBounds = allLocalBounds.last {
-                        let underline = ReadabilityUnderline(
-                            bounds: expandedBounds,
-                            drawingBounds: primaryDrawingBounds,
-                            allDrawingBounds: allLocalBounds,
-                            sentenceResult: sentence
-                        )
-                        readabilityUnderlines.append(underline)
-                        continue
-                    }
-                }
-            }
-
-            // Fallback: Try segmented approach (first 3 words ... last 3 words)
-            Logger.debug("ErrorOverlay: Full sentence position failed, trying segmented approach", category: Logger.ui)
+            // Always use segmented approach for readability underlines.
+            // Full sentence bounds from AXBoundsForRange are unreliable for long/multi-line sentences -
+            // they typically return line-level bounds (full line width) rather than text-specific bounds.
+            // The segmented approach (first 3 words ... last 3 words) gives accurate, text-specific bounds.
+            Logger.debug("ErrorOverlay: Using segmented approach for readability underline", category: Logger.ui)
 
             let wordRanges = extractWordRanges(from: sentence.sentence, sentenceStart: range.location, wordCount: 3)
 
@@ -1757,6 +1611,206 @@ class ErrorOverlayWindow: NSPanel {
             NSColor.systemGray
         }
     }
+
+    // MARK: - Hover Handling (Unified with debounce)
+
+    /// Handle hover on a target underline with debounce for switching to larger spans
+    /// This prevents accidental switches when moving mouse from a specific error to its popover
+    private func handleHoverTarget(
+        _ target: HoverTarget,
+        mouseLocation: CGPoint,
+        windowOrigin: CGPoint,
+        windowHeight: CGFloat,
+        underlineView: UnderlineView
+    ) {
+        let newSpanSize = target.spanSize
+        let currentSpanSize = currentHoverTarget?.spanSize ?? Int.max
+
+        // Check if we're hovering the same target (by comparing span and bounds)
+        let isSameTarget: Bool = if let current = currentHoverTarget {
+            current.spanSize == target.spanSize && current.bounds == target.bounds
+        } else {
+            false
+        }
+
+        if isSameTarget {
+            // Same target - no change needed, cancel any pending timer
+            hoverSwitchDebounceTimer?.invalidate()
+            hoverSwitchDebounceTimer = nil
+            return
+        }
+
+        // If switching to a LARGER span (less specific), apply debounce
+        // BUT: If the popover is currently hovered, don't start new timers at all
+        if newSpanSize > currentSpanSize {
+            // If popover is being hovered, completely skip switching to larger spans
+            // This prevents the popover from switching while user is interacting with it
+            if isPopoverHovered {
+                Logger.debug("ErrorOverlay: Popover hovered - ignoring switch to larger span \(newSpanSize)", category: Logger.ui)
+                return
+            }
+
+            // Cancel any existing timer first
+            hoverSwitchDebounceTimer?.invalidate()
+
+            // Start new debounce timer
+            hoverSwitchDebounceTimer = Timer.scheduledTimer(withTimeInterval: hoverSwitchDebounceDelay, repeats: false) { [weak self] _ in
+                guard let self else { return }
+                // Double-check popover isn't hovered when timer fires
+                guard !isPopoverHovered else {
+                    Logger.debug("ErrorOverlay: Debounce timer fired but popover is hovered - skipping", category: Logger.ui)
+                    return
+                }
+                applyHoverTarget(
+                    target,
+                    mouseLocation: mouseLocation,
+                    windowOrigin: windowOrigin,
+                    windowHeight: windowHeight,
+                    underlineView: underlineView
+                )
+            }
+            Logger.debug("ErrorOverlay: Debouncing hover switch from span \(currentSpanSize) to \(newSpanSize)", category: Logger.ui)
+        } else {
+            // Same or SMALLER span (more specific) - apply immediately
+            hoverSwitchDebounceTimer?.invalidate()
+            hoverSwitchDebounceTimer = nil
+            applyHoverTarget(
+                target,
+                mouseLocation: mouseLocation,
+                windowOrigin: windowOrigin,
+                windowHeight: windowHeight,
+                underlineView: underlineView
+            )
+        }
+    }
+
+    /// Apply the hover target - update state and trigger callbacks
+    private func applyHoverTarget(
+        _ target: HoverTarget,
+        mouseLocation _: CGPoint,
+        windowOrigin: CGPoint,
+        windowHeight: CGFloat,
+        underlineView: UnderlineView
+    ) {
+        // Update current hover target
+        currentHoverTarget = target
+
+        // Calculate screen position for popup anchor
+        let underlineBounds = target.drawingBounds
+        let localX = underlineBounds.midX
+        let localY = underlineBounds.maxY
+
+        let screenLocation = CGPoint(
+            x: windowOrigin.x + localX,
+            y: windowOrigin.y + (windowHeight - localY)
+        )
+
+        let appWindowFrame = getApplicationWindowFrame()
+
+        // Clear all previous hover states
+        hoveredUnderline = nil
+        underlineView.hoveredUnderline = nil
+        underlineView.hoveredStyleUnderline = nil
+        underlineView.hoveredReadabilityUnderline = nil
+
+        // Apply the new hover state and trigger callback
+        switch target {
+        case let .grammar(underline):
+            hoveredUnderline = underline
+            underlineView.hoveredUnderline = underline
+            underlineView.needsDisplay = true
+            onErrorHover?(underline.error, screenLocation, appWindowFrame)
+
+        case let .style(underline):
+            underlineView.hoveredStyleUnderline = underline
+            underlineView.needsDisplay = true
+            // Style underlines currently don't have a hover callback
+            // They use click-only interaction
+
+        case let .readability(underline):
+            underlineView.hoveredReadabilityUnderline = underline
+            underlineView.needsDisplay = true
+            onReadabilityHover?(underline.sentenceResult, screenLocation, appWindowFrame)
+        }
+
+        Logger.debug("ErrorOverlay: Applied hover to \(target.spanSize)-char span", category: Logger.ui)
+    }
+
+    /// Clear all hover states when mouse leaves underline areas
+    private func clearAllHoverStates(underlineView: UnderlineView, mouseLocation _: CGPoint) {
+        // Cancel any pending debounce timer
+        hoverSwitchDebounceTimer?.invalidate()
+        hoverSwitchDebounceTimer = nil
+
+        // Only trigger onHoverEnd if we were hovering something
+        let wasHovering = currentHoverTarget != nil || hoveredUnderline != nil
+
+        // Clear current hover target
+        currentHoverTarget = nil
+
+        // Clear all hover states
+        hoveredUnderline = nil
+        underlineView.hoveredUnderline = nil
+        underlineView.hoveredStyleUnderline = nil
+        underlineView.hoveredReadabilityUnderline = nil
+        underlineView.needsDisplay = true
+
+        // Trigger hover end callback
+        if wasHovering {
+            onHoverEnd?()
+        }
+    }
+
+    /// Cancel any pending hover debounce (called when mouse enters popover)
+    func cancelPendingHoverSwitch() {
+        hoverSwitchDebounceTimer?.invalidate()
+        hoverSwitchDebounceTimer = nil
+        isPopoverHovered = true
+        Logger.debug("ErrorOverlay: Popover entered - blocking hover switches", category: Logger.ui)
+    }
+
+    /// Notify that mouse exited the popover (allows hover switches again)
+    func notifyPopoverExited() {
+        isPopoverHovered = false
+        Logger.debug("ErrorOverlay: Popover exited - hover switches allowed", category: Logger.ui)
+    }
+}
+
+// MARK: - Hover Target (Unified hit detection)
+
+/// Unified hover target for all underline types - used for specificity-based hit testing
+/// When multiple underlines overlap, the most specific (smallest span) takes priority
+enum HoverTarget {
+    case grammar(ErrorUnderline)
+    case style(StyleUnderline)
+    case readability(ReadabilityUnderline)
+
+    /// Span size for specificity comparison (smaller = more specific, takes priority)
+    var spanSize: Int {
+        switch self {
+        case let .grammar(u): u.error.end - u.error.start
+        case let .style(u): u.suggestion.originalEnd - u.suggestion.originalStart
+        case let .readability(u): u.sentenceResult.range.length
+        }
+    }
+
+    /// Bounds for hit testing
+    var bounds: CGRect {
+        switch self {
+        case let .grammar(u): u.bounds
+        case let .style(u): u.bounds
+        case let .readability(u): u.bounds
+        }
+    }
+
+    /// Drawing bounds for popup positioning
+    var drawingBounds: CGRect {
+        switch self {
+        case let .grammar(u): u.drawingBounds
+        case let .style(u): u.drawingBounds
+        case let .readability(u): u.drawingBounds
+        }
+    }
 }
 
 // MARK: - Error Underline Model
@@ -1956,7 +2010,7 @@ class UnderlineView: NSView {
         // Draw each readability underline (dashed violet line for complex sentences)
         Logger.trace("UnderlineView: Drawing \(readabilityUnderlines.count) readability underlines", category: Logger.ui)
         for readabilityUnderline in readabilityUnderlines {
-            Logger.trace("UnderlineView: Readability underline - isSegmented=\(readabilityUnderline.isSegmented), firstBounds=\(String(describing: readabilityUnderline.firstSegmentBounds)), lastBounds=\(String(describing: readabilityUnderline.lastSegmentBounds))", category: Logger.ui)
+            Logger.trace("UnderlineView: Readability underline - isSegmented=\(readabilityUnderline.isSegmented), firstBounds=\(String(describing: readabilityUnderline.firstSegmentBounds)), lastBounds=\(String(describing: readabilityUnderline.lastSegmentBounds)), allDrawingBounds.count=\(readabilityUnderline.allDrawingBounds.count)", category: Logger.ui)
             if readabilityUnderline.isSegmented,
                let firstBounds = readabilityUnderline.firstSegmentBounds,
                let lastBounds = readabilityUnderline.lastSegmentBounds
@@ -1999,7 +2053,9 @@ class UnderlineView: NSView {
                 }
             } else {
                 // Draw regular continuous underline
+                Logger.debug("UnderlineView: Drawing non-segmented readability underline with \(readabilityUnderline.allDrawingBounds.count) lines", category: Logger.ui)
                 for lineBounds in readabilityUnderline.allDrawingBounds {
+                    Logger.debug("UnderlineView: Drawing readability line at bounds: \(lineBounds)", category: Logger.ui)
                     drawDashedUnderline(in: context, bounds: lineBounds, color: ReadabilityUnderline.color)
                 }
             }
