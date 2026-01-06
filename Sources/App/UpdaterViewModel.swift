@@ -99,6 +99,9 @@ final class UpdaterViewModel: ObservableObject {
     private let updaterDelegate: UpdaterDelegate
     private var cancellables = Set<AnyCancellable>()
 
+    /// Whether an update check is currently in progress (prevents duplicate UI from manual checks)
+    private var isUpdateCheckInProgress = false
+
     init() {
         Logger.info("Initializing UpdaterViewModel", category: Logger.lifecycle)
 
@@ -163,24 +166,36 @@ final class UpdaterViewModel: ObservableObject {
         // Set up delegate callbacks (after self is initialized)
         delegate.onSuccess = { [weak self] date in
             guard let self else { return }
+            isUpdateCheckInProgress = false
             checkStatus = .success
             lastUpdateCheckDate = date
             statusText = "Up to date (\(formatDate(date)))"
         }
 
         delegate.onError = { [weak self] timestamp in
-            self?.checkStatus = .error
-            self?.statusText = "Failed to check (\(timestamp))"
+            guard let self else { return }
+            isUpdateCheckInProgress = false
+            checkStatus = .error
+            statusText = "Failed to check (\(timestamp))"
         }
 
         // Sparkle handles automatic checks every 24h when automaticallyChecksForUpdates is true
-        // We don't need to trigger a manual check on startup - Sparkle will do it based on SULastCheckTime
+        // IMPORTANT: Do NOT manually trigger checkForUpdatesInBackground() on startup
+        // This interferes with Sparkle's internal scheduler and can cause duplicate update windows
+        // See: https://sparkle-project.org/documentation/programmatic-setup/
         Logger.info("UpdaterViewModel initialized - autoCheck: \(automaticallyChecksForUpdates), interval: 24h", category: Logger.lifecycle)
     }
 
     /// Check for updates manually (shows UI)
     func checkForUpdates() {
+        // Prevent duplicate checks if one is already in progress
+        guard !isUpdateCheckInProgress else {
+            Logger.debug("Skipping manual update check - check already in progress", category: Logger.lifecycle)
+            return
+        }
+
         Logger.info("Manual update check triggered", category: Logger.lifecycle)
+        isUpdateCheckInProgress = true
         checkStatus = .checking
         statusText = "Checking..."
         updaterController.checkForUpdates(nil)
@@ -189,8 +204,17 @@ final class UpdaterViewModel: ObservableObject {
 
     /// Check for updates silently in the background
     /// Only shows UI if an update is found
+    /// Note: Prefer letting Sparkle handle automatic checks via automaticallyChecksForUpdates
     func checkForUpdatesInBackground() {
-        Logger.debug("Background update check triggered", category: Logger.lifecycle)
+        // Prevent duplicate checks if one is already in progress
+        // Note: Sparkle also checks sessionInProgress internally
+        guard !isUpdateCheckInProgress else {
+            Logger.debug("Skipping background update check - check already in progress", category: Logger.lifecycle)
+            return
+        }
+
+        Logger.info("Background update check triggered", category: Logger.lifecycle)
+        isUpdateCheckInProgress = true
         updaterController.updater.checkForUpdatesInBackground()
         // lastUpdateCheckDate will be updated by the delegate callback
     }

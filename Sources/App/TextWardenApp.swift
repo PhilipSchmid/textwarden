@@ -114,9 +114,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         KeyboardShortcuts.Name.disablePopoverShortcuts()
         Logger.info("Keyboard shortcuts initialized (popover shortcuts disabled until needed)", category: Logger.lifecycle)
 
-        // Check for updates silently in background
-        updaterViewModel.checkForUpdatesInBackground()
-        Logger.info("Background update check initiated", category: Logger.lifecycle)
+        // Sparkle handles automatic update checks based on user preference (automaticallyChecksForUpdates)
+        // Do NOT manually call checkForUpdatesInBackground() - this interferes with Sparkle's scheduler
+        // See: https://sparkle-project.org/documentation/programmatic-setup/
+        Logger.info("Sparkle auto-update: \(updaterViewModel.automaticallyChecksForUpdates ? "enabled" : "disabled")", category: Logger.lifecycle)
 
         // Check permissions and onboarding status
         let permissionManager = PermissionManager.shared
