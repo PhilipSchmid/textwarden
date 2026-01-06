@@ -121,6 +121,10 @@ class PositionRefreshCoordinator {
         case "com.tinyspeck.slackmacgap":
             // Slack's Electron-based editor updates AX tree asynchronously
             return true
+        case "notion.id", "com.notion.id", "com.notion.desktop":
+            // Notion has sidebar toggle detection and keyboard formatting refresh
+            // Click-based refresh causes unnecessary flicker when clicking in text areas
+            return false
         default:
             // Apps that support formatted text need click-based refresh for toolbar buttons
             // (Bold, Italic, Underline buttons that aren't detected via keyboard shortcuts)

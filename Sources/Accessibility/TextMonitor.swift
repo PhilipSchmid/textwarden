@@ -533,6 +533,19 @@ class TextMonitor: ObservableObject {
                 }
                 Logger.debug("TextMonitor: Element not editable yet (role: \(roleString)), will retry...", category: Logger.accessibility)
             } else {
+                // For Electron apps (Notion, Slack, Teams, etc.), preserve existing editable element
+                // when focus moves to non-editable elements like sidebars or navigation.
+                // This prevents the issue where hovering over or clicking sidebar elements
+                // fires focus notifications that would otherwise hide overlays.
+                if let bundleID = currentContext?.bundleIdentifier,
+                   AppRegistry.shared.configuration(for: bundleID).category == .electron,
+                   let existingElement = monitoredElement,
+                   isEditableElement(existingElement)
+                {
+                    Logger.debug("TextMonitor: Ignoring \(roleString) focus in Electron app - preserving existing editable element", category: Logger.accessibility)
+                    return
+                }
+
                 Logger.debug("TextMonitor: Skipping non-editable element (role: \(roleString)) - clearing monitoring", category: Logger.accessibility)
                 // Clear monitoring and notify to hide overlays - focus moved to non-editable element
                 if let previousElement = monitoredElement {

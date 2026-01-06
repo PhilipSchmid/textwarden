@@ -2564,6 +2564,13 @@ extension AnalysisCoordinator: PositionRefreshDelegate {
         guard let element = textMonitor.monitoredElement,
               !currentErrors.isEmpty else { return }
 
+        // Skip if sidebar toggle stabilization is in progress
+        // This prevents click-triggered refreshes from causing extra redraws during animation
+        if sidebarToggleStartTime != nil {
+            Logger.trace("AnalysisCoordinator: Skipping position refresh - sidebar toggle in progress", category: Logger.ui)
+            return
+        }
+
         Logger.debug("AnalysisCoordinator: Position refresh requested - clearing cache", category: Logger.ui)
 
         // Clear position cache to force fresh position calculations

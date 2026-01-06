@@ -158,11 +158,20 @@ extension AnalysisCoordinator {
         // Note: We check for significant difference to avoid false positives from typing
         let textChanged = !currentText.hasPrefix(analyzedText) && !analyzedText.hasPrefix(currentText)
         if textChanged {
+            // Electron apps (Notion, Slack, etc.) have content parsers that can return slightly
+            // different filtered text each time due to UI element filtering, code block detection, etc.
+            // This causes false "text changed" detection. Skip text validation entirely for these apps
+            // since position monitoring handles sidebar toggles and the element frame tracking handles
+            // most layout changes.
+            let bundleID = textMonitor.currentContext?.bundleIdentifier ?? ""
+            if ElectronDetector.usesWebTechnologies(bundleID) {
+                Logger.trace("Text validation: Skipping for Electron app (parser may return different filtered text)", category: Logger.analysis)
+                return
+            }
+
             // Check if this app needs special handling for text validation
             // Some apps have unreliable AX notifications that cause text to appear changed
-            // TODO: Long-term, consider a more general solution (e.g., per-app config flag)
             let isCatalystApp = textMonitor.currentContext?.isMacCatalystApp ?? false
-            let bundleID = textMonitor.currentContext?.bundleIdentifier
             let needsSpecialHandling = bundleID == "com.microsoft.Word" ||
                 bundleID == "com.microsoft.Powerpoint" ||
                 bundleID == "com.microsoft.Outlook" ||
@@ -314,8 +323,26 @@ extension AnalysisCoordinator {
                 if positionChanged {
                     Logger.debug("Window monitoring: Movement detected - distance: \(positionDistance)px", category: Logger.analysis)
                 }
-                // Window is moving or resizing - hide overlays immediately
-                handleWindowMovementStarted()
+
+                // For Electron apps, resize events are typically sidebar toggles or internal layout changes.
+                // Don't hide overlays for these - let the element frame monitoring handle smooth updates.
+                // Only hide overlays for position-only changes (actual window dragging).
+                let isElectronApp = textMonitor.currentContext.flatMap { context in
+                    ElectronDetector.usesWebTechnologies(context.bundleIdentifier)
+                } ?? false
+
+                if isElectronApp, sizeChanged {
+                    // Electron app resize (sidebar toggle) - clear cache and wait for stability.
+                    // Don't call errorOverlay.hide() - it will clear stale underlines internally
+                    // without hiding the window, avoiding a flash.
+                    Logger.debug("Window monitoring: Electron app resize - triggering stability handler (sidebar toggle)", category: Logger.analysis)
+                    positionResolver.clearCache()
+                    // Trigger sidebar toggle handling to wait for AX stability
+                    handleElementPositionChangeInElectronApp()
+                } else {
+                    // Window is moving (drag) or non-Electron resize - hide overlays immediately
+                    handleWindowMovementStarted()
+                }
             } else {
                 // Window stopped moving/resizing - show overlays after debounce
                 handleWindowMovementStopped()
@@ -371,9 +398,9 @@ extension AnalysisCoordinator {
                     }
                 } else {
                     // Electron app handling - sidebar toggle or UI layout change
-                    // Skip if position change is very large (>500px) - this indicates focus changed
-                    // to a different element, not an actual sidebar toggle (which is typically 200-400px)
                     if significantPositionChange {
+                        // Skip if position change is very large (>500px) - this indicates focus changed
+                        // to a different element, not an actual sidebar toggle (which is typically 200-400px)
                         if positionChange > 500 {
                             // Very large position change - likely a different element being monitored
                             // (e.g., focus changed from message list back to compose field)
@@ -382,7 +409,19 @@ extension AnalysisCoordinator {
                             lastElementFrame = currentElementFrame
                             return
                         }
-                        Logger.debug("Element monitoring: Element position changed by \(positionChange)px in Electron app (sidebar toggle?) - refreshing underlines", category: Logger.analysis)
+
+                        // Skip if already handling a sidebar toggle (stabilization in progress)
+                        // This prevents double detection during animations and restarts of the
+                        // stabilization process that cause flickering
+                        if sidebarToggleStartTime != nil {
+                            Logger.trace("Element monitoring: Skipping position change - sidebar toggle handling already in progress", category: Logger.analysis)
+                            lastElementFrame = currentElementFrame
+                            return
+                        }
+
+                        Logger.debug("Element monitoring: Element position changed by \(positionChange)px in Electron app (sidebar toggle?) - triggering stability handler", category: Logger.analysis)
+                        // Don't call errorOverlay.hide() - ErrorOverlay will clear stale underlines
+                        // internally without hiding the window, avoiding a flash.
                         handleElementPositionChangeInElectronApp()
                     }
                 }
@@ -395,18 +434,20 @@ extension AnalysisCoordinator {
     }
 
     /// Handle element position change in Electron apps (e.g., sidebar toggle)
-    /// Clears position cache and waits for AX API to settle before refreshing underlines
+    /// Clears position cache and waits for AX API to settle before refreshing underlines.
+    /// Note: Underlines should be hidden before calling this to avoid stale positions.
+    /// The capsule indicator stays visible throughout.
     func handleElementPositionChangeInElectronApp() {
         // Clear position cache since element position changed
         positionResolver.clearCache()
-
-        // Hide underlines immediately
-        errorOverlay.hide()
 
         // Reset stability tracking for sidebar toggle
         lastCharacterBounds = nil
         contentStabilityCount = 0
         sidebarToggleStartTime = Date()
+
+        // Tell ErrorOverlay not to hide on 0 underlines during sidebar toggle
+        errorOverlay.isSidebarToggleInProgress = true
 
         // Wait for AX API to settle, then verify character bounds are stable
         // Electron apps can take 300-500ms for AX layer to update after UI changes
@@ -431,7 +472,14 @@ extension AnalysisCoordinator {
             _ = errorOverlay.update(errors: currentErrors, element: element, context: context)
             lastCharacterBounds = nil
             contentStabilityCount = 0
-            sidebarToggleStartTime = nil
+
+            // Keep sidebarToggleStartTime set for a grace period to prevent
+            // late position changes or click-based refreshes from causing flicker
+            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.sidebarToggleGracePeriod) { [weak self] in
+                self?.sidebarToggleStartTime = nil
+                self?.errorOverlay.isSidebarToggleInProgress = false
+                Logger.trace("Element monitoring: Sidebar toggle grace period ended (after timeout)", category: Logger.analysis)
+            }
             return
         }
 
@@ -453,7 +501,14 @@ extension AnalysisCoordinator {
                     _ = errorOverlay.update(errors: currentErrors, element: element, context: context)
                     lastCharacterBounds = nil
                     contentStabilityCount = 0
-                    sidebarToggleStartTime = nil
+
+                    // Keep sidebarToggleStartTime set for a grace period to prevent
+                    // late position changes or click-based refreshes from causing flicker
+                    DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.sidebarToggleGracePeriod) { [weak self] in
+                        self?.sidebarToggleStartTime = nil
+                        self?.errorOverlay.isSidebarToggleInProgress = false
+                        Logger.trace("Element monitoring: Sidebar toggle grace period ended", category: Logger.analysis)
+                    }
                     return
                 }
             } else {

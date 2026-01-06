@@ -135,6 +135,10 @@ enum TimingConstants {
     /// Fast polling interval for character bounds stability check
     static let boundsStabilityPollInterval: TimeInterval = 0.08
 
+    /// Grace period after sidebar toggle stabilization completes
+    /// Prevents late position changes or click-based refreshes from causing flicker
+    static let sidebarToggleGracePeriod: TimeInterval = 1.5
+
     // MARK: - App Lifecycle
 
     /// Delay before checking startup milestones after menu bar initialization

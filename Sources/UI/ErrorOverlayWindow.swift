@@ -46,6 +46,10 @@ class ErrorOverlayWindow: NSPanel {
     /// Whether we're waiting for frame to stabilize after hiding
     private var waitingForFrameStabilization = false
 
+    /// Whether sidebar toggle is in progress - prevents hide() on 0 underlines
+    /// Set by AnalysisCoordinator during Electron app sidebar toggle handling
+    var isSidebarToggleInProgress = false
+
     /// Callback when frame stabilizes after resize (to re-show underlines)
     var onFrameStabilized: (() -> Void)?
 
@@ -203,16 +207,20 @@ class ErrorOverlayWindow: NSPanel {
                     onHoverEnd?()
                 }
 
-                // For Slack, DON'T fade underlines when mouse moves elsewhere (e.g., scrolling
-                // through old messages). Slack has a separate scrollable message list above a
-                // fixed compose area. The ReactModal detection handles fading when actual popovers appear.
-                let isSlack = currentBundleID == "com.tinyspeck.slackmacgap"
+                // For Electron apps (Slack, Notion, Teams, etc.), DON'T fade underlines when mouse
+                // moves elsewhere. Electron apps typically have separate scrollable message lists
+                // above a fixed compose area - mouse leaving the overlay is normal usage, not
+                // an indication the user wants to interact with the app's popovers.
+                // App-specific popover detection (like Slack's ReactModal) handles fading when needed.
+                let isElectronApp = currentBundleID.flatMap { bundleID in
+                    AppRegistry.shared.configuration(for: bundleID).category == .electron
+                } ?? false
 
-                if isSlack {
-                    // For Slack, only update mouse tracking state, don't fade
+                if isElectronApp {
+                    // For Electron apps, only update mouse tracking state, don't fade
                     if isMouseInsideOverlay {
                         isMouseInsideOverlay = false
-                        Logger.trace("ErrorOverlay: Mouse left overlay bounds (Slack) - keeping full opacity", category: Logger.ui)
+                        Logger.trace("ErrorOverlay: Mouse left overlay bounds (Electron) - keeping full opacity", category: Logger.ui)
                     }
                 } else {
                     // For non-Electron apps, fade underlines when mouse leaves
@@ -474,7 +482,9 @@ class ErrorOverlayWindow: NSPanel {
         }
 
         // Detect element frame changes (resize, scroll, movement)
-        // Hide underlines immediately when frame changes to avoid stale underlines
+        // Clear stale underlines when frame changes - new ones will be drawn immediately
+        // IMPORTANT: Don't call hide() here as that would orderOut() the window causing a flash.
+        // Instead just clear the underline arrays and continue to draw new underlines.
         if let lastFrame = lastElementFrame {
             let positionChanged = abs(elementFrame.origin.x - lastFrame.origin.x) > 5 ||
                 abs(elementFrame.origin.y - lastFrame.origin.y) > 5
@@ -482,8 +492,12 @@ class ErrorOverlayWindow: NSPanel {
                 abs(elementFrame.height - lastFrame.height) > 5
 
             if positionChanged || sizeChanged {
-                Logger.trace("ErrorOverlay: Element frame changed - hiding stale underlines (was: \(lastFrame), now: \(elementFrame))", category: Logger.ui)
-                hide()
+                let underlineCount = underlineView?.underlines.count ?? 0
+                Logger.debug("ErrorOverlay: FRAME CHANGED - clearing \(underlineCount) stale underlines (was: \(lastFrame), now: \(elementFrame))", category: Logger.ui)
+                // Clear underlines without hiding window - avoids flash
+                underlineView?.underlines = []
+                underlineView?.styleUnderlines = []
+                // Note: readability underlines are updated separately
                 lastElementFrame = elementFrame
                 // Continue processing to show new underlines at correct positions
             }
@@ -842,8 +856,14 @@ class ErrorOverlayWindow: NSPanel {
                 }
             }
         } else {
-            Logger.info("ErrorOverlay: No underlines created - hiding overlay", category: Logger.ui)
-            hide()
+            // During sidebar toggle, AX API may temporarily fail - don't hide
+            // just because we couldn't create underlines. Wait for stability.
+            if isSidebarToggleInProgress {
+                Logger.debug("ErrorOverlay: No underlines created but sidebar toggle in progress - skipping hide", category: Logger.ui)
+            } else {
+                Logger.debug("ErrorOverlay: No underlines created - hiding overlay", category: Logger.ui)
+                hide()
+            }
         }
 
         return underlines.count
@@ -859,8 +879,11 @@ class ErrorOverlayWindow: NSPanel {
         stopSlackPopoverDetection()
 
         if isCurrentlyVisible {
+            Logger.debug("ErrorOverlay: HIDE called - orderOut (was visible)", category: Logger.ui)
             orderOut(nil)
             isCurrentlyVisible = false
+        } else {
+            Logger.trace("ErrorOverlay: hide() called but already hidden", category: Logger.ui)
         }
         underlineView?.underlines = []
         underlineView?.readabilityUnderlines = [] // Clear readability underlines
