@@ -134,7 +134,9 @@ struct AboutView: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(!updaterViewModel.canCheckForUpdates || updaterViewModel.isChecking)
+                    // Only disable based on our own isChecking state, not Sparkle's canCheckForUpdates
+                    // canCheckForUpdates flickers during Sparkle's automatic background checks
+                    .disabled(updaterViewModel.isChecking)
 
                     Spacer()
 
