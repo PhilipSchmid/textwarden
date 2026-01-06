@@ -42,11 +42,61 @@ impl LanguageFilter {
     /// # Returns
     /// Filtered list of errors with errors in non-English sentences removed
     pub fn filter_errors(&self, errors: Vec<GrammarError>, text: &str) -> Vec<GrammarError> {
+        tracing::debug!(
+            "LanguageFilter: enabled={}, excluded_languages={:?}",
+            self.enabled,
+            self.excluded_languages
+        );
+
         if !self.enabled || self.excluded_languages.is_empty() {
+            tracing::debug!(
+                "LanguageFilter: Skipping (enabled={}, excluded_empty={})",
+                self.enabled,
+                self.excluded_languages.is_empty()
+            );
             return errors;
         }
 
-        // Split text into sentences
+        // First, detect the dominant language of the entire document
+        // If more than 60% of the document is in an excluded language, filter ALL errors
+        let doc_lang = detect_language(text);
+        if self.excluded_languages.contains(&doc_lang) {
+            // Count how many sentences are in the document language vs other languages
+            let sentences = split_into_sentences(text);
+            let total_sentences = sentences.len();
+
+            if total_sentences > 0 {
+                let doc_lang_sentences = sentences
+                    .iter()
+                    .filter(|&&(start, end)| {
+                        text.get(start..end)
+                            .map(|s| detect_language(s) == doc_lang)
+                            .unwrap_or(false)
+                    })
+                    .count();
+
+                let ratio = doc_lang_sentences as f64 / total_sentences as f64;
+                tracing::info!(
+                    "LanguageFilter: Document language {:?} detected in {}/{} sentences ({:.0}%)",
+                    doc_lang,
+                    doc_lang_sentences,
+                    total_sentences,
+                    ratio * 100.0
+                );
+
+                // If majority of document (>60%) is in excluded language, filter ALL errors
+                if ratio > 0.6 {
+                    tracing::info!(
+                        "LanguageFilter: Document is primarily {:?} (>60%), filtering ALL {} errors",
+                        doc_lang,
+                        errors.len()
+                    );
+                    return vec![];
+                }
+            }
+        }
+
+        // Fall back to sentence-level detection for mixed-language documents
         let sentences = split_into_sentences(text);
 
         // Detect language for each sentence (cache to avoid redundant detection)

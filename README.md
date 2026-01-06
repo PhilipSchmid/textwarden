@@ -42,7 +42,7 @@ A small indicator and/or underline appears when issues are found. Click to see s
 - **AI-powered style suggestions** - Apple Intelligence ([Foundation Models](https://developer.apple.com/documentation/FoundationModels)) for clarity and readability improvements (macOS 26+)
 - **AI Compose** - Generate text from instructions using on-device AI (macOS 26+, Apple Silicon)
 - **Readability Score** - Real-time Flesch Reading Ease score for text with 30+ words
-- **Multilingual awareness** - Detects non-English sentences and ignores them (no false positives on foreign phrases)
+- **Multilingual awareness** - Detects non-English documents and sentences, skipping grammar checks (no false positives on foreign text)
 - **Custom dictionary** - Add your own technical terms and proper nouns
 - **Dialect support** - American, British, Canadian, or Australian English
 - **App controls** - Enable, disable, or pause checking per application
@@ -110,7 +110,7 @@ Like style suggestions, AI Compose runs entirely on-device using Apple Intellige
 
 ### Multilingual Support
 
-TextWarden uses sentence-level language detection to avoid false positives when you mix languages. Each sentence is analyzed independently - if a sentence is detected as German, Spanish, or another non-English language, grammar errors in that sentence are automatically suppressed. This is useful when writing emails that include foreign phrases like "Freundliche Grüsse" or "Merci beaucoup".
+TextWarden uses document-level and sentence-level language detection to avoid false positives when you write in other languages. If more than 60% of a document is detected as German, Spanish, or another non-English language, all grammar checking is skipped for that document. For mixed-language documents, each sentence is analyzed independently - foreign-language sentences have their errors suppressed while English sentences are still checked. This handles both fully foreign documents and emails that include phrases like "Freundliche Grüsse" or "Merci beaucoup".
 
 Supported languages for detection: Spanish, French, German, Italian, Portuguese, Dutch, Russian, Chinese, Japanese, Korean, Arabic, Hindi, Turkish, Swedish, and Vietnamese.
 

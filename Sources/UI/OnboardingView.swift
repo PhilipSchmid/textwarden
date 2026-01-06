@@ -604,7 +604,7 @@ struct OnboardingView: View {
                         .font(.body)
                         .fontWeight(.semibold)
 
-                    Text("If you mix other languages with English, select them below to avoid false positives on foreign phrases like \"Freundliche Grüsse\" or \"Merci beaucoup\".")
+                    Text("If you write in multiple languages, select them below. TextWarden detects when documents are primarily in another language and skips checking entirely, avoiding false positives on foreign text.")
                         .font(.body)
                         .foregroundColor(.secondary)
 

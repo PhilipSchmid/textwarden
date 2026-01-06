@@ -197,7 +197,7 @@ extension AnalysisCoordinator {
         analysisQueue.async { [weak self] in
             guard let self else { return }
 
-            Logger.debug("AnalysisCoordinator: Calling Harper grammar engine...", category: Logger.analysis)
+            Logger.debug("AnalysisCoordinator: Calling Harper grammar engine (langDetect=\(config.enableLanguageDetection), excludedLangs=\(config.excludedLanguages))...", category: Logger.analysis)
 
             let grammarResult = grammarEngineRef.analyzeText(
                 text,

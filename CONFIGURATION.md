@@ -96,11 +96,11 @@ Click **Check for Updates** in the About section to immediately check for availa
 
 ### Language Detection
 
-**What it does:** When enabled, TextWarden detects non-English sentences and skips them. This prevents false errors when you write in multiple languages.
+**What it does:** When enabled, TextWarden detects non-English text and skips grammar checking. If more than 60% of a document is in an excluded language, all checking is skipped for that document. For mixed-language documents, each sentence is analyzed and foreign-language sentences are skipped while English sentences are still checked.
 
-**Excluded Languages:** If language detection is on, you can specify which languages to ignore (e.g., German, French, Spanish).
+**Excluded Languages:** Specify which languages to ignore (e.g., German, French, Spanish). Documents primarily written in these languages will be skipped entirely.
 
-**Recommendation:** Enable if you frequently mix languages. Otherwise, leave it off for faster processing.
+**Recommendation:** Enable if you write in multiple languages. This prevents false positives on foreign text while still checking your English writing.
 
 ### Grammar Categories
 

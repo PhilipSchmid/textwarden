@@ -507,10 +507,10 @@ private struct CustomVocabularyContent: View {
             // MARK: - Language Detection Section
 
             Section {
-                Toggle("Detect non-English words", isOn: $preferences.enableLanguageDetection)
-                    .help("Automatically detect and ignore errors in non-English words")
+                Toggle("Detect non-English text", isOn: $preferences.enableLanguageDetection)
+                    .help("Automatically detect and skip grammar checking for non-English text")
 
-                Text("Skip grammar checking for words detected in selected languages")
+                Text("Skip grammar checking for documents and sentences in selected languages")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
@@ -1155,10 +1155,10 @@ struct CustomVocabularyView: View {
             .padding(.bottom, 8)
 
             VStack(alignment: .leading, spacing: 8) {
-                Toggle("Detect non-English words", isOn: $preferences.enableLanguageDetection)
-                    .help("Automatically detect and ignore errors in non-English words")
+                Toggle("Detect non-English text", isOn: $preferences.enableLanguageDetection)
+                    .help("Automatically detect and skip grammar checking for non-English text")
 
-                Text("Skip grammar checking for words detected in selected languages")
+                Text("Skip grammar checking for documents and sentences in selected languages")
                     .font(.caption)
                     .foregroundColor(.secondary)
 

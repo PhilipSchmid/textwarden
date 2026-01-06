@@ -507,16 +507,18 @@ pub fn analyze_text(
 
     // Apply language detection filter to remove errors for non-English words
     // This is the optimized approach: we only detect language for words that Harper flagged
+    let excluded_langs_count = excluded_languages.len();
     let filter = LanguageFilter::new(enable_language_detection, excluded_languages);
     let errors_before_filter = errors.len();
     errors = filter.filter_errors(errors, text);
 
     if enable_language_detection {
-        tracing::debug!(
-            "Language filter: {} errors before, {} after (filtered {})",
+        tracing::info!(
+            "Language filter: {} errors before, {} after (filtered {}), excluded_langs count={}",
             errors_before_filter,
             errors.len(),
-            errors_before_filter - errors.len()
+            errors_before_filter - errors.len(),
+            excluded_langs_count
         );
     }
 
