@@ -190,7 +190,7 @@ class PositionRefreshCoordinator {
 
     /// Handle scroll event - hide immediately, redraw only after scrolling fully stops
     private func handleScroll() {
-        guard monitoredBundleID != nil else { return }
+        guard let bundleID = monitoredBundleID else { return }
 
         // Dispatch to main thread for thread-safe access
         Task { @MainActor [weak self] in
@@ -198,6 +198,14 @@ class PositionRefreshCoordinator {
 
             // Skip if in replacement mode
             if AnalysisCoordinator.shared.isInReplacementMode {
+                return
+            }
+
+            // For Slack, scrolling affects the message list, NOT the compose field.
+            // Skip hiding underlines to avoid flickering. The compose field position
+            // is stable even when scrolling through old messages.
+            if bundleID == "com.tinyspeck.slackmacgap" {
+                Logger.trace("PositionRefreshCoordinator: Skipping scroll hide for Slack", category: Logger.ui)
                 return
             }
 

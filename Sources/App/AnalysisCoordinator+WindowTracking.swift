@@ -127,6 +127,16 @@ extension AnalysisCoordinator {
 
         // Text is now empty (e.g., message was sent in chat app)
         if currentText.isEmpty, !analyzedText.isEmpty {
+            // For Electron apps (Slack, Teams, etc.), focus can briefly land on elements
+            // that return empty text (like AXWebArea) before settling on the actual compose field.
+            // Don't clear errors immediately - let the focus settle first.
+            let bundleID = textMonitor.currentContext?.bundleIdentifier ?? ""
+            let appConfig = AppRegistry.shared.configuration(for: bundleID)
+            if appConfig.category == .electron {
+                Logger.trace("Text validation: Skipping empty text clear for Electron app - focus may still be settling", category: Logger.analysis)
+                return
+            }
+
             Logger.debug("Text validation: Text is now empty - clearing errors (message likely sent)", category: Logger.analysis)
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
@@ -361,7 +371,17 @@ extension AnalysisCoordinator {
                     }
                 } else {
                     // Electron app handling - sidebar toggle or UI layout change
+                    // Skip if position change is very large (>500px) - this indicates focus changed
+                    // to a different element, not an actual sidebar toggle (which is typically 200-400px)
                     if significantPositionChange {
+                        if positionChange > 500 {
+                            // Very large position change - likely a different element being monitored
+                            // (e.g., focus changed from message list back to compose field)
+                            // Just reset tracking, don't trigger sidebar toggle handling
+                            Logger.debug("Element monitoring: Large position change (\(positionChange)px) in Electron app - resetting element tracking (likely different element)", category: Logger.analysis)
+                            lastElementFrame = currentElementFrame
+                            return
+                        }
                         Logger.debug("Element monitoring: Element position changed by \(positionChange)px in Electron app (sidebar toggle?) - refreshing underlines", category: Logger.analysis)
                         handleElementPositionChangeInElectronApp()
                     }
@@ -518,6 +538,16 @@ extension AnalysisCoordinator {
            Date().timeIntervalSince(replacementTime) < 1.5
         {
             Logger.debug("Scroll monitoring: Ignoring scroll - just applied suggestion", category: Logger.analysis)
+            return
+        }
+
+        // For Slack, scrolling affects the message list, NOT the compose field.
+        // Skip hiding underlines to avoid flickering. The compose field position
+        // is stable even when scrolling through old messages.
+        if let bundleID = textMonitor.currentContext?.bundleIdentifier,
+           bundleID == "com.tinyspeck.slackmacgap"
+        {
+            Logger.trace("Scroll monitoring: Skipping scroll hide for Slack", category: Logger.analysis)
             return
         }
 

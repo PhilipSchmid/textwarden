@@ -1708,7 +1708,9 @@ class AnalysisCoordinator: ObservableObject {
         let appConfig = appRegistry.configuration(for: context.bundleIdentifier)
 
         // Handle case when no element is being monitored (e.g., browser UI element)
-        if textMonitor.monitoredElement == nil {
+        let hasElement = textMonitor.monitoredElement != nil
+        Logger.trace("AnalysisCoordinator: handleTextChange - monitoredElement exists: \(hasElement)", category: Logger.analysis)
+        if !hasElement {
             if handleNoMonitoredElement(appConfig: appConfig) {
                 return
             }
@@ -1746,6 +1748,7 @@ class AnalysisCoordinator: ObservableObject {
 
         // Check browser URL and skip if website is disabled
         if shouldSkipAnalysisForDisabledWebsite(context: context) {
+            Logger.trace("AnalysisCoordinator: Website disabled - skipping analysis", category: Logger.analysis)
             return
         }
 
@@ -1773,6 +1776,19 @@ class AnalysisCoordinator: ObservableObject {
             Logger.debug("AnalysisCoordinator: Focus bounce app - preserving popover during replacement/grace period", category: Logger.analysis)
             errorOverlay.hide()
             previousText = ""
+            return true
+        }
+
+        // For Electron apps (Slack, Teams, etc.), don't immediately hide overlays when focus moves away.
+        // Focus often moves briefly to non-editable elements (message list, old messages) and returns.
+        // The mouse-leave fade (25%) provides visual feedback, and full hide happens only when
+        // text actually changes or focus moves to a different editable element.
+        if appConfig.category == .electron, !currentErrors.isEmpty {
+            Logger.debug("AnalysisCoordinator: Electron app - preserving overlays while focus is away (errors: \(currentErrors.count))", category: Logger.analysis)
+            // Don't clear previousText - we want to detect when we return to the same text
+            // Don't hide errorOverlay - the mouse-leave handler already fades it
+            // Just hide the popover to avoid it obscuring the UI
+            suggestionPopover.hide()
             return true
         }
 
@@ -1806,6 +1822,11 @@ class AnalysisCoordinator: ObservableObject {
 
         let isTyping = detectTypingChange(newText: text, oldText: previousText)
 
+        // Check if we're returning to the same text that was already analyzed
+        // (e.g., focus moved away to non-editable element and back)
+        // In this case, restore cached errors instead of clearing them
+        let isReturningToAnalyzedText = text == lastAnalyzedText && !currentErrors.isEmpty
+
         if text.isEmpty {
             // Text cleared (e.g., message sent)
             Logger.debug("AnalysisCoordinator: Text is now empty - clearing all errors", category: Logger.analysis)
@@ -1813,6 +1834,19 @@ class AnalysisCoordinator: ObservableObject {
             if !isManualStyleCheckActive { floatingIndicator.hide() }
             currentErrors.removeAll()
             positionResolver.clearCache()
+        } else if isReturningToAnalyzedText {
+            // Returning to text that was already analyzed - restore cached errors
+            Logger.debug("AnalysisCoordinator: Returning to previously analyzed text - restoring \(currentErrors.count) cached errors", category: Logger.analysis)
+            positionResolver.clearCache() // Clear position cache since element might have moved
+            if let element = textMonitor.monitoredElement, let context = textMonitor.currentContext {
+                _ = errorOverlay.update(errors: currentErrors, element: element, context: context)
+                floatingIndicator.updateWithContext(
+                    errors: currentErrors,
+                    readabilityResult: currentReadabilityResult,
+                    context: context,
+                    sourceText: text
+                )
+            }
         } else if !isTyping {
             // Significant change (e.g., switching chats)
             Logger.debug("AnalysisCoordinator: Text changed significantly - hiding overlays", category: Logger.analysis)
@@ -1828,7 +1862,8 @@ class AnalysisCoordinator: ObservableObject {
         // Electron/browser apps: Clear errors on truly significant text changes
         // (e.g., conversation switch, large paste). But avoid clearing on minor AX fluctuations
         // which cause flickering. We consider it "truly significant" if >20% of chars changed.
-        if appConfig.category == .electron || appConfig.category == .browser, !isTyping {
+        // Skip this if we're returning to previously analyzed text (errors were just restored above)
+        if appConfig.category == .electron || appConfig.category == .browser, !isTyping, !isReturningToAnalyzedText {
             let changeRatio = computeTextChangeRatio(oldText: previousText, newText: text)
             if changeRatio > 0.2 {
                 Logger.debug("AnalysisCoordinator: Electron/browser significant change (\(Int(changeRatio * 100))% changed) - clearing errors", category: Logger.analysis)

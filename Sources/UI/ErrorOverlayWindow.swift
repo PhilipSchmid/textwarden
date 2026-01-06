@@ -175,8 +175,24 @@ class ErrorOverlayWindow: NSPanel {
             }
 
             // Check if mouse is within our window bounds
-            let isInsideFrame = frame.contains(mouseLocation)
-            Logger.trace("ErrorOverlay: Mouse tracking - at \(mouseLocation), overlay: \(frame), inside: \(isInsideFrame)", category: Logger.ui)
+            // For Slack, expand the detection area to include the formatting toolbar above
+            // the compose field. This prevents fade when user interacts with Bold/Italic/etc.
+            // buttons which are part of the compose experience.
+            var effectiveFrame = frame
+            if let bundleID = currentBundleID,
+               bundleID == "com.tinyspeck.slackmacgap"
+            {
+                // Expand upward by 100px to include formatting toolbar area
+                // Also expand horizontally slightly for edge tolerance
+                effectiveFrame = CGRect(
+                    x: frame.origin.x - 30,
+                    y: frame.origin.y, // Keep bottom edge (Cocoa coords: origin is bottom-left)
+                    width: frame.width + 60,
+                    height: frame.height + 100 // Expand upward in Cocoa coords
+                )
+            }
+            let isInsideFrame = effectiveFrame.contains(mouseLocation)
+            Logger.trace("ErrorOverlay: Mouse tracking - at \(mouseLocation), overlay: \(frame), effective: \(effectiveFrame), inside: \(isInsideFrame)", category: Logger.ui)
 
             guard isInsideFrame else {
                 // Mouse left the window - clear hover state and fade underlines
@@ -186,13 +202,28 @@ class ErrorOverlayWindow: NSPanel {
                     self.underlineView?.needsDisplay = true
                     onHoverEnd?()
                 }
-                // Fade underlines when mouse leaves to avoid obscuring app-native popovers
-                if isMouseInsideOverlay {
-                    isMouseInsideOverlay = false
-                    Logger.info("ErrorOverlay: Mouse LEFT overlay bounds - fading underlines to 25%", category: Logger.ui)
-                    NSAnimationContext.runAnimationGroup { context in
-                        context.duration = 0.15
-                        self.animator().alphaValue = 0.25
+
+                // For Slack, DON'T fade underlines when mouse moves elsewhere (e.g., scrolling
+                // through old messages). Slack has a separate scrollable message list above a
+                // fixed compose area. The ReactModal detection handles fading when actual popovers appear.
+                let isSlack = currentBundleID == "com.tinyspeck.slackmacgap"
+
+                if isSlack {
+                    // For Slack, only update mouse tracking state, don't fade
+                    if isMouseInsideOverlay {
+                        isMouseInsideOverlay = false
+                        Logger.trace("ErrorOverlay: Mouse left overlay bounds (Slack) - keeping full opacity", category: Logger.ui)
+                    }
+                } else {
+                    // For non-Electron apps, fade underlines when mouse leaves
+                    // to avoid obscuring app-native popovers
+                    if isMouseInsideOverlay {
+                        isMouseInsideOverlay = false
+                        Logger.info("ErrorOverlay: Mouse LEFT overlay bounds - fading underlines to 25%", category: Logger.ui)
+                        NSAnimationContext.runAnimationGroup { context in
+                            context.duration = 0.15
+                            self.animator().alphaValue = 0.25
+                        }
                     }
                 }
                 return
@@ -799,6 +830,16 @@ class ErrorOverlayWindow: NSPanel {
                 startSlackPopoverDetection()
             } else {
                 Logger.debug("ErrorOverlay: Updating overlay (already visible, not reordering)", category: Logger.ui)
+                // Restore full opacity when updating - focus may have returned after being away
+                // (e.g., user clicked on old messages then back to compose field)
+                if alphaValue < 1.0 {
+                    Logger.debug("ErrorOverlay: Restoring full opacity on update (was \(alphaValue))", category: Logger.ui)
+                    NSAnimationContext.runAnimationGroup { context in
+                        context.duration = 0.15
+                        self.animator().alphaValue = 1.0
+                    }
+                    isMouseInsideOverlay = true
+                }
             }
         } else {
             Logger.info("ErrorOverlay: No underlines created - hiding overlay", category: Logger.ui)
@@ -1155,10 +1196,27 @@ class ErrorOverlayWindow: NSPanel {
         isSlackPopoverVisible = false
     }
 
-    /// Check if a Slack React Modal popover is visible in the accessibility tree
+    /// Check if a Slack React Modal popover is visible AND overlaps with the compose area
     /// Slack uses React Modal for channel/mention preview popovers, identifiable by AXDOMClassList
     private func hasReactModalPopover() -> Bool {
         guard let element = monitoredElement else { return false }
+
+        // Get the compose field bounds to check for overlap
+        guard let composeBounds = AccessibilityBridge.getElementFrame(element) else { return false }
+
+        // Only fade for ReactModals that actually OVERLAY the compose text area itself.
+        // Don't fade for:
+        // - Formatting toolbar (appears above compose area)
+        // - Message action bar (appears on old messages, not related to compose)
+        //
+        // We use the actual compose bounds with minimal expansion (just 20px for edge tolerance)
+        // to ensure we only catch true overlay popovers like emoji picker, @mention autocomplete, etc.
+        let overlayDetectionBounds = CGRect(
+            x: composeBounds.origin.x - 20,
+            y: composeBounds.origin.y + 20, // Start 20px INTO the compose area to avoid toolbar
+            width: composeBounds.width + 40,
+            height: max(composeBounds.height - 40, 30) // Only the inner part of compose
+        )
 
         // Get the app element from the monitored text element
         var appRef: CFTypeRef?
@@ -1170,12 +1228,13 @@ class ErrorOverlayWindow: NSPanel {
             current = (parent as! AXUIElement)
         }
 
-        // Search for ReactModal__Content elements
-        return findReactModalElement(current)
+        // Search for ReactModal__Content elements that overlap with compose area
+        return findReactModalElement(current, composeArea: overlayDetectionBounds)
     }
 
     /// Recursively search for an AXGroup element with ReactModal__Content in its DOM class list
-    private func findReactModalElement(_ element: AXUIElement, depth: Int = 0, maxDepth: Int = 30) -> Bool {
+    /// Only returns true if the ReactModal overlaps with the compose area
+    private func findReactModalElement(_ element: AXUIElement, composeArea: CGRect, depth: Int = 0, maxDepth: Int = 30) -> Bool {
         guard depth < maxDepth else { return false }
 
         var roleRef: CFTypeRef?
@@ -1189,7 +1248,16 @@ class ErrorOverlayWindow: NSPanel {
             if let domClasses = domClassRef as? [String] {
                 for className in domClasses {
                     if className.hasPrefix("ReactModal__Content") {
-                        return true
+                        // Found a ReactModal - check if it overlaps with compose area
+                        if let modalBounds = AccessibilityBridge.getElementFrame(element) {
+                            if modalBounds.intersects(composeArea) {
+                                Logger.trace("ErrorOverlay: ReactModal found at \(modalBounds), overlaps compose area", category: Logger.ui)
+                                return true
+                            } else {
+                                Logger.trace("ErrorOverlay: ReactModal found at \(modalBounds), but doesn't overlap compose area at \(composeArea)", category: Logger.ui)
+                            }
+                        }
+                        // ReactModal found but no bounds or doesn't overlap - continue searching
                     }
                 }
             }
@@ -1199,7 +1267,7 @@ class ErrorOverlayWindow: NSPanel {
         AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef)
         if let children = childrenRef as? [AXUIElement] {
             for child in children {
-                if findReactModalElement(child, depth: depth + 1, maxDepth: maxDepth) {
+                if findReactModalElement(child, composeArea: composeArea, depth: depth + 1, maxDepth: maxDepth) {
                     return true
                 }
             }

@@ -501,6 +501,19 @@ class TextMonitor: ObservableObject {
             AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
             let roleString = role as? String ?? "Unknown"
 
+            // For Electron apps (Slack, Notion, etc.), AXWindow focus events are spurious -
+            // they fire briefly when clicking in the compose field before focus settles.
+            // Preserve existing editable element monitoring instead of clearing.
+            if roleString == "AXWindow",
+               let bundleID = currentContext?.bundleIdentifier,
+               AppRegistry.shared.configuration(for: bundleID).category == .electron,
+               let existingElement = monitoredElement,
+               isEditableElement(existingElement)
+            {
+                Logger.debug("TextMonitor: Ignoring AXWindow focus in Electron app - preserving existing editable element", category: Logger.accessibility)
+                return
+            }
+
             // Roles that are definitively non-editable - don't retry, clear monitoring immediately
             // This ensures overlays hide promptly when focus moves to navigation elements
             let readOnlyRoles: Set<String> = [
@@ -702,13 +715,9 @@ class TextMonitor: ObservableObject {
         // This allows hiding overlays immediately when typing starts
         onImmediateTextChange?(text, context)
 
-        // Notify typing detector for all apps
-        // This enables hiding underlines during typing for Electron apps (Slack, Notion, etc.)
-        TypingDetector.shared.notifyTextChange()
-
-        // Also notify positioning strategies for their internal cache/cursor management
-        ChromiumStrategy.notifyTextChange()
-        ClaudeStrategy.notifyTextChange()
+        // NOTE: TypingDetector and strategy notifications are now handled in axObserverCallback
+        // for AXValueChangedNotification only. This prevents treating initial text extraction
+        // on focus change as "typing", which was incorrectly hiding underlines.
 
         // Invalidate existing timer
         debounceTimer?.invalidate()
@@ -718,6 +727,15 @@ class TextMonitor: ObservableObject {
 
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
+
+                // Skip if no monitored element exists when timer fires
+                // This prevents stale callbacks after focus changes cleared the element
+                // A fresh extraction will happen when a new element is focused
+                guard monitoredElement != nil else {
+                    Logger.debug("TextMonitor: Skipping debounced text change - element cleared during debounce", category: Logger.accessibility)
+                    return
+                }
+
                 currentText = text
                 onTextChange?(text, context)
             }
@@ -840,6 +858,11 @@ private func axObserverCallback(
                 monitor.handleDeferredTextChange(element: element)
             } else {
                 // Normal path: extract immediately
+                // Notify typing detector BEFORE extraction - this is actual user typing
+                // (not initial extraction on focus change, which should NOT trigger typing detection)
+                TypingDetector.shared.notifyTextChange()
+                ChromiumStrategy.notifyTextChange()
+                ClaudeStrategy.notifyTextChange()
                 monitor.extractText(from: element)
             }
         } else if notificationName == kAXFocusedUIElementChangedNotification as String {
