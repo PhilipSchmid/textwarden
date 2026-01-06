@@ -3,6 +3,19 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.1.0-rc.4</title>
+            <pubDate>Tue, 06 Jan 2026 12:02:55 +0100</pubDate>
+            <sparkle:version>20</sparkle:version>
+            <sparkle:shortVersionString>0.1.0-rc.4</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:channel>experimental</sparkle:channel>
+            <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;fix: Use singleton pattern for UpdaterViewModel to prevent multiple Sparkle instances (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/ef25111&quot;&gt;&lt;code&gt;ef25111&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-rc.4/TextWarden-0.1.0-rc.4-Universal.dmg" length="19765979" type="application/octet-stream" sparkle:edSignature="pFgu3jduoKQoQ7dGUiju1f4+4c2VtwRATNTY4R/RPvelSeVHnAKmqISstnnmD5vdbsanAUv2y2yiwND/tDZBCg=="/>
+        </item>
+        <item>
             <title>0.1.0-rc.3</title>
             <pubDate>Tue, 06 Jan 2026 11:53:07 +0100</pubDate>
             <sparkle:version>19</sparkle:version>
