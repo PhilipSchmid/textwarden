@@ -60,6 +60,44 @@ final class UpdaterDelegate: NSObject, SPUUpdaterDelegate {
     }
 }
 
+/// User driver delegate to control update window presentation
+/// Prevents multiple update windows from showing repeatedly for scheduled checks
+final class UpdaterUserDriverDelegate: NSObject, SPUStandardUserDriverDelegate {
+    /// Track the version we've already shown an update alert for
+    private var lastAlertedVersion: String?
+
+    /// Controls whether Sparkle should show the update window for scheduled (automatic) checks
+    /// Returns false to suppress repeated update windows - user can still check manually
+    func standardUserDriverShouldHandleShowingScheduledUpdate(
+        _ update: SUAppcastItem,
+        andInImmediateFocus immediateFocus: Bool
+    ) -> Bool {
+        // Always show if in immediate focus (user just launched or interacted)
+        if immediateFocus {
+            Logger.info("Showing scheduled update (immediate focus): \(update.displayVersionString)", category: Logger.lifecycle)
+            lastAlertedVersion = update.versionString
+            return true
+        }
+
+        // For background checks, only show once per version
+        if lastAlertedVersion == update.versionString {
+            Logger.debug("Suppressing repeated update alert for version \(update.displayVersionString)", category: Logger.lifecycle)
+            return false
+        }
+
+        Logger.info("Showing scheduled update: \(update.displayVersionString)", category: Logger.lifecycle)
+        lastAlertedVersion = update.versionString
+        return true
+    }
+
+    /// Reset the alerted version when the update session finishes
+    /// This allows showing the alert again if user dismisses and a new check happens later
+    func standardUserDriverWillFinishUpdateSession() {
+        // Don't reset - keep tracking to prevent repeated alerts
+        Logger.debug("Update session finished", category: Logger.lifecycle)
+    }
+}
+
 /// ViewModel for managing app updates via Sparkle
 @MainActor
 final class UpdaterViewModel: ObservableObject {
@@ -103,6 +141,7 @@ final class UpdaterViewModel: ObservableObject {
 
     private let updaterController: SPUStandardUpdaterController
     private let updaterDelegate: UpdaterDelegate
+    private let userDriverDelegate: UpdaterUserDriverDelegate
     private var cancellables = Set<AnyCancellable>()
 
     /// Whether an update check is currently in progress (prevents duplicate UI from manual checks)
@@ -111,16 +150,20 @@ final class UpdaterViewModel: ObservableObject {
     init() {
         Logger.info("Initializing UpdaterViewModel", category: Logger.lifecycle)
 
-        // Create delegate first and set up callbacks
+        // Create delegates first
         let delegate = UpdaterDelegate()
         updaterDelegate = delegate
 
-        // Initialize the updater controller with our delegate
+        let userDriver = UpdaterUserDriverDelegate()
+        userDriverDelegate = userDriver
+
+        // Initialize the updater controller with our delegates
         // startingUpdater: false - we control when checks happen (startup + 24h interval)
+        // userDriverDelegate: controls when update windows are shown (prevents repeated popups)
         updaterController = SPUStandardUpdaterController(
             startingUpdater: false,
             updaterDelegate: delegate,
-            userDriverDelegate: nil
+            userDriverDelegate: userDriver
         )
 
         // Now start the updater manually

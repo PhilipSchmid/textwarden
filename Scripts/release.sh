@@ -189,15 +189,16 @@ generate_release_notes() {
         grep -v "^WIP" | \
         while IFS='|' read -r subject hash local_author; do
             # Look up actual GitHub username from commit via API
-            # Falls back to local git author name if API fails (e.g., commit not pushed yet)
+            # Only use @username for valid GitHub logins (no spaces, not JSON error)
             local api_response
-            api_response=$(gh api "repos/$GITHUB_REPO/commits/$hash" --jq '.author.login // .commit.author.name' 2>/dev/null)
-            if [[ $? -eq 0 && -n "$api_response" && ! "$api_response" =~ ^\{.*\}$ ]]; then
-                local github_author="$api_response"
+            api_response=$(gh api "repos/$GITHUB_REPO/commits/$hash" --jq '.author.login' 2>/dev/null)
+            if [[ $? -eq 0 && -n "$api_response" && "$api_response" != "null" && ! "$api_response" =~ [[:space:]] && ! "$api_response" =~ ^\{.*\}$ ]]; then
+                # Valid GitHub username - use @mention
+                echo "- $subject ([\`$hash\`](https://github.com/$GITHUB_REPO/commit/$hash)) by @$api_response"
             else
-                local github_author="$local_author"
+                # API failed (commit not pushed) or no GitHub account linked - use plain name
+                echo "- $subject ([\`$hash\`](https://github.com/$GITHUB_REPO/commit/$hash)) by $local_author"
             fi
-            echo "- $subject ([\`$hash\`](https://github.com/$GITHUB_REPO/commit/$hash)) by @$github_author"
         done
 }
 
@@ -678,6 +679,17 @@ do_release() {
 
     # Get last tag for release notes
     local last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+    # Ensure all commits are pushed before generating release notes
+    # This allows GitHub API to look up the proper @username for each commit
+    local unpushed_count=$(git rev-list --count @{u}..HEAD 2>/dev/null || echo "0")
+    if [[ "$unpushed_count" -gt 0 ]]; then
+        echo -e "${BLUE}Pushing $unpushed_count unpushed commit(s) for release notes...${NC}"
+        git push || {
+            echo -e "${RED}Failed to push commits. Please push manually first.${NC}"
+            exit 1
+        }
+    fi
 
     # Generate release notes (without changelog link - that's only for GitHub releases)
     echo -e "${BLUE}Generating release notes...${NC}"
