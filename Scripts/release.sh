@@ -184,12 +184,19 @@ generate_release_notes() {
 
     # Format: - Subject ([hash](url)) by @author
     # Look up actual GitHub username via API for each commit
-    git log $log_range --no-merges --pretty=format:"%s|%h" | \
+    git log $log_range --no-merges --pretty=format:"%s|%h|%an" | \
         grep -v "^Merge" | \
         grep -v "^WIP" | \
-        while IFS='|' read -r subject hash; do
+        while IFS='|' read -r subject hash local_author; do
             # Look up actual GitHub username from commit via API
-            local github_author=$(gh api "repos/$GITHUB_REPO/commits/$hash" --jq '.author.login // .commit.author.name' 2>/dev/null || echo "unknown")
+            # Falls back to local git author name if API fails (e.g., commit not pushed yet)
+            local api_response
+            api_response=$(gh api "repos/$GITHUB_REPO/commits/$hash" --jq '.author.login // .commit.author.name' 2>/dev/null)
+            if [[ $? -eq 0 && -n "$api_response" && ! "$api_response" =~ ^\{.*\}$ ]]; then
+                local github_author="$api_response"
+            else
+                local github_author="$local_author"
+            fi
             echo "- $subject ([\`$hash\`](https://github.com/$GITHUB_REPO/commit/$hash)) by @$github_author"
         done
 }

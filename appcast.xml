@@ -11,7 +11,7 @@
             <sparkle:channel>experimental</sparkle:channel>
             <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
 &lt;ul&gt;
-&lt;li&gt;fix: Sign DMG after notarization stapling in release script (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/64805ec&quot;&gt;&lt;code&gt;64805ec&lt;/code&gt;&lt;/a&gt;) by @{&quot;message&quot;:&quot;No commit found for SHA: 64805ec&quot;,&quot;documentation_url&quot;:&quot;https://docs.github.com/rest/commits/commits#get-a-commit&quot;,&quot;status&quot;:&quot;422&quot;}unknown&lt;/li&gt;
+&lt;li&gt;fix: Sign DMG after notarization stapling in release script (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/64805ec&quot;&gt;&lt;code&gt;64805ec&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
 &lt;li&gt;fix: Prevent Check for Updates button from flashing on About page (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/9033b03&quot;&gt;&lt;code&gt;9033b03&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
 &lt;li&gt;fix: Remove &quot;Full Changelog&quot; link from Sparkle release notes (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/bd2b36b&quot;&gt;&lt;code&gt;bd2b36b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
 &lt;/ul&gt;</description>
