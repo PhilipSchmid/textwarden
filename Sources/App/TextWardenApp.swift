@@ -35,8 +35,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var onboardingWindow: NSWindow? // Keep strong reference to onboarding window
 
     /// Shared updater view model for Sparkle auto-updates
-    /// Lazy to ensure initialization happens on main thread (UpdaterViewModel is @MainActor)
-    @MainActor lazy var updaterViewModel = UpdaterViewModel()
+    /// Uses singleton to ensure only ONE SPUStandardUpdaterController exists
+    @MainActor var updaterViewModel: UpdaterViewModel { UpdaterViewModel.shared }
 
     func applicationDidFinishLaunching(_: Notification) {
         Logger.info("Application launched", category: Logger.lifecycle)

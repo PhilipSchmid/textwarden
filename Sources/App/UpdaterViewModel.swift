@@ -60,47 +60,13 @@ final class UpdaterDelegate: NSObject, SPUUpdaterDelegate {
     }
 }
 
-/// User driver delegate to control update window presentation
-/// Prevents multiple update windows from showing repeatedly for scheduled checks
-final class UpdaterUserDriverDelegate: NSObject, SPUStandardUserDriverDelegate {
-    /// Track the version we've already shown an update alert for
-    private var lastAlertedVersion: String?
-
-    /// Controls whether Sparkle should show the update window for scheduled (automatic) checks
-    /// Returns false to suppress repeated update windows - user can still check manually
-    func standardUserDriverShouldHandleShowingScheduledUpdate(
-        _ update: SUAppcastItem,
-        andInImmediateFocus immediateFocus: Bool
-    ) -> Bool {
-        // Always show if in immediate focus (user just launched or interacted)
-        if immediateFocus {
-            Logger.info("Showing scheduled update (immediate focus): \(update.displayVersionString)", category: Logger.lifecycle)
-            lastAlertedVersion = update.versionString
-            return true
-        }
-
-        // For background checks, only show once per version
-        if lastAlertedVersion == update.versionString {
-            Logger.debug("Suppressing repeated update alert for version \(update.displayVersionString)", category: Logger.lifecycle)
-            return false
-        }
-
-        Logger.info("Showing scheduled update: \(update.displayVersionString)", category: Logger.lifecycle)
-        lastAlertedVersion = update.versionString
-        return true
-    }
-
-    /// Reset the alerted version when the update session finishes
-    /// This allows showing the alert again if user dismisses and a new check happens later
-    func standardUserDriverWillFinishUpdateSession() {
-        // Don't reset - keep tracking to prevent repeated alerts
-        Logger.debug("Update session finished", category: Logger.lifecycle)
-    }
-}
-
 /// ViewModel for managing app updates via Sparkle
+/// Uses singleton pattern to ensure only ONE SPUStandardUpdaterController exists
 @MainActor
 final class UpdaterViewModel: ObservableObject {
+    /// Shared singleton instance - ensures only one Sparkle updater exists
+    static let shared = UpdaterViewModel()
+
     /// User preference for automatic update checks (synced with Sparkle)
     @Published var automaticallyChecksForUpdates: Bool = false {
         didSet {
@@ -141,37 +107,27 @@ final class UpdaterViewModel: ObservableObject {
 
     private let updaterController: SPUStandardUpdaterController
     private let updaterDelegate: UpdaterDelegate
-    private let userDriverDelegate: UpdaterUserDriverDelegate
     private var cancellables = Set<AnyCancellable>()
 
     /// Whether an update check is currently in progress (prevents duplicate UI from manual checks)
     private var isUpdateCheckInProgress = false
 
-    init() {
-        Logger.info("Initializing UpdaterViewModel", category: Logger.lifecycle)
+    /// Private init enforces singleton pattern - use UpdaterViewModel.shared
+    private init() {
+        Logger.info("Initializing UpdaterViewModel (singleton)", category: Logger.lifecycle)
 
-        // Create delegates first
+        // Create delegate for experimental channel support
         let delegate = UpdaterDelegate()
         updaterDelegate = delegate
 
-        let userDriver = UpdaterUserDriverDelegate()
-        userDriverDelegate = userDriver
-
-        // Initialize the updater controller with our delegates
-        // startingUpdater: false - we control when checks happen (startup + 24h interval)
-        // userDriverDelegate: controls when update windows are shown (prevents repeated popups)
+        // Initialize updater with startingUpdater: true
+        // This lets Sparkle manage its own lifecycle and prevents multiple window issues
+        // Only pass updaterDelegate for experimental channel; no userDriverDelegate needed
         updaterController = SPUStandardUpdaterController(
-            startingUpdater: false,
+            startingUpdater: true,
             updaterDelegate: delegate,
-            userDriverDelegate: userDriver
+            userDriverDelegate: nil
         )
-
-        // Now start the updater manually
-        do {
-            try updaterController.updater.start()
-        } catch {
-            Logger.error("Failed to start updater: \(error.localizedDescription)", category: Logger.lifecycle)
-        }
 
         // Check if this is first launch - default to disabled
         // Sparkle persists this in SUEnableAutomaticChecks

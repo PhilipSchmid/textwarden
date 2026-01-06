@@ -27,8 +27,8 @@ private enum AppURLs {
 /// Onboarding view guiding users through Accessibility permission setup
 struct OnboardingView: View {
     @ObservedObject private var permissionManager = PermissionManager.shared
-    /// Access the updater from AppDelegate for auto-update settings
-    @ObservedObject private var updaterViewModel: UpdaterViewModel
+    /// Access the singleton updater for auto-update settings
+    @ObservedObject private var updaterViewModel = UpdaterViewModel.shared
 
     @State private var currentStep: OnboardingStep = .overview
     @State private var isPolling = false
@@ -42,16 +42,6 @@ struct OnboardingView: View {
     /// Steps that show the large header (logo and titles)
     private var isLargeHeaderStep: Bool {
         currentStep == .overview || currentStep == .sponsoring
-    }
-
-    init() {
-        // Get updater from AppDelegate, with fallback
-        if let appDelegate = NSApp.delegate as? AppDelegate {
-            _updaterViewModel = ObservedObject(wrappedValue: appDelegate.updaterViewModel)
-        } else {
-            // Fallback - create temporary instance (shouldn't happen in practice)
-            _updaterViewModel = ObservedObject(wrappedValue: UpdaterViewModel())
-        }
     }
 
     /// Apple Intelligence availability status for onboarding

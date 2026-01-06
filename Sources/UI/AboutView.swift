@@ -21,21 +21,11 @@ private enum AppURLs {
 // MARK: - About View
 
 struct AboutView: View {
-    /// Access the updater from AppDelegate - use ObservedObject for proper updates
-    @ObservedObject private var updaterViewModel: UpdaterViewModel
+    /// Access the singleton updater - use ObservedObject for proper updates
+    @ObservedObject private var updaterViewModel = UpdaterViewModel.shared
 
     /// State for copy feedback
     @State private var showCopiedFeedback = false
-
-    init() {
-        // Get updater from AppDelegate, with fallback
-        if let appDelegate = NSApp.delegate as? AppDelegate {
-            _updaterViewModel = ObservedObject(wrappedValue: appDelegate.updaterViewModel)
-        } else {
-            // Fallback - create temporary instance (shouldn't happen in practice)
-            _updaterViewModel = ObservedObject(wrappedValue: UpdaterViewModel())
-        }
-    }
 
     /// Copy version to clipboard
     private func copyVersionToClipboard() {
