@@ -3,6 +3,25 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.1.0-beta.7</title>
+            <pubDate>Tue, 06 Jan 2026 10:42:19 +0100</pubDate>
+            <sparkle:version>16</sparkle:version>
+            <sparkle:shortVersionString>0.1.0-beta.7</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:channel>experimental</sparkle:channel>
+            <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;docs: Add GitHub CI and status badges to README (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/0371dc0&quot;&gt;&lt;code&gt;0371dc0&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Prevent multiple Sparkle update windows by respecting scheduler (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/c87da65&quot;&gt;&lt;code&gt;c87da65&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Correct Sparkle EdDSA signatures and add verification (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/8e5cc0e&quot;&gt;&lt;code&gt;8e5cc0e&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Include release notes in Sparkle update dialog (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/4c72975&quot;&gt;&lt;code&gt;4c72975&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Lower test target deployment target to 26.0 for CI compatibility (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/de25dda&quot;&gt;&lt;code&gt;de25dda&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add Microsoft PowerPoint Notes section support (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/e2c7746&quot;&gt;&lt;code&gt;e2c7746&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;b&gt;Full Changelog&lt;/b&gt;: https://github.com/PhilipSchmid/textwarden/compare/v0.1.0-beta.6...HEAD&lt;/p&gt;</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-beta.7/TextWarden-0.1.0-beta.7-Universal.dmg" length="19770312" type="application/octet-stream" sparkle:edSignature="mRpvKvQsiMIdqVHSu9VT0KcQVEnk681JXdArXqwv1ovVjZKiWqC64XX2Xsv/qORkIpGmjy0a/O9ePBSul5dsBQ=="/>
+        </item>
+        <item>
             <title>0.1.0-beta.6</title>
             <pubDate>Mon, 05 Jan 2026 22:23:44 +0100</pubDate>
             <sparkle:version>15</sparkle:version>
