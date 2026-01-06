@@ -1,6 +1,10 @@
 
 # TextWarden
 
+[![CI](https://github.com/philipschmid/textwarden/actions/workflows/ci.yml/badge.svg)](https://github.com/philipschmid/textwarden/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![macOS](https://img.shields.io/badge/macOS-26%2B-brightgreen.svg)](https://github.com/philipschmid/textwarden/releases)
+
 **Grammar checking that respects your privacy.**
 
 TextWarden checks your spelling and grammar while you type - in any app on your Mac. Unlike other tools, everything runs locally on your computer. Your writing never leaves your device.
