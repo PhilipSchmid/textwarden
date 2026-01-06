@@ -29,14 +29,20 @@ final class UpdaterDelegate: NSObject, SPUUpdaterDelegate {
 
     func updater(_: SPUUpdater, didFinishUpdateCycleFor _: SPUUpdateCheck, error: (any Error)?) {
         DispatchQueue.main.async { [weak self] in
-            let formatter = DateFormatter()
-            formatter.dateStyle = .short
-            formatter.timeStyle = .short
-            let timestamp = formatter.string(from: Date())
-
-            if let error {
-                Logger.warning("Update check failed: \(error.localizedDescription)", category: Logger.lifecycle)
-                self?.onError?(timestamp)
+            if let error = error as? NSError {
+                // SUNoUpdateError (error code 1001) means "no update found" - this is success, not failure
+                // The user is already on the latest version
+                let isNoUpdateError = error.domain == "SUSparkleErrorDomain" && error.code == 1001
+                if isNoUpdateError {
+                    Logger.info("Update check completed - already on latest version", category: Logger.lifecycle)
+                    self?.onSuccess?(Date())
+                } else {
+                    Logger.warning("Update check failed: \(error.localizedDescription) (domain: \(error.domain), code: \(error.code))", category: Logger.lifecycle)
+                    let formatter = DateFormatter()
+                    formatter.dateStyle = .short
+                    formatter.timeStyle = .short
+                    self?.onError?(formatter.string(from: Date()))
+                }
             } else {
                 Logger.info("Update check completed successfully", category: Logger.lifecycle)
                 self?.onSuccess?(Date())
