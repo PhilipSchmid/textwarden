@@ -378,6 +378,73 @@ sign_update() {
     echo "$signature"
 }
 
+# Convert markdown release notes to HTML for Sparkle
+# Handles: ## headers, - lists, **bold**, `code`, [links](url)
+convert_markdown_to_html() {
+    local markdown="$1"
+
+    python3 << PYEOF
+import re
+import html
+
+md = '''$markdown'''
+
+# Split into lines for processing
+lines = md.strip().split('\n')
+html_lines = []
+in_list = False
+
+for line in lines:
+    # Skip empty lines
+    if not line.strip():
+        if in_list:
+            html_lines.append('</ul>')
+            in_list = False
+        continue
+
+    # Headers
+    if line.startswith('## '):
+        if in_list:
+            html_lines.append('</ul>')
+            in_list = False
+        text = html.escape(line[3:])
+        html_lines.append(f'<h3>{text}</h3>')
+        continue
+
+    # List items
+    if line.startswith('- '):
+        if not in_list:
+            html_lines.append('<ul>')
+            in_list = True
+        text = line[2:]
+        # Convert markdown links [text](url) to HTML
+        text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', text)
+        # Convert inline code
+        text = re.sub(r'\`([^\`]+)\`', r'<code>\1</code>', text)
+        # Convert bold
+        text = re.sub(r'\*\*([^*]+)\*\*', r'<b>\1</b>', text)
+        # Escape remaining HTML but preserve our tags
+        # (links and code already converted, so we just escape plain text parts)
+        html_lines.append(f'<li>{text}</li>')
+        continue
+
+    # Regular text (like Full Changelog line)
+    if in_list:
+        html_lines.append('</ul>')
+        in_list = False
+    text = line
+    # Convert markdown links
+    text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', text)
+    text = re.sub(r'\*\*([^*]+)\*\*', r'<b>\1</b>', text)
+    html_lines.append(f'<p>{text}</p>')
+
+if in_list:
+    html_lines.append('</ul>')
+
+print('\n'.join(html_lines))
+PYEOF
+}
+
 # Update appcast.xml
 update_appcast() {
     local version="$1"
@@ -402,6 +469,9 @@ update_appcast() {
         channel_element="experimental"
         echo -e "${YELLOW}Adding to experimental channel${NC}"
     fi
+
+    # Convert release notes markdown to HTML for Sparkle
+    local html_notes=$(convert_markdown_to_html "$release_notes")
 
     # Use Python for reliable XML manipulation
     python3 << EOF
@@ -455,7 +525,9 @@ if channel_elem_value:
     sparkle_channel.text = channel_elem_value
 
 desc = ET.SubElement(item, 'description')
-desc.text = "See GitHub release for details"
+# Embed the HTML release notes
+html_notes = '''$html_notes'''
+desc.text = html_notes
 
 enclosure = ET.SubElement(item, 'enclosure')
 enclosure.set('url', "$download_url")
