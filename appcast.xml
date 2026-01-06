@@ -3,6 +3,21 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.1.0-rc.3</title>
+            <pubDate>Tue, 06 Jan 2026 11:53:07 +0100</pubDate>
+            <sparkle:version>19</sparkle:version>
+            <sparkle:shortVersionString>0.1.0-rc.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:channel>experimental</sparkle:channel>
+            <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;fix: Prevent multiple Sparkle update windows and improve release notes (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/07a02e2&quot;&gt;&lt;code&gt;07a02e2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Handle GitHub API failures gracefully in release notes (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/6904f61&quot;&gt;&lt;code&gt;6904f61&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Add proper markdown spacing for changelog link in releases (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/805bd90&quot;&gt;&lt;code&gt;805bd90&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-rc.3/TextWarden-0.1.0-rc.3-Universal.dmg" length="19768398" type="application/octet-stream" sparkle:edSignature="LurIhusCm9UpsVCeJ4BGR4T/C0Aa3tgj9t6mF4pt7B1Xn7u8LBDa2vU8LRMlyIIV9VXbChPmmmVXScd6iB31AQ=="/>
+        </item>
+        <item>
             <title>0.1.0-rc.2</title>
             <pubDate>Tue, 06 Jan 2026 11:32:15 +0100</pubDate>
             <sparkle:version>18</sparkle:version>
