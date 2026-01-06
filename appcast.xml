@@ -3,6 +3,20 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.1.0-rc.1</title>
+            <pubDate>Tue, 06 Jan 2026 10:56:54 +0100</pubDate>
+            <sparkle:version>17</sparkle:version>
+            <sparkle:shortVersionString>0.1.0-rc.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:channel>experimental</sparkle:channel>
+            <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;fix: Treat Sparkle &quot;no update found&quot; as success, not error (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/d233d9e&quot;&gt;&lt;code&gt;d233d9e&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;b&gt;Full Changelog&lt;/b&gt;: https://github.com/PhilipSchmid/textwarden/compare/v0.1.0-beta.7...HEAD&lt;/p&gt;</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-rc.1/TextWarden-0.1.0-rc.1-Universal.dmg" length="19767767" type="application/octet-stream" sparkle:edSignature="KwKJecrQba5sKRIe0Q2cn5UtP5PfHiDpPg+eGffnUgSexEvm1E6y2TQfStzKCTHYZhmBIbitHfoAdF5YDz4BCA=="/>
+        </item>
+        <item>
             <title>0.1.0-beta.7</title>
             <pubDate>Tue, 06 Jan 2026 10:42:19 +0100</pubDate>
             <sparkle:version>16</sparkle:version>
