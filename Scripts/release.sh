@@ -357,10 +357,23 @@ sign_update() {
 
     echo -e "${BLUE}Signing update with Sparkle...${NC}" >&2
 
-    local raw_signature=$("$sparkle_bin/sign_update" "$dmg_path" 2>/dev/null)
+    # Don't suppress stderr - we need to see errors if keychain access fails
+    local raw_signature
+    raw_signature=$("$sparkle_bin/sign_update" "$dmg_path" 2>&1)
+    local sign_exit_code=$?
+
+    if [[ $sign_exit_code -ne 0 ]]; then
+        echo -e "${RED}Failed to sign update (exit code $sign_exit_code):${NC}" >&2
+        echo "$raw_signature" >&2
+        echo "" >&2
+        echo -e "${YELLOW}If keychain access failed, try:${NC}" >&2
+        echo -e "  1. Run: security unlock-keychain ~/Library/Keychains/login.keychain-db" >&2
+        echo -e "  2. Or: $sparkle_bin/generate_keys  (to check key access)" >&2
+        exit 1
+    fi
 
     if [[ -z "$raw_signature" ]]; then
-        echo -e "${RED}Failed to sign update${NC}" >&2
+        echo -e "${RED}Failed to sign update - empty output${NC}" >&2
         exit 1
     fi
 
@@ -370,11 +383,25 @@ sign_update() {
     if [[ "$raw_signature" =~ edSignature=\"([^\"]+)\" ]]; then
         signature="${BASH_REMATCH[1]}"
     else
-        # Fallback: use as-is if already just the signature
-        signature="$raw_signature"
+        echo -e "${RED}Failed to parse signature from output:${NC}" >&2
+        echo "$raw_signature" >&2
+        exit 1
     fi
 
-    echo -e "${GREEN}Update signed${NC}" >&2
+    # CRITICAL: Verify the signature is valid before continuing
+    # This catches cases where keychain access silently failed
+    echo -e "${BLUE}Verifying signature...${NC}" >&2
+    if ! "$sparkle_bin/sign_update" --verify "$dmg_path" "$signature" >/dev/null 2>&1; then
+        echo -e "${RED}SIGNATURE VERIFICATION FAILED!${NC}" >&2
+        echo -e "The generated signature does not match the private key." >&2
+        echo -e "This usually means keychain access is broken." >&2
+        echo "" >&2
+        echo -e "Try running: $sparkle_bin/generate_keys -p" >&2
+        echo -e "If that fails, the keychain entry may need to be re-authorized." >&2
+        exit 1
+    fi
+
+    echo -e "${GREEN}Update signed and verified ✓${NC}" >&2
     echo "$signature"
 }
 

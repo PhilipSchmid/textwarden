@@ -10,7 +10,7 @@
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:channel>experimental</sparkle:channel>
             <description>See GitHub release for details</description>
-            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-beta.6/TextWarden-0.1.0-beta.6-Universal.dmg" length="19758908" type="application/octet-stream" sparkle:edSignature="AfF4s+26swol7xuhNdxoSlngbD0apWHGi6Z5OylfhMArVAPljjDd3N3kDNbEqzjqeiU9TglqhF9X+kiy6Uj+CQ=="/>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-beta.6/TextWarden-0.1.0-beta.6-Universal.dmg" length="19758908" type="application/octet-stream" sparkle:edSignature="bi6OA4gAqUfiyBIcrfE907W9iIVuzY/JlxfAua4RbALHtJ0CqiXmRb9Yvi3C0IY9gV8V/K3CioY3HTHaR+1bCw=="/>
         </item>
         <item>
             <title>0.1.0-beta.5</title>
@@ -20,7 +20,7 @@
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:channel>experimental</sparkle:channel>
             <description>See GitHub release for details</description>
-            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-beta.5/TextWarden-0.1.0-beta.5-Universal.dmg" length="19700605" type="application/octet-stream" sparkle:edSignature="hsb1sXozbD3DBFlshxrEhp7pEBSo9iHp1r7p+xU83p1Yp5+iFpkpDuWmbZio1z/IDB3/F11k2gu15/ewbC+XCw=="/>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-beta.5/TextWarden-0.1.0-beta.5-Universal.dmg" length="19700605" type="application/octet-stream" sparkle:edSignature="jpXYG6OFUoHcnM47ACOwNQR/qv3k2VFn2wgnAWRSlCN7yEU0Ey8eXotghzVpLP9/TsrJbfbUw2k+icAEYcFeCw=="/>
         </item>
         <item>
             <title>0.1.0-beta.4</title>
@@ -30,7 +30,7 @@
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:channel>experimental</sparkle:channel>
             <description>See GitHub release for details</description>
-            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-beta.4/TextWarden-0.1.0-beta.4-Universal.dmg" length="19708784" type="application/octet-stream" sparkle:edSignature="3E7z7mlQPVeOlJtRKmx4uZCGBr2L2W4JOnJJYSB1NpCbRfBtFMIYpeugnOLJct59lLhce/BI6CK8PeViZu47CA=="/>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-beta.4/TextWarden-0.1.0-beta.4-Universal.dmg" length="19708784" type="application/octet-stream" sparkle:edSignature="KJy1tXvWMbnIRJ4eJl4msE3IMo+wkpJklQ+9jBUqEF1MF/5cr7WTDgaW9dQ2mvMYu6ryQSS0SkCSvf5ozSKPBA=="/>
         </item>
         <item>
             <title>0.1.0-beta.3</title>
@@ -40,7 +40,7 @@
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:channel>experimental</sparkle:channel>
             <description>See GitHub release for details</description>
-            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-beta.3/TextWarden-0.1.0-beta.3-Universal.dmg" length="19518071" type="application/octet-stream" sparkle:edSignature="mqYdJX5WIt3ObB5YqwYyas2G2hIIv7xdbZVrJyEFglwlM7xe0evl0dAmdm2z0mZFbKUE09bQUJptJrpvlsJ+Aw=="/>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-beta.3/TextWarden-0.1.0-beta.3-Universal.dmg" length="19518071" type="application/octet-stream" sparkle:edSignature="VRg3iVpnOLMRLy1WmSEar1KPdQGJ+ebDqaTKRGo7hzokgnI1me6t318mkFBPsl2kRJigPXzbnaM4WqgOlyP1Cg=="/>
         </item>
         <item>
             <title>0.1.0-beta.2</title>
@@ -50,7 +50,7 @@
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:channel>experimental</sparkle:channel>
             <description>See GitHub release for details</description>
-            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-beta.2/TextWarden-0.1.0-beta.2-Universal.dmg" length="19362655" type="application/octet-stream" sparkle:edSignature="nXUNWumF3TtharrWWuw+detKHXnTCR1kzqT5QGAHoEZeOD7Gd26LigZFWUReByOPseGa2lCfC3Hm0J8jeWySAg=="/>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-beta.2/TextWarden-0.1.0-beta.2-Universal.dmg" length="19362655" type="application/octet-stream" sparkle:edSignature="W9IZTLMaKZAHNnijq/F5cLtig85ioUBB4totYucisWoEkIDUPyth5jUnaVMUmw8E+YY/RWVDL4ZGsoWFtndnDg=="/>
         </item>
         <item>
             <title>0.1.0-beta.1</title>
@@ -60,7 +60,7 @@
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:channel>experimental</sparkle:channel>
             <description>See GitHub release for details</description>
-            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-beta.1/TextWarden-0.1.0-beta.1-Universal.dmg" length="18894938" type="application/octet-stream" sparkle:edSignature="ejtgJ2VMLzFsP+N3mrrQbJ2sK+XJLMewCO70jLJffs6B8+OnLSFVIcGuqaUI2GKhx/OYcVHlOezPJkGnLhnRAQ=="/>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-beta.1/TextWarden-0.1.0-beta.1-Universal.dmg" length="18894938" type="application/octet-stream" sparkle:edSignature="TYr4GkFrSgDuvcYhxhYErn4Ui3j83vp7pSmYkDjJgnEGslAhYR7JvlMt2OFL1nTHgPk3LB2d35BbrRL6BlV9AA=="/>
         </item>
         <item>
             <title>0.1.0-alpha.5</title>
@@ -70,7 +70,7 @@
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:channel>experimental</sparkle:channel>
             <description>See GitHub release for details</description>
-            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-alpha.5/TextWarden-0.1.0-alpha.5-Universal.dmg" length="18840657" type="application/octet-stream" sparkle:edSignature="v0a/64cvDXqmv0+DHpAj2RJT0lhdTDsSdZ23XIbgguTWcBF8kwyuD6avqRVZe3B48CF6Ayx4vNDjusL7NPlLDA=="/>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-alpha.5/TextWarden-0.1.0-alpha.5-Universal.dmg" length="18840657" type="application/octet-stream" sparkle:edSignature="xIGmBuJum4sCsTsgLdMaGEVEjm6H9KaRQB92QBkzI0vSm8iJkLpts4BaoxmWMkEQis3Xh5BqH/+XyLxu0xzHAw=="/>
         </item>
         <item>
             <title>0.1.0-alpha.4</title>
@@ -80,7 +80,7 @@
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:channel>experimental</sparkle:channel>
             <description>See GitHub release for details</description>
-            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-alpha.4/TextWarden-0.1.0-alpha.4-Universal.dmg" length="17360093" type="application/octet-stream" sparkle:edSignature="Adk62To8zhda9cq7ngliYjdAgq1iCSFCoIqZR6IxSTsh3EA4W1T9W5W+YUUkcNpgnD6BtMO+0jQHQhUmcrdrAw=="/>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-alpha.4/TextWarden-0.1.0-alpha.4-Universal.dmg" length="17360093" type="application/octet-stream" sparkle:edSignature="LN7ORuypOIu+NSXyMBoj4lEdTmiEfjNfHy1/tzcjjeOfUHIZCAAROlPa52sZz2MWkCY8WWpe7IqJ/FeiizjUAA=="/>
         </item>
         <item>
             <title>0.1.0-alpha.3</title>
@@ -90,7 +90,7 @@
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:channel>experimental</sparkle:channel>
             <description>See GitHub release for details</description>
-            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-alpha.3/TextWarden-0.1.0-alpha.3.dmg" length="17358843" type="application/octet-stream" sparkle:edSignature="kxeGVTL6glNUpN3Ly8R+n0IvOuRdttJ1T8PFOkrJBkI78gKu11E0LhyTBpVseh77DNTW5hxwlQlprwE9Q0YICA=="/>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-alpha.3/TextWarden-0.1.0-alpha.3.dmg" length="17358843" type="application/octet-stream" sparkle:edSignature="jhTfQ+LPJVdT2JDIP4bE4/3Bn8Ex4uw7Rb9BJiSB/OZtyiBBnLblMtLIBinZXgpl2iGplqosXMlYkUzfbHVuCQ=="/>
         </item>
         <item>
             <title>0.1.0-alpha.2</title>
@@ -100,7 +100,7 @@
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:channel>experimental</sparkle:channel>
             <description>See GitHub release for details</description>
-            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-alpha.2/TextWarden-0.1.0-alpha.2.dmg" length="17280809" type="application/octet-stream" sparkle:edSignature="SvQIDI0Qk7C5JUDqO/MoFQN5eh24DIBEuxKcfQSJ21WsEUcR6YiMZUNAlQB79dFFlcEepDP81ffjvXXT4rR1CA=="/>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-alpha.2/TextWarden-0.1.0-alpha.2.dmg" length="17280809" type="application/octet-stream" sparkle:edSignature="Cw6guS3E0gmjy/07Nr1gPCMR7SlqHxM2jjtxNqjMqAL19KIDyYLCpKDfANzVouE+sB1j9xbniuMU2uc47KAqAw=="/>
         </item>
         <item>
             <title>0.1.0-alpha.1</title>
