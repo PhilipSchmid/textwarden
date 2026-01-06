@@ -195,9 +195,11 @@ generate_release_notes() {
 }
 
 # Generate full changelog link for GitHub releases
+# Note: Needs TWO blank lines before for proper markdown separation from list
 generate_changelog_link() {
     local from_tag="$1"
     local to_ref="${2:-HEAD}"
+    echo ""
     echo ""
     echo "**Full Changelog**: https://github.com/$GITHUB_REPO/compare/$from_tag...$to_ref"
 }
