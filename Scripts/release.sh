@@ -166,6 +166,7 @@ parse_version_type() {
 # Generate release notes from git commits
 # Format: - commit message (short hash) by @author
 # Links to GitHub commits for full context
+# Note: Does NOT include "Full Changelog" link - that's added only for GitHub releases
 generate_release_notes() {
     local from_tag="$1"
     local to_ref="${2:-HEAD}"
@@ -191,7 +192,12 @@ generate_release_notes() {
             local github_author=$(gh api "repos/$GITHUB_REPO/commits/$hash" --jq '.author.login // .commit.author.name' 2>/dev/null || echo "unknown")
             echo "- $subject ([\`$hash\`](https://github.com/$GITHUB_REPO/commit/$hash)) by @$github_author"
         done
+}
 
+# Generate full changelog link for GitHub releases
+generate_changelog_link() {
+    local from_tag="$1"
+    local to_ref="${2:-HEAD}"
     echo ""
     echo "**Full Changelog**: https://github.com/$GITHUB_REPO/compare/$from_tag...$to_ref"
 }
@@ -664,10 +670,13 @@ do_release() {
     # Get last tag for release notes
     local last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
 
-    # Generate release notes
+    # Generate release notes (without changelog link - that's only for GitHub releases)
     echo -e "${BLUE}Generating release notes...${NC}"
     local release_notes=$(generate_release_notes "$last_tag")
     echo "$release_notes"
+    # Show changelog link in console for reference (but don't include in Sparkle appcast)
+    echo ""
+    echo "**Full Changelog**: https://github.com/$GITHUB_REPO/compare/$last_tag...HEAD"
     echo ""
 
     # Update version in Info.plist
@@ -738,6 +747,8 @@ do_upload() {
     # This finds the most recent tag that isn't the current version
     local last_tag=$(git tag --sort=-creatordate | grep -v "^v$version$" | head -1)
     local release_notes=$(generate_release_notes "$last_tag" "v$version")
+    # Add changelog link for GitHub releases (not included in Sparkle appcast)
+    release_notes+=$(generate_changelog_link "$last_tag" "v$version")
 
     local version_type=$(parse_version_type "$version")
     local is_prerelease="false"
