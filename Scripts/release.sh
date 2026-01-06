@@ -697,11 +697,11 @@ do_release() {
     # Create DMG
     local dmg_path=$(create_dmg "$app_path" "$version")
 
-    # Sign with Sparkle
-    local signature=$(sign_update "$dmg_path" "$sparkle_bin")
-
-    # Notarize the DMG (requires Apple Developer credentials)
+    # Notarize the DMG FIRST (stapling modifies the DMG)
     notarize_app "$dmg_path"
+
+    # Sign with Sparkle AFTER stapling (signature must be for final DMG)
+    local signature=$(sign_update "$dmg_path" "$sparkle_bin")
 
     # Update appcast
     update_appcast "$version" "$new_build" "$dmg_path" "$signature" "$release_notes" "$is_prerelease" "$version_type"
