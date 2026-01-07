@@ -82,6 +82,9 @@ class NotionContentParser: ContentParser {
     /// Ranges of text to skip (from blockquotes, etc.) - detected from AX tree
     private var skipRanges: [NSRange] = []
 
+    /// Text content to skip - stored as strings so we can re-find them after preprocessing
+    private var skipTexts: [String] = []
+
     // MARK: - Initialization
 
     init(bundleIdentifier: String) {
@@ -218,10 +221,13 @@ class NotionContentParser: ContentParser {
         var removedChars = 0
 
         // Remove leading empty lines, UI elements, and emoji-only lines (page icons)
+        // IMPORTANT: Use unicodeScalars.count for position tracking because Harper
+        // reports error positions in Unicode scalar offsets, not grapheme clusters.
+        // Emojis with skin tones (e.g., 💪🏼) are 1 grapheme but 2+ scalars.
         while let firstLine = lines.first {
             if isUIElementLine(firstLine) {
-                // Count characters being removed (line + newline)
-                removedChars += firstLine.count + 1
+                // Count Unicode scalars in this line plus the newline after it
+                removedChars += firstLine.unicodeScalars.count + 1
                 lines.removeFirst()
             } else {
                 break
@@ -230,6 +236,11 @@ class NotionContentParser: ContentParser {
 
         // Store offset for position mapping
         uiElementOffset = removedChars
+
+        // Debug: Log what was removed
+        if removedChars > 0 {
+            Logger.debug("NotionContentParser: Removed \(removedChars) scalars from leading UI elements", category: Logger.ui)
+        }
 
         // Also remove trailing UI elements (like placeholders at the end)
         // Trailing removal doesn't affect position mapping since errors come before
@@ -244,6 +255,7 @@ class NotionContentParser: ContentParser {
         // Filter code blocks: lines followed by U+200B are code block content
         // Replace with newlines to preserve character positions while preventing
         // grammar checking of code content (newlines avoid Harper "multiple spaces" warnings)
+        // Use unicodeScalars.count to match Harper's position system
         var codeBlocksFiltered = 0
         for i in 0 ..< lines.count {
             // Check if next line is a code block boundary (U+200B)
@@ -251,8 +263,8 @@ class NotionContentParser: ContentParser {
                 let nextLine = lines[i + 1]
                 if isCodeBlockBoundary(nextLine) {
                     Logger.trace("NotionContentParser: Code block at line \(i), U+200B boundary at line \(i + 1)", category: Logger.ui)
-                    // This line is code block content - replace with newlines to preserve length
-                    let originalLength = lines[i].count
+                    // This line is code block content - replace with newlines to preserve scalar length
+                    let originalLength = lines[i].unicodeScalars.count
                     lines[i] = String(repeating: "\n", count: originalLength)
                     codeBlocksFiltered += 1
                 }
@@ -261,14 +273,15 @@ class NotionContentParser: ContentParser {
 
         // Filter bulleted list items: bullet character followed by list item content
         // Structure: line N is "•" (bullet), line N+1 is the list item text
+        // Use unicodeScalars.count to match Harper's position system
         var bulletListsFiltered = 0
         for i in 0 ..< lines.count {
             if isBulletLine(lines[i]) {
-                // Replace bullet line with newlines
-                lines[i] = String(repeating: "\n", count: lines[i].count)
+                // Replace bullet line with newlines (scalar count)
+                lines[i] = String(repeating: "\n", count: lines[i].unicodeScalars.count)
                 // Replace the following line (list item content) with newlines
                 if i + 1 < lines.count {
-                    let originalLength = lines[i + 1].count
+                    let originalLength = lines[i + 1].unicodeScalars.count
                     lines[i + 1] = String(repeating: "\n", count: originalLength)
                     Logger.trace("NotionContentParser: Filtered bullet list item at line \(i + 1)", category: Logger.ui)
                 }
@@ -278,14 +291,15 @@ class NotionContentParser: ContentParser {
 
         // Filter numbered list items: number marker (e.g., "1.") followed by list item content
         // Structure: line N is "1." (number), line N+1 is the list item text
+        // Use unicodeScalars.count to match Harper's position system
         var numberedListsFiltered = 0
         for i in 0 ..< lines.count {
             if isNumberedListMarker(lines[i]) {
-                // Replace number marker line with newlines
-                lines[i] = String(repeating: "\n", count: lines[i].count)
+                // Replace number marker line with newlines (scalar count)
+                lines[i] = String(repeating: "\n", count: lines[i].unicodeScalars.count)
                 // Replace the following line (list item content) with newlines
                 if i + 1 < lines.count {
-                    let originalLength = lines[i + 1].count
+                    let originalLength = lines[i + 1].unicodeScalars.count
                     lines[i + 1] = String(repeating: "\n", count: originalLength)
                     Logger.trace("NotionContentParser: Filtered numbered list item at line \(i + 1)", category: Logger.ui)
                 }
@@ -294,11 +308,11 @@ class NotionContentParser: ContentParser {
         }
 
         // Also replace the U+200B boundary lines with same-length newlines
-        // IMPORTANT: Must preserve character count to avoid position drift
+        // IMPORTANT: Must preserve scalar count to avoid position drift
         lines = lines.map { line in
             if isCodeBlockBoundary(line) {
-                // Replace U+200B chars with newlines (same count) to preserve positions
-                return String(repeating: "\n", count: line.count)
+                // Replace U+200B chars with newlines (scalar count) to preserve positions
+                return String(repeating: "\n", count: line.unicodeScalars.count)
             }
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             return trimmed.isEmpty ? "" : line
@@ -306,34 +320,41 @@ class NotionContentParser: ContentParser {
 
         var filteredText = lines.joined(separator: "\n")
 
-        // Apply skip ranges (blockquotes detected from AX tree)
-        // These positions are in the ORIGINAL text coordinates, so we need to adjust
-        // by subtracting the leading offset (removedChars) to get filtered text positions
-        //
-        // We replace with newlines instead of spaces to avoid Harper flagging
-        // "multiple consecutive spaces" errors. Newlines are normal between paragraphs.
-        var skipRangesApplied = 0
-        for skipRange in skipRanges {
-            // Convert original text position to filtered text position
-            let adjustedLocation = skipRange.location - removedChars
-            guard adjustedLocation >= 0, adjustedLocation + skipRange.length <= filteredText.count else {
-                continue
+        // Apply skip texts by searching for them in the filtered text
+        // This avoids position alignment issues - we find the actual text content and replace it
+        var skipTextsApplied = 0
+        for skipText in skipTexts {
+            // Search for the skip text in the filtered content
+            if let range = filteredText.range(of: skipText) {
+                // Replace with newlines to preserve scalar positions for Harper
+                let scalarCount = skipText.unicodeScalars.count
+                let replacement = String(repeating: "\n", count: scalarCount)
+                filteredText.replaceSubrange(range, with: replacement)
+                skipTextsApplied += 1
             }
-
-            // Replace skip range with newlines (preserves character positions, avoids Harper space warnings)
-            guard let startIdx = filteredText.index(filteredText.startIndex, offsetBy: adjustedLocation, limitedBy: filteredText.endIndex),
-                  let endIdx = filteredText.index(startIdx, offsetBy: skipRange.length, limitedBy: filteredText.endIndex)
-            else {
-                continue
-            }
-
-            let replacement = String(repeating: "\n", count: skipRange.length)
-            filteredText.replaceSubrange(startIdx ..< endIdx, with: replacement)
-            skipRangesApplied += 1
         }
 
-        if removedChars > 0 || codeBlocksFiltered > 0 || bulletListsFiltered > 0 || numberedListsFiltered > 0 || skipRangesApplied > 0 {
-            Logger.debug("NotionContentParser: Filtered leading UI: \(removedChars), code blocks: \(codeBlocksFiltered), bullet lists: \(bulletListsFiltered), numbered lists: \(numberedListsFiltered), skip ranges: \(skipRangesApplied), remaining: \(filteredText.count) chars", category: Logger.ui)
+        // Filter UI element patterns anywhere in the text (not just leading/trailing)
+        // These are Notion's placeholder texts like "Write, press 'space' for AI..."
+        // Replace with newlines to preserve scalar positions for Harper
+        var uiPatternsFiltered = 0
+        for uiElement in Self.notionUIElements {
+            // Search for the UI element text anywhere in the filtered content
+            // Use a while loop to handle multiple occurrences
+            while let range = filteredText.range(of: uiElement) {
+                let scalarCount = uiElement.unicodeScalars.count
+                let replacement = String(repeating: "\n", count: scalarCount)
+                filteredText.replaceSubrange(range, with: replacement)
+                uiPatternsFiltered += 1
+                Logger.trace("NotionContentParser: Filtered UI pattern '\(uiElement.prefix(30))...'", category: Logger.ui)
+            }
+        }
+
+        if removedChars > 0 || codeBlocksFiltered > 0 || bulletListsFiltered > 0 || numberedListsFiltered > 0 || skipTextsApplied > 0 || uiPatternsFiltered > 0 {
+            Logger.debug("NotionContentParser: Filtered leading UI: \(removedChars), code blocks: \(codeBlocksFiltered), bullet lists: \(bulletListsFiltered), numbered lists: \(numberedListsFiltered), skip texts: \(skipTextsApplied)/\(skipTexts.count), UI patterns: \(uiPatternsFiltered), remaining: \(filteredText.unicodeScalars.count) scalars", category: Logger.ui)
+            // Debug: Show what text remains for analysis (truncated)
+            let cleanedPreview = filteredText.replacingOccurrences(of: "\n", with: "↵").prefix(100)
+            Logger.debug("NotionContentParser: Filtered text preview: '\(cleanedPreview)'", category: Logger.ui)
         }
 
         // Return nil if nothing left after filtering
@@ -427,6 +448,7 @@ class NotionContentParser: ContentParser {
         }
 
         // Detect skip ranges from AX tree (blockquotes, etc.)
+        skipTexts = [] // Reset before detection
         skipRanges = detectSkipRanges(element: element, fullText: text)
 
         // Return preprocessed text (with UI elements and skip ranges filtered)
@@ -548,21 +570,22 @@ class NotionContentParser: ContentParser {
         }
 
         if shouldSkip, !text.isEmpty {
-            // Find this text in fullText and mark as skip range
+            // Store the text content to skip - will be searched in filtered text later
+            // This avoids position alignment issues between original and filtered text
+            if !skipTexts.contains(text) {
+                skipTexts.append(text)
+                Logger.trace("NotionContentParser: Will skip text '\(text.prefix(30))...' (roleDesc='\(roleDesc)')", category: Logger.ui)
+            }
+
+            // Also store range for backward compatibility (though we'll primarily use skipTexts)
             if let range = findTextRange(text, in: fullText, startingAt: searchStart) {
                 ranges.append(range)
                 searchStart = range.location + range.length
-                Logger.trace("NotionContentParser: Skip range for '\(text.prefix(30))...' at \(range) (roleDesc='\(roleDesc)')", category: Logger.ui)
             } else if let range = findTextRange(text, in: fullText, startingAt: 0) {
-                // Try from beginning if not found from searchStart
                 let alreadyCovered = ranges.contains { $0.location == range.location }
                 if !alreadyCovered {
                     ranges.append(range)
-                    Logger.trace("NotionContentParser: Skip range for '\(text.prefix(30))...' at \(range) (from start)", category: Logger.ui)
                 }
-            } else {
-                // Debug: log when text isn't found in fullText
-                Logger.trace("NotionContentParser: Could not find '\(text.prefix(30))...' in fullText (searchStart=\(searchStart))", category: Logger.ui)
             }
         }
 
@@ -581,18 +604,28 @@ class NotionContentParser: ContentParser {
         }
     }
 
-    /// Find text range in full text
+    /// Find text range in full text, returning Unicode scalar positions
+    /// IMPORTANT: Returns positions in Unicode scalars to match Harper's position system
     private func findTextRange(_ substring: String, in text: String, startingAt: Int) -> NSRange? {
-        guard startingAt < text.count,
-              let searchStartIdx = text.index(text.startIndex, offsetBy: startingAt, limitedBy: text.endIndex)
+        let scalars = text.unicodeScalars
+        guard startingAt < scalars.count,
+              let searchStartIdx = scalars.index(scalars.startIndex, offsetBy: startingAt, limitedBy: scalars.endIndex)
         else {
             return nil
         }
 
-        let searchRange = searchStartIdx ..< text.endIndex
+        // Convert scalar index to String.Index for searching
+        guard let stringStartIdx = String.Index(searchStartIdx, within: text) else {
+            return nil
+        }
+
+        let searchRange = stringStartIdx ..< text.endIndex
         if let foundRange = text.range(of: substring, range: searchRange) {
-            let location = text.distance(from: text.startIndex, to: foundRange.lowerBound)
-            return NSRange(location: location, length: substring.count)
+            // Calculate position in Unicode scalars (not grapheme clusters)
+            let foundScalarIdx = foundRange.lowerBound.samePosition(in: scalars) ?? scalars.startIndex
+            let location = scalars.distance(from: scalars.startIndex, to: foundScalarIdx)
+            let length = substring.unicodeScalars.count
+            return NSRange(location: location, length: length)
         }
         return nil
     }

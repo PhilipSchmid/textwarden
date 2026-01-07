@@ -63,6 +63,46 @@ enum TextIndexConverter {
         return scalars.distance(from: scalarStart, to: scalarEnd)
     }
 
+    // MARK: - Unicode Scalar ↔ UTF-16
+
+    /// Convert Unicode scalar indices to UTF-16 code unit indices.
+    /// Harper uses Unicode scalars, macOS accessibility APIs use UTF-16 code units.
+    /// - Parameters:
+    ///   - range: NSRange in Unicode scalar indices
+    ///   - text: The text to convert within
+    /// - Returns: NSRange in UTF-16 code unit indices
+    static func scalarToUTF16Range(_ range: NSRange, in text: String) -> NSRange {
+        let scalars = text.unicodeScalars
+        let endPosition = range.location + range.length
+
+        // Validate bounds
+        guard range.location >= 0, range.location <= endPosition,
+              range.location <= scalars.count, endPosition <= scalars.count
+        else {
+            return range // Out of bounds, return original
+        }
+
+        // Get scalar indices
+        guard let startScalarIdx = scalars.index(scalars.startIndex, offsetBy: range.location, limitedBy: scalars.endIndex),
+              let endScalarIdx = scalars.index(scalars.startIndex, offsetBy: endPosition, limitedBy: scalars.endIndex)
+        else {
+            return range
+        }
+
+        // Convert to String.Index (grapheme cluster aligned)
+        guard let startIndex = String.Index(startScalarIdx, within: text),
+              let endIndex = String.Index(endScalarIdx, within: text)
+        else {
+            return range
+        }
+
+        // Get UTF-16 offsets
+        let utf16Start = text.utf16.distance(from: text.utf16.startIndex, to: startIndex)
+        let utf16End = text.utf16.distance(from: text.utf16.startIndex, to: endIndex)
+
+        return NSRange(location: utf16Start, length: max(1, utf16End - utf16Start))
+    }
+
     // MARK: - Grapheme Cluster ↔ UTF-16
 
     /// Convert grapheme cluster indices to UTF-16 code unit indices.

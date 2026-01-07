@@ -81,6 +81,18 @@ class NotionStrategy: GeometryProvider {
         let offset = parser.textReplacementOffset
         let originalRange = NSRange(location: errorRange.location + offset, length: errorRange.length)
 
+        // Debug: Extract error text from filtered text to verify position
+        let filteredScalars = text.unicodeScalars
+        if errorRange.location < filteredScalars.count,
+           let startIdx = filteredScalars.index(filteredScalars.startIndex, offsetBy: errorRange.location, limitedBy: filteredScalars.endIndex),
+           let endIdx = filteredScalars.index(startIdx, offsetBy: min(errorRange.length, 10), limitedBy: filteredScalars.endIndex),
+           let strStart = String.Index(startIdx, within: text),
+           let strEnd = String.Index(endIdx, within: text)
+        {
+            let errorText = String(text[strStart ..< strEnd])
+            Logger.debug("NotionStrategy: Error '\(errorText)' at filtered pos \(errorRange.location), offset=\(offset), original pos=\(originalRange.location)", category: Logger.ui)
+        }
+
         // Get element frame for validation
         guard let elementFrame = AccessibilityBridge.getElementFrame(element) else {
             Logger.debug("NotionStrategy: Could not get element frame", category: Logger.ui)
@@ -270,17 +282,28 @@ class NotionStrategy: GeometryProvider {
         }
     }
 
-    /// Find the range of a substring starting from a given position
+    /// Find the range of a substring starting from a given position.
+    /// Returns Unicode scalar positions to match Harper's error positions.
     private func findTextRange(_ substring: String, in text: String, startingAt: Int) -> NSRange? {
-        guard startingAt < text.count else { return nil }
-        guard let searchStartIdx = text.index(text.startIndex, offsetBy: startingAt, limitedBy: text.endIndex) else {
+        let scalars = text.unicodeScalars
+        guard startingAt < scalars.count,
+              let searchStartScalarIdx = scalars.index(scalars.startIndex, offsetBy: startingAt, limitedBy: scalars.endIndex)
+        else {
+            return nil
+        }
+
+        // Convert scalar index to String.Index for range search
+        guard let searchStartIdx = String.Index(searchStartScalarIdx, within: text) else {
             return nil
         }
 
         let searchRange = searchStartIdx ..< text.endIndex
         if let foundRange = text.range(of: substring, range: searchRange) {
-            let location = text.distance(from: text.startIndex, to: foundRange.lowerBound)
-            return NSRange(location: location, length: substring.count)
+            // Convert found range to Unicode scalar positions
+            let foundScalarIdx = foundRange.lowerBound.samePosition(in: scalars) ?? scalars.startIndex
+            let location = scalars.distance(from: scalars.startIndex, to: foundScalarIdx)
+            let length = substring.unicodeScalars.count
+            return NSRange(location: location, length: length)
         }
 
         return nil
@@ -340,28 +363,41 @@ class NotionStrategy: GeometryProvider {
     /// Calculate bounds for error within a single TextPart
     /// Uses AXBoundsForRange on the child element for pixel-perfect positioning
     private func calculateSubElementBounds(targetRange: NSRange, in part: TextPart) -> CGRect? {
-        // Calculate grapheme cluster offsets within the TextPart
-        let graphemeOffsetInPart = targetRange.location - part.range.location
-        let graphemeLength = min(targetRange.location + targetRange.length, part.range.location + part.range.length) - targetRange.location
+        // Calculate Unicode scalar offsets within the TextPart
+        // Both targetRange and part.range are in Unicode scalars (matching Harper's positions)
+        let scalarOffsetInPart = targetRange.location - part.range.location
+        let scalarLength = min(targetRange.location + targetRange.length, part.range.location + part.range.length) - targetRange.location
 
         // SAFETY CHECK: Ensure offset is non-negative
         // A negative offset means the error starts BEFORE this TextPart - this is a matching bug
-        guard graphemeOffsetInPart >= 0 else {
-            Logger.warning("NotionStrategy: Negative grapheme offset \(graphemeOffsetInPart) - error range \(targetRange) doesn't match TextPart range \(part.range)", category: Logger.ui)
+        guard scalarOffsetInPart >= 0 else {
+            Logger.warning("NotionStrategy: Negative scalar offset \(scalarOffsetInPart) - error range \(targetRange) doesn't match TextPart range \(part.range)", category: Logger.ui)
             return nil // Return nil to try next TextPart or fallback
         }
 
         // Also ensure the error actually overlaps with this TextPart's content
-        guard graphemeOffsetInPart < part.text.count else {
-            Logger.trace("NotionStrategy: Grapheme offset \(graphemeOffsetInPart) beyond TextPart length \(part.text.count)", category: Logger.ui)
+        let partScalarCount = part.text.unicodeScalars.count
+        guard scalarOffsetInPart < partScalarCount else {
+            Logger.trace("NotionStrategy: Scalar offset \(scalarOffsetInPart) beyond TextPart length \(partScalarCount)", category: Logger.ui)
             return nil
         }
 
-        // CRITICAL: Convert grapheme cluster indices to UTF-16 code unit indices
-        // macOS accessibility APIs use UTF-16 code units, not grapheme clusters
-        // This is essential for text containing emojis (e.g., 🤔 = 1 grapheme but 2 UTF-16 units)
-        let graphemeRange = NSRange(location: graphemeOffsetInPart, length: graphemeLength)
-        let utf16Range = TextIndexConverter.graphemeToUTF16Range(graphemeRange, in: part.text)
+        // Debug: Show what character we're starting at within the TextPart
+        let scalars = part.text.unicodeScalars
+        if let startScalarIdx = scalars.index(scalars.startIndex, offsetBy: scalarOffsetInPart, limitedBy: scalars.endIndex),
+           let strIdx = String.Index(startScalarIdx, within: part.text)
+        {
+            let charAtOffset = String(part.text[strIdx...].prefix(1))
+            Logger.debug("NotionStrategy: TextPart '\(part.text.prefix(15))...' range=\(part.range), offset=\(scalarOffsetInPart) -> char '\(charAtOffset)'", category: Logger.ui)
+        }
+
+        // CRITICAL: Convert Unicode scalar indices to UTF-16 code unit indices
+        // Harper uses Unicode scalars, macOS accessibility APIs use UTF-16 code units
+        // This is essential for text containing emojis (e.g., 💪🏼 = 2 scalars but 4 UTF-16 units)
+        let scalarRange = NSRange(location: scalarOffsetInPart, length: scalarLength)
+        let utf16Range = TextIndexConverter.scalarToUTF16Range(scalarRange, in: part.text)
+
+        Logger.debug("NotionStrategy: scalarRange=\(scalarRange) -> utf16Range=\(utf16Range)", category: Logger.ui)
 
         // Query AXBoundsForRange on the child element directly
         // The local range is relative to the TextPart text, in UTF-16 code units
