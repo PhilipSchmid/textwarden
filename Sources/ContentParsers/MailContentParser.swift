@@ -904,6 +904,80 @@ class MailContentParser: ContentParser {
                 // === FROM HEADER (appears in forwarded messages) ===
                 // Multiple languages: "From:", "Von:", "De:", "Da:", "Van:", "От:", etc.
                 #"^(From|Von|De|Da|Van|От|Från)\s*:\s+.+@"#,
+
+                // === MEETING INVITE BOILERPLATE (WebEx, Teams, Zoom, etc.) ===
+                // WebEx separator line: -~-~-~-~-~-~-~-~-~-~-~
+                #"^-~-~-~-~"#,
+
+                // "Do not delete or modify" instructions (WebEx)
+                // English: "Do not delete or change the text below"
+                #"Do not delete or (change|modify)"#,
+                // German: "Den nachstehenden Text weder löschen noch ändern"
+                #"Den nachstehenden Text weder l[oö]schen"#,
+                // French: "Ne supprimez pas et ne modifiez pas"
+                #"Ne supprimez pas"#,
+                // Spanish: "No elimine ni modifique"
+                #"No elimine ni modifique"#,
+                // Italian: "Non eliminare o modificare"
+                #"Non eliminare o modificare"#,
+                // Portuguese: "Não exclua ou modifique"
+                #"N[aã]o (exclua|delete) ou modifique"#,
+                // Dutch: "Verwijder of wijzig niet"
+                #"Verwijder of wijzig"#,
+                // Swedish: "Ta inte bort eller ändra"
+                #"Ta inte bort eller [aä]ndra"#,
+                // Russian: "Не удаляйте и не изменяйте"
+                #"Не удаляйте"#,
+                // Turkish: "Aşağıdaki metni silmeyin"
+                #"metni silmeyin"#,
+                // Chinese: "请勿删除或修改"
+                #"请勿删除"#,
+                // Japanese: "削除または変更しないでください"
+                #"削除.*しないでください"#,
+                // Korean: "삭제하거나 수정하지 마세요"
+                #"삭제하거나 수정하지"#,
+                // Arabic: "لا تقم بحذف"
+                #"لا تقم بحذف"#,
+                // Vietnamese: "Không xóa hoặc sửa đổi"
+                #"Không xóa"#,
+                // Hindi: "न हटाएं या संशोधित करें"
+                #"न हटाएं"#,
+
+                // WebEx/Teams/Zoom "Join Meeting" headers
+                // English: "Join Webex Meeting"
+                #"Join.*(Webex|Teams|Zoom).*Meeting"#,
+                // German: "Meeting beitreten" / "Treten Sie Ihrem Webex-Meeting"
+                #"(Meeting beitreten|Treten Sie).*(Webex|Teams|Zoom)"#,
+                // French: "Rejoindre la réunion"
+                #"Rejoindre.*(r[eé]union|Webex|Teams|Zoom)"#,
+                // Spanish: "Unirse a la reunión"
+                #"Unirse.*(reuni[oó]n|Webex|Teams|Zoom)"#,
+                // Italian: "Partecipa alla riunione"
+                #"Partecipa.*(riunione|Webex|Teams|Zoom)"#,
+                // Portuguese: "Participar da reunião"
+                #"Participar.*(reuni[aã]o|Webex|Teams|Zoom)"#,
+                // Dutch: "Deelnemen aan vergadering"
+                #"Deelnemen.*(vergadering|Webex|Teams|Zoom)"#,
+                // Swedish: "Delta i mötet"
+                #"Delta.*(m[oö]tet|Webex|Teams|Zoom)"#,
+                // Russian: "Присоединиться к совещанию"
+                #"Присоединиться.*(совещани|Webex|Teams|Zoom)"#,
+                // Turkish: "Toplantıya katıl"
+                #"Toplant[iı]ya kat[iı]l"#,
+                // Chinese: "加入会议"
+                #"加入.*会议"#,
+                // Japanese: "ミーティングに参加"
+                #"ミーティングに参加"#,
+                // Korean: "회의 참가"
+                #"회의 참가"#,
+                // Arabic: "انضم إلى الاجتماع"
+                #"انضم إلى"#,
+                // Vietnamese: "Tham gia cuộc họp"
+                #"Tham gia.*(họp|Webex|Teams|Zoom)"#,
+                // Hindi: "मीटिंग में शामिल हों"
+                #"मीटिंग में शामिल"#,
+                // Generic: "Webex Meeting" / "Teams Meeting" / "Zoom Meeting"
+                #"(Webex|Teams|Zoom)\s*Meeting"#,
             ]
             return patterns.compactMap { try? NSRegularExpression(pattern: $0, options: [.caseInsensitive]) }
         }()
