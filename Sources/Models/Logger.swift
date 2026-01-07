@@ -36,7 +36,7 @@ enum LogLevel: String, Codable, CaseIterable, Comparable {
 
 /// Centralized logging system for TextWarden
 enum Logger {
-    private static let subsystem = "com.textwarden.app"
+    private static let subsystem = "io.textwarden.TextWarden"
     private static let logFileName = "textwarden.log"
     private static let maxLogFileSize = 10 * 1024 * 1024 // 10MB
     private static let maxLogFiles = 5
@@ -44,7 +44,7 @@ enum Logger {
     // MARK: - Cached Resources (Performance Optimization)
 
     /// Serial queue for async file logging to avoid blocking main thread
-    private static let fileLoggingQueue = DispatchQueue(label: "com.textwarden.logger", qos: .utility)
+    private static let fileLoggingQueue = DispatchQueue(label: "io.textwarden.TextWarden.logger", qos: .utility)
 
     /// Cached date formatter (creating a new one per log is expensive)
     private static let dateFormatter: ISO8601DateFormatter = {
