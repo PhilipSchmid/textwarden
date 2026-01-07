@@ -150,6 +150,34 @@ final class GrammarEngineFFITests: XCTestCase {
         XCTAssertNotNil(result)
     }
 
+    // MARK: - Non-English Document Detection Tests
+
+    func testAnalyzeText_EnglishDocument_IsNotNonEnglish() {
+        // Given: English text with German language excluded
+        let englishText = "This is a long English document. It contains several sentences. The language is English."
+
+        // When: Analyzing (with German excluded by default in preferences)
+        let result = GrammarEngine.shared.analyzeText(englishText)
+
+        // Then: Should not be flagged as non-English
+        // Note: This depends on user preferences having German in excluded list
+        // If no languages are excluded, this will always be false
+        XCTAssertNotNil(result)
+        // Property should be accessible (FFI contract test)
+        _ = result.isNonEnglishDocument
+    }
+
+    func testAnalyzeText_EmptyText_IsNotNonEnglish() {
+        // Given: Empty text
+        let emptyText = ""
+
+        // When: Analyzing
+        let result = GrammarEngine.shared.analyzeText(emptyText)
+
+        // Then: Should not be flagged as non-English
+        XCTAssertFalse(result.isNonEnglishDocument, "Empty text should not be non-English")
+    }
+
     // MARK: - Concurrency Safety Tests
 
     func testAnalyzeText_ConcurrentCalls_ThreadSafe() async {

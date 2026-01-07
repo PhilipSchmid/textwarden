@@ -36,6 +36,9 @@ pub struct AnalysisResult {
     pub errors: Vec<GrammarError>,
     pub word_count: usize,
     pub analysis_time_ms: u64,
+    /// True if document is primarily in a non-English language (>60% excluded language)
+    /// Used to skip readability analysis, which is English-specific
+    pub is_non_english_document: bool,
 }
 
 /// Parse a dialect string into Harper's Dialect enum
@@ -512,29 +515,35 @@ pub fn analyze_text(
     let errors_before_filter = errors.len();
     errors = filter.filter_errors(errors, text);
 
+    // Check if document is primarily non-English (for readability skip)
+    let is_non_english_document = filter.is_document_primarily_non_english(text);
+
     if enable_language_detection {
         tracing::info!(
-            "Language filter: {} errors before, {} after (filtered {}), excluded_langs count={}",
+            "Language filter: {} errors before, {} after (filtered {}), excluded_langs count={}, is_non_english={}",
             errors_before_filter,
             errors.len(),
             errors_before_filter - errors.len(),
-            excluded_langs_count
+            excluded_langs_count,
+            is_non_english_document
         );
     }
 
     let analysis_time_ms = start_time.elapsed().as_millis() as u64;
 
     tracing::info!(
-        "Analysis complete: {} errors, {} words, {}ms",
+        "Analysis complete: {} errors, {} words, {}ms, non_english={}",
         errors.len(),
         word_count,
-        analysis_time_ms
+        analysis_time_ms,
+        is_non_english_document
     );
 
     AnalysisResult {
         errors,
         word_count,
         analysis_time_ms,
+        is_non_english_document,
     }
 }
 

@@ -135,6 +135,61 @@ impl LanguageFilter {
             })
             .collect()
     }
+
+    /// Check if document is primarily in a non-English language
+    ///
+    /// Returns true if:
+    /// - Language detection is enabled
+    /// - At least one language is excluded
+    /// - The document's dominant language is in the excluded list
+    /// - More than 60% of sentences are in that language
+    ///
+    /// This is used to skip readability analysis for non-English documents,
+    /// since Flesch Reading Ease is calibrated for English only.
+    pub fn is_document_primarily_non_english(&self, text: &str) -> bool {
+        // If detection is disabled or no excluded languages, assume English
+        if !self.enabled || self.excluded_languages.is_empty() {
+            return false;
+        }
+
+        // Detect the dominant language of the document
+        let doc_lang = detect_language(text);
+
+        // If the detected language is not in our excluded list, it's likely English
+        if !self.excluded_languages.contains(&doc_lang) {
+            return false;
+        }
+
+        // Check if majority (>60%) of sentences are in the detected language
+        let sentences = split_into_sentences(text);
+        let total_sentences = sentences.len();
+
+        if total_sentences == 0 {
+            return false;
+        }
+
+        let doc_lang_sentences = sentences
+            .iter()
+            .filter(|&&(start, end)| {
+                text.get(start..end)
+                    .map(|s| detect_language(s) == doc_lang)
+                    .unwrap_or(false)
+            })
+            .count();
+
+        let ratio = doc_lang_sentences as f64 / total_sentences as f64;
+
+        tracing::debug!(
+            "LanguageFilter: Document language check - {:?} in {}/{} sentences ({:.0}%), is_non_english={}",
+            doc_lang,
+            doc_lang_sentences,
+            total_sentences,
+            ratio * 100.0,
+            ratio > 0.6
+        );
+
+        ratio > 0.6
+    }
 }
 
 /// Split text into sentences/segments for language detection
@@ -695,5 +750,112 @@ mod tests {
 
         // Should keep only English sentence errors (E1 and E5)
         assert_eq!(filtered.len(), 2);
+    }
+
+    // MARK: - Document Language Detection Tests (for readability skip)
+
+    #[test]
+    fn test_is_non_english_disabled() {
+        // When language detection is disabled, always return false (assume English)
+        let filter = LanguageFilter::new(false, vec!["german".to_string()]);
+        let german_text =
+            "Das ist ein langer deutscher Text. Er enthält mehrere Sätze. Die Sprache ist Deutsch.";
+
+        assert!(
+            !filter.is_document_primarily_non_english(german_text),
+            "Should return false when detection is disabled"
+        );
+    }
+
+    #[test]
+    fn test_is_non_english_no_excluded_languages() {
+        // When no languages are excluded, always return false (assume English)
+        let filter = LanguageFilter::new(true, vec![]);
+        let german_text =
+            "Das ist ein langer deutscher Text. Er enthält mehrere Sätze. Die Sprache ist Deutsch.";
+
+        assert!(
+            !filter.is_document_primarily_non_english(german_text),
+            "Should return false when no languages excluded"
+        );
+    }
+
+    #[test]
+    fn test_is_non_english_english_document() {
+        let filter = LanguageFilter::new(true, vec!["german".to_string()]);
+        let english_text = "This is a long English document. It contains several sentences. The language is English. We want to make sure readability works here.";
+
+        assert!(
+            !filter.is_document_primarily_non_english(english_text),
+            "English document should not be detected as non-English"
+        );
+    }
+
+    #[test]
+    fn test_is_non_english_german_document() {
+        let filter = LanguageFilter::new(true, vec!["german".to_string()]);
+        let german_text = "Das ist ein langer deutscher Text. Er enthält mehrere Sätze. Die Sprache ist Deutsch. Wir wollen sicherstellen, dass die Erkennung funktioniert.";
+
+        assert!(
+            filter.is_document_primarily_non_english(german_text),
+            "German document should be detected as non-English when German is excluded"
+        );
+    }
+
+    #[test]
+    fn test_is_non_english_german_not_in_excluded() {
+        // German document but German is not in excluded list
+        let filter = LanguageFilter::new(true, vec!["spanish".to_string()]);
+        let german_text =
+            "Das ist ein langer deutscher Text. Er enthält mehrere Sätze. Die Sprache ist Deutsch.";
+
+        assert!(
+            !filter.is_document_primarily_non_english(german_text),
+            "German document should not be flagged when German is not excluded"
+        );
+    }
+
+    #[test]
+    fn test_is_non_english_mixed_document() {
+        // Mixed document with <60% German - should not be flagged
+        let filter = LanguageFilter::new(true, vec!["german".to_string()]);
+        let mixed_text = "This is English. Hello world. How are you today? Das ist Deutsch. This is more English text.";
+
+        assert!(
+            !filter.is_document_primarily_non_english(mixed_text),
+            "Mixed document with <60% German should not be flagged as non-English"
+        );
+    }
+
+    #[test]
+    fn test_is_non_english_spanish_document() {
+        let filter = LanguageFilter::new(true, vec!["spanish".to_string()]);
+        let spanish_text = "Este es un documento en español. Contiene varias oraciones. El idioma es español. Queremos asegurarnos de que la detección funcione correctamente.";
+
+        assert!(
+            filter.is_document_primarily_non_english(spanish_text),
+            "Spanish document should be detected as non-English when Spanish is excluded"
+        );
+    }
+
+    #[test]
+    fn test_is_non_english_french_document() {
+        let filter = LanguageFilter::new(true, vec!["french".to_string()]);
+        let french_text = "Ceci est un long document en français. Il contient plusieurs phrases. La langue est le français. Nous voulons nous assurer que la détection fonctionne.";
+
+        assert!(
+            filter.is_document_primarily_non_english(french_text),
+            "French document should be detected as non-English when French is excluded"
+        );
+    }
+
+    #[test]
+    fn test_is_non_english_empty_text() {
+        let filter = LanguageFilter::new(true, vec!["german".to_string()]);
+
+        assert!(
+            !filter.is_document_primarily_non_english(""),
+            "Empty text should return false"
+        );
     }
 }

@@ -45,6 +45,7 @@ mod ffi {
         fn memory_before_bytes(&self) -> u64;
         fn memory_after_bytes(&self) -> u64;
         fn memory_delta_bytes(&self) -> i64;
+        fn is_non_english_document(&self) -> bool;
     }
 
     extern "Rust" {
@@ -134,6 +135,8 @@ pub struct AnalysisResult {
     memory_before_bytes: u64,
     memory_after_bytes: u64,
     memory_delta_bytes: i64,
+    /// True if document is primarily non-English (>60% excluded language)
+    is_non_english_document: bool,
 }
 
 impl AnalysisResult {
@@ -159,6 +162,10 @@ impl AnalysisResult {
 
     fn memory_delta_bytes(&self) -> i64 {
         self.memory_delta_bytes
+    }
+
+    fn is_non_english_document(&self) -> bool {
+        self.is_non_english_document
     }
 }
 
@@ -296,5 +303,6 @@ fn analyze_text(
         memory_before_bytes: memory_before,
         memory_after_bytes: memory_after,
         memory_delta_bytes: memory_delta,
+        is_non_english_document: result.is_non_english_document,
     }
 }

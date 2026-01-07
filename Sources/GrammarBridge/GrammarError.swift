@@ -120,6 +120,10 @@ import Foundation
     /// Memory delta (after - before) in bytes
     @objc public let memoryDeltaBytes: Int64
 
+    /// True if document is primarily non-English (>60% excluded language)
+    /// Used to skip readability analysis, which is English-specific
+    @objc public let isNonEnglishDocument: Bool
+
     /// Initialize from FFI AnalysisResult (opaque type)
     init(ffiResult: AnalysisResultRef) {
         let ffiErrors = ffiResult.errors()
@@ -129,17 +133,19 @@ import Foundation
         memoryBeforeBytes = ffiResult.memory_before_bytes()
         memoryAfterBytes = ffiResult.memory_after_bytes()
         memoryDeltaBytes = ffiResult.memory_delta_bytes()
+        isNonEnglishDocument = ffiResult.is_non_english_document()
         super.init()
     }
 
     /// Convenience initializer for testing
-    @objc public init(errors: [GrammarErrorModel], wordCount: Int, analysisTimeMs: UInt64, memoryBeforeBytes: UInt64 = 0, memoryAfterBytes: UInt64 = 0, memoryDeltaBytes: Int64 = 0) {
+    @objc public init(errors: [GrammarErrorModel], wordCount: Int, analysisTimeMs: UInt64, memoryBeforeBytes: UInt64 = 0, memoryAfterBytes: UInt64 = 0, memoryDeltaBytes: Int64 = 0, isNonEnglishDocument: Bool = false) {
         self.errors = errors
         self.wordCount = wordCount
         self.analysisTimeMs = analysisTimeMs
         self.memoryBeforeBytes = memoryBeforeBytes
         self.memoryAfterBytes = memoryAfterBytes
         self.memoryDeltaBytes = memoryDeltaBytes
+        self.isNonEnglishDocument = isNonEnglishDocument
         super.init()
     }
 

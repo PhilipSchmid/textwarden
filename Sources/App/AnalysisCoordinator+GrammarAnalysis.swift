@@ -256,8 +256,14 @@ extension AnalysisCoordinator {
             latencyMs: Double(result.analysisTimeMs)
         )
 
-        // Calculate readability score if enabled and text has sufficient length
-        if userPreferences.readabilityEnabled, wordCount >= 30 {
+        // Calculate readability score if enabled, text has sufficient length, and document is English
+        // Skip readability for non-English documents since Flesch Reading Ease is calibrated for English only
+        if result.isNonEnglishDocument {
+            Logger.debug("AnalysisCoordinator: Skipping readability - document is primarily non-English", category: Logger.analysis)
+            currentReadabilityResult = nil
+            currentReadabilityAnalysis = nil
+            cleanupStaleReadabilitySuggestions(currentComplexRanges: [])
+        } else if userPreferences.readabilityEnabled, wordCount >= 30 {
             // Get target audience from user preference
             let targetAudience = TargetAudience(fromDisplayName: userPreferences.selectedTargetAudience) ?? .general
 

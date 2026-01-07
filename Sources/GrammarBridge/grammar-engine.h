@@ -42,10 +42,17 @@ uintptr_t __swift_bridge__$GrammarError$start(void* self);
 uintptr_t __swift_bridge__$GrammarError$end(void* self);
 void* __swift_bridge__$GrammarError$message(void* self);
 struct __swift_bridge__$ErrorSeverity __swift_bridge__$GrammarError$severity(void* self);
+void* __swift_bridge__$GrammarError$category(void* self);
 void* __swift_bridge__$GrammarError$lint_id(void* self);
+void* __swift_bridge__$GrammarError$suggestions(void* self);
 void* __swift_bridge__$AnalysisResult$errors(void* self);
 uintptr_t __swift_bridge__$AnalysisResult$word_count(void* self);
 uint64_t __swift_bridge__$AnalysisResult$analysis_time_ms(void* self);
-void* __swift_bridge__$analyze_text(void* text);
+uint64_t __swift_bridge__$AnalysisResult$memory_before_bytes(void* self);
+uint64_t __swift_bridge__$AnalysisResult$memory_after_bytes(void* self);
+int64_t __swift_bridge__$AnalysisResult$memory_delta_bytes(void* self);
+bool __swift_bridge__$AnalysisResult$is_non_english_document(void* self);
+void __swift_bridge__$initialize_logging(void* log_level);
+void* __swift_bridge__$analyze_text(void* text, void* dialect, bool enable_internet_abbrev, bool enable_genz_slang, bool enable_it_terminology, bool enable_brand_names, bool enable_person_names, bool enable_last_names, bool enable_language_detection, void* excluded_languages, bool enable_sentence_start_capitalization, bool enforce_oxford_comma, bool check_ellipsis, bool check_unclosed_quotes, bool check_dashes);
 
 
