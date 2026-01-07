@@ -570,17 +570,18 @@ struct LoggingConfigurationView: View {
                         .font(.subheadline)
                         .fontWeight(.medium)
 
+                    Spacer()
+
                     Picker("Log Level", selection: $selectedLogLevel) {
                         ForEach(LogLevel.allCases, id: \.self) { level in
                             Text(level.rawValue).tag(level)
                         }
                     }
                     .pickerStyle(.menu)
+                    .labelsHidden()
                     .onChange(of: selectedLogLevel) { _, newValue in
                         Logger.minimumLogLevel = newValue
                     }
-
-                    Spacer()
                 }
 
                 Text("Controls verbosity: Debug shows all messages, Critical shows only severe issues")
