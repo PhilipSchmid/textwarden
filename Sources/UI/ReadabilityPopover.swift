@@ -74,6 +74,12 @@ class ReadabilityPopover: NSObject, ObservableObject {
     func show(at position: CGPoint, direction: PopoverOpenDirection = .top, result: ReadabilityResult, analysis: TextReadabilityAnalysis? = nil, fromIndicator: Bool = false) {
         Logger.debug("ReadabilityPopover: show at \(position), direction: \(direction), score: \(result.displayScore), fromIndicator: \(fromIndicator)", category: Logger.ui)
 
+        // Don't show popover if a modal dialog is open (e.g., Print dialog, Save sheet)
+        if ModalDialogDetector.isModalDialogPresent() {
+            Logger.debug("ReadabilityPopover: Not showing - modal dialog is open", category: Logger.ui)
+            return
+        }
+
         self.result = result
         self.analysis = analysis
         openDirection = direction

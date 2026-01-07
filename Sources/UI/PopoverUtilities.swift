@@ -85,6 +85,77 @@ enum PopoverPositioner {
     }
 }
 
+// MARK: - Modal Dialog Detection
+
+/// Utility for checking if modal dialogs are present
+enum ModalDialogDetector {
+    /// Check if the mouse is currently over a modal dialog window.
+    /// This is more reliable than checking for modal windows globally,
+    /// as it only blocks popovers when the user is actually interacting with a dialog.
+    static func isModalDialogPresent() -> Bool {
+        // Check for app-modal windows in TextWarden (covers our own dialogs)
+        if NSApp.modalWindow != nil {
+            return true
+        }
+
+        // Check if any of our windows has an attached sheet
+        for window in NSApp.windows where window.attachedSheet != nil {
+            return true
+        }
+
+        // Check if mouse is over a modal-level window from another app
+        // This catches Print dialogs, Save sheets, etc. without false positives
+        return isMouseOverModalWindow()
+    }
+
+    /// Check if the current mouse position is inside a modal-level window
+    private static func isMouseOverModalWindow() -> Bool {
+        let mouseLocation = NSEvent.mouseLocation
+        let floatingLevel = Int(CGWindowLevelForKey(.floatingWindow))
+
+        guard let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else {
+            return false
+        }
+
+        for windowInfo in windowList {
+            guard let windowLevel = windowInfo[kCGWindowLayer as String] as? Int,
+                  let boundsDict = windowInfo[kCGWindowBounds as String] as? [String: CGFloat],
+                  let x = boundsDict["X"],
+                  let y = boundsDict["Y"],
+                  let width = boundsDict["Width"],
+                  let height = boundsDict["Height"]
+            else { continue }
+
+            // Only check windows above floating level (where our overlay sits)
+            guard windowLevel > floatingLevel else { continue }
+
+            let ownerName = windowInfo[kCGWindowOwnerName as String] as? String ?? ""
+
+            // Skip our own TextWarden windows
+            if ownerName == "TextWarden" { continue }
+
+            // Skip system UI (menu bar, status items, etc.)
+            if ownerName == "Window Server" || ownerName == "SystemUIServer" { continue }
+
+            // Convert CGWindow bounds (top-left origin) to Cocoa coords (bottom-left origin)
+            let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
+            let windowFrame = CGRect(
+                x: x,
+                y: screenHeight - y - height,
+                width: width,
+                height: height
+            )
+
+            // Check if mouse is inside this window
+            if windowFrame.contains(mouseLocation) {
+                return true
+            }
+        }
+
+        return false
+    }
+}
+
 // MARK: - Click Outside Monitor
 
 /// Manages click-outside detection for popovers

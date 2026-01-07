@@ -1792,6 +1792,15 @@ class AnalysisCoordinator: ObservableObject {
             return true
         }
 
+        // When a modal dialog (Print, Save, etc.) is open, preserve overlays.
+        // The overlays are at .floating level (below modals), so they'll naturally be hidden.
+        // When the modal closes, overlays become visible again without needing re-analysis.
+        if ModalDialogDetector.isModalDialogPresent(), !currentErrors.isEmpty {
+            Logger.debug("AnalysisCoordinator: Modal dialog present - preserving overlays (errors: \(currentErrors.count))", category: Logger.analysis)
+            suggestionPopover.hide()
+            return true
+        }
+
         Logger.debug("AnalysisCoordinator: No monitored element - hiding overlays immediately", category: Logger.analysis)
         errorOverlay.hide()
         if !isManualStyleCheckActive {

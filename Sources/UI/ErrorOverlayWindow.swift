@@ -117,10 +117,10 @@ class ErrorOverlayWindow: NSPanel {
         // DEBUG: Clear background - border and label shown in UnderlineView
         backgroundColor = .clear
         hasShadow = false
-        // Use .popUpMenu level to stay above app content
-        // Note: This may appear above some app-native popovers (e.g., Slack channel previews)
-        // but is necessary to ensure underlines are visible above text content
-        level = .popUpMenu
+        // Use .floating level to stay above app content but below modal dialogs
+        // This ensures underlines don't overlap Print dialogs, Save sheets, etc.
+        // .floating (3) < .modalPanel (8) < .popUpMenu (101)
+        level = .floating
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         // CRITICAL: Prevent this panel from affecting app activation
         hidesOnDeactivate = false

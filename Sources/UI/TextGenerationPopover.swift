@@ -204,6 +204,12 @@ class TextGenerationPopover: NSObject, ObservableObject {
     func show(at position: CGPoint, direction: PopoverOpenDirection = .top, context: GenerationContext, fromIndicator: Bool = false) {
         Logger.debug("TextGenerationPopover: show at \(position), direction: \(direction), fromIndicator: \(fromIndicator)", category: Logger.ui)
 
+        // Don't show popover if a modal dialog is open (e.g., Print dialog, Save sheet)
+        if ModalDialogDetector.isModalDialogPresent() {
+            Logger.debug("TextGenerationPopover: Not showing - modal dialog is open", category: Logger.ui)
+            return
+        }
+
         // Close other popovers first
         SuggestionPopover.shared.hide()
         ReadabilityPopover.shared.hide()

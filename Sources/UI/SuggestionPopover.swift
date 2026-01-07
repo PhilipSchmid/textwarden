@@ -300,6 +300,13 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     /// Common panel display logic
     private func showPanelAtPosition(_ position: CGPoint, constrainToWindow: CGRect?) {
+        // Don't show popover if a modal dialog is open (e.g., Print dialog, Save sheet)
+        // This prevents popovers from appearing on top of system dialogs
+        if ModalDialogDetector.isModalDialogPresent() {
+            Logger.debug("SuggestionPopover: Not showing - modal dialog is open", category: Logger.ui)
+            return
+        }
+
         // Close other popovers first
         TextGenerationPopover.shared.hide()
         ReadabilityPopover.shared.hide()
