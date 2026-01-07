@@ -208,6 +208,71 @@ fn filter_valid_possessive_errors<D: harper_core::spell::Dictionary>(
         .collect()
 }
 
+/// Filter out capitalization errors for dot-notation identifiers
+///
+/// In programming and configuration contexts, dot notation like "status.learning" or
+/// "spec.rules" creates identifiers where the dot doesn't represent a sentence boundary.
+/// Harper's `UncapitalizedSentences` lint incorrectly flags the word after the dot
+/// as needing capitalization.
+///
+/// This filter removes capitalization errors where:
+/// - The character immediately before the flagged word is a dot (.)
+/// - The character before the dot is NOT whitespace (indicating continuous dot notation)
+///
+/// Examples filtered:
+/// - `status.learning` - "learning" won't be flagged
+/// - `spec.rules` - "rules" won't be flagged
+/// - `kubernetes.io` - "io" won't be flagged
+///
+/// Examples NOT filtered (normal sentences):
+/// - `Hello. world` - "world" WILL still be flagged (space after dot)
+/// - `End. Start` - normal sentence boundary detected
+fn filter_dot_notation_capitalization_errors(
+    errors: Vec<GrammarError>,
+    text: &str,
+) -> Vec<GrammarError> {
+    let chars: Vec<char> = text.chars().collect();
+
+    errors
+        .into_iter()
+        .filter(|error| {
+            // Only process capitalization errors
+            if error.category.to_uppercase() != "CAPITALIZATION" {
+                return true;
+            }
+
+            // Safety checks for bounds
+            if error.start == 0 || error.start > chars.len() {
+                return true;
+            }
+
+            // Check if the character immediately before the error position is a dot
+            let char_before_error = chars[error.start - 1];
+            if char_before_error != '.' {
+                return true; // Not preceded by a dot, keep the error
+            }
+
+            // Check if there's a non-whitespace character before the dot
+            // This distinguishes "status.learning" from "Hello. world"
+            if error.start < 2 {
+                return true; // Not enough context, keep the error
+            }
+
+            let char_before_dot = chars[error.start - 2];
+            if char_before_dot.is_whitespace() {
+                return true; // Space before dot means it's a real sentence boundary
+            }
+
+            // This is dot notation (no space before dot) - filter out the error
+            tracing::debug!(
+                "Filtering dot-notation capitalization error at position {}",
+                error.start
+            );
+            false
+        })
+        .collect()
+}
+
 /// Analyze text for grammar errors using Harper
 ///
 /// # Arguments
@@ -419,6 +484,7 @@ pub fn analyze_text(
                 let is_sentence_start = span.start == 0 || {
                     // Check if preceded by sentence-ending punctuation (., !, ?)
                     // OR by paragraph break (multiple newlines, as in Notion blocks)
+                    // BUT NOT if it's dot-notation (e.g., status.learning)
                     text.get(..byte_offset)
                         .map(|prefix| {
                             // Check for paragraph break: 2+ consecutive newlines
@@ -427,11 +493,22 @@ pub fn analyze_text(
                                 || prefix.ends_with("\n\r\n");
 
                             // Check for sentence-ending punctuation
-                            let has_sentence_end = prefix
-                                .trim_end()
+                            // For dots, we need to verify it's not dot-notation (no space after dot)
+                            let trimmed = prefix.trim_end();
+                            let has_sentence_end = trimmed
                                 .chars()
                                 .last()
-                                .map(|c| c == '.' || c == '!' || c == '?')
+                                .map(|c| {
+                                    if c == '!' || c == '?' {
+                                        true
+                                    } else if c == '.' {
+                                        // For dots, check if there's whitespace between dot and error
+                                        // If prefix == trimmed (no trailing whitespace), it's dot-notation
+                                        prefix.len() > trimmed.len() // Has trailing whitespace = real sentence
+                                    } else {
+                                        false
+                                    }
+                                })
                                 .unwrap_or(false);
 
                             has_paragraph_break || has_sentence_end
@@ -505,6 +582,19 @@ pub fn analyze_text(
             errors_before_possessive,
             errors.len(),
             errors_before_possessive - errors.len()
+        );
+    }
+
+    // Filter out capitalization errors for dot-notation identifiers (e.g., status.learning)
+    // These are common in programming/config contexts where dots don't indicate sentence boundaries
+    let errors_before_dot_notation = errors.len();
+    errors = filter_dot_notation_capitalization_errors(errors, text);
+    if errors_before_dot_notation != errors.len() {
+        tracing::debug!(
+            "Dot-notation filter: {} errors before, {} after (filtered {})",
+            errors_before_dot_notation,
+            errors.len(),
+            errors_before_dot_notation - errors.len()
         );
     }
 
@@ -4846,5 +4936,123 @@ mod tests {
             }
         }
         println!("=== END TEST ===\n");
+    }
+
+    // Helper to create a capitalization error for testing
+    fn make_cap_error(start: usize, end: usize) -> GrammarError {
+        GrammarError {
+            start,
+            end,
+            message: "This sentence does not start with a capital letter.".to_string(),
+            severity: ErrorSeverity::Warning,
+            category: "Capitalization".to_string(),
+            lint_id: "UncapitalizedSentences".to_string(),
+            suggestions: vec!["Learning".to_string()],
+        }
+    }
+
+    #[test]
+    fn test_dot_notation_filter_filters_yaml_paths() {
+        // Test case: "status.learning" - should filter out capitalization error on "learning"
+        let text = "status.learning";
+        let errors = vec![make_cap_error(7, 15)]; // "learning" starts at index 7
+
+        let filtered = filter_dot_notation_capitalization_errors(errors, text);
+        assert!(
+            filtered.is_empty(),
+            "Dot notation 'status.learning' should be filtered: {:?}",
+            filtered
+        );
+    }
+
+    #[test]
+    fn test_dot_notation_filter_filters_multiple_segments() {
+        // Test case: "spec.rules.enabled" - should filter errors on "rules" and "enabled"
+        let text = "spec.rules.enabled";
+        let errors = vec![
+            make_cap_error(5, 10),  // "rules" starts at index 5
+            make_cap_error(11, 18), // "enabled" starts at index 11
+        ];
+
+        let filtered = filter_dot_notation_capitalization_errors(errors, text);
+        assert!(
+            filtered.is_empty(),
+            "Multi-segment dot notation should all be filtered: {:?}",
+            filtered
+        );
+    }
+
+    #[test]
+    fn test_dot_notation_filter_keeps_sentence_boundary() {
+        // Test case: "End. start" - space after dot means it's a real sentence
+        let text = "End. start";
+        let errors = vec![make_cap_error(5, 10)]; // "start" starts at index 5
+
+        let filtered = filter_dot_notation_capitalization_errors(errors, text);
+        assert_eq!(
+            filtered.len(),
+            1,
+            "Sentence boundary should NOT be filtered"
+        );
+    }
+
+    #[test]
+    fn test_dot_notation_filter_keeps_non_capitalization_errors() {
+        // Non-capitalization errors should pass through untouched
+        let text = "status.lerning"; // spelling error, not capitalization
+        let errors = vec![GrammarError {
+            start: 7,
+            end: 14,
+            message: "Did you mean 'learning'?".to_string(),
+            severity: ErrorSeverity::Error,
+            category: "Spelling".to_string(),
+            lint_id: "SpellingError".to_string(),
+            suggestions: vec!["learning".to_string()],
+        }];
+
+        let filtered = filter_dot_notation_capitalization_errors(errors, text);
+        assert_eq!(
+            filtered.len(),
+            1,
+            "Spelling errors should not be filtered by dot-notation filter"
+        );
+    }
+
+    #[test]
+    fn test_dot_notation_filter_kubernetes_io() {
+        // Test case: "kubernetes.io" - domain-like identifier
+        let text = "Visit kubernetes.io for docs.";
+        let errors = vec![make_cap_error(17, 19)]; // "io" starts at index 17
+
+        let filtered = filter_dot_notation_capitalization_errors(errors, text);
+        assert!(
+            filtered.is_empty(),
+            "Domain-like dot notation should be filtered: {:?}",
+            filtered
+        );
+    }
+
+    #[test]
+    fn test_dot_notation_filter_empty_input() {
+        let errors: Vec<GrammarError> = vec![];
+        let filtered = filter_dot_notation_capitalization_errors(errors, "any text");
+        assert!(
+            filtered.is_empty(),
+            "Empty input should return empty output"
+        );
+    }
+
+    #[test]
+    fn test_dot_notation_filter_at_text_start() {
+        // Edge case: error at position 0 should not cause panic
+        let text = "learning is good";
+        let errors = vec![make_cap_error(0, 8)]; // "learning" at start
+
+        let filtered = filter_dot_notation_capitalization_errors(errors, text);
+        assert_eq!(
+            filtered.len(),
+            1,
+            "Error at text start should be kept (can't be preceded by dot)"
+        );
     }
 }
