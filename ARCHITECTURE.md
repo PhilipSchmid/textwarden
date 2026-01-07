@@ -486,6 +486,32 @@ Keystroke → store element → Keystroke → store element → [pause] → extr
 
 This reduces AX calls by 5-10x during rapid typing while keeping all positioning strategies intact.
 
+### Custom Vocabulary Post-Filtering
+
+Grammar errors are filtered **after** Harper analysis in the Swift layer rather than in the Rust/Harper engine. This is an intentional architectural decision.
+
+**Why Post-Filtering in Swift?**
+
+1. **macOS System Dictionary Integration:** `NSSpellChecker.hasLearnedWord()` provides access to words the user has taught macOS system-wide. This Cocoa API is only available in Swift.
+
+2. **Real-time Updates:** Users can add/remove custom words at any time. Post-filtering applies changes immediately without invalidating the cached Harper dictionary (which takes ~60-70ms to rebuild).
+
+3. **Multiple Filter Sources:** Swift consolidates filtering from:
+   - User's custom vocabulary (Preferences)
+   - macOS learned words (NSSpellChecker)
+   - Ignored text patterns
+   - Document-specific exclusions
+
+4. **Performance:** Filtering is cheap (~microseconds per error). Dictionary building was the bottleneck. This separation allows Harper's dictionary to be cached while vocabulary changes take effect instantly.
+
+**Flow:**
+```
+Harper Analysis → Raw Errors → Swift Post-Filter → Displayed Errors
+     (cached)                    (user vocabulary)
+```
+
+**Implementation:** `AnalysisCoordinator.filterIgnoredErrors()` handles the post-processing, checking each error against custom vocabulary and learned words.
+
 ## Threading Model
 
 ### Main Thread

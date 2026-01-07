@@ -9,9 +9,143 @@ use harper_core::{
     linting::{LintGroup, Linter},
     Dialect, Document,
 };
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tracing;
+
+// MARK: - Dictionary Cache
+
+/// Cache key for dictionary configuration
+/// Represents the combination of enabled wordlist options
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct DictionaryCacheKey {
+    internet_abbrev: bool,
+    genz_slang: bool,
+    it_terminology: bool,
+    brand_names: bool,
+    person_names: bool,
+    last_names: bool,
+}
+
+/// Cached dictionary with its configuration key
+struct CachedDictionary {
+    key: DictionaryCacheKey,
+    dictionary: Arc<MergedDictionary>,
+}
+
+/// Global dictionary cache - avoids rebuilding dictionary on every analysis
+/// Thread-safe via Mutex
+static DICTIONARY_CACHE: Mutex<Option<CachedDictionary>> = Mutex::new(None);
+
+/// Get or build a dictionary for the given configuration
+/// Returns cached dictionary if settings match, otherwise builds and caches new one
+fn get_or_build_dictionary(
+    enable_internet_abbrev: bool,
+    enable_genz_slang: bool,
+    enable_it_terminology: bool,
+    enable_brand_names: bool,
+    enable_person_names: bool,
+    enable_last_names: bool,
+) -> (Arc<MergedDictionary>, bool) {
+    let key = DictionaryCacheKey {
+        internet_abbrev: enable_internet_abbrev,
+        genz_slang: enable_genz_slang,
+        it_terminology: enable_it_terminology,
+        brand_names: enable_brand_names,
+        person_names: enable_person_names,
+        last_names: enable_last_names,
+    };
+
+    // Try to get cached dictionary
+    {
+        let cache = DICTIONARY_CACHE.lock().unwrap();
+        if let Some(ref cached) = *cache {
+            if cached.key == key {
+                tracing::debug!("Dictionary cache hit");
+                return (cached.dictionary.clone(), true);
+            }
+        }
+    }
+
+    // Cache miss - build new dictionary
+    tracing::debug!("Dictionary cache miss - building new dictionary");
+    let dictionary = build_dictionary(
+        enable_internet_abbrev,
+        enable_genz_slang,
+        enable_it_terminology,
+        enable_brand_names,
+        enable_person_names,
+        enable_last_names,
+    );
+
+    // Store in cache
+    {
+        let mut cache = DICTIONARY_CACHE.lock().unwrap();
+        *cache = Some(CachedDictionary {
+            key,
+            dictionary: dictionary.clone(),
+        });
+    }
+
+    (dictionary, false)
+}
+
+/// Build a merged dictionary with the specified wordlists
+fn build_dictionary(
+    enable_internet_abbrev: bool,
+    enable_genz_slang: bool,
+    enable_it_terminology: bool,
+    enable_brand_names: bool,
+    enable_person_names: bool,
+    enable_last_names: bool,
+) -> Arc<MergedDictionary> {
+    let mut merged = MergedDictionary::new();
+    merged.add_dictionary(MutableDictionary::curated());
+
+    if enable_internet_abbrev {
+        let abbrev_words = slang_dict::WordlistCategory::InternetAbbreviations.load_words();
+        let mut abbrev_dict = MutableDictionary::new();
+        abbrev_dict.extend_words(abbrev_words);
+        merged.add_dictionary(Arc::new(abbrev_dict));
+    }
+
+    if enable_genz_slang {
+        let genz_words = slang_dict::WordlistCategory::GenZSlang.load_words();
+        let mut genz_dict = MutableDictionary::new();
+        genz_dict.extend_words(genz_words);
+        merged.add_dictionary(Arc::new(genz_dict));
+    }
+
+    if enable_it_terminology {
+        let it_words = slang_dict::WordlistCategory::ITTerminology.load_words();
+        let mut it_dict = MutableDictionary::new();
+        it_dict.extend_words(it_words);
+        merged.add_dictionary(Arc::new(it_dict));
+    }
+
+    if enable_brand_names {
+        let brand_words = slang_dict::WordlistCategory::BrandNames.load_words();
+        let mut brand_dict = MutableDictionary::new();
+        brand_dict.extend_words(brand_words);
+        merged.add_dictionary(Arc::new(brand_dict));
+    }
+
+    if enable_person_names {
+        let person_words = slang_dict::WordlistCategory::PersonNames.load_words();
+        let mut person_dict = MutableDictionary::new();
+        person_dict.extend_words(person_words);
+        merged.add_dictionary(Arc::new(person_dict));
+    }
+
+    if enable_last_names {
+        let last_words = slang_dict::WordlistCategory::LastNames.load_words();
+        let mut last_dict = MutableDictionary::new();
+        last_dict.extend_words(last_words);
+        merged.add_dictionary(Arc::new(last_dict));
+    }
+
+    Arc::new(merged)
+}
 
 #[derive(Debug, Clone)]
 pub enum ErrorSeverity {
@@ -331,68 +465,30 @@ pub fn analyze_text(
     // Parse the dialect string
     let dialect = parse_dialect(dialect_str);
 
-    // --- PHASE 1: Dictionary Build ---
+    // --- PHASE 1: Dictionary Build (with caching) ---
     let dict_start = Instant::now();
 
-    // Build dictionary based on slang options
-    // Always use MergedDictionary for consistency
-    let mut merged = MergedDictionary::new();
-    merged.add_dictionary(MutableDictionary::curated());
-
-    if enable_internet_abbrev {
-        let abbrev_words = slang_dict::WordlistCategory::InternetAbbreviations.load_words();
-        let mut abbrev_dict = MutableDictionary::new();
-        abbrev_dict.extend_words(abbrev_words);
-        merged.add_dictionary(Arc::new(abbrev_dict));
-    }
-
-    if enable_genz_slang {
-        let genz_words = slang_dict::WordlistCategory::GenZSlang.load_words();
-        let mut genz_dict = MutableDictionary::new();
-        genz_dict.extend_words(genz_words);
-        merged.add_dictionary(Arc::new(genz_dict));
-    }
-
-    if enable_it_terminology {
-        let it_words = slang_dict::WordlistCategory::ITTerminology.load_words();
-        let mut it_dict = MutableDictionary::new();
-        it_dict.extend_words(it_words);
-        merged.add_dictionary(Arc::new(it_dict));
-    }
-
-    if enable_brand_names {
-        let brand_words = slang_dict::WordlistCategory::BrandNames.load_words();
-        let mut brand_dict = MutableDictionary::new();
-        brand_dict.extend_words(brand_words);
-        merged.add_dictionary(Arc::new(brand_dict));
-    }
-
-    if enable_person_names {
-        let person_words = slang_dict::WordlistCategory::PersonNames.load_words();
-        let mut person_dict = MutableDictionary::new();
-        person_dict.extend_words(person_words);
-        merged.add_dictionary(Arc::new(person_dict));
-    }
-
-    if enable_last_names {
-        let last_words = slang_dict::WordlistCategory::LastNames.load_words();
-        let mut last_dict = MutableDictionary::new();
-        last_dict.extend_words(last_words);
-        merged.add_dictionary(Arc::new(last_dict));
-    }
-
-    let dictionary = Arc::new(merged);
-    let dictionary_build_ms = dict_start.elapsed().as_millis() as u64;
-
-    tracing::debug!(
-        "Dictionary configured: abbrev={}, slang={}, it={}, brands={}, first_names={}, last_names={} ({}ms)",
+    // Get or build cached dictionary based on wordlist options
+    let (dictionary, cache_hit) = get_or_build_dictionary(
         enable_internet_abbrev,
         enable_genz_slang,
         enable_it_terminology,
         enable_brand_names,
         enable_person_names,
         enable_last_names,
-        dictionary_build_ms
+    );
+    let dictionary_build_ms = dict_start.elapsed().as_millis() as u64;
+
+    tracing::debug!(
+        "Dictionary configured: abbrev={}, slang={}, it={}, brands={}, first_names={}, last_names={} ({}ms, cache={})",
+        enable_internet_abbrev,
+        enable_genz_slang,
+        enable_it_terminology,
+        enable_brand_names,
+        enable_person_names,
+        enable_last_names,
+        dictionary_build_ms,
+        if cache_hit { "hit" } else { "miss" }
     );
 
     // --- PHASE 2: Linter Setup ---
