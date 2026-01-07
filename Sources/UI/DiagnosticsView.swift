@@ -14,8 +14,10 @@ struct DiagnosticsView: View {
     @ObservedObject var preferences: UserPreferences
     @ObservedObject private var applicationTracker = ApplicationTracker.shared
     @State private var isExporting: Bool = false
-    @State private var showingExportAlert: Bool = false
-    @State private var exportAlertMessage: String = ""
+    @State private var showingExportSuccess: Bool = false
+    @State private var showingExportError: Bool = false
+    @State private var exportedFilePath: String = ""
+    @State private var exportedFileSize: String = ""
     @State private var lastMilestoneResetClick: Date?
 
     var body: some View {
@@ -459,10 +461,17 @@ struct DiagnosticsView: View {
         }
         .formStyle(.grouped)
         .padding()
-        .alert("Diagnostic Export", isPresented: $showingExportAlert) {
+        .sheet(isPresented: $showingExportSuccess) {
+            ExportSuccessSheet(
+                filePath: exportedFilePath,
+                fileSize: exportedFileSize,
+                isPresented: $showingExportSuccess
+            )
+        }
+        .alert("Export Failed", isPresented: $showingExportError) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(exportAlertMessage)
+            Text("Failed to export diagnostic package. Please check the logs for details.")
         }
     }
 
@@ -500,14 +509,24 @@ struct DiagnosticsView: View {
                 isExporting = false
 
                 if success {
-                    exportAlertMessage = "Diagnostic package exported successfully to:\n\(url.path)"
-                    showingExportAlert = true
+                    exportedFilePath = url.path
 
+                    // Get file size
+                    if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+                       let fileSize = attrs[.size] as? Int64
+                    {
+                        let formatter = ByteCountFormatter()
+                        formatter.allowedUnits = [.useMB, .useKB]
+                        formatter.countStyle = .file
+                        exportedFileSize = formatter.string(fromByteCount: fileSize)
+                    } else {
+                        exportedFileSize = "Unknown"
+                    }
+
+                    showingExportSuccess = true
                     Logger.info("Diagnostic package exported to: \(url.path)", category: Logger.general)
                 } else {
-                    exportAlertMessage = "Failed to export diagnostic package. Please check the logs for details."
-                    showingExportAlert = true
-
+                    showingExportError = true
                     Logger.error("Failed to export diagnostic package", category: Logger.general)
                 }
             }
@@ -706,5 +725,129 @@ struct LoggingConfigurationView: View {
         logFilePath = Logger.logFilePath
 
         Logger.info("Log file path reset to default", category: Logger.general)
+    }
+}
+
+// MARK: - Export Success Sheet
+
+struct ExportSuccessSheet: View {
+    let filePath: String
+    let fileSize: String
+    @Binding var isPresented: Bool
+    @State private var showCopiedFeedback: Bool = false
+
+    private var fileName: String {
+        (filePath as NSString).lastPathComponent
+    }
+
+    private var directoryPath: String {
+        (filePath as NSString).deletingLastPathComponent
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header with success icon
+            VStack(spacing: 12) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 48))
+                    .foregroundStyle(.green)
+
+                Text("Export Successful")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+            }
+            .padding(.top, 24)
+            .padding(.bottom, 20)
+
+            // File info card
+            VStack(alignment: .leading, spacing: 12) {
+                // File name with icon
+                HStack(spacing: 10) {
+                    Image(systemName: "doc.zipper")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(fileName)
+                            .font(.body)
+                            .fontWeight(.medium)
+
+                        Text(fileSize)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+                }
+
+                Divider()
+
+                // Path display
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Location")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Text(directoryPath)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .textSelection(.enabled)
+                }
+            }
+            .padding(16)
+            .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 10))
+            .padding(.horizontal, 24)
+
+            // Action buttons
+            HStack(spacing: 12) {
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(filePath, forType: .string)
+                    showCopiedFeedback = true
+
+                    // Hide feedback after delay
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        showCopiedFeedback = false
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: showCopiedFeedback ? "checkmark" : "doc.on.doc")
+                        Text(showCopiedFeedback ? "Copied!" : "Copy Path")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(showCopiedFeedback ? .green : nil)
+
+                Button {
+                    NSWorkspace.shared.selectFile(filePath, inFileViewerRootedAtPath: "")
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "folder")
+                        Text("Show in Finder")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+
+            // Done button
+            Button {
+                isPresented = false
+            } label: {
+                Text("Done")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .keyboardShortcut(.defaultAction)
+            .padding(.horizontal, 24)
+            .padding(.top, 12)
+            .padding(.bottom, 24)
+        }
+        .frame(width: 420)
+        .background(.regularMaterial)
     }
 }
