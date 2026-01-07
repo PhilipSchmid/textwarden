@@ -204,6 +204,10 @@ class TextMonitor: ObservableObject {
 
     /// Monitor the focused UI element
     private func monitorFocusedElement(in appElement: AXUIElement, retryAttempt: Int = 0) {
+        // Performance profiling for focus monitoring
+        let (profilingState, profilingStartTime) = PerformanceProfiler.shared.beginInterval(.focusMonitoring, context: "attempt:\(retryAttempt)")
+        defer { PerformanceProfiler.shared.endInterval(.focusMonitoring, state: profilingState, startTime: profilingStartTime) }
+
         let maxAttempts = RetryConfig.accessibilityAPI.maxAttempts
         Logger.debug("TextMonitor: Getting focused element... (attempt \(retryAttempt + 1)/\(maxAttempts + 1))", category: Logger.accessibility)
 
@@ -610,10 +614,14 @@ class TextMonitor: ObservableObject {
 
     /// Extract text from UI element
     func extractText(from element: AXUIElement) {
+        // Performance profiling for text extraction
+        let bundleID = currentContext?.bundleIdentifier ?? "unknown"
+        let (profilingState, profilingStartTime) = PerformanceProfiler.shared.beginInterval(.textExtraction, context: bundleID)
+        defer { PerformanceProfiler.shared.endInterval(.textExtraction, state: profilingState, startTime: profilingStartTime) }
+
         Logger.debug("TextMonitor: extractText called", category: Logger.accessibility)
 
         // CRITICAL: Check watchdog at the START before any AX calls
-        let bundleID = currentContext?.bundleIdentifier ?? "unknown"
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
             Logger.debug("TextMonitor: extractText skipping - watchdog active for \(bundleID)", category: Logger.accessibility)
             return

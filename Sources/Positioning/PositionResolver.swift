@@ -133,6 +133,10 @@ class PositionResolver {
         parser: ContentParser,
         bundleID: String
     ) -> GeometryResult {
+        // Performance profiling
+        let (profilingState, profilingStartTime) = PerformanceProfiler.shared.beginInterval(.positionResolving, context: bundleID)
+        defer { PerformanceProfiler.shared.endInterval(.positionResolving, state: profilingState, startTime: profilingStartTime) }
+
         // Check if this app uses a dedicated strategy (single preferred strategy = no fallback)
         let config = AppRegistry.shared.effectiveConfiguration(for: bundleID)
         let hasDedicatedStrategy = config.preferredStrategies.count == 1

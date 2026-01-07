@@ -638,6 +638,27 @@ struct StrategyProfileDiagnostics: Codable {
     }
 }
 
+// MARK: - Performance Profiling Diagnostics
+
+/// Diagnostics for OSSignposter-based performance profiling
+struct PerformanceProfilingDiagnostics: Codable {
+    let operationMetrics: [String: OperationMetricsSnapshot]
+    let recentSignposts: [SignpostEntry]
+    let exportTimestamp: Date
+
+    static func current() -> PerformanceProfilingDiagnostics {
+        // Note: SignpostExporter.exportRecentSignposts() is intentionally skipped
+        // because OSLogStore queries can take 30+ seconds and block the UI.
+        // The in-memory metrics provide the key performance data we need.
+        // Signposts can still be viewed in Instruments for detailed analysis.
+        PerformanceProfilingDiagnostics(
+            operationMetrics: PerformanceProfiler.shared.getMetricsSnapshot(),
+            recentSignposts: [],
+            exportTimestamp: Date()
+        )
+    }
+}
+
 /// Complete diagnostic report
 struct DiagnosticReport: Codable {
     let reportTimestamp: Date
@@ -665,6 +686,9 @@ struct DiagnosticReport: Codable {
     // Strategy Profiles (auto-detected app capabilities)
     let strategyProfiles: StrategyProfileDiagnostics
 
+    // Performance Profiling (OSSignposter metrics and signposts)
+    let performanceProfiling: PerformanceProfilingDiagnostics
+
     // Crash Info (count of actual .crash/.ips files in crash_reports/ folder)
     let crashReportCount: Int
 
@@ -679,7 +703,7 @@ struct DiagnosticReport: Codable {
     ) -> DiagnosticReport {
         DiagnosticReport(
             reportTimestamp: Date(),
-            reportVersion: "7.0", // Bumped to 7.0 for enhanced privacy sanitization
+            reportVersion: "8.0", // Bumped to 8.0 for performance profiling
             appVersion: BuildInfo.appVersion,
             buildNumber: BuildInfo.buildNumber,
             buildTimestamp: BuildInfo.buildTimestamp,
@@ -690,6 +714,7 @@ struct DiagnosticReport: Codable {
             statistics: StatisticsSnapshot.from(UserStatistics.shared),
             appleIntelligence: AppleIntelligenceDiagnostics.current(preferences: preferences),
             strategyProfiles: StrategyProfileDiagnostics.current(),
+            performanceProfiling: PerformanceProfilingDiagnostics.current(),
             crashReportCount: crashReportCount
         )
     }
@@ -714,75 +739,81 @@ struct DiagnosticReport: Codable {
     ///   - shortcuts: Keyboard shortcuts (must be collected on main thread)
     /// - Returns: True if successful, false otherwise
     @MainActor
-    static func exportAsZIP(to destinationURL: URL, preferences: UserPreferences, shortcuts: [String: String] = [:]) -> Bool {
+    static func exportAsZIP(to destinationURL: URL, preferences: UserPreferences, shortcuts: [String: String] = [:]) async -> Bool {
+        // 1. Find crash reports (quick file listing)
+        let diagnosticReportsPath = NSString(string: "~/Library/Logs/DiagnosticReports").expandingTildeInPath
+        var crashFilesToCopy: [String] = []
         let fileManager = FileManager.default
-        let tempDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        if fileManager.fileExists(atPath: diagnosticReportsPath) {
+            let contents = try? fileManager.contentsOfDirectory(atPath: diagnosticReportsPath)
+            let crashFiles = contents?.filter {
+                $0.hasPrefix("TextWarden") && ($0.hasSuffix(".crash") || $0.hasSuffix(".ips"))
+            } ?? []
+            crashFilesToCopy = Array(crashFiles.sorted(by: >).prefix(10))
+        }
 
-        do {
-            // Create temp directory structure
-            try fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
-            let crashReportsDir = tempDir.appendingPathComponent("crash_reports")
-            try fileManager.createDirectory(at: crashReportsDir, withIntermediateDirectories: true)
-
-            // 1. Find actual crash reports first
-            let diagnosticReportsPath = NSString(string: "~/Library/Logs/DiagnosticReports").expandingTildeInPath
-            var crashFilesToCopy: [String] = []
-            if fileManager.fileExists(atPath: diagnosticReportsPath) {
-                let contents = try? fileManager.contentsOfDirectory(atPath: diagnosticReportsPath)
-                let crashFiles = contents?.filter {
-                    $0.hasPrefix("TextWarden") && ($0.hasSuffix(".crash") || $0.hasSuffix(".ips"))
-                } ?? []
-                // Get up to 10 most recent
-                crashFilesToCopy = Array(crashFiles.sorted(by: >).prefix(10))
-            }
-
-            // 2. Generate and save JSON overview with crash report count
-            let report = DiagnosticReport.generate(preferences: preferences, crashReportCount: crashFilesToCopy.count, shortcuts: shortcuts)
-            guard let jsonString = report.toJSON() else {
-                Logger.error("Failed to generate JSON for diagnostic report", category: Logger.errors)
-                return false
-            }
-
-            let overviewURL = tempDir.appendingPathComponent("diagnostic_overview.json")
-            try jsonString.write(to: overviewURL, atomically: true, encoding: .utf8)
-
-            // 3. Sanitize and copy log files (removes sensitive content, anonymizes paths)
-            let logPath = Logger.logFilePath
-            if fileManager.fileExists(atPath: logPath) {
-                let logFileName = (logPath as NSString).lastPathComponent
-                let destLogURL = tempDir.appendingPathComponent(logFileName)
-                _ = LogSanitizer.sanitizeFile(from: logPath, to: destLogURL)
-
-                // Sanitize rotated logs
-                for i in 1 ..< 5 {
-                    let rotatedLog = "\(logPath).\(i)"
-                    if fileManager.fileExists(atPath: rotatedLog) {
-                        let rotatedFileName = "\(logFileName).\(i)"
-                        let destRotatedURL = tempDir.appendingPathComponent(rotatedFileName)
-                        _ = LogSanitizer.sanitizeFile(from: rotatedLog, to: destRotatedURL)
-                    }
-                }
-            }
-
-            // 4. Copy actual macOS crash reports from DiagnosticReports
-            for crashFile in crashFilesToCopy {
-                let sourcePath = (diagnosticReportsPath as NSString).appendingPathComponent(crashFile)
-                let destURL = crashReportsDir.appendingPathComponent(crashFile)
-                try? fileManager.copyItem(atPath: sourcePath, toPath: destURL.path)
-            }
-
-            // 5. Create ZIP archive
-            let zipSuccess = createZIPArchive(from: tempDir, to: destinationURL)
-
-            // 6. Clean up temp directory
-            try? fileManager.removeItem(at: tempDir)
-
-            return zipSuccess
-        } catch {
-            Logger.error("Failed to export diagnostic package", error: error, category: Logger.errors)
-            try? fileManager.removeItem(at: tempDir)
+        // 2. Generate report on main thread (needs UI state access)
+        let report = DiagnosticReport.generate(preferences: preferences, crashReportCount: crashFilesToCopy.count, shortcuts: shortcuts)
+        guard let jsonString = report.toJSON() else {
+            Logger.error("Failed to generate JSON for diagnostic report", category: Logger.errors)
             return false
         }
+
+        // 3. Capture values needed for background work
+        let logPath = Logger.logFilePath
+
+        // 4. Do all heavy I/O work on background thread
+        return await Task.detached(priority: .userInitiated) {
+            let fileManager = FileManager.default
+            let tempDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+
+            do {
+                // Create temp directory structure
+                try fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
+                let crashReportsDir = tempDir.appendingPathComponent("crash_reports")
+                try fileManager.createDirectory(at: crashReportsDir, withIntermediateDirectories: true)
+
+                // Write JSON overview
+                let overviewURL = tempDir.appendingPathComponent("diagnostic_overview.json")
+                try jsonString.write(to: overviewURL, atomically: true, encoding: .utf8)
+
+                // Sanitize and copy log files (the slow part - runs in background now)
+                if fileManager.fileExists(atPath: logPath) {
+                    let logFileName = (logPath as NSString).lastPathComponent
+                    let destLogURL = tempDir.appendingPathComponent(logFileName)
+                    _ = LogSanitizer.sanitizeFile(from: logPath, to: destLogURL)
+
+                    // Sanitize rotated logs
+                    for i in 1 ..< 5 {
+                        let rotatedLog = "\(logPath).\(i)"
+                        if fileManager.fileExists(atPath: rotatedLog) {
+                            let rotatedFileName = "\(logFileName).\(i)"
+                            let destRotatedURL = tempDir.appendingPathComponent(rotatedFileName)
+                            _ = LogSanitizer.sanitizeFile(from: rotatedLog, to: destRotatedURL)
+                        }
+                    }
+                }
+
+                // Copy crash reports
+                for crashFile in crashFilesToCopy {
+                    let sourcePath = (diagnosticReportsPath as NSString).appendingPathComponent(crashFile)
+                    let destURL = crashReportsDir.appendingPathComponent(crashFile)
+                    try? fileManager.copyItem(atPath: sourcePath, toPath: destURL.path)
+                }
+
+                // Create ZIP archive
+                let zipSuccess = createZIPArchive(from: tempDir, to: destinationURL)
+
+                // Clean up temp directory
+                try? fileManager.removeItem(at: tempDir)
+
+                return zipSuccess
+            } catch {
+                Logger.error("Failed to export diagnostic package", error: error, category: Logger.errors)
+                try? fileManager.removeItem(at: tempDir)
+                return false
+            }
+        }.value
     }
 
     /// Create ZIP archive from directory

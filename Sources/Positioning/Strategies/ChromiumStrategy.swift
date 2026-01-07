@@ -130,6 +130,10 @@ class ChromiumStrategy: GeometryProvider {
         text: String,
         parser: ContentParser
     ) -> GeometryResult? {
+        // Performance profiling for strategy execution
+        let (profilingState, profilingStartTime) = PerformanceProfiler.shared.beginInterval(.strategyExecution, context: "ChromiumStrategy")
+        defer { PerformanceProfiler.shared.endInterval(.strategyExecution, state: profilingState, startTime: profilingStartTime) }
+
         let offset = parser.textReplacementOffset
         let startIndex = errorRange.location + offset
         let graphemeRange = NSRange(location: startIndex, length: errorRange.length)

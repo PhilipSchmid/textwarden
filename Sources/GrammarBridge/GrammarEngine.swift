@@ -47,6 +47,11 @@ import Foundation
         checkUnclosedQuotes: Bool = true,
         checkDashes: Bool = true
     ) -> GrammarAnalysisResult {
+        // Performance profiling for text analysis
+        let wordCount = text.split(separator: " ").count
+        let (profilingState, profilingStartTime) = PerformanceProfiler.shared.beginInterval(.textAnalysis, context: "sync words:\(wordCount)")
+        defer { PerformanceProfiler.shared.endInterval(.textAnalysis, state: profilingState, startTime: profilingStartTime) }
+
         // Call FFI function with all parameters
         // Convert Swift strings to RustString and create RustVec for language list
         let rustText = RustString(text)
@@ -114,7 +119,12 @@ import Foundation
         checkUnclosedQuotes: Bool = true,
         checkDashes: Bool = true
     ) async -> GrammarAnalysisResult {
-        await Task.detached(priority: .userInitiated) { [text, dialect, enableInternetAbbrev, enableGenZSlang, enableITTerminology, enableBrandNames, enablePersonNames, enableLastNames, enableLanguageDetection, excludedLanguages, enforceOxfordComma, checkEllipsis, checkUnclosedQuotes, checkDashes] in
+        // Performance profiling for text analysis
+        let wordCount = text.split(separator: " ").count
+        let (profilingState, profilingStartTime) = PerformanceProfiler.shared.beginInterval(.textAnalysis, context: "words:\(wordCount)")
+        defer { PerformanceProfiler.shared.endInterval(.textAnalysis, state: profilingState, startTime: profilingStartTime) }
+
+        return await Task.detached(priority: .userInitiated) { [text, dialect, enableInternetAbbrev, enableGenZSlang, enableITTerminology, enableBrandNames, enablePersonNames, enableLastNames, enableLanguageDetection, excludedLanguages, enforceOxfordComma, checkEllipsis, checkUnclosedQuotes, checkDashes] in
             // Call FFI function directly in detached task
             // Convert Swift strings to RustString and create RustVec for language list
             let rustText = RustString(text)

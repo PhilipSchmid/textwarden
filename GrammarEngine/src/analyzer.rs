@@ -39,6 +39,18 @@ pub struct AnalysisResult {
     /// True if document is primarily in a non-English language (>60% excluded language)
     /// Used to skip readability analysis, which is English-specific
     pub is_non_english_document: bool,
+
+    // Timing breakdown for performance profiling
+    /// Time spent building the merged dictionary with custom wordlists
+    pub dictionary_build_ms: u64,
+    /// Time spent creating and configuring the Harper linter
+    pub linter_setup_ms: u64,
+    /// Time spent parsing text into a Harper Document
+    pub document_parse_ms: u64,
+    /// Time spent in Harper's lint() call - the core analysis
+    pub harper_lint_ms: u64,
+    /// Time spent in post-processing (converting lints, dedup, language filter)
+    pub post_process_ms: u64,
 }
 
 /// Parse a dialect string into Harper's Dialect enum
@@ -319,6 +331,9 @@ pub fn analyze_text(
     // Parse the dialect string
     let dialect = parse_dialect(dialect_str);
 
+    // --- PHASE 1: Dictionary Build ---
+    let dict_start = Instant::now();
+
     // Build dictionary based on slang options
     // Always use MergedDictionary for consistency
     let mut merged = MergedDictionary::new();
@@ -367,16 +382,21 @@ pub fn analyze_text(
     }
 
     let dictionary = Arc::new(merged);
+    let dictionary_build_ms = dict_start.elapsed().as_millis() as u64;
 
     tracing::debug!(
-        "Dictionary configured: abbrev={}, slang={}, it={}, brands={}, first_names={}, last_names={}",
+        "Dictionary configured: abbrev={}, slang={}, it={}, brands={}, first_names={}, last_names={} ({}ms)",
         enable_internet_abbrev,
         enable_genz_slang,
         enable_it_terminology,
         enable_brand_names,
         enable_person_names,
-        enable_last_names
+        enable_last_names,
+        dictionary_build_ms
     );
+
+    // --- PHASE 2: Linter Setup ---
+    let linter_start = Instant::now();
 
     // Initialize Harper linter with curated rules for selected dialect
     // Clone the Arc so we can use the dictionary for both linting and document parsing
@@ -396,18 +416,34 @@ pub fn analyze_text(
     if !check_dashes {
         linter.config.set_rule_enabled("Dashes", false);
     }
+    let linter_setup_ms = linter_start.elapsed().as_millis() as u64;
+
+    // --- PHASE 3: Document Parsing ---
+    let parse_start = Instant::now();
 
     // Parse the text into a Document using our merged dictionary
     // This ensures abbreviations and slang are recognized during parsing
     let document = Document::new_plain_english(text, dictionary.as_ref());
+    let document_parse_ms = parse_start.elapsed().as_millis() as u64;
+
+    // --- PHASE 4: Harper Linting ---
+    let lint_start = Instant::now();
 
     // Perform linting
     tracing::debug!("Running Harper linter");
     let lints = linter.lint(&document);
-    tracing::debug!("Harper linter found {} lints", lints.len());
+    let harper_lint_ms = lint_start.elapsed().as_millis() as u64;
+    tracing::debug!(
+        "Harper linter found {} lints ({}ms)",
+        lints.len(),
+        harper_lint_ms
+    );
 
     // Count words (approximate - split on whitespace)
     let word_count = text.split_whitespace().count();
+
+    // --- PHASE 5: Post-Processing ---
+    let post_start = Instant::now();
 
     // Convert Harper lints to our GrammarError format
     let mut errors: Vec<GrammarError> = lints
@@ -619,13 +655,19 @@ pub fn analyze_text(
         );
     }
 
+    let post_process_ms = post_start.elapsed().as_millis() as u64;
     let analysis_time_ms = start_time.elapsed().as_millis() as u64;
 
     tracing::info!(
-        "Analysis complete: {} errors, {} words, {}ms, non_english={}",
+        "Analysis complete: {} errors, {} words, {}ms (dict={}ms, linter={}ms, parse={}ms, lint={}ms, post={}ms), non_english={}",
         errors.len(),
         word_count,
         analysis_time_ms,
+        dictionary_build_ms,
+        linter_setup_ms,
+        document_parse_ms,
+        harper_lint_ms,
+        post_process_ms,
         is_non_english_document
     );
 
@@ -634,6 +676,11 @@ pub fn analyze_text(
         word_count,
         analysis_time_ms,
         is_non_english_document,
+        dictionary_build_ms,
+        linter_setup_ms,
+        document_parse_ms,
+        harper_lint_ms,
+        post_process_ms,
     }
 }
 

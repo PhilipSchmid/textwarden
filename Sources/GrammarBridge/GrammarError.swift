@@ -124,6 +124,23 @@ import Foundation
     /// Used to skip readability analysis, which is English-specific
     @objc public let isNonEnglishDocument: Bool
 
+    // MARK: - Timing Breakdown for Performance Profiling
+
+    /// Time spent building the merged dictionary with custom wordlists (ms)
+    @objc public let dictionaryBuildMs: UInt64
+
+    /// Time spent creating and configuring the Harper linter (ms)
+    @objc public let linterSetupMs: UInt64
+
+    /// Time spent parsing text into a Harper Document (ms)
+    @objc public let documentParseMs: UInt64
+
+    /// Time spent in Harper's lint() call - the core analysis (ms)
+    @objc public let harperLintMs: UInt64
+
+    /// Time spent in post-processing (converting lints, dedup, language filter) (ms)
+    @objc public let postProcessMs: UInt64
+
     /// Initialize from FFI AnalysisResult (opaque type)
     init(ffiResult: AnalysisResultRef) {
         let ffiErrors = ffiResult.errors()
@@ -134,11 +151,29 @@ import Foundation
         memoryAfterBytes = ffiResult.memory_after_bytes()
         memoryDeltaBytes = ffiResult.memory_delta_bytes()
         isNonEnglishDocument = ffiResult.is_non_english_document()
+        dictionaryBuildMs = ffiResult.dictionary_build_ms()
+        linterSetupMs = ffiResult.linter_setup_ms()
+        documentParseMs = ffiResult.document_parse_ms()
+        harperLintMs = ffiResult.harper_lint_ms()
+        postProcessMs = ffiResult.post_process_ms()
         super.init()
     }
 
     /// Convenience initializer for testing
-    @objc public init(errors: [GrammarErrorModel], wordCount: Int, analysisTimeMs: UInt64, memoryBeforeBytes: UInt64 = 0, memoryAfterBytes: UInt64 = 0, memoryDeltaBytes: Int64 = 0, isNonEnglishDocument: Bool = false) {
+    @objc public init(
+        errors: [GrammarErrorModel],
+        wordCount: Int,
+        analysisTimeMs: UInt64,
+        memoryBeforeBytes: UInt64 = 0,
+        memoryAfterBytes: UInt64 = 0,
+        memoryDeltaBytes: Int64 = 0,
+        isNonEnglishDocument: Bool = false,
+        dictionaryBuildMs: UInt64 = 0,
+        linterSetupMs: UInt64 = 0,
+        documentParseMs: UInt64 = 0,
+        harperLintMs: UInt64 = 0,
+        postProcessMs: UInt64 = 0
+    ) {
         self.errors = errors
         self.wordCount = wordCount
         self.analysisTimeMs = analysisTimeMs
@@ -146,10 +181,15 @@ import Foundation
         self.memoryAfterBytes = memoryAfterBytes
         self.memoryDeltaBytes = memoryDeltaBytes
         self.isNonEnglishDocument = isNonEnglishDocument
+        self.dictionaryBuildMs = dictionaryBuildMs
+        self.linterSetupMs = linterSetupMs
+        self.documentParseMs = documentParseMs
+        self.harperLintMs = harperLintMs
+        self.postProcessMs = postProcessMs
         super.init()
     }
 
     override public var description: String {
-        "Analysis: \(errors.count) errors found in \(wordCount) words (\(analysisTimeMs)ms, mem: \(memoryAfterBytes / 1024)KB)"
+        "Analysis: \(errors.count) errors in \(wordCount) words (\(analysisTimeMs)ms: dict=\(dictionaryBuildMs)ms, linter=\(linterSetupMs)ms, parse=\(documentParseMs)ms, lint=\(harperLintMs)ms, post=\(postProcessMs)ms)"
     }
 }

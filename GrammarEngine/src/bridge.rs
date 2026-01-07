@@ -46,6 +46,13 @@ mod ffi {
         fn memory_after_bytes(&self) -> u64;
         fn memory_delta_bytes(&self) -> i64;
         fn is_non_english_document(&self) -> bool;
+
+        // Timing breakdown for performance profiling
+        fn dictionary_build_ms(&self) -> u64;
+        fn linter_setup_ms(&self) -> u64;
+        fn document_parse_ms(&self) -> u64;
+        fn harper_lint_ms(&self) -> u64;
+        fn post_process_ms(&self) -> u64;
     }
 
     extern "Rust" {
@@ -137,6 +144,13 @@ pub struct AnalysisResult {
     memory_delta_bytes: i64,
     /// True if document is primarily non-English (>60% excluded language)
     is_non_english_document: bool,
+
+    // Timing breakdown for performance profiling
+    dictionary_build_ms: u64,
+    linter_setup_ms: u64,
+    document_parse_ms: u64,
+    harper_lint_ms: u64,
+    post_process_ms: u64,
 }
 
 impl AnalysisResult {
@@ -166,6 +180,26 @@ impl AnalysisResult {
 
     fn is_non_english_document(&self) -> bool {
         self.is_non_english_document
+    }
+
+    fn dictionary_build_ms(&self) -> u64 {
+        self.dictionary_build_ms
+    }
+
+    fn linter_setup_ms(&self) -> u64 {
+        self.linter_setup_ms
+    }
+
+    fn document_parse_ms(&self) -> u64 {
+        self.document_parse_ms
+    }
+
+    fn harper_lint_ms(&self) -> u64 {
+        self.harper_lint_ms
+    }
+
+    fn post_process_ms(&self) -> u64 {
+        self.post_process_ms
     }
 }
 
@@ -304,5 +338,10 @@ fn analyze_text(
         memory_after_bytes: memory_after,
         memory_delta_bytes: memory_delta,
         is_non_english_document: result.is_non_english_document,
+        dictionary_build_ms: result.dictionary_build_ms,
+        linter_setup_ms: result.linter_setup_ms,
+        document_parse_ms: result.document_parse_ms,
+        harper_lint_ms: result.harper_lint_ms,
+        post_process_ms: result.post_process_ms,
     }
 }

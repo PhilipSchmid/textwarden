@@ -180,13 +180,21 @@ struct DiagnosticsView: View {
                     .disabled(isExporting)
 
                     if isExporting {
-                        HStack(spacing: 8) {
+                        HStack(spacing: 12) {
                             ProgressView()
-                                .scaleEffect(0.7)
-                            Text("Generating diagnostic report...")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                                .controlSize(.small)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Preparing diagnostic package...")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                Text("Sanitizing logs and collecting data")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
                         }
+                        .padding(12)
+                        .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 8))
                     }
 
                     Divider()
@@ -481,9 +489,9 @@ struct DiagnosticsView: View {
             // KeyboardShortcuts.Shortcut.description requires main thread access
             let shortcuts = SettingsDump.collectShortcuts()
 
-            // Generate and export ZIP package
+            // Generate and export ZIP package (heavy I/O runs in background)
             Task { @MainActor in
-                let success = DiagnosticReport.exportAsZIP(
+                let success = await DiagnosticReport.exportAsZIP(
                     to: url,
                     preferences: preferences,
                     shortcuts: shortcuts

@@ -219,6 +219,10 @@ class SuggestionPopover: NSObject, ObservableObject {
     ///   - constrainToWindow: Optional window frame to constrain popover positioning (keeps popover inside app window)
     ///   - sourceText: Source text for context display
     func show(error: GrammarErrorModel, allErrors: [GrammarErrorModel], at position: CGPoint, constrainToWindow: CGRect? = nil, sourceText: String = "") {
+        // Performance profiling for popover display
+        let (profilingState, profilingStartTime) = PerformanceProfiler.shared.beginInterval(.popoverDisplay, context: "grammar")
+        defer { PerformanceProfiler.shared.endInterval(.popoverDisplay, state: profilingState, startTime: profilingStartTime) }
+
         // DEBUG: Log activation policy BEFORE showing
         Logger.debug("SuggestionPopover.show() - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
 

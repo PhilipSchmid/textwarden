@@ -388,6 +388,10 @@ class ErrorOverlayWindow: NSPanel {
     ///   - bypassTypingCheck: If true, skip the typing pause check (used after applying replacements)
     @discardableResult
     func update(errors: [GrammarErrorModel], element: AXUIElement, context: ApplicationContext?, sourceText _: String? = nil, bypassTypingCheck: Bool = false) -> Int {
+        // Performance profiling for overlay rebuild operations
+        let (profilingState, profilingStartTime) = PerformanceProfiler.shared.beginInterval(.overlayRebuild, context: "errors:\(errors.count)")
+        defer { PerformanceProfiler.shared.endInterval(.overlayRebuild, state: profilingState, startTime: profilingStartTime) }
+
         Logger.debug("ErrorOverlay: update() called with \(errors.count) errors", category: Logger.ui)
         self.errors = errors
         monitoredElement = element
@@ -871,6 +875,10 @@ class ErrorOverlayWindow: NSPanel {
 
     /// Hide overlay
     func hide() {
+        // Performance profiling for overlay hide operations
+        let (profilingState, profilingStartTime) = PerformanceProfiler.shared.beginInterval(.overlayHide, context: isCurrentlyVisible ? "visible" : "hidden")
+        defer { PerformanceProfiler.shared.endInterval(.overlayHide, state: profilingState, startTime: profilingStartTime) }
+
         // Cancel any pending hover timer
         hoverTimer?.invalidate()
         hoverTimer = nil

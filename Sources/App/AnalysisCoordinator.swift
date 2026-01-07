@@ -2063,6 +2063,10 @@ class AnalysisCoordinator: ObservableObject {
     /// Apply filters based on user preferences - internal for extension access
     /// - Parameter isFromReplacementUI: If true, this call is from `removeErrorAndUpdateUI` and should not be skipped during replacement mode
     func applyFilters(to errors: [GrammarErrorModel], sourceText: String, element: AXUIElement?, isFromReplacementUI: Bool = false) {
+        // Performance profiling for error filtering
+        let (profilingState, profilingStartTime) = PerformanceProfiler.shared.beginInterval(.errorFiltering, context: "errors:\(errors.count)")
+        defer { PerformanceProfiler.shared.endInterval(.errorFiltering, state: profilingState, startTime: profilingStartTime) }
+
         Logger.debug("AnalysisCoordinator: applyFilters called with \(errors.count) errors", category: Logger.analysis)
 
         var filteredErrors = errors
@@ -2570,6 +2574,10 @@ extension AnalysisCoordinator {
 extension AnalysisCoordinator: PositionRefreshDelegate {
     /// Called when positions should be recalculated (e.g., after click in Slack)
     func positionRefreshRequested() {
+        // Performance profiling for position refresh operations
+        let (profilingState, profilingStartTime) = PerformanceProfiler.shared.beginInterval(.positionRefresh, context: "errors:\(currentErrors.count)")
+        defer { PerformanceProfiler.shared.endInterval(.positionRefresh, state: profilingState, startTime: profilingStartTime) }
+
         guard let element = textMonitor.monitoredElement,
               !currentErrors.isEmpty else { return }
 

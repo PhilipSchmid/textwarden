@@ -69,24 +69,47 @@ class MenuBarController: NSObject, NSMenuDelegate {
     /// Called when the status bar button is clicked
     /// Captures the frontmost app BEFORE the menu opens
     @objc private func statusBarButtonClicked(_ sender: NSStatusBarButton) {
+        // Performance profiling for menu bar display
+        let (profilingState, profilingStartTime) = PerformanceProfiler.shared.beginInterval(.menuBarDisplay, context: "click")
+
+        let totalStart = CFAbsoluteTimeGetCurrent()
+        var stepStart = totalStart
+
         // Capture the frontmost app before our app potentially becomes active
         menuTargetApp = NSWorkspace.shared.frontmostApplication
+        let frontmostAppTime = (CFAbsoluteTimeGetCurrent() - stepStart) * 1000
+        stepStart = CFAbsoluteTimeGetCurrent()
 
         // Check for pending milestones first (only if onboarding is complete)
         if UserPreferences.shared.hasCompletedOnboarding,
            let milestone = MilestoneManager.shared.checkForMilestones()
         {
+            let milestoneCheckTime = (CFAbsoluteTimeGetCurrent() - stepStart) * 1000
+            Logger.info("MenuBar timing: frontmostApp=\(String(format: "%.1f", frontmostAppTime))ms, milestoneCheck=\(String(format: "%.1f", milestoneCheckTime))ms (showing milestone)", category: Logger.performance)
             // Mark as shown immediately so it won't show again on next click
             MilestoneManager.shared.markMilestoneShown(milestone)
             showMilestoneCard(milestone, from: sender)
             return
         }
+        let milestoneCheckTime = (CFAbsoluteTimeGetCurrent() - stepStart) * 1000
+        stepStart = CFAbsoluteTimeGetCurrent()
 
         // Rebuild menu with the captured app
         createMenu()
+        let createMenuTime = (CFAbsoluteTimeGetCurrent() - stepStart) * 1000
+        stepStart = CFAbsoluteTimeGetCurrent()
 
         guard let menu else { return }
         let buttonBounds = sender.bounds
+
+        // Log timing BEFORE popUp (which blocks until menu dismissed)
+        let prepTime = (CFAbsoluteTimeGetCurrent() - totalStart) * 1000
+        Logger.info("MenuBar timing: frontmostApp=\(String(format: "%.1f", frontmostAppTime))ms, milestoneCheck=\(String(format: "%.1f", milestoneCheckTime))ms, createMenu=\(String(format: "%.1f", createMenuTime))ms, totalPrep=\(String(format: "%.1f", prepTime))ms", category: Logger.performance)
+
+        // End profiling BEFORE popUp - don't measure how long user has menu open
+        PerformanceProfiler.shared.endInterval(.menuBarDisplay, state: profilingState, startTime: profilingStartTime)
+
+        // This call blocks until user dismisses menu - don't include in timing
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: buttonBounds.height), in: sender)
     }
 
