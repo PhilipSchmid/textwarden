@@ -211,32 +211,19 @@ class ReadabilityPopover: NSObject, ObservableObject {
     private func setupClickOutsideMonitor() {
         removeClickOutsideMonitor()
 
-        clickOutsideMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-            guard let self, let panel else { return event }
+        // Use global monitor to detect clicks in other applications
+        // (local monitors only catch clicks within TextWarden's windows)
+        clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            guard let self, let panel else { return }
 
-            // Check if click is outside the panel
+            // For global events, locationInWindow is in screen coordinates
             let clickLocation = event.locationInWindow
-            if event.window == panel {
-                // Click is in the panel window
-                return event
-            }
+            let panelFrame = panel.frame
 
-            // Convert to screen coordinates for proper comparison
-            if let windowFrame = event.window?.frame {
-                let screenLocation = CGPoint(
-                    x: windowFrame.origin.x + clickLocation.x,
-                    y: windowFrame.origin.y + clickLocation.y
-                )
-
-                if !panel.frame.contains(screenLocation) {
-                    hide()
-                }
-            } else {
-                // No window means click is somewhere else
+            if !panelFrame.contains(clickLocation) {
+                Logger.debug("ReadabilityPopover: Click outside - hiding", category: Logger.ui)
                 hide()
             }
-
-            return event
         }
     }
 
