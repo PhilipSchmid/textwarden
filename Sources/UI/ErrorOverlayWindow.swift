@@ -930,6 +930,17 @@ class ErrorOverlayWindow: NSPanel {
         underlineView?.needsDisplay = true
     }
 
+    /// Clear only the grammar underlines (called when no grammar errors but readability underlines remain)
+    func clearGrammarUnderlines() {
+        underlineView?.underlines = []
+        underlineView?.styleUnderlines = []
+        underlineView?.hoveredUnderline = nil
+        underlineView?.lockedHighlightUnderline = nil
+        hoveredUnderline = nil
+        lockedHighlightError = nil
+        underlineView?.needsDisplay = true
+    }
+
     /// Update readability underlines for complex sentences
     /// Uses the same positioning infrastructure as grammar error underlines
     /// - Parameters:

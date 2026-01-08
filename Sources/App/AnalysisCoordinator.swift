@@ -2312,6 +2312,14 @@ class AnalysisCoordinator: ObservableObject {
             // Cancel any pending layout timer
             electronLayoutTimer?.invalidate()
 
+            // CRITICAL: If no errors, clear underlines IMMEDIATELY
+            // Don't wait for the timer - stale underlines would be visible during the delay
+            if errors.isEmpty {
+                Logger.debug("AnalysisCoordinator: No errors - clearing underlines immediately for web app", category: Logger.analysis)
+                showErrorUnderlinesInternal(errors, element: element)
+                return
+            }
+
             // Delay showing underlines to let the DOM stabilize
             electronLayoutTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.textSettleTime, repeats: false) { [weak self] _ in
                 Task { @MainActor [weak self] in
@@ -2372,6 +2380,11 @@ class AnalysisCoordinator: ObservableObject {
             if hasReadabilityUnderlines,
                let analysis = currentReadabilityAnalysis
             {
+                // Clear grammar underlines first since we have no grammar errors
+                // updateReadabilityUnderlines only manages readability underlines,
+                // so stale grammar underlines would persist without this
+                errorOverlay.clearGrammarUnderlines()
+
                 errorOverlay.updateReadabilityUnderlines(
                     complexSentences: analysis.complexSentences,
                     element: providedElement,
