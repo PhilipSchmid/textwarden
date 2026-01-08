@@ -133,6 +133,91 @@ final class UnderlineStateManagerTests: XCTestCase {
         XCTAssertTrue(manager.currentState.hasContent)
     }
 
+    // MARK: - Partial Update Tests
+
+    func testUpdateGrammarUnderlines_PreservesReadability() {
+        // Setup initial state with readability underlines
+        manager.updateAll(
+            grammarUnderlines: createMockGrammarUnderlines(count: 1),
+            styleUnderlines: [],
+            readabilityUnderlines: createMockReadabilityUnderlines(count: 3)
+        )
+        manager.setHoveredReadabilityIndex(1)
+
+        // Update grammar underlines
+        manager.updateGrammarUnderlines(
+            createMockGrammarUnderlines(count: 2),
+            styleUnderlines: createMockStyleUnderlines(count: 1)
+        )
+
+        // Readability should be preserved
+        XCTAssertEqual(manager.currentState.readabilityUnderlines.count, 3)
+        XCTAssertEqual(manager.currentState.hoveredReadabilityIndex, 1)
+
+        // Grammar and style should be updated
+        XCTAssertEqual(manager.currentState.grammarUnderlines.count, 2)
+        XCTAssertEqual(manager.currentState.styleUnderlines.count, 1)
+    }
+
+    func testUpdateReadabilityUnderlines_PreservesGrammar() {
+        // Setup initial state with grammar underlines
+        manager.updateAll(
+            grammarUnderlines: createMockGrammarUnderlines(count: 2),
+            styleUnderlines: createMockStyleUnderlines(count: 1),
+            readabilityUnderlines: []
+        )
+        manager.setHoveredGrammarIndex(1)
+        manager.setLockedHighlightIndex(0)
+
+        // Update readability underlines
+        manager.updateReadabilityUnderlines(createMockReadabilityUnderlines(count: 2))
+
+        // Grammar and style should be preserved
+        XCTAssertEqual(manager.currentState.grammarUnderlines.count, 2)
+        XCTAssertEqual(manager.currentState.styleUnderlines.count, 1)
+        XCTAssertEqual(manager.currentState.hoveredGrammarIndex, 1)
+        XCTAssertEqual(manager.currentState.lockedHighlightIndex, 0)
+
+        // Readability should be updated
+        XCTAssertEqual(manager.currentState.readabilityUnderlines.count, 2)
+    }
+
+    func testUpdateGrammarUnderlines_PreservesValidHoverIndex() {
+        // Setup initial state
+        manager.updateAll(
+            grammarUnderlines: createMockGrammarUnderlines(count: 3),
+            styleUnderlines: [],
+            readabilityUnderlines: []
+        )
+        manager.setHoveredGrammarIndex(1)
+
+        // Update with same or more underlines - hover should be preserved
+        manager.updateGrammarUnderlines(
+            createMockGrammarUnderlines(count: 3),
+            styleUnderlines: []
+        )
+
+        XCTAssertEqual(manager.currentState.hoveredGrammarIndex, 1)
+    }
+
+    func testUpdateGrammarUnderlines_ClearsInvalidHoverIndex() {
+        // Setup initial state
+        manager.updateAll(
+            grammarUnderlines: createMockGrammarUnderlines(count: 3),
+            styleUnderlines: [],
+            readabilityUnderlines: []
+        )
+        manager.setHoveredGrammarIndex(2) // Last item
+
+        // Update with fewer underlines - hover should be cleared
+        manager.updateGrammarUnderlines(
+            createMockGrammarUnderlines(count: 1),
+            styleUnderlines: []
+        )
+
+        XCTAssertNil(manager.currentState.hoveredGrammarIndex)
+    }
+
     // MARK: - Invariant Tests
 
     func testInvariant_EmptyGrammarMeansEmptyGrammarUnderlines() {

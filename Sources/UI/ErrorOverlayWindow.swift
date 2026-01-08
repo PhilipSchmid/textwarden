@@ -107,6 +107,12 @@ class ErrorOverlayWindow: NSPanel {
     /// Global event monitor for mouse clicks
     private var clickMonitor: Any?
 
+    // MARK: - State Management
+
+    /// Unified state manager for all underline types
+    /// Ensures consistency between grammar, style, and readability underlines
+    private let stateManager = UnderlineStateManager()
+
     // MARK: - Initialization
 
     init() {
@@ -145,9 +151,26 @@ class ErrorOverlayWindow: NSPanel {
         contentView = view
         underlineView = view
 
+        // Wire up state manager to update view when state changes
+        stateManager.onStateChanged = { [weak self] state in
+            self?.applyState(state)
+        }
+
         // Setup global mouse monitors for hover detection and click handling
         setupGlobalMouseMonitor()
         setupGlobalClickMonitor()
+    }
+
+    /// Apply state from the state manager to the underline view
+    private func applyState(_ state: UnderlineState) {
+        underlineView?.underlines = state.grammarUnderlines
+        underlineView?.styleUnderlines = state.styleUnderlines
+        underlineView?.readabilityUnderlines = state.readabilityUnderlines
+        underlineView?.hoveredUnderline = state.hoveredGrammarUnderline
+        underlineView?.hoveredStyleUnderline = state.hoveredStyleUnderline
+        underlineView?.hoveredReadabilityUnderline = state.hoveredReadabilityUnderline
+        underlineView?.lockedHighlightUnderline = state.lockedHighlightUnderline
+        underlineView?.needsDisplay = true
     }
 
     override var canBecomeKey: Bool {
@@ -209,8 +232,7 @@ class ErrorOverlayWindow: NSPanel {
                 // Mouse left the window - clear hover state and fade underlines
                 if hoveredUnderline != nil {
                     hoveredUnderline = nil
-                    self.underlineView?.hoveredUnderline = nil
-                    self.underlineView?.needsDisplay = true
+                    stateManager.clearHoverState()
                     onHoverEnd?()
                 }
 
@@ -503,12 +525,11 @@ class ErrorOverlayWindow: NSPanel {
                 abs(elementFrame.height - lastFrame.height) > 5
 
             if positionChanged || sizeChanged {
-                let underlineCount = underlineView?.underlines.count ?? 0
+                let underlineCount = stateManager.currentState.grammarUnderlines.count
                 Logger.debug("ErrorOverlay: FRAME CHANGED - clearing \(underlineCount) stale underlines (was: \(lastFrame), now: \(elementFrame))", category: Logger.ui)
-                // Clear underlines without hiding window - avoids flash
-                underlineView?.underlines = []
-                underlineView?.styleUnderlines = []
-                // Note: readability underlines are updated separately
+                // Clear grammar underlines without hiding window - avoids flash
+                // Readability underlines are preserved and updated separately
+                stateManager.clearGrammarUnderlines()
                 lastElementFrame = elementFrame
                 // Continue processing to show new underlines at correct positions
             }
@@ -824,17 +845,10 @@ class ErrorOverlayWindow: NSPanel {
             }
         }
 
-        underlineView?.underlines = underlines
-
-        // Re-apply locked highlight if one was set (underlines may have been recreated)
-        if let lockedError = lockedHighlightError {
-            let matchingUnderline = underlines.first { underline in
-                underline.error.start == lockedError.start && underline.error.end == lockedError.end
-            }
-            underlineView?.lockedHighlightUnderline = matchingUnderline
-        }
-
-        underlineView?.needsDisplay = true
+        // Update state manager - this atomically updates grammar underlines and triggers view refresh
+        // Style underlines are currently empty as they're set separately
+        // The state manager will preserve hover/lock indices if still valid
+        stateManager.updateGrammarUnderlines(underlines, styleUnderlines: [])
 
         if !underlines.isEmpty {
             // Only order window if not already visible to avoid window ordering spam
@@ -900,13 +914,12 @@ class ErrorOverlayWindow: NSPanel {
         } else {
             Logger.trace("ErrorOverlay: hide() called but already hidden", category: Logger.ui)
         }
-        underlineView?.underlines = []
-        underlineView?.readabilityUnderlines = [] // Clear readability underlines
 
-        // Clear hover state
+        // Clear all underline state using the state manager
+        stateManager.clear()
+
+        // Clear local tracking variables
         hoveredUnderline = nil
-        underlineView?.hoveredUnderline = nil
-        underlineView?.hoveredReadabilityUnderline = nil
 
         // Clear locked highlight - but preserve during replacement mode
         // so it can be re-applied when underlines are recreated
@@ -914,7 +927,6 @@ class ErrorOverlayWindow: NSPanel {
         if !isInReplacementMode {
             lockedHighlightError = nil
         }
-        underlineView?.lockedHighlightUnderline = nil
 
         // Only stop timer if not waiting for frame stabilization
         // (we need the timer to keep running to detect when resize is done)
@@ -925,20 +937,18 @@ class ErrorOverlayWindow: NSPanel {
 
     /// Clear only the readability underlines (called when feature is disabled)
     func clearReadabilityUnderlines() {
-        underlineView?.readabilityUnderlines = []
-        underlineView?.hoveredReadabilityUnderline = nil
-        underlineView?.needsDisplay = true
+        // Use state manager to ensure consistent state
+        stateManager.clearReadabilityUnderlines()
     }
 
     /// Clear only the grammar underlines (called when no grammar errors but readability underlines remain)
     func clearGrammarUnderlines() {
-        underlineView?.underlines = []
-        underlineView?.styleUnderlines = []
-        underlineView?.hoveredUnderline = nil
-        underlineView?.lockedHighlightUnderline = nil
+        // Use state manager to ensure consistent state
+        stateManager.clearGrammarUnderlines()
+
+        // Clear local tracking variables
         hoveredUnderline = nil
         lockedHighlightError = nil
-        underlineView?.needsDisplay = true
     }
 
     /// Update readability underlines for complex sentences
@@ -1126,8 +1136,8 @@ class ErrorOverlayWindow: NSPanel {
 
         Logger.debug("ErrorOverlay: Created \(readabilityUnderlines.count) readability underlines from \(complexSentences.count) complex sentences", category: Logger.ui)
 
-        underlineView?.readabilityUnderlines = readabilityUnderlines
-        underlineView?.needsDisplay = true
+        // Update state manager - this preserves grammar underlines and triggers view refresh
+        stateManager.updateReadabilityUnderlines(readabilityUnderlines)
 
         // Show overlay if it wasn't already visible and we have underlines to show
         if !readabilityUnderlines.isEmpty, !isCurrentlyVisible {
@@ -1192,17 +1202,8 @@ class ErrorOverlayWindow: NSPanel {
     /// Lock highlight on a specific error (persists while popover is open)
     func setLockedHighlight(for error: GrammarErrorModel?) {
         lockedHighlightError = error
-
-        if let error {
-            // Find the underline for this error
-            let matchingUnderline = underlineView?.underlines.first { underline in
-                underline.error.start == error.start && underline.error.end == error.end
-            }
-            underlineView?.lockedHighlightUnderline = matchingUnderline
-        } else {
-            underlineView?.lockedHighlightUnderline = nil
-        }
-        underlineView?.needsDisplay = true
+        // Delegate to state manager which handles finding the underline and updating view
+        stateManager.setLockedHighlight(for: error)
     }
 
     /// Start periodic frame validation to detect resize/scroll
@@ -1981,7 +1982,7 @@ class ErrorOverlayWindow: NSPanel {
         mouseLocation _: CGPoint,
         windowOrigin: CGPoint,
         windowHeight: CGFloat,
-        underlineView: UnderlineView
+        underlineView _: UnderlineView
     ) {
         // Update current hover target
         currentHoverTarget = target
@@ -1998,29 +1999,41 @@ class ErrorOverlayWindow: NSPanel {
 
         let appWindowFrame = getApplicationWindowFrame()
 
-        // Clear all previous hover states
+        // Clear all previous hover states via state manager
+        stateManager.clearHoverState()
         hoveredUnderline = nil
-        underlineView.hoveredUnderline = nil
-        underlineView.hoveredStyleUnderline = nil
-        underlineView.hoveredReadabilityUnderline = nil
 
-        // Apply the new hover state and trigger callback
+        // Apply the new hover state via state manager and trigger callback
         switch target {
         case let .grammar(underline):
+            // Find index of this underline
+            if let index = stateManager.currentState.grammarUnderlines.firstIndex(where: {
+                $0.error.start == underline.error.start && $0.error.end == underline.error.end
+            }) {
+                stateManager.setHoveredGrammarIndex(index)
+            }
             hoveredUnderline = underline
-            underlineView.hoveredUnderline = underline
-            underlineView.needsDisplay = true
             onErrorHover?(underline.error, screenLocation, appWindowFrame)
 
         case let .style(underline):
-            underlineView.hoveredStyleUnderline = underline
-            underlineView.needsDisplay = true
+            // Find index of this underline
+            if let index = stateManager.currentState.styleUnderlines.firstIndex(where: {
+                $0.suggestion.originalStart == underline.suggestion.originalStart &&
+                    $0.suggestion.originalEnd == underline.suggestion.originalEnd
+            }) {
+                stateManager.setHoveredStyleIndex(index)
+            }
             // Style underlines currently don't have a hover callback
             // They use click-only interaction
 
         case let .readability(underline):
-            underlineView.hoveredReadabilityUnderline = underline
-            underlineView.needsDisplay = true
+            // Find index of this underline
+            if let index = stateManager.currentState.readabilityUnderlines.firstIndex(where: {
+                $0.sentenceResult.range.location == underline.sentenceResult.range.location &&
+                    $0.sentenceResult.range.length == underline.sentenceResult.range.length
+            }) {
+                stateManager.setHoveredReadabilityIndex(index)
+            }
             onReadabilityHover?(underline.sentenceResult, screenLocation, appWindowFrame)
         }
 
@@ -2028,7 +2041,7 @@ class ErrorOverlayWindow: NSPanel {
     }
 
     /// Clear all hover states when mouse leaves underline areas
-    private func clearAllHoverStates(underlineView: UnderlineView, mouseLocation _: CGPoint) {
+    private func clearAllHoverStates(underlineView _: UnderlineView, mouseLocation _: CGPoint) {
         // Cancel any pending debounce timer
         hoverSwitchDebounceTimer?.invalidate()
         hoverSwitchDebounceTimer = nil
@@ -2039,12 +2052,9 @@ class ErrorOverlayWindow: NSPanel {
         // Clear current hover target
         currentHoverTarget = nil
 
-        // Clear all hover states
+        // Clear all hover states via state manager
         hoveredUnderline = nil
-        underlineView.hoveredUnderline = nil
-        underlineView.hoveredStyleUnderline = nil
-        underlineView.hoveredReadabilityUnderline = nil
-        underlineView.needsDisplay = true
+        stateManager.clearHoverState()
 
         // Trigger hover end callback
         if wasHovering {

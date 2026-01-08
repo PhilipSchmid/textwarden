@@ -289,6 +289,65 @@ final class UnderlineStateManager {
         applyState(currentState.withReadabilityUnderlinesCleared())
     }
 
+    /// Update grammar and style underlines, preserving readability underlines
+    /// Use this when updating after grammar analysis completes.
+    /// - Parameters:
+    ///   - grammarUnderlines: New grammar error underlines
+    ///   - styleUnderlines: New style suggestion underlines
+    func updateGrammarUnderlines(
+        _ grammarUnderlines: [ErrorUnderline],
+        styleUnderlines: [StyleUnderline]
+    ) {
+        // Preserve hover/lock indices if still valid
+        let hoveredGrammarIndex = preserveIndexIfValid(
+            currentState.hoveredGrammarIndex,
+            newCount: grammarUnderlines.count
+        )
+        let hoveredStyleIndex = preserveIndexIfValid(
+            currentState.hoveredStyleIndex,
+            newCount: styleUnderlines.count
+        )
+        let lockedHighlightIndex = preserveIndexIfValid(
+            currentState.lockedHighlightIndex,
+            newCount: grammarUnderlines.count
+        )
+
+        let newState = UnderlineState(
+            grammarUnderlines: grammarUnderlines,
+            styleUnderlines: styleUnderlines,
+            readabilityUnderlines: currentState.readabilityUnderlines,
+            hoveredGrammarIndex: hoveredGrammarIndex,
+            hoveredStyleIndex: hoveredStyleIndex,
+            hoveredReadabilityIndex: currentState.hoveredReadabilityIndex,
+            lockedHighlightIndex: lockedHighlightIndex
+        )
+
+        applyState(newState)
+    }
+
+    /// Update only readability underlines, preserving grammar and style underlines
+    /// Use this when updating after readability analysis completes.
+    /// - Parameter readabilityUnderlines: New readability underlines
+    func updateReadabilityUnderlines(_ readabilityUnderlines: [ReadabilityUnderline]) {
+        // Preserve hover index if still valid
+        let hoveredReadabilityIndex = preserveIndexIfValid(
+            currentState.hoveredReadabilityIndex,
+            newCount: readabilityUnderlines.count
+        )
+
+        let newState = UnderlineState(
+            grammarUnderlines: currentState.grammarUnderlines,
+            styleUnderlines: currentState.styleUnderlines,
+            readabilityUnderlines: readabilityUnderlines,
+            hoveredGrammarIndex: currentState.hoveredGrammarIndex,
+            hoveredStyleIndex: currentState.hoveredStyleIndex,
+            hoveredReadabilityIndex: hoveredReadabilityIndex,
+            lockedHighlightIndex: currentState.lockedHighlightIndex
+        )
+
+        applyState(newState)
+    }
+
     // MARK: - Public API - Hover State
 
     /// Update hover state for grammar underlines
