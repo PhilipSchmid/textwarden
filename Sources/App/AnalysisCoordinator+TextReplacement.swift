@@ -200,10 +200,13 @@ extension AnalysisCoordinator {
         }
 
         // Apple Mail: use WebKit-specific AXReplaceRangeWithText API
-        if let context = monitoredContext, context.bundleIdentifier == "com.apple.mail" {
-            Logger.debug("Detected Apple Mail - using WebKit-specific text replacement", category: Logger.analysis)
-            await applyMailTextReplacementAsync(for: error, with: suggestion, element: element)
-            return
+        if let context = monitoredContext {
+            let appBehavior = AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier)
+            if appBehavior.knownQuirks.contains(.usesMailReplaceRangeAPI) {
+                Logger.debug("Detected Mail-style app - using WebKit-specific text replacement", category: Logger.analysis)
+                await applyMailTextReplacementAsync(for: error, with: suggestion, element: element)
+                return
+            }
         }
 
         // Check if app config requires browser-style replacement (e.g., Pages, Word)
@@ -402,13 +405,10 @@ extension AnalysisCoordinator {
 
         Logger.debug("Using keyboard simulation for style replacement (app: \(context.applicationName))", category: Logger.analysis)
 
-        // For browsers and Electron apps (Slack, Notion, Proton Mail), use the browser-specific approach
+        // For browsers and apps requiring browser-style replacement, use the browser-specific approach
         // These apps require child element traversal for proper text selection
-        // Proton Mail uses Chromium which expects UTF-16 indices for selection
-        let isSlack = context.bundleIdentifier == "com.tinyspeck.slackmacgap"
-        let isNotion = context.bundleIdentifier == "notion.id" || context.bundleIdentifier == "com.notion.id"
-        let isProtonMail = context.bundleIdentifier == "ch.protonmail.desktop"
-        if context.isBrowser || isSlack || isNotion || isProtonMail {
+        let appBehavior = AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier)
+        if context.isBrowser || appBehavior.knownQuirks.contains(.requiresBrowserStyleReplacement) {
             applyStyleBrowserReplacement(for: suggestion, element: element, context: context)
             return
         }
@@ -944,18 +944,15 @@ extension AnalysisCoordinator {
                 }
 
                 // Convert grapheme indices to UTF-16 indices for AX selection
-                // Required for: Mac Catalyst apps, Chromium-based browsers (like Comet), and any app using UTF-16 offsets
+                // Required for: Mac Catalyst apps, Chromium-based browsers, and any app using UTF-16 offsets
                 // Emojis and other multi-codepoint characters cause offset issues without this conversion
-                // Skip for native macOS apps (Microsoft Office) which use grapheme indices
-                // Note: Pages is handled via the Office-style replacement path for better reliability
-                let isNativeApp = context.bundleIdentifier == "com.microsoft.Word" ||
-                    context.bundleIdentifier == "com.microsoft.Powerpoint" ||
-                    context.bundleIdentifier == "com.microsoft.Outlook"
+                // Skip for apps that use grapheme indices (like native macOS and Microsoft Office apps)
+                let appBehavior = AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier)
                 let startIndex = currentText.distance(from: currentText.startIndex, to: textRange.lowerBound)
                 var calculatedRange: CFRange
-                if isNativeApp {
+                if !appBehavior.usesUTF16TextIndices {
                     calculatedRange = CFRange(location: startIndex, length: targetText.count)
-                    Logger.debug("Native app selection: Using grapheme range [\(startIndex), \(targetText.count)]", category: Logger.analysis)
+                    Logger.debug("Grapheme app selection: Using grapheme range [\(startIndex), \(targetText.count)]", category: Logger.analysis)
                 } else {
                     let utf16Range = TextIndexConverter.graphemeToUTF16Range(NSRange(location: startIndex, length: targetText.count), in: currentText)
                     calculatedRange = CFRange(location: utf16Range.location, length: utf16Range.length)
@@ -983,12 +980,9 @@ extension AnalysisCoordinator {
 
             // Convert fallback range to UTF-16 if we have the text
             // Required for browsers and Mac Catalyst apps that use UTF-16 offsets
-            // Skip for native macOS apps (Microsoft Office) which use grapheme indices
-            // Note: Pages is handled via the Office-style replacement path
-            let isNativeAppForFallback = context.bundleIdentifier == "com.microsoft.Word" ||
-                context.bundleIdentifier == "com.microsoft.Powerpoint" ||
-                context.bundleIdentifier == "com.microsoft.Outlook"
-            if let text = currentText, !isNativeAppForFallback {
+            // Skip for apps that use grapheme indices (like native macOS and Microsoft Office apps)
+            let appBehaviorForFallback = AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier)
+            if let text = currentText, appBehaviorForFallback.usesUTF16TextIndices {
                 let graphemeRange = NSRange(location: range.location, length: range.length)
                 let utf16Range = TextIndexConverter.graphemeToUTF16Range(graphemeRange, in: text)
                 range = CFRange(location: utf16Range.location, length: utf16Range.length)
@@ -1141,25 +1135,17 @@ extension AnalysisCoordinator {
 
         Logger.debug("Using keyboard simulation for text replacement (app: \(context.applicationName), isBrowser: \(context.isBrowser))", category: Logger.analysis)
 
-        // SPECIAL HANDLING FOR APPLE MAIL
-        if context.bundleIdentifier == "com.apple.mail" {
+        // Get app behavior for quirk checks
+        let appBehavior = AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier)
+
+        // SPECIAL HANDLING FOR APPLE MAIL (uses WebKit's AXReplaceRangeWithText API)
+        if appBehavior.knownQuirks.contains(.usesMailReplaceRangeAPI) {
             await applyMailTextReplacementAsync(for: error, with: suggestion, element: element)
             return
         }
 
-        // SPECIAL HANDLING FOR BROWSERS, ELECTRON APPS, MICROSOFT OFFICE, AND MAC CATALYST APPS
-        let isSlack = context.bundleIdentifier == "com.tinyspeck.slackmacgap"
-        let isTeams = context.bundleIdentifier == "com.microsoft.teams2"
-        let isClaude = context.bundleIdentifier == "com.anthropic.claudefordesktop"
-        let isPerplexity = context.bundleIdentifier == "ai.perplexity.mac"
-        let isChatGPT = context.bundleIdentifier == "com.openai.chat"
-        let isMessages = context.bundleIdentifier == "com.apple.MobileSMS"
-        let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
-            context.bundleIdentifier == "com.microsoft.Powerpoint" ||
-            context.bundleIdentifier == "com.microsoft.Outlook"
-
         // SLACK: Try format-preserving replacement first (preserves bold, italic, code, etc.)
-        if isSlack {
+        if appBehavior.knownQuirks.contains(.hasSlackFormatPreservingReplacement) {
             if let slackParser = contentParserFactory.parser(for: context.bundleIdentifier) as? SlackContentParser {
                 // Get current text for the replacement
                 var textRef: CFTypeRef?
@@ -1205,11 +1191,12 @@ extension AnalysisCoordinator {
             }
         }
 
-        // Check if app config requires browser-style replacement
+        // Check if app requires browser-style replacement (via quirk or AppRegistry config)
         let appConfig = appRegistry.configuration(for: context.bundleIdentifier)
-        let usesBrowserStyleReplacement = appConfig.features.textReplacementMethod == .browserStyle
+        let usesBrowserStyleFromConfig = appConfig.features.textReplacementMethod == .browserStyle
+        let usesBrowserStyleFromQuirk = appBehavior.knownQuirks.contains(.requiresBrowserStyleReplacement)
 
-        if context.isBrowser || isSlack || isTeams || isClaude || isPerplexity || isChatGPT || isMessages || isMicrosoftOffice || context.isMacCatalystApp || usesBrowserStyleReplacement {
+        if usesBrowserStyleFromQuirk || usesBrowserStyleFromConfig || context.isBrowser || context.isMacCatalystApp {
             await applyBrowserTextReplacementAsync(for: error, with: suggestion, element: element, context: context)
             return
         }
@@ -1278,11 +1265,9 @@ extension AnalysisCoordinator {
 
         lastReplacementTime = Date()
 
-        let isMicrosoftOffice = context.bundleIdentifier == "com.microsoft.Word" ||
-            context.bundleIdentifier == "com.microsoft.Powerpoint" ||
-            context.bundleIdentifier == "com.microsoft.Outlook"
-        let isPages = context.bundleIdentifier == "com.apple.iWork.Pages"
-        let usesOfficeStyleReplacement = isMicrosoftOffice || isPages
+        // Check if app requires focus+paste replacement (Office, Pages, etc.)
+        let appBehaviorForReplacement = AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier)
+        let usesOfficeStyleReplacement = appBehaviorForReplacement.knownQuirks.contains(.requiresFocusPasteReplacement)
 
         // Find error text and position based on app type
         let (errorText, fallbackRange, currentError) = usesOfficeStyleReplacement
@@ -1353,9 +1338,9 @@ extension AnalysisCoordinator {
 
         _ = selectTextForReplacement(targetText: targetText, fallbackRange: fallbackRange, element: element, context: context)
 
-        // Teams: Validate selection before paste to prevent wrong placement for scrolled-out content
-        let isTeams = context.bundleIdentifier == "com.microsoft.teams2"
-        if isTeams, !targetText.isEmpty {
+        // Validate selection before paste to prevent wrong placement for scrolled-out content
+        // This applies to apps with virtualized content (like Teams) where errors may scroll out of view
+        if appBehaviorForReplacement.knownQuirks.contains(.requiresSelectionValidationBeforePaste), !targetText.isEmpty {
             // Small delay for selection to take effect
             try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
 
@@ -1365,13 +1350,13 @@ extension AnalysisCoordinator {
                let selectedText = selectedTextRef as? String
             {
                 if selectedText != targetText {
-                    Logger.warning("Teams: Selection mismatch (got \(selectedText.count) chars, expected \(targetText.count) chars) - error may be scrolled out of view, aborting", category: Logger.analysis)
+                    Logger.warning("Selection mismatch (got \(selectedText.count) chars, expected \(targetText.count) chars) - error may be scrolled out of view, aborting", category: Logger.analysis)
                     SuggestionPopover.shared.showStatusMessage("Scroll to see this error first")
                     return
                 }
-                Logger.debug("Teams: Selection validated (\(targetText.count) chars)", category: Logger.analysis)
+                Logger.debug("Selection validated (\(targetText.count) chars)", category: Logger.analysis)
             } else {
-                Logger.warning("Teams: Could not validate selection - aborting to prevent wrong placement", category: Logger.analysis)
+                Logger.warning("Could not validate selection - aborting to prevent wrong placement", category: Logger.analysis)
                 SuggestionPopover.shared.showStatusMessage("Scroll to see this error first")
                 return
             }
@@ -1382,7 +1367,7 @@ extension AnalysisCoordinator {
             suggestion: suggestion,
             currentError: currentError,
             context: context,
-            isMicrosoftOffice: isMicrosoftOffice
+            usesFocusPasteReplacement: usesOfficeStyleReplacement
         )
     }
 
@@ -1541,7 +1526,7 @@ extension AnalysisCoordinator {
 
     /// Perform clipboard-based text replacement with activation, paste, and restore
     @MainActor
-    private func performClipboardReplacement(suggestion: String, currentError: GrammarErrorModel, context: ApplicationContext, isMicrosoftOffice: Bool) async {
+    private func performClipboardReplacement(suggestion: String, currentError: GrammarErrorModel, context: ApplicationContext, usesFocusPasteReplacement: Bool) async {
         let pasteboard = NSPasteboard.general
         let originalString = pasteboard.string(forType: .string)
         let originalChangeCount = pasteboard.changeCount
@@ -1560,18 +1545,18 @@ extension AnalysisCoordinator {
             return
         }
 
-        // Perplexity at position 0: use direct typing to avoid paragraph creation bug
-        // Perplexity's Chromium contenteditable creates new paragraphs when pasting at position 0
-        let isPerplexity = context.bundleIdentifier == "ai.perplexity.mac"
-        if isPerplexity && currentError.start == 0 {
-            Logger.debug("Perplexity position 0: Using direct typing to avoid paragraph bug", category: Logger.analysis)
+        // Apps with position 0 paragraph creation bug: use direct typing to avoid it
+        // Some Chromium contenteditable apps create new paragraphs when pasting at position 0
+        let appBehavior = AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier)
+        if appBehavior.knownQuirks.contains(.requiresDirectTypingAtPosition0), currentError.start == 0 {
+            Logger.debug("Position 0: Using direct typing to avoid paragraph bug", category: Logger.analysis)
             await performCatalystDirectTyping(suggestion: suggestion, currentError: currentError, pasteboard: pasteboard, originalString: originalString)
             return
         }
 
-        // Try menu paste first (unless skipped for Catalyst/Office)
+        // Try menu paste first (unless skipped for Catalyst/focus-paste apps)
         var pasteSucceeded = false
-        let skipMenuPaste = context.isMacCatalystApp || isMicrosoftOffice
+        let skipMenuPaste = context.isMacCatalystApp || usesFocusPasteReplacement
 
         if !skipMenuPaste, let app = targetApp {
             let appElement = AXUIElementCreateApplication(app.processIdentifier)
@@ -1612,7 +1597,7 @@ extension AnalysisCoordinator {
         let lengthDelta = suggestion.count - (currentError.end - currentError.start)
         removeErrorAndUpdateUI(currentError, suggestion: suggestion, lengthDelta: lengthDelta)
 
-        if isMicrosoftOffice {
+        if usesFocusPasteReplacement {
             positionResolver.clearCache()
         } else {
             invalidateCacheAfterReplacement(at: currentError.start ..< currentError.end)

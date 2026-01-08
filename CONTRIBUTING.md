@@ -142,12 +142,13 @@ TextWarden requires Accessibility permissions to monitor text in other applicati
 
 ## Adding Application Support
 
-TextWarden uses two configuration systems for applications:
+TextWarden uses three configuration systems for applications:
 
-1. **AppRegistry** (`Sources/AppConfiguration/`) - Technical behavior like positioning strategies and text replacement methods
-2. **UserPreferences** (`Sources/Models/UserPreferences.swift`) - Default pause/hidden states
+1. **AppRegistry** (`Sources/AppConfiguration/AppRegistry.swift`) - Technical behavior like positioning strategies, text replacement methods, and font configuration
+2. **AppBehaviorRegistry** (`Sources/AppConfiguration/AppBehaviorRegistry.swift`) - Per-app overlay behaviors (underline visibility, popover timing, scroll handling, quirks)
+3. **UserPreferences** (`Sources/Models/UserPreferences.swift`) - Default pause/hidden states
 
-Most applications work out of the box with the default configuration. You only need to add custom configuration if an app requires special handling.
+Most applications work out of the box with automatic capability detection. You only need to add custom configuration if an app requires special handling.
 
 ### Automatic Capability Detection
 
@@ -233,53 +234,52 @@ static let terminalApplications: Set<String> = [
 
 ### Adding Custom App Behavior
 
-Only add to AppRegistry if the automatic detection doesn't work correctly, or if an app needs special handling that can't be auto-detected (crashes, font config, behavioral flags).
+For apps that need special handling, you may need to add configuration to **both** `AppRegistry` (for positioning/replacement) and `AppBehaviorRegistry` (for overlay/timing behavior).
 
-Edit `Sources/AppConfiguration/AppRegistry.swift`:
+**For detailed instructions, see [ARCHITECTURE.md](ARCHITECTURE.md#how-to-add-a-new-app)** which covers:
+- Creating a new `AppBehavior` implementation
+- Registering in `AppBehaviorRegistry`
+- Adding `AppConfiguration` to `AppRegistry` if needed
+- Which quirks to use for common issues
+
+**Quick example - AppBehavior for overlay timing:**
+
+Create `Sources/AppConfiguration/Behaviors/MyAppBehavior.swift`:
 
 ```swift
-static let myApp = AppConfiguration(
-    identifier: "myapp",
-    displayName: "My App",
-    bundleIDs: ["com.example.myapp"],
-    category: .electron,  // .native, .electron, .browser, .custom
-    parserType: .generic,
-    fontConfig: FontConfig(defaultSize: 14, fontFamily: nil, spacingMultiplier: 1.0),
-    horizontalPadding: 8,
-    features: AppFeatures(
-        visualUnderlinesEnabled: true,  // false if positioning APIs don't work
-        textReplacementMethod: .browserStyle,
-        requiresTypingPause: true,
-        supportsFormattedText: false,
-        childElementTraversal: true,
-        delaysAXNotifications: false,
-        focusBouncesDuringPaste: false,
-        requiresFullReanalysisAfterReplacement: true,
-        defersTextExtraction: false,
-        requiresFrameValidation: false,
-        hasTextMarkerIndexOffset: false
-    )
-)
+struct MyAppBehavior: AppBehavior {
+    let bundleIdentifier = "com.example.myapp"
+    let displayName = "My App"
 
-// Register in registerBuiltInConfigurations()
-private func registerBuiltInConfigurations() {
-    // ... existing registrations ...
-    register(.myApp)
+    let underlineVisibility = UnderlineVisibilityBehavior(
+        showDelay: 0.1,
+        boundsValidation: .requirePositiveOrigin,
+        showDuringTyping: false,
+        minimumTextLength: 1
+    )
+
+    // See ARCHITECTURE.md for all behavior types
+    let knownQuirks: Set<AppQuirk> = [
+        .webBasedRendering,           // Web-based text rendering
+        .requiresBrowserStyleReplacement,  // Needs clipboard+paste
+    ]
+
+    let usesUTF16TextIndices = false  // true for web apps like Notion/Slack
 }
+```
+
+Register in `AppBehaviorRegistry.init()`:
+```swift
+register(MyAppBehavior())
 ```
 
 ### Testing Accessibility APIs
 
-Use Accessibility Inspector (Xcode → Open Developer Tool) to test if the app's accessibility APIs return valid character bounds. If `AXBoundsForRange` returns garbage values, set `visualUnderlinesEnabled: false`.
+Use Accessibility Inspector (Xcode → Open Developer Tool) to test if the app's accessibility APIs return valid character bounds. If `AXBoundsForRange` returns garbage values, set `visualUnderlinesEnabled: false` in `AppRegistry`.
 
-### App Categories
+### Per-App Isolation
 
-| Category | Use For | Notes |
-|----------|---------|-------|
-| `.native` | Standard macOS apps | Full functionality |
-| `.electron` | Electron apps (Slack, VSCode) | May need custom positioning |
-| `.browser` | Web browsers | Underlines usually disabled |
-| `.custom` | Apps with unique behavior | Fully custom configuration |
+TextWarden uses **per-app isolation** rather than category-based grouping. Each app has its own complete configuration in a dedicated behavior file (e.g., `SlackBehavior.swift`, `NotionBehavior.swift`). This prevents cross-app contamination where fixing one app would break another.
 
 ## Code Style
 

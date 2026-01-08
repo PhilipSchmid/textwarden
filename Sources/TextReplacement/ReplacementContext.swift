@@ -123,19 +123,9 @@ struct ReplacementContext {
 
     /// Determine which index system an app uses
     private static func determineIndexSystem(for appConfig: AppConfiguration) -> IndexSystem {
-        // Electron and browser apps use UTF-16 (JavaScript/Chromium-based)
-        switch appConfig.category {
-        case .electron, .browser:
-            .utf16
-        case .native, .custom:
-            // Mail and Office apps use WebKit, which also uses UTF-16
-            switch appConfig.parserType {
-            case .mail, .word, .powerpoint, .outlook:
-                .utf16
-            default:
-                .grapheme
-            }
-        }
+        // Use AppBehaviorRegistry to get the explicit per-app index system setting
+        let appBehavior = AppBehaviorRegistry.shared.behavior(for: appConfig.identifier)
+        return appBehavior.usesUTF16TextIndices ? .utf16 : .grapheme
     }
 
     /// Convert Harper's scalar range to the target index system

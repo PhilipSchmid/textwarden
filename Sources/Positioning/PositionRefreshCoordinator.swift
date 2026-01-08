@@ -205,11 +205,12 @@ class PositionRefreshCoordinator {
                 return
             }
 
-            // For Slack, scrolling affects the message list, NOT the compose field.
-            // Skip hiding underlines to avoid flickering. The compose field position
-            // is stable even when scrolling through old messages.
-            if bundleID == "com.tinyspeck.slackmacgap" {
-                Logger.trace("PositionRefreshCoordinator: Skipping scroll hide for Slack", category: Logger.ui)
+            // Some apps (like Slack) have scrollable message lists but stable compose fields.
+            // Skip hiding underlines to avoid flickering - the compose field position
+            // is stable even when scrolling through messages.
+            let appBehavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
+            if appBehavior.knownQuirks.contains(.requiresCustomScrollHandling) {
+                Logger.trace("PositionRefreshCoordinator: Skipping scroll hide for app with custom scroll handling", category: Logger.ui)
                 return
             }
 

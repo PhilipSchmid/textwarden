@@ -505,16 +505,16 @@ class TextMonitor: ObservableObject {
             AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
             let roleString = role as? String ?? "Unknown"
 
-            // For Electron apps (Slack, Notion, etc.), AXWindow focus events are spurious -
+            // For web-based apps (Slack, Notion, etc.), AXWindow focus events are spurious -
             // they fire briefly when clicking in the compose field before focus settles.
             // Preserve existing editable element monitoring instead of clearing.
             if roleString == "AXWindow",
                let bundleID = currentContext?.bundleIdentifier,
-               AppRegistry.shared.configuration(for: bundleID).category == .electron,
+               AppBehaviorRegistry.shared.behavior(for: bundleID).knownQuirks.contains(.webBasedRendering),
                let existingElement = monitoredElement,
                isEditableElement(existingElement)
             {
-                Logger.debug("TextMonitor: Ignoring AXWindow focus in Electron app - preserving existing editable element", category: Logger.accessibility)
+                Logger.debug("TextMonitor: Ignoring AXWindow focus in web-based app - preserving existing editable element", category: Logger.accessibility)
                 return
             }
 
@@ -537,16 +537,16 @@ class TextMonitor: ObservableObject {
                 }
                 Logger.debug("TextMonitor: Element not editable yet (role: \(roleString)), will retry...", category: Logger.accessibility)
             } else {
-                // For Electron apps (Notion, Slack, Teams, etc.), preserve existing editable element
+                // For web-based apps (Notion, Slack, Teams, etc.), preserve existing editable element
                 // when focus moves to non-editable elements like sidebars or navigation.
                 // This prevents the issue where hovering over or clicking sidebar elements
                 // fires focus notifications that would otherwise hide overlays.
                 if let bundleID = currentContext?.bundleIdentifier,
-                   AppRegistry.shared.configuration(for: bundleID).category == .electron,
+                   AppBehaviorRegistry.shared.behavior(for: bundleID).knownQuirks.contains(.webBasedRendering),
                    let existingElement = monitoredElement,
                    isEditableElement(existingElement)
                 {
-                    Logger.debug("TextMonitor: Ignoring \(roleString) focus in Electron app - preserving existing editable element", category: Logger.accessibility)
+                    Logger.debug("TextMonitor: Ignoring \(roleString) focus in web-based app - preserving existing editable element", category: Logger.accessibility)
                     return
                 }
 

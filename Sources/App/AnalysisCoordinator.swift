@@ -163,6 +163,12 @@ class AnalysisCoordinator: ObservableObject {
     /// Global scroll wheel event monitor
     var scrollWheelMonitor: Any?
 
+    // MARK: - Overlay State Machine
+
+    /// Centralized state machine for overlay visibility
+    /// Replaces scattered boolean flags with explicit states and transitions
+    let overlayStateMachine = OverlayStateMachine()
+
     /// Coordinator for app-specific position refresh triggers (e.g., Slack click-based refresh)
     let positionRefreshCoordinator = PositionRefreshCoordinator()
 
@@ -348,7 +354,13 @@ class AnalysisCoordinator: ObservableObject {
         setupPositionRefreshCoordinator()
         setupTypingCallback()
         setupIndicatorCallbacks()
+        setupOverlayStateMachine()
         // Window position monitoring will be started when we begin monitoring an app
+    }
+
+    /// Setup the overlay state machine delegate
+    private func setupOverlayStateMachine() {
+        overlayStateMachine.delegate = self
     }
 
     // MARK: - Setup Methods
@@ -1156,6 +1168,15 @@ class AnalysisCoordinator: ObservableObject {
                 showErrorUnderlines(currentErrors, element: element)
             }
         }
+
+        // Forward native popover detection to state machine
+        errorOverlay.onNativePopoverDetected = { [weak self] in
+            self?.overlayStateMachine.handle(.nativePopoverDetected)
+        }
+
+        errorOverlay.onNativePopoverDismissed = { [weak self] in
+            self?.overlayStateMachine.handle(.nativePopoverDismissed)
+        }
     }
 
     /// Check if two errors are the same (by position)
@@ -1448,6 +1469,9 @@ class AnalysisCoordinator: ObservableObject {
 
         // Update TypingDetector with current bundle ID for keyboard event filtering
         typingDetector.currentBundleID = context.bundleIdentifier
+
+        // Configure overlay state machine for this app's behavior
+        overlayStateMachine.configure(for: context.bundleIdentifier)
 
         Logger.debug("AnalysisCoordinator: Permission granted, calling textMonitor.startMonitoring", category: Logger.analysis)
         textMonitor.startMonitoring(
@@ -1779,12 +1803,13 @@ class AnalysisCoordinator: ObservableObject {
             return true
         }
 
-        // For Electron apps (Slack, Teams, etc.), don't immediately hide overlays when focus moves away.
+        // For web-based apps (Slack, Teams, etc.), don't immediately hide overlays when focus moves away.
         // Focus often moves briefly to non-editable elements (message list, old messages) and returns.
         // The mouse-leave fade (25%) provides visual feedback, and full hide happens only when
         // text actually changes or focus moves to a different editable element.
-        if appConfig.category == .electron, !currentErrors.isEmpty {
-            Logger.debug("AnalysisCoordinator: Electron app - preserving overlays while focus is away (errors: \(currentErrors.count))", category: Logger.analysis)
+        let appBehavior = AppBehaviorRegistry.shared.behavior(for: appConfig.identifier)
+        if appBehavior.knownQuirks.contains(.webBasedRendering), !currentErrors.isEmpty {
+            Logger.debug("AnalysisCoordinator: Web-based app - preserving overlays while focus is away (errors: \(currentErrors.count))", category: Logger.analysis)
             // Don't clear previousText - we want to detect when we return to the same text
             // Don't hide errorOverlay - the mouse-leave handler already fades it
             // Just hide the popover to avoid it obscuring the UI
@@ -1815,8 +1840,8 @@ class AnalysisCoordinator: ObservableObject {
     /// Invalidate caches based on text changes
     private func invalidateCachesForTextChange(
         text: String,
-        context _: ApplicationContext,
-        appConfig: AppConfiguration,
+        context: ApplicationContext,
+        appConfig _: AppConfiguration,
         isInReplacementGracePeriod: Bool
     ) {
         // Skip during active replacement
@@ -1868,17 +1893,18 @@ class AnalysisCoordinator: ObservableObject {
             positionResolver.clearCache()
         }
 
-        // Electron/browser apps: Clear errors on truly significant text changes
+        // Web-based apps: Clear errors on truly significant text changes
         // (e.g., conversation switch, large paste). But avoid clearing on minor AX fluctuations
         // which cause flickering. We consider it "truly significant" if >20% of chars changed.
         // Skip this if we're returning to previously analyzed text (errors were just restored above)
-        if appConfig.category == .electron || appConfig.category == .browser, !isTyping, !isReturningToAnalyzedText {
+        let cacheBehavior = AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier)
+        if cacheBehavior.knownQuirks.contains(.webBasedRendering), !isTyping, !isReturningToAnalyzedText {
             let changeRatio = computeTextChangeRatio(oldText: previousText, newText: text)
             if changeRatio > 0.2 {
-                Logger.debug("AnalysisCoordinator: Electron/browser significant change (\(Int(changeRatio * 100))% changed) - clearing errors", category: Logger.analysis)
+                Logger.debug("AnalysisCoordinator: Web-based app significant change (\(Int(changeRatio * 100))% changed) - clearing errors", category: Logger.analysis)
                 currentErrors.removeAll()
             } else {
-                Logger.trace("AnalysisCoordinator: Electron/browser minor change (\(Int(changeRatio * 100))% changed) - keeping errors", category: Logger.analysis)
+                Logger.trace("AnalysisCoordinator: Web-based app minor change (\(Int(changeRatio * 100))% changed) - keeping errors", category: Logger.analysis)
             }
         }
 
@@ -2278,15 +2304,15 @@ class AnalysisCoordinator: ObservableObject {
             return
         }
 
-        // For Electron apps: Add a small delay to let the DOM stabilize
-        // Electron apps (Notion, Slack) may have stale AX positions briefly after text changes
+        // For web-based apps: Add a small delay to let the DOM stabilize
+        // Web-based apps (Notion, Slack) may have stale AX positions briefly after text changes
         let bundleID = monitoredContext?.bundleIdentifier ?? ""
-        let appConfig = appRegistry.configuration(for: bundleID)
-        if appConfig.category == .electron {
+        let underlineBehavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
+        if underlineBehavior.knownQuirks.contains(.webBasedRendering) {
             // Cancel any pending layout timer
             electronLayoutTimer?.invalidate()
 
-            // Delay showing underlines to let Electron's DOM stabilize
+            // Delay showing underlines to let the DOM stabilize
             electronLayoutTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.textSettleTime, repeats: false) { [weak self] _ in
                 Task { @MainActor [weak self] in
                     self?.showErrorUnderlinesInternal(errors, element: element)
@@ -2606,5 +2632,45 @@ extension AnalysisCoordinator: PositionRefreshDelegate {
 
         // Clear position cache since positions are now stale
         positionResolver.clearCache()
+    }
+}
+
+// MARK: - OverlayStateMachineDelegate
+
+extension AnalysisCoordinator: OverlayStateMachineDelegate {
+    func stateMachine(
+        _: OverlayStateMachine,
+        didTransitionFrom previousState: OverlayStateMachine.State,
+        to newState: OverlayStateMachine.State,
+        event: OverlayStateMachine.Event
+    ) {
+        Logger.debug(
+            "OverlayStateMachine: \(previousState) → \(newState) [event: \(event)]",
+            category: Logger.ui
+        )
+    }
+
+    func stateMachineShouldShowUnderlines(_: OverlayStateMachine) {
+        guard let element = textMonitor.monitoredElement else { return }
+
+        Logger.debug("OverlayStateMachine: Showing underlines", category: Logger.ui)
+        showErrorUnderlines(currentErrors, element: element)
+    }
+
+    func stateMachineShouldHideAllOverlays(_: OverlayStateMachine) {
+        Logger.debug("OverlayStateMachine: Hiding all overlays", category: Logger.ui)
+        hideAllOverlays()
+    }
+
+    func stateMachineShouldShowPopover(_: OverlayStateMachine, type: OverlayStateMachine.PopoverType) {
+        Logger.debug("OverlayStateMachine: Should show popover \(type)", category: Logger.ui)
+        // Popover showing is currently handled by ErrorOverlayWindow hover callbacks
+        // This delegate method will be used when we further refactor the popover system
+    }
+
+    func stateMachineShouldHidePopover(_: OverlayStateMachine) {
+        Logger.debug("OverlayStateMachine: Hiding popover", category: Logger.ui)
+        suggestionPopover.hide()
+        PopoverManager.shared.hideAll()
     }
 }

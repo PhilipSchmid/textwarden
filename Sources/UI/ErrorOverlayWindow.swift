@@ -98,6 +98,12 @@ class ErrorOverlayWindow: NSPanel {
     /// Callback when user clicks on a readability underline
     var onReadabilityClick: ((SentenceReadabilityResult, CGPoint, CGRect?) -> Void)?
 
+    /// Callback when native popover is detected (e.g., Slack ReactModal)
+    var onNativePopoverDetected: (() -> Void)?
+
+    /// Callback when native popover is dismissed
+    var onNativePopoverDismissed: (() -> Void)?
+
     /// Global event monitor for mouse clicks
     private var clickMonitor: Any?
 
@@ -179,21 +185,22 @@ class ErrorOverlayWindow: NSPanel {
             }
 
             // Check if mouse is within our window bounds
-            // For Slack, expand the detection area to include the formatting toolbar above
-            // the compose field. This prevents fade when user interacts with Bold/Italic/etc.
+            // For apps with formatting toolbar near compose field, expand the detection area
+            // to include the toolbar. This prevents fade when user interacts with Bold/Italic/etc.
             // buttons which are part of the compose experience.
             var effectiveFrame = frame
-            if let bundleID = currentBundleID,
-               bundleID == "com.tinyspeck.slackmacgap"
-            {
-                // Expand upward by 100px to include formatting toolbar area
-                // Also expand horizontally slightly for edge tolerance
-                effectiveFrame = CGRect(
-                    x: frame.origin.x - 30,
-                    y: frame.origin.y, // Keep bottom edge (Cocoa coords: origin is bottom-left)
-                    width: frame.width + 60,
-                    height: frame.height + 100 // Expand upward in Cocoa coords
-                )
+            if let bundleID = currentBundleID {
+                let appBehavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
+                if appBehavior.knownQuirks.contains(.hasFormattingToolbarNearCompose) {
+                    // Expand upward by 100px to include formatting toolbar area
+                    // Also expand horizontally slightly for edge tolerance
+                    effectiveFrame = CGRect(
+                        x: frame.origin.x - 30,
+                        y: frame.origin.y, // Keep bottom edge (Cocoa coords: origin is bottom-left)
+                        width: frame.width + 60,
+                        height: frame.height + 100 // Expand upward in Cocoa coords
+                    )
+                }
             }
             let isInsideFrame = effectiveFrame.contains(mouseLocation)
             Logger.trace("ErrorOverlay: Mouse tracking - at \(mouseLocation), overlay: \(frame), effective: \(effectiveFrame), inside: \(isInsideFrame)", category: Logger.ui)
@@ -207,23 +214,23 @@ class ErrorOverlayWindow: NSPanel {
                     onHoverEnd?()
                 }
 
-                // For Electron apps (Slack, Notion, Teams, etc.), DON'T fade underlines when mouse
-                // moves elsewhere. Electron apps typically have separate scrollable message lists
+                // For web-based apps (Slack, Notion, Teams, etc.), DON'T fade underlines when mouse
+                // moves elsewhere. These apps typically have separate scrollable message lists
                 // above a fixed compose area - mouse leaving the overlay is normal usage, not
                 // an indication the user wants to interact with the app's popovers.
                 // App-specific popover detection (like Slack's ReactModal) handles fading when needed.
-                let isElectronApp = currentBundleID.flatMap { bundleID in
-                    AppRegistry.shared.configuration(for: bundleID).category == .electron
+                let isWebBasedApp = currentBundleID.flatMap { bundleID in
+                    AppBehaviorRegistry.shared.behavior(for: bundleID).knownQuirks.contains(.webBasedRendering)
                 } ?? false
 
-                if isElectronApp {
-                    // For Electron apps, only update mouse tracking state, don't fade
+                if isWebBasedApp {
+                    // For web-based apps, only update mouse tracking state, don't fade
                     if isMouseInsideOverlay {
                         isMouseInsideOverlay = false
-                        Logger.trace("ErrorOverlay: Mouse left overlay bounds (Electron) - keeping full opacity", category: Logger.ui)
+                        Logger.trace("ErrorOverlay: Mouse left overlay bounds (web-based app) - keeping full opacity", category: Logger.ui)
                     }
                 } else {
-                    // For non-Electron apps, fade underlines when mouse leaves
+                    // For native apps, fade underlines when mouse leaves
                     // to avoid obscuring app-native popovers
                     if isMouseInsideOverlay {
                         isMouseInsideOverlay = false
@@ -1316,6 +1323,9 @@ class ErrorOverlayWindow: NSPanel {
             isSlackPopoverVisible = true
             Logger.debug("ErrorOverlay: Slack ReactModal popover detected - fading underlines and hiding popovers", category: Logger.ui)
 
+            // Notify state machine via callback
+            onNativePopoverDetected?()
+
             // Hide any open TextWarden popovers to avoid overlap with Slack's popover
             SuggestionPopover.shared.hide()
             ReadabilityPopover.shared.hide()
@@ -1331,6 +1341,9 @@ class ErrorOverlayWindow: NSPanel {
         else if !popoverVisible, isSlackPopoverVisible {
             isSlackPopoverVisible = false
             Logger.debug("ErrorOverlay: Slack ReactModal popover hidden - restoring underlines", category: Logger.ui)
+
+            // Notify state machine via callback
+            onNativePopoverDismissed?()
 
             // Restore underlines
             NSAnimationContext.runAnimationGroup { context in

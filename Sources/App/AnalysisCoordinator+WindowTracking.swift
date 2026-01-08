@@ -127,13 +127,13 @@ extension AnalysisCoordinator {
 
         // Text is now empty (e.g., message was sent in chat app)
         if currentText.isEmpty, !analyzedText.isEmpty {
-            // For Electron apps (Slack, Teams, etc.), focus can briefly land on elements
+            // For web-based apps (Slack, Teams, etc.), focus can briefly land on elements
             // that return empty text (like AXWebArea) before settling on the actual compose field.
             // Don't clear errors immediately - let the focus settle first.
             let bundleID = textMonitor.currentContext?.bundleIdentifier ?? ""
-            let appConfig = AppRegistry.shared.configuration(for: bundleID)
-            if appConfig.category == .electron {
-                Logger.trace("Text validation: Skipping empty text clear for Electron app - focus may still be settling", category: Logger.analysis)
+            let emptyTextBehavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
+            if emptyTextBehavior.knownQuirks.contains(.webBasedRendering) {
+                Logger.trace("Text validation: Skipping empty text clear for web-based app - focus may still be settling", category: Logger.analysis)
                 return
             }
 
@@ -158,24 +158,22 @@ extension AnalysisCoordinator {
         // Note: We check for significant difference to avoid false positives from typing
         let textChanged = !currentText.hasPrefix(analyzedText) && !analyzedText.hasPrefix(currentText)
         if textChanged {
-            // Electron apps (Notion, Slack, etc.) have content parsers that can return slightly
+            // Web-based apps (Notion, Slack, etc.) have content parsers that can return slightly
             // different filtered text each time due to UI element filtering, code block detection, etc.
             // This causes false "text changed" detection. Skip text validation entirely for these apps
             // since position monitoring handles sidebar toggles and the element frame tracking handles
             // most layout changes.
             let bundleID = textMonitor.currentContext?.bundleIdentifier ?? ""
-            if ElectronDetector.usesWebTechnologies(bundleID) {
-                Logger.trace("Text validation: Skipping for Electron app (parser may return different filtered text)", category: Logger.analysis)
+            let appBehavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
+            if appBehavior.knownQuirks.contains(.webBasedRendering) {
+                Logger.trace("Text validation: Skipping for web-based app (parser may return different filtered text)", category: Logger.analysis)
                 return
             }
 
             // Check if this app needs special handling for text validation
             // Some apps have unreliable AX notifications that cause text to appear changed
             let isCatalystApp = textMonitor.currentContext?.isMacCatalystApp ?? false
-            let needsSpecialHandling = bundleID == "com.microsoft.Word" ||
-                bundleID == "com.microsoft.Powerpoint" ||
-                bundleID == "com.microsoft.Outlook" ||
-                bundleID == "com.tinyspeck.slackmacgap"
+            let needsSpecialHandling = appBehavior.knownQuirks.contains(.requiresFullReanalysisAfterReplacement)
             let needsReanalysis = isCatalystApp || needsSpecialHandling
 
             Logger.debug("Text validation: Text content changed - \(needsReanalysis ? "triggering re-analysis" : "hiding indicator") (possibly switched conversation)", category: Logger.analysis)
@@ -294,11 +292,12 @@ extension AnalysisCoordinator {
 
         // Track element frame separately for apps where the element can move without window changes:
         // - Mac Catalyst apps: text input field shrinks when message sent
-        // - Electron apps: element shifts when sidebar is toggled (Slack, Claude, ChatGPT, Perplexity, etc.)
+        // - Web-based apps: element shifts when sidebar is toggled (Slack, Claude, ChatGPT, Perplexity, etc.)
         if let context = textMonitor.currentContext {
             let bundleID = context.bundleIdentifier
-            let isElectronApp = ElectronDetector.usesWebTechnologies(bundleID)
-            if context.isMacCatalystApp || isElectronApp {
+            let behavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
+            let isWebBasedApp = behavior.knownQuirks.contains(.webBasedRendering)
+            if context.isMacCatalystApp || isWebBasedApp {
                 checkElementFrameForApps(element: element, isCatalyst: context.isMacCatalystApp)
             }
         }
@@ -324,18 +323,18 @@ extension AnalysisCoordinator {
                     Logger.debug("Window monitoring: Movement detected - distance: \(positionDistance)px", category: Logger.analysis)
                 }
 
-                // For Electron apps, resize events are typically sidebar toggles or internal layout changes.
+                // For web-based apps, resize events are typically sidebar toggles or internal layout changes.
                 // Don't hide overlays for these - let the element frame monitoring handle smooth updates.
                 // Only hide overlays for position-only changes (actual window dragging).
-                let isElectronApp = textMonitor.currentContext.flatMap { context in
-                    ElectronDetector.usesWebTechnologies(context.bundleIdentifier)
+                let isWebBasedApp = textMonitor.currentContext.flatMap { context in
+                    AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier).knownQuirks.contains(.webBasedRendering)
                 } ?? false
 
-                if isElectronApp, sizeChanged {
-                    // Electron app resize (sidebar toggle) - clear cache and wait for stability.
+                if isWebBasedApp, sizeChanged {
+                    // Web-based app resize (sidebar toggle) - clear cache and wait for stability.
                     // Don't call errorOverlay.hide() - it will clear stale underlines internally
                     // without hiding the window, avoiding a flash.
-                    Logger.debug("Window monitoring: Electron app resize - triggering stability handler (sidebar toggle)", category: Logger.analysis)
+                    Logger.debug("Window monitoring: Web-based app resize - triggering stability handler (sidebar toggle)", category: Logger.analysis)
                     positionResolver.clearCache()
                     // Trigger sidebar toggle handling to wait for AX stability
                     handleElementPositionChangeInElectronApp()
@@ -596,19 +595,24 @@ extension AnalysisCoordinator {
             return
         }
 
-        // For Slack, scrolling affects the message list, NOT the compose field.
-        // Skip hiding underlines to avoid flickering. The compose field position
-        // is stable even when scrolling through old messages.
-        if let bundleID = textMonitor.currentContext?.bundleIdentifier,
-           bundleID == "com.tinyspeck.slackmacgap"
-        {
-            Logger.trace("Scroll monitoring: Skipping scroll hide for Slack", category: Logger.analysis)
+        // Get app-specific scroll behavior from AppBehaviorRegistry
+        let bundleID = textMonitor.currentContext?.bundleIdentifier ?? ""
+        let appBehavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
+
+        // Check if this app should hide overlays on scroll
+        // Some apps (like Slack) have unreliable scroll events or scroll affects
+        // message list, not compose field - skip hiding to avoid flickering
+        if !appBehavior.scrollBehavior.hideOnScrollStart {
+            Logger.trace("Scroll monitoring: Skipping scroll hide for \(appBehavior.displayName) (hideOnScrollStart=false)", category: Logger.analysis)
             return
         }
 
         if !overlaysHiddenDueToScroll {
             Logger.debug("Scroll monitoring: Scroll started - hiding underlines only", category: Logger.analysis)
             overlaysHiddenDueToScroll = true
+
+            // Notify state machine of scroll event
+            overlayStateMachine.handle(.scrollStarted)
 
             // Hide underlines only (not floating indicator)
             errorOverlay.hide()
@@ -618,11 +622,8 @@ extension AnalysisCoordinator {
             positionResolver.clearCache()
         }
 
-        // Determine restore delay based on app type
-        // Electron/Chromium apps need much longer delay for AX layer to update positions
-        let bundleID = textMonitor.currentContext?.bundleIdentifier ?? ""
-        let isElectronApp = ElectronDetector.usesWebTechnologies(bundleID)
-        let restoreDelay: TimeInterval = isElectronApp ? 0.7 : 0.3
+        // Get restore delay from app behavior
+        let restoreDelay = appBehavior.scrollBehavior.reshowDelay
 
         // Start/restart debounce timer for restore (will fire when scrolling stops)
         scrollDebounceTimer = Timer.scheduledTimer(withTimeInterval: restoreDelay, repeats: false) { [weak self] _ in
@@ -638,6 +639,9 @@ extension AnalysisCoordinator {
 
         Logger.debug("Scroll monitoring: Scroll stopped - restoring underlines", category: Logger.analysis)
         overlaysHiddenDueToScroll = false
+
+        // Notify state machine of scroll end
+        overlayStateMachine.handle(.scrollEnded)
 
         // Re-show underlines using cached errors (positions will be recalculated)
         if let element = textMonitor.monitoredElement,
@@ -701,6 +705,9 @@ extension AnalysisCoordinator {
         overlaysHiddenDueToMovement = true
         positionSyncRetryCount = 0 // Reset retry counter for new movement cycle
         lastElementPosition = nil // Reset element position tracking
+
+        // Notify state machine of window movement
+        overlayStateMachine.handle(.windowMoveStarted)
 
         // Immediately hide all overlays
         errorOverlay.hide()
@@ -894,12 +901,13 @@ extension AnalysisCoordinator {
     /// Final step of reshowing overlays after all position checks pass
     func finalizeOverlayReshow() {
         let bundleID = textMonitor.currentContext?.bundleIdentifier ?? ""
-        let isElectronApp = ElectronDetector.usesWebTechnologies(bundleID)
+        let appBehavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
+        let isWebBasedApp = appBehavior.knownQuirks.contains(.webBasedRendering)
 
-        // For Electron apps after resize, verify ACTUAL CONTENT position stability
+        // For web-based apps after resize, verify ACTUAL CONTENT position stability
         // Notion centers content blocks AFTER the window resize completes
         // We must track character bounds, not just element position
-        if lastResizeTime != nil, isElectronApp {
+        if lastResizeTime != nil, isWebBasedApp {
             guard let element = textMonitor.monitoredElement else {
                 completeOverlayReshow()
                 return
@@ -1004,6 +1012,9 @@ extension AnalysisCoordinator {
         lastResizeTime = nil
         contentStabilityCount = 0
         lastCharacterBounds = nil
+
+        // Notify state machine that window movement is complete
+        overlayStateMachine.handle(.windowMoveEnded)
 
         // CRITICAL: Clear position cache AGAIN before re-showing overlays
         // The cache was cleared when movement started, but async analysis operations

@@ -91,11 +91,18 @@ test-rust: ## Run Rust tests
 	@cd $(RUST_DIR) && cargo test
 	@echo "$(GREEN)✅ Rust tests passed$(NC)"
 
-test-swift: ## Run Swift tests (unit tests only, excludes performance tests)
+test-swift: ## Run Swift tests (unit tests only, excludes performance benchmarks)
 	@echo "$(BLUE)🍎 Running Swift tests...$(NC)"
 	@xcodebuild test -scheme TextWarden -destination 'platform=macOS' \
+		-only-testing:TextWardenTests/AppBehaviorConsistencyTests \
+		-only-testing:TextWardenTests/AppBehaviorRegistryTests \
+		-only-testing:TextWardenTests/AppBehaviorRegressionTests \
+		-only-testing:TextWardenTests/ApplicationConfigurationTests \
+		-only-testing:TextWardenTests/PerformanceProfilerTests \
 		-only-testing:TextWardenTests/ReadabilityTests \
+		-only-testing:TextWardenTests/RetrySchedulerTests \
 		-only-testing:TextWardenTests/UserStatisticsTests \
+		-only-testing:TextWardenTests/VirtualKeyCodeTests \
 		2>&1 | tail -20
 	@echo "$(GREEN)✅ Swift tests passed$(NC)"
 
@@ -157,8 +164,15 @@ ci-check: ## Run CI checks locally (use before pushing)
 	@echo ""
 	@echo "$(YELLOW)[6/7] Running Swift tests...$(NC)"
 	@xcodebuild test -scheme TextWarden -destination 'platform=macOS' \
+		-only-testing:TextWardenTests/AppBehaviorConsistencyTests \
+		-only-testing:TextWardenTests/AppBehaviorRegistryTests \
+		-only-testing:TextWardenTests/AppBehaviorRegressionTests \
+		-only-testing:TextWardenTests/ApplicationConfigurationTests \
+		-only-testing:TextWardenTests/PerformanceProfilerTests \
 		-only-testing:TextWardenTests/ReadabilityTests \
+		-only-testing:TextWardenTests/RetrySchedulerTests \
 		-only-testing:TextWardenTests/UserStatisticsTests \
+		-only-testing:TextWardenTests/VirtualKeyCodeTests \
 		2>&1 | grep -E '(Test case|passed|failed|error:)' | tail -20
 	@echo "$(GREEN)✅ OK$(NC)"
 	@echo ""

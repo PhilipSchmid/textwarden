@@ -125,8 +125,18 @@ Sources/
 │       └── ReplacementValidator.swift            # Text validation before replace
 │
 ├── AppConfiguration/                             # Per-application settings
-│   ├── AppRegistry.swift                         # Single source of truth for configs
+│   ├── AppRegistry.swift                         # App registration and feature flags
 │   ├── AppConfiguration.swift                    # Configuration data model
+│   ├── AppBehavior.swift                         # Per-app behavior protocol
+│   ├── AppBehaviorRegistry.swift                 # Central registry for app behaviors
+│   ├── BehaviorTypes.swift                       # Behavior value types (quirks, timing, etc.)
+│   ├── Behaviors/                                # Per-app behavior specifications
+│   │   ├── SlackBehavior.swift                   # Slack-specific behavior
+│   │   ├── NotionBehavior.swift                  # Notion-specific behavior
+│   │   ├── WordBehavior.swift                    # Microsoft Word behavior
+│   │   ├── OutlookBehavior.swift                 # Microsoft Outlook behavior
+│   │   ├── TeamsBehavior.swift                   # Microsoft Teams behavior
+│   │   └── (20+ more app behaviors)              # One file per supported app
 │   ├── StrategyProfiler.swift                    # Auto-detection of app capabilities
 │   ├── StrategyProfileCache.swift                # Disk cache for profiles
 │   ├── StrategyRecommendationEngine.swift        # Profile-based recommendations
@@ -232,6 +242,79 @@ Single source of truth for application-specific configurations. Located in `Sour
 - Feature flags (visual underlines, typing pause, etc.)
 
 **Auto-Detection:** For unknown apps, `StrategyProfiler` probes accessibility capabilities and recommends settings. Results are cached in `StrategyProfileCache`.
+
+### AppBehaviorRegistry (Per-App Isolation)
+
+The `AppBehaviorRegistry` provides complete per-app behavior isolation. Located in `Sources/AppConfiguration/AppBehaviorRegistry.swift`.
+
+**Purpose:** Each application has unique accessibility quirks, timing needs, and UI behaviors. Rather than grouping apps by category (which caused cross-app contamination), each app gets its own complete configuration.
+
+**Protocol:**
+```swift
+protocol AppBehavior {
+    var bundleIdentifier: String { get }
+    var displayName: String { get }
+    var underlineVisibility: UnderlineVisibilityBehavior { get }
+    var popoverBehavior: PopoverBehavior { get }
+    var scrollBehavior: ScrollBehavior { get }
+    var mouseBehavior: MouseBehavior { get }
+    var coordinateSystem: CoordinateSystemBehavior { get }
+    var timingProfile: TimingProfile { get }
+    var knownQuirks: Set<AppQuirk> { get }
+    var usesUTF16TextIndices: Bool { get }
+}
+```
+
+**Key Behavior Types:**
+
+| Type | Purpose |
+|------|---------|
+| `UnderlineVisibilityBehavior` | When/how to show underlines (delays, validation) |
+| `PopoverBehavior` | Popover timing, direction, native popover detection |
+| `ScrollBehavior` | Hide on scroll, reliable events, fallback detection |
+| `MouseBehavior` | Movement threshold, click-outside handling |
+| `CoordinateSystemBehavior` | AX coordinate system, line height compensation |
+| `TimingProfile` | Debounce intervals, stabilization delays |
+| `AppQuirk` | Known bugs/behaviors requiring special handling |
+
+**App Quirks:**
+
+Quirks are explicit flags for known app-specific behaviors:
+
+```swift
+enum AppQuirk {
+    case chromiumEmojiWidthBug        // Emoji width calculation issues
+    case webBasedRendering            // Web-based text (affects font metrics)
+    case requiresBrowserStyleReplacement  // Needs clipboard+paste
+    case requiresFocusPasteReplacement    // Needs focus+select+paste (Office, Pages)
+    case unreliableScrollEvents       // Scroll events can't be trusted
+    case negativeXCoordinates         // App returns negative X coords
+    // ... more quirks
+}
+```
+
+**Usage:**
+```swift
+let appBehavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
+
+// Check index system
+if appBehavior.usesUTF16TextIndices {
+    range = TextIndexConverter.graphemeToUTF16Range(range, in: text)
+}
+
+// Check quirks
+if appBehavior.knownQuirks.contains(.requiresFocusPasteReplacement) {
+    // Use focus+select+paste method
+}
+```
+
+**Why Per-App Isolation?**
+
+Previously, apps were grouped by categories (`.electron`, `.native`, `.browser`). This caused cross-app contamination—fixing Slack would break Notion because they shared Electron defaults. Now each app is isolated:
+
+- Changing Slack's behavior cannot affect Notion
+- Each app's configuration is in one file (e.g., `SlackBehavior.swift`)
+- No inherited defaults that could cause unexpected behavior
 
 ### ContentParser System
 
@@ -754,12 +837,54 @@ DispatchQueue.main.async {
 
 ### Adding App-Specific Configuration
 
-1. Add to `AppRegistry.swift`:
-   ```swift
-   static let myApp = AppConfiguration(...)
-   ```
-2. Register in `registerBuiltInConfigurations()`
-3. Run `make ci-check` to verify
+**Step 1: Create App Behavior**
+
+Create a new file `Sources/AppConfiguration/Behaviors/MyAppBehavior.swift`:
+
+```swift
+struct MyAppBehavior: AppBehavior {
+    let bundleIdentifier = "com.example.myapp"
+    let displayName = "My App"
+
+    let underlineVisibility = UnderlineVisibilityBehavior(
+        showDelay: 0.1,
+        boundsValidation: .requirePositiveOrigin,
+        showDuringTyping: false,
+        minimumTextLength: 1
+    )
+
+    let popoverBehavior = PopoverBehavior(...)
+    let scrollBehavior = ScrollBehavior(...)
+    let mouseBehavior = MouseBehavior(...)
+    let coordinateSystem = CoordinateSystemBehavior(...)
+    let timingProfile = TimingProfile(...)
+
+    let knownQuirks: Set<AppQuirk> = [
+        // Add relevant quirks
+    ]
+
+    let usesUTF16TextIndices = false  // true for Electron/browser apps
+}
+```
+
+**Step 2: Register in AppBehaviorRegistry**
+
+Add to `AppBehaviorRegistry.init()`:
+```swift
+register(MyAppBehavior())
+```
+
+**Step 3: (Optional) Add to AppRegistry**
+
+If the app needs feature flags or positioning strategy overrides:
+```swift
+static let myApp = AppConfiguration(...)
+```
+
+**Step 4: Run CI Check**
+```bash
+make ci-check  # Runs formatting, linting, tests, build
+```
 
 ## Testing Strategy
 
