@@ -101,11 +101,22 @@ class SlackStrategy: GeometryProvider {
             cachedTextHash = textHash
             cachedElementFrame = elementFrame
             Logger.debug("SlackStrategy: Built \(textParts.count) TextParts", category: Logger.ui)
+            // Log each TextPart's range for debugging coverage gaps
+            for (idx, part) in textParts.enumerated() {
+                Logger.trace("SlackStrategy: TextPart[\(idx)] range=\(part.range) text=\"\(part.text.prefix(30))...\"", category: Logger.ui)
+            }
         }
 
         if textParts.isEmpty {
             Logger.debug("SlackStrategy: No TextParts found - letting chain continue to FontMetricsStrategy", category: Logger.ui)
             return nil
+        }
+
+        // Log TextPart coverage for debugging
+        if !textParts.isEmpty {
+            let minPos = textParts.map(\.range.location).min() ?? 0
+            let maxPos = textParts.map { $0.range.location + $0.range.length }.max() ?? 0
+            Logger.debug("SlackStrategy: TextParts cover range \(minPos)-\(maxPos), target: \(originalRange)", category: Logger.ui)
         }
 
         // STEP 2: Find TextPart(s) that contain the error range
@@ -306,14 +317,20 @@ class SlackStrategy: GeometryProvider {
         // Query AXBoundsForRange on the child element directly
         // The local range is relative to the TextPart, not the full text
         if let bounds = getBoundsForRange(location: offsetInPart, length: errorLength, in: part.element) {
-            // Validate bounds are reasonable
-            if bounds.width > 0, bounds.height > 0, bounds.height < 50 {
+            // Validate bounds are reasonable for single-line text
+            // Chromium's AXBoundsForRange can return multi-line bounds for ranges in large TextParts
+            let isSingleLineHeight = bounds.height > 0 && bounds.height <= 30 // Single line text is ~19px at 15pt
+            let isReasonableWidth = bounds.width > 0 && bounds.width <= CGFloat(errorLength) * 20 // ~20px max per char
+
+            if isSingleLineHeight, isReasonableWidth {
                 Logger.debug("SlackStrategy: AXBoundsForRange on child SUCCESS: \(bounds)", category: Logger.ui)
                 return bounds
+            } else {
+                Logger.debug("SlackStrategy: AXBoundsForRange returned suspicious multi-line bounds (h=\(bounds.height), w=\(bounds.width) for \(errorLength) chars) - rejecting", category: Logger.ui)
             }
         }
 
-        // AXBoundsForRange failed - return nil to let chain continue to FontMetricsStrategy
+        // AXBoundsForRange failed or returned invalid bounds - return nil to let chain continue
         Logger.debug("SlackStrategy: AXBoundsForRange on child failed - letting chain continue", category: Logger.ui)
         return nil
     }
