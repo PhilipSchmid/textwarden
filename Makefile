@@ -102,6 +102,7 @@ test-swift: ## Run Swift tests (unit tests only, excludes performance benchmarks
 		-only-testing:TextWardenTests/ReadabilityTests \
 		-only-testing:TextWardenTests/RetrySchedulerTests \
 		-only-testing:TextWardenTests/SlackStrategyValidationTests \
+		-only-testing:TextWardenTests/UnderlineStateManagerTests \
 		-only-testing:TextWardenTests/UserStatisticsTests \
 		-only-testing:TextWardenTests/VirtualKeyCodeTests \
 		2>&1 | tail -20
@@ -173,6 +174,7 @@ ci-check: ## Run CI checks locally (use before pushing)
 		-only-testing:TextWardenTests/ReadabilityTests \
 		-only-testing:TextWardenTests/RetrySchedulerTests \
 		-only-testing:TextWardenTests/SlackStrategyValidationTests \
+		-only-testing:TextWardenTests/UnderlineStateManagerTests \
 		-only-testing:TextWardenTests/UserStatisticsTests \
 		-only-testing:TextWardenTests/VirtualKeyCodeTests \
 		2>&1 | grep -E '(Test case|passed|failed|error:)' | tail -20
