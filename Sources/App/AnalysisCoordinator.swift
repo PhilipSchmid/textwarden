@@ -1807,7 +1807,7 @@ class AnalysisCoordinator: ObservableObject {
         // Focus often moves briefly to non-editable elements (message list, old messages) and returns.
         // The mouse-leave fade (25%) provides visual feedback, and full hide happens only when
         // text actually changes or focus moves to a different editable element.
-        let appBehavior = AppBehaviorRegistry.shared.behavior(for: appConfig.identifier)
+        let appBehavior = AppBehaviorRegistry.shared.behavior(for: appConfig)
         if appBehavior.knownQuirks.contains(.webBasedRendering), !currentErrors.isEmpty {
             Logger.debug("AnalysisCoordinator: Web-based app - preserving overlays while focus is away (errors: \(currentErrors.count))", category: Logger.analysis)
             // Don't clear previousText - we want to detect when we return to the same text

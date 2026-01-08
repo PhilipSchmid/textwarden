@@ -124,7 +124,7 @@ struct ReplacementContext {
     /// Determine which index system an app uses
     private static func determineIndexSystem(for appConfig: AppConfiguration) -> IndexSystem {
         // Use AppBehaviorRegistry to get the explicit per-app index system setting
-        let appBehavior = AppBehaviorRegistry.shared.behavior(for: appConfig.identifier)
+        let appBehavior = AppBehaviorRegistry.shared.behavior(for: appConfig)
         return appBehavior.usesUTF16TextIndices ? .utf16 : .grapheme
     }
 

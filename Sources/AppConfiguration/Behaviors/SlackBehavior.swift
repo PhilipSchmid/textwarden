@@ -73,6 +73,7 @@ struct SlackBehavior: AppBehavior {
         .unreliableScrollEvents,
         .webBasedRendering,
         .requiresBrowserStyleReplacement,
+        .requiresSelectionValidationBeforePaste, // Slack's AX selection is unreliable - validate before paste
         .requiresFullReanalysisAfterReplacement,
         .hasSlackFormatPreservingReplacement,
         .requiresCustomScrollHandling,

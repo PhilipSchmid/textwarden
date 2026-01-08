@@ -115,6 +115,30 @@ final class AppBehaviorRegistry {
     }
 }
 
+// MARK: - AppConfiguration Integration
+
+extension AppBehaviorRegistry {
+    /// Get behavior for an AppConfiguration.
+    /// Tries each bundle ID in the configuration until a registered behavior is found.
+    /// Falls back to default behavior if no registered behavior matches.
+    ///
+    /// This is the preferred method when you have an AppConfiguration, as it:
+    /// - Handles apps with multiple bundle IDs
+    /// - Returns a registered behavior if any bundle ID matches
+    /// - Provides a sensible default for unknown configurations
+    func behavior(for appConfig: AppConfiguration) -> AppBehavior {
+        // Try to find a registered behavior for any of the app's bundle IDs
+        for bundleID in appConfig.bundleIDs {
+            if let registered = behaviors[bundleID] {
+                return registered
+            }
+        }
+        // Fall back to default using the first bundle ID (or identifier if no bundle IDs)
+        let fallbackID = appConfig.bundleIDs.first ?? appConfig.identifier
+        return DefaultBehavior(bundleIdentifier: fallbackID)
+    }
+}
+
 // MARK: - Convenience Extensions
 
 extension AppBehaviorRegistry {
