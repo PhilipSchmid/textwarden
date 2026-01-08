@@ -459,8 +459,18 @@ final class ReadabilityCalculator: Sendable {
                 if let startIdx = text.index(text.startIndex, offsetBy: currentRange.location, limitedBy: text.endIndex),
                    let endIdx = text.index(startIdx, offsetBy: combinedLength, limitedBy: text.endIndex)
                 {
-                    currentSentence = String(text[startIdx ..< endIdx]).trimmingCharacters(in: .whitespacesAndNewlines)
-                    currentRange = NSRange(location: currentRange.location, length: currentSentence.count)
+                    let rawMergedText = String(text[startIdx ..< endIdx])
+                    let trimmedSentence = rawMergedText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                    // Find where trimmed content starts within the raw text and adjust location
+                    if let trimmedRange = rawMergedText.range(of: trimmedSentence) {
+                        let offset = rawMergedText.distance(from: rawMergedText.startIndex, to: trimmedRange.lowerBound)
+                        currentSentence = trimmedSentence
+                        currentRange = NSRange(location: currentRange.location + offset, length: trimmedSentence.count)
+                    } else {
+                        currentSentence = trimmedSentence
+                        currentRange = NSRange(location: currentRange.location, length: trimmedSentence.count)
+                    }
                 } else {
                     // Fallback: simple concatenation
                     currentSentence = currentSentence + " " + nextSentence
