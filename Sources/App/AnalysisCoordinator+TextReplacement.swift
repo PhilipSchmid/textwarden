@@ -21,10 +21,41 @@ extension AnalysisCoordinator {
     ///   - suggestion: The replacement text that was applied
     ///   - lengthDelta: The change in text length (suggestion.count - errorLength)
     func removeErrorAndUpdateUI(_ error: GrammarErrorModel, suggestion: String, lengthDelta: Int = 0) {
-        Logger.debug("removeErrorAndUpdateUI: Removing error at \(error.start)-\(error.end), lengthDelta: \(lengthDelta)", category: Logger.analysis)
+        Logger.debug("removeErrorAndUpdateUI: Removing error at \(error.start)-\(error.end), message: '\(error.message)', lengthDelta: \(lengthDelta)", category: Logger.analysis)
+
+        // Log current errors for debugging position drift
+        Logger.debug("removeErrorAndUpdateUI: currentErrors BEFORE removal (\(currentErrors.count) total):", category: Logger.analysis)
+        for (i, err) in currentErrors.enumerated() {
+            Logger.debug("  [\(i)] \(err.start)-\(err.end): '\(err.message)'", category: Logger.analysis)
+        }
 
         // Remove the error from currentErrors
-        currentErrors.removeAll { $0.start == error.start && $0.end == error.end }
+        // Primary match on position, fallback on message+lintId+category for exact same error
+        let beforeCount = currentErrors.count
+        currentErrors.removeAll { err in
+            // Exact position match
+            if err.start == error.start, err.end == error.end {
+                Logger.debug("removeErrorAndUpdateUI: MATCH by position \(err.start)-\(err.end)", category: Logger.analysis)
+                return true
+            }
+            // Exact content match (same error type at same position range length)
+            // This handles cases where the error was identified by content rather than position
+            if err.message == error.message,
+               err.lintId == error.lintId,
+               err.category == error.category,
+               (err.end - err.start) == (error.end - error.start)
+            {
+                Logger.debug("removeErrorAndUpdateUI: MATCH by content (err at \(err.start)-\(err.end), target at \(error.start)-\(error.end))", category: Logger.analysis)
+                return true
+            }
+            return false
+        }
+        let removedCount = beforeCount - currentErrors.count
+        if removedCount == 0 {
+            Logger.warning("removeErrorAndUpdateUI: NO MATCH FOUND! Looking for \(error.start)-\(error.end) '\(error.message)' (lintId: \(error.lintId), category: \(error.category))", category: Logger.analysis)
+        } else {
+            Logger.debug("removeErrorAndUpdateUI: Removed \(removedCount) error(s), \(currentErrors.count) remaining", category: Logger.analysis)
+        }
 
         // Update currentSegment with the new text content
         // This is CRITICAL: the underline positions are calculated from currentSegment.content
@@ -61,6 +92,52 @@ extension AnalysisCoordinator {
                     )
                 }
                 return err
+            }
+
+            // Also adjust readability analysis sentence positions
+            // This prevents readability underlines from shifting after replacement
+            if let analysis = currentReadabilityAnalysis {
+                let adjustedSentences = analysis.sentenceResults.map { sentence -> SentenceReadabilityResult in
+                    // Only adjust sentences that start after or at the replacement point
+                    if sentence.range.location >= error.end {
+                        let adjustedRange = NSRange(
+                            location: sentence.range.location + lengthDelta,
+                            length: sentence.range.length
+                        )
+                        return SentenceReadabilityResult(
+                            sentence: sentence.sentence,
+                            range: adjustedRange,
+                            score: sentence.score,
+                            wordCount: sentence.wordCount,
+                            isComplex: sentence.isComplex,
+                            targetAudience: sentence.targetAudience
+                        )
+                    }
+                    // If replacement happened within this sentence, adjust the length
+                    else if sentence.range.location < error.end,
+                            sentence.range.location + sentence.range.length > error.start
+                    {
+                        let adjustedRange = NSRange(
+                            location: sentence.range.location,
+                            length: sentence.range.length + lengthDelta
+                        )
+                        return SentenceReadabilityResult(
+                            sentence: sentence.sentence,
+                            range: adjustedRange,
+                            score: sentence.score,
+                            wordCount: sentence.wordCount,
+                            isComplex: sentence.isComplex,
+                            targetAudience: sentence.targetAudience
+                        )
+                    }
+                    return sentence
+                }
+                currentReadabilityAnalysis = TextReadabilityAnalysis(
+                    overallResult: analysis.overallResult,
+                    sentenceResults: adjustedSentences,
+                    targetAudience: analysis.targetAudience
+                )
+                Logger.debug("removeErrorAndUpdateUI: Adjusted \(adjustedSentences.count) readability sentence positions", category: Logger.analysis)
             }
         }
 
@@ -847,7 +924,7 @@ extension AnalysisCoordinator {
             // Instead, search for expanded context (e.g., "7 day") but only select the single character.
             let cachedText = lastAnalyzedText.isEmpty ? (currentSegment?.content ?? previousText) : lastAnalyzedText
             var searchText = targetText
-            var singleCharOffsetInContext: Int? = nil
+            var singleCharOffsetInContext: Int?
 
             if targetText.count == 1, let char = targetText.first, char.isWhitespace || char.isPunctuation {
                 // Get the fallback range position to find context
@@ -912,12 +989,13 @@ extension AnalysisCoordinator {
                 )
 
                 if childSelectResult != .success {
-                    Logger.debug("\(appName): Child selection failed (\(childSelectResult.rawValue))", category: Logger.analysis)
+                    Logger.debug("\(appName): Child selection failed (\(childSelectResult.rawValue)) - aborting", category: Logger.analysis)
+                    return false // Selection failed - caller should abort
                 }
                 return true
             } else {
-                Logger.debug("\(appName): Could not find child element, falling back to main element", category: Logger.analysis)
-                return true // Let caller try paste anyway
+                Logger.debug("\(appName): Could not find child element containing text - selection failed", category: Logger.analysis)
+                return false // Selection failed - caller should abort
             }
         } else {
             // Standard browser / Mac Catalyst: try AX API selection directly
@@ -1171,6 +1249,10 @@ extension AnalysisCoordinator {
                     // Full re-analysis would clear currentErrors and break popover/highlight sync.
                     positionResolver.clearCache()
                     let lengthDelta = suggestion.count - (error.end - error.start)
+                    // CRITICAL: Set lastReplacementTime to enable grace period
+                    // Without this, isInReplacementMode returns false after isApplyingReplacement clears,
+                    // allowing AX notifications to trigger re-analysis with stale error positions
+                    lastReplacementTime = Date()
                     // Reset typing detector so underlines show immediately after replacement
                     // (paste triggers text change which sets isCurrentlyTyping=true)
                     TypingDetector.shared.reset()
@@ -1336,11 +1418,24 @@ extension AnalysisCoordinator {
             return
         }
 
-        _ = selectTextForReplacement(targetText: targetText, fallbackRange: fallbackRange, element: element, context: context)
+        let selectionSucceeded = selectTextForReplacement(targetText: targetText, fallbackRange: fallbackRange, element: element, context: context)
 
-        // Validate selection before paste to prevent wrong placement for scrolled-out content
-        // This applies to apps with virtualized content (like Teams) where errors may scroll out of view
-        if appBehaviorForReplacement.knownQuirks.contains(.requiresSelectionValidationBeforePaste), !targetText.isEmpty {
+        // If selection failed, abort to prevent pasting at wrong location
+        if !selectionSucceeded {
+            Logger.warning("Selection failed - aborting replacement to prevent text corruption", category: Logger.analysis)
+            SuggestionPopover.shared.showStatusMessage("Could not select text - try clicking on the error first")
+            return
+        }
+
+        // Validate selection before paste to prevent wrong placement
+        // This applies to:
+        // - Apps with virtualized content (Teams) where errors may scroll out of view
+        // - Apps with unreliable AX selection (Slack) where selection can fail silently
+        // - Browser-style replacement apps where selection issues cause text corruption
+        if appBehaviorForReplacement.knownQuirks.contains(.requiresSelectionValidationBeforePaste) ||
+            appBehaviorForReplacement.knownQuirks.contains(.requiresBrowserStyleReplacement),
+            !targetText.isEmpty
+        {
             // Small delay for selection to take effect
             try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
 

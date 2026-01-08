@@ -851,75 +851,65 @@ class SlackContentParser: ContentParser {
         let expectedErrorText = String(originalText[startStringIdx ..< endStringIdx])
         Logger.debug("SlackContentParser: Expected error text: '\(expectedErrorText)'", category: Logger.analysis)
 
-        Logger.debug("SlackContentParser: Scalar range \(errorStart)-\(errorEnd) -> grapheme range for child element", category: Logger.analysis)
+        // Calculate grapheme position for disambiguation when text appears multiple times
+        let expectedGraphemePosition = originalText.distance(from: originalText.startIndex, to: startStringIdx)
+        Logger.debug("SlackContentParser: Scalar range \(errorStart)-\(errorEnd) -> grapheme position \(expectedGraphemePosition)", category: Logger.analysis)
 
-        // Step 3: Find child element containing the error text and select within it
+        // Step 3: Find child elements and select with verification
         // CRITICAL: Slack ignores AXSelectedTextRange on root element, but child elements work!
-        Logger.debug("SlackContentParser: Step 3 - Finding child element containing '\(expectedErrorText)'", category: Logger.analysis)
+        // Uses robust selection that tries ALL occurrences until one verifies correctly.
+        Logger.debug("SlackContentParser: Step 3 - Finding and selecting '\(expectedErrorText)' with verification", category: Logger.analysis)
 
-        guard let (childElement, offsetInChild) = findChildElementContainingText(expectedErrorText, in: element) else {
-            Logger.warning("SlackContentParser: Could not find child element containing error text", category: Logger.analysis)
-            restoreClipboardState(savedClipboard)
-            return .fallbackToPlainText
-        }
+        // Collect all candidate child elements containing the target text
+        var candidates: [(element: AXUIElement, text: String, offset: Int)] = []
+        collectTextElements(in: element, depth: 0, maxDepth: 10, candidates: &candidates, targetText: expectedErrorText)
 
-        // Get child element's text for UTF-16 conversion
-        var childTextRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(childElement, kAXValueAttribute as CFString, &childTextRef) == .success,
-              let childText = childTextRef as? String
-        else {
-            Logger.warning("SlackContentParser: Could not get child element text", category: Logger.analysis)
-            restoreClipboardState(savedClipboard)
-            return .fallbackToPlainText
-        }
+        // Sort by text length ascending to prefer most specific (smallest) element
+        let sortedCandidates = candidates.sorted { $0.text.count < $1.text.count }
 
-        // Convert to UTF-16 indices within child element
-        let childUtf16Range = TextIndexConverter.graphemeToUTF16Range(
-            NSRange(location: offsetInChild, length: expectedErrorText.count),
-            in: childText
-        )
-        var cfRange = CFRange(location: childUtf16Range.location, length: childUtf16Range.length)
+        var selectedChildElement: AXUIElement?
 
-        Logger.debug("SlackContentParser: Found in child at UTF-16 \(childUtf16Range.location)-\(childUtf16Range.location + childUtf16Range.length)", category: Logger.analysis)
+        // Try each candidate child element until we get a verified selection
+        for (candidateIndex, candidate) in sortedCandidates.enumerated() {
+            Logger.debug("SlackContentParser: Trying candidate \(candidateIndex + 1)/\(sortedCandidates.count) (text length: \(candidate.text.count))", category: Logger.analysis)
 
-        guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else {
-            Logger.warning("SlackContentParser: Failed to create CFRange value", category: Logger.analysis)
-            restoreClipboardState(savedClipboard)
-            return .fallbackToPlainText
-        }
+            // Calculate preferred offset within this child element
+            var preferredOffset: Int?
+            if let childRangeInFull = originalText.range(of: candidate.text) {
+                let childStartInFull = originalText.distance(from: originalText.startIndex, to: childRangeInFull.lowerBound)
+                preferredOffset = expectedGraphemePosition - childStartInFull
+                Logger.debug("SlackContentParser: Preferred offset in child: \(preferredOffset ?? -1) (child starts at \(childStartInFull) in full text)", category: Logger.analysis)
+            }
 
-        // Select within child element
-        let setResult = AXUIElementSetAttributeValue(childElement, kAXSelectedTextRangeAttribute as CFString, rangeValue)
-        if setResult != .success {
-            Logger.warning("SlackContentParser: Child element selection failed: \(setResult.rawValue)", category: Logger.analysis)
-        }
-        try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
-
-        // Step 4: Validate selection on child element
-        Logger.debug("SlackContentParser: Step 4 - Validating child element selection", category: Logger.analysis)
-        var selectedTextRef: CFTypeRef?
-        let copyResult = AXUIElementCopyAttributeValue(childElement, kAXSelectedTextAttribute as CFString, &selectedTextRef)
-
-        var selectionValid = false
-        if copyResult == .success, let selectedText = selectedTextRef as? String {
-            Logger.debug("SlackContentParser: Child AXSelectedText: '\(selectedText)' (length: \(selectedText.count))", category: Logger.analysis)
-            if selectedText == expectedErrorText {
-                selectionValid = true
-                Logger.info("SlackContentParser: Child selection validated - text matches '\(expectedErrorText)'", category: Logger.analysis)
-            } else if !selectedText.isEmpty {
-                Logger.warning("SlackContentParser: Child selection MISMATCH: '\(selectedText)' vs expected '\(expectedErrorText)'", category: Logger.analysis)
+            // Try robust selection with verification on this child
+            if await selectTextWithVerification(
+                targetText: expectedErrorText,
+                in: candidate.element,
+                childText: candidate.text,
+                preferredOffset: preferredOffset
+            ) != nil {
+                selectedChildElement = candidate.element
+                Logger.info("SlackContentParser: Selection verified in candidate \(candidateIndex + 1)", category: Logger.analysis)
+                break
             }
         }
 
-        // If selection failed, abort
-        if !selectionValid {
-            Logger.warning("SlackContentParser: Child selection validation failed - aborting", category: Logger.analysis)
+        // If no candidate worked, abort
+        guard let childElement = selectedChildElement else {
+            Logger.warning("SlackContentParser: Could not verify selection in any child element", category: Logger.analysis)
             restoreClipboardState(savedClipboard)
             return .fallbackToPlainText
         }
 
-        // Step 5: Copy to get formatting (selection is valid)
-        Logger.debug("SlackContentParser: Step 5 - Copying selected word to get formatting", category: Logger.analysis)
+        Logger.info("SlackContentParser: Step 3-4 complete - selection verified for '\(expectedErrorText)'", category: Logger.analysis)
+
+        // Step 5: Activate Slack and copy to get formatting (selection is valid)
+        // CRITICAL: Activate Slack before Cmd+C, otherwise copy goes to wrong app
+        Logger.debug("SlackContentParser: Step 5 - Activating Slack and copying selected word", category: Logger.analysis)
+        if let slackApp = NSRunningApplication.runningApplications(withBundleIdentifier: "com.tinyspeck.slackmacgap").first {
+            slackApp.activate()
+            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms for activation
+        }
         _ = simulateKeyCombo(keyCode: 8, command: true) // Cmd+C
         try? await Task.sleep(nanoseconds: 100_000_000) // 100ms for clipboard to populate
 
@@ -937,14 +927,49 @@ class SlackContentParser: ContentParser {
         }
 
         // Step 6: Re-validate selection after copy (copy might have deselected)
+        // If selection was lost, use robust selection to re-select
         Logger.debug("SlackContentParser: Step 6 - Re-validating selection after copy", category: Logger.analysis)
-        let revalidateResult = AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &selectedTextRef)
+        var selectionStillValid = false
+        var selectedTextRef: CFTypeRef?
+        let revalidateResult = AXUIElementCopyAttributeValue(childElement, kAXSelectedTextAttribute as CFString, &selectedTextRef)
         if revalidateResult == .success, let reselectedText = selectedTextRef as? String {
-            if reselectedText != expectedErrorText {
-                Logger.warning("SlackContentParser: Selection lost after copy - aborting", category: Logger.analysis)
+            if reselectedText == expectedErrorText {
+                selectionStillValid = true
+                Logger.debug("SlackContentParser: Re-validation passed - selection still valid", category: Logger.analysis)
+            } else {
+                Logger.debug("SlackContentParser: Selection changed after copy - got '\(reselectedText)' expected '\(expectedErrorText)'", category: Logger.analysis)
+            }
+        } else {
+            Logger.debug("SlackContentParser: Could not read selection after copy (result: \(revalidateResult.rawValue))", category: Logger.analysis)
+        }
+
+        // If selection was lost, use robust selection to re-select
+        if !selectionStillValid {
+            Logger.debug("SlackContentParser: Step 6b - Re-selecting text using robust verification", category: Logger.analysis)
+
+            // Get fresh child text for re-selection
+            var childTextRef: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(childElement, kAXValueAttribute as CFString, &childTextRef) == .success,
+                  let childText = childTextRef as? String
+            else {
+                Logger.warning("SlackContentParser: Could not get child text for re-selection", category: Logger.analysis)
                 restoreClipboardState(savedClipboard)
                 return .fallbackToPlainText
             }
+
+            // Use robust selection with verification
+            guard let reselectionResult = await selectTextWithVerification(
+                targetText: expectedErrorText,
+                in: childElement,
+                childText: childText,
+                preferredOffset: nil // Let it try all occurrences
+            ) else {
+                Logger.warning("SlackContentParser: Re-selection with verification failed - aborting", category: Logger.analysis)
+                restoreClipboardState(savedClipboard)
+                return .fallbackToPlainText
+            }
+
+            Logger.info("SlackContentParser: Re-selection verified: '\(reselectionResult.actualSelectedText)'", category: Logger.analysis)
         }
 
         // Step 7: Write clipboard with suggestion
@@ -959,8 +984,14 @@ class SlackContentParser: ContentParser {
             pasteboard.setString(suggestion, forType: .string)
         }
 
-        // Step 8: Paste - only if selection was validated
-        Logger.debug("SlackContentParser: Step 8 - Pasting replacement", category: Logger.analysis)
+        // Step 8: Activate Slack and paste
+        // CRITICAL: We must activate Slack before pasting, otherwise Cmd+V goes to whatever
+        // app has focus (which might be TextWarden's popover after user clicked suggestion)
+        Logger.debug("SlackContentParser: Step 8 - Activating Slack and pasting replacement", category: Logger.analysis)
+        if let slackApp = NSRunningApplication.runningApplications(withBundleIdentifier: "com.tinyspeck.slackmacgap").first {
+            slackApp.activate()
+            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms for activation
+        }
         simulatePaste()
 
         try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
@@ -1310,7 +1341,17 @@ class SlackContentParser: ContentParser {
 
     /// Find the child element containing the target text and return the offset within that element
     /// Slack ignores AXSelectedTextRange on root element, but child elements work!
-    private func findChildElementContainingText(_ targetText: String, in element: AXUIElement) -> (AXUIElement, Int)? {
+    /// - Parameters:
+    ///   - targetText: The text to find
+    ///   - element: The root element to search within
+    ///   - expectedPositionInFullText: Optional grapheme position in full text to disambiguate multiple occurrences
+    ///   - fullText: The full text of the element (needed for position disambiguation)
+    private func findChildElementContainingText(
+        _ targetText: String,
+        in element: AXUIElement,
+        expectedPositionInFullText: Int? = nil,
+        fullText: String? = nil
+    ) -> (AXUIElement, Int)? {
         var candidates: [(element: AXUIElement, text: String, offset: Int)] = []
         collectTextElements(in: element, depth: 0, maxDepth: 10, candidates: &candidates, targetText: targetText)
 
@@ -1318,8 +1359,39 @@ class SlackContentParser: ContentParser {
         let sortedCandidates = candidates.sorted { $0.text.count < $1.text.count }
 
         for candidate in sortedCandidates {
-            guard let range = candidate.text.range(of: targetText) else { continue }
-            let offset = candidate.text.distance(from: candidate.text.startIndex, to: range.lowerBound)
+            // Find all occurrences of target text in this candidate
+            var occurrences: [(offset: Int, range: Range<String.Index>)] = []
+            var searchStart = candidate.text.startIndex
+
+            while let range = candidate.text.range(of: targetText, range: searchStart ..< candidate.text.endIndex) {
+                let offset = candidate.text.distance(from: candidate.text.startIndex, to: range.lowerBound)
+                occurrences.append((offset, range))
+                searchStart = range.upperBound
+            }
+
+            guard !occurrences.isEmpty else { continue }
+
+            // If we have position info and multiple occurrences, find the correct one
+            if let expectedPos = expectedPositionInFullText,
+               let fullText,
+               occurrences.count > 1
+            {
+                // Find where this child's text appears in the full text
+                if let childRangeInFull = fullText.range(of: candidate.text) {
+                    let childStartInFull = fullText.distance(from: fullText.startIndex, to: childRangeInFull.lowerBound)
+                    let expectedPosInChild = expectedPos - childStartInFull
+
+                    // Find the occurrence closest to the expected position
+                    let bestMatch = occurrences.min { abs($0.offset - expectedPosInChild) < abs($1.offset - expectedPosInChild) }
+                    if let match = bestMatch {
+                        Logger.debug("SlackContentParser: Found target text at offset \(match.offset) (expected ~\(expectedPosInChild), \(occurrences.count) occurrences)", category: Logger.analysis)
+                        return (candidate.element, match.offset)
+                    }
+                }
+            }
+
+            // Default: return first occurrence
+            let offset = occurrences[0].offset
             Logger.debug("SlackContentParser: Found target text in child element (size \(candidate.text.count)) at offset \(offset)", category: Logger.analysis)
             return (candidate.element, offset)
         }
@@ -1368,6 +1440,105 @@ class SlackContentParser: ContentParser {
                 collectTextElements(in: child, depth: depth + 1, maxDepth: maxDepth, candidates: &candidates, targetText: targetText)
             }
         }
+    }
+
+    // MARK: - Robust Selection with Verification
+
+    /// Result of a verified selection attempt
+    struct VerifiedSelectionResult {
+        let success: Bool
+        let childElement: AXUIElement
+        let rangeValue: AXValue
+        let actualSelectedText: String
+    }
+
+    /// Attempt to select text in a child element with verification and retry.
+    /// Tries ALL occurrences of the target text until one verifies correctly.
+    /// - Parameters:
+    ///   - targetText: The exact text to select
+    ///   - childElement: The AX element to select within
+    ///   - childText: The full text content of the child element
+    ///   - preferredOffset: Optional preferred offset (from position calculation) to try first
+    /// - Returns: VerifiedSelectionResult if successful, nil if all attempts failed
+    private func selectTextWithVerification(
+        targetText: String,
+        in childElement: AXUIElement,
+        childText: String,
+        preferredOffset: Int? = nil
+    ) async -> VerifiedSelectionResult? {
+        // Find ALL occurrences of target text in child element
+        var occurrences: [(graphemeOffset: Int, utf16Range: NSRange)] = []
+        var searchStart = childText.startIndex
+
+        while let range = childText.range(of: targetText, range: searchStart ..< childText.endIndex) {
+            let graphemeOffset = childText.distance(from: childText.startIndex, to: range.lowerBound)
+            let utf16Range = TextIndexConverter.graphemeToUTF16Range(
+                NSRange(location: graphemeOffset, length: targetText.count),
+                in: childText
+            )
+            occurrences.append((graphemeOffset, utf16Range))
+            searchStart = range.upperBound
+        }
+
+        guard !occurrences.isEmpty else {
+            Logger.warning("SlackContentParser: Target text '\(targetText)' not found in child element", category: Logger.analysis)
+            return nil
+        }
+
+        Logger.debug("SlackContentParser: Found \(occurrences.count) occurrence(s) of '\(targetText)' in child", category: Logger.analysis)
+
+        // Sort occurrences: if we have a preferred offset, try closest to it first
+        var sortedOccurrences = occurrences
+        if let preferred = preferredOffset {
+            sortedOccurrences.sort { abs($0.graphemeOffset - preferred) < abs($1.graphemeOffset - preferred) }
+            Logger.debug("SlackContentParser: Trying closest to preferred offset \(preferred) first", category: Logger.analysis)
+        }
+
+        // Try each occurrence until one verifies
+        for (index, occurrence) in sortedOccurrences.enumerated() {
+            Logger.debug("SlackContentParser: Attempt \(index + 1)/\(sortedOccurrences.count) - trying UTF-16 range \(occurrence.utf16Range.location)-\(occurrence.utf16Range.location + occurrence.utf16Range.length)", category: Logger.analysis)
+
+            var cfRange = CFRange(location: occurrence.utf16Range.location, length: occurrence.utf16Range.length)
+            guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else {
+                Logger.debug("SlackContentParser: Failed to create CFRange for attempt \(index + 1)", category: Logger.analysis)
+                continue
+            }
+
+            // Set selection
+            let setResult = AXUIElementSetAttributeValue(childElement, kAXSelectedTextRangeAttribute as CFString, rangeValue)
+            if setResult != .success {
+                Logger.debug("SlackContentParser: Selection failed for attempt \(index + 1) (error: \(setResult.rawValue))", category: Logger.analysis)
+                continue
+            }
+
+            // Wait for selection to settle
+            try? await Task.sleep(nanoseconds: 30_000_000) // 30ms
+
+            // Verify by reading back
+            var selectedTextRef: CFTypeRef?
+            let readResult = AXUIElementCopyAttributeValue(childElement, kAXSelectedTextAttribute as CFString, &selectedTextRef)
+
+            if readResult == .success, let selectedText = selectedTextRef as? String {
+                if selectedText == targetText {
+                    Logger.info("SlackContentParser: Selection VERIFIED on attempt \(index + 1) - '\(selectedText)'", category: Logger.analysis)
+                    return VerifiedSelectionResult(
+                        success: true,
+                        childElement: childElement,
+                        rangeValue: rangeValue,
+                        actualSelectedText: selectedText
+                    )
+                } else {
+                    Logger.debug("SlackContentParser: Attempt \(index + 1) selected wrong text: '\(selectedText)' (expected '\(targetText)')", category: Logger.analysis)
+                    // Continue to try next occurrence
+                }
+            } else {
+                Logger.debug("SlackContentParser: Could not read selection on attempt \(index + 1) (error: \(readResult.rawValue))", category: Logger.analysis)
+                // Continue to try next occurrence
+            }
+        }
+
+        Logger.warning("SlackContentParser: All \(occurrences.count) selection attempts failed for '\(targetText)'", category: Logger.analysis)
+        return nil
     }
 
     /// Parse the Quill Delta content string and extract exclusions
