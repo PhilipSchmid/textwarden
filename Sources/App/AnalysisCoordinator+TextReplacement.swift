@@ -761,13 +761,20 @@ extension AnalysisCoordinator {
         // We use a separate set because dismissedStyleSuggestionHashes filters by originalText,
         // but for re-analysis, the NEW text becomes the new "originalText" of detected sentences.
         //
-        // CRITICAL: Normalize the text before hashing (trim whitespace) to match how
-        // ReadabilityCalculator.splitIntoSentences() processes detected sentences.
-        // LLM responses may have trailing newlines/whitespace that differ from trimmed sentences.
+        // CRITICAL: The LLM may return multiple sentences in the simplified text, but
+        // NLTokenizer (used by ReadabilityCalculator) will detect them as separate sentences.
+        // We must split the LLM text into individual sentences using the SAME method that
+        // will later detect them, and store a hash for EACH sentence.
         if suggestion.isReadabilitySuggestion {
-            let normalizedText = suggestion.suggestedText.trimmingCharacters(in: .whitespacesAndNewlines)
-            dismissedReadabilitySentenceHashes.insert(normalizedText.hashValue)
-            Logger.debug("Added simplified text hash to dismissedReadabilitySentenceHashes (normalized: '\(normalizedText.prefix(50))...', hash: \(normalizedText.hashValue))", category: Logger.analysis)
+            let sentences = ReadabilityCalculator.shared.splitIntoSentences(suggestion.suggestedText)
+            for (sentenceText, _) in sentences {
+                dismissedReadabilitySentenceHashes.insert(sentenceText.hashValue)
+                Logger.info("DISMISS-HASH-STORE: hash=\(sentenceText.hashValue), fullText=«\(sentenceText)»", category: Logger.analysis)
+            }
+            // Also store hash of the full text in case it matches as one sentence
+            let fullNormalized = suggestion.suggestedText.trimmingCharacters(in: .whitespacesAndNewlines)
+            dismissedReadabilitySentenceHashes.insert(fullNormalized.hashValue)
+            Logger.info("DISMISS-HASH-STORE-FULL: hash=\(fullNormalized.hashValue), fullText=«\(fullNormalized)»", category: Logger.analysis)
         }
 
         // If this is a readability suggestion, remove the corresponding underline via state manager

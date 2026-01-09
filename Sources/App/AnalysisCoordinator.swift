@@ -1546,7 +1546,10 @@ class AnalysisCoordinator: ObservableObject {
         if !isManualStyleCheckActive {
             currentStyleSuggestions = [] // Clear style suggestions
             dismissedStyleSuggestionHashes.removeAll() // Reset dismissed tracking for new context
-            dismissedReadabilitySentenceHashes.removeAll() // Reset readability dismissed tracking for new context
+            // NOTE: Do NOT clear dismissedReadabilitySentenceHashes here.
+            // These hashes are content-based (hash of the simplified sentence text), so they
+            // should persist across app switches. When user returns to the same text field,
+            // the same sentences will be detected and properly filtered out.
             styleDebounceTimer?.invalidate() // Cancel pending style analysis
             styleDebounceTimer = nil
             styleAnalysisGeneration &+= 1 // Invalidate any in-flight analysis
@@ -2406,19 +2409,19 @@ class AnalysisCoordinator: ObservableObject {
                 // Filter out sentences that were just simplified to prevent re-flagging.
                 // When user applies a readability fix, the new text might still be detected
                 // as "complex" by re-analysis, but we don't want to underline it again.
-                Logger.debug("AnalysisCoordinator: [no-errors] Filtering \(analysis.complexSentences.count) complex sentences, dismissed hashes: \(dismissedReadabilitySentenceHashes)", category: Logger.analysis)
+                Logger.info("DISMISS-FILTER[no-errors]: \(analysis.complexSentences.count) sentences, dismissed hashes: \(dismissedReadabilitySentenceHashes)", category: Logger.analysis)
                 let filteredSentences = analysis.complexSentences.filter { sentence in
                     let hash = sentence.sentence.hashValue
                     let isDismissed = dismissedReadabilitySentenceHashes.contains(hash)
                     if isDismissed {
-                        Logger.debug("AnalysisCoordinator: [no-errors] Filtering out dismissed sentence (hash \(hash)): '\(sentence.sentence.prefix(50))...'", category: Logger.analysis)
+                        Logger.info("DISMISS-HASH-MATCH[no-errors]: hash=\(hash)", category: Logger.analysis)
                     } else if !dismissedReadabilitySentenceHashes.isEmpty {
-                        // Log when we have dismissed hashes but this sentence didn't match
-                        Logger.trace("AnalysisCoordinator: [no-errors] Sentence NOT filtered (hash \(hash) not in dismissed set): '\(sentence.sentence.prefix(50))...'", category: Logger.analysis)
+                        // DEBUG: Print full sentence for hash comparison debugging
+                        Logger.info("DISMISS-HASH-MISS[no-errors]: hash=\(hash), fullText=«\(sentence.sentence)»", category: Logger.analysis)
                     }
                     return !isDismissed
                 }
-                Logger.debug("AnalysisCoordinator: [no-errors] After filtering: \(filteredSentences.count) sentences remain", category: Logger.analysis)
+                Logger.info("DISMISS-FILTER-RESULT[no-errors]: \(filteredSentences.count) sentences remain", category: Logger.analysis)
 
                 if !filteredSentences.isEmpty {
                     errorOverlay.updateReadabilityUnderlines(
@@ -2494,19 +2497,19 @@ class AnalysisCoordinator: ObservableObject {
                 // Filter out sentences that were just simplified to prevent re-flagging.
                 // When user applies a readability fix, the new text might still be detected
                 // as "complex" by re-analysis, but we don't want to underline it again.
-                Logger.debug("AnalysisCoordinator: Filtering \(analysis.complexSentences.count) complex sentences, dismissed hashes: \(dismissedReadabilitySentenceHashes)", category: Logger.analysis)
+                Logger.info("DISMISS-FILTER: \(analysis.complexSentences.count) sentences, dismissed hashes: \(dismissedReadabilitySentenceHashes)", category: Logger.analysis)
                 let filteredSentences = analysis.complexSentences.filter { sentence in
                     let hash = sentence.sentence.hashValue
                     let isDismissed = dismissedReadabilitySentenceHashes.contains(hash)
                     if isDismissed {
-                        Logger.debug("AnalysisCoordinator: Filtering out dismissed sentence (hash \(hash)): '\(sentence.sentence.prefix(50))...'", category: Logger.analysis)
+                        Logger.info("DISMISS-HASH-MATCH: hash=\(hash)", category: Logger.analysis)
                     } else if !dismissedReadabilitySentenceHashes.isEmpty {
-                        // Log when we have dismissed hashes but this sentence didn't match
-                        Logger.trace("AnalysisCoordinator: Sentence NOT filtered (hash \(hash) not in dismissed set): '\(sentence.sentence.prefix(50))...'", category: Logger.analysis)
+                        // DEBUG: Print full sentence for hash comparison debugging
+                        Logger.info("DISMISS-HASH-MISS: hash=\(hash), fullText=«\(sentence.sentence)»", category: Logger.analysis)
                     }
                     return !isDismissed
                 }
-                Logger.debug("AnalysisCoordinator: After filtering: \(filteredSentences.count) sentences remain", category: Logger.analysis)
+                Logger.info("DISMISS-FILTER-RESULT: \(filteredSentences.count) sentences remain", category: Logger.analysis)
 
                 if !filteredSentences.isEmpty {
                     errorOverlay.updateReadabilityUnderlines(
