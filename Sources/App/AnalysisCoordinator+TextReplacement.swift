@@ -326,7 +326,11 @@ extension AnalysisCoordinator {
             let scalarCount = text.unicodeScalars.count
             if error.end > scalarCount {
                 Logger.warning("Stale error positions detected: error range \(error.start)-\(error.end) exceeds current text length \(scalarCount)", category: Logger.analysis)
-                SuggestionPopover.shared.showStatusMessage("Text has changed - please wait for re-analysis")
+                SuggestionPopover.shared.showStatusMessage("Text has changed - re-analyzing...")
+
+                // Trigger immediate re-analysis to restore overlays with updated errors
+                // Without this, overlays remain hidden after a failed replacement attempt
+                triggerImmediateReanalysis()
                 return
             }
 
@@ -423,8 +427,12 @@ extension AnalysisCoordinator {
 
         // Find the actual position of the original text in the current content
         guard let range = currentText.range(of: suggestion.originalText) else {
-            Logger.debug("Style replacement: original text not found in current content (\(suggestion.originalText.count) chars)", category: Logger.analysis)
+            Logger.debug("Style replacement: original text not found in current content - text has changed, triggering re-analysis", category: Logger.analysis)
             removeSuggestionFromTracking(suggestion)
+
+            // Text has changed - trigger re-analysis to restore overlays with updated errors
+            // Without this, overlays remain hidden after a failed replacement attempt
+            schedulePostStyleReplacementAnalysis()
             return
         }
 
@@ -1115,6 +1123,40 @@ extension AnalysisCoordinator {
         }
     }
 
+    /// Trigger immediate re-analysis when text has changed and positions are stale.
+    /// Called when a replacement attempt fails due to text mismatch to restore overlays.
+    func triggerImmediateReanalysis() {
+        // Use a very short delay to allow UI updates to process first
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self else { return }
+            guard let element = textMonitor.monitoredElement else {
+                Logger.debug("Immediate re-analysis: no monitored element", category: Logger.analysis)
+                return
+            }
+
+            // Extract current text and trigger analysis
+            if let text = extractTextSynchronously(from: element) {
+                Logger.debug("Immediate re-analysis: triggering (\(text.count) chars)", category: Logger.analysis)
+
+                // Clear errors and caches since positions are invalid
+                currentErrors.removeAll()
+                positionResolver.clearCache()
+
+                // Clear previousText to force re-analysis
+                previousText = ""
+
+                let segment = TextSegment(
+                    content: text,
+                    startIndex: 0,
+                    endIndex: text.count,
+                    context: monitoredContext ?? ApplicationContext(bundleIdentifier: "", processID: 0, applicationName: "")
+                )
+                currentSegment = segment
+                analyzeText(segment)
+            }
+        }
+    }
+
     /// Schedule delayed re-analysis after text replacement for apps with focus bounce behavior.
     /// WebKit/Electron apps may fire AXFocusedUIElementChanged during paste, clearing the monitored element.
     /// This waits for focus to settle, then restarts monitoring to find the composition element.
@@ -1663,7 +1705,10 @@ extension AnalysisCoordinator {
             let scalarCount = currentText.unicodeScalars.count
             if error.end > scalarCount {
                 Logger.warning("Keyboard replacement: Stale error positions \(error.start)-\(error.end) exceed text length \(scalarCount)", category: Logger.analysis)
-                SuggestionPopover.shared.showStatusMessage("Text has changed - please wait for re-analysis")
+                SuggestionPopover.shared.showStatusMessage("Text has changed - re-analyzing...")
+
+                // Trigger immediate re-analysis to restore overlays with updated errors
+                triggerImmediateReanalysis()
                 return
             }
 
