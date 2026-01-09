@@ -19,10 +19,14 @@ struct RetryConfig {
     let maxAttempts: Int
 
     /// Default configuration for accessibility API retries
+    /// Reduced from 10 to 5 attempts based on observed data showing:
+    /// - Most editable elements are detected on first attempt
+    /// - Elements that aren't immediately editable rarely become editable after retries
+    /// - With 5 attempts: total wait time ~2.5s (vs ~10s with 10 attempts)
     static let accessibilityAPI = RetryConfig(
         initialDelay: 0.3, // 300ms
         multiplier: 1.25,
-        maxAttempts: 10 // ~10 seconds total
+        maxAttempts: 5 // ~2.5 seconds total (was 10 = ~10 seconds)
     )
 
     /// Calculate delay for a specific retry attempt

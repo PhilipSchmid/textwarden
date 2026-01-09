@@ -618,7 +618,10 @@ class TextMonitor: ObservableObject {
 
             // Roles that are definitively non-editable - don't retry, clear monitoring immediately
             // This ensures overlays hide promptly when focus moves to navigation elements
+            // Based on observed data: AXImage, AXButton, AXLink etc. never become text-editable
+            // Note: AXGroup is intentionally NOT included - in web apps it may contain/become editable
             let readOnlyRoles: Set<String> = [
+                // Container/structural roles
                 kAXStaticTextRole as String, // Static labels
                 "AXScrollArea", // Scroll containers
                 "AXLayoutArea", // Layout containers
@@ -626,6 +629,24 @@ class TextMonitor: ObservableObject {
                 "AXWindow", // Window itself
                 "AXList", // List views
                 "AXOutline", // Tree/outline views (e.g., sidebar navigation)
+                "AXRow", // Table rows
+                "AXCell", // Table cells
+                "AXToolbar", // Toolbars
+                "AXMenu", // Menus
+                "AXMenuBar", // Menu bars
+
+                // Interactive but non-text-editable roles
+                "AXImage", // Images are never text-editable
+                kAXButtonRole as String, // Buttons (AXButton)
+                "AXLink", // Hyperlinks
+                kAXCheckBoxRole as String, // Checkboxes (AXCheckBox)
+                kAXRadioButtonRole as String, // Radio buttons (AXRadioButton)
+                kAXMenuItemRole as String, // Menu items (AXMenuItem)
+                kAXPopUpButtonRole as String, // Dropdown buttons (AXPopUpButton)
+                "AXSlider", // Sliders
+                "AXProgressIndicator", // Progress bars
+                "AXSplitter", // Splitters
+                "AXDisclosureTriangle", // Expand/collapse triangles
             ]
 
             // Only retry if it's not explicitly a read-only role (e.g., AXGroup might become editable)

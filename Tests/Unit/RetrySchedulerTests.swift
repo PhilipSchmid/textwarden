@@ -16,7 +16,8 @@ final class RetrySchedulerTests: XCTestCase {
 
         XCTAssertEqual(config.initialDelay, 0.3, "Initial delay should be 300ms")
         XCTAssertEqual(config.multiplier, 1.25, "Multiplier should be 1.25x")
-        XCTAssertEqual(config.maxAttempts, 10, "Max attempts should be 10")
+        // Reduced from 10 to 5 based on observed data: most editable elements detected on first attempt
+        XCTAssertEqual(config.maxAttempts, 5, "Max attempts should be 5 (reduced from 10)")
     }
 
     func testRetryConfigDelayCalculation() {
