@@ -760,9 +760,14 @@ extension AnalysisCoordinator {
         // re-flagging of text that the user just accepted as the simplification.
         // We use a separate set because dismissedStyleSuggestionHashes filters by originalText,
         // but for re-analysis, the NEW text becomes the new "originalText" of detected sentences.
+        //
+        // CRITICAL: Normalize the text before hashing (trim whitespace) to match how
+        // ReadabilityCalculator.splitIntoSentences() processes detected sentences.
+        // LLM responses may have trailing newlines/whitespace that differ from trimmed sentences.
         if suggestion.isReadabilitySuggestion {
-            dismissedReadabilitySentenceHashes.insert(suggestion.suggestedText.hashValue)
-            Logger.debug("Added simplified text hash to dismissedReadabilitySentenceHashes to prevent re-flagging", category: Logger.analysis)
+            let normalizedText = suggestion.suggestedText.trimmingCharacters(in: .whitespacesAndNewlines)
+            dismissedReadabilitySentenceHashes.insert(normalizedText.hashValue)
+            Logger.debug("Added simplified text hash to dismissedReadabilitySentenceHashes (normalized: '\(normalizedText.prefix(50))...', hash: \(normalizedText.hashValue))", category: Logger.analysis)
         }
 
         // If this is a readability suggestion, remove the corresponding underline via state manager

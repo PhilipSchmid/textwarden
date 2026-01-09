@@ -2406,12 +2406,15 @@ class AnalysisCoordinator: ObservableObject {
                 // Filter out sentences that were just simplified to prevent re-flagging.
                 // When user applies a readability fix, the new text might still be detected
                 // as "complex" by re-analysis, but we don't want to underline it again.
-                Logger.debug("AnalysisCoordinator: [no-errors] Filtering \(analysis.complexSentences.count) complex sentences, dismissed hashes count: \(dismissedReadabilitySentenceHashes.count)", category: Logger.analysis)
+                Logger.debug("AnalysisCoordinator: [no-errors] Filtering \(analysis.complexSentences.count) complex sentences, dismissed hashes: \(dismissedReadabilitySentenceHashes)", category: Logger.analysis)
                 let filteredSentences = analysis.complexSentences.filter { sentence in
                     let hash = sentence.sentence.hashValue
                     let isDismissed = dismissedReadabilitySentenceHashes.contains(hash)
                     if isDismissed {
-                        Logger.debug("AnalysisCoordinator: [no-errors] Filtering out dismissed sentence: '\(sentence.sentence.prefix(50))...'", category: Logger.analysis)
+                        Logger.debug("AnalysisCoordinator: [no-errors] Filtering out dismissed sentence (hash \(hash)): '\(sentence.sentence.prefix(50))...'", category: Logger.analysis)
+                    } else if !dismissedReadabilitySentenceHashes.isEmpty {
+                        // Log when we have dismissed hashes but this sentence didn't match
+                        Logger.trace("AnalysisCoordinator: [no-errors] Sentence NOT filtered (hash \(hash) not in dismissed set): '\(sentence.sentence.prefix(50))...'", category: Logger.analysis)
                     }
                     return !isDismissed
                 }
@@ -2491,12 +2494,15 @@ class AnalysisCoordinator: ObservableObject {
                 // Filter out sentences that were just simplified to prevent re-flagging.
                 // When user applies a readability fix, the new text might still be detected
                 // as "complex" by re-analysis, but we don't want to underline it again.
-                Logger.debug("AnalysisCoordinator: Filtering \(analysis.complexSentences.count) complex sentences, dismissed hashes count: \(dismissedReadabilitySentenceHashes.count)", category: Logger.analysis)
+                Logger.debug("AnalysisCoordinator: Filtering \(analysis.complexSentences.count) complex sentences, dismissed hashes: \(dismissedReadabilitySentenceHashes)", category: Logger.analysis)
                 let filteredSentences = analysis.complexSentences.filter { sentence in
                     let hash = sentence.sentence.hashValue
                     let isDismissed = dismissedReadabilitySentenceHashes.contains(hash)
                     if isDismissed {
-                        Logger.debug("AnalysisCoordinator: Filtering out dismissed sentence: '\(sentence.sentence.prefix(50))...'", category: Logger.analysis)
+                        Logger.debug("AnalysisCoordinator: Filtering out dismissed sentence (hash \(hash)): '\(sentence.sentence.prefix(50))...'", category: Logger.analysis)
+                    } else if !dismissedReadabilitySentenceHashes.isEmpty {
+                        // Log when we have dismissed hashes but this sentence didn't match
+                        Logger.trace("AnalysisCoordinator: Sentence NOT filtered (hash \(hash) not in dismissed set): '\(sentence.sentence.prefix(50))...'", category: Logger.analysis)
                     }
                     return !isDismissed
                 }
