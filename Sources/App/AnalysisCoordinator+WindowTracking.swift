@@ -173,6 +173,13 @@ extension AnalysisCoordinator {
                 return
             }
 
+            // Apps with unstable AX text retrieval (like Outlook) may return slightly different
+            // text each time due to invisible characters, formatting, or AX API quirks.
+            // This causes false "text changed" detection. Skip validation for these apps.
+            if appBehavior.knownQuirks.contains(.hasUnstableTextRetrieval) {
+                return
+            }
+
             // Check if this app needs special handling for text validation
             // Some apps have unreliable AX notifications that cause text to appear changed
             let isCatalystApp = textMonitor.currentContext?.isMacCatalystApp ?? false

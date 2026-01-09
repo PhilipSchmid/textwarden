@@ -251,4 +251,9 @@ enum AppQuirk: Hashable {
 
     /// App has formatting toolbar near compose field that should be included in hover detection
     case hasFormattingToolbarNearCompose
+
+    /// App has unstable text retrieval where AX may return slightly different text each time
+    /// This causes false "text changed" detection in periodic text validation.
+    /// Skip text validation for these apps to prevent flickering.
+    case hasUnstableTextRetrieval
 }

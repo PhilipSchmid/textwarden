@@ -68,6 +68,7 @@ struct OutlookBehavior: AppBehavior {
         .textMarkerIndexOffset,
         .hasCustomElementFinder,
         .hasFocusBounceProtection,
+        .hasUnstableTextRetrieval,
     ]
 
     let usesUTF16TextIndices = false
