@@ -3,6 +3,50 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.1.0-rc.5</title>
+            <pubDate>Fri, 09 Jan 2026 16:11:03 +0100</pubDate>
+            <sparkle:version>21</sparkle:version>
+            <sparkle:shortVersionString>0.1.0-rc.5</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:channel>experimental</sparkle:channel>
+            <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;fix: Resolve popover not opening on external monitors (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/5c58791&quot;&gt;&lt;code&gt;5c58791&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Redesign verbose logging warning as sheet dialog (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/a145744&quot;&gt;&lt;code&gt;a145744&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;refactor: Update logging policy to allow text at DEBUG/TRACE levels (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/c1509e8&quot;&gt;&lt;code&gt;c1509e8&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Preserve readability dismissed hashes across app switches (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/07534ca&quot;&gt;&lt;code&gt;07534ca&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Normalize text before hashing to prevent readability re-flagging (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/aff5ec4&quot;&gt;&lt;code&gt;aff5ec4&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Prevent readability underlines reappearing on simplified text (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/1d5711f&quot;&gt;&lt;code&gt;1d5711f&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Use simplified text score in readability popover (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/27dcf2f&quot;&gt;&lt;code&gt;27dcf2f&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Add root element fallbacks for Slack positioning and text selection (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/c22c4ac&quot;&gt;&lt;code&gt;c22c4ac&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Clear stale grammar underlines when style suggestions exist (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/e4663be&quot;&gt;&lt;code&gt;e4663be&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Make SlackStrategy TextPart building more robust (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/e57f4cf&quot;&gt;&lt;code&gt;e57f4cf&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;refactor: Integrate UnderlineStateManager into ErrorOverlayWindow (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/de1b3d4&quot;&gt;&lt;code&gt;de1b3d4&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add UnderlineStateManager for unified state management (Phase 1) (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/6d5bf6a&quot;&gt;&lt;code&gt;6d5bf6a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Prevent grammar underline persistence when readability underlines exist (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/60272c6&quot;&gt;&lt;code&gt;60272c6&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add robust text selection with verification for Slack replacements (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/54330d6&quot;&gt;&lt;code&gt;54330d6&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Improve SlackStrategy bounds validation and add coverage logging (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/1d0a799&quot;&gt;&lt;code&gt;1d0a799&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add AppConfiguration-aware behavior lookup in AppBehaviorRegistry (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/44433a5&quot;&gt;&lt;code&gt;44433a5&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Correct sentence range offset after trimming in readability calculator (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/ecdb16a&quot;&gt;&lt;code&gt;ecdb16a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;refactor: Introduce per-app behavior system with AppBehaviorRegistry (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/e0a0bb9&quot;&gt;&lt;code&gt;e0a0bb9&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Redesign diagnostic export confirmation dialog (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/ec489b8&quot;&gt;&lt;code&gt;ec489b8&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Remove duplicate label from log level picker (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/13b0017&quot;&gt;&lt;code&gt;13b0017&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;perf: Add dictionary caching in grammar engine (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/d5c73cf&quot;&gt;&lt;code&gt;d5c73cf&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add comprehensive performance profiling system (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/320e8d2&quot;&gt;&lt;code&gt;320e8d2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Update Logger subsystem to match bundle identifier (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/e5c955c&quot;&gt;&lt;code&gt;e5c955c&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Prevent capitalization of suggestions in dot-notation contexts (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/af4dac6&quot;&gt;&lt;code&gt;af4dac6&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Skip readability analysis for non-English documents (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/96164bb&quot;&gt;&lt;code&gt;96164bb&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: ReadabilityPopover auto-close on click outside (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/1cbc4ea&quot;&gt;&lt;code&gt;1cbc4ea&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Filter meeting invite boilerplate in emails (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/ec63f05&quot;&gt;&lt;code&gt;ec63f05&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Prevent underlines and popovers from overlapping modal dialogs (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/2a36dfa&quot;&gt;&lt;code&gt;2a36dfa&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Correct Unicode position handling for Notion emoji-prefixed links (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/76d0c5b&quot;&gt;&lt;code&gt;76d0c5b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Eliminate underline flickering during Notion sidebar toggle (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/a130417&quot;&gt;&lt;code&gt;a130417&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add document-level language detection for non-English text (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/cad62bc&quot;&gt;&lt;code&gt;cad62bc&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Improve overlay stability for Slack and Electron apps (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/6e4182b&quot;&gt;&lt;code&gt;6e4182b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-rc.5/TextWarden-0.1.0-rc.5-Universal.dmg" length="20029066" type="application/octet-stream" sparkle:edSignature="dtEY1Zk9++xqSZeNG1VHC+LBzxkyv7gLQg63tjQ1TCaZuTB3gUsiVCKK8yHnbNHbM8twnImIk6NFm4uDAwNUCw=="/>
+        </item>
+        <item>
             <title>0.1.0-rc.4</title>
             <pubDate>Tue, 06 Jan 2026 12:02:55 +0100</pubDate>
             <sparkle:version>20</sparkle:version>
