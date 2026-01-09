@@ -30,6 +30,7 @@ enum ProfiledOperation: String, CaseIterable {
     // Text monitoring
     case textExtraction = "text-extraction"
     case focusMonitoring = "focus-monitoring"
+    case focusCoalescing = "focus-coalescing" // Tracks coalesced focus events
 
     // UI operations
     case popoverDisplay = "popover-display"

@@ -109,6 +109,13 @@ enum TimingConstants {
     /// Pause threshold to detect typing stopped
     static let typingPauseThreshold: TimeInterval = 1.0
 
+    // MARK: - Focus Handling
+
+    /// Focus event settling delay - coalesces rapid focus changes from Electron/Chrome apps (80ms)
+    /// This prevents processing multiple focus events per second (common in web-based apps)
+    /// while keeping UX responsive (80ms is imperceptible to users)
+    static let focusSettlingDelay: TimeInterval = 0.08
+
     // MARK: - Crash Recovery
 
     /// Heartbeat interval for crash detection

@@ -80,6 +80,21 @@ class TextMonitor: ObservableObject {
     /// Tracked work item for retry cancellation
     private var retryWorkItem: DispatchWorkItem?
 
+    // MARK: - Focus Event Settling
+
+    /// Work item for focus event settling (cancellable)
+    /// This coalesces rapid focus changes from Chrome/Electron apps
+    private var focusSettlingWorkItem: DispatchWorkItem?
+
+    /// Element pending focus processing (stored during settling delay)
+    private var pendingFocusElement: AXUIElement?
+
+    /// Count of focus events coalesced in current settling window (for metrics)
+    private var coalescedFocusCount: Int = 0
+
+    /// Timestamp when focus settling started (for metrics)
+    private var focusSettlingStartTime: CFAbsoluteTime = 0
+
     // MARK: - Monitoring Control
 
     /// Start monitoring an application
@@ -163,8 +178,9 @@ class TextMonitor: ObservableObject {
 
     /// Stop monitoring
     func stopMonitoring() {
-        // Cancel any pending retry attempts
+        // Cancel any pending retry attempts and focus settling
         cancelPendingRetries()
+        cancelPendingFocusSettling()
 
         if let observer {
             CFRunLoopRemoveSource(
@@ -342,6 +358,83 @@ class TextMonitor: ObservableObject {
         retryWorkItem?.cancel()
         retryWorkItem = nil
     }
+
+    // MARK: - Focus Event Settling
+
+    /// Schedule focus handling with settling delay to coalesce rapid focus changes
+    ///
+    /// Chrome/Electron apps fire multiple focus events per second (up to 8+ in bursts).
+    /// This method coalesces them by waiting for focus to "settle" before processing.
+    /// The settling delay (80ms) is short enough to be imperceptible to users.
+    ///
+    /// - Parameter element: The AXUIElement that received focus
+    fileprivate func scheduleFocusHandling(_ element: AXUIElement) {
+        // Cancel any pending focus handling
+        if focusSettlingWorkItem != nil {
+            focusSettlingWorkItem?.cancel()
+            coalescedFocusCount += 1
+            Logger.trace("TextMonitor: Focus event coalesced (count: \(coalescedFocusCount))", category: Logger.accessibility)
+        } else {
+            // First focus event in this settling window
+            coalescedFocusCount = 1
+            focusSettlingStartTime = CFAbsoluteTimeGetCurrent()
+        }
+
+        // Store the element for processing
+        pendingFocusElement = element
+
+        // Schedule processing after settling delay
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            processPendingFocus()
+        }
+        focusSettlingWorkItem = workItem
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + TimingConstants.focusSettlingDelay,
+            execute: workItem
+        )
+    }
+
+    /// Process the pending focus element after settling delay
+    private func processPendingFocus() {
+        guard let element = pendingFocusElement else {
+            Logger.debug("TextMonitor: processPendingFocus called but no pending element", category: Logger.accessibility)
+            return
+        }
+
+        // Record metrics if focus events were coalesced
+        if coalescedFocusCount > 1 {
+            let settlingDuration = (CFAbsoluteTimeGetCurrent() - focusSettlingStartTime) * 1000
+            PerformanceProfiler.shared.measure(.focusCoalescing, context: "coalesced:\(coalescedFocusCount)") {
+                // Record the settling as a profiled operation
+                // The "count" in context shows how many events were coalesced
+            }
+            Logger.debug("TextMonitor: Focus settled after \(coalescedFocusCount) events (\(String(format: "%.1f", settlingDuration))ms)", category: Logger.accessibility)
+        }
+
+        // Clear pending state
+        pendingFocusElement = nil
+        focusSettlingWorkItem = nil
+        coalescedFocusCount = 0
+
+        // Now process the focus change
+        monitorElement(element)
+    }
+
+    /// Cancel any pending focus settling
+    private func cancelPendingFocusSettling() {
+        if focusSettlingWorkItem != nil {
+            focusSettlingWorkItem?.cancel()
+            focusSettlingWorkItem = nil
+            pendingFocusElement = nil
+            if coalescedFocusCount > 0 {
+                Logger.trace("TextMonitor: Cancelled pending focus settling (\(coalescedFocusCount) events)", category: Logger.accessibility)
+            }
+            coalescedFocusCount = 0
+        }
+    }
+
+    // MARK: - Element Monitoring
 
     /// Monitor a specific UI element for text changes
     fileprivate func monitorElement(_ element: AXUIElement, retryAttempt: Int = 0) {
@@ -892,8 +985,8 @@ private func axObserverCallback(
                 monitor.extractText(from: element)
             }
         } else if notificationName == kAXFocusedUIElementChangedNotification as String {
-            Logger.debug("axObserverCallback: Focus changed - monitoring new element", category: Logger.accessibility)
-            monitor.monitorElement(element)
+            Logger.trace("axObserverCallback: Focus changed - scheduling element monitoring", category: Logger.accessibility)
+            monitor.scheduleFocusHandling(element)
         } else {
             Logger.debug("axObserverCallback: Unknown notification: \(notificationName)", category: Logger.accessibility)
         }
