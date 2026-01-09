@@ -96,9 +96,29 @@ delaysAXNotifications: false  // Claude sends AX notifications promptly
 
 Claude sends accessibility notifications reliably without batching.
 
+## Behavior Configuration
+
+Claude uses the `ClaudeBehavior` specification for overlay behavior:
+
+| Behavior | Value |
+|----------|-------|
+| Underline show delay | 0.1s |
+| Popover hover delay | 0.3s |
+| Popover auto-hide | 3.0s |
+| Hide on scroll | Yes |
+| Analysis debounce | 1.0s |
+| UTF-16 text indices | Yes |
+
+**Known Quirks:**
+- `chromiumEmojiWidthBug` - Emoji width calculation issues
+- `webBasedRendering` - Web-based text rendering
+- `requiresBrowserStyleReplacement` - Needs clipboard+paste
+- `requiresFullReanalysisAfterReplacement` - Fragile byte offsets
+
 ## Implementation Files
 
 - `Sources/AppConfiguration/AppRegistry.swift`: App configuration
+- `Sources/AppConfiguration/Behaviors/ClaudeBehavior.swift`: Behavior specification
 - `Sources/ContentParsers/ClaudeContentParser.swift`: Dedicated parser
 - `Sources/Positioning/Strategies/ClaudeStrategy.swift`: Tree-traversal positioning strategy
 

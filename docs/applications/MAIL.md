@@ -160,8 +160,29 @@ When users apply formatting (bold, italic, etc.), text layout changes. TextWarde
 - **Keyboard shortcuts** (Cmd+B, Cmd+I, Cmd+U) - detected and trigger position refresh
 - **Toolbar buttons** - detected via click monitoring, triggers debounced refresh
 
+## Behavior Configuration
+
+Mail uses the `MailBehavior` specification for overlay behavior:
+
+| Behavior | Value |
+|----------|-------|
+| Underline show delay | 0.1s |
+| Bounds validation | Require within screen |
+| Popover hover delay | 0.3s |
+| Popover auto-hide | 3.0s |
+| Hide on scroll | Yes |
+| Analysis debounce | 0.5s |
+| UTF-16 text indices | Yes |
+
+**Known Quirks:**
+- `focusBouncesDuringPaste` - Focus changes during paste operations
+- `requiresBrowserStyleReplacement` - Needs clipboard+paste
+- `requiresFullReanalysisAfterReplacement` - AX state changes after paste
+- `usesMailReplaceRangeAPI` - Special Mail replacement handling
+
 ## Implementation Files
 
+- `Sources/AppConfiguration/Behaviors/MailBehavior.swift`: Behavior specification
 - `Sources/Positioning/Strategies/MailStrategy.swift`: Positioning strategy
   - `calculateGeometry()`: UTF-16 conversion and bounds calculation
   - `getBoundsForRange()`: WebKit bounds with coordinate conversion

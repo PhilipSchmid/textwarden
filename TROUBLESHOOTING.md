@@ -53,7 +53,7 @@ If the app still doesn't launch, check for errors:
 
 ```bash
 # Check for recent TextWarden-related logs
-log show --predicate 'process == "TextWarden" OR subsystem == "com.textwarden.app"' --last 5m
+log show --predicate 'process == "TextWarden" OR subsystem == "io.textwarden.TextWarden"' --last 5m
 
 # Check for Gatekeeper blocks
 log show --predicate 'subsystem == "com.apple.launchservices" AND eventMessage CONTAINS "TextWarden"' --last 5m

@@ -77,9 +77,32 @@ delaysAXNotifications: true  // Electron app batches AX notifications
 
 Perplexity batches accessibility notifications, so TextWarden uses keyboard-based typing detection for more responsive updates.
 
+## Behavior Configuration
+
+Perplexity uses the `PerplexityBehavior` specification for overlay behavior:
+
+| Behavior | Value |
+|----------|-------|
+| Underline show delay | 0.1s |
+| Bounds validation | Require within screen |
+| Popover hover delay | 0.3s |
+| Popover auto-hide | 3.0s |
+| Hide on scroll | Yes |
+| Analysis debounce | 1.0s |
+| UTF-16 text indices | Yes |
+
+**Known Quirks:**
+- `chromiumEmojiWidthBug` - Emoji width calculation issues
+- `webBasedRendering` - Web-based text rendering
+- `batchedAXNotifications` - Notifications are batched
+- `requiresBrowserStyleReplacement` - Needs clipboard+paste
+- `requiresFullReanalysisAfterReplacement` - Fragile byte offsets
+- `requiresDirectTypingAtPosition0` - Special handling for position 0
+
 ## Implementation Files
 
 - `Sources/AppConfiguration/AppRegistry.swift`: App configuration (line ~203)
+- `Sources/AppConfiguration/Behaviors/PerplexityBehavior.swift`: Behavior specification
 - `Sources/Positioning/Strategies/AnchorSearchStrategy.swift`: Primary positioning strategy
 
 ## Debugging

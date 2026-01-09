@@ -92,8 +92,25 @@ WebEx uses standard `AXSetValue` for text replacement:
 - No special handling required
 - Formatting is not applicable (plain text input)
 
+## Behavior Configuration
+
+WebEx uses the `WebExBehavior` specification for overlay behavior:
+
+| Behavior | Value |
+|----------|-------|
+| Underline show delay | 0.1s |
+| Bounds validation | Require positive origin |
+| Popover hover delay | 0.3s |
+| Popover auto-hide | 3.0s |
+| Hide on scroll | Yes |
+| Analysis debounce | 0.5s |
+| UTF-16 text indices | No |
+
+**Known Quirks:** None - WebEx has excellent AX API support.
+
 ## Implementation Files
 
+- `Sources/AppConfiguration/Behaviors/WebExBehavior.swift`: Behavior specification
 - `Sources/ContentParsers/WebExContentParser.swift`: Content parsing and element filtering
   - `isComposeElement()`: Distinguish compose area from sent messages
   - `shouldMonitorElement()`: Filter for TextMonitor

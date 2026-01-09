@@ -95,9 +95,28 @@ requiresTypingPause: false  // AX APIs respond quickly
 delaysAXNotifications: false  // Pages sends AX notifications promptly
 ```
 
+## Behavior Configuration
+
+Pages uses the `PagesBehavior` specification for overlay behavior:
+
+| Behavior | Value |
+|----------|-------|
+| Underline show delay | 0.1s |
+| Bounds validation | Require positive origin |
+| Popover hover delay | 0.3s |
+| Popover auto-hide | 3.0s |
+| Hide on scroll | Yes |
+| Analysis debounce | 0.3s |
+| UTF-16 text indices | No |
+
+**Known Quirks:**
+- `requiresBrowserStyleReplacement` - Needs clipboard+paste
+- `requiresFocusPasteReplacement` - Focus-based paste method
+
 ## Implementation Files
 
 - `Sources/AppConfiguration/AppRegistry.swift`: App configuration (Pages section)
+- `Sources/AppConfiguration/Behaviors/PagesBehavior.swift`: Behavior specification
 - `Sources/App/AnalysisCoordinator+TextReplacement.swift`: Office-style replacement path
 
 ## Debugging

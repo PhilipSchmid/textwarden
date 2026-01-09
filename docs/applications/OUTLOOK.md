@@ -103,8 +103,31 @@ When Outlook Copilot is active:
 
 Unlike Word and PowerPoint, Outlook's compose editor doesn't crash on parameterized AX queries. This may be due to a different underlying text engine (Word/PowerPoint use mso99 for document editing).
 
+## Behavior Configuration
+
+Outlook uses the `OutlookBehavior` specification for overlay behavior:
+
+| Behavior | Value |
+|----------|-------|
+| Underline show delay | 0.15s |
+| Bounds validation | Require stable (0.2s) |
+| Popover hover delay | 0.3s |
+| Popover auto-hide | 3.0s |
+| Hide on scroll | Yes |
+| Analysis debounce | 0.5s |
+| Line height compensation | ×1.5 (Aptos font) |
+| UTF-16 text indices | No |
+
+**Known Quirks:**
+- `requiresBrowserStyleReplacement` - Needs clipboard+paste
+- `requiresFocusPasteReplacement` - Focus-based paste method
+- `textMarkerIndexOffset` - Invisible character handling
+- `hasCustomElementFinder` - Custom element detection
+- `hasFocusBounceProtection` - Handles focus changes during paste
+
 ## Implementation Files
 
+- `Sources/AppConfiguration/Behaviors/OutlookBehavior.swift`: Behavior specification
 - `Sources/Positioning/Strategies/OutlookStrategy.swift`: Positioning strategy
   - `calculateSubjectFieldGeometry()`: Subject field positioning
   - `calculateComposeBodyGeometry()`: Body positioning with fallbacks

@@ -94,9 +94,29 @@ FontConfig(
 horizontalPadding: 4
 ```
 
+## Behavior Configuration
+
+PowerPoint uses the `PowerPointBehavior` specification for overlay behavior:
+
+| Behavior | Value |
+|----------|-------|
+| Underline show delay | 0.1s |
+| Bounds validation | Require positive origin |
+| Popover hover delay | 0.3s |
+| Popover auto-hide | 3.0s |
+| Hide on scroll | Yes |
+| Analysis debounce | 0.3s |
+| UTF-16 text indices | No |
+
+**Known Quirks:**
+- `requiresBrowserStyleReplacement` - Needs clipboard+paste
+- `requiresFocusPasteReplacement` - Focus-based paste method
+- `hasFocusBounceProtection` - Handles focus changes during paste
+
 ## Implementation Files
 
 - `Sources/AppConfiguration/AppRegistry.swift`: App configuration
+- `Sources/AppConfiguration/Behaviors/PowerPointBehavior.swift`: Behavior specification
 - `Sources/ContentParsers/PowerPointContentParser.swift`: Content parser for Notes detection
 - `Sources/Positioning/Strategies/PowerPointStrategy.swift`: AXBoundsForRange-based positioning
 

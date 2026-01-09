@@ -107,9 +107,28 @@ Like other Catalyst apps, WhatsApp doesn't reliably send AX notifications:
 - Compares current text with last analyzed text
 - Grace period after conversation switch (0.6s) to prevent race conditions
 
+## Behavior Configuration
+
+WhatsApp uses the `WhatsAppBehavior` specification for overlay behavior:
+
+| Behavior | Value |
+|----------|-------|
+| Underline show delay | 0.1s |
+| Bounds validation | Require within screen |
+| Popover hover delay | 0.3s |
+| Popover auto-hide | 3.0s |
+| Hide on scroll | Yes |
+| Analysis debounce | 0.5s |
+| UTF-16 text indices | Yes |
+
+**Known Quirks:**
+- `requiresBrowserStyleReplacement` - Needs clipboard+paste
+- `requiresFullReanalysisAfterReplacement` - AX state changes after paste
+
 ## Implementation Files
 
 - `Sources/AppConfiguration/AppRegistry.swift`: App configuration (line ~402)
+- `Sources/AppConfiguration/Behaviors/WhatsAppBehavior.swift`: Behavior specification
 - `Sources/AppConfiguration/MessengerBehavior.swift`: Shared messenger patterns including stale data handling
 - `Sources/App/AnalysisCoordinator+WindowTracking.swift`: Conversation switch detection
 

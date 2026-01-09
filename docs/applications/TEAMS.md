@@ -149,8 +149,31 @@ static let teams = AppConfiguration(
 )
 ```
 
+## Behavior Configuration
+
+Teams uses the `TeamsBehavior` specification for overlay behavior:
+
+| Behavior | Value |
+|----------|-------|
+| Underline show delay | 0.15s |
+| Bounds validation | Require within screen |
+| Popover hover delay | 0.3s |
+| Popover auto-hide | 3.0s |
+| Hide on scroll | Yes |
+| Analysis debounce | 1.0s |
+| UTF-16 text indices | Yes |
+
+**Known Quirks:**
+- `chromiumEmojiWidthBug` - Emoji width calculation issues
+- `webBasedRendering` - Web-based text rendering
+- `zeroFrameForOffscreen` - Returns (0,0) for off-screen elements
+- `requiresBrowserStyleReplacement` - Needs clipboard+paste
+- `requiresFullReanalysisAfterReplacement` - Fragile byte offsets
+- `requiresSelectionValidationBeforePaste` - Validate selection before paste
+
 ## Implementation Files
 
+- `Sources/AppConfiguration/Behaviors/TeamsBehavior.swift`: Behavior specification
 - `Sources/Positioning/Strategies/TeamsStrategy.swift`: Positioning strategy
   - `buildTextPartMap()`: AX tree traversal for text runs
   - `findBoundsForRange()`: Lookup error bounds in TextPart map

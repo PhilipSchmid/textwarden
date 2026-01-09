@@ -84,9 +84,28 @@ Mac Catalyst apps don't reliably send `kAXValueChangedNotification`. TextWarden 
 - Compares current text with last analyzed text
 - Triggers re-analysis or clears errors as needed
 
+## Behavior Configuration
+
+Messages uses the `MessagesBehavior` specification for overlay behavior:
+
+| Behavior | Value |
+|----------|-------|
+| Underline show delay | 0.1s |
+| Bounds validation | Require within screen |
+| Popover hover delay | 0.3s |
+| Popover auto-hide | 3.0s |
+| Hide on scroll | Yes |
+| Analysis debounce | 0.5s |
+| UTF-16 text indices | Yes |
+
+**Known Quirks:**
+- `requiresBrowserStyleReplacement` - Needs clipboard+paste
+- `requiresFullReanalysisAfterReplacement` - AX state changes after paste
+
 ## Implementation Files
 
 - `Sources/AppConfiguration/AppRegistry.swift`: App configuration (line ~367)
+- `Sources/AppConfiguration/Behaviors/MessagesBehavior.swift`: Behavior specification
 - `Sources/AppConfiguration/MessengerBehavior.swift`: Shared messenger patterns
 - `Sources/App/AnalysisCoordinator+WindowTracking.swift`: Conversation switch and message sent detection
 

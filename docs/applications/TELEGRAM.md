@@ -100,9 +100,26 @@ When users apply formatting (bold, italic, etc.), TextWarden:
 1. Detects the formatted text via accessibility attributes
 2. Applies corrections without disrupting formatting (via direct AX setValue)
 
+## Behavior Configuration
+
+Telegram uses the `TelegramBehavior` specification for overlay behavior:
+
+| Behavior | Value |
+|----------|-------|
+| Underline show delay | 0.1s |
+| Bounds validation | Require positive origin |
+| Popover hover delay | 0.3s |
+| Popover auto-hide | 3.0s |
+| Hide on scroll | Yes |
+| Analysis debounce | 0.3s |
+| UTF-16 text indices | Yes |
+
+**Known Quirks:** None - Telegram has excellent AX API support.
+
 ## Implementation Files
 
 - `Sources/AppConfiguration/AppRegistry.swift`: App configuration (line ~436)
+- `Sources/AppConfiguration/Behaviors/TelegramBehavior.swift`: Behavior specification
 - `Sources/AppConfiguration/MessengerBehavior.swift`: Shared messenger patterns
 - `Sources/App/AnalysisCoordinator+WindowTracking.swift`: Conversation switch detection
 

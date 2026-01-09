@@ -153,9 +153,33 @@ delaysAXNotifications: true  // Notion batches AX notifications
 
 Notion batches accessibility notifications, so TextWarden uses keyboard-based typing detection for more responsive updates.
 
+## Behavior Configuration
+
+Notion uses the `NotionBehavior` specification for overlay behavior:
+
+| Behavior | Value |
+|----------|-------|
+| Underline show delay | 0.15s |
+| Bounds validation | Require stable (0.25s) |
+| Popover hover delay | 0.3s |
+| Popover auto-hide | 3.0s |
+| Hide on scroll | Yes |
+| Analysis debounce | 1.0s |
+| Line height compensation | ×1.1 |
+| UTF-16 text indices | Yes |
+
+**Known Quirks:**
+- `chromiumEmojiWidthBug` - Emoji width calculation issues
+- `virtualizedText(50%)` - Only ~50% of blocks exposed to AX
+- `webBasedRendering` - Web-based text rendering
+- `batchedAXNotifications` - Notifications are batched
+- `requiresBrowserStyleReplacement` - Needs clipboard+paste
+- `requiresFullReanalysisAfterReplacement` - Fragile byte offsets
+
 ## Implementation Files
 
 - `Sources/AppConfiguration/AppRegistry.swift`: App configuration (Notion section)
+- `Sources/AppConfiguration/Behaviors/NotionBehavior.swift`: Behavior specification
 - `Sources/ContentParsers/NotionContentParser.swift`: UI element filtering and text preprocessing
 - `Sources/Positioning/Strategies/NotionStrategy.swift`: Child element tree traversal positioning
 - `Scripts/notion_ax_explorer.swift`: Diagnostic script for AX tree analysis

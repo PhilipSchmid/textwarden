@@ -87,6 +87,9 @@ Sources/
 │   ├── SlackContentParser.swift                  # Slack rich text handling
 │   ├── NotionContentParser.swift                 # Notion blocks parsing
 │   ├── MailContentParser.swift                   # Apple Mail
+│   ├── ClaudeContentParser.swift                 # Claude AI desktop app
+│   ├── OutlookContentParser.swift                # Microsoft Outlook
+│   ├── WebExContentParser.swift                  # Cisco WebEx
 │   ├── WordContentParser.swift                   # Microsoft Word
 │   ├── PowerPointContentParser.swift             # Microsoft PowerPoint
 │   └── TeamsContentParser.swift                  # Microsoft Teams
@@ -103,6 +106,15 @@ Sources/
 │   ├── TextAnchor.swift                          # Text anchor utilities
 │   └── Strategies/                               # Positioning algorithms
 │       ├── SlackStrategy.swift                   # Dedicated Slack positioning
+│       ├── ClaudeStrategy.swift                  # Claude AI tree-traversal positioning
+│       ├── NotionStrategy.swift                  # Notion-specific positioning
+│       ├── OutlookStrategy.swift                 # Microsoft Outlook positioning
+│       ├── TeamsStrategy.swift                   # Microsoft Teams positioning
+│       ├── WordStrategy.swift                    # Microsoft Word positioning
+│       ├── PowerPointStrategy.swift              # Microsoft PowerPoint positioning
+│       ├── MailStrategy.swift                    # Apple Mail positioning
+│       ├── WebExStrategy.swift                   # Cisco WebEx positioning
+│       ├── ProtonMailStrategy.swift              # Proton Mail positioning
 │       ├── RangeBoundsStrategy.swift             # AXBoundsForRange
 │       ├── LineIndexStrategy.swift               # Line + offset calculation
 │       ├── TextMarkerStrategy.swift              # AXTextMarker APIs
@@ -111,8 +123,7 @@ Sources/
 │       ├── ChromiumStrategy.swift                # Electron/Chromium heuristics
 │       ├── FontMetricsStrategy.swift             # Font-based calculation
 │       ├── ElementTreeStrategy.swift             # Element hierarchy traversal
-│       ├── OriginStrategy.swift                  # Origin-based positioning
-│       └── Legacy/                               # Deprecated (reference only)
+│       └── OriginStrategy.swift                  # Origin-based positioning
 │
 ├── TextReplacement/                              # Text replacement operations
 │   ├── TextReplacementCoordinator.swift          # Main entry point, routes by method
@@ -170,10 +181,13 @@ Sources/
 │
 ├── UI/                                           # User interface components
 │   ├── SuggestionPopover.swift                   # Main grammar suggestion UI
-│   ├── StyleSuggestionPopover.swift              # Style suggestion popover
 │   ├── ReadabilityPopover.swift                  # Readability score popover
+│   ├── TextGenerationPopover.swift               # AI text generation UI
+│   ├── PopoverManager.swift                      # Popover lifecycle and coordination
+│   ├── PopoverUtilities.swift                    # Shared popover positioning/tracking
 │   ├── FloatingErrorIndicator.swift              # Error count indicator
 │   ├── ErrorOverlayWindow.swift                  # Visual underline rendering
+│   ├── UnderlineStateManager.swift               # Unified underline state management
 │   ├── PreferencesView.swift                     # Main settings UI
 │   ├── GeneralPreferencesView.swift              # General settings tab
 │   ├── StyleCheckingSettingsView.swift           # Apple Intelligence settings
@@ -451,6 +465,68 @@ flowchart TD
 5. **Per-app disabled** - User or app config disabled underlines for this app
 
 For app-specific underline behavior, see `docs/applications/` (e.g., [SLACK.md](docs/applications/SLACK.md)).
+
+### UnderlineStateManager
+
+The `UnderlineStateManager` is a unified state manager that ensures consistency across all underline types (grammar, style, readability). Located in `Sources/UI/UnderlineStateManager.swift`.
+
+**Problem it solves:** Previously, grammar underlines, style underlines, and readability underlines were stored in separate arrays with independent update methods. This led to state synchronization bugs where partial updates could leave stale underlines visible.
+
+**Design Principles:**
+
+1. **Single Source of Truth** - All underline state owned by one manager
+2. **Atomic Updates** - All state changes happen together
+3. **Invariant Enforcement** - Automatically maintains consistency
+4. **Observable Changes** - Notifies view when state changes
+
+**Key Components:**
+
+```swift
+/// Immutable snapshot of all underline state
+struct UnderlineState {
+    let grammarUnderlines: [ErrorUnderline]
+    let styleUnderlines: [StyleUnderline]
+    let readabilityUnderlines: [ReadabilityUnderline]
+    let hoveredGrammarIndex: Int?
+    let hoveredStyleIndex: Int?
+    let hoveredReadabilityIndex: Int?
+    let lockedHighlightIndex: Int?
+}
+
+/// Manages all underline state with guaranteed consistency
+final class UnderlineStateManager {
+    var currentState: UnderlineState
+    var onStateChanged: ((UnderlineState) -> Void)?
+
+    func updateAll(grammarUnderlines:, styleUnderlines:, readabilityUnderlines:)
+    func setHoveredGrammarIndex(_:)
+    func setLockedHighlightIndex(_:)
+    func clear()
+}
+```
+
+**Usage:**
+
+```swift
+// Update all underlines atomically
+stateManager.updateAll(
+    grammarUnderlines: buildGrammarUnderlines(from: errors),
+    styleUnderlines: buildStyleUnderlines(from: suggestions),
+    readabilityUnderlines: buildReadabilityUnderlines(from: analysis)
+)
+
+// Subscribe to state changes
+stateManager.onStateChanged = { state in
+    underlineView.applyState(state)
+}
+```
+
+**Invariants enforced:**
+
+- Hover indices are always valid or nil
+- Locked highlight index is always valid or nil
+- Clearing grammar underlines also clears hover/lock state
+- State validation runs in DEBUG builds
 
 ### Apple Foundation Models Integration
 

@@ -112,9 +112,29 @@ delaysAXNotifications: false  // Word sends AX notifications promptly
 
 Word's accessibility implementation is responsive and reliable.
 
+## Behavior Configuration
+
+Word uses the `WordBehavior` specification for overlay behavior:
+
+| Behavior | Value |
+|----------|-------|
+| Underline show delay | 0.1s |
+| Bounds validation | Require positive origin |
+| Popover hover delay | 0.3s |
+| Popover auto-hide | 3.0s |
+| Hide on scroll | Yes |
+| Analysis debounce | 0.3s |
+| UTF-16 text indices | No |
+
+**Known Quirks:**
+- `requiresBrowserStyleReplacement` - Needs clipboard+paste
+- `requiresFocusPasteReplacement` - Focus-based paste method
+- `hasCustomElementFinder` - Custom element detection
+
 ## Implementation Files
 
 - `Sources/AppConfiguration/AppRegistry.swift`: App configuration (Word section)
+- `Sources/AppConfiguration/Behaviors/WordBehavior.swift`: Behavior specification
 - `Sources/ContentParsers/WordContentParser.swift`: Toolbar/ribbon filtering
 - `Sources/Positioning/Strategies/WordStrategy.swift`: Direct AXBoundsForRange positioning
 

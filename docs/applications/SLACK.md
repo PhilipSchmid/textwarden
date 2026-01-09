@@ -219,8 +219,34 @@ Format-preserving replacement gracefully degrades:
 
 Plain text replacement works correctly but formatting is lost for the replaced word only. The rest of the message retains formatting since we use partial selection.
 
+## Behavior Configuration
+
+Slack uses the `SlackBehavior` specification for overlay behavior:
+
+| Behavior | Value |
+|----------|-------|
+| Underline show delay | 0.1s |
+| Popover hover delay | 0.3s |
+| Popover auto-hide | 3.0s |
+| Hide on scroll | No (unreliable scroll events) |
+| Analysis debounce | 1.0s |
+| Line height compensation | +2.0pt |
+| UTF-16 text indices | Yes |
+
+**Known Quirks:**
+- `chromiumEmojiWidthBug` - Emoji width calculation issues
+- `negativeXCoordinates` - Some elements have negative X
+- `hasConflictingNativePopover` - Native popover detection required
+- `unreliableScrollEvents` - Scroll events don't fire reliably
+- `webBasedRendering` - Web-based text rendering
+- `requiresBrowserStyleReplacement` - Needs clipboard+paste
+- `requiresSelectionValidationBeforePaste` - Validate selection before paste
+- `hasSlackFormatPreservingReplacement` - Quill Delta format support
+- `hasFormattingToolbarNearCompose` - Formatting toolbar near compose area
+
 ## Implementation Files
 
+- `Sources/AppConfiguration/Behaviors/SlackBehavior.swift`: Behavior specification
 - `Sources/ContentParsers/SlackContentParser.swift`: Content parsing and text replacement
   - `extractUsingCFRange()`: AXBackgroundColor-based exclusion detection
   - `detectLinks()`: Link detection via AXLink child elements
