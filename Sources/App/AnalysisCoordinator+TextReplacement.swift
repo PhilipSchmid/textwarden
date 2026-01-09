@@ -769,12 +769,12 @@ extension AnalysisCoordinator {
             let sentences = ReadabilityCalculator.shared.splitIntoSentences(suggestion.suggestedText)
             for (sentenceText, _) in sentences {
                 dismissedReadabilitySentenceHashes.insert(sentenceText.hashValue)
-                Logger.info("DISMISS-HASH-STORE: hash=\(sentenceText.hashValue), fullText=«\(sentenceText)»", category: Logger.analysis)
+                Logger.debug("Readability dismiss hash stored: \(sentenceText.hashValue), text=«\(sentenceText)»", category: Logger.analysis)
             }
             // Also store hash of the full text in case it matches as one sentence
             let fullNormalized = suggestion.suggestedText.trimmingCharacters(in: .whitespacesAndNewlines)
             dismissedReadabilitySentenceHashes.insert(fullNormalized.hashValue)
-            Logger.info("DISMISS-HASH-STORE-FULL: hash=\(fullNormalized.hashValue), fullText=«\(fullNormalized)»", category: Logger.analysis)
+            Logger.debug("Readability dismiss hash stored (full): \(fullNormalized.hashValue), text=«\(fullNormalized)»", category: Logger.analysis)
         }
 
         // If this is a readability suggestion, remove the corresponding underline via state manager

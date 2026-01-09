@@ -136,7 +136,7 @@ For other applications (including Notion, Microsoft Teams, Word, PowerPoint), th
 
 **If underlines appear offset in a supported app**:
 
-1. **Enable trace logging**: In Settings > Diagnostics, set the log level to "Trace" to capture detailed positioning data
+1. **Enable trace logging**: In Settings > Diagnostics, set the log level to "Trace" to capture detailed positioning data. Note: Debug and Trace levels may include portions of analyzed text for troubleshooting purposes.
 2. **Check the logs**: Look at `~/Library/Logs/TextWarden/textwarden.log` for entries from positioning strategies (InsertionPointStrategy, ChromiumStrategy, etc.)
 3. **Multi-monitor setups**: If underlines appear correct on your primary display but offset on external monitors, this may be a coordinate conversion issue
 4. **Report the issue**: Use Export Diagnostics (which includes the trace logs) and include:
@@ -173,7 +173,7 @@ The exported package includes:
 - Performance metrics
 - Crash reports (if any)
 
-**Note**: The diagnostic export does not include any of your text or personal writing - only technical information needed for troubleshooting. We recommend extracting the ZIP file and reviewing its contents before uploading to ensure you're comfortable sharing the included information.
+**Note**: At the default log level (Info), the diagnostic export does not include any of your text or personal writing - only technical information needed for troubleshooting. If you've enabled Debug or Trace logging for troubleshooting, the logs may contain portions of analyzed text. Consider switching back to Info level before exporting if this is a concern. We recommend extracting the ZIP file and reviewing its contents before uploading to ensure you're comfortable sharing the included information.
 
 ## Reporting Issues
 

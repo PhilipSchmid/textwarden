@@ -574,6 +574,8 @@ struct LoggingConfigurationView: View {
     @State private var selectedLogLevel: LogLevel = Logger.minimumLogLevel
     @State private var fileLoggingEnabled: Bool = Logger.fileLoggingEnabled
     @State private var logFilePath: String = Logger.logFilePath
+    @State private var showVerboseLoggingWarning: Bool = false
+    @State private var pendingLogLevel: LogLevel?
 
     var body: some View {
         Section {
@@ -598,8 +600,15 @@ struct LoggingConfigurationView: View {
                     }
                     .pickerStyle(.menu)
                     .labelsHidden()
-                    .onChange(of: selectedLogLevel) { _, newValue in
-                        Logger.minimumLogLevel = newValue
+                    .onChange(of: selectedLogLevel) { oldValue, newValue in
+                        // Show warning when switching to verbose levels that may log user text
+                        if newValue == .debug || newValue == .trace, oldValue != .debug, oldValue != .trace {
+                            pendingLogLevel = newValue
+                            selectedLogLevel = oldValue // Revert until confirmed
+                            showVerboseLoggingWarning = true
+                        } else {
+                            Logger.minimumLogLevel = newValue
+                        }
                     }
                 }
 
@@ -693,6 +702,30 @@ struct LoggingConfigurationView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
+        }
+        .alert("Verbose Logging Warning", isPresented: $showVerboseLoggingWarning) {
+            Button("Enable \(pendingLogLevel?.rawValue ?? "Debug") Logging") {
+                if let level = pendingLogLevel {
+                    selectedLogLevel = level
+                    Logger.minimumLogLevel = level
+                }
+                pendingLogLevel = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingLogLevel = nil
+            }
+        } message: {
+            Text("""
+            Debug and Trace log levels may include analyzed text content in the log file for troubleshooting purposes.
+
+            Be mindful of:
+            • What text you analyze while verbose logging is enabled
+            • Who you share the log file with
+            • Sensitive information that may appear in logs
+
+            The log file is stored at:
+            \(Logger.logFilePath)
+            """)
         }
     }
 

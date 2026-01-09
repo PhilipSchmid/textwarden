@@ -901,7 +901,7 @@ class SlackContentParser: ContentParser {
             return .fallbackToPlainText
         }
 
-        Logger.info("SlackContentParser: Step 3-4 complete - selection verified for '\(expectedErrorText)'", category: Logger.analysis)
+        Logger.debug("SlackContentParser: Step 3-4 complete - selection verified for '\(expectedErrorText)'", category: Logger.analysis)
 
         // Step 5: Activate Slack and copy to get formatting (selection is valid)
         // CRITICAL: Activate Slack before Cmd+C, otherwise copy goes to wrong app
@@ -969,7 +969,7 @@ class SlackContentParser: ContentParser {
                 return .fallbackToPlainText
             }
 
-            Logger.info("SlackContentParser: Re-selection verified: '\(reselectionResult.actualSelectedText)'", category: Logger.analysis)
+            Logger.debug("SlackContentParser: Re-selection verified: '\(reselectionResult.actualSelectedText)'", category: Logger.analysis)
         }
 
         // Step 7: Write clipboard with suggestion
@@ -1520,7 +1520,7 @@ class SlackContentParser: ContentParser {
 
             if readResult == .success, let selectedText = selectedTextRef as? String {
                 if selectedText == targetText {
-                    Logger.info("SlackContentParser: Selection VERIFIED on attempt \(index + 1) - '\(selectedText)'", category: Logger.analysis)
+                    Logger.debug("SlackContentParser: Selection VERIFIED on attempt \(index + 1) - '\(selectedText)'", category: Logger.analysis)
                     return VerifiedSelectionResult(
                         success: true,
                         childElement: childElement,

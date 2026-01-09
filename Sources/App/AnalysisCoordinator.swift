@@ -2409,19 +2409,19 @@ class AnalysisCoordinator: ObservableObject {
                 // Filter out sentences that were just simplified to prevent re-flagging.
                 // When user applies a readability fix, the new text might still be detected
                 // as "complex" by re-analysis, but we don't want to underline it again.
-                Logger.info("DISMISS-FILTER[no-errors]: \(analysis.complexSentences.count) sentences, dismissed hashes: \(dismissedReadabilitySentenceHashes)", category: Logger.analysis)
+                Logger.debug("Readability filter [no-errors]: \(analysis.complexSentences.count) sentences, \(dismissedReadabilitySentenceHashes.count) dismissed hashes", category: Logger.analysis)
                 let filteredSentences = analysis.complexSentences.filter { sentence in
                     let hash = sentence.sentence.hashValue
                     let isDismissed = dismissedReadabilitySentenceHashes.contains(hash)
                     if isDismissed {
-                        Logger.info("DISMISS-HASH-MATCH[no-errors]: hash=\(hash)", category: Logger.analysis)
+                        Logger.debug("Readability hash match [no-errors]: hash=\(hash)", category: Logger.analysis)
                     } else if !dismissedReadabilitySentenceHashes.isEmpty {
-                        // DEBUG: Print full sentence for hash comparison debugging
-                        Logger.info("DISMISS-HASH-MISS[no-errors]: hash=\(hash), fullText=«\(sentence.sentence)»", category: Logger.analysis)
+                        // Full sentence text logged at debug level for troubleshooting hash mismatches
+                        Logger.debug("Readability hash miss [no-errors]: hash=\(hash), text=«\(sentence.sentence)»", category: Logger.analysis)
                     }
                     return !isDismissed
                 }
-                Logger.info("DISMISS-FILTER-RESULT[no-errors]: \(filteredSentences.count) sentences remain", category: Logger.analysis)
+                Logger.debug("Readability filter result [no-errors]: \(filteredSentences.count) sentences remain", category: Logger.analysis)
 
                 if !filteredSentences.isEmpty {
                     errorOverlay.updateReadabilityUnderlines(
@@ -2497,19 +2497,19 @@ class AnalysisCoordinator: ObservableObject {
                 // Filter out sentences that were just simplified to prevent re-flagging.
                 // When user applies a readability fix, the new text might still be detected
                 // as "complex" by re-analysis, but we don't want to underline it again.
-                Logger.info("DISMISS-FILTER: \(analysis.complexSentences.count) sentences, dismissed hashes: \(dismissedReadabilitySentenceHashes)", category: Logger.analysis)
+                Logger.debug("Readability filter: \(analysis.complexSentences.count) sentences, \(dismissedReadabilitySentenceHashes.count) dismissed hashes", category: Logger.analysis)
                 let filteredSentences = analysis.complexSentences.filter { sentence in
                     let hash = sentence.sentence.hashValue
                     let isDismissed = dismissedReadabilitySentenceHashes.contains(hash)
                     if isDismissed {
-                        Logger.info("DISMISS-HASH-MATCH: hash=\(hash)", category: Logger.analysis)
+                        Logger.debug("Readability hash match: hash=\(hash)", category: Logger.analysis)
                     } else if !dismissedReadabilitySentenceHashes.isEmpty {
-                        // DEBUG: Print full sentence for hash comparison debugging
-                        Logger.info("DISMISS-HASH-MISS: hash=\(hash), fullText=«\(sentence.sentence)»", category: Logger.analysis)
+                        // Full sentence text logged at debug level for troubleshooting hash mismatches
+                        Logger.debug("Readability hash miss: hash=\(hash), text=«\(sentence.sentence)»", category: Logger.analysis)
                     }
                     return !isDismissed
                 }
-                Logger.info("DISMISS-FILTER-RESULT: \(filteredSentences.count) sentences remain", category: Logger.analysis)
+                Logger.debug("Readability filter result: \(filteredSentences.count) sentences remain", category: Logger.analysis)
 
                 if !filteredSentences.isEmpty {
                     errorOverlay.updateReadabilityUnderlines(
@@ -2627,7 +2627,7 @@ class AnalysisCoordinator: ObservableObject {
 
         do {
             try customVocabulary.addWord(errorText)
-            Logger.info("Added '\(errorText)' to custom dictionary", category: Logger.analysis)
+            Logger.debug("Added '\(errorText)' to custom dictionary", category: Logger.analysis)
 
             // Record statistics
             statistics.recordWordAddedToDictionary()

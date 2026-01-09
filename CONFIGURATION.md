@@ -473,13 +473,15 @@ These settings are found in **Preferences → Diagnostics**.
 **Log Levels:**
 - **Error** - Only serious problems
 - **Warning** - Potential issues
-- **Info** - General operation info
-- **Debug** - Detailed technical info
-- **Trace** - Everything (generates large log files)
+- **Info** - General operation info (default)
+- **Debug** - Detailed technical info, **may include analyzed text**
+- **Trace** - Everything, **may include analyzed text** (generates large log files)
+
+**Privacy Note:** At Info level and above, logs contain only metadata (character counts, hashes, etc.) without your actual text. When you select Debug or Trace level, TextWarden displays a warning because these levels may include portions of analyzed text for troubleshooting purposes. Be mindful of what text you analyze and who you share log files with when using verbose logging.
 
 **File Logging:** When enabled, writes logs to disk for later review. You can choose a custom log file location or use the default (`~/Library/Logs/TextWarden/textwarden.log`).
 
-**Recommendation:** Keep at "Warning" or "Info" for normal use. Enable "Debug" only when troubleshooting issues.
+**Recommendation:** Keep at "Warning" or "Info" for normal use. Enable "Debug" only when troubleshooting issues, and be aware of the privacy implications.
 
 ### Debug Overlays
 
@@ -505,16 +507,18 @@ These settings are found in **Preferences → Diagnostics**.
 - List of applications used with TextWarden
 
 **Privacy Protections:**
-- **No personal text content** - Logs only contain metadata (e.g., "analyzed 50 chars"), never the actual text you typed
+- **Text content protected at default levels** - At Info level and above, logs only contain metadata (e.g., "analyzed 50 chars"). Debug and Trace levels may include text for troubleshooting (see [Logging Configuration](#logging-configuration)).
 - **Path anonymization** - File paths are sanitized (e.g., `/Users/[REDACTED]/Documents/...`)
 - **Sensitive data filtering** - Lines containing passwords, tokens, keys, or secrets are automatically removed from logs
 - **Custom dictionary excluded** - Your personal dictionary words are not included
 
-**What's NOT Included:**
+**What's NOT Included (at default log levels):**
 - Text you've typed or analyzed
 - Personal dictionary entries
 - Authentication credentials
 - Private document content
+
+**Note:** If you've enabled Debug or Trace logging, the diagnostic export may contain portions of analyzed text. Consider switching back to Info level before exporting if privacy is a concern.
 
 **Recommendation:** Before sharing a diagnostic export, unzip it and review the contents. This lets you verify exactly what's included and feel confident about what you're sharing.
 
