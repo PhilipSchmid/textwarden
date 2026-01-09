@@ -172,87 +172,134 @@ class SlackStrategy: GeometryProvider {
 
     // MARK: - TextPart Tree Building
 
-    /// Build TextPart map by traversing AX children
-    /// Slack's editor has: AXTextArea (root) → AXGroup (paragraphs) → AXStaticText/AXGroup (text runs)
+    /// Build TextPart map by traversing AX children recursively
+    /// Slack's editor has: AXTextArea (root) → AXGroup (paragraphs) → AXStaticText/AXGroup/AXLink (text runs)
     /// Uses string search to find exact positions instead of manual offset tracking
     private func buildTextPartMap(from element: AXUIElement, fullText: String) -> [TextPart] {
         var textParts: [TextPart] = []
         var searchStart = 0 // Where to start searching for next TextPart
 
-        // Get children (paragraphs/lines)
-        guard let paragraphs = getChildren(element) else {
-            return []
-        }
+        // Recursively collect all text parts from the AX tree
+        collectTextParts(
+            from: element,
+            fullText: fullText,
+            searchStart: &searchStart,
+            textParts: &textParts,
+            depth: 0
+        )
 
-        for paragraph in paragraphs {
-            // Get grandchildren (text runs within this paragraph)
-            guard let textRuns = getChildren(paragraph) else {
-                // Paragraph might have text directly
-                let paragraphText = getText(paragraph)
-                if !paragraphText.isEmpty {
-                    let frame = getFrame(paragraph)
-                    if frame.width > 0, frame.height > 0 {
-                        if let foundRange = findTextRange(paragraphText, in: fullText, startingAt: searchStart) {
-                            textParts.append(TextPart(text: paragraphText, range: foundRange, frame: frame, element: paragraph))
-                            searchStart = foundRange.location + foundRange.length
-                        }
-                    }
-                }
-                continue
-            }
-
-            for textRun in textRuns {
-                let role = getRole(textRun)
-                let frame = getFrame(textRun)
-                let runText = getText(textRun)
-
-                if role == "AXStaticText", !runText.isEmpty, frame.width > 0, frame.height > 0 {
-                    // Direct text run - find its position by string search
-                    if let foundRange = findTextRange(runText, in: fullText, startingAt: searchStart) {
-                        textParts.append(TextPart(text: runText, range: foundRange, frame: frame, element: textRun))
-                        searchStart = foundRange.location + foundRange.length
-                    }
-                } else if role == "AXGroup" {
-                    // Could be formatting group (bold, italic, code) - check for text inside
-                    if let nestedRuns = getChildren(textRun) {
-                        for nestedRun in nestedRuns {
-                            let nestedRole = getRole(nestedRun)
-                            let nestedFrame = getFrame(nestedRun)
-                            let nestedText = getText(nestedRun)
-
-                            if nestedRole == "AXStaticText", !nestedText.isEmpty,
-                               nestedFrame.width > 0, nestedFrame.height > 0
-                            {
-                                if let foundRange = findTextRange(nestedText, in: fullText, startingAt: searchStart) {
-                                    textParts.append(TextPart(text: nestedText, range: foundRange, frame: nestedFrame, element: nestedRun))
-                                    searchStart = foundRange.location + foundRange.length
-                                }
-                            } else if nestedRole == "AXGroup" {
-                                // Handle deeper nesting (e.g., bold + italic)
-                                if let deeperRuns = getChildren(nestedRun) {
-                                    for deeperRun in deeperRuns {
-                                        let deeperRole = getRole(deeperRun)
-                                        let deeperFrame = getFrame(deeperRun)
-                                        let deeperText = getText(deeperRun)
-
-                                        if deeperRole == "AXStaticText", !deeperText.isEmpty,
-                                           deeperFrame.width > 0, deeperFrame.height > 0
-                                        {
-                                            if let foundRange = findTextRange(deeperText, in: fullText, startingAt: searchStart) {
-                                                textParts.append(TextPart(text: deeperText, range: foundRange, frame: deeperFrame, element: deeperRun))
-                                                searchStart = foundRange.location + foundRange.length
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        // Check for gaps in coverage and log them
+        logCoverageGaps(textParts: textParts, fullTextLength: fullText.count)
 
         return textParts
+    }
+
+    /// Recursively collect TextParts from an element and its children
+    /// Handles arbitrary nesting depth and various element types (AXStaticText, AXGroup, AXLink, AXButton)
+    private func collectTextParts(
+        from element: AXUIElement,
+        fullText: String,
+        searchStart: inout Int,
+        textParts: inout [TextPart],
+        depth: Int
+    ) {
+        // Prevent infinite recursion
+        guard depth < 10 else {
+            Logger.trace("SlackStrategy: Max depth reached at level \(depth)", category: Logger.ui)
+            return
+        }
+
+        // Get children of this element
+        guard let children = getChildren(element) else {
+            // No children - check if this element itself has text
+            let text = getText(element)
+            let frame = getFrame(element)
+            if !text.isEmpty, frame.width > 0, frame.height > 0 {
+                if let foundRange = findTextRange(text, in: fullText, startingAt: searchStart) {
+                    textParts.append(TextPart(text: text, range: foundRange, frame: frame, element: element))
+                    searchStart = foundRange.location + foundRange.length
+                }
+            }
+            return
+        }
+
+        for child in children {
+            let role = getRole(child)
+            let frame = getFrame(child)
+            let text = getText(child)
+
+            // Check if this is a text-bearing element
+            let isTextElement = role == "AXStaticText"
+            let isContainerElement = role == "AXGroup" || role == "AXLink" || role == "AXButton"
+
+            if isTextElement, !text.isEmpty, frame.width > 0, frame.height > 0 {
+                // Direct text element - add it
+                if let foundRange = findTextRange(text, in: fullText, startingAt: searchStart) {
+                    textParts.append(TextPart(text: text, range: foundRange, frame: frame, element: child))
+                    searchStart = foundRange.location + foundRange.length
+                } else {
+                    // Text not found at expected position - try searching from beginning
+                    // This handles cases where AX tree order doesn't match visual order
+                    // (common with mentions, links, and formatted text in Slack)
+                    if let foundRange = findTextRange(text, in: fullText, startingAt: 0) {
+                        // Only add if this range isn't already covered by another TextPart
+                        let alreadyCovered = textParts.contains { part in
+                            part.range.location <= foundRange.location &&
+                                part.range.location + part.range.length >= foundRange.location + foundRange.length
+                        }
+                        if !alreadyCovered {
+                            textParts.append(TextPart(text: text, range: foundRange, frame: frame, element: child))
+                            Logger.trace("SlackStrategy: Found text '\(text.prefix(20))...' at \(foundRange.location) (out of order)", category: Logger.ui)
+                        }
+                    }
+                }
+            } else if isContainerElement {
+                // Container element - recurse into it
+                // But first check if it has text directly (some AXGroup elements have AXValue)
+                if !text.isEmpty, frame.width > 0, frame.height > 0 {
+                    if let foundRange = findTextRange(text, in: fullText, startingAt: searchStart) {
+                        textParts.append(TextPart(text: text, range: foundRange, frame: frame, element: child))
+                        searchStart = foundRange.location + foundRange.length
+                    }
+                }
+                // Recurse into children
+                collectTextParts(
+                    from: child,
+                    fullText: fullText,
+                    searchStart: &searchStart,
+                    textParts: &textParts,
+                    depth: depth + 1
+                )
+            }
+        }
+    }
+
+    /// Log any gaps in TextPart coverage for debugging
+    private func logCoverageGaps(textParts: [TextPart], fullTextLength: Int) {
+        guard !textParts.isEmpty else { return }
+
+        // Sort by position
+        let sorted = textParts.sorted { $0.range.location < $1.range.location }
+
+        var gaps: [(start: Int, end: Int)] = []
+        var lastEnd = 0
+
+        for part in sorted {
+            if part.range.location > lastEnd {
+                gaps.append((start: lastEnd, end: part.range.location))
+            }
+            lastEnd = max(lastEnd, part.range.location + part.range.length)
+        }
+
+        // Check for gap at the end
+        if lastEnd < fullTextLength {
+            gaps.append((start: lastEnd, end: fullTextLength))
+        }
+
+        // Log significant gaps (more than just whitespace)
+        for gap in gaps where gap.end - gap.start > 10 {
+            Logger.warning("SlackStrategy: Coverage gap \(gap.start)-\(gap.end) (\(gap.end - gap.start) chars)", category: Logger.ui)
+        }
     }
 
     /// Find the range of a substring starting from a given position
