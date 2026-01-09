@@ -142,12 +142,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 analysisCoordinator = AnalysisCoordinator.shared
                 Logger.info("Analysis coordinator initialized (permission already granted)", category: Logger.lifecycle)
             } else {
+                Logger.debug("Setting up onPermissionGranted callback on PermissionManager.shared", category: Logger.permissions)
                 permissionManager.onPermissionGranted = { [weak self] in
-                    guard let self else { return }
-                    Logger.info("Permission granted via onboarding - starting grammar checking", category: Logger.permissions)
+                    guard let self else {
+                        Logger.error("onPermissionGranted callback: self (AppDelegate) is nil! Cannot initialize AnalysisCoordinator.", category: Logger.permissions)
+                        return
+                    }
+                    Logger.info("onPermissionGranted callback EXECUTED - initializing AnalysisCoordinator", category: Logger.permissions)
                     analysisCoordinator = AnalysisCoordinator.shared
-                    Logger.info("Analysis coordinator initialized", category: Logger.lifecycle)
+                    Logger.info("Analysis coordinator initialized successfully", category: Logger.lifecycle)
                 }
+                Logger.debug("onPermissionGranted callback is now set (callback != nil: \(permissionManager.onPermissionGranted != nil))", category: Logger.permissions)
             }
 
             // Open onboarding window

@@ -1152,20 +1152,22 @@ struct OnboardingView: View {
             return
         }
 
-        Logger.debug("Onboarding: Starting permission polling (every 1 second)", category: Logger.permissions)
+        Logger.debug("OnboardingView.startPolling: Starting UI polling (interval: \(TimingConstants.permissionPolling)s) - this polls via checkPermissionStatus()", category: Logger.permissions)
         isPolling = true
         elapsedTime = 0
 
         // Poll for permission changes
+        // NOTE: This is SEPARATE from PermissionManager.startPolling() which is also running!
+        // Both timers poll at the same interval. Whichever detects the transition first will call the callback.
         pollingTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.permissionPolling, repeats: true) { _ in
             Task { @MainActor in
                 elapsedTime += TimingConstants.permissionPolling
 
-                // Check if permission was granted
+                // Check if permission was granted (this calls PermissionManager.checkPermissionStatus)
                 permissionManager.checkPermissionStatus()
 
                 if permissionManager.isPermissionGranted {
-                    Logger.info("Onboarding: Permission granted! Advancing to verification", category: Logger.permissions)
+                    Logger.info("Onboarding: Permission is now granted - advancing to verification step", category: Logger.permissions)
                     currentStep = .verification
                     stopPolling()
                 } else if elapsedTime >= maxWaitTime {

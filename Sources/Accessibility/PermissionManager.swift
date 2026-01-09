@@ -49,15 +49,22 @@ class PermissionManager: ObservableObject {
     }
 
     /// Check permission status and update published property
-    /// Alias for checkPermission() used by OnboardingView
+    /// Called by OnboardingView's polling timer
     func checkPermissionStatus() {
         let wasGranted = isPermissionGranted
         let isGranted = checkPermission()
 
+        Logger.trace("Permission check (OnboardingView): wasGranted=\(wasGranted), isGranted=\(isGranted), callbackSet=\(onPermissionGranted != nil)", category: Logger.permissions)
+
         // Call callback if permission was just granted
         if !wasGranted, isGranted {
-            Logger.info("Permission just granted", category: Logger.permissions)
-            onPermissionGranted?()
+            Logger.info("Permission transition detected (via checkPermissionStatus) - calling onPermissionGranted callback", category: Logger.permissions)
+            if let callback = onPermissionGranted {
+                callback()
+                Logger.debug("onPermissionGranted callback executed (from checkPermissionStatus)", category: Logger.permissions)
+            } else {
+                Logger.warning("onPermissionGranted callback is nil! AnalysisCoordinator will NOT start.", category: Logger.permissions)
+            }
         }
     }
 
@@ -84,8 +91,11 @@ class PermissionManager: ObservableObject {
     }
 
     /// Start polling for permission status changes
+    /// Called by requestPermission() - this is the PermissionManager's internal polling
     func startPolling(interval: TimeInterval = TimingConstants.permissionPolling) {
         stopPolling()
+
+        Logger.debug("PermissionManager.startPolling: Starting internal polling (interval: \(interval)s, currentState: \(isPermissionGranted), callbackSet: \(onPermissionGranted != nil))", category: Logger.permissions)
 
         pollTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -94,11 +104,21 @@ class PermissionManager: ObservableObject {
                 let wasGranted = isPermissionGranted
                 let isGranted = checkPermission()
 
-                // Stop polling once permission is granted
+                Logger.trace("Permission poll (PermissionManager): wasGranted=\(wasGranted), isGranted=\(isGranted), callbackSet=\(onPermissionGranted != nil)", category: Logger.permissions)
+
+                // Handle permission grant transition
                 if !wasGranted, isGranted {
+                    Logger.info("Permission transition detected (via PermissionManager.startPolling) - calling onPermissionGranted callback", category: Logger.permissions)
                     stopPolling()
                     // Start continuous monitoring for revocation
                     startRevocationMonitoring()
+                    // Call callback to notify interested parties (e.g., AppDelegate to start AnalysisCoordinator)
+                    if let callback = onPermissionGranted {
+                        callback()
+                        Logger.debug("onPermissionGranted callback executed (from PermissionManager.startPolling)", category: Logger.permissions)
+                    } else {
+                        Logger.warning("onPermissionGranted callback is nil! AnalysisCoordinator will NOT start.", category: Logger.permissions)
+                    }
                 }
             }
         }
