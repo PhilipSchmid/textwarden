@@ -218,7 +218,7 @@ struct DiagnosticsView: View {
                         .foregroundColor(.secondary)
                     }
 
-                    Text("⚠️ Privacy: We take great care to exclude your text from exports, but please review before sharing")
+                    Text("⚠️ Privacy: At default log levels, no text is included. Debug/Trace logs may contain analyzed text. Please review before sharing.")
                         .font(.caption)
                         .foregroundColor(.orange)
                         .padding(.top, 4)
@@ -576,6 +576,7 @@ struct LoggingConfigurationView: View {
     @State private var logFilePath: String = Logger.logFilePath
     @State private var showVerboseLoggingWarning: Bool = false
     @State private var pendingLogLevel: LogLevel?
+    @State private var isConfirmingVerboseLevel: Bool = false
 
     var body: some View {
         Section {
@@ -601,6 +602,12 @@ struct LoggingConfigurationView: View {
                     .pickerStyle(.menu)
                     .labelsHidden()
                     .onChange(of: selectedLogLevel) { oldValue, newValue in
+                        // Skip onChange if we're confirming a verbose level (prevents re-triggering warning)
+                        if isConfirmingVerboseLevel {
+                            isConfirmingVerboseLevel = false
+                            Logger.minimumLogLevel = newValue
+                            return
+                        }
                         // Show warning when switching to verbose levels that may log user text
                         if newValue == .debug || newValue == .trace, oldValue != .debug, oldValue != .trace {
                             pendingLogLevel = newValue
@@ -703,29 +710,21 @@ struct LoggingConfigurationView: View {
                     .foregroundColor(.secondary)
             }
         }
-        .alert("Verbose Logging Warning", isPresented: $showVerboseLoggingWarning) {
-            Button("Enable \(pendingLogLevel?.rawValue ?? "Debug") Logging") {
-                if let level = pendingLogLevel {
-                    selectedLogLevel = level
-                    Logger.minimumLogLevel = level
+        .sheet(isPresented: $showVerboseLoggingWarning) {
+            VerboseLoggingWarningSheet(
+                pendingLogLevel: pendingLogLevel,
+                isPresented: $showVerboseLoggingWarning,
+                onConfirm: {
+                    if let level = pendingLogLevel {
+                        isConfirmingVerboseLevel = true
+                        selectedLogLevel = level
+                    }
+                    pendingLogLevel = nil
+                },
+                onCancel: {
+                    pendingLogLevel = nil
                 }
-                pendingLogLevel = nil
-            }
-            Button("Cancel", role: .cancel) {
-                pendingLogLevel = nil
-            }
-        } message: {
-            Text("""
-            Debug and Trace log levels may include analyzed text content in the log file for troubleshooting purposes.
-
-            Be mindful of:
-            • What text you analyze while verbose logging is enabled
-            • Who you share the log file with
-            • Sensitive information that may appear in logs
-
-            The log file is stored at:
-            \(Logger.logFilePath)
-            """)
+            )
         }
     }
 
@@ -881,6 +880,169 @@ struct ExportSuccessSheet: View {
             .padding(.bottom, 24)
         }
         .frame(width: 420)
+        .background(.regularMaterial)
+    }
+}
+
+// MARK: - Verbose Logging Warning Sheet
+
+struct VerboseLoggingWarningSheet: View {
+    let pendingLogLevel: LogLevel?
+    @Binding var isPresented: Bool
+    let onConfirm: () -> Void
+    let onCancel: () -> Void
+    @State private var showCopiedFeedback: Bool = false
+
+    private var logFilePath: String {
+        Logger.logFilePath
+    }
+
+    private var directoryPath: String {
+        (logFilePath as NSString).deletingLastPathComponent
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header with warning icon
+            VStack(spacing: 12) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 48))
+                    .foregroundStyle(.orange)
+
+                Text("Verbose Logging Warning")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+            }
+            .padding(.top, 24)
+            .padding(.bottom, 16)
+
+            // Warning message
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Debug and Trace log levels may include analyzed text content in the log file for troubleshooting purposes.")
+                    .font(.body)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Be mindful of:")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "doc.text")
+                                .frame(width: 16, alignment: .center)
+                            Text("What text you analyze while verbose logging is enabled")
+                        }
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "person.2")
+                                .frame(width: 16, alignment: .center)
+                            Text("Who you share the log file with")
+                        }
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "lock.shield")
+                                .frame(width: 16, alignment: .center)
+                            Text("Sensitive information that may appear in logs")
+                        }
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 16)
+
+            // Log file path card
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    Image(systemName: "doc.text")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Log File Location")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Text(logFilePath)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.primary)
+                            .lineLimit(2)
+                            .textSelection(.enabled)
+                    }
+
+                    Spacer()
+                }
+
+                // Path action buttons
+                HStack(spacing: 8) {
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(logFilePath, forType: .string)
+                        showCopiedFeedback = true
+
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                            showCopiedFeedback = false
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: showCopiedFeedback ? "checkmark" : "doc.on.doc")
+                                .frame(width: 12)
+                            Text(showCopiedFeedback ? "Copied!" : "Copy Path")
+                        }
+                        .font(.caption)
+                        .frame(height: 16)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .tint(showCopiedFeedback ? .green : nil)
+
+                    Button {
+                        NSWorkspace.shared.selectFile(logFilePath, inFileViewerRootedAtPath: "")
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "folder")
+                                .frame(width: 12)
+                            Text("Show in Finder")
+                        }
+                        .font(.caption)
+                        .frame(height: 16)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                    Spacer()
+                }
+            }
+            .padding(16)
+            .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 10))
+            .padding(.horizontal, 24)
+
+            // Action buttons
+            HStack(spacing: 12) {
+                Button {
+                    isPresented = false
+                    onCancel()
+                } label: {
+                    Text("Cancel")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .keyboardShortcut(.cancelAction)
+
+                Button {
+                    isPresented = false
+                    onConfirm()
+                } label: {
+                    Text("Enable \(pendingLogLevel?.rawValue ?? "Debug") Logging")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+            .padding(.bottom, 24)
+        }
+        .frame(width: 460)
         .background(.regularMaterial)
     }
 }
