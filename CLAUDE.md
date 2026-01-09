@@ -103,10 +103,12 @@ Examples:
 ## Testing
 
 ```bash
-make run            # Build AND restart the app (use this for testing!)
+make run            # Build AND restart the app - use after EVERY code change for testing!
 make test           # Run tests
-make ci-check       # Run CI checks locally before committing
+make ci-check       # Run CI checks - ONLY before committing, not after every change
 ```
+
+**Workflow**: Make code changes → `make run` → test manually → repeat. Only run `make ci-check` when ready to commit.
 
 ## Releasing
 
