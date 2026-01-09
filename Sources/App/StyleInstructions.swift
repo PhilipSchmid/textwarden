@@ -45,6 +45,8 @@ enum StyleInstructions {
         10. Focus on one improvement per suggestion - don't combine multiple unrelated changes.
         11. IMPORTANT: Treat each bullet point or list item as a separate unit. Never combine multiple bullet points into a single suggestion.
         12. If you cannot improve a phrase, do NOT include it - only return actionable suggestions.
+        13. CRITICAL: Punctuation inside parentheses (e.g., "soon (next week?)") does NOT end the sentence. \
+        The sentence continues after the closing parenthesis. Include the COMPLETE sentence in your original field.
 
         AVOID suggesting changes for:
         - Correctly spelled words that are uncommon

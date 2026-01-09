@@ -74,9 +74,13 @@ struct GenerationContext {
         let suggested: String
 
         @Guide(description: """
-        One short sentence explaining why this improves readability.
-        Maximum 10 words. Be direct, no filler words.
-        Example: "Removes redundant phrasing for clarity."
+        A brief reason why this change improves the text.
+        STRICT RULES:
+        - Maximum 10 words total
+        - Do NOT quote or include the original text
+        - Do NOT quote or include the suggested text
+        - Do NOT use patterns like "Replaces X with Y"
+        - Just explain the benefit (e.g., "Removes redundant words", "More direct phrasing")
         """)
         let explanation: String
     }
@@ -129,6 +133,26 @@ struct GenerationContext {
                 return nil
             }
 
+            // CRITICAL: Reject suggestions that appear to be truncated mid-sentence
+            // This catches cases where the LLM treats "?" or "!" inside parentheses as sentence end
+            // e.g., "soon (next week?) to discuss..." → LLM returns "soon (next week?)" as complete
+            let trimmedOriginal = normalizedOriginal.trimmingCharacters(in: .whitespaces)
+            if trimmedOriginal.hasSuffix("?)") || trimmedOriginal.hasSuffix("!)") || trimmedOriginal.hasSuffix(".)") {
+                // Check if there's more text after this in the document
+                if range.upperBound < text.endIndex {
+                    // Get the next few characters after the match
+                    let remainingStart = range.upperBound
+                    let remainingEnd = text.index(remainingStart, offsetBy: min(20, text.distance(from: remainingStart, to: text.endIndex)))
+                    let nextChars = String(text[remainingStart ..< remainingEnd]).trimmingCharacters(in: .whitespaces)
+
+                    // If next chars start with lowercase letter, this is a truncated sentence
+                    if let firstChar = nextChars.first, firstChar.isLetter, firstChar.isLowercase {
+                        Logger.debug("Style suggestion rejected - appears truncated (ends with parenthetical punctuation but sentence continues with '\(nextChars.prefix(10))...')", category: Logger.analysis)
+                        return nil
+                    }
+                }
+            }
+
             // Reject suggestions that span multiple list items/bullets
             // Count newlines in original text - if there's more than one significant paragraph break, reject
             let newlineCount = original.components(separatedBy: "\n").count - 1
@@ -136,6 +160,10 @@ struct GenerationContext {
                 Logger.debug("Rejecting style suggestion spanning \(newlineCount + 1) paragraphs (\(original.count) chars)", category: Logger.analysis)
                 return nil
             }
+
+            // Sanitize overly long or verbose explanations
+            // The model sometimes ignores the "max 10 words" instruction and echoes back the text
+            let sanitizedExplanation = sanitizeExplanation(explanation, original: original, suggested: suggested)
 
             let startIndex = text.distance(from: text.startIndex, to: range.lowerBound)
             let endIndex = text.distance(from: text.startIndex, to: range.upperBound)
@@ -155,11 +183,55 @@ struct GenerationContext {
                 originalEnd: endIndex,
                 originalText: original,
                 suggestedText: suggested,
-                explanation: explanation,
+                explanation: sanitizedExplanation,
                 confidence: 0.85, // FM suggestions are high quality
                 style: style,
                 diff: diff
             )
+        }
+
+        /// Sanitize an explanation that may be too long or contain echoed text
+        /// Returns a cleaned version or a generic fallback
+        private func sanitizeExplanation(_ explanation: String, original: String, suggested: String) -> String {
+            let trimmed = explanation.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Count words (split by whitespace)
+            let words = trimmed.split(separator: " ", omittingEmptySubsequences: true)
+            let wordCount = words.count
+
+            // Check for patterns that indicate echoed text
+            let lowerExplanation = trimmed.lowercased()
+            let hasQuotes = trimmed.contains("\"")
+            let hasReplacesPattern = lowerExplanation.contains("replaces") || lowerExplanation.contains("replaced")
+            let containsOriginal = trimmed.contains(original.prefix(20))
+            let containsSuggested = trimmed.contains(suggested.prefix(20))
+
+            // If explanation is clean and short, use it as-is
+            if wordCount <= 15, !hasQuotes, !hasReplacesPattern, !containsOriginal, !containsSuggested {
+                return trimmed
+            }
+
+            // Log that we're sanitizing
+            Logger.debug("Sanitizing verbose explanation (\(wordCount) words, hasQuotes=\(hasQuotes), hasReplaces=\(hasReplacesPattern))", category: Logger.llm)
+
+            // Try to extract a meaningful part if possible
+            // Look for common useful phrases at the end
+            let usefulSuffixes = ["for clarity", "for conciseness", "for readability", "more direct", "clearer", "simpler"]
+            for suffix in usefulSuffixes {
+                if lowerExplanation.hasSuffix(suffix) || lowerExplanation.hasSuffix(suffix + ".") {
+                    return "Improves \(suffix)"
+                }
+            }
+
+            // Generate a generic but helpful explanation based on the change
+            let lengthDiff = original.count - suggested.count
+            if lengthDiff > 10 {
+                return "More concise phrasing"
+            } else if lengthDiff < -10 {
+                return "Clearer expression"
+            } else {
+                return "Improves readability"
+            }
         }
 
         /// Build diff segments showing what changed between original and suggested
