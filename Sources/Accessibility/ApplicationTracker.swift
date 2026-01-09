@@ -55,10 +55,12 @@ class ApplicationTracker: ObservableObject {
     }
 
     /// Start polling for frontmost application changes
-    /// Poll every 250ms for instant detection using GCD-based DispatchSourceTimer
+    /// Poll every 50ms for near-instant app switch detection using GCD-based DispatchSourceTimer
+    /// Note: The polling is very lightweight (just checking frontmostApplication and comparing bundle IDs)
+    /// so 50ms interval has negligible CPU impact while providing snappy overlay hiding on app switch
     private func startPolling() {
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.main)
-        timer.schedule(deadline: .now(), repeating: 0.25)
+        timer.schedule(deadline: .now(), repeating: 0.05) // 50ms for snappy app switch detection
         timer.setEventHandler { [weak self] in
             self?.checkForApplicationChange()
         }
@@ -66,7 +68,7 @@ class ApplicationTracker: ObservableObject {
 
         pollingTimer = timer
 
-        Logger.debug("ApplicationTracker: Polling started (250ms interval)", category: Logger.accessibility)
+        Logger.debug("ApplicationTracker: Polling started (50ms interval)", category: Logger.accessibility)
     }
 
     /// Check if frontmost application has changed
