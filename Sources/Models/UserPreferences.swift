@@ -154,6 +154,8 @@ class UserPreferences: ObservableObject {
     }
 
     /// All available grammar check categories from Harper
+    /// Note: "Readability" is intentionally excluded - we use our own ReadabilityCalculator instead,
+    /// which provides better analysis (Flesch Reading Ease) and AI-powered simplification suggestions.
     static let allCategories: Set<String> = [
         "Agreement",
         "BoundaryError",
@@ -166,7 +168,6 @@ class UserPreferences: ObservableObject {
         "Miscellaneous",
         "Nonstandard",
         "Punctuation",
-        "Readability",
         "Redundancy",
         "Regionalism",
         "Repetition",

@@ -512,6 +512,14 @@ pub fn analyze_text(
     if !check_dashes {
         linter.config.set_rule_enabled("Dashes", false);
     }
+
+    // HARD-CODED: Always disable Harper's LongSentences rule (produces LintKind::Readability)
+    // We use our own ReadabilityCalculator instead, which provides:
+    // - Flesch Reading Ease score (not just word count > 40)
+    // - Target audience consideration
+    // - AI-powered simplification suggestions via Foundation Models
+    linter.config.set_rule_enabled("LongSentences", false);
+
     let linter_setup_ms = linter_start.elapsed().as_millis() as u64;
 
     // --- PHASE 3: Document Parsing ---

@@ -273,8 +273,8 @@ private struct FilteringPreferencesContent: View {
                 Toggle("Style", isOn: categoryBinding("Style"))
                     .help("Check cases where multiple options are correct but one is preferred")
 
-                Toggle("Readability", isOn: categoryBinding("Readability"))
-                    .help("Improve text flow and make writing easier to understand")
+                // Note: Harper's "Readability" category is disabled - we use our own
+                // ReadabilityCalculator with Flesch Reading Ease and AI simplification
 
                 Toggle("Enhancement", isOn: categoryBinding("Enhancement"))
                     .help("Suggest improvements that enhance clarity or impact without fixing errors")
@@ -888,8 +888,8 @@ struct FilteringPreferencesView: View {
                 Toggle("Style", isOn: categoryBinding("Style"))
                     .help("Check cases where multiple options are correct but one is preferred")
 
-                Toggle("Readability", isOn: categoryBinding("Readability"))
-                    .help("Improve text flow and make writing easier to understand")
+                // Note: Harper's "Readability" category is disabled - we use our own
+                // ReadabilityCalculator with Flesch Reading Ease and AI simplification
 
                 Toggle("Enhancement", isOn: categoryBinding("Enhancement"))
                     .help("Suggest improvements that enhance clarity or impact without fixing errors")

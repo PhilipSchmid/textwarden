@@ -2219,6 +2219,17 @@ class AnalysisCoordinator: ObservableObject {
             Logger.debug("  Error category: '\(error.category)', message: '\(error.message)'", category: Logger.analysis)
         }
 
+        // HARD-CODED: Always exclude Harper's "Readability" category errors
+        // We use our own ReadabilityCalculator instead, which provides:
+        // - Flesch Reading Ease score (not just word count)
+        // - Target audience consideration
+        // - AI-powered simplification suggestions via Foundation Models
+        let beforeReadabilityFilter = filteredErrors.count
+        filteredErrors = filteredErrors.filter { $0.category != "Readability" }
+        if filteredErrors.count < beforeReadabilityFilter {
+            Logger.debug("  Filtered out \(beforeReadabilityFilter - filteredErrors.count) Harper Readability errors (using our own ReadabilityCalculator instead)", category: Logger.analysis)
+        }
+
         // Filter by category (e.g., Spelling, Grammar, Style)
         let enabledCategories = userPreferences.enabledCategories
         Logger.debug("AnalysisCoordinator: Enabled categories: \(enabledCategories)", category: Logger.analysis)
