@@ -2434,9 +2434,11 @@ class AnalysisCoordinator: ObservableObject {
                     Logger.debug("AnalysisCoordinator: Showing \(underlinesCreated) visual underlines + floating indicator", category: Logger.analysis)
                 }
             } else {
-                // No grammar errors but have style suggestions - hide grammar underlines only
+                // No grammar errors but have style suggestions - clear grammar underlines
                 // Preserve readability underlines if they exist
-                if !hasReadabilityUnderlines {
+                if hasReadabilityUnderlines {
+                    errorOverlay.clearGrammarUnderlines()
+                } else {
                     errorOverlay.hide()
                 }
             }
