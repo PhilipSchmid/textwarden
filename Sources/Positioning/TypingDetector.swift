@@ -146,7 +146,7 @@ final class TypingDetector {
     /// Called when text changes via AX notification
     /// This should be called from TextMonitor.handleTextChange()
     func notifyTextChange() {
-        Logger.debug("TypingDetector: AX text change notification received", category: Logger.ui)
+        Logger.trace("TypingDetector: AX text change notification received", category: Logger.ui)
         notifyTypingEvent(viaKeyboard: false)
     }
 

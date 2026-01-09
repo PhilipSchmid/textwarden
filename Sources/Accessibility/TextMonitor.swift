@@ -346,7 +346,12 @@ class TextMonitor: ObservableObject {
     /// Monitor a specific UI element for text changes
     fileprivate func monitorElement(_ element: AXUIElement, retryAttempt: Int = 0) {
         let maxAttempts = RetryConfig.accessibilityAPI.maxAttempts
-        Logger.debug("TextMonitor: monitorElement called (attempt \(retryAttempt + 1)/\(maxAttempts + 1))", category: Logger.accessibility)
+        // Log first attempt at debug level, retries at trace to reduce noise
+        if retryAttempt == 0 {
+            Logger.debug("TextMonitor: monitorElement called (attempt 1/\(maxAttempts + 1))", category: Logger.accessibility)
+        } else {
+            Logger.trace("TextMonitor: monitorElement retry (attempt \(retryAttempt + 1)/\(maxAttempts + 1))", category: Logger.accessibility)
+        }
 
         // CRITICAL: Check watchdog before any AX calls
         let bundleID = currentContext?.bundleIdentifier ?? "unknown"
@@ -619,7 +624,7 @@ class TextMonitor: ObservableObject {
         let (profilingState, profilingStartTime) = PerformanceProfiler.shared.beginInterval(.textExtraction, context: bundleID)
         defer { PerformanceProfiler.shared.endInterval(.textExtraction, state: profilingState, startTime: profilingStartTime) }
 
-        Logger.debug("TextMonitor: extractText called", category: Logger.accessibility)
+        Logger.trace("TextMonitor: extractText called", category: Logger.accessibility)
 
         // CRITICAL: Check watchdog at the START before any AX calls
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
@@ -811,7 +816,7 @@ private func axObserverCallback(
     notification: CFString,
     userData: UnsafeMutableRawPointer?
 ) {
-    Logger.debug("axObserverCallback: Received notification: \(notification as String)", category: Logger.accessibility)
+    Logger.trace("axObserverCallback: Received notification: \(notification as String)", category: Logger.accessibility)
 
     guard let userData else {
         Logger.debug("axObserverCallback: No userData", category: Logger.accessibility)
@@ -843,7 +848,7 @@ private func axObserverCallback(
         }
 
         if notificationName == kAXValueChangedNotification as String {
-            Logger.debug("axObserverCallback: Value changed - checking extraction mode", category: Logger.accessibility)
+            Logger.trace("axObserverCallback: Value changed - checking extraction mode", category: Logger.accessibility)
 
             // CRITICAL: Verify the notification came from the element we're monitoring
             // Some apps (like WebEx) fire AXValueChanged from non-compose elements (sent messages)
@@ -1104,8 +1109,6 @@ extension TextMonitor {
             Logger.trace("TextMonitor: Could not get role for element", category: Logger.accessibility)
             return false
         }
-
-        Logger.trace("TextMonitor: Checking element with role: \(roleString)", category: Logger.accessibility)
 
         // Check if it's a static text element (read-only)
         // These are what we want to EXCLUDE (terminal output, chat history)

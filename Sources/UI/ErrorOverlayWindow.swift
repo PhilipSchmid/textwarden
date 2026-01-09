@@ -189,11 +189,7 @@ class ErrorOverlayWindow: NSPanel {
         mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
             guard let self else { return }
 
-            // Only log at trace level due to high frequency
-            let pos = NSEvent.mouseLocation
-            Logger.trace("ErrorOverlay: Mouse event at \(pos), visible=\(isCurrentlyVisible)", category: Logger.ui)
-
-            // Only process if window is visible
+            // Only process if window is visible (no logging here - too high frequency)
             guard isCurrentlyVisible else { return }
 
             let mouseLocation = NSEvent.mouseLocation
@@ -910,8 +906,6 @@ class ErrorOverlayWindow: NSPanel {
             Logger.debug("ErrorOverlay: HIDE called - orderOut (was visible)", category: Logger.ui)
             orderOut(nil)
             isCurrentlyVisible = false
-        } else {
-            Logger.trace("ErrorOverlay: hide() called but already hidden", category: Logger.ui)
         }
 
         // Clear all underline state using the state manager

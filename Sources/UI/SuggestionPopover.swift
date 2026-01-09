@@ -378,8 +378,6 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     /// Perform immediate hide
     private func performHide() {
-        Logger.trace("SuggestionPopover.performHide() - BEFORE - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
-
         // Disable popover keyboard shortcuts so they don't intercept keypresses globally
         // (Tab should work normally in other apps when popover is hidden)
         KeyboardShortcuts.Name.disablePopoverShortcuts()
@@ -415,8 +413,6 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         // Notify that popover was hidden (for clearing locked highlight)
         onPopoverHidden?()
-
-        Logger.trace("SuggestionPopover.performHide() - AFTER - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
     }
 
     /// Hide popover immediately

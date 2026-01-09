@@ -1797,7 +1797,7 @@ class AnalysisCoordinator: ObservableObject {
             return
         }
 
-        Logger.debug("AnalysisCoordinator: Calling analyzeText()", category: Logger.analysis)
+        Logger.trace("AnalysisCoordinator: Calling analyzeText()", category: Logger.analysis)
         analyzeText(segment)
 
         // Update previousText so we can detect actual changes on the next call

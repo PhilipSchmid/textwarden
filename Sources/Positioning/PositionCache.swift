@@ -93,7 +93,7 @@ class PositionCache {
             self.cache.removeAll()
             self.hits = 0
             self.misses = 0
-            Logger.debug("PositionCache cleared", category: Logger.performance)
+            Logger.trace("PositionCache cleared", category: Logger.performance)
         }
     }
 

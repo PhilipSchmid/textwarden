@@ -118,12 +118,13 @@ extension AnalysisCoordinator {
         // Check if text has changed from what we analyzed
         let analyzedText = lastAnalyzedText
 
-        Logger.trace("Text validation: current=\(currentText.count) chars, analyzed=\(analyzedText.count) chars", category: Logger.analysis)
-
-        // Text matches - no action needed
+        // Text matches - no action needed (skip logging for this common case)
         if currentText == analyzedText {
             return
         }
+
+        // Only log when there's a mismatch that we need to handle
+        Logger.trace("Text validation: current=\(currentText.count) chars, analyzed=\(analyzedText.count) chars (mismatch)", category: Logger.analysis)
 
         // Text is now empty (e.g., message was sent in chat app)
         if currentText.isEmpty, !analyzedText.isEmpty {
@@ -133,7 +134,8 @@ extension AnalysisCoordinator {
             let bundleID = textMonitor.currentContext?.bundleIdentifier ?? ""
             let emptyTextBehavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
             if emptyTextBehavior.knownQuirks.contains(.webBasedRendering) {
-                Logger.trace("Text validation: Skipping empty text clear for web-based app - focus may still be settling", category: Logger.analysis)
+                // Web-based apps: focus can briefly land on elements returning empty text
+                // Skip clearing errors - let the focus settle first (no log, too frequent)
                 return
             }
 
@@ -166,7 +168,8 @@ extension AnalysisCoordinator {
             let bundleID = textMonitor.currentContext?.bundleIdentifier ?? ""
             let appBehavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
             if appBehavior.knownQuirks.contains(.webBasedRendering) {
-                Logger.trace("Text validation: Skipping for web-based app (parser may return different filtered text)", category: Logger.analysis)
+                // Web-based apps: parsers may return different filtered text each time
+                // Skip validation - position monitoring handles layout changes (no log, too frequent)
                 return
             }
 
