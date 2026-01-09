@@ -1158,6 +1158,19 @@ extension AnalysisCoordinator {
             return (candidate.element, offset)
         }
 
+        // Fallback: If no child element matched (e.g., for readability suggestions that span
+        // multiple child elements), try the root element directly. This handles cases where
+        // the target text is longer than what fits in a single paragraph element.
+        var textValue: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textValue) == .success,
+           let rootText = textValue as? String,
+           let range = rootText.range(of: targetText)
+        {
+            let offset = rootText.distance(from: rootText.startIndex, to: range.lowerBound)
+            Logger.debug("Fallback: Using root element for text selection (offset \(offset))", category: Logger.analysis)
+            return (element, offset)
+        }
+
         return nil
     }
 

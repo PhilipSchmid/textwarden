@@ -334,6 +334,25 @@ class SlackStrategy: GeometryProvider {
 
         if overlappingParts.isEmpty {
             Logger.debug("SlackStrategy: No TextPart found overlapping range \(targetRange)", category: Logger.ui)
+
+            // Fallback: Try AXBoundsForRange directly on the root element
+            // This handles cases where Slack's AX tree has gaps (some child elements are missing)
+            // The root element still knows about all text and can provide bounds
+            if let rootBounds = getBoundsForRange(location: targetRange.location, length: targetRange.length, in: element) {
+                // Validate bounds are reasonable
+                let isSingleLineHeight = rootBounds.height > 0 && rootBounds.height <= 30
+                let isReasonableWidth = rootBounds.width > 0 && rootBounds.width <= CGFloat(targetRange.length) * 20
+
+                if isSingleLineHeight, isReasonableWidth {
+                    Logger.debug("SlackStrategy: Root element fallback SUCCESS: \(rootBounds)", category: Logger.ui)
+                    return rootBounds
+                } else {
+                    Logger.debug("SlackStrategy: Root element returned invalid bounds (h=\(rootBounds.height), w=\(rootBounds.width))", category: Logger.ui)
+                }
+            } else {
+                Logger.debug("SlackStrategy: Root element fallback also failed", category: Logger.ui)
+            }
+
             return nil
         }
 
