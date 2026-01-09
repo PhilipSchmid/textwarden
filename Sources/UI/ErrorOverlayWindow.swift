@@ -520,11 +520,14 @@ class ErrorOverlayWindow: NSPanel {
                 abs(elementFrame.height - lastFrame.height) > 5
 
             if positionChanged || sizeChanged {
-                let underlineCount = stateManager.currentState.grammarUnderlines.count
-                Logger.debug("ErrorOverlay: FRAME CHANGED - clearing \(underlineCount) stale underlines (was: \(lastFrame), now: \(elementFrame))", category: Logger.ui)
-                // Clear grammar underlines without hiding window - avoids flash
-                // Readability underlines are preserved and updated separately
+                let grammarCount = stateManager.currentState.grammarUnderlines.count
+                let readabilityCount = stateManager.currentState.readabilityUnderlines.count
+                Logger.debug("ErrorOverlay: FRAME CHANGED - clearing \(grammarCount) grammar + \(readabilityCount) readability underlines (was: \(lastFrame), now: \(elementFrame))", category: Logger.ui)
+                // Clear ALL underlines without hiding window - avoids flash
+                // Both grammar and readability underlines become stale when frame changes
+                // (text shifts cause position misalignment)
                 stateManager.clearGrammarUnderlines()
+                stateManager.clearReadabilityUnderlines()
                 lastElementFrame = elementFrame
                 // Continue processing to show new underlines at correct positions
             }
@@ -992,32 +995,30 @@ class ErrorOverlayWindow: NSPanel {
 
         let parser = ContentParserFactory.shared.parser(for: bundleID)
 
-        // If overlay is not visible, we need to set it up first
-        // This allows readability underlines to show even when there are no grammar errors
-        var elementFrame: CGRect
-        if isCurrentlyVisible, frame.size.width > 0 {
-            elementFrame = frame
-        } else {
-            // Get element frame and set up overlay window
-            AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXPosition/AXSize")
-            let frameResult = getElementFrameInCocoaCoords(element)
-            AXWatchdog.shared.endCall()
+        // ALWAYS query fresh element frame for coordinate conversion.
+        // The window frame might be stale or include extension offsets that
+        // would cause misalignment between grammar and readability underlines.
+        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXPosition/AXSize")
+        let frameResult = getElementFrameInCocoaCoords(element)
+        AXWatchdog.shared.endCall()
 
-            guard let rawFrame = frameResult else {
-                Logger.debug("ErrorOverlay: Cannot get element frame for readability underlines", category: Logger.ui)
-                return
+        guard let rawFrame = frameResult else {
+            Logger.debug("ErrorOverlay: Cannot get element frame for readability underlines", category: Logger.ui)
+            return
+        }
+
+        var elementFrame = rawFrame
+
+        // Constrain to visible window frame
+        if let windowFrame = getApplicationWindowFrame() {
+            let visibleFrame = elementFrame.intersection(windowFrame)
+            if !visibleFrame.isEmpty {
+                elementFrame = visibleFrame
             }
+        }
 
-            elementFrame = rawFrame
-
-            // Constrain to visible window frame
-            if let windowFrame = getApplicationWindowFrame() {
-                let visibleFrame = elementFrame.intersection(windowFrame)
-                if !visibleFrame.isEmpty {
-                    elementFrame = visibleFrame
-                }
-            }
-
+        // If overlay is not visible, set it up
+        if !isCurrentlyVisible || frame.size.width == 0 {
             // Extend frame for underlines
             let underlineExtension: CGFloat = 10.0
             var extendedFrame = elementFrame
@@ -1033,18 +1034,31 @@ class ErrorOverlayWindow: NSPanel {
 
         Logger.debug("ErrorOverlay: Processing \(sentencesToProcess.count) sentences, elementFrame=\(elementFrame)", category: Logger.ui)
 
-        for sentence in sentencesToProcess {
-            let range = sentence.range
+        // Check if app has unstable text retrieval quirk (text positions may shift between reads)
+        let appBehavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
+        let hasUnstableText = appBehavior.knownQuirks.contains(.hasUnstableTextRetrieval)
 
-            Logger.debug("ErrorOverlay: Resolving position for sentence (\(sentence.sentence.count) chars) at range \(range.location)-\(range.location + range.length)", category: Logger.ui)
+        for sentence in sentencesToProcess {
+            var sentenceStart = sentence.range.location
+
+            // For apps with unstable text retrieval, find the sentence in current text
+            // because cached positions may be stale due to text shifting between AX reads
+            if hasUnstableText {
+                if let foundRange = text.range(of: sentence.sentence) {
+                    let foundLocation = text.distance(from: text.startIndex, to: foundRange.lowerBound)
+                    if foundLocation != sentenceStart {
+                        Logger.debug("ErrorOverlay: Sentence position corrected from \(sentenceStart) to \(foundLocation) (text drift)", category: Logger.ui)
+                        sentenceStart = foundLocation
+                    }
+                }
+            }
 
             // Always use segmented approach for readability underlines.
             // Full sentence bounds from AXBoundsForRange are unreliable for long/multi-line sentences -
             // they typically return line-level bounds (full line width) rather than text-specific bounds.
             // The segmented approach (first 3 words ... last 3 words) gives accurate, text-specific bounds.
-            Logger.debug("ErrorOverlay: Using segmented approach for readability underline", category: Logger.ui)
 
-            let wordRanges = extractWordRanges(from: sentence.sentence, sentenceStart: range.location, wordCount: 3)
+            let wordRanges = extractWordRanges(from: sentence.sentence, sentenceStart: sentenceStart, wordCount: 3)
 
             Logger.debug("ErrorOverlay: Word ranges - first: \(String(describing: wordRanges.first)), last: \(String(describing: wordRanges.last))", category: Logger.ui)
 
@@ -1052,8 +1066,6 @@ class ErrorOverlayWindow: NSPanel {
                 Logger.debug("ErrorOverlay: Could not extract word ranges for segmented underline", category: Logger.ui)
                 continue
             }
-
-            Logger.debug("ErrorOverlay: First words range: \(firstWordsRange.location)-\(firstWordsRange.location + firstWordsRange.length), Last words range: \(lastWordsRange.location)-\(lastWordsRange.location + lastWordsRange.length)", category: Logger.ui)
 
             // Resolve first segment
             let firstResult = parser.resolvePosition(

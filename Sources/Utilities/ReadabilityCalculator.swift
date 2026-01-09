@@ -386,17 +386,22 @@ final class ReadabilityCalculator: Sendable {
             let trimmed = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
 
-            // Convert String.Index range to NSRange
-            let nsRange = NSRange(substringRange, in: text)
+            // Convert String.Index range to NSRange using Character (grapheme cluster) positions.
+            // IMPORTANT: We use text.distance() instead of NSRange(range, in:) because:
+            // - NSRange(range, in:) returns UTF-16 code unit positions
+            // - OutlookStrategy and most AX APIs expect Character (grapheme cluster) indices
+            // - Using UTF-16 causes position misalignment with emoji, combining marks, etc.
+            let charLocation = text.distance(from: text.startIndex, to: substringRange.lowerBound)
+            let charLength = text.distance(from: substringRange.lowerBound, to: substringRange.upperBound)
 
             // Find the trimmed sentence's position within the original range
             if let trimmedRange = sentence.range(of: trimmed) {
                 let offset = sentence.distance(from: sentence.startIndex, to: trimmedRange.lowerBound)
-                let adjustedLocation = nsRange.location + offset
+                let adjustedLocation = charLocation + offset
                 let adjustedRange = NSRange(location: adjustedLocation, length: trimmed.count)
                 rawResults.append((trimmed, adjustedRange))
             } else {
-                rawResults.append((trimmed, nsRange))
+                rawResults.append((trimmed, NSRange(location: charLocation, length: charLength)))
             }
         }
 
