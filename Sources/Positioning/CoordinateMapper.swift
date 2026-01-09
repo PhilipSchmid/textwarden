@@ -70,7 +70,10 @@ struct ScreenPosition {
     /// Convert to Cocoa coordinate system
     func toCocoa(screenHeight: CGFloat? = nil) -> ScreenPosition {
         guard system == .quartz else { return self }
-        guard let height = screenHeight ?? NSScreen.main?.frame.height else {
+        // Use PRIMARY screen height (frame.origin == .zero), NOT NSScreen.main
+        // NSScreen.main is the screen with keyboard focus, which may be an external monitor
+        let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero }
+        guard let height = screenHeight ?? primaryScreen?.frame.height ?? NSScreen.main?.frame.height else {
             Logger.warning("CoordinateMapper: Screen height unavailable for conversion", category: Logger.analysis)
             return self // Return unchanged to avoid corrupting coordinates
         }
@@ -80,7 +83,10 @@ struct ScreenPosition {
     /// Convert to Quartz coordinate system
     func toQuartz(screenHeight: CGFloat? = nil) -> ScreenPosition {
         guard system == .cocoa else { return self }
-        guard let height = screenHeight ?? NSScreen.main?.frame.height else {
+        // Use PRIMARY screen height (frame.origin == .zero), NOT NSScreen.main
+        // NSScreen.main is the screen with keyboard focus, which may be an external monitor
+        let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero }
+        guard let height = screenHeight ?? primaryScreen?.frame.height ?? NSScreen.main?.frame.height else {
             Logger.warning("CoordinateMapper: Screen height unavailable for conversion", category: Logger.analysis)
             return self // Return unchanged to avoid corrupting coordinates
         }
@@ -114,7 +120,9 @@ struct ScreenRect {
     /// Convert to Cocoa coordinate system
     func toCocoa(screenHeight: CGFloat? = nil) -> ScreenRect {
         guard system == .quartz else { return self }
-        let height = screenHeight ?? NSScreen.main?.frame.height ?? 0
+        // Use PRIMARY screen height (frame.origin == .zero), NOT NSScreen.main
+        let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero }
+        let height = screenHeight ?? primaryScreen?.frame.height ?? NSScreen.main?.frame.height ?? 0
         let newY = height - origin.y - size.height
         return ScreenRect(
             origin: ScreenPosition(x: origin.x, y: newY, system: .cocoa),
@@ -125,7 +133,9 @@ struct ScreenRect {
     /// Convert to Quartz coordinate system
     func toQuartz(screenHeight: CGFloat? = nil) -> ScreenRect {
         guard system == .cocoa else { return self }
-        let height = screenHeight ?? NSScreen.main?.frame.height ?? 0
+        // Use PRIMARY screen height (frame.origin == .zero), NOT NSScreen.main
+        let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero }
+        let height = screenHeight ?? primaryScreen?.frame.height ?? NSScreen.main?.frame.height ?? 0
         let newY = height - origin.y - size.height
         return ScreenRect(
             origin: ScreenPosition(x: origin.x, y: newY, system: .quartz),

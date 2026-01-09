@@ -195,7 +195,6 @@ class ErrorOverlayWindow: NSPanel {
 
             // Only process if window is visible
             guard isCurrentlyVisible else { return }
-            Logger.trace("ErrorOverlay: Mouse monitor processing, frame=\(frame)", category: Logger.ui)
 
             let mouseLocation = NSEvent.mouseLocation
 
@@ -1562,8 +1561,12 @@ class ErrorOverlayWindow: NSPanel {
             Logger.debug("ErrorOverlay: Found window via AX hierarchy, frame (Quartz): \(quartzFrame)", category: Logger.ui)
 
             // Convert from Quartz (top-left origin) to Cocoa (bottom-left origin)
-            if let screen = NSScreen.main {
-                let screenHeight = screen.frame.height
+            // IMPORTANT: Must use PRIMARY screen height (where origin is 0,0), not NSScreen.main
+            // NSScreen.main returns the screen with keyboard focus, which could be an external monitor
+            // Quartz coordinates are relative to the primary screen's top-left corner
+            let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero } ?? NSScreen.main
+            if let primaryScreen {
+                let screenHeight = primaryScreen.frame.height
                 let cocoaY = screenHeight - quartzFrame.origin.y - quartzFrame.height
 
                 var frame = CGRect(x: quartzFrame.origin.x, y: cocoaY, width: quartzFrame.width, height: quartzFrame.height)
@@ -1647,8 +1650,9 @@ class ErrorOverlayWindow: NSPanel {
 
         // CRITICAL: AX API returns coordinates in top-left origin system (Quartz)
         // NSWindow uses bottom-left origin (AppKit)
-        // Must flip Y coordinate using screen height
-        if let screenHeight = NSScreen.main?.frame.height {
+        // Must flip Y coordinate using PRIMARY screen height (not NSScreen.main which could be external monitor)
+        let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero }
+        if let screenHeight = primaryScreen?.frame.height ?? NSScreen.main?.frame.height {
             adjustedRect.origin.y = screenHeight - adjustedRect.origin.y - adjustedRect.height
         }
 

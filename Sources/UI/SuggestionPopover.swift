@@ -304,10 +304,12 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     /// Common panel display logic
     private func showPanelAtPosition(_ position: CGPoint, constrainToWindow: CGRect?) {
+        Logger.info("SuggestionPopover.showPanelAtPosition - position=\(position), constrainToWindow=\(constrainToWindow?.debugDescription ?? "nil")", category: Logger.ui)
+
         // Don't show popover if a modal dialog is open (e.g., Print dialog, Save sheet)
         // This prevents popovers from appearing on top of system dialogs
         if ModalDialogDetector.isModalDialogPresent() {
-            Logger.debug("SuggestionPopover: Not showing - modal dialog is open", category: Logger.ui)
+            Logger.info("SuggestionPopover: Not showing - modal dialog is open", category: Logger.ui)
             return
         }
 
@@ -324,6 +326,8 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         // Position near cursor (with optional window constraint)
         positionPanel(at: position, constrainToWindow: constrainToWindow)
+
+        Logger.info("SuggestionPopover: Panel positioned at \(panel?.frame ?? .zero)", category: Logger.ui)
 
         // Use order(.above) instead of orderFrontRegardless() to prevent focus stealing
         panel?.order(.above, relativeTo: 0)
@@ -531,11 +535,26 @@ class SuggestionPopover: NSObject, ObservableObject {
     ///   - cursorPosition: The screen position for the popover (anchor point when from indicator)
     ///   - constrainToWindow: Optional window frame to constrain positioning (keeps popover inside app window)
     private func positionPanel(at cursorPosition: CGPoint, constrainToWindow: CGRect? = nil) {
-        guard let panel else { return }
+        guard let panel else {
+            Logger.warning("Popover: positionPanel - panel is nil", category: Logger.ui)
+            return
+        }
 
         // Find the screen containing the cursor position (important for multi-monitor setups)
-        let screen = NSScreen.screens.first(where: { $0.frame.contains(cursorPosition) }) ?? NSScreen.main
-        guard let screen else { return }
+        let foundScreen = NSScreen.screens.first(where: { $0.frame.contains(cursorPosition) })
+        let screen = foundScreen ?? NSScreen.main
+
+        guard let screen else {
+            Logger.warning("Popover: positionPanel - no screens available", category: Logger.ui)
+            return
+        }
+
+        // Log screen detection for multi-monitor debugging
+        if foundScreen == nil {
+            Logger.warning("Popover: No screen contains cursorPosition \(cursorPosition), falling back to main screen. Available: \(NSScreen.screens.map(\.frame))", category: Logger.ui)
+        } else {
+            Logger.debug("Popover: Found screen for position \(cursorPosition): \(screen.frame)", category: Logger.ui)
+        }
 
         Logger.debug("Popover: Input cursor position (screen): \(cursorPosition)", category: Logger.ui)
 
@@ -1360,8 +1379,9 @@ extension SuggestionPopover {
 
         // CRITICAL: AX API returns coordinates in top-left origin system (Quartz)
         // NSWindow uses bottom-left origin (AppKit)
-        // Must flip Y coordinate using screen height
-        if let screenHeight = NSScreen.main?.frame.height {
+        // Must flip Y coordinate using PRIMARY screen height (not NSScreen.main which could be external monitor)
+        let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero }
+        if let screenHeight = primaryScreen?.frame.height ?? NSScreen.main?.frame.height {
             let flippedY = screenHeight - rect.origin.y - rect.height
             return CGPoint(x: rect.origin.x, y: flippedY)
         }
@@ -1403,8 +1423,9 @@ extension SuggestionPopover {
 
         // CRITICAL: AX API returns coordinates in top-left origin system (Quartz)
         // NSWindow uses bottom-left origin (AppKit)
-        // Must flip Y coordinate using screen height
-        if let screenHeight = NSScreen.main?.frame.height {
+        // Must flip Y coordinate using PRIMARY screen height (not NSScreen.main which could be external monitor)
+        let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero }
+        if let screenHeight = primaryScreen?.frame.height ?? NSScreen.main?.frame.height {
             let flippedY = screenHeight - rect.origin.y - rect.height
             return CGPoint(x: rect.origin.x, y: flippedY)
         }

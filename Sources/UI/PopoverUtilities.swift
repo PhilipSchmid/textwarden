@@ -137,8 +137,14 @@ enum ModalDialogDetector {
             // Skip system UI (menu bar, status items, etc.)
             if ownerName == "Window Server" || ownerName == "SystemUIServer" { continue }
 
+            // Skip BetterDisplay - it has a persistent transparent overlay across virtual displays
+            // that is always present, unlike other apps that only show high-level windows during user interaction
+            if ownerName == "BetterDisplay" { continue }
+
             // Convert CGWindow bounds (top-left origin) to Cocoa coords (bottom-left origin)
-            let screenHeight = NSScreen.screens.first?.frame.height ?? 1080
+            // Use PRIMARY screen height (frame.origin == .zero), not NSScreen.screens.first
+            let primaryScreen = NSScreen.screens.first { $0.frame.origin == .zero }
+            let screenHeight = primaryScreen?.frame.height ?? NSScreen.screens.first?.frame.height ?? 1080
             let windowFrame = CGRect(
                 x: x,
                 y: screenHeight - y - height,
@@ -148,6 +154,7 @@ enum ModalDialogDetector {
 
             // Check if mouse is inside this window
             if windowFrame.contains(mouseLocation) {
+                Logger.debug("ModalDialogDetector: Detected modal-level window '\(ownerName)' (level \(windowLevel)) at \(windowFrame) containing mouse at \(mouseLocation)", category: Logger.ui)
                 return true
             }
         }
