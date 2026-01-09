@@ -507,6 +507,10 @@ extension AnalysisCoordinator {
 
                             // Only store suggestion if we got a non-empty alternative
                             if let firstAlternative = alternatives.first, !firstAlternative.isEmpty {
+                                // Calculate readability score for the SIMPLIFIED text, not the original
+                                let simplifiedScore = Int(ReadabilityCalculator.shared.fleschReadingEaseForSentence(firstAlternative) ?? 0)
+                                Logger.debug("Auto style check: Simplified text score: \(simplifiedScore) (original: \(sentence.score))", category: Logger.llm)
+
                                 let suggestion = StyleSuggestionModel(
                                     id: "readability-\(sentence.range.location)-0",
                                     originalStart: sentence.range.location,
@@ -517,7 +521,7 @@ extension AnalysisCoordinator {
                                     confidence: 0.85,
                                     style: style,
                                     isReadabilitySuggestion: true,
-                                    readabilityScore: Int(sentence.score),
+                                    readabilityScore: simplifiedScore,
                                     targetAudience: targetAudience.displayName
                                 )
 
