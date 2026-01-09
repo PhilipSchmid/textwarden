@@ -148,7 +148,40 @@ extension AnalysisCoordinator {
         // (replacement triggers text changes which set isCurrentlyTyping=true)
         TypingDetector.shared.reset()
 
-        // Update the overlay and indicator immediately
+        // Update lastAnalyzedText BEFORE applyFilters
+        // CRITICAL: applyFilters -> showErrorUnderlines -> showErrorUnderlinesInternal uses lastAnalyzedText
+        // for readability underlines. If we update it after applyFilters, the positions in
+        // currentReadabilityAnalysis (already adjusted by lengthDelta) won't match the old text,
+        // causing bounds calculation to fail and readability underlines to disappear.
+        if !lastAnalyzedText.isEmpty,
+           let startIndex = TextIndexConverter.scalarIndexToStringIndex(error.start, in: lastAnalyzedText),
+           let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: lastAnalyzedText),
+           startIndex <= endIndex
+        {
+            var updatedText = lastAnalyzedText
+            updatedText.replaceSubrange(startIndex ..< endIndex, with: suggestion)
+            lastAnalyzedText = updatedText
+            Logger.debug("removeErrorAndUpdateUI: Updated lastAnalyzedText to reflect replacement", category: Logger.analysis)
+        }
+
+        // CRITICAL: Update the floating indicator IMMEDIATELY before applyFilters
+        // For web-based apps, showErrorUnderlines delays the internal update to let DOM stabilize.
+        // But the indicator count should update right away so the capsule shows correct state.
+        // This prevents race conditions where user clicks capsule during the delay and gets stale errors.
+        if let element = textMonitor.monitoredElement, let context = monitoredContext {
+            floatingIndicator.update(
+                errors: currentErrors,
+                styleSuggestions: currentStyleSuggestions,
+                readabilityResult: currentReadabilityResult,
+                readabilityAnalysis: currentReadabilityAnalysis,
+                element: element,
+                context: context,
+                sourceText: currentSegment?.content ?? lastAnalyzedText
+            )
+            Logger.debug("removeErrorAndUpdateUI: Immediately updated floating indicator with \(currentErrors.count) errors", category: Logger.analysis)
+        }
+
+        // Update the overlay and indicator (may be delayed for web apps)
         // Pass isFromReplacementUI: true so this call isn't skipped during replacement mode
         let sourceText = currentSegment?.content ?? ""
         applyFilters(to: currentErrors, sourceText: sourceText, element: textMonitor.monitoredElement, isFromReplacementUI: true)
@@ -164,21 +197,6 @@ extension AnalysisCoordinator {
             errorOverlay.setLockedHighlight(for: currentPopoverError)
         } else {
             Logger.debug("removeErrorAndUpdateUI: No current popover error to highlight", category: Logger.analysis)
-        }
-
-        // Update lastAnalyzedText to reflect the replacement
-        // This prevents validateCurrentText from thinking text changed (triggering re-analysis/hiding)
-        // by computing what the new text should be after applying the replacement
-        // Use TextIndexConverter for proper Unicode scalar → String.Index conversion
-        if !lastAnalyzedText.isEmpty,
-           let startIndex = TextIndexConverter.scalarIndexToStringIndex(error.start, in: lastAnalyzedText),
-           let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: lastAnalyzedText),
-           startIndex <= endIndex
-        {
-            var updatedText = lastAnalyzedText
-            updatedText.replaceSubrange(startIndex ..< endIndex, with: suggestion)
-            lastAnalyzedText = updatedText
-            Logger.debug("removeErrorAndUpdateUI: Updated lastAnalyzedText to reflect replacement", category: Logger.analysis)
         }
 
         Logger.debug("removeErrorAndUpdateUI: UI updated, remaining errors: \(currentErrors.count)", category: Logger.analysis)
@@ -437,8 +455,25 @@ extension AnalysisCoordinator {
             // Clear grammar errors - their positions are now invalid after text replacement
             // They'll be recalculated on the next text change event
             currentErrors.removeAll()
-            errorOverlay.hide()
             positionResolver.clearCache()
+
+            // Adjust readability analysis positions (preserves analysis, just shifts positions for OTHER sentences)
+            let replacementEnd = startIndex + length
+            let lengthDelta = suggestion.suggestedText.count - length
+            adjustReadabilityPositionsAfterReplacement(
+                replacementStart: startIndex,
+                replacementEnd: replacementEnd,
+                lengthDelta: lengthDelta
+            )
+
+            // CRITICAL: Remove the applied suggestion from tracking BEFORE redrawing underlines.
+            // This ensures the replaced sentence is removed from currentReadabilityAnalysis
+            // before we redraw. The position-based overlap check can fail due to coordinate
+            // system mismatches, so we also remove by text matching which is always reliable.
+            removeSuggestionFromTracking(suggestion)
+
+            // Redraw underlines at adjusted positions (grammar is empty, readability is updated)
+            redrawUnderlinesAfterStyleReplacement(element: element)
 
             // Invalidate style cache since text changed
             styleCache.removeAll()
@@ -461,9 +496,6 @@ extension AnalysisCoordinator {
                     newRangeValue
                 )
             }
-
-            // Remove the applied style suggestion from tracking
-            removeSuggestionFromTracking(suggestion)
 
             // Schedule re-analysis after grace period to restore grammar underlines
             schedulePostStyleReplacementAnalysis()
@@ -539,6 +571,10 @@ extension AnalysisCoordinator {
         pasteboard.clearContents()
         pasteboard.setString(suggestion.suggestedText, forType: .string)
 
+        // Capture position info for readability adjustment
+        let replacementEnd = startIndex + length
+        let lengthDelta = suggestion.suggestedText.count - length
+
         // Step 3: Simulate paste
         let delay = context.keyboardOperationDelay
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
@@ -557,8 +593,25 @@ extension AnalysisCoordinator {
 
             // Clear grammar errors - their positions are now invalid after text replacement
             self?.currentErrors.removeAll()
-            self?.errorOverlay.hide()
             self?.positionResolver.clearCache()
+
+            // Adjust readability positions (preserves analysis, just shifts positions for OTHER sentences)
+            self?.adjustReadabilityPositionsAfterReplacement(
+                replacementStart: startIndex,
+                replacementEnd: replacementEnd,
+                lengthDelta: lengthDelta
+            )
+
+            // CRITICAL: Remove the applied suggestion from tracking BEFORE redrawing underlines.
+            // This ensures the replaced sentence is removed from currentReadabilityAnalysis
+            // before we redraw. The position-based overlap check can fail due to coordinate
+            // system mismatches, so we also remove by text matching which is always reliable.
+            self?.removeSuggestionFromTracking(suggestion)
+
+            // Redraw underlines at adjusted positions (grammar is empty, readability is updated)
+            if let element = self?.textMonitor.monitoredElement {
+                self?.redrawUnderlinesAfterStyleReplacement(element: element)
+            }
 
             // Invalidate style cache since text changed
             self?.styleCache.removeAll()
@@ -574,8 +627,6 @@ extension AnalysisCoordinator {
                 }
             }
 
-            self?.removeSuggestionFromTracking(suggestion)
-
             // Schedule re-analysis after grace period to restore grammar underlines
             self?.schedulePostStyleReplacementAnalysis()
         }
@@ -584,6 +635,20 @@ extension AnalysisCoordinator {
     /// Apply style replacement for browsers
     func applyStyleBrowserReplacement(for suggestion: StyleSuggestionModel, element: AXUIElement, context: ApplicationContext) {
         Logger.debug("Browser style replacement for \(context.applicationName)", category: Logger.analysis)
+
+        // Get current text to find position for readability adjustment
+        var currentTextRef: CFTypeRef?
+        let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
+        let currentText = (textResult == .success) ? (currentTextRef as? String) : nil
+
+        // Find position of original text for readability adjustment
+        var replacementStart = 0
+        var replacementEnd = suggestion.originalText.count
+        if let text = currentText, let range = text.range(of: suggestion.originalText) {
+            replacementStart = text.distance(from: text.startIndex, to: range.lowerBound)
+            replacementEnd = replacementStart + suggestion.originalText.count
+        }
+        let lengthDelta = suggestion.suggestedText.count - suggestion.originalText.count
 
         // Select the text to replace (handles Notion child element traversal internally)
         guard selectTextForReplacement(
@@ -645,8 +710,26 @@ extension AnalysisCoordinator {
 
             // Clear grammar errors - their positions are now invalid after text replacement
             self?.currentErrors.removeAll()
-            self?.errorOverlay.hide()
             self?.positionResolver.clearCache()
+
+            // Adjust readability positions (preserves analysis, just shifts positions for OTHER sentences)
+            self?.adjustReadabilityPositionsAfterReplacement(
+                replacementStart: replacementStart,
+                replacementEnd: replacementEnd,
+                lengthDelta: lengthDelta
+            )
+
+            // CRITICAL: Remove the applied suggestion from tracking BEFORE redrawing underlines.
+            // This ensures the replaced sentence is removed from currentReadabilityAnalysis
+            // before we redraw. The position-based overlap check in adjustReadabilityPositionsAfterReplacement
+            // can fail due to coordinate system mismatches (grapheme clusters vs UTF-16 offsets),
+            // so we also remove by text matching which is always reliable.
+            self?.removeSuggestionFromTracking(suggestion)
+
+            // Redraw underlines at adjusted positions (grammar is empty, readability is updated)
+            if let element = self?.textMonitor.monitoredElement {
+                self?.redrawUnderlinesAfterStyleReplacement(element: element)
+            }
 
             // Invalidate style cache since text changed
             self?.styleCache.removeAll()
@@ -662,8 +745,6 @@ extension AnalysisCoordinator {
                 }
             }
 
-            self?.removeSuggestionFromTracking(suggestion)
-
             // Schedule re-analysis after grace period to restore grammar underlines
             self?.schedulePostStyleReplacementAnalysis()
         }
@@ -673,6 +754,66 @@ extension AnalysisCoordinator {
     func removeSuggestionFromTracking(_ suggestion: StyleSuggestionModel) {
         // Track this suggestion as dismissed so it won't reappear after re-analysis
         dismissedStyleSuggestionHashes.insert(suggestion.originalText.hashValue)
+
+        // For readability suggestions, track the NEW (simplified) text in a separate set.
+        // This is used to filter complexSentences when drawing underlines, preventing
+        // re-flagging of text that the user just accepted as the simplification.
+        // We use a separate set because dismissedStyleSuggestionHashes filters by originalText,
+        // but for re-analysis, the NEW text becomes the new "originalText" of detected sentences.
+        if suggestion.isReadabilitySuggestion {
+            dismissedReadabilitySentenceHashes.insert(suggestion.suggestedText.hashValue)
+            Logger.debug("Added simplified text hash to dismissedReadabilitySentenceHashes to prevent re-flagging", category: Logger.analysis)
+        }
+
+        // If this is a readability suggestion, remove the corresponding underline via state manager
+        // and update the analysis data to prevent stale underlines from being redrawn
+        if suggestion.isReadabilitySuggestion {
+            // Remove the specific underline via state manager (preserves other readability underlines)
+            let removed = errorOverlay.removeReadabilityUnderline(forSentence: suggestion.originalText)
+            if removed {
+                Logger.debug("Removed readability underline for applied suggestion via state manager", category: Logger.analysis)
+            }
+
+            // Also update the analysis data to prevent re-drawing on next update
+            // Use flexible text matching to handle whitespace/encoding variations
+            if let analysis = currentReadabilityAnalysis {
+                let normalizedOriginal = suggestion.originalText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                let updatedSentenceResults = analysis.sentenceResults.filter { sentenceResult in
+                    let normalizedSentence = sentenceResult.sentence.trimmingCharacters(in: .whitespacesAndNewlines)
+                    // Match if texts are equal OR if one contains the other (handles minor variations)
+                    let exactMatch = normalizedSentence == normalizedOriginal
+                    let containsMatch = normalizedSentence.contains(normalizedOriginal) || normalizedOriginal.contains(normalizedSentence)
+                    let shouldRemove = exactMatch || (containsMatch && abs(normalizedSentence.count - normalizedOriginal.count) < 10)
+
+                    if shouldRemove {
+                        Logger.debug("Removing readability sentence: '\(sentenceResult.sentence.prefix(50))...' (matched original)", category: Logger.analysis)
+                    }
+                    return !shouldRemove
+                }
+
+                if updatedSentenceResults.count < analysis.sentenceResults.count {
+                    Logger.debug("Removed \(analysis.sentenceResults.count - updatedSentenceResults.count) complex sentence(s) from readability analysis", category: Logger.analysis)
+                    currentReadabilityAnalysis = TextReadabilityAnalysis(
+                        overallResult: analysis.overallResult,
+                        sentenceResults: updatedSentenceResults,
+                        targetAudience: analysis.targetAudience
+                    )
+
+                    // If no more complex sentences remain, clear all readability underlines immediately
+                    if currentReadabilityAnalysis?.complexSentences.isEmpty == true {
+                        Logger.debug("No more complex sentences - clearing all readability underlines", category: Logger.analysis)
+                        errorOverlay.clearReadabilityUnderlines()
+                    }
+                } else {
+                    // Text matching failed - this can happen if the sentence text differs slightly
+                    // (e.g., different whitespace handling between analysis and suggestion creation).
+                    // Don't clear the entire analysis - the underline was already removed via state manager
+                    // and the scheduled re-analysis will create fresh data with correct positions.
+                    Logger.warning("Could not find matching sentence to remove from analysis. Original: '\(suggestion.originalText.prefix(50))...' - underline already cleared via state manager", category: Logger.analysis)
+                }
+            }
+        }
 
         // Remove from current suggestions
         let countBefore = currentStyleSuggestions.count
@@ -726,6 +867,82 @@ extension AnalysisCoordinator {
                 floatingIndicator.updateStyleSuggestions(currentStyleSuggestions)
             }
         }
+    }
+
+    /// Adjust readability analysis positions after text replacement.
+    /// This preserves the analysis while shifting positions for text changes BEFORE readability sentences.
+    /// Sentences that overlap with the replacement are invalidated (removed).
+    /// - Parameters:
+    ///   - replacementStart: The start position where text was replaced
+    ///   - replacementEnd: The end position where text was replaced (original text end)
+    ///   - lengthDelta: The change in text length (new length - old length)
+    private func adjustReadabilityPositionsAfterReplacement(
+        replacementStart: Int,
+        replacementEnd: Int,
+        lengthDelta: Int
+    ) {
+        guard let analysis = currentReadabilityAnalysis else { return }
+
+        let adjustedSentences = analysis.sentenceResults.compactMap { sentence -> SentenceReadabilityResult? in
+            let sentenceEnd = sentence.range.location + sentence.range.length
+
+            // Case 1: Sentence starts after the replacement - shift by delta
+            if sentence.range.location >= replacementEnd {
+                let adjustedRange = NSRange(
+                    location: sentence.range.location + lengthDelta,
+                    length: sentence.range.length
+                )
+                return SentenceReadabilityResult(
+                    sentence: sentence.sentence,
+                    range: adjustedRange,
+                    score: sentence.score,
+                    wordCount: sentence.wordCount,
+                    isComplex: sentence.isComplex,
+                    targetAudience: sentence.targetAudience
+                )
+            }
+
+            // Case 2: Sentence ends before the replacement - unchanged
+            if sentenceEnd <= replacementStart {
+                return sentence
+            }
+
+            // Case 3: Sentence overlaps with replacement - invalidate (text content changed)
+            // The sentence text itself was modified, so the analysis is no longer valid
+            Logger.debug("Invalidating readability sentence that overlaps with replacement at \(replacementStart)-\(replacementEnd)", category: Logger.analysis)
+            return nil
+        }
+
+        currentReadabilityAnalysis = TextReadabilityAnalysis(
+            overallResult: analysis.overallResult,
+            sentenceResults: adjustedSentences,
+            targetAudience: analysis.targetAudience
+        )
+
+        Logger.debug("Adjusted readability positions: \(analysis.sentenceResults.count) -> \(adjustedSentences.count) sentences (delta: \(lengthDelta))", category: Logger.analysis)
+    }
+
+    /// Clear underlines after style replacement.
+    /// We don't try to redraw readability underlines immediately because:
+    /// 1. The applied sentence was already removed from the analysis (by removeSuggestionFromTracking)
+    /// 2. Other sentences' positions may be incorrect due to coordinate system mismatches
+    ///    (UTF-16 vs grapheme clusters) after the text shift
+    /// 3. The scheduled re-analysis will create fresh underlines with correct positions
+    /// - Parameter element: The AX element containing the text
+    private func redrawUnderlinesAfterStyleReplacement(element _: AXUIElement) {
+        // After style replacement, clear underlines and let re-analysis recreate them
+        // This avoids coordinate system bugs when trying to adjust existing positions
+        Logger.debug("redrawUnderlinesAfterStyleReplacement: Clearing underlines, will recreate on re-analysis", category: Logger.analysis)
+
+        // Clear grammar underlines (already empty after style replacement)
+        errorOverlay.clearGrammarUnderlines()
+
+        // Clear readability underlines - let re-analysis recreate with correct positions
+        // NOTE: We do NOT clear currentReadabilityAnalysis here because:
+        // 1. removeSuggestionFromTracking already removed the applied sentence from the analysis
+        // 2. The remaining complex sentences are still valid (just need fresh position calculation)
+        // 3. Clearing the analysis would break readability detection until re-analysis completes
+        errorOverlay.clearReadabilityUnderlines()
     }
 
     /// Schedule re-analysis after the replacement grace period ends.

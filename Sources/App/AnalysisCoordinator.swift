@@ -250,6 +250,13 @@ class AnalysisCoordinator: ObservableObject {
     /// Prevents the same suggestion from reappearing after re-analysis
     var dismissedStyleSuggestionHashes: Set<Int> = []
 
+    /// Tracks readability sentences that were just simplified.
+    /// Contains hashes of the NEW (simplified) text to prevent re-flagging:
+    /// When a readability suggestion is applied, the new text might still be detected
+    /// as "complex" by re-analysis. This set ensures we don't draw underlines for
+    /// text that the user just accepted as the simplification.
+    var dismissedReadabilitySentenceHashes: Set<Int> = []
+
     /// Last time auto style check was triggered (for rate limiting)
     var lastAutoStyleCheckTime: Date?
 
@@ -929,6 +936,12 @@ class AnalysisCoordinator: ObservableObject {
 
                             // Create the real suggestion with the first alternative (must be non-empty)
                             if let firstAlternative = alternatives.first, !firstAlternative.isEmpty {
+                                // Calculate readability score for the SIMPLIFIED text, not the original
+                                // This ensures the popover shows the improved score and re-analysis
+                                // won't incorrectly flag the simplified text as still complex
+                                let simplifiedScore = Int(ReadabilityCalculator.shared.fleschReadingEaseForSentence(firstAlternative) ?? 0)
+                                Logger.debug("AnalysisCoordinator: Simplified text score: \(simplifiedScore) (original: \(sentenceResult.score))", category: Logger.analysis)
+
                                 // Note: diff will be empty, popover will use fallback display
                                 let realSuggestion = StyleSuggestionModel(
                                     id: placeholderId,
@@ -940,7 +953,7 @@ class AnalysisCoordinator: ObservableObject {
                                     confidence: 0.85,
                                     style: style,
                                     isReadabilitySuggestion: true,
-                                    readabilityScore: Int(sentenceResult.score),
+                                    readabilityScore: simplifiedScore,
                                     targetAudience: targetAudience.displayName
                                 )
 
@@ -1097,6 +1110,10 @@ class AnalysisCoordinator: ObservableObject {
                             )
 
                             if let firstAlternative = alternatives.first, !firstAlternative.isEmpty {
+                                // Calculate readability score for the SIMPLIFIED text, not the original
+                                let simplifiedScore = Int(ReadabilityCalculator.shared.fleschReadingEaseForSentence(firstAlternative) ?? 0)
+                                Logger.debug("AnalysisCoordinator: Simplified text score: \(simplifiedScore) (original: \(sentenceResult.score))", category: Logger.analysis)
+
                                 let realSuggestion = StyleSuggestionModel(
                                     id: placeholderId,
                                     originalStart: sentenceResult.range.location,
@@ -1107,7 +1124,7 @@ class AnalysisCoordinator: ObservableObject {
                                     confidence: 0.85,
                                     style: style,
                                     isReadabilitySuggestion: true,
-                                    readabilityScore: Int(sentenceResult.score),
+                                    readabilityScore: simplifiedScore,
                                     targetAudience: targetAudience.displayName
                                 )
 
@@ -1529,6 +1546,7 @@ class AnalysisCoordinator: ObservableObject {
         if !isManualStyleCheckActive {
             currentStyleSuggestions = [] // Clear style suggestions
             dismissedStyleSuggestionHashes.removeAll() // Reset dismissed tracking for new context
+            dismissedReadabilitySentenceHashes.removeAll() // Reset readability dismissed tracking for new context
             styleDebounceTimer?.invalidate() // Cancel pending style analysis
             styleDebounceTimer = nil
             styleAnalysisGeneration &+= 1 // Invalidate any in-flight analysis
@@ -2385,14 +2403,34 @@ class AnalysisCoordinator: ObservableObject {
                 // so stale grammar underlines would persist without this
                 errorOverlay.clearGrammarUnderlines()
 
-                errorOverlay.updateReadabilityUnderlines(
-                    complexSentences: analysis.complexSentences,
-                    element: providedElement,
-                    context: monitoredContext,
-                    text: lastAnalyzedText
-                )
+                // Filter out sentences that were just simplified to prevent re-flagging.
+                // When user applies a readability fix, the new text might still be detected
+                // as "complex" by re-analysis, but we don't want to underline it again.
+                Logger.debug("AnalysisCoordinator: [no-errors] Filtering \(analysis.complexSentences.count) complex sentences, dismissed hashes count: \(dismissedReadabilitySentenceHashes.count)", category: Logger.analysis)
+                let filteredSentences = analysis.complexSentences.filter { sentence in
+                    let hash = sentence.sentence.hashValue
+                    let isDismissed = dismissedReadabilitySentenceHashes.contains(hash)
+                    if isDismissed {
+                        Logger.debug("AnalysisCoordinator: [no-errors] Filtering out dismissed sentence: '\(sentence.sentence.prefix(50))...'", category: Logger.analysis)
+                    }
+                    return !isDismissed
+                }
+                Logger.debug("AnalysisCoordinator: [no-errors] After filtering: \(filteredSentences.count) sentences remain", category: Logger.analysis)
+
+                if !filteredSentences.isEmpty {
+                    errorOverlay.updateReadabilityUnderlines(
+                        complexSentences: filteredSentences,
+                        element: providedElement,
+                        context: monitoredContext,
+                        text: lastAnalyzedText
+                    )
+                } else {
+                    Logger.debug("AnalysisCoordinator: [no-errors] All complex sentences filtered out - clearing readability underlines", category: Logger.analysis)
+                    errorOverlay.clearReadabilityUnderlines()
+                }
             } else {
                 // No readability underlines - hide overlay completely
+                Logger.debug("AnalysisCoordinator: [no-errors] No readability data - hiding overlay", category: Logger.analysis)
                 errorOverlay.hide()
             }
 
@@ -2450,13 +2488,33 @@ class AnalysisCoordinator: ObservableObject {
                UserPreferences.shared.showReadabilityUnderlines,
                !analysis.complexSentences.isEmpty
             {
-                errorOverlay.updateReadabilityUnderlines(
-                    complexSentences: analysis.complexSentences,
-                    element: providedElement,
-                    context: monitoredContext,
-                    text: lastAnalyzedText
-                )
+                // Filter out sentences that were just simplified to prevent re-flagging.
+                // When user applies a readability fix, the new text might still be detected
+                // as "complex" by re-analysis, but we don't want to underline it again.
+                Logger.debug("AnalysisCoordinator: Filtering \(analysis.complexSentences.count) complex sentences, dismissed hashes count: \(dismissedReadabilitySentenceHashes.count)", category: Logger.analysis)
+                let filteredSentences = analysis.complexSentences.filter { sentence in
+                    let hash = sentence.sentence.hashValue
+                    let isDismissed = dismissedReadabilitySentenceHashes.contains(hash)
+                    if isDismissed {
+                        Logger.debug("AnalysisCoordinator: Filtering out dismissed sentence: '\(sentence.sentence.prefix(50))...'", category: Logger.analysis)
+                    }
+                    return !isDismissed
+                }
+                Logger.debug("AnalysisCoordinator: After filtering: \(filteredSentences.count) sentences remain", category: Logger.analysis)
+
+                if !filteredSentences.isEmpty {
+                    errorOverlay.updateReadabilityUnderlines(
+                        complexSentences: filteredSentences,
+                        element: providedElement,
+                        context: monitoredContext,
+                        text: lastAnalyzedText
+                    )
+                } else {
+                    Logger.debug("AnalysisCoordinator: All complex sentences filtered out - clearing readability underlines", category: Logger.analysis)
+                    errorOverlay.clearReadabilityUnderlines()
+                }
             } else {
+                Logger.debug("AnalysisCoordinator: No readability underlines to draw (analysis=\(currentReadabilityAnalysis != nil), pref=\(UserPreferences.shared.showReadabilityUnderlines), count=\(currentReadabilityAnalysis?.complexSentences.count ?? 0))", category: Logger.analysis)
                 errorOverlay.clearReadabilityUnderlines()
             }
 

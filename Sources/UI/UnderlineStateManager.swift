@@ -289,6 +289,41 @@ final class UnderlineStateManager {
         applyState(currentState.withReadabilityUnderlinesCleared())
     }
 
+    /// Remove a specific readability underline by matching the sentence text.
+    /// Preserves other readability underlines.
+    /// - Parameter sentenceText: The sentence text to match and remove
+    /// - Returns: true if an underline was removed, false if no match found
+    @discardableResult
+    func removeReadabilityUnderline(forSentence sentenceText: String) -> Bool {
+        let currentUnderlines = currentState.readabilityUnderlines
+        let filteredUnderlines = currentUnderlines.filter { underline in
+            underline.sentenceResult.sentence != sentenceText
+        }
+
+        guard filteredUnderlines.count < currentUnderlines.count else {
+            return false
+        }
+
+        // Preserve hover index if still valid after removal
+        let hoveredReadabilityIndex = preserveIndexIfValid(
+            currentState.hoveredReadabilityIndex,
+            newCount: filteredUnderlines.count
+        )
+
+        let newState = UnderlineState(
+            grammarUnderlines: currentState.grammarUnderlines,
+            styleUnderlines: currentState.styleUnderlines,
+            readabilityUnderlines: filteredUnderlines,
+            hoveredGrammarIndex: currentState.hoveredGrammarIndex,
+            hoveredStyleIndex: currentState.hoveredStyleIndex,
+            hoveredReadabilityIndex: hoveredReadabilityIndex,
+            lockedHighlightIndex: currentState.lockedHighlightIndex
+        )
+
+        applyState(newState)
+        return true
+    }
+
     /// Update grammar and style underlines, preserving readability underlines
     /// Use this when updating after grammar analysis completes.
     /// - Parameters:

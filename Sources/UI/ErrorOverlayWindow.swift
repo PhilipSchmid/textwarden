@@ -941,6 +941,15 @@ class ErrorOverlayWindow: NSPanel {
         stateManager.clearReadabilityUnderlines()
     }
 
+    /// Remove a specific readability underline by matching the sentence text.
+    /// Preserves other readability underlines.
+    /// - Parameter sentenceText: The sentence text to match and remove
+    /// - Returns: true if an underline was removed, false if no match found
+    @discardableResult
+    func removeReadabilityUnderline(forSentence sentenceText: String) -> Bool {
+        stateManager.removeReadabilityUnderline(forSentence: sentenceText)
+    }
+
     /// Clear only the grammar underlines (called when no grammar errors but readability underlines remain)
     func clearGrammarUnderlines() {
         // Use state manager to ensure consistent state
@@ -1110,6 +1119,14 @@ class ErrorOverlayWindow: NSPanel {
                 }
             }
 
+            // SAFEGUARD: Only show readability underlines when BOTH segments are available.
+            // Showing half-baked underlines (only first or only last) looks broken.
+            // Better to wait for next analysis where we can draw both parts.
+            guard !lastLocalBounds.isEmpty else {
+                Logger.debug("ErrorOverlay: Skipping readability underline - last segment has no valid bounds (safeguard: require both segments)", category: Logger.ui)
+                continue
+            }
+
             // Calculate overall bounds from all segments
             let allSegmentBounds = firstLocalBounds + lastLocalBounds
             let overallLocalBounds = calculateOverallBounds(from: allSegmentBounds)
@@ -1126,7 +1143,7 @@ class ErrorOverlayWindow: NSPanel {
             let underline = ReadabilityUnderline(
                 bounds: expandedBounds,
                 firstSegmentBounds: firstLocalBounds,
-                lastSegmentBounds: lastLocalBounds.isEmpty ? nil : lastLocalBounds,
+                lastSegmentBounds: lastLocalBounds,
                 sentenceResult: sentence
             )
 
