@@ -434,21 +434,31 @@ final class ReadabilityCalculator: Sendable {
                     break
                 }
 
-                // Key check: Was the parenthetical part of a sentence or a standalone?
-                // Look at what comes BEFORE the opening parenthesis in the current fragment.
-                // If the "(" is preceded by a word (not . ! ?), the parenthetical is inline.
-                let parentheticalIsInline = isParentheticalInline(currentSentence)
+                // CRITICAL: If a fragment starts with lowercase letter, it's ALWAYS a continuation.
+                // A proper English sentence never starts with a lowercase letter.
+                // This handles cases like: "Would you like to sync up soon? to discuss the status..."
+                // where the "?" incorrectly splits the sentence.
+                if startsWithLowercase, !startsWithClosingBracket {
+                    // Unconditionally merge - lowercase start means continuation
+                    Logger.trace("ReadabilityCalculator: Merging fragment starting with lowercase '\(firstChar)' - not a sentence start", category: Logger.analysis)
+                } else {
+                    // For closing brackets, apply the existing parenthetical logic
+                    // Key check: Was the parenthetical part of a sentence or a standalone?
+                    // Look at what comes BEFORE the opening parenthesis in the current fragment.
+                    // If the "(" is preceded by a word (not . ! ?), the parenthetical is inline.
+                    let parentheticalIsInline = isParentheticalInline(currentSentence)
 
-                // Also check for unclosed brackets (split happened inside parentheses)
-                let openParens = currentSentence.count { $0 == "(" }
-                let closeParens = currentSentence.count { $0 == ")" }
-                let openBrackets = currentSentence.count { $0 == "[" }
-                let closeBrackets = currentSentence.count { $0 == "]" }
-                let hasUnclosedParenthesis = openParens > closeParens || openBrackets > closeBrackets
+                    // Also check for unclosed brackets (split happened inside parentheses)
+                    let openParens = currentSentence.count { $0 == "(" }
+                    let closeParens = currentSentence.count { $0 == ")" }
+                    let openBrackets = currentSentence.count { $0 == "[" }
+                    let closeBrackets = currentSentence.count { $0 == "]" }
+                    let hasUnclosedParenthesis = openParens > closeParens || openBrackets > closeBrackets
 
-                // Must have inline parenthetical OR unclosed brackets to merge
-                guard parentheticalIsInline || hasUnclosedParenthesis else {
-                    break
+                    // Must have inline parenthetical OR unclosed brackets to merge
+                    guard parentheticalIsInline || hasUnclosedParenthesis else {
+                        break
+                    }
                 }
 
                 // Merge: extract the combined text from the original

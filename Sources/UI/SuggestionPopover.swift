@@ -1192,9 +1192,23 @@ class SuggestionPopover: NSObject, ObservableObject {
         // Store open direction for positioning
         indicatorOpenDirection = openDirection
 
+        // CRITICAL: Validate style suggestions against current source text before displaying
+        // This prevents showing stale suggestions whose originalText no longer exists
+        // (e.g., after accepting a readability suggestion that changed the underlying text)
+        var validatedSuggestions = styleSuggestions
+        if !sourceText.isEmpty, !styleSuggestions.isEmpty {
+            validatedSuggestions = styleSuggestions.filter { suggestion in
+                sourceText.contains(suggestion.originalText)
+            }
+            if validatedSuggestions.count < styleSuggestions.count {
+                let filtered = styleSuggestions.count - validatedSuggestions.count
+                Logger.debug("SuggestionPopover: Filtered \(filtered) stale suggestions (originalText not in sourceText)", category: Logger.ui)
+            }
+        }
+
         // Store both collections for unified cycling
         allErrors = errors
-        allStyleSuggestions = styleSuggestions
+        allStyleSuggestions = validatedSuggestions
         self.sourceText = sourceText
 
         // Start at unified index 0 (first item sorted by position)

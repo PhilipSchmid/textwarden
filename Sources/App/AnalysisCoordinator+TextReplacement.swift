@@ -405,9 +405,33 @@ extension AnalysisCoordinator {
             return
         }
 
+        // CRITICAL: Handle punctuation consistency to avoid double-punctuation issues
+        // If original text doesn't end with punctuation but suggested text does,
+        // check if there's trailing punctuation in the current text that should be included
+        var adjustedRange = range
+        let sentenceEndingPunctuation = CharacterSet(charactersIn: ".!?")
+
+        if let originalLastChar = suggestion.originalText.last,
+           let suggestedLastChar = suggestion.suggestedText.last,
+           !originalLastChar.unicodeScalars.allSatisfy({ sentenceEndingPunctuation.contains($0) }),
+           suggestedLastChar.unicodeScalars.allSatisfy({ sentenceEndingPunctuation.contains($0) })
+        {
+            // Original doesn't end with punctuation, but suggestion does
+            // Check if there's punctuation immediately after the match
+            if adjustedRange.upperBound < currentText.endIndex {
+                let nextChar = currentText[adjustedRange.upperBound]
+                if nextChar.unicodeScalars.allSatisfy({ sentenceEndingPunctuation.contains($0) }) {
+                    // Include the trailing punctuation in the replacement range
+                    let newUpperBound = currentText.index(after: adjustedRange.upperBound)
+                    adjustedRange = adjustedRange.lowerBound ..< newUpperBound
+                    Logger.debug("Style replacement: Extended range to include trailing '\(nextChar)' to prevent double punctuation", category: Logger.analysis)
+                }
+            }
+        }
+
         // Convert Swift range to character indices for AX API
-        let startIndex = currentText.distance(from: currentText.startIndex, to: range.lowerBound)
-        let length = suggestion.originalText.count
+        let startIndex = currentText.distance(from: currentText.startIndex, to: adjustedRange.lowerBound)
+        let length = currentText.distance(from: adjustedRange.lowerBound, to: adjustedRange.upperBound)
 
         Logger.trace("Style replacement at position \(startIndex)-\(startIndex + length)", category: Logger.analysis)
 
@@ -541,9 +565,31 @@ extension AnalysisCoordinator {
             return
         }
 
+        // CRITICAL: Handle punctuation consistency to avoid double-punctuation issues
+        var adjustedRange = range
+        let sentenceEndingPunctuation = CharacterSet(charactersIn: ".!?")
+
+        if let originalLastChar = suggestion.originalText.last,
+           let suggestedLastChar = suggestion.suggestedText.last,
+           !originalLastChar.unicodeScalars.allSatisfy({ sentenceEndingPunctuation.contains($0) }),
+           suggestedLastChar.unicodeScalars.allSatisfy({ sentenceEndingPunctuation.contains($0) })
+        {
+            // Original doesn't end with punctuation, but suggestion does
+            // Check if there's punctuation immediately after the match
+            if adjustedRange.upperBound < currentText.endIndex {
+                let nextChar = currentText[adjustedRange.upperBound]
+                if nextChar.unicodeScalars.allSatisfy({ sentenceEndingPunctuation.contains($0) }) {
+                    // Include the trailing punctuation in the replacement range
+                    let newUpperBound = currentText.index(after: adjustedRange.upperBound)
+                    adjustedRange = adjustedRange.lowerBound ..< newUpperBound
+                    Logger.debug("Style keyboard replacement: Extended range to include trailing '\(nextChar)'", category: Logger.analysis)
+                }
+            }
+        }
+
         // Convert Swift range to character indices for AX API
-        let startIndex = currentText.distance(from: currentText.startIndex, to: range.lowerBound)
-        let length = suggestion.originalText.count
+        let startIndex = currentText.distance(from: currentText.startIndex, to: adjustedRange.lowerBound)
+        let length = currentText.distance(from: adjustedRange.lowerBound, to: adjustedRange.upperBound)
 
         // Standard keyboard approach: select range, paste replacement
         // Step 1: Try to select the range using AX API
@@ -641,18 +687,43 @@ extension AnalysisCoordinator {
         let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
         let currentText = (textResult == .success) ? (currentTextRef as? String) : nil
 
+        // CRITICAL: Handle punctuation consistency to avoid double-punctuation issues
+        // If original text doesn't end with punctuation but suggested text does,
+        // we need to extend the selection to include any trailing punctuation
+        var targetText = suggestion.originalText
+        let sentenceEndingPunctuation = CharacterSet(charactersIn: ".!?")
+
+        if let text = currentText,
+           let range = text.range(of: suggestion.originalText),
+           let originalLastChar = suggestion.originalText.last,
+           let suggestedLastChar = suggestion.suggestedText.last,
+           !originalLastChar.unicodeScalars.allSatisfy({ sentenceEndingPunctuation.contains($0) }),
+           suggestedLastChar.unicodeScalars.allSatisfy({ sentenceEndingPunctuation.contains($0) })
+        {
+            // Original doesn't end with punctuation, but suggestion does
+            // Check if there's punctuation immediately after the match
+            if range.upperBound < text.endIndex {
+                let nextChar = text[range.upperBound]
+                if nextChar.unicodeScalars.allSatisfy({ sentenceEndingPunctuation.contains($0) }) {
+                    // Extend target text to include the trailing punctuation
+                    targetText = suggestion.originalText + String(nextChar)
+                    Logger.debug("Browser style replacement: Extended target to include trailing '\(nextChar)'", category: Logger.analysis)
+                }
+            }
+        }
+
         // Find position of original text for readability adjustment
         var replacementStart = 0
-        var replacementEnd = suggestion.originalText.count
-        if let text = currentText, let range = text.range(of: suggestion.originalText) {
+        var replacementEnd = targetText.count
+        if let text = currentText, let range = text.range(of: targetText) {
             replacementStart = text.distance(from: text.startIndex, to: range.lowerBound)
-            replacementEnd = replacementStart + suggestion.originalText.count
+            replacementEnd = replacementStart + targetText.count
         }
-        let lengthDelta = suggestion.suggestedText.count - suggestion.originalText.count
+        let lengthDelta = suggestion.suggestedText.count - targetText.count
 
         // Select the text to replace (handles Notion child element traversal internally)
         guard selectTextForReplacement(
-            targetText: suggestion.originalText,
+            targetText: targetText,
             fallbackRange: nil, // Style suggestions use text search, not byte offsets
             element: element,
             context: context
@@ -1172,7 +1243,9 @@ extension AnalysisCoordinator {
             }
 
             // Try to find child element containing the text and select within it
-            if let (childElement, offsetInChild) = findChildElementContainingText(searchText, in: element) {
+            // Pass the expected position for disambiguation when there are multiple occurrences
+            let expectedPosition = fallbackRange?.location
+            if let (childElement, offsetInChild) = findChildElementContainingText(searchText, in: element, expectedPosition: expectedPosition) {
                 // Get the child element's text for UTF-16 conversion
                 // Slack/Notion use Chromium which expects UTF-16 indices, not grapheme clusters
                 var childTextRef: CFTypeRef?
@@ -1372,7 +1445,15 @@ extension AnalysisCoordinator {
 
     /// Find the child element containing the target text and return the offset within that element
     /// Used for Notion and other Electron apps where document-level offsets don't work
-    func findChildElementContainingText(_ targetText: String, in element: AXUIElement) -> (AXUIElement, Int)? {
+    /// - Parameters:
+    ///   - targetText: The text to find
+    ///   - element: The root element to search in
+    ///   - expectedPosition: Optional position in the full text for disambiguation when multiple occurrences exist
+    func findChildElementContainingText(
+        _ targetText: String,
+        in element: AXUIElement,
+        expectedPosition: Int? = nil
+    ) -> (AXUIElement, Int)? {
         var candidates: [(element: AXUIElement, text: String, offset: Int)] = []
         collectTextElements(in: element, depth: 0, maxDepth: 10, candidates: &candidates, targetText: targetText)
 
@@ -1381,9 +1462,53 @@ extension AnalysisCoordinator {
         let sortedCandidates = candidates.sorted { $0.text.count < $1.text.count }
 
         for candidate in sortedCandidates {
-            guard let range = candidate.text.range(of: targetText) else { continue }
-            let offset = candidate.text.distance(from: candidate.text.startIndex, to: range.lowerBound)
-            Logger.trace("Found target text in child element (size \(candidate.text.count)) at offset \(offset)", category: Logger.analysis)
+            // Find ALL occurrences of the target text in this candidate
+            var searchRange = candidate.text.startIndex ..< candidate.text.endIndex
+            var occurrences: [Range<String.Index>] = []
+
+            while let range = candidate.text.range(of: targetText, range: searchRange) {
+                occurrences.append(range)
+                searchRange = range.upperBound ..< candidate.text.endIndex
+            }
+
+            guard !occurrences.isEmpty else { continue }
+
+            // If there's only one occurrence, use it
+            if occurrences.count == 1 {
+                let offset = candidate.text.distance(from: candidate.text.startIndex, to: occurrences[0].lowerBound)
+                Logger.trace("Found target text in child element (size \(candidate.text.count)) at offset \(offset)", category: Logger.analysis)
+                return (candidate.element, offset)
+            }
+
+            // Multiple occurrences: use expectedPosition to disambiguate
+            if let expectedPos = expectedPosition {
+                // Find the occurrence closest to the expected position
+                // We need to find where this child element starts in the overall text
+                // For simplicity, check if any occurrence's offset matches expected position
+                // or find the occurrence where expected position falls within the child element
+                for range in occurrences {
+                    let offset = candidate.text.distance(from: candidate.text.startIndex, to: range.lowerBound)
+                    // If the expected position could reasonably map to this offset, use it
+                    // This is a heuristic: for short texts, the expected position should be close to the offset
+                    if expectedPos == offset || (candidate.text.count < 500 && abs(expectedPos - offset) < 5) {
+                        Logger.trace("Disambiguated: Found target at offset \(offset) (expected ~\(expectedPos))", category: Logger.analysis)
+                        return (candidate.element, offset)
+                    }
+                }
+                // If no exact match, find closest occurrence
+                let closestRange = occurrences.min { range1, range2 in
+                    let offset1 = candidate.text.distance(from: candidate.text.startIndex, to: range1.lowerBound)
+                    let offset2 = candidate.text.distance(from: candidate.text.startIndex, to: range2.lowerBound)
+                    return abs(expectedPos - offset1) < abs(expectedPos - offset2)
+                }!
+                let offset = candidate.text.distance(from: candidate.text.startIndex, to: closestRange.lowerBound)
+                Logger.trace("Closest match: Found target at offset \(offset) (expected \(expectedPos))", category: Logger.analysis)
+                return (candidate.element, offset)
+            }
+
+            // No expected position provided, fall back to first occurrence
+            let offset = candidate.text.distance(from: candidate.text.startIndex, to: occurrences[0].lowerBound)
+            Logger.trace("No position hint, using first occurrence at offset \(offset)", category: Logger.analysis)
             return (candidate.element, offset)
         }
 
@@ -1392,10 +1517,30 @@ extension AnalysisCoordinator {
         // the target text is longer than what fits in a single paragraph element.
         var textValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textValue) == .success,
-           let rootText = textValue as? String,
-           let range = rootText.range(of: targetText)
+           let rootText = textValue as? String
         {
-            let offset = rootText.distance(from: rootText.startIndex, to: range.lowerBound)
+            // Find all occurrences in root text
+            var searchRange = rootText.startIndex ..< rootText.endIndex
+            var occurrences: [Range<String.Index>] = []
+            while let range = rootText.range(of: targetText, range: searchRange) {
+                occurrences.append(range)
+                searchRange = range.upperBound ..< rootText.endIndex
+            }
+
+            guard !occurrences.isEmpty else { return nil }
+
+            // If expectedPosition is available and there are multiple occurrences, disambiguate
+            let selectedRange: Range<String.Index> = if let expectedPos = expectedPosition, occurrences.count > 1 {
+                occurrences.min { range1, range2 in
+                    let offset1 = rootText.distance(from: rootText.startIndex, to: range1.lowerBound)
+                    let offset2 = rootText.distance(from: rootText.startIndex, to: range2.lowerBound)
+                    return abs(expectedPos - offset1) < abs(expectedPos - offset2)
+                }!
+            } else {
+                occurrences[0]
+            }
+
+            let offset = rootText.distance(from: rootText.startIndex, to: selectedRange.lowerBound)
             Logger.debug("Fallback: Using root element for text selection (offset \(offset))", category: Logger.analysis)
             return (element, offset)
         }
@@ -1766,15 +1911,11 @@ extension AnalysisCoordinator {
         {
             let errorText = String(cachedText[startIdx ..< endIdx])
 
-            // For single-character whitespace/punctuation errors, ALWAYS provide the fallback range
-            // This allows selectTextForReplacement to use context-aware selection
-            if errorText.count == 1, let char = errorText.first, char.isWhitespace || char.isPunctuation {
-                let fallbackRange = CFRange(location: currentError.start, length: currentError.end - currentError.start)
-                Logger.debug("Browser position: Single-char error '\(errorText)', providing position \(currentError.start)-\(currentError.end) for context lookup", category: Logger.analysis)
-                return (errorText, fallbackRange, currentError)
-            }
-
-            return (errorText, nil, currentError)
+            // ALWAYS provide the fallback range with the error's position
+            // This is critical for disambiguation when there are multiple occurrences of the same text
+            let fallbackRange = CFRange(location: currentError.start, length: currentError.end - currentError.start)
+            Logger.debug("Browser position: Error '\(errorText)' at position \(currentError.start)-\(currentError.end)", category: Logger.analysis)
+            return (errorText, fallbackRange, currentError)
         } else {
             let fallbackRange = CFRange(location: currentError.start, length: currentError.end - currentError.start)
             return ("", fallbackRange, currentError)

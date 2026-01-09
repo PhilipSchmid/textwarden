@@ -2016,8 +2016,34 @@ class AnalysisCoordinator: ObservableObject {
             return
         }
 
-        Logger.debug("AnalysisCoordinator: Restoring cached style suggestions (\(cachedStyleSuggestions.count))", category: Logger.analysis)
-        currentStyleSuggestions = cachedStyleSuggestions
+        // CRITICAL: Validate cached suggestions against current text before restoring
+        // This prevents stale suggestions from being shown after text was modified
+        // (e.g., by accepting a readability suggestion that changed the underlying text)
+        let validSuggestions = cachedStyleSuggestions.filter { suggestion in
+            text.contains(suggestion.originalText)
+        }
+
+        // If any suggestions were invalidated, update the cache entry
+        if validSuggestions.count < cachedStyleSuggestions.count {
+            let invalidCount = cachedStyleSuggestions.count - validSuggestions.count
+            Logger.debug("AnalysisCoordinator: Filtered \(invalidCount) stale cached suggestions (originalText not in current text)", category: Logger.analysis)
+
+            // Update cache with validated suggestions only
+            if validSuggestions.isEmpty {
+                styleCache.removeValue(forKey: styleCacheKey)
+                styleCacheMetadata.removeValue(forKey: styleCacheKey)
+                return
+            } else {
+                styleCache[styleCacheKey] = validSuggestions
+            }
+        }
+
+        guard !validSuggestions.isEmpty else {
+            return
+        }
+
+        Logger.debug("AnalysisCoordinator: Restoring cached style suggestions (\(validSuggestions.count))", category: Logger.analysis)
+        currentStyleSuggestions = validSuggestions
         styleAnalysisSourceText = text
 
         let styleName = userPreferences.selectedWritingStyle
@@ -2028,6 +2054,49 @@ class AnalysisCoordinator: ObservableObject {
 
         // Don't update indicator here - let grammar analysis completion handle it
         // to avoid flickering (showing 0 errors briefly before analysis completes)
+    }
+
+    /// Validate current style suggestions against the actual text content
+    /// Removes any suggestions whose originalText is no longer present in the current text
+    /// Returns the number of invalid suggestions that were removed
+    @discardableResult
+    func validateCurrentSuggestions() -> Int {
+        guard !currentStyleSuggestions.isEmpty else { return 0 }
+
+        // Get current text from monitored element
+        guard let element = textMonitor.monitoredElement else { return 0 }
+
+        var textRef: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef)
+        guard result == .success, let currentText = textRef as? String, !currentText.isEmpty else {
+            return 0
+        }
+
+        // Filter out stale suggestions
+        let countBefore = currentStyleSuggestions.count
+        currentStyleSuggestions.removeAll { suggestion in
+            !currentText.contains(suggestion.originalText)
+        }
+
+        let removedCount = countBefore - currentStyleSuggestions.count
+        if removedCount > 0 {
+            Logger.debug("AnalysisCoordinator: Validated suggestions, removed \(removedCount) stale (originalText not in current text)", category: Logger.analysis)
+
+            // Update the popover with validated suggestions
+            suggestionPopover.allStyleSuggestions = currentStyleSuggestions
+
+            // Update source text to current
+            styleAnalysisSourceText = currentText
+
+            // Update indicator if needed
+            if currentStyleSuggestions.isEmpty, currentErrors.isEmpty {
+                floatingIndicator.hide()
+            } else {
+                floatingIndicator.updateStyleSuggestions(currentStyleSuggestions)
+            }
+        }
+
+        return removedCount
     }
 
     /// Check if analysis should be skipped for disabled website
