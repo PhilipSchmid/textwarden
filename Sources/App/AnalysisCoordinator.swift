@@ -266,6 +266,13 @@ class AnalysisCoordinator: ObservableObject {
     /// Whether an auto style check is currently in progress
     var isAutoStyleCheckInProgress: Bool = false
 
+    /// Suppresses auto style analysis until user makes a genuine text edit.
+    /// Set to true when user accepts/rejects a style suggestion to prevent
+    /// the "endless suggestion loop" where applying a suggestion triggers
+    /// re-analysis that finds new suggestions. Reset to false when user
+    /// types new text (not as a result of applying a suggestion).
+    var styleAnalysisSuppressedUntilUserEdit: Bool = false
+
     /// Minimum interval between auto style checks (seconds)
     let autoStyleCheckMinInterval: TimeInterval = 30.0
 
@@ -1555,6 +1562,7 @@ class AnalysisCoordinator: ObservableObject {
         if !isManualStyleCheckActive {
             currentStyleSuggestions = [] // Clear style suggestions
             dismissedStyleSuggestionHashes.removeAll() // Reset dismissed tracking for new context
+            styleAnalysisSuppressedUntilUserEdit = false // Re-enable auto style analysis for new context
             // NOTE: Do NOT clear dismissedReadabilitySentenceHashes here.
             // These hashes are content-based (hash of the simplified sentence text), so they
             // should persist across app switches. When user returns to the same text field,
@@ -1775,6 +1783,16 @@ class AnalysisCoordinator: ObservableObject {
 
         // Handle cache invalidation based on text changes
         let isInReplacementGracePeriod = lastReplacementTime.map { Date().timeIntervalSince($0) < TimingConstants.replacementGracePeriod } ?? false
+
+        // Reset style analysis suppression when user makes a genuine text edit
+        // (not a text change caused by applying a suggestion)
+        if text != previousText, !isApplyingReplacement, !isInReplacementGracePeriod {
+            if styleAnalysisSuppressedUntilUserEdit {
+                Logger.debug("AnalysisCoordinator: User edit detected - re-enabling auto style analysis", category: Logger.llm)
+                styleAnalysisSuppressedUntilUserEdit = false
+            }
+        }
+
         invalidateCachesForTextChange(
             text: text,
             context: context,

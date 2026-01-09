@@ -376,6 +376,12 @@ extension AnalysisCoordinator {
         isApplyingReplacement = true
         defer { isApplyingReplacement = false }
 
+        // Suppress auto style analysis until user makes a genuine edit
+        // This prevents the "endless suggestion loop" where applying a suggestion
+        // triggers re-analysis that finds new suggestions
+        styleAnalysisSuppressedUntilUserEdit = true
+        Logger.debug("Style replacement: Suppressing auto style analysis until user edit", category: Logger.llm)
+
         // Use keyboard automation directly for known Electron apps
         if let context = monitoredContext, context.requiresKeyboardReplacement {
             Logger.debug("Detected Electron app (\(context.applicationName)) - using keyboard automation for style replacement", category: Logger.analysis)
@@ -823,6 +829,12 @@ extension AnalysisCoordinator {
 
     /// Remove an applied style suggestion from tracking and update UI
     func removeSuggestionFromTracking(_ suggestion: StyleSuggestionModel) {
+        // Suppress auto style analysis until user makes a genuine edit
+        // This prevents the "endless suggestion loop" where accepting/rejecting suggestions
+        // triggers re-analysis that finds new suggestions
+        styleAnalysisSuppressedUntilUserEdit = true
+        Logger.debug("Style suggestion dismissed: Suppressing auto style analysis until user edit", category: Logger.llm)
+
         // Track this suggestion as dismissed so it won't reappear after re-analysis
         dismissedStyleSuggestionHashes.insert(suggestion.originalText.hashValue)
 

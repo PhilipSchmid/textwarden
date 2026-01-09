@@ -374,6 +374,14 @@ extension AnalysisCoordinator {
             return
         }
 
+        // Guard: Don't run if suppressed (user just acted on style suggestions)
+        // This prevents the "endless suggestion loop" where applying a suggestion
+        // triggers re-analysis that finds new suggestions
+        guard !styleAnalysisSuppressedUntilUserEdit else {
+            Logger.debug("Auto style check: Skipping - suppressed until user edit", category: Logger.llm)
+            return
+        }
+
         // Guard: Minimum text length
         guard text.count >= autoStyleCheckMinTextLength else {
             Logger.debug("Auto style check: Skipping - text too short (\(text.count) < \(autoStyleCheckMinTextLength))", category: Logger.llm)
