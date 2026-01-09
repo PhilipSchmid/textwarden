@@ -1238,11 +1238,13 @@ class AnalysisCoordinator: ObservableObject {
             if !isSameApp {
                 Logger.trace("AnalysisCoordinator: Stopping monitoring for previous app", category: Logger.analysis)
                 textMonitor.stopMonitoring()
-                // CRITICAL: Clear all cached errors when switching apps to prevent
-                // showing stale errors from the previous application
+                // CRITICAL: Clear all cached analysis when switching apps to prevent
+                // showing stale errors/readability from the previous application
                 currentErrors = []
                 currentSegment = nil
                 previousText = ""
+                currentReadabilityAnalysis = nil
+                currentReadabilityResult = nil
                 // Don't clear style suggestions if manual style check is in progress
                 // The user triggered it and wants to see results when they return
                 if !isManualStyleCheckActive {
@@ -1362,7 +1364,11 @@ class AnalysisCoordinator: ObservableObject {
         }
 
         // Monitor permission changes
+        // Use .removeDuplicates() to avoid triggering resumeMonitoring() when permission polling
+        // sets isPermissionGranted to the same value (true -> true). Without this, permission
+        // polling every 30 seconds would cause unnecessary re-monitoring and overlay flickering.
         permissionManager.$isPermissionGranted
+            .removeDuplicates()
             .sink { [weak self] isGranted in
                 Logger.info("AnalysisCoordinator: Permission status changed to \(isGranted)", category: Logger.permissions)
                 if isGranted {
@@ -1930,15 +1936,35 @@ class AnalysisCoordinator: ObservableObject {
                 )
             }
         } else if !isTyping {
-            // Significant change (e.g., switching chats)
-            Logger.debug("AnalysisCoordinator: Text changed significantly - hiding overlays", category: Logger.analysis)
-            errorOverlay.hide()
-            if !isManualStyleCheckActive { floatingIndicator.hide() }
-            positionResolver.clearCache()
+            // Check if this is a truly significant change or just AX API noise
+            // Apps with unstable text retrieval (like Outlook) may report text changes
+            // that are just invisible character differences, not real user edits.
+            let appBehaviorForChange = AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier)
+            let hasUnstableRetrieval = appBehaviorForChange.knownQuirks.contains(.hasUnstableTextRetrieval)
+            let lengthDifference = abs(text.count - previousText.count)
+
+            // For unstable apps, only treat as significant if length changed by more than 5 chars
+            // This allows for minor invisible character fluctuations while catching real changes
+            if hasUnstableRetrieval, lengthDifference <= 5 {
+                Logger.debug("AnalysisCoordinator: Minor text change in unstable app (\(lengthDifference) chars) - treating as typing", category: Logger.analysis)
+                positionResolver.clearCache()
+                errorOverlay.clearReadabilityUnderlines()
+            } else {
+                // Significant change (e.g., switching chats)
+                Logger.debug("AnalysisCoordinator: Text changed significantly - hiding overlays", category: Logger.analysis)
+                errorOverlay.hide()
+                if !isManualStyleCheckActive { floatingIndicator.hide() }
+                positionResolver.clearCache()
+            }
         } else {
-            // Normal typing - just clear position cache
-            Logger.debug("AnalysisCoordinator: Typing detected - clearing position cache", category: Logger.analysis)
+            // Normal typing - clear position cache and readability underlines
+            // Readability underlines must be cleared because text layout changed,
+            // making current underline positions stale. They'll be redrawn with
+            // correct positions after analysis completes.
+            // Grammar underlines are also stale but get refreshed via update(errors:...).
+            Logger.debug("AnalysisCoordinator: Typing detected - clearing position cache and readability underlines", category: Logger.analysis)
             positionResolver.clearCache()
+            errorOverlay.clearReadabilityUnderlines()
         }
 
         // Web-based apps: Clear errors on truly significant text changes
@@ -1956,12 +1982,38 @@ class AnalysisCoordinator: ObservableObject {
             }
         }
 
-        // Clear style suggestions if source text changed
+        // Validate style suggestions against current text
+        // Use existing validateCurrentSuggestions() which handles UI updates consistently
         if !currentStyleSuggestions.isEmpty, text != styleAnalysisSourceText {
-            Logger.debug("AnalysisCoordinator: Clearing style suggestions - source text changed", category: Logger.analysis)
-            currentStyleSuggestions.removeAll()
-            styleAnalysisSourceText = ""
-            floatingIndicator.hide()
+            let removedCount = validateCurrentSuggestions()
+            if removedCount > 0 {
+                // Increment generation to cancel any in-flight LLM requests for stale text
+                styleAnalysisGeneration += 1
+            }
+        }
+
+        // Validate readability analysis against current text
+        // Use existing cleanupStaleReadabilitySuggestions() for consistency
+        if let analysis = currentReadabilityAnalysis, !analysis.sentenceResults.isEmpty {
+            // First validate that sentences still exist in text
+            let validSentences = analysis.sentenceResults.filter { text.contains($0.sentence) }
+            if validSentences.count < analysis.sentenceResults.count {
+                let removedCount = analysis.sentenceResults.count - validSentences.count
+                Logger.debug("AnalysisCoordinator: Invalidated \(removedCount) readability sentences - text no longer matches", category: Logger.analysis)
+
+                // Update analysis with only valid sentences
+                currentReadabilityAnalysis = TextReadabilityAnalysis(
+                    overallResult: analysis.overallResult,
+                    sentenceResults: validSentences,
+                    targetAudience: analysis.targetAudience
+                )
+
+                // Clear stale readability underlines
+                errorOverlay.clearReadabilityUnderlines()
+
+                // Clean up any stale readability suggestions too
+                cleanupStaleReadabilitySuggestions(currentComplexRanges: validSentences.filter(\.isComplex).map(\.range))
+            }
         }
     }
 
