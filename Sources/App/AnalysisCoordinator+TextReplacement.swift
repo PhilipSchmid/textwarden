@@ -320,6 +320,23 @@ extension AnalysisCoordinator {
         let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef)
         let currentText = (textResult == .success) ? (textRef as? String) : nil
 
+        // CRITICAL: Validate error positions against current text before proceeding
+        // If positions are stale (e.g., text changed since analysis), abort to prevent wrong replacements
+        if let text = currentText {
+            let scalarCount = text.unicodeScalars.count
+            if error.end > scalarCount {
+                Logger.warning("Stale error positions detected: error range \(error.start)-\(error.end) exceeds current text length \(scalarCount)", category: Logger.analysis)
+                SuggestionPopover.shared.showStatusMessage("Text has changed - please wait for re-analysis")
+                return
+            }
+
+            // Log extracted text for debugging (helps identify position drift)
+            let startIdx = text.unicodeScalars.index(text.unicodeScalars.startIndex, offsetBy: error.start)
+            let endIdx = text.unicodeScalars.index(text.unicodeScalars.startIndex, offsetBy: error.end)
+            let extractedText = String(text.unicodeScalars[startIdx ..< endIdx])
+            Logger.debug("Native replacement: Text at positions \(error.start)-\(error.end): '\(extractedText)'", category: Logger.analysis)
+        }
+
         let utf16Location: Int
         let utf16Length: Int
         if let text = currentText {
@@ -629,7 +646,21 @@ extension AnalysisCoordinator {
 
         // Step 3: Simulate paste
         let delay = context.keyboardOperationDelay
+        let expectedText = suggestion.suggestedText // Capture for verification
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            // CRITICAL: Verify clipboard still contains our text before pasting
+            // This guards against race conditions where another process modifies clipboard
+            let currentClipboard = pasteboard.string(forType: .string)
+            guard currentClipboard == expectedText else {
+                Logger.error("Style replacement ABORTED: Clipboard was modified! Expected '\(expectedText.prefix(20))...' but found '\(currentClipboard?.prefix(20) ?? "nil")...'", category: Logger.analysis)
+                // Restore original clipboard since we're not pasting
+                if let original = originalString {
+                    pasteboard.clearContents()
+                    pasteboard.setString(original, forType: .string)
+                }
+                return
+            }
+
             self?.pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
 
             // Restore original clipboard after a short delay
@@ -753,7 +784,19 @@ extension AnalysisCoordinator {
         }
 
         // Step 4: Try paste via menu action or keyboard
+        let expectedText = suggestion.suggestedText // Capture for verification
         DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.longDelay) { [weak self] in
+            // CRITICAL: Verify clipboard still contains our text before pasting
+            let currentClipboard = pasteboard.string(forType: .string)
+            guard currentClipboard == expectedText else {
+                Logger.error("Browser style replacement ABORTED: Clipboard was modified! Expected '\(expectedText.prefix(20))...' but found '\(currentClipboard?.prefix(20) ?? "nil")...'", category: Logger.analysis)
+                if let original = originalString {
+                    pasteboard.clearContents()
+                    pasteboard.setString(original, forType: .string)
+                }
+                return
+            }
+
             var pasteSucceeded = false
 
             // Try menu action first
@@ -1612,6 +1655,25 @@ extension AnalysisCoordinator {
 
         Logger.debug("Using keyboard simulation for text replacement (app: \(context.applicationName), isBrowser: \(context.isBrowser))", category: Logger.analysis)
 
+        // CRITICAL: Validate error positions against current text before proceeding
+        // This catches stale positions that would cause wrong text to be replaced
+        var currentTextRef: CFTypeRef?
+        let currentTextResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
+        if currentTextResult == .success, let currentText = currentTextRef as? String {
+            let scalarCount = currentText.unicodeScalars.count
+            if error.end > scalarCount {
+                Logger.warning("Keyboard replacement: Stale error positions \(error.start)-\(error.end) exceed text length \(scalarCount)", category: Logger.analysis)
+                SuggestionPopover.shared.showStatusMessage("Text has changed - please wait for re-analysis")
+                return
+            }
+
+            // Log extracted text for debugging (helps identify position drift)
+            let startIdx = currentText.unicodeScalars.index(currentText.unicodeScalars.startIndex, offsetBy: error.start)
+            let endIdx = currentText.unicodeScalars.index(currentText.unicodeScalars.startIndex, offsetBy: error.end)
+            let extractedText = String(currentText.unicodeScalars[startIdx ..< endIdx])
+            Logger.debug("Keyboard replacement: Text at positions \(error.start)-\(error.end): '\(extractedText)'", category: Logger.analysis)
+        }
+
         // Get app behavior for quirk checks
         let appBehavior = AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier)
 
@@ -1799,6 +1861,17 @@ extension AnalysisCoordinator {
             // Small delay for activation and selection to take effect
             try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
 
+            // CRITICAL: Verify clipboard still contains our text before pasting
+            let currentClipboard = pasteboard.string(forType: .string)
+            guard currentClipboard == suggestion else {
+                Logger.error("Office replacement ABORTED: Clipboard was modified! Expected '\(suggestion.prefix(20))...' but found '\(currentClipboard?.prefix(20) ?? "nil")...'", category: Logger.analysis)
+                if let original = originalString {
+                    pasteboard.clearContents()
+                    pasteboard.setString(original, forType: .string)
+                }
+                return
+            }
+
             // Step 5: Paste via keyboard
             pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
             Logger.debug("Office: Pasted via Cmd+V", category: Logger.analysis)
@@ -1826,15 +1899,9 @@ extension AnalysisCoordinator {
             return
         }
 
-        // Validate selection before paste to prevent wrong placement
-        // This applies to:
-        // - Apps with virtualized content (Teams) where errors may scroll out of view
-        // - Apps with unreliable AX selection (Slack) where selection can fail silently
-        // - Browser-style replacement apps where selection issues cause text corruption
-        if appBehaviorForReplacement.knownQuirks.contains(.requiresSelectionValidationBeforePaste) ||
-            appBehaviorForReplacement.knownQuirks.contains(.requiresBrowserStyleReplacement),
-            !targetText.isEmpty
-        {
+        // CRITICAL: ALWAYS validate selection before paste to prevent text corruption
+        // This catches position mismatches that would otherwise corrupt the document
+        if !targetText.isEmpty {
             // Small delay for selection to take effect
             try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
 
@@ -1844,15 +1911,21 @@ extension AnalysisCoordinator {
                let selectedText = selectedTextRef as? String
             {
                 if selectedText != targetText {
-                    Logger.warning("Selection mismatch (got \(selectedText.count) chars, expected \(targetText.count) chars) - error may be scrolled out of view, aborting", category: Logger.analysis)
+                    Logger.error("Selection mismatch - ABORTING to prevent corruption! Selected '\(selectedText.prefix(30))...' but expected '\(targetText.prefix(30))...'", category: Logger.analysis)
+                    SuggestionPopover.shared.showStatusMessage("Selection error - please try again")
+                    return
+                }
+                Logger.debug("Selection validated: '\(targetText.prefix(20))...' (\(targetText.count) chars)", category: Logger.analysis)
+            } else {
+                // For apps that don't support AXSelectedText, only abort if they have the quirk
+                if appBehaviorForReplacement.knownQuirks.contains(.requiresSelectionValidationBeforePaste) ||
+                    appBehaviorForReplacement.knownQuirks.contains(.requiresBrowserStyleReplacement)
+                {
+                    Logger.warning("Could not validate selection - aborting to prevent wrong placement", category: Logger.analysis)
                     SuggestionPopover.shared.showStatusMessage("Scroll to see this error first")
                     return
                 }
-                Logger.debug("Selection validated (\(targetText.count) chars)", category: Logger.analysis)
-            } else {
-                Logger.warning("Could not validate selection - aborting to prevent wrong placement", category: Logger.analysis)
-                SuggestionPopover.shared.showStatusMessage("Scroll to see this error first")
-                return
+                Logger.debug("Selection validation skipped (AXSelectedText not available)", category: Logger.analysis)
             }
         }
 
@@ -1914,14 +1987,46 @@ extension AnalysisCoordinator {
             err.message == error.message && err.lintId == error.lintId && err.category == error.category
         } ?? error
 
-        let cachedText = lastAnalyzedText.isEmpty ? (currentSegment?.content ?? previousText) : lastAnalyzedText
-        let scalarCount = cachedText.unicodeScalars.count
+        // CRITICAL: Get CURRENT text from the element, not cached text
+        // The cached lastAnalyzedText can become stale when re-analysis runs during replacement mode
+        // (lastAnalyzedText is updated but currentErrors is not, causing position mismatch)
+        var currentTextFromElement: String?
+        if let element = textMonitor.monitoredElement {
+            var textRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef) == .success,
+               let text = textRef as? String
+            {
+                currentTextFromElement = text
+            }
+        }
 
-        if !cachedText.isEmpty, currentError.start < scalarCount, currentError.end <= scalarCount,
-           let startIdx = TextIndexConverter.scalarIndexToStringIndex(currentError.start, in: cachedText),
-           let endIdx = TextIndexConverter.scalarIndexToStringIndex(currentError.end, in: cachedText)
+        // Use current text if available, otherwise fall back to cached
+        let cachedText = lastAnalyzedText.isEmpty ? (currentSegment?.content ?? previousText) : lastAnalyzedText
+        let textForExtraction = currentTextFromElement ?? cachedText
+
+        // CRITICAL: Detect stale positions by comparing current text length with error bounds
+        // If error positions are out of bounds for current text, the errors are stale
+        let scalarCount = textForExtraction.unicodeScalars.count
+        if currentError.end > scalarCount {
+            Logger.warning("Browser position: Error positions (\(currentError.start)-\(currentError.end)) exceed current text length (\(scalarCount)) - positions are stale", category: Logger.analysis)
+            // Return empty text to signal that selection should search for text instead
+            let fallbackRange = CFRange(location: currentError.start, length: currentError.end - currentError.start)
+            return ("", fallbackRange, currentError)
+        }
+
+        if !textForExtraction.isEmpty, currentError.start < scalarCount, currentError.end <= scalarCount,
+           let startIdx = TextIndexConverter.scalarIndexToStringIndex(currentError.start, in: textForExtraction),
+           let endIdx = TextIndexConverter.scalarIndexToStringIndex(currentError.end, in: textForExtraction)
         {
-            let errorText = String(cachedText[startIdx ..< endIdx])
+            let errorText = String(textForExtraction[startIdx ..< endIdx])
+
+            // CRITICAL: Validate extracted text looks reasonable
+            // If the extracted text is significantly different from expected (wrong length or garbage),
+            // positions may be stale due to text changes during replacement mode
+            let expectedLength = currentError.end - currentError.start
+            if errorText.unicodeScalars.count != expectedLength {
+                Logger.warning("Browser position: Extracted text length (\(errorText.unicodeScalars.count)) doesn't match expected (\(expectedLength)) - positions may be stale", category: Logger.analysis)
+            }
 
             // ALWAYS provide the fallback range with the error's position
             // This is critical for disambiguation when there are multiple occurrences of the same text
@@ -2064,6 +2169,18 @@ extension AnalysisCoordinator {
         if !pasteSucceeded {
             pasteCompleteDelay = delay + 0.1
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+
+            // CRITICAL: Verify clipboard still contains our text before pasting
+            let currentClipboard = pasteboard.string(forType: .string)
+            guard currentClipboard == suggestion else {
+                Logger.error("Grammar replacement ABORTED: Clipboard was modified! Expected '\(suggestion.prefix(20))...' but found '\(currentClipboard?.prefix(20) ?? "nil")...'", category: Logger.analysis)
+                if let original = originalString {
+                    pasteboard.clearContents()
+                    pasteboard.setString(original, forType: .string)
+                }
+                return
+            }
+
             pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
             Logger.debug("Pasted via Cmd+V fallback", category: Logger.analysis)
         } else {
@@ -2155,6 +2272,14 @@ extension AnalysisCoordinator {
         // Step 3: Select error text (Shift+Right)
         let errorLength = error.end - error.start
         await sendArrowKeysAsync(count: errorLength, keyCode: 124, flags: .maskShift, delay: navigationDelay)
+
+        // CRITICAL: Verify clipboard still contains our text before pasting
+        // During navigation, another process could have modified the clipboard
+        let currentClipboard = pasteboard.string(forType: .string)
+        guard currentClipboard == suggestion else {
+            Logger.error("Standard keyboard replacement ABORTED: Clipboard was modified during navigation! Expected '\(suggestion.prefix(20))...' but found '\(currentClipboard?.prefix(20) ?? "nil")...'", category: Logger.analysis)
+            return
+        }
 
         // Step 4: Paste (Cmd+V)
         pressKey(key: 9, flags: .maskCommand)
