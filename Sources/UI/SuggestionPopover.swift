@@ -133,6 +133,10 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Callback for rejecting style suggestion (style mode)
     var onRejectStyleSuggestion: ((StyleSuggestionModel, SuggestionRejectionCategory) -> Void)?
 
+    /// Callback to get current validated suggestions from coordinator
+    /// Used when navigating to next suggestion after accept/reject to ensure we're showing fresh, valid suggestions
+    var onGetValidSuggestions: (() -> [StyleSuggestionModel])?
+
     /// Callback for regenerating style suggestion (to get alternative)
     var onRegenerateStyleSuggestion: ((StyleSuggestionModel) async -> StyleSuggestionModel?)?
 
@@ -858,7 +862,7 @@ class SuggestionPopover: NSObject, ObservableObject {
             currentIndex = max(0, allErrors.count - 1)
         }
 
-        // Update currentError if in grammar mode
+        // Update current item based on mode
         if mode == .grammarError {
             if allErrors.isEmpty, allStyleSuggestions.isEmpty {
                 hide()
@@ -869,6 +873,23 @@ class SuggestionPopover: NSObject, ObservableObject {
                 currentStyleSuggestion = allStyleSuggestions.first
             } else {
                 currentError = allErrors.indices.contains(currentIndex) ? allErrors[currentIndex] : allErrors.first
+            }
+        } else if mode == .styleSuggestion {
+            // Handle style mode: hide if nothing left, switch to grammar if only errors remain
+            if allStyleSuggestions.isEmpty, allErrors.isEmpty {
+                hide()
+            } else if allStyleSuggestions.isEmpty {
+                // Switch to grammar mode if no style suggestions left but errors exist
+                mode = .grammarError
+                currentStyleSuggestion = nil
+                currentError = allErrors.first
+                currentIndex = 0
+            } else {
+                // Adjust style index if needed
+                if currentStyleIndex >= allStyleSuggestions.count {
+                    currentStyleIndex = max(0, allStyleSuggestions.count - 1)
+                }
+                currentStyleSuggestion = allStyleSuggestions.indices.contains(currentStyleIndex) ? allStyleSuggestions[currentStyleIndex] : allStyleSuggestions.first
             }
         }
 
@@ -1149,8 +1170,17 @@ class SuggestionPopover: NSObject, ObservableObject {
             return
         }
 
-        // Remove current from list
-        allStyleSuggestions.removeAll { $0.id == current.id }
+        // CRITICAL: Get fresh validated suggestions from coordinator
+        // This ensures we don't show stale suggestions after text has changed
+        if let getValidSuggestions = onGetValidSuggestions {
+            let validSuggestions = getValidSuggestions()
+            // Filter out the current suggestion we just acted on
+            allStyleSuggestions = validSuggestions.filter { $0.id != current.id }
+            Logger.debug("Popover: Synced with coordinator - \(allStyleSuggestions.count) valid suggestions remaining", category: Logger.ui)
+        } else {
+            // Fallback: just remove current from local list (legacy behavior)
+            allStyleSuggestions.removeAll { $0.id == current.id }
+        }
 
         // Reset loading state when switching suggestions
         isGeneratingSimplification = false
@@ -1186,9 +1216,6 @@ class SuggestionPopover: NSObject, ObservableObject {
         // Reset loading state when showing new unified view
         isGeneratingSimplification = false
 
-        // Mark as opened from indicator - popover persists until explicitly dismissed
-        openedFromIndicator = true
-
         // Store open direction for positioning
         indicatorOpenDirection = openDirection
 
@@ -1220,6 +1247,11 @@ class SuggestionPopover: NSObject, ObservableObject {
             Logger.debug("SuggestionPopover.showUnified - no items to show", category: Logger.ui)
             return
         }
+
+        // CRITICAL: Only set openedFromIndicator AFTER confirming we have items to show
+        // Setting it before the guard could leave the flag as true even when no panel is shown,
+        // causing inconsistent state in subsequent hover operations
+        openedFromIndicator = true
 
         // Set mode and current item based on first unified item
         switch items[0] {

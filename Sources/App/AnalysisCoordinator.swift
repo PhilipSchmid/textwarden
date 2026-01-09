@@ -710,6 +710,15 @@ class AnalysisCoordinator: ObservableObject {
             }
         }
 
+        // Provide callback for popover to get current validated suggestions
+        // This ensures the popover shows fresh, valid suggestions when navigating after accept/reject
+        suggestionPopover.onGetValidSuggestions = { [weak self] in
+            guard let self else { return [] }
+            // Validate and return current suggestions
+            validateCurrentSuggestions()
+            return currentStyleSuggestions
+        }
+
         // Handle mouse entered popover - cancel any pending delayed switches
         suggestionPopover.onMouseEntered = { [weak self] in
             guard let self else { return }
