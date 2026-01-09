@@ -523,9 +523,8 @@ struct PopoverContentView: View {
             if let error = popover.currentError {
                 let validSuggestions = error.suggestions.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                 let isAIRephrase = error.category == "Readability" && validSuggestions.count == 2
-                let isLoadingAI = error.category == "Readability" &&
-                    error.message.lowercased().contains("words long") &&
-                    validSuggestions.isEmpty
+                // Note: AI enhancement for readability errors is disabled, so we don't show loading state
+                // Readability errors without suggestions just display the error message like any other error
 
                 // Header row with category and close button
                 HStack(alignment: .center, spacing: 8) {
@@ -585,21 +584,7 @@ struct PopoverContentView: View {
 
                 // Content area
                 VStack(alignment: .leading, spacing: 2) {
-                    if isLoadingAI {
-                        // Loading indicator for AI suggestion
-                        HStack(spacing: 8) {
-                            ProgressView()
-                                .scaleEffect(0.7)
-                                .tint(Color.purple)
-                            Text("Generating suggestion...")
-                                .font(.system(size: bodyTextSize - 1))
-                                .foregroundColor(colors.textSecondary)
-                                .italic()
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-
-                    } else if isAIRephrase {
+                    if isAIRephrase {
                         // AI rephrase - show before/after
                         let originalText = validSuggestions[0]
                         let rephraseText = validSuggestions[1]
