@@ -1861,14 +1861,25 @@ class AnalysisCoordinator: ObservableObject {
         // Focus often moves briefly to non-editable elements (message list, old messages) and returns.
         // The mouse-leave fade (25%) provides visual feedback, and full hide happens only when
         // text actually changes or focus moves to a different editable element.
+        // EXCEPTION: If the element is no longer in the AX tree (page navigation like Huddles),
+        // clear overlays immediately instead of preserving stale state.
         let appBehavior = AppBehaviorRegistry.shared.behavior(for: appConfig)
         if appBehavior.knownQuirks.contains(.webBasedRendering), !currentErrors.isEmpty {
-            Logger.debug("AnalysisCoordinator: Web-based app - preserving overlays while focus is away (errors: \(currentErrors.count))", category: Logger.analysis)
-            // Don't clear previousText - we want to detect when we return to the same text
-            // Don't hide errorOverlay - the mouse-leave handler already fades it
-            // Just hide the popover to avoid it obscuring the UI
-            suggestionPopover.hide()
-            return true
+            // Check if the last monitored element is still in the AX tree
+            // If not, this is a page navigation (e.g., Slack Huddles) and we should clear
+            if let lastElement = errorOverlay.lastMonitoredElement,
+               AccessibilityBridge.findWindowElement(lastElement) == nil
+            {
+                Logger.debug("AnalysisCoordinator: Web-based app - element no longer in AX tree, clearing overlays", category: Logger.analysis)
+                // Fall through to hide overlays below
+            } else {
+                Logger.debug("AnalysisCoordinator: Web-based app - preserving overlays while focus is away (errors: \(currentErrors.count))", category: Logger.analysis)
+                // Don't clear previousText - we want to detect when we return to the same text
+                // Don't hide errorOverlay - the mouse-leave handler already fades it
+                // Just hide the popover to avoid it obscuring the UI
+                suggestionPopover.hide()
+                return true
+            }
         }
 
         // When a modal dialog (Print, Save, etc.) is open, preserve overlays.
