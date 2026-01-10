@@ -19,6 +19,9 @@ class ErrorOverlayWindow: NSPanel {
     /// The monitored text element
     private var monitoredElement: AXUIElement?
 
+    /// Public accessor for the last monitored element (used for AX tree validation)
+    var lastMonitoredElement: AXUIElement? { monitoredElement }
+
     /// Underline view
     private var underlineView: UnderlineView?
 
@@ -1408,6 +1411,22 @@ class ErrorOverlayWindow: NSPanel {
             waitingForFrameStabilization = false
             stopFrameValidationTimer()
             return
+        }
+
+        // For web-based apps: validate element is still part of the AX tree
+        // When navigating to a different page (e.g., Slack Huddles), the old compose field
+        // element may still report a valid frame but is no longer in the active AX tree.
+        // Check if we can find the element's parent window - if not, element is stale.
+        if let bundleID = currentBundleID,
+           AppBehaviorRegistry.shared.behavior(for: bundleID).knownQuirks.contains(.webBasedRendering)
+        {
+            if AccessibilityBridge.findWindowElement(element) == nil {
+                Logger.debug("ErrorOverlay: Frame validation - element no longer in AX tree (web app navigation), hiding", category: Logger.ui)
+                hide()
+                waitingForFrameStabilization = false
+                stopFrameValidationTimer()
+                return
+            }
         }
 
         // Check for significant frame changes
