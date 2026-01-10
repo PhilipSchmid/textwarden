@@ -605,12 +605,14 @@ class TextMonitor: ObservableObject {
 
             // For web-based apps (Slack, Notion, etc.), AXWindow focus events are spurious -
             // they fire briefly when clicking in the compose field before focus settles.
-            // Preserve existing editable element monitoring instead of clearing.
+            // Preserve existing editable element monitoring instead of clearing,
+            // but only if the element still has a valid accessible frame.
             if roleString == "AXWindow",
                let bundleID = currentContext?.bundleIdentifier,
                AppBehaviorRegistry.shared.behavior(for: bundleID).knownQuirks.contains(.webBasedRendering),
                let existingElement = monitoredElement,
-               isEditableElement(existingElement)
+               isEditableElement(existingElement),
+               hasValidAccessibleFrame(existingElement)
             {
                 Logger.debug("TextMonitor: Ignoring AXWindow focus in web-based app - preserving existing editable element", category: Logger.accessibility)
                 return
@@ -660,10 +662,12 @@ class TextMonitor: ObservableObject {
                 // when focus moves to non-editable elements like sidebars or navigation.
                 // This prevents the issue where hovering over or clicking sidebar elements
                 // fires focus notifications that would otherwise hide overlays.
+                // Only preserve if the element still has a valid accessible frame (not hidden/destroyed).
                 if let bundleID = currentContext?.bundleIdentifier,
                    AppBehaviorRegistry.shared.behavior(for: bundleID).knownQuirks.contains(.webBasedRendering),
                    let existingElement = monitoredElement,
-                   isEditableElement(existingElement)
+                   isEditableElement(existingElement),
+                   hasValidAccessibleFrame(existingElement)
                 {
                     Logger.debug("TextMonitor: Ignoring \(roleString) focus in web-based app - preserving existing editable element", category: Logger.accessibility)
                     return
@@ -1211,6 +1215,43 @@ extension TextMonitor {
         }
 
         return false
+    }
+
+    /// Check if an element is still accessible with a valid frame and in the AX tree.
+    /// Used to validate preserved elements in web-based apps before preserving them.
+    /// Returns false if the element's frame cannot be retrieved, is invalid, or element is stale.
+    private func hasValidAccessibleFrame(_ element: AXUIElement) -> Bool {
+        var frameRef: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(element, "AXFrame" as CFString, &frameRef)
+
+        guard result == .success, let frame = safeAXValueGetRect(frameRef!) else {
+            Logger.trace("TextMonitor: Element frame not accessible (result: \(result.rawValue))", category: Logger.accessibility)
+            return false
+        }
+
+        // Frame should have non-zero dimensions
+        guard frame.width > 0, frame.height > 0 else {
+            Logger.trace("TextMonitor: Element has zero-size frame: \(frame)", category: Logger.accessibility)
+            return false
+        }
+
+        // Frame should have reasonable position (not completely off-screen)
+        // Elements hidden in other views may have extreme coordinates
+        guard frame.origin.x > -10000, frame.origin.y > -10000,
+              frame.origin.x < 100_000, frame.origin.y < 100_000
+        else {
+            Logger.trace("TextMonitor: Element has off-screen frame: \(frame)", category: Logger.accessibility)
+            return false
+        }
+
+        // For web-based apps: also verify element is still in the AX tree
+        // When navigating to different pages, old elements may have valid frames but be stale
+        if AccessibilityBridge.findWindowElement(element) == nil {
+            Logger.trace("TextMonitor: Element no longer in AX tree (stale)", category: Logger.accessibility)
+            return false
+        }
+
+        return true
     }
 
     /// Check if element is an editable text field (not read-only content)
