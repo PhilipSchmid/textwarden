@@ -245,6 +245,34 @@ The central orchestrator that connects all subsystems. Located in `Sources/App/A
 - `analysisQueue`: Grammar analysis dispatch
 - Style analysis uses Swift async/await via FoundationModelsEngine
 
+### SuggestionTracker
+
+Unified suggestion tracking for loop prevention. Located in `Sources/App/SuggestionTracker.swift`.
+
+**Purpose:** Prevent endless suggestion loops by tracking which text spans have been modified, which suggestions have been shown, and enforcing filtering criteria for style suggestions.
+
+**Key Responsibilities:**
+- Track modified spans to prevent re-suggesting already-fixed text
+- Track shown suggestions with cooldown to prevent repeated display
+- Filter style suggestions by confidence threshold (≥0.7)
+- Filter by impact level (high/medium/low) for auto-check mode
+- Enforce frequency cap (max 5 style suggestions per document in auto-check)
+- Track simplified sentences to prevent re-flagging readability fixes
+
+**Replaces Multiple Mechanisms:**
+- `styleCache` and `styleCacheMetadata`
+- `dismissedStyleSuggestionHashes`
+- `dismissedReadabilitySentenceHashes`
+- `styleAnalysisSuppressedUntilUserEdit` flag
+
+**Key Configuration:**
+```swift
+let confidenceThreshold: Float = 0.7       // Minimum AI confidence to show
+let maxStyleSuggestionsPerDocument = 5     // Frequency cap for auto-check
+let suggestionCooldown: TimeInterval = 300 // 5 minutes before re-suggesting
+let modificationGracePeriod: TimeInterval = 2.0  // Grace after accepting
+```
+
 ### AppRegistry
 
 Single source of truth for application-specific configurations. Located in `Sources/AppConfiguration/AppRegistry.swift`.
