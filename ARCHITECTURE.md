@@ -159,6 +159,7 @@ Sources/
 │   ├── GrammarEngine.swift                       # Grammar analysis wrapper
 │   ├── GrammarError.swift                        # Error models
 │   ├── StyleTypes.swift                          # Style suggestion models
+│   ├── UnifiedSuggestion.swift                   # Unified suggestion model
 │   └── Suggestion.swift                          # Suggestion data model
 │
 ├── Models/                                       # Domain models and persistence
@@ -272,6 +273,52 @@ let maxStyleSuggestionsPerDocument = 5     // Frequency cap for auto-check
 let suggestionCooldown: TimeInterval = 300 // 5 minutes before re-suggesting
 let modificationGracePeriod: TimeInterval = 2.0  // Grace after accepting
 ```
+
+### UnifiedSuggestion
+
+A unified suggestion model that provides a consistent interface for grammar, style, and readability suggestions. Located in `Sources/GrammarBridge/UnifiedSuggestion.swift`.
+
+**Purpose:** Different engines produce different suggestion formats (GrammarErrorModel from Harper, StyleSuggestionModel from Apple Intelligence). UnifiedSuggestion provides a single type for UI components and tracking.
+
+**Category System:**
+
+| Category | Color | Source Engine | Examples |
+|----------|-------|---------------|----------|
+| `.correctness` | Red | Harper | Spelling, grammar, punctuation |
+| `.clarity` | Blue | Apple Intelligence | Readability, sentence simplification |
+| `.style` | Purple | Apple Intelligence | Tone, formality, word choice |
+
+**Key Properties:**
+```swift
+struct UnifiedSuggestion: Identifiable, Hashable, Sendable {
+    let id: String
+    let category: SuggestionCategory
+    let start: Int
+    let end: Int
+    let originalText: String
+    let suggestedText: String?
+    let message: String
+    let severity: SuggestionSeverity
+    let source: SuggestionSource
+
+    // Category-specific metadata
+    let lintId: String?           // For Harper rules (ignore rule action)
+    let confidence: Float?        // For AI suggestions
+    let diff: [DiffSegmentModel]? // For style diff visualization
+    let readabilityScore: Int?    // For clarity suggestions
+    let alternatives: [String]?   // For grammar with multiple options
+}
+```
+
+**Conversion Extensions:**
+- `GrammarErrorModel.toUnifiedSuggestion(in:)` - Convert Harper grammar error
+- `StyleSuggestionModel.toUnifiedSuggestion()` - Convert AI style suggestion
+
+**Impact Classification:**
+The `impact` computed property provides filtering criteria:
+- Correctness: Based on severity (error = high, warning/info = medium)
+- Clarity: Always high (readability affects comprehension)
+- Style: Based on change magnitude, word count, and confidence
 
 ### AppRegistry
 
