@@ -52,6 +52,23 @@ extension WritingStyle {
     }
 }
 
+// MARK: - Suggestion Impact
+
+/// Impact level for style suggestions, used to filter out low-value suggestions
+/// in automatic checks while showing them in manual checks.
+public enum SuggestionImpact: Int, Comparable {
+    /// High impact: Sentence restructuring, major clarity issues, significant tone mismatches
+    case high = 3
+    /// Medium impact: Phrase improvements, formality adjustments
+    case medium = 2
+    /// Low impact: Minor word preferences, optional style choices
+    case low = 1
+
+    public static func < (lhs: SuggestionImpact, rhs: SuggestionImpact) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
 // MARK: - Diff Segment
 
 /// Kind of change in a diff
@@ -127,6 +144,39 @@ public struct StyleSuggestionModel: Identifiable {
     /// Range of the original text
     public var range: Range<Int> {
         originalStart ..< originalEnd
+    }
+
+    /// Computed impact level based on suggestion characteristics
+    /// Used for filtering in auto-check mode
+    public var impact: SuggestionImpact {
+        // Readability suggestions are always high impact (complex sentences affect comprehension)
+        if isReadabilitySuggestion {
+            return .high
+        }
+
+        // Calculate based on change magnitude
+        let originalLength = originalText.count
+        let suggestedLength = suggestedText.count
+        let lengthDiff = abs(originalLength - suggestedLength)
+
+        // Sentence restructuring: significant length change (>30%) = high impact
+        if originalLength > 20, Double(lengthDiff) / Double(originalLength) > 0.3 {
+            return .high
+        }
+
+        // Phrase-level changes (multiple words): medium impact
+        let wordCount = originalText.split(separator: " ").count
+        if wordCount >= 3 {
+            return .medium
+        }
+
+        // Single word changes: depends on confidence
+        if confidence >= 0.85 {
+            return .medium
+        }
+
+        // Low confidence single-word changes: low impact
+        return .low
     }
 }
 

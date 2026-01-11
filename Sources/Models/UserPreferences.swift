@@ -627,6 +627,16 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Style suggestion sensitivity (controls how many suggestions are shown in auto-check)
+    /// - minimal: Only high-impact suggestions
+    /// - balanced: High and medium-impact suggestions (default)
+    /// - detailed: All suggestions including low-impact
+    @Published var styleSensitivity: String {
+        didSet {
+            defaults.set(styleSensitivity, forKey: Keys.styleSensitivity)
+        }
+    }
+
     /// Available writing style options
     static let writingStyles = [
         "Default",
@@ -707,6 +717,7 @@ class UserPreferences: ObservableObject {
         styleAutoLoadModel = true
         styleInferencePreset = "balanced" // Default to balanced
         styleTemperaturePreset = "balanced" // Default FM temperature
+        styleSensitivity = "balanced" // Default style sensitivity
 
         // Then load saved preferences
         if let pauseString = defaults.string(forKey: Keys.pauseDuration),
@@ -869,6 +880,7 @@ class UserPreferences: ObservableObject {
         styleAutoLoadModel = defaults.object(forKey: Keys.styleAutoLoadModel) as? Bool ?? true
         styleInferencePreset = defaults.string(forKey: Keys.styleInferencePreset) ?? "balanced"
         styleTemperaturePreset = defaults.string(forKey: Keys.styleTemperaturePreset) ?? "balanced"
+        styleSensitivity = defaults.string(forKey: Keys.styleSensitivity) ?? "balanced"
 
         // This prevents grammar checking in terminals where command output can cause false positives
         // Users can still enable terminals individually via Applications preferences
@@ -1299,5 +1311,6 @@ class UserPreferences: ObservableObject {
         static let styleAutoLoadModel = "styleAutoLoadModel"
         static let styleInferencePreset = "styleInferencePreset"
         static let styleTemperaturePreset = "styleTemperaturePreset"
+        static let styleSensitivity = "styleSensitivity"
     }
 }

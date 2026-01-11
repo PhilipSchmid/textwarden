@@ -9,20 +9,7 @@
 
 import Foundation
 
-/// Impact level for style suggestions, used to filter out low-value suggestions
-/// in automatic checks while showing them in manual checks.
-enum SuggestionImpact: Int, Comparable {
-    /// High impact: Sentence restructuring, major clarity issues, significant tone mismatches
-    case high = 3
-    /// Medium impact: Phrase improvements, formality adjustments
-    case medium = 2
-    /// Low impact: Minor word preferences, optional style choices
-    case low = 1
-
-    static func < (lhs: SuggestionImpact, rhs: SuggestionImpact) -> Bool {
-        lhs.rawValue < rhs.rawValue
-    }
-}
+// Note: SuggestionImpact is defined in StyleTypes.swift as a public enum
 
 /// Sensitivity level for style suggestions, controlled by user preference
 enum StyleSensitivity: String, CaseIterable {
