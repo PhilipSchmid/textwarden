@@ -398,9 +398,18 @@ extension AnalysisCoordinator {
         isApplyingReplacement = true
         defer { isApplyingReplacement = false }
 
+        // Notify unified SuggestionTracker that this suggestion was accepted
+        // Will be the primary mechanism after migration
+        suggestionTracker.markSuggestionAccepted(
+            originalText: suggestion.originalText,
+            newText: suggestion.suggestedText,
+            isReadability: suggestion.isReadabilitySuggestion
+        )
+
         // Suppress auto style analysis until user makes a genuine edit
         // This prevents the "endless suggestion loop" where applying a suggestion
         // triggers re-analysis that finds new suggestions
+        // Note: Legacy flag - to be removed once SuggestionTracker is fully integrated
         styleAnalysisSuppressedUntilUserEdit = true
         Logger.debug("Style replacement: Suppressing auto style analysis until user edit", category: Logger.llm)
 
@@ -931,13 +940,18 @@ extension AnalysisCoordinator {
 
     /// Remove an applied style suggestion from tracking and update UI
     func removeSuggestionFromTracking(_ suggestion: StyleSuggestionModel) {
+        // Notify unified SuggestionTracker (will be the primary mechanism after migration)
+        suggestionTracker.markSuggestionDismissed(originalText: suggestion.originalText)
+
         // Suppress auto style analysis until user makes a genuine edit
         // This prevents the "endless suggestion loop" where accepting/rejecting suggestions
         // triggers re-analysis that finds new suggestions
+        // Note: Legacy flag - to be removed once SuggestionTracker is fully integrated
         styleAnalysisSuppressedUntilUserEdit = true
         Logger.debug("Style suggestion dismissed: Suppressing auto style analysis until user edit", category: Logger.llm)
 
         // Track this suggestion as dismissed so it won't reappear after re-analysis
+        // Note: Legacy tracking - to be removed once SuggestionTracker is fully integrated
         dismissedStyleSuggestionHashes.insert(suggestion.originalText.hashValue)
 
         // For readability suggestions, track the NEW (simplified) text in a separate set.

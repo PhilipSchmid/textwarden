@@ -377,8 +377,14 @@ extension AnalysisCoordinator {
         // Guard: Don't run if suppressed (user just acted on style suggestions)
         // This prevents the "endless suggestion loop" where applying a suggestion
         // triggers re-analysis that finds new suggestions
+        // Note: Using unified SuggestionTracker (will remove legacy flag in future commit)
+        guard suggestionTracker.shouldRunAutoStyleAnalysis() else {
+            Logger.debug("Auto style check: Skipping - suppressed until user edit (SuggestionTracker)", category: Logger.llm)
+            return
+        }
+        // Legacy suppression check (to be removed once SuggestionTracker is fully integrated)
         guard !styleAnalysisSuppressedUntilUserEdit else {
-            Logger.debug("Auto style check: Skipping - suppressed until user edit", category: Logger.llm)
+            Logger.debug("Auto style check: Skipping - suppressed until user edit (legacy)", category: Logger.llm)
             return
         }
 

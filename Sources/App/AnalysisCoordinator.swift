@@ -212,6 +212,10 @@ class AnalysisCoordinator: ObservableObject {
     /// Style analysis queue for background LLM processing
     let styleAnalysisQueue = DispatchQueue(label: "com.textwarden.styleanalysis", qos: .userInitiated)
 
+    /// Unified suggestion tracker for loop prevention
+    /// Handles modified span tracking, suggestion cooldowns, and style filtering
+    let suggestionTracker = SuggestionTracker()
+
     /// Style cache - maps text hash to style suggestions (LLM results are expensive, cache aggressively)
     var styleCache: [String: [StyleSuggestionModel]] = [:]
 
@@ -1567,8 +1571,9 @@ class AnalysisCoordinator: ObservableObject {
         // During manual style check, preserve results so user sees them when returning
         if !isManualStyleCheckActive {
             currentStyleSuggestions = [] // Clear style suggestions
-            dismissedStyleSuggestionHashes.removeAll() // Reset dismissed tracking for new context
-            styleAnalysisSuppressedUntilUserEdit = false // Re-enable auto style analysis for new context
+            suggestionTracker.resetDismissed() // Reset tracker dismissed state for new context
+            dismissedStyleSuggestionHashes.removeAll() // Reset dismissed tracking for new context (legacy)
+            styleAnalysisSuppressedUntilUserEdit = false // Re-enable auto style analysis for new context (legacy)
             // NOTE: Do NOT clear dismissedReadabilitySentenceHashes here.
             // These hashes are content-based (hash of the simplified sentence text), so they
             // should persist across app switches. When user returns to the same text field,
@@ -1793,6 +1798,10 @@ class AnalysisCoordinator: ObservableObject {
         // Reset style analysis suppression when user makes a genuine text edit
         // (not a text change caused by applying a suggestion)
         if text != previousText, !isApplyingReplacement, !isInReplacementGracePeriod {
+            // Notify unified SuggestionTracker of genuine user edit
+            suggestionTracker.notifyTextChanged(isGenuineEdit: true)
+
+            // Legacy flag reset - to be removed once SuggestionTracker is fully integrated
             if styleAnalysisSuppressedUntilUserEdit {
                 Logger.debug("AnalysisCoordinator: User edit detected - re-enabling auto style analysis", category: Logger.llm)
                 styleAnalysisSuppressedUntilUserEdit = false
