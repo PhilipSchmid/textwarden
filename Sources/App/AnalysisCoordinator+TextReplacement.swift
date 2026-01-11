@@ -287,14 +287,8 @@ extension AnalysisCoordinator {
         isApplyingReplacement = true
         defer { isApplyingReplacement = false }
 
-        // Use keyboard automation directly for known Electron apps
-        if let context = monitoredContext, context.requiresKeyboardReplacement {
-            Logger.debug("Detected Electron app (\(context.applicationName)) - using keyboard automation directly", category: Logger.analysis)
-            await applyTextReplacementViaKeyboardAsync(for: error, with: suggestion, element: element)
-            return
-        }
-
         // Apple Mail: use WebKit-specific AXReplaceRangeWithText API
+        // Check this BEFORE keyboard replacement since Mail has both quirks
         if let context = monitoredContext {
             let appBehavior = AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier)
             if appBehavior.knownQuirks.contains(.usesMailReplaceRangeAPI) {
@@ -302,6 +296,13 @@ extension AnalysisCoordinator {
                 await applyMailTextReplacementAsync(for: error, with: suggestion, element: element)
                 return
             }
+        }
+
+        // Use keyboard automation directly for known Electron apps
+        if let context = monitoredContext, context.requiresKeyboardReplacement {
+            Logger.debug("Detected Electron app (\(context.applicationName)) - using keyboard automation directly", category: Logger.analysis)
+            await applyTextReplacementViaKeyboardAsync(for: error, with: suggestion, element: element)
+            return
         }
 
         // Check if app config requires browser-style replacement (e.g., Pages, Word)
@@ -403,23 +404,57 @@ extension AnalysisCoordinator {
         styleAnalysisSuppressedUntilUserEdit = true
         Logger.debug("Style replacement: Suppressing auto style analysis until user edit", category: Logger.llm)
 
-        // Use keyboard automation directly for known Electron apps
-        if let context = monitoredContext, context.requiresKeyboardReplacement {
+        // Check app behavior for replacement strategy
+        let appBehavior: AppBehavior? = monitoredContext.map { AppBehaviorRegistry.shared.behavior(for: $0.bundleIdentifier) }
+        let usesWebKitTextAPI = appBehavior?.knownQuirks.contains(.usesMailReplaceRangeAPI) ?? false
+
+        // Use keyboard automation for Electron apps (but not WebKit-based apps like Mail)
+        if let context = monitoredContext, context.requiresKeyboardReplacement, !usesWebKitTextAPI {
             Logger.debug("Detected Electron app (\(context.applicationName)) - using keyboard automation for style replacement", category: Logger.analysis)
             applyStyleReplacementViaKeyboard(for: suggestion, element: element)
             return
         }
 
-        // For native macOS apps, try AX API first
-        // CRITICAL: Get current text and find the ACTUAL position of the original text
-        // The positions from Rust are byte offsets which don't match macOS character indices
-        // Also, after previous replacements, positions may have shifted
-        var currentTextRef: CFTypeRef?
-        let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
+        // Get current text - method depends on app quirks
+        // WebKit-based apps (Mail) need AXStringForRange, others use kAXValueAttribute
+        var currentText: String?
 
-        guard textResult == .success,
-              let currentText = currentTextRef as? String
-        else {
+        if usesWebKitTextAPI {
+            // WebKit apps: use AXStringForRange (kAXValueAttribute doesn't work)
+            var charCountRef: CFTypeRef?
+            var charCount = 0
+            if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &charCountRef) == .success,
+               let count = charCountRef as? Int
+            {
+                charCount = count
+            } else {
+                Logger.debug("Style replacement: AXNumberOfCharacters failed, trying large range", category: Logger.analysis)
+                charCount = 100_000
+            }
+
+            if charCount > 0 {
+                var range = CFRange(location: 0, length: charCount)
+                if let rangeValue = AXValueCreate(.cfRange, &range) {
+                    var stringRef: CFTypeRef?
+                    if AXUIElementCopyParameterizedAttributeValue(element, "AXStringForRange" as CFString, rangeValue, &stringRef) == .success,
+                       let text = stringRef as? String
+                    {
+                        Logger.debug("Style replacement: AXStringForRange succeeded (\(text.count) chars)", category: Logger.analysis)
+                        currentText = text
+                    }
+                }
+            }
+        } else {
+            // Standard apps: use kAXValueAttribute
+            var currentTextRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef) == .success,
+               let text = currentTextRef as? String
+            {
+                currentText = text
+            }
+        }
+
+        guard let currentText else {
             Logger.debug("Could not get current text for style replacement, using keyboard fallback", category: Logger.analysis)
             applyStyleReplacementViaKeyboard(for: suggestion, element: element)
             return
@@ -466,6 +501,22 @@ extension AnalysisCoordinator {
 
         Logger.trace("Style replacement at position \(startIndex)-\(startIndex + length)", category: Logger.analysis)
 
+        // WebKit apps need async replacement with keyboard typing
+        if usesWebKitTextAPI {
+            Task { @MainActor in
+                await applyWebKitStyleReplacementAsync(
+                    for: suggestion,
+                    element: element,
+                    currentText: currentText,
+                    adjustedRange: adjustedRange,
+                    startIndex: startIndex,
+                    length: length
+                )
+            }
+            return
+        }
+
+        // Standard AX API replacement for native apps
         // Step 1: Save current selection
         var originalSelection: CFTypeRef?
         _ = AXUIElementCopyAttributeValue(
@@ -1844,6 +1895,76 @@ extension AnalysisCoordinator {
 
         replacementCompletedAt = Date()
         scheduleDelayedReanalysis(startTime: Date())
+    }
+
+    /// Apply style replacement for WebKit-based apps (async version)
+    /// Uses MailContentParser for text selection + keyboard typing
+    @MainActor
+    func applyWebKitStyleReplacementAsync(
+        for suggestion: StyleSuggestionModel,
+        element: AXUIElement,
+        currentText: String,
+        adjustedRange: Range<String.Index>,
+        startIndex: Int,
+        length: Int
+    ) async {
+        Logger.debug("WebKit style replacement using selection + keyboard", category: Logger.analysis)
+
+        let nsRange = NSRange(location: startIndex, length: length)
+        Logger.debug("WebKit style: Selecting range \(nsRange.location)-\(nsRange.location + nsRange.length)", category: Logger.analysis)
+
+        // Select the text using WebKit-compatible selection
+        _ = MailContentParser.selectTextForReplacement(range: nsRange, in: element)
+
+        // Activate target app
+        if let context = monitoredContext,
+           let targetApp = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier).first
+        {
+            targetApp.activate()
+        }
+
+        try? await Task.sleep(nanoseconds: UInt64(TimingConstants.shortDelay * 1_000_000_000))
+
+        // Type the replacement text
+        typeTextDirectly(suggestion.suggestedText)
+
+        // Wait for typing to complete
+        let typingDelay = Double(suggestion.suggestedText.count) * 0.01 + 0.1
+        try? await Task.sleep(nanoseconds: UInt64(typingDelay * 1_000_000_000))
+
+        Logger.info("WebKit style replacement completed", category: Logger.analysis)
+
+        // Clear manual style check flag
+        isManualStyleCheckActive = false
+
+        // Clear grammar errors - positions are now invalid
+        currentErrors.removeAll()
+        positionResolver.clearCache()
+
+        // Adjust readability positions
+        let lengthDelta = suggestion.suggestedText.count - length
+        adjustReadabilityPositionsAfterReplacement(
+            replacementStart: startIndex,
+            replacementEnd: startIndex + length,
+            lengthDelta: lengthDelta
+        )
+
+        // Remove the applied suggestion
+        removeSuggestionFromTracking(suggestion)
+
+        // Redraw underlines
+        redrawUnderlinesAfterStyleReplacement(element: element)
+
+        // Invalidate style cache
+        styleCache.removeAll()
+        styleCacheMetadata.removeAll()
+
+        // Update style analysis source text
+        let newText = currentText.replacingCharacters(in: adjustedRange, with: suggestion.suggestedText)
+        styleAnalysisSourceText = newText
+
+        // Schedule re-analysis
+        schedulePostStyleReplacementAnalysis()
     }
 
     /// Apply text replacement for browsers, Office, and Catalyst apps (async version)
