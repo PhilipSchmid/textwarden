@@ -179,9 +179,37 @@ struct AppColors {
             : Color(hue: 270 / 360, saturation: 0.35, brightness: 0.92)
     }
 
-    // MARK: - Grammar Category Colors
+    // MARK: - Unified Suggestion Category Colors
 
-    /// Get color for grammar error category
+    /// Clarity color (blue) - for readability suggestions
+    var clarity: Color {
+        colorScheme == .dark
+            ? Color(hue: 210 / 360, saturation: 0.70, brightness: 0.65) // Softer blue for dark mode
+            : Color(hue: 210 / 360, saturation: 0.65, brightness: 0.50) // Rich blue for light mode
+    }
+
+    /// Style color (purple) - for style suggestions
+    var style: Color {
+        colorScheme == .dark
+            ? Color(hue: 280 / 360, saturation: 0.60, brightness: 0.65) // Purple for dark mode
+            : Color(hue: 280 / 360, saturation: 0.55, brightness: 0.55) // Purple for light mode
+    }
+
+    /// Get color for unified suggestion category
+    func categoryColor(for category: SuggestionCategory) -> Color {
+        switch category {
+        case .correctness:
+            error // Red for spelling, grammar, punctuation
+        case .clarity:
+            clarity // Blue for readability simplifications
+        case .style:
+            style // Purple for style improvements
+        }
+    }
+
+    // MARK: - Grammar Category Colors (Legacy)
+
+    /// Get color for grammar error category (legacy Harper categories)
     func categoryColor(for category: String) -> Color {
         switch category {
         // Spelling and typos: Red (critical)
