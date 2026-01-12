@@ -540,6 +540,12 @@ extension AnalysisCoordinator {
                                 )
 
                                 await MainActor.run {
+                                    // Remove any existing suggestion for the same original text range
+                                    // This ensures only one suggestion per sentence (better UX)
+                                    self.currentStyleSuggestions.removeAll { existing in
+                                        existing.originalStart == suggestion.originalStart &&
+                                            existing.originalEnd == suggestion.originalEnd
+                                    }
                                     self.currentStyleSuggestions.append(suggestion)
                                 }
                             }

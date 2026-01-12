@@ -977,10 +977,13 @@ class AnalysisCoordinator: ObservableObject {
                                     targetAudience: targetAudience.displayName
                                 )
 
-                                // Only add if not already in suggestions (avoid duplicates)
-                                if !self.currentStyleSuggestions.contains(where: { $0.id == placeholderId }) {
-                                    self.currentStyleSuggestions.append(realSuggestion)
+                                // Remove any existing suggestion for the same original text range
+                                // This ensures only one suggestion per sentence (better UX)
+                                self.currentStyleSuggestions.removeAll { existing in
+                                    existing.originalStart == realSuggestion.originalStart &&
+                                        existing.originalEnd == realSuggestion.originalEnd
                                 }
+                                self.currentStyleSuggestions.append(realSuggestion)
 
                                 // Update popover if still showing the placeholder
                                 if self.suggestionPopover.currentStyleSuggestion?.id == placeholderId {
@@ -1148,10 +1151,13 @@ class AnalysisCoordinator: ObservableObject {
                                     targetAudience: targetAudience.displayName
                                 )
 
-                                // Only add if not already in suggestions
-                                if !self.currentStyleSuggestions.contains(where: { $0.id == placeholderId }) {
-                                    self.currentStyleSuggestions.append(realSuggestion)
+                                // Remove any existing suggestion for the same original text range
+                                // This ensures only one suggestion per sentence (better UX)
+                                self.currentStyleSuggestions.removeAll { existing in
+                                    existing.originalStart == realSuggestion.originalStart &&
+                                        existing.originalEnd == realSuggestion.originalEnd
                                 }
+                                self.currentStyleSuggestions.append(realSuggestion)
 
                                 if self.suggestionPopover.currentStyleSuggestion?.id == placeholderId {
                                     self.suggestionPopover.isGeneratingSimplification = false

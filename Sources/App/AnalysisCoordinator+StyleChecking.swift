@@ -431,6 +431,13 @@ extension AnalysisCoordinator {
                                     readabilityScore: simplifiedScore,
                                     targetAudience: targetAudience.displayName
                                 )
+
+                                // Remove any existing suggestion for the same original text range
+                                // This ensures only one suggestion per sentence (better UX)
+                                currentStyleSuggestions.removeAll { existing in
+                                    existing.originalStart == suggestion.originalStart &&
+                                        existing.originalEnd == suggestion.originalEnd
+                                }
                                 currentStyleSuggestions.append(suggestion)
                             }
 
