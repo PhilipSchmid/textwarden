@@ -32,30 +32,31 @@ struct AppColors {
     }
 
     /// Gradient background for elevated popovers (Tahoe style)
+    /// Dark mode uses subtle blue-gray tint for a more modern, refined look
     var backgroundGradientTop: Color {
         colorScheme == .dark
-            ? Color(hue: 0, saturation: 0, brightness: 0.18) // Lighter at top
-            : Color(hue: 0, saturation: 0, brightness: 0.995) // Almost white at top
+            ? Color(hue: 220 / 360, saturation: 0.08, brightness: 0.20) // Subtle blue-gray, lighter at top
+            : Color(hue: 220 / 360, saturation: 0.02, brightness: 0.995) // Almost white with cool hint
     }
 
     var backgroundGradientBottom: Color {
         colorScheme == .dark
-            ? Color(hue: 0, saturation: 0, brightness: 0.12) // Darker at bottom
-            : Color(hue: 220 / 360, saturation: 0.02, brightness: 0.94) // Subtle cool gray at bottom
+            ? Color(hue: 220 / 360, saturation: 0.10, brightness: 0.13) // Subtle blue-gray, darker at bottom
+            : Color(hue: 220 / 360, saturation: 0.04, brightness: 0.96) // Soft cool gray at bottom
     }
 
     /// Secondary background (cards, elevated surfaces)
     var backgroundElevated: Color {
         colorScheme == .dark
-            ? Color(hue: 0, saturation: 0, brightness: 0.10) // 10% lightness
-            : Color(hue: 220 / 360, saturation: 0.03, brightness: 0.92) // Subtle cool tint
+            ? Color(hue: 220 / 360, saturation: 0.12, brightness: 0.11) // Subtle blue-gray tint
+            : Color(hue: 220 / 360, saturation: 0.03, brightness: 0.94) // Subtle cool tint
     }
 
     /// Tertiary background (highest elevation, hover states)
     var backgroundRaised: Color {
         colorScheme == .dark
-            ? Color(hue: 0, saturation: 0, brightness: 0.15) // 15% lightness
-            : Color(hue: 0, saturation: 0, brightness: 0.92) // 92% lightness
+            ? Color(hue: 220 / 360, saturation: 0.10, brightness: 0.18) // Blue-gray for hover
+            : Color(hue: 220 / 360, saturation: 0.02, brightness: 0.92) // Cool gray
     }
 
     /// Primary text (high contrast but not harsh)
@@ -121,19 +122,19 @@ struct AppColors {
         Color.white // White text on blue in both modes
     }
 
-    /// Link/interactive text color - high contrast for readability
-    /// Uses cyan-blue which provides better contrast than pure blue
+    /// Link/interactive text color - balanced for readability
+    /// Uses a refined blue that complements the blue-gray backgrounds
     var link: Color {
         colorScheme == .dark
-            ? Color(hue: 200 / 360, saturation: 0.70, brightness: 0.85) // Bright cyan-blue for dark mode
-            : Color(hue: 210 / 360, saturation: 0.80, brightness: 0.45) // Rich blue for light mode
+            ? Color(hue: 205 / 360, saturation: 0.65, brightness: 0.78) // Softer cyan-blue for dark mode
+            : Color(hue: 215 / 360, saturation: 0.75, brightness: 0.50) // Rich blue for light mode
     }
 
     /// Link color for subtle/muted state (e.g., underlines)
     var linkSubtle: Color {
         colorScheme == .dark
-            ? Color(hue: 200 / 360, saturation: 0.50, brightness: 0.60)
-            : Color(hue: 210 / 360, saturation: 0.50, brightness: 0.60)
+            ? Color(hue: 205 / 360, saturation: 0.45, brightness: 0.55)
+            : Color(hue: 215 / 360, saturation: 0.45, brightness: 0.55)
     }
 
     // MARK: - Semantic Colors (States)
