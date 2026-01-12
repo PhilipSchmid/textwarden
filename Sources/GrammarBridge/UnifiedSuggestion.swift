@@ -238,20 +238,19 @@ public struct UnifiedSuggestion: Identifiable, Hashable, Sendable {
 
 // MARK: - Conversion Extensions
 
-extension GrammarErrorModel {
+public extension GrammarErrorModel {
     /// Convert grammar error to unified suggestion format.
     /// - Parameter text: The full text being analyzed (to extract original text)
     /// - Returns: UnifiedSuggestion representing this grammar error
-    public func toUnifiedSuggestion(in text: String) -> UnifiedSuggestion {
+    func toUnifiedSuggestion(in text: String) -> UnifiedSuggestion {
         // Extract original text from the full text using the error range
-        let originalText: String
-        if let startIndex = text.index(text.startIndex, offsetBy: start, limitedBy: text.endIndex),
-           let endIndex = text.index(text.startIndex, offsetBy: end, limitedBy: text.endIndex),
-           startIndex < endIndex
+        let originalText = if let startIndex = text.index(text.startIndex, offsetBy: start, limitedBy: text.endIndex),
+                              let endIndex = text.index(text.startIndex, offsetBy: end, limitedBy: text.endIndex),
+                              startIndex < endIndex
         {
-            originalText = String(text[startIndex ..< endIndex])
+            String(text[startIndex ..< endIndex])
         } else {
-            originalText = ""
+            ""
         }
 
         // Use first suggestion as the primary replacement
@@ -273,19 +272,18 @@ extension GrammarErrorModel {
     }
 }
 
-extension StyleSuggestionModel {
+public extension StyleSuggestionModel {
     /// Convert style suggestion to unified suggestion format.
     /// - Returns: UnifiedSuggestion representing this style suggestion
-    public func toUnifiedSuggestion() -> UnifiedSuggestion {
+    func toUnifiedSuggestion() -> UnifiedSuggestion {
         // Determine category based on whether this is a readability suggestion
         let category: SuggestionCategory = isReadabilitySuggestion ? .clarity : .style
 
         // Map severity based on confidence
-        let severity: SuggestionSeverity
-        if confidence >= 0.85 {
-            severity = .warning
+        let severity: SuggestionSeverity = if confidence >= 0.85 {
+            .warning
         } else {
-            severity = .info
+            .info
         }
 
         return UnifiedSuggestion(

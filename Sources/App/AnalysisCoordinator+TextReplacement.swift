@@ -79,9 +79,14 @@ extension AnalysisCoordinator {
 
         // Adjust positions of remaining errors that come after the fixed error
         if lengthDelta != 0 {
+            Logger.debug("removeErrorAndUpdateUI: Adjusting \(currentErrors.count) remaining errors by delta \(lengthDelta) (errors after position \(error.end))", category: Logger.analysis)
+            for (i, err) in currentErrors.enumerated() {
+                let willAdjust = err.start >= error.end
+                Logger.debug("  [\(i)] \(err.start)-\(err.end) willAdjust=\(willAdjust) (start \(err.start) >= end \(error.end)?)", category: Logger.analysis)
+            }
             currentErrors = currentErrors.map { err in
                 if err.start >= error.end {
-                    return GrammarErrorModel(
+                    let adjusted = GrammarErrorModel(
                         start: err.start + lengthDelta,
                         end: err.end + lengthDelta,
                         message: err.message,
@@ -90,6 +95,8 @@ extension AnalysisCoordinator {
                         lintId: err.lintId,
                         suggestions: err.suggestions
                     )
+                    Logger.debug("  Adjusted: \(err.start)-\(err.end) -> \(adjusted.start)-\(adjusted.end)", category: Logger.analysis)
+                    return adjusted
                 }
                 return err
             }
@@ -321,6 +328,10 @@ extension AnalysisCoordinator {
         let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef)
         let currentText = (textResult == .success) ? (textRef as? String) : nil
 
+        // Track potentially corrected positions
+        var correctedStart = error.start
+        var correctedEnd = error.end
+
         // CRITICAL: Validate error positions against current text before proceeding
         // If positions are stale (e.g., text changed since analysis), abort to prevent wrong replacements
         if let text = currentText {
@@ -335,22 +346,75 @@ extension AnalysisCoordinator {
                 return
             }
 
-            // Log extracted text for debugging (helps identify position drift)
+            // Extract text at calculated position
             let startIdx = text.unicodeScalars.index(text.unicodeScalars.startIndex, offsetBy: error.start)
             let endIdx = text.unicodeScalars.index(text.unicodeScalars.startIndex, offsetBy: error.end)
             let extractedText = String(text.unicodeScalars[startIdx ..< endIdx])
             Logger.debug("Native replacement: Text at positions \(error.start)-\(error.end): '\(extractedText)'", category: Logger.analysis)
+
+            // POSITION DRIFT CORRECTION: If extracted text doesn't match expected error text,
+            // search nearby positions (±5) to find the correct location.
+            // This handles cumulative position drift from multiple sequential replacements.
+            let expectedText = extractTextFromSuggestions(error: error, suggestion: suggestion)
+            Logger.trace("Position drift check: extracted='\(extractedText)', expected='\(expectedText ?? "nil")', errorCategory='\(error.category)', message='\(error.message.prefix(50))'", category: Logger.analysis)
+
+            if !extractedText.isEmpty, let expected = expectedText, extractedText != expected {
+                Logger.debug("Position drift detected at \(error.start)-\(error.end):", category: Logger.analysis)
+                Logger.debug("  Found text: '\(extractedText)'", category: Logger.analysis)
+                Logger.debug("  Expected:   '\(expected)'", category: Logger.analysis)
+                Logger.debug("  Text length: \(scalarCount), error message: '\(error.message.prefix(60))'", category: Logger.analysis)
+
+                // Search nearby positions for the expected text
+                let searchRadius = 5
+                let errorLength = error.end - error.start
+                Logger.trace("  Searching ±\(searchRadius) positions for '\(expected)' (length \(errorLength))...", category: Logger.analysis)
+
+                var searchAttempts: [(offset: Int, text: String)] = []
+                for offset in -searchRadius ... searchRadius where offset != 0 {
+                    let testStart = error.start + offset
+                    let testEnd = testStart + errorLength
+                    guard testStart >= 0, testEnd <= scalarCount else { continue }
+
+                    let testStartIdx = text.unicodeScalars.index(text.unicodeScalars.startIndex, offsetBy: testStart)
+                    let testEndIdx = text.unicodeScalars.index(text.unicodeScalars.startIndex, offsetBy: testEnd)
+                    let testText = String(text.unicodeScalars[testStartIdx ..< testEndIdx])
+                    searchAttempts.append((offset: offset, text: testText))
+
+                    if testText == expected {
+                        Logger.info("Position drift corrected: \(error.start)-\(error.end) -> \(testStart)-\(testEnd) (offset: \(offset))", category: Logger.analysis)
+                        correctedStart = testStart
+                        correctedEnd = testEnd
+                        break
+                    }
+                }
+
+                // Log search attempts if correction failed
+                if correctedStart == error.start {
+                    Logger.debug("  Search attempts:", category: Logger.analysis)
+                    for attempt in searchAttempts {
+                        let match = attempt.text == expected ? "✓" : "✗"
+                        Logger.debug("    offset \(attempt.offset): '\(attempt.text)' \(match)", category: Logger.analysis)
+                    }
+                    Logger.warning("Could not find expected text '\(expected)' near position \(error.start), aborting replacement", category: Logger.analysis)
+                    SuggestionPopover.shared.showStatusMessage("Position mismatch - re-analyzing...")
+                    triggerImmediateReanalysis()
+                    return
+                }
+            } else if let expected = expectedText, extractedText == expected {
+                Logger.trace("Position verified: text at \(error.start)-\(error.end) matches expected '\(expected)'", category: Logger.analysis)
+            }
         }
 
+        // Use corrected positions for the actual replacement (handles position drift)
         let utf16Location: Int
         let utf16Length: Int
         if let text = currentText {
-            let utf16Range = TextIndexConverter.graphemeToUTF16Range(NSRange(location: error.start, length: error.end - error.start), in: text)
+            let utf16Range = TextIndexConverter.graphemeToUTF16Range(NSRange(location: correctedStart, length: correctedEnd - correctedStart), in: text)
             utf16Location = utf16Range.location
             utf16Length = utf16Range.length
         } else {
-            utf16Location = error.start
-            utf16Length = error.end - error.start
+            utf16Location = correctedStart
+            utf16Length = correctedEnd - correctedStart
         }
 
         var errorRange = CFRange(location: utf16Location, length: utf16Length)
@@ -370,13 +434,14 @@ extension AnalysisCoordinator {
         let replaceError = AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, suggestion as CFTypeRef)
         if replaceError == .success {
             statistics.recordSuggestionApplied(category: error.category)
-            invalidateCacheAfterReplacement(at: error.start ..< error.end)
+            invalidateCacheAfterReplacement(at: correctedStart ..< correctedEnd)
 
-            var newPosition = CFRange(location: error.start + suggestion.count, length: 0)
+            var newPosition = CFRange(location: correctedStart + suggestion.count, length: 0)
             if let newRangeValue = AXValueCreate(.cfRange, &newPosition) {
                 _ = AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, newRangeValue)
             }
 
+            // Use original error positions for lengthDelta since removeErrorAndUpdateUI expects the error's stored positions
             let lengthDelta = suggestion.count - (error.end - error.start)
             removeErrorAndUpdateUI(error, suggestion: suggestion, lengthDelta: lengthDelta)
         } else {
@@ -1766,6 +1831,11 @@ extension AnalysisCoordinator {
         // This catches stale positions that would cause wrong text to be replaced
         var currentTextRef: CFTypeRef?
         let currentTextResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
+
+        // Track potentially corrected positions for position drift handling
+        var correctedStart = error.start
+        var correctedEnd = error.end
+
         if currentTextResult == .success, let currentText = currentTextRef as? String {
             let scalarCount = currentText.unicodeScalars.count
             if error.end > scalarCount {
@@ -1782,6 +1852,54 @@ extension AnalysisCoordinator {
             let endIdx = currentText.unicodeScalars.index(currentText.unicodeScalars.startIndex, offsetBy: error.end)
             let extractedText = String(currentText.unicodeScalars[startIdx ..< endIdx])
             Logger.debug("Keyboard replacement: Text at positions \(error.start)-\(error.end): '\(extractedText)'", category: Logger.analysis)
+
+            // POSITION DRIFT CORRECTION: If extracted text doesn't match expected error text,
+            // search nearby positions (±5) to find the correct location.
+            // This handles cumulative position drift from multiple sequential replacements.
+            let expectedText = extractTextFromSuggestions(error: error, suggestion: suggestion)
+            Logger.trace("Keyboard position drift check: extracted='\(extractedText)', expected='\(expectedText ?? "nil")'", category: Logger.analysis)
+
+            if !extractedText.isEmpty, let expected = expectedText, extractedText != expected {
+                Logger.debug("Keyboard replacement: Position drift detected at \(error.start)-\(error.end):", category: Logger.analysis)
+                Logger.debug("  Found text: '\(extractedText)'", category: Logger.analysis)
+                Logger.debug("  Expected:   '\(expected)'", category: Logger.analysis)
+
+                // Search nearby positions for the expected text
+                let searchRadius = 5
+                let errorLength = error.end - error.start
+                var searchAttempts: [(offset: Int, text: String)] = []
+
+                for offset in -searchRadius ... searchRadius where offset != 0 {
+                    let testStart = error.start + offset
+                    let testEnd = testStart + errorLength
+                    guard testStart >= 0, testEnd <= scalarCount else { continue }
+
+                    let testStartIdx = currentText.unicodeScalars.index(currentText.unicodeScalars.startIndex, offsetBy: testStart)
+                    let testEndIdx = currentText.unicodeScalars.index(currentText.unicodeScalars.startIndex, offsetBy: testEnd)
+                    let testText = String(currentText.unicodeScalars[testStartIdx ..< testEndIdx])
+                    searchAttempts.append((offset: offset, text: testText))
+
+                    if testText == expected {
+                        Logger.info("Keyboard replacement: Position drift corrected: \(error.start)-\(error.end) -> \(testStart)-\(testEnd) (offset: \(offset))", category: Logger.analysis)
+                        correctedStart = testStart
+                        correctedEnd = testEnd
+                        break
+                    }
+                }
+
+                // Log search attempts if correction failed
+                if correctedStart == error.start {
+                    Logger.debug("  Search attempts:", category: Logger.analysis)
+                    for attempt in searchAttempts {
+                        let match = attempt.text == expected ? "✓" : "✗"
+                        Logger.debug("    offset \(attempt.offset): '\(attempt.text)' \(match)", category: Logger.analysis)
+                    }
+                    Logger.warning("Keyboard replacement: Could not find expected text '\(expected)' near position \(error.start), aborting", category: Logger.analysis)
+                    SuggestionPopover.shared.showStatusMessage("Selection error - please try again")
+                    triggerImmediateReanalysis()
+                    return
+                }
+            }
         }
 
         // Get app behavior for quirk checks
@@ -1801,11 +1919,16 @@ extension AnalysisCoordinator {
                 let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef)
                 let currentText = (textResult == .success) ? (textRef as? String) ?? "" : ""
 
+                // Log if using corrected positions
+                if correctedStart != error.start || correctedEnd != error.end {
+                    Logger.info("Slack: Using drift-corrected positions \(correctedStart)-\(correctedEnd) (original: \(error.start)-\(error.end))", category: Logger.analysis)
+                }
                 Logger.info("Slack: Attempting format-preserving replacement (\(suggestion.count) chars)", category: Logger.analysis)
 
+                // Use corrected positions for the replacement
                 let result = await slackParser.applyFormatPreservingReplacement(
-                    errorStart: error.start,
-                    errorEnd: error.end,
+                    errorStart: correctedStart,
+                    errorEnd: correctedEnd,
                     originalText: currentText,
                     suggestion: suggestion,
                     element: element
@@ -1819,7 +1942,7 @@ extension AnalysisCoordinator {
                     // Don't do full re-analysis - just clear position cache and adjust errors.
                     // Full re-analysis would clear currentErrors and break popover/highlight sync.
                     positionResolver.clearCache()
-                    let lengthDelta = suggestion.count - (error.end - error.start)
+                    let lengthDelta = suggestion.count - (correctedEnd - correctedStart)
                     // CRITICAL: Set lastReplacementTime to enable grace period
                     // Without this, isInReplacementMode returns false after isApplyingReplacement clears,
                     // allowing AX notifications to trigger re-analysis with stale error positions
@@ -1827,7 +1950,19 @@ extension AnalysisCoordinator {
                     // Reset typing detector so underlines show immediately after replacement
                     // (paste triggers text change which sets isCurrentlyTyping=true)
                     TypingDetector.shared.reset()
-                    removeErrorAndUpdateUI(error, suggestion: suggestion, lengthDelta: lengthDelta)
+                    // Create corrected error model for removeErrorAndUpdateUI if positions were adjusted
+                    let correctedError = (correctedStart != error.start || correctedEnd != error.end)
+                        ? GrammarErrorModel(
+                            start: correctedStart,
+                            end: correctedEnd,
+                            message: error.message,
+                            severity: error.severity,
+                            category: error.category,
+                            lintId: error.lintId,
+                            suggestions: error.suggestions
+                        )
+                        : error
+                    removeErrorAndUpdateUI(correctedError, suggestion: suggestion, lengthDelta: lengthDelta)
                     replacementCompletedAt = Date()
                     // Schedule delayed reanalysis to catch any issues, but don't force immediate re-analysis
                     scheduleDelayedReanalysis(startTime: Date())
@@ -2091,11 +2226,80 @@ extension AnalysisCoordinator {
                let selectedText = selectedTextRef as? String
             {
                 if selectedText != targetText {
-                    Logger.error("Selection mismatch - ABORTING to prevent corruption! Selected '\(selectedText.prefix(30))...' but expected '\(targetText.prefix(30))...'", category: Logger.analysis)
-                    SuggestionPopover.shared.showStatusMessage("Selection error - please try again")
-                    return
+                    Logger.warning("Selection mismatch detected: selected '\(selectedText.prefix(30))' but expected '\(targetText.prefix(30))'", category: Logger.analysis)
+
+                    // POSITION DRIFT RETRY: Slack and similar apps may have position drift after replacements
+                    // where the read API (kAXValueAttribute) and selection API (AXSelectedTextRange) disagree.
+                    // Try searching for the target text at nearby positions and retry selection.
+                    var retrySucceeded = false
+                    let appConfig = AppRegistry.shared.effectiveConfiguration(for: context.bundleIdentifier)
+
+                    if appConfig.features.childElementTraversal {
+                        // Get current text and search for targetText
+                        var currentTextRef: CFTypeRef?
+                        if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef) == .success,
+                           let currentText = currentTextRef as? String
+                        {
+                            // Find all occurrences of targetText
+                            var searchRange = currentText.startIndex ..< currentText.endIndex
+                            var occurrences: [(offset: Int, utf16Offset: Int)] = []
+
+                            while let range = currentText.range(of: targetText, range: searchRange) {
+                                let graphemeOffset = currentText.distance(from: currentText.startIndex, to: range.lowerBound)
+                                let utf16Range = TextIndexConverter.graphemeToUTF16Range(
+                                    NSRange(location: graphemeOffset, length: targetText.count),
+                                    in: currentText
+                                )
+                                occurrences.append((offset: graphemeOffset, utf16Offset: utf16Range.location))
+                                searchRange = range.upperBound ..< currentText.endIndex
+                            }
+
+                            Logger.debug("Position drift retry: Found \(occurrences.count) occurrence(s) of '\(targetText.prefix(20))'", category: Logger.analysis)
+
+                            // Try each occurrence with offset adjustment
+                            for (idx, occurrence) in occurrences.enumerated() {
+                                // Try positions around each occurrence (the mismatch is usually ±1-2)
+                                for offsetAdjust in [-2, -1, 1, 2, 0] {
+                                    let tryOffset = occurrence.utf16Offset + offsetAdjust
+                                    guard tryOffset >= 0 else { continue }
+
+                                    var tryRange = CFRange(location: tryOffset, length: targetText.utf16.count)
+                                    guard let tryRangeValue = AXValueCreate(.cfRange, &tryRange) else { continue }
+
+                                    let selectResult = AXUIElementSetAttributeValue(
+                                        element,
+                                        kAXSelectedTextRangeAttribute as CFString,
+                                        tryRangeValue
+                                    )
+
+                                    if selectResult == .success {
+                                        // Check if this selection is correct
+                                        try? await Task.sleep(nanoseconds: 30_000_000) // 30ms
+                                        var retrySelectedRef: CFTypeRef?
+                                        if AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &retrySelectedRef) == .success,
+                                           let retrySelectedText = retrySelectedRef as? String,
+                                           retrySelectedText == targetText
+                                        {
+                                            Logger.info("Position drift retry SUCCEEDED: occurrence \(idx), offset adjust \(offsetAdjust), UTF-16 position \(tryOffset)", category: Logger.analysis)
+                                            retrySucceeded = true
+                                            break
+                                        }
+                                    }
+                                }
+                                if retrySucceeded { break }
+                            }
+                        }
+                    }
+
+                    if !retrySucceeded {
+                        Logger.error("Selection mismatch - ABORTING to prevent corruption! Selected '\(selectedText.prefix(30))...' but expected '\(targetText.prefix(30))...'", category: Logger.analysis)
+                        SuggestionPopover.shared.showStatusMessage("Selection error - please try again")
+                        triggerImmediateReanalysis()
+                        return
+                    }
+                } else {
+                    Logger.debug("Selection validated: '\(targetText.prefix(20))...' (\(targetText.count) chars)", category: Logger.analysis)
                 }
-                Logger.debug("Selection validated: '\(targetText.prefix(20))...' (\(targetText.count) chars)", category: Logger.analysis)
             } else {
                 // For apps that don't support AXSelectedText, only abort if they have the quirk
                 if appBehaviorForReplacement.knownQuirks.contains(.requiresSelectionValidationBeforePaste) ||
@@ -2713,5 +2917,38 @@ extension AnalysisCoordinator {
         Logger.info("Fix all obvious: Applied \(fixCount) fixes", category: Logger.analysis)
 
         return fixCount
+    }
+
+    // MARK: - Position Drift Correction
+
+    /// Extract the expected error text for position drift correction
+    /// Returns nil if we can't reliably determine the expected text (meaning no drift correction should be attempted)
+    private func extractTextFromSuggestions(error: GrammarErrorModel, suggestion _: String) -> String? {
+        let errorLength = error.end - error.start
+
+        // For spelling errors, the backtick in the message contains the EXACT misspelled word
+        // e.g., "Did you mean to spell `botth` this way?" - backtick has "botth"
+        // This is the most reliable source because it's what Harper actually flagged
+        let message = error.message
+        if let backtickStart = message.firstIndex(of: "`"),
+           let backtickEnd = message[message.index(after: backtickStart)...].firstIndex(of: "`")
+        {
+            let word = String(message[message.index(after: backtickStart) ..< backtickEnd])
+            // Only use backtick text if it matches the error span length
+            // This prevents mismatches like "and" vs "and also" for redundancy errors
+            if !word.isEmpty, word.unicodeScalars.count == errorLength {
+                Logger.trace("extractTextFromSuggestions: Found '\(word)' in backticks (length matches)", category: Logger.analysis)
+                return word
+            } else if !word.isEmpty {
+                Logger.trace("extractTextFromSuggestions: Backtick '\(word)' length \(word.unicodeScalars.count) != span \(errorLength)", category: Logger.analysis)
+            }
+        }
+
+        // For non-spelling errors (redundancy, style, etc.) where backticks don't have full text,
+        // we CAN'T reliably determine expected text for drift correction.
+        // Return nil to skip drift correction - the positions should be used as-is.
+        // This is safer than using potentially stale lastAnalyzedText.
+        Logger.trace("extractTextFromSuggestions: No backtick match, skipping drift correction for \(error.start)-\(error.end)", category: Logger.analysis)
+        return nil
     }
 }

@@ -194,7 +194,7 @@ class CapsuleStateManager {
     /// - Parameters:
     ///   - result: The readability calculation result, or nil if text is too short
     ///   - analysis: Optional sentence-level analysis with target audience info
-    func updateReadability(result: ReadabilityResult?, analysis: TextReadabilityAnalysis? = nil) {
+    func updateReadability(result: ReadabilityResult?, analysis _: TextReadabilityAnalysis? = nil) {
         guard UserPreferences.shared.readabilityEnabled else {
             currentReadabilityScore = nil
             return

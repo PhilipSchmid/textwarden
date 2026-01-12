@@ -22,18 +22,18 @@ enum StyleSensitivity: String, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .minimal: return "Minimal"
-        case .balanced: return "Balanced"
-        case .detailed: return "Detailed"
+        case .minimal: "Minimal"
+        case .balanced: "Balanced"
+        case .detailed: "Detailed"
         }
     }
 
     /// Minimum impact level to show for this sensitivity
     var minimumImpact: SuggestionImpact {
         switch self {
-        case .minimal: return .high
-        case .balanced: return .medium
-        case .detailed: return .low
+        case .minimal: .high
+        case .balanced: .medium
+        case .detailed: .low
         }
     }
 }

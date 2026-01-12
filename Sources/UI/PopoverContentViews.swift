@@ -18,27 +18,27 @@ enum ReadabilityTipsHelper {
     static func tips(forScore score: Int) -> [String] {
         switch score {
         case 70...:
-            return [] // Good readability, no tips needed
+            [] // Good readability, no tips needed
         case 60 ..< 70:
-            return [
+            [
                 "Consider breaking longer sentences into shorter ones",
                 "Replace some complex words with simpler alternatives",
             ]
         case 50 ..< 60:
-            return [
+            [
                 "Use shorter sentences (aim for 15-20 words)",
                 "Replace multi-syllable words where possible",
                 "Break up long paragraphs",
             ]
         case 30 ..< 50:
-            return [
+            [
                 "Significantly shorten your sentences",
                 "Use simpler, everyday vocabulary",
                 "Consider your audience's reading level",
                 "Remove unnecessary jargon",
             ]
         default:
-            return [
+            [
                 "Rewrite using much simpler language",
                 "Keep sentences under 15 words",
                 "Use common, one or two-syllable words",
@@ -323,6 +323,67 @@ struct SentenceContextView: View {
         return scalars.distance(from: scalarStart, to: scalarEnd)
     }
 
+    /// Extract expected error text from error message (backticks) or suggestions
+    private func extractExpectedText(from error: GrammarErrorModel) -> String? {
+        // Try to extract from backticks in message (e.g., "Did you mean to spell `staand` this way?")
+        let message = error.message
+        if let backtickStart = message.firstIndex(of: "`"),
+           let backtickEnd = message[message.index(after: backtickStart)...].firstIndex(of: "`")
+        {
+            let word = String(message[message.index(after: backtickStart) ..< backtickEnd])
+            if !word.isEmpty { return word }
+        }
+
+        // For errors with length > 0, try to extract from sourceText at the expected position
+        // This is a fallback when we can't determine expected text from message
+        return nil
+    }
+
+    /// Correct error position if it has drifted due to prior text replacements
+    /// Returns the corrected (start, end) scalar positions, or original if no drift detected or correction not possible
+    private func correctErrorPosition(_ err: GrammarErrorModel, in text: String) -> (start: Int, end: Int) {
+        let scalarCount = text.unicodeScalars.count
+        guard err.start >= 0, err.end <= scalarCount, err.start < err.end else {
+            return (err.start, err.end)
+        }
+
+        // Extract text at current position
+        let startIdx = text.unicodeScalars.index(text.unicodeScalars.startIndex, offsetBy: err.start)
+        let endIdx = text.unicodeScalars.index(text.unicodeScalars.startIndex, offsetBy: err.end)
+        let extractedText = String(text.unicodeScalars[startIdx ..< endIdx])
+
+        // Get expected text
+        guard let expectedText = extractExpectedText(from: err) else {
+            return (err.start, err.end)
+        }
+
+        // If extracted matches expected, no drift
+        if extractedText == expectedText {
+            return (err.start, err.end)
+        }
+
+        // Search nearby positions for expected text
+        let searchRadius = 5
+        let errorLength = err.end - err.start
+
+        for offset in -searchRadius ... searchRadius where offset != 0 {
+            let testStart = err.start + offset
+            let testEnd = testStart + errorLength
+            guard testStart >= 0, testEnd <= scalarCount else { continue }
+
+            let testStartIdx = text.unicodeScalars.index(text.unicodeScalars.startIndex, offsetBy: testStart)
+            let testEndIdx = text.unicodeScalars.index(text.unicodeScalars.startIndex, offsetBy: testEnd)
+            let testText = String(text.unicodeScalars[testStartIdx ..< testEndIdx])
+
+            if testText == expectedText {
+                return (testStart, testEnd)
+            }
+        }
+
+        // Could not correct - return original
+        return (err.start, err.end)
+    }
+
     var body: some View {
         if let sentenceInfo = extractSentenceWithErrors() {
             // Sentence context - no background box, just the text with highlights
@@ -510,11 +571,16 @@ struct SentenceContextView: View {
         }
 
         // Build error ranges relative to the sentence
+        // Apply position drift correction to handle cases where error positions have drifted
+        // due to prior text replacements not being properly reflected in currentErrors
         var errorRanges: [(range: Range<String.Index>, category: String, isCurrent: Bool)] = []
         for err in errorsInSentence {
+            // Correct for position drift if needed
+            let corrected = correctErrorPosition(err, in: sourceText)
+
             // Calculate relative scalar indices within the sentence
-            let relativeStartScalar = err.start - sentenceStartScalarOffset
-            let relativeEndScalar = err.end - sentenceStartScalarOffset
+            let relativeStartScalar = corrected.start - sentenceStartScalarOffset
+            let relativeEndScalar = corrected.end - sentenceStartScalarOffset
 
             guard relativeStartScalar >= 0, relativeEndScalar <= sentence.unicodeScalars.count else {
                 continue
