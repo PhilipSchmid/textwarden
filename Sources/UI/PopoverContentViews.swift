@@ -582,6 +582,19 @@ struct PopoverContentView: View {
                     .padding(.bottom, 4)
                 }
 
+                // Sentence context (shown when opened from indicator for better context)
+                if popover.openedFromIndicator, !popover.sourceText.isEmpty {
+                    SentenceContextView(
+                        sourceText: popover.sourceText,
+                        error: error,
+                        allErrors: popover.allErrors,
+                        colors: colors,
+                        textSize: bodyTextSize - 1
+                    )
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 6)
+                }
+
                 // Content area
                 VStack(alignment: .leading, spacing: 2) {
                     if isAIRephrase {
@@ -761,8 +774,8 @@ struct PopoverContentView: View {
                     )
             }
         )
-        // Narrower width for compact design, AI rephrase needs more space
-        .frame(width: isAIRephraseError ? 300 : 220)
+        // Width: 300 for AI rephrase, 280 for indicator with sentence context, 220 for inline
+        .frame(width: isAIRephraseError ? 300 : (popover.openedFromIndicator && !popover.sourceText.isEmpty ? 280 : 220))
         .fixedSize(horizontal: false, vertical: true)
         .colorScheme(effectiveColorScheme)
         .accessibilityElement(children: .contain)
