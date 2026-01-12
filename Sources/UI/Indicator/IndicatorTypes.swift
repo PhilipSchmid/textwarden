@@ -9,12 +9,12 @@ import Cocoa
 
 // MARK: - Capsule Section Types
 
-/// Section types in the capsule indicator
+/// Section types in the capsule indicator (simplified 3-section design)
+/// Layout: Grammar | Style+Clarity | Text Generation
 enum CapsuleSectionType: Int, CaseIterable {
-    case grammar = 0 // Upper section
-    case style = 1 // Second section
-    case textGeneration = 2 // Third section
-    case readability = 3 // Bottom section - Flesch Reading Ease score
+    case grammar = 0 // Upper section - spelling, grammar, punctuation errors
+    case styleClarity = 1 // Middle section - style suggestions + readability issues combined
+    case textGeneration = 2 // Bottom section - AI text generation
 }
 
 /// Visual state per section
@@ -23,19 +23,15 @@ enum SectionDisplayState: Equatable {
     case grammarCount(Int) // Show error count
     case grammarSuccess // Green tick (0 errors, stays visible)
 
-    // Style states
-    case styleIdle // Sparkle icon, ready to check (no animation)
-    case styleLoading // Sparkle with spinning border
-    case styleCount(Int) // Show suggestion count
-    case styleSuccess // Checkmark (0 suggestions after check)
+    // Style+Clarity states (combined section)
+    case styleClarityIdle // Sparkle icon, ready to check (no animation)
+    case styleClarityLoading // Sparkle with spinning border
+    case styleClarityCount(Int, Int?) // (styleCount, readabilityScore) - show count, optional score badge
+    case styleClaritySuccess // Checkmark (0 suggestions after check)
 
     // Text generation states
     case textGenIdle // Pen icon, ready
     case textGenActive // Generating animation
-
-    // Readability states
-    case readabilityScore(Int, NSColor) // Show score (0-100) with color
-    case readabilityNA // Text too short for meaningful score
 
     case hidden // Section not visible
 }

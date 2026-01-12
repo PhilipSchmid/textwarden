@@ -603,6 +603,44 @@ stateManager.onStateChanged = { state in
 - Clearing grammar underlines also clears hover/lock state
 - State validation runs in DEBUG builds
 
+### FloatingErrorIndicator (3-Section Design)
+
+The floating indicator uses a simplified 3-section capsule design:
+
+```
+┌─────────────────────────┐
+│  🔴 3  │  💜 2  │  ✨   │
+└─────────────────────────┘
+   Grammar  Style   AI Gen
+           +Clarity
+```
+
+**Section Types:**
+
+| Section | Type | Description |
+|---------|------|-------------|
+| **Grammar** | `.grammar` | Spelling, grammar, punctuation errors (red) |
+| **Style+Clarity** | `.styleClarity` | Style suggestions + readability issues combined (purple) |
+| **Text Generation** | `.textGeneration` | AI text generation action (blue) |
+
+**Display States:**
+
+```swift
+enum SectionDisplayState: Equatable {
+    case grammarCount(Int)              // Show error count
+    case grammarSuccess                 // Green checkmark
+    case styleClarityIdle               // Sparkle icon (ready)
+    case styleClarityLoading            // Spinning loading
+    case styleClarityCount(Int, Int?)   // (count, readabilityScore)
+    case styleClaritySuccess            // Checkmark
+    case textGenIdle                    // Pen icon
+    case textGenActive                  // Generating animation
+    case hidden                         // Not visible
+}
+```
+
+**State Management:** The `CapsuleStateManager` class manages state for all three sections, updating display states based on analysis results and user interactions.
+
 ### Apple Foundation Models Integration
 
 TextWarden uses Apple's Foundation Models framework (macOS 26+) for AI-powered style suggestions and text generation. This replaces the previous mistral.rs-based approach with Apple Intelligence.

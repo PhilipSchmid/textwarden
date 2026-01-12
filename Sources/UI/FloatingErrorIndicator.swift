@@ -507,12 +507,10 @@ class FloatingErrorIndicator: NSPanel {
         switch sectionType {
         case .grammar:
             showGrammarPopover()
-        case .style:
+        case .styleClarity:
             showStylePopover()
         case .textGeneration:
             showTextGenerationPopover()
-        case .readability:
-            showReadabilityPopover()
         }
     }
 
@@ -521,12 +519,10 @@ class FloatingErrorIndicator: NSPanel {
         switch sectionType {
         case .grammar:
             showGrammarPopover()
-        case .style:
+        case .styleClarity:
             showStylePopover()
         case .textGeneration:
             showTextGenerationPopover()
-        case .readability:
-            showReadabilityPopover()
         }
     }
 
@@ -552,7 +548,7 @@ class FloatingErrorIndicator: NSPanel {
         )
     }
 
-    /// Show style-only popover, or trigger style check if no suggestions yet
+    /// Show style+clarity popover, or trigger style check if no suggestions yet
     private func showStylePopover() {
         Logger.debug("FloatingErrorIndicator: showStylePopover - styleSuggestions=\(styleSuggestions.count)", category: Logger.ui)
 
@@ -561,7 +557,7 @@ class FloatingErrorIndicator: NSPanel {
         ReadabilityPopover.shared.hide()
 
         // If no style suggestions yet and not currently loading, trigger a style check
-        if styleSuggestions.isEmpty, capsuleStateManager.styleState.displayState != .styleLoading {
+        if styleSuggestions.isEmpty, capsuleStateManager.styleClarityState.displayState != .styleClarityLoading {
             Logger.debug("FloatingErrorIndicator: No style suggestions, requesting style check", category: Logger.ui)
             setStyleLoading(true)
             onRequestStyleCheck?()
@@ -583,21 +579,21 @@ class FloatingErrorIndicator: NSPanel {
         )
     }
 
-    /// Set style section loading state
+    /// Set style+clarity section loading state
     func setStyleLoading(_ loading: Bool) {
         Logger.debug("FloatingErrorIndicator: setStyleLoading(\(loading)), capsuleIndicatorView=\(capsuleIndicatorView != nil)", category: Logger.ui)
         if loading {
-            capsuleStateManager.styleState.displayState = .styleLoading
-            capsuleStateManager.styleState.ringColor = .purple
+            capsuleStateManager.styleClarityState.displayState = .styleClarityLoading
+            capsuleStateManager.styleClarityState.ringColor = .purple
         } else if styleSuggestions.isEmpty {
-            capsuleStateManager.styleState.displayState = .styleIdle
-            capsuleStateManager.styleState.ringColor = .purple
+            capsuleStateManager.styleClarityState.displayState = .styleClarityIdle
+            capsuleStateManager.styleClarityState.ringColor = .purple
         } else {
-            capsuleStateManager.styleState.displayState = .styleCount(styleSuggestions.count)
-            capsuleStateManager.styleState.ringColor = .purple
+            capsuleStateManager.styleClarityState.displayState = .styleClarityCount(styleSuggestions.count, nil)
+            capsuleStateManager.styleClarityState.ringColor = .purple
         }
         let visibleSections = capsuleStateManager.visibleSections
-        Logger.debug("FloatingErrorIndicator: Updating capsule with \(visibleSections.count) sections, styleState=\(capsuleStateManager.styleState.displayState)", category: Logger.ui)
+        Logger.debug("FloatingErrorIndicator: Updating capsule with \(visibleSections.count) sections, styleClarityState=\(capsuleStateManager.styleClarityState.displayState)", category: Logger.ui)
         capsuleIndicatorView?.sections = visibleSections
         capsuleIndicatorView?.needsDisplay = true
     }
@@ -2555,7 +2551,7 @@ private class CapsuleIndicatorView: NSView {
 
     private func updateSpinningAnimation() {
         let hasSpinning = sections.contains { section in
-            if case .styleLoading = section.displayState { return true }
+            if case .styleClarityLoading = section.displayState { return true }
             if case .textGenActive = section.displayState { return true }
             return false
         }
@@ -2651,7 +2647,7 @@ private class CapsuleIndicatorView: NSView {
         drawGlassBackground(path: backgroundPath, rect: backgroundRect, isDarkMode: isDarkMode)
 
         // Draw ring
-        if case .styleLoading = section.displayState {
+        if case .styleClarityLoading = section.displayState {
             drawSpinningRing(rect: backgroundRect, color: section.ringColor, isDarkMode: isDarkMode)
         } else {
             drawRing(rect: backgroundRect, color: section.ringColor, isHovered: section.isHovered)
@@ -2905,22 +2901,19 @@ private class CapsuleIndicatorView: NSView {
             drawCount(count, in: rect, isDarkMode: isDarkMode, color: grammarIconColor)
         case .grammarSuccess:
             drawCheckmark(in: rect, color: successColor)
-        case .styleIdle:
+        case .styleClarityIdle:
             drawSparkle(in: rect, color: styleIconColor(isDarkMode: isDarkMode).withAlphaComponent(0.85)) // Ready state, slightly dimmed
-        case .styleLoading:
+        case .styleClarityLoading:
             drawLoadingSpinner(in: rect, color: styleIconColor(isDarkMode: isDarkMode))
-        case let .styleCount(count):
+        case let .styleClarityCount(count, _):
+            // Draw count, readability score badge handled separately
             drawCount(count, in: rect, isDarkMode: isDarkMode, color: styleIconColor(isDarkMode: isDarkMode))
-        case .styleSuccess:
+        case .styleClaritySuccess:
             drawCheckmark(in: rect, color: successColor)
         case .textGenIdle:
             drawPenIcon(in: rect)
         case .textGenActive:
             drawPenIcon(in: rect)
-        case let .readabilityScore(score, color):
-            drawReadabilityScore(score, in: rect, color: color, isDarkMode: isDarkMode)
-        case .readabilityNA:
-            break // Don't show anything for N/A state
         case .hidden:
             break
         }
@@ -3224,26 +3217,25 @@ private class CapsuleIndicatorView: NSView {
                 }
             case .grammarSuccess:
                 parts.append("No grammar errors")
-            case .styleIdle:
+            case .styleClarityIdle:
                 parts.append("Style check available")
-            case .styleLoading:
+            case .styleClarityLoading:
                 parts.append("Checking style")
-            case let .styleCount(count):
+            case let .styleClarityCount(count, readabilityScore):
                 if count == 1 {
                     parts.append("1 style suggestion")
                 } else {
                     parts.append("\(count) style suggestions")
                 }
-            case .styleSuccess:
+                if let score = readabilityScore {
+                    parts.append("Readability score: \(score)")
+                }
+            case .styleClaritySuccess:
                 parts.append("No style issues")
             case .textGenIdle:
                 parts.append("AI compose available")
             case .textGenActive:
                 parts.append("Generating text")
-            case let .readabilityScore(score, _):
-                parts.append("Readability score: \(score)")
-            case .readabilityNA:
-                break
             case .hidden:
                 break
             }
@@ -3274,22 +3266,22 @@ private class CapsuleIndicatorView: NSView {
                 element.setAccessibilityLabel("Grammar section: \(count) error\(count == 1 ? "" : "s")")
             case .grammarSuccess:
                 element.setAccessibilityLabel("Grammar section: No errors")
-            case .styleIdle:
+            case .styleClarityIdle:
                 element.setAccessibilityLabel("Style section: Click to check")
-            case .styleLoading:
+            case .styleClarityLoading:
                 element.setAccessibilityLabel("Style section: Checking...")
-            case let .styleCount(count):
-                element.setAccessibilityLabel("Style section: \(count) suggestion\(count == 1 ? "" : "s")")
-            case .styleSuccess:
+            case let .styleClarityCount(count, readabilityScore):
+                var label = "Style section: \(count) suggestion\(count == 1 ? "" : "s")"
+                if let score = readabilityScore {
+                    label += ", Readability: \(score)"
+                }
+                element.setAccessibilityLabel(label)
+            case .styleClaritySuccess:
                 element.setAccessibilityLabel("Style section: No issues")
             case .textGenIdle:
                 element.setAccessibilityLabel("AI compose section: Click to write")
             case .textGenActive:
                 element.setAccessibilityLabel("AI compose section: Generating...")
-            case let .readabilityScore(score, _):
-                element.setAccessibilityLabel("Readability section: Score \(score)")
-            case .readabilityNA:
-                continue
             case .hidden:
                 continue
             }

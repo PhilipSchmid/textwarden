@@ -7,20 +7,22 @@
 
 import Cocoa
 
-/// Manages state for all sections of the capsule indicator
+/// Manages state for all sections of the capsule indicator (3-section design)
+/// Sections: Grammar | Style+Clarity | Text Generation
 @MainActor
 class CapsuleStateManager {
     var grammarState: CapsuleSectionState
-    var styleState: CapsuleSectionState
+    var styleClarityState: CapsuleSectionState
     var textGenState: CapsuleSectionState
-    var readabilityState: CapsuleSectionState
     var hoveredSection: CapsuleSectionType?
+
+    /// Current readability score for badge display (nil if no score)
+    private var currentReadabilityScore: Int?
 
     init() {
         grammarState = CapsuleSectionState(type: .grammar)
-        styleState = CapsuleSectionState(type: .style)
+        styleClarityState = CapsuleSectionState(type: .styleClarity)
         textGenState = CapsuleSectionState(type: .textGeneration)
-        readabilityState = CapsuleSectionState(type: .readability)
     }
 
     /// Current indicator shape based on style checking preference
@@ -62,6 +64,7 @@ class CapsuleStateManager {
     }
 
     /// Get all visible sections in display order (top to bottom)
+    /// Order: Grammar | Style+Clarity | Text Generation
     var visibleSections: [CapsuleSectionState] {
         var sections: [CapsuleSectionState] = []
 
@@ -70,19 +73,14 @@ class CapsuleStateManager {
             sections.append(grammarState)
         }
 
-        // Style section is visible when style checking is enabled
-        if styleState.displayState != .hidden {
-            sections.append(styleState)
+        // Style+Clarity section is visible when style checking is enabled
+        if styleClarityState.displayState != .hidden {
+            sections.append(styleClarityState)
         }
 
-        // Text generation section (future)
+        // Text generation section
         if textGenState.displayState != .hidden {
             sections.append(textGenState)
-        }
-
-        // Readability section (when enabled and has score)
-        if readabilityState.displayState != .hidden {
-            sections.append(readabilityState)
         }
 
         return sections
@@ -142,29 +140,37 @@ class CapsuleStateManager {
         }
     }
 
-    /// Update style section state based on suggestions
+    /// Update style+clarity section state based on suggestions and readability
     /// - Parameters:
-    ///   - suggestions: Current style suggestions
+    ///   - suggestions: Current style suggestions (includes readability suggestions)
     ///   - isLoading: Whether style check is in progress
     ///   - hasChecked: Whether a style check has been completed (show success only if checked with no findings)
-    func updateStyle(suggestions: [StyleSuggestionModel], isLoading: Bool, hasChecked: Bool = false) {
+    ///   - readabilityScore: Current readability score for badge display (nil if no score)
+    func updateStyleClarity(suggestions: [StyleSuggestionModel], isLoading: Bool, hasChecked: Bool = false, readabilityScore: Int? = nil) {
+        currentReadabilityScore = readabilityScore
+
         if isLoading {
-            styleState.displayState = .styleLoading
-            styleState.ringColor = .purple
+            styleClarityState.displayState = .styleClarityLoading
+            styleClarityState.ringColor = .purple
         } else if suggestions.isEmpty {
             if hasChecked {
                 // Style check completed with no findings - show success
-                styleState.displayState = .styleSuccess
-                styleState.ringColor = .purple
+                styleClarityState.displayState = .styleClaritySuccess
+                styleClarityState.ringColor = .purple
             } else {
                 // No style check yet - show sparkle (ready state, no animation)
-                styleState.displayState = .styleIdle
-                styleState.ringColor = .purple
+                styleClarityState.displayState = .styleClarityIdle
+                styleClarityState.ringColor = .purple
             }
         } else {
-            styleState.displayState = .styleCount(suggestions.count)
-            styleState.ringColor = .purple
+            styleClarityState.displayState = .styleClarityCount(suggestions.count, readabilityScore)
+            styleClarityState.ringColor = .purple
         }
+    }
+
+    /// Legacy: Update style section (delegates to updateStyleClarity)
+    func updateStyle(suggestions: [StyleSuggestionModel], isLoading: Bool, hasChecked: Bool = false) {
+        updateStyleClarity(suggestions: suggestions, isLoading: isLoading, hasChecked: hasChecked, readabilityScore: currentReadabilityScore)
     }
 
     /// Update text generation section state
@@ -184,37 +190,20 @@ class CapsuleStateManager {
         }
     }
 
-    /// Update readability section state
+    /// Update readability score for badge display
     /// - Parameters:
     ///   - result: The readability calculation result, or nil if text is too short
     ///   - analysis: Optional sentence-level analysis with target audience info
     func updateReadability(result: ReadabilityResult?, analysis: TextReadabilityAnalysis? = nil) {
         guard UserPreferences.shared.readabilityEnabled else {
-            readabilityState.displayState = .hidden
+            currentReadabilityScore = nil
             return
         }
 
         if let result {
-            // Use audience-relative color if analysis is available
-            let displayColor: NSColor
-            if let analysis {
-                displayColor = result.colorForAudience(analysis.targetAudience)
-
-                // Add violet accent to ring if there are complex sentences
-                if analysis.complexSentenceCount > 0 {
-                    readabilityState.ringColor = .systemPurple
-                } else {
-                    readabilityState.ringColor = displayColor
-                }
-            } else {
-                displayColor = result.color
-                readabilityState.ringColor = result.color
-            }
-
-            readabilityState.displayState = .readabilityScore(result.displayScore, displayColor)
+            currentReadabilityScore = result.displayScore
         } else {
-            // No result - either text too short or no text
-            readabilityState.displayState = .hidden
+            currentReadabilityScore = nil
         }
     }
 
@@ -222,9 +211,8 @@ class CapsuleStateManager {
     func setHovered(_ section: CapsuleSectionType?) {
         hoveredSection = section
         grammarState.isHovered = section == .grammar
-        styleState.isHovered = section == .style
+        styleClarityState.isHovered = section == .styleClarity
         textGenState.isHovered = section == .textGeneration
-        readabilityState.isHovered = section == .readability
     }
 
     /// Get color for grammar errors based on severity
