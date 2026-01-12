@@ -1849,6 +1849,16 @@ struct StylePopoverContentView: View {
                                 .foregroundColor(colors.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
 
+                            // Expandable readability tips (especially useful when AI is not available)
+                            if let score = suggestion.readabilityScore {
+                                ExpandableReadabilityTipsView(
+                                    score: score,
+                                    targetAudience: suggestion.targetAudience,
+                                    colors: colors,
+                                    fontSize: baseTextSize * 0.85
+                                )
+                            }
+
                             // Tip - AI not available
                             HStack(spacing: 6) {
                                 Image(systemName: "exclamationmark.triangle")
@@ -1892,6 +1902,16 @@ struct StylePopoverContentView: View {
                             .foregroundColor(colors.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityLabel("Explanation: \(suggestion.explanation)")
+
+                        // Expandable readability tips (only for readability suggestions with a score)
+                        if suggestion.isReadabilitySuggestion, let score = suggestion.readabilityScore {
+                            ExpandableReadabilityTipsView(
+                                score: score,
+                                targetAudience: suggestion.targetAudience,
+                                colors: colors,
+                                fontSize: baseTextSize * 0.85
+                            )
+                        }
                     }
                 }
                 .padding(.horizontal, 14)

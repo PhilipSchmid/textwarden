@@ -8,6 +8,210 @@
 
 import SwiftUI
 
+// MARK: - Readability Tips Helper
+
+/// Static helper to generate improvement tips based on readability score
+/// Used by StylePopoverContentView for readability suggestions
+enum ReadabilityTipsHelper {
+    /// Get improvement tips based on readability score
+    /// Matches the logic in ReadabilityResult.improvementTips
+    static func tips(forScore score: Int) -> [String] {
+        switch score {
+        case 70...:
+            return [] // Good readability, no tips needed
+        case 60 ..< 70:
+            return [
+                "Consider breaking longer sentences into shorter ones",
+                "Replace some complex words with simpler alternatives",
+            ]
+        case 50 ..< 60:
+            return [
+                "Use shorter sentences (aim for 15-20 words)",
+                "Replace multi-syllable words where possible",
+                "Break up long paragraphs",
+            ]
+        case 30 ..< 50:
+            return [
+                "Significantly shorten your sentences",
+                "Use simpler, everyday vocabulary",
+                "Consider your audience's reading level",
+                "Remove unnecessary jargon",
+            ]
+        default:
+            return [
+                "Rewrite using much simpler language",
+                "Keep sentences under 15 words",
+                "Use common, one or two-syllable words",
+                "Consider breaking into multiple shorter pieces",
+            ]
+        }
+    }
+}
+
+// MARK: - Readability Tips Hover View
+
+/// Shows "Readability Tips" row that displays a tooltip popup on hover
+/// This avoids expanding/collapsing the main popover which causes layout jumps
+struct ExpandableReadabilityTipsView: View {
+    let score: Int
+    let targetAudience: String?
+    let colors: AppColors
+    let fontSize: CGFloat
+
+    @State private var isHovering = false
+
+    private var tips: [String] {
+        ReadabilityTipsHelper.tips(forScore: score)
+    }
+
+    var body: some View {
+        // Only show if there are tips to display
+        if !tips.isEmpty {
+            HStack(spacing: 6) {
+                Image(systemName: "lightbulb")
+                    .font(.system(size: 11))
+                    .foregroundColor(isHovering ? colors.textPrimary : colors.textSecondary)
+
+                Text("Readability Tips")
+                    .font(.system(size: fontSize, weight: .medium))
+                    .foregroundColor(isHovering ? colors.textPrimary : colors.textSecondary)
+
+                Spacer()
+            }
+            .padding(.top, 4)
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                isHovering = hovering
+            }
+            .popover(isPresented: $isHovering, arrowEdge: .trailing) {
+                ReadabilityTipsPopoverContent(
+                    score: score,
+                    targetAudience: targetAudience,
+                    tips: tips,
+                    colors: colors,
+                    fontSize: fontSize
+                )
+            }
+        }
+    }
+}
+
+/// Content for the readability tips popover (shown on hover)
+/// Styled to match the main suggestion popover with gradient background
+private struct ReadabilityTipsPopoverContent: View {
+    let score: Int
+    let targetAudience: String?
+    let tips: [String]
+    let colors: AppColors
+    let fontSize: CGFloat
+
+    @ObservedObject private var preferences = UserPreferences.shared
+    @Environment(\.colorScheme) private var systemColorScheme
+
+    /// Effective color scheme based on user preference
+    private var effectiveColorScheme: ColorScheme {
+        switch preferences.overlayTheme {
+        case "Light":
+            .light
+        case "Dark":
+            .dark
+        default:
+            systemColorScheme
+        }
+    }
+
+    /// Colors for the effective color scheme
+    private var themedColors: AppColors {
+        AppColors(for: effectiveColorScheme)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Header
+            HStack(spacing: 6) {
+                Image(systemName: "lightbulb.fill")
+                    .font(.system(size: 12))
+                    .foregroundColor(.yellow)
+
+                Text("Readability Tips")
+                    .font(.system(size: fontSize, weight: .semibold))
+                    .foregroundColor(themedColors.textPrimary)
+            }
+
+            Divider()
+                .background(themedColors.border.opacity(0.3))
+
+            // Target audience info (if available)
+            if let audience = targetAudience {
+                HStack(spacing: 6) {
+                    Image(systemName: "person.2")
+                        .font(.system(size: 11))
+                        .foregroundColor(themedColors.textSecondary)
+                    Text("Target audience: \(audience)")
+                        .font(.system(size: fontSize * 0.9))
+                        .foregroundColor(themedColors.textSecondary)
+                }
+                .padding(.bottom, 2)
+            }
+
+            // Score indicator
+            HStack(spacing: 6) {
+                Image(systemName: "chart.bar")
+                    .font(.system(size: 11))
+                    .foregroundColor(themedColors.textSecondary)
+                Text("Current score: \(score)")
+                    .font(.system(size: fontSize * 0.9))
+                    .foregroundColor(themedColors.textSecondary)
+            }
+            .padding(.bottom, 4)
+
+            // Improvement tips
+            Text("How to improve:")
+                .font(.system(size: fontSize * 0.9, weight: .medium))
+                .foregroundColor(themedColors.textPrimary)
+
+            ForEach(tips, id: \.self) { tip in
+                HStack(alignment: .top, spacing: 6) {
+                    Text("•")
+                        .foregroundColor(themedColors.textSecondary)
+                    Text(tip)
+                        .font(.system(size: fontSize * 0.9))
+                        .foregroundColor(themedColors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(12)
+        .frame(width: 280)
+        // Match the main popover styling: gradient background with subtle border
+        .background(
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(
+                        LinearGradient(
+                            colors: [themedColors.backgroundGradientTop, themedColors.backgroundGradientBottom],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [
+                                themedColors.border.opacity(0.5),
+                                themedColors.border.opacity(0.2),
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 0.5
+                    )
+            }
+        )
+        .colorScheme(effectiveColorScheme)
+    }
+}
+
 // MARK: - Hover Tooltip
 
 /// Custom tooltip modifier for buttons in non-activating panels where .help() doesn't work

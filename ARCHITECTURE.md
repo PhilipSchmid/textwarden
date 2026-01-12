@@ -260,11 +260,14 @@ Unified suggestion tracking for loop prevention. Located in `Sources/App/Suggest
 - Enforce frequency cap (max 5 style suggestions per document in auto-check)
 - Track simplified sentences to prevent re-flagging readability fixes
 
-**Replaces Multiple Mechanisms:**
-- `styleCache` and `styleCacheMetadata`
-- `dismissedStyleSuggestionHashes`
-- `dismissedReadabilitySentenceHashes`
-- `styleAnalysisSuppressedUntilUserEdit` flag
+**Replaces Multiple Legacy Mechanisms:**
+These older mechanisms are still present in AnalysisCoordinator but will be removed in a future cleanup:
+- `styleCache` and `styleCacheMetadata` (legacy caching)
+- `dismissedStyleSuggestionHashes` (legacy dismissal tracking)
+- `dismissedReadabilitySentenceHashes` (legacy readability tracking)
+- `styleAnalysisSuppressedUntilUserEdit` flag (legacy suppression)
+
+SuggestionTracker provides a cleaner, unified approach with better filtering and cooldown mechanisms.
 
 **Key Configuration:**
 ```swift
@@ -640,6 +643,44 @@ enum SectionDisplayState: Equatable {
 ```
 
 **State Management:** The `CapsuleStateManager` class manages state for all three sections, updating display states based on analysis results and user interactions.
+
+### Popover Content Views
+
+The popover system uses two main content views based on suggestion type:
+
+**PopoverContentView** (Grammar errors):
+- Category-colored dot with severity-based indicator
+- Sentence context when opened from indicator (shows full sentence with error highlighted)
+- Vertical list of suggestions with hover effects
+- Actions: Ignore, Ignore Rule, Add to Dictionary (spelling only)
+
+**StylePopoverContentView** (Style + Clarity suggestions):
+- Accent color based on type: purple for style, violet for readability
+- Diff view showing original → suggested text
+- Expandable readability tips for clarity suggestions
+- Actions: Accept, Reject (with category menu), Retry
+
+**Readability Tips Integration:**
+
+When displaying readability (clarity) suggestions, the popover includes an expandable tips section:
+
+```swift
+struct ExpandableReadabilityTipsView {
+    let score: Int              // Readability score for tip generation
+    let targetAudience: String? // Optional audience context
+    let colors: AppColors
+    let fontSize: CGFloat
+}
+```
+
+Tips are generated based on score thresholds:
+- Score 70+: No tips needed (good readability)
+- Score 60-69: Basic simplification tips
+- Score 50-59: Moderate complexity reduction tips
+- Score 30-49: Significant simplification required
+- Score <30: Major rewrite suggestions
+
+The tips section is especially useful when Apple Intelligence is unavailable, giving users actionable guidance for manual improvements.
 
 ### Apple Foundation Models Integration
 
