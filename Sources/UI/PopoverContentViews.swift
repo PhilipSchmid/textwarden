@@ -827,11 +827,21 @@ struct PopoverContentView: View {
 
                     } else if !validSuggestions.isEmpty {
                         // Vertical list of clickable suggestions with Tahoe-style hover
+                        // Non-hovered state uses subtle accent color + underline to hint at interactivity
                         ForEach(Array(validSuggestions.prefix(5).enumerated()), id: \.offset) { index, suggestion in
                             Button(action: { popover.applySuggestion(suggestion) }) {
                                 Text(suggestion)
                                     .font(.system(size: bodyTextSize, weight: .medium))
-                                    .foregroundColor(hoveredSuggestion == suggestion ? colors.primary : colors.textPrimary)
+                                    .foregroundColor(
+                                        hoveredSuggestion == suggestion
+                                            ? colors.primary
+                                            : colors.primary.opacity(0.85) // Subtle accent tint hints at clickability
+                                    )
+                                    .underline(
+                                        hoveredSuggestion != suggestion, // Show underline when NOT hovered
+                                        pattern: .dot, // Dotted underline for subtle hint
+                                        color: colors.primary.opacity(0.3)
+                                    )
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 6)
