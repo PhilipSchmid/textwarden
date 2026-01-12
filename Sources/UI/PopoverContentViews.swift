@@ -827,27 +827,27 @@ struct PopoverContentView: View {
 
                     } else if !validSuggestions.isEmpty {
                         // Vertical list of clickable suggestions with Tahoe-style hover
-                        // Non-hovered state uses subtle accent color + underline to hint at interactivity
+                        // Non-hovered state uses link color + underline to hint at interactivity
                         ForEach(Array(validSuggestions.prefix(5).enumerated()), id: \.offset) { index, suggestion in
                             Button(action: { popover.applySuggestion(suggestion) }) {
                                 Text(suggestion)
                                     .font(.system(size: bodyTextSize, weight: .medium))
                                     .foregroundColor(
                                         hoveredSuggestion == suggestion
-                                            ? colors.primary
-                                            : colors.primary.opacity(0.85) // Subtle accent tint hints at clickability
+                                            ? colors.link // Bright link color on hover
+                                            : colors.link // High-contrast link color
                                     )
                                     .underline(
                                         hoveredSuggestion != suggestion, // Show underline when NOT hovered
                                         pattern: .dot, // Dotted underline for subtle hint
-                                        color: colors.primary.opacity(0.3)
+                                        color: colors.linkSubtle
                                     )
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 6)
                                     .background(
                                         RoundedRectangle(cornerRadius: 6)
-                                            .fill(hoveredSuggestion == suggestion ? colors.primary.opacity(0.12) : Color.clear)
+                                            .fill(hoveredSuggestion == suggestion ? colors.link.opacity(0.15) : Color.clear)
                                     )
                             }
                             .buttonStyle(.plain)

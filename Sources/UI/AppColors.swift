@@ -121,6 +121,21 @@ struct AppColors {
         Color.white // White text on blue in both modes
     }
 
+    /// Link/interactive text color - high contrast for readability
+    /// Uses cyan-blue which provides better contrast than pure blue
+    var link: Color {
+        colorScheme == .dark
+            ? Color(hue: 200 / 360, saturation: 0.70, brightness: 0.85) // Bright cyan-blue for dark mode
+            : Color(hue: 210 / 360, saturation: 0.80, brightness: 0.45) // Rich blue for light mode
+    }
+
+    /// Link color for subtle/muted state (e.g., underlines)
+    var linkSubtle: Color {
+        colorScheme == .dark
+            ? Color(hue: 200 / 360, saturation: 0.50, brightness: 0.60)
+            : Color(hue: 210 / 360, saturation: 0.50, brightness: 0.60)
+    }
+
     // MARK: - Semantic Colors (States)
 
     /// Success state (green)
