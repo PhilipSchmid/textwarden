@@ -793,7 +793,7 @@ struct PopoverContentView: View {
                         error: error,
                         allErrors: popover.allErrors,
                         colors: colors,
-                        textSize: bodyTextSize - 1
+                        textSize: bodyTextSize
                     )
                     .padding(.horizontal, 10)
                     .padding(.bottom, 6)
@@ -978,8 +978,8 @@ struct PopoverContentView: View {
                     )
             }
         )
-        // Width: 300 for AI rephrase, 280 for indicator with sentence context, 220 for inline
-        .frame(width: isAIRephraseError ? 300 : (popover.openedFromIndicator && !popover.sourceText.isEmpty ? 280 : 220))
+        // Width: 400 for indicator with sentence context (match style popover), 300 for AI rephrase, 220 for inline
+        .frame(width: popover.openedFromIndicator && !popover.sourceText.isEmpty ? 400 : (isAIRephraseError ? 300 : 220))
         .fixedSize(horizontal: false, vertical: true)
         .colorScheme(effectiveColorScheme)
         .accessibilityElement(children: .contain)
