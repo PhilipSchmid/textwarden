@@ -227,13 +227,25 @@ final class SuggestionTracker {
         // Track dismissed so we don't re-suggest
         dismissedSuggestions.insert(originalHash)
 
-        // For readability suggestions, also track the new (simplified) text
-        // so we don't re-flag it as complex
+        // For readability suggestions, track the new (simplified) text and all its
+        // individual sentences so we don't re-flag them as complex.
+        // The LLM may return multiple sentences in the simplified text, but
+        // NLTokenizer (used by ReadabilityCalculator) will detect them as separate sentences.
+        // We must split the text using the SAME method that will later detect them.
         if isReadability {
-            let newHash = newText.hashValue
-            simplifiedSentences.insert(newHash)
+            // Split into individual sentences using ReadabilityCalculator
+            let sentences = ReadabilityCalculator.shared.splitIntoSentences(newText)
+            for (sentenceText, _) in sentences {
+                let sentenceHash = sentenceText.hashValue
+                simplifiedSentences.insert(sentenceHash)
+                Logger.debug("SuggestionTracker: Stored readability sentence hash: \(sentenceHash)", category: Logger.analysis)
+            }
+            // Also store hash of the full text in case it matches as one sentence
+            let fullNormalized = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let fullHash = fullNormalized.hashValue
+            simplifiedSentences.insert(fullHash)
 
-            Logger.debug("SuggestionTracker: Marked readability accepted (original: \(originalHash), new: \(newHash))", category: Logger.analysis)
+            Logger.debug("SuggestionTracker: Marked readability accepted (original: \(originalHash), sentences: \(sentences.count + 1))", category: Logger.analysis)
         } else {
             Logger.debug("SuggestionTracker: Marked suggestion accepted (hash: \(originalHash))", category: Logger.analysis)
         }

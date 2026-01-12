@@ -146,6 +146,70 @@ extension AnalysisCoordinator {
                 )
                 Logger.debug("removeErrorAndUpdateUI: Adjusted \(adjustedSentences.count) readability sentence positions", category: Logger.analysis)
             }
+
+            // Also adjust style suggestion positions
+            // This prevents style suggestions from selecting wrong text after grammar fixes
+            if !currentStyleSuggestions.isEmpty {
+                let beforeCount = currentStyleSuggestions.count
+                Logger.debug("removeErrorAndUpdateUI: Adjusting \(beforeCount) style suggestions for grammar fix at \(error.start)-\(error.end), delta=\(lengthDelta)", category: Logger.analysis)
+                currentStyleSuggestions = currentStyleSuggestions.compactMap { suggestion -> StyleSuggestionModel? in
+                    // If suggestion starts after the replacement point, adjust its position
+                    if suggestion.originalStart >= error.end {
+                        let newStart = suggestion.originalStart + lengthDelta
+                        let newEnd = suggestion.originalEnd + lengthDelta
+                        Logger.debug("removeErrorAndUpdateUI: Style '\(suggestion.originalText.prefix(25))...' adjusted from \(suggestion.originalStart)-\(suggestion.originalEnd) to \(newStart)-\(newEnd)", category: Logger.analysis)
+                        return StyleSuggestionModel(
+                            id: suggestion.id,
+                            originalStart: suggestion.originalStart + lengthDelta,
+                            originalEnd: suggestion.originalEnd + lengthDelta,
+                            originalText: suggestion.originalText,
+                            suggestedText: suggestion.suggestedText,
+                            explanation: suggestion.explanation,
+                            confidence: suggestion.confidence,
+                            style: suggestion.style,
+                            diff: suggestion.diff,
+                            isReadabilitySuggestion: suggestion.isReadabilitySuggestion,
+                            readabilityScore: suggestion.readabilityScore,
+                            targetAudience: suggestion.targetAudience
+                        )
+                    }
+                    // If replacement happened within this suggestion's span, invalidate it
+                    // (the text it refers to has changed)
+                    else if suggestion.originalStart < error.end,
+                            suggestion.originalEnd > error.start
+                    {
+                        Logger.debug("removeErrorAndUpdateUI: Invalidating style suggestion at \(suggestion.originalStart)-\(suggestion.originalEnd) (overlaps with replacement)", category: Logger.analysis)
+                        return nil
+                    }
+                    return suggestion
+                }
+                Logger.debug("removeErrorAndUpdateUI: Adjusted style suggestions (\(beforeCount) -> \(currentStyleSuggestions.count))", category: Logger.analysis)
+
+                // CRITICAL: After adjusting, validate that remaining suggestions' originalText
+                // still exists in the document. A grammar fix might change text that's part
+                // of a style suggestion's span (e.g., fixing "brwon" in "The quick brwon fox")
+                if let element = textMonitor.monitoredElement {
+                    var textRef: CFTypeRef?
+                    if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef) == .success,
+                       let currentText = textRef as? String
+                    {
+                        let beforeValidation = currentStyleSuggestions.count
+                        currentStyleSuggestions.removeAll { suggestion in
+                            let textExists = currentText.contains(suggestion.originalText)
+                            if !textExists {
+                                Logger.debug("removeErrorAndUpdateUI: Invalidating style suggestion - originalText '\(suggestion.originalText.prefix(30))...' no longer in document", category: Logger.analysis)
+                            }
+                            return !textExists
+                        }
+                        let removedByValidation = beforeValidation - currentStyleSuggestions.count
+                        if removedByValidation > 0 {
+                            Logger.debug("removeErrorAndUpdateUI: Removed \(removedByValidation) stale style suggestions after grammar fix", category: Logger.analysis)
+                            // Update popover immediately so it doesn't show stale suggestions
+                            suggestionPopover.allStyleSuggestions = currentStyleSuggestions
+                        }
+                    }
+                }
+            }
         }
 
         // Don't hide the popover here - let it manage its own visibility
@@ -464,19 +528,13 @@ extension AnalysisCoordinator {
         defer { isApplyingReplacement = false }
 
         // Notify unified SuggestionTracker that this suggestion was accepted
-        // Will be the primary mechanism after migration
+        // This tracks the accepted text to prevent re-suggestion and suppresses
+        // auto style analysis until the user makes a genuine edit
         suggestionTracker.markSuggestionAccepted(
             originalText: suggestion.originalText,
             newText: suggestion.suggestedText,
             isReadability: suggestion.isReadabilitySuggestion
         )
-
-        // Suppress auto style analysis until user makes a genuine edit
-        // This prevents the "endless suggestion loop" where applying a suggestion
-        // triggers re-analysis that finds new suggestions
-        // Note: Legacy flag - to be removed once SuggestionTracker is fully integrated
-        styleAnalysisSuppressedUntilUserEdit = true
-        Logger.debug("Style replacement: Suppressing auto style analysis until user edit", category: Logger.llm)
 
         // Check app behavior for replacement strategy
         let appBehavior: AppBehavior? = monitoredContext.map { AppBehaviorRegistry.shared.behavior(for: $0.bundleIdentifier) }
@@ -1005,41 +1063,9 @@ extension AnalysisCoordinator {
 
     /// Remove an applied style suggestion from tracking and update UI
     func removeSuggestionFromTracking(_ suggestion: StyleSuggestionModel) {
-        // Notify unified SuggestionTracker (will be the primary mechanism after migration)
+        // Notify unified SuggestionTracker that this suggestion was dismissed/handled
+        // This adds to dismissed set and suppresses auto analysis until user edit
         suggestionTracker.markSuggestionDismissed(originalText: suggestion.originalText)
-
-        // Suppress auto style analysis until user makes a genuine edit
-        // This prevents the "endless suggestion loop" where accepting/rejecting suggestions
-        // triggers re-analysis that finds new suggestions
-        // Note: Legacy flag - to be removed once SuggestionTracker is fully integrated
-        styleAnalysisSuppressedUntilUserEdit = true
-        Logger.debug("Style suggestion dismissed: Suppressing auto style analysis until user edit", category: Logger.llm)
-
-        // Track this suggestion as dismissed so it won't reappear after re-analysis
-        // Note: Legacy tracking - to be removed once SuggestionTracker is fully integrated
-        dismissedStyleSuggestionHashes.insert(suggestion.originalText.hashValue)
-
-        // For readability suggestions, track the NEW (simplified) text in a separate set.
-        // This is used to filter complexSentences when drawing underlines, preventing
-        // re-flagging of text that the user just accepted as the simplification.
-        // We use a separate set because dismissedStyleSuggestionHashes filters by originalText,
-        // but for re-analysis, the NEW text becomes the new "originalText" of detected sentences.
-        //
-        // CRITICAL: The LLM may return multiple sentences in the simplified text, but
-        // NLTokenizer (used by ReadabilityCalculator) will detect them as separate sentences.
-        // We must split the LLM text into individual sentences using the SAME method that
-        // will later detect them, and store a hash for EACH sentence.
-        if suggestion.isReadabilitySuggestion {
-            let sentences = ReadabilityCalculator.shared.splitIntoSentences(suggestion.suggestedText)
-            for (sentenceText, _) in sentences {
-                dismissedReadabilitySentenceHashes.insert(sentenceText.hashValue)
-                Logger.debug("Readability dismiss hash stored: \(sentenceText.hashValue), text=«\(sentenceText)»", category: Logger.analysis)
-            }
-            // Also store hash of the full text in case it matches as one sentence
-            let fullNormalized = suggestion.suggestedText.trimmingCharacters(in: .whitespacesAndNewlines)
-            dismissedReadabilitySentenceHashes.insert(fullNormalized.hashValue)
-            Logger.debug("Readability dismiss hash stored (full): \(fullNormalized.hashValue), text=«\(fullNormalized)»", category: Logger.analysis)
-        }
 
         // If this is a readability suggestion, remove the corresponding underline via state manager
         // and update the analysis data to prevent stale underlines from being redrawn

@@ -295,8 +295,22 @@ extension AnalysisCoordinator {
         // Note: Cache is keyed by analyzed text, but we also need full text to match for validity
         let cacheKey = computeStyleCacheKey(text: text)
         if let cached = styleCache[cacheKey], fullText == styleAnalysisSourceText {
-            // Filter out suggestions that were already accepted/rejected
-            var filteredCached = cached.filter { !dismissedStyleSuggestionHashes.contains($0.originalText.hashValue) }
+            // Get style sensitivity from user preferences
+            let sensitivityName = userPreferences.styleSensitivity
+            let sensitivity = StyleSensitivity(rawValue: sensitivityName) ?? .balanced
+
+            // Filter using SuggestionTracker (unified loop prevention)
+            // Manual style check shows all suggestions that pass basic filters
+            var filteredCached = cached.filter { suggestion in
+                suggestionTracker.shouldShowStyleSuggestion(
+                    originalText: suggestion.originalText,
+                    confidence: suggestion.confidence,
+                    impact: suggestion.impact,
+                    source: "appleIntelligence",
+                    isManualCheck: true,
+                    sensitivity: sensitivity
+                )
+            }
 
             // Filter out suggestions that overlap with grammar errors (to avoid duplicating spelling/grammar fixes)
             filteredCached = filterStyleSuggestionsNotOverlappingGrammarErrors(filteredCached, grammarErrors: currentErrors)
@@ -373,8 +387,22 @@ extension AnalysisCoordinator {
 
                 let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
 
-                // Filter out suggestions that were already accepted/rejected
-                var filteredSuggestions = suggestions.filter { !self.dismissedStyleSuggestionHashes.contains($0.originalText.hashValue) }
+                // Get style sensitivity from user preferences
+                let sensitivityName = self.userPreferences.styleSensitivity
+                let sensitivity = StyleSensitivity(rawValue: sensitivityName) ?? .balanced
+
+                // Filter using SuggestionTracker (unified loop prevention)
+                // Manual style check shows all suggestions that pass basic filters
+                var filteredSuggestions = suggestions.filter { suggestion in
+                    self.suggestionTracker.shouldShowStyleSuggestion(
+                        originalText: suggestion.originalText,
+                        confidence: suggestion.confidence,
+                        impact: suggestion.impact,
+                        source: "appleIntelligence",
+                        isManualCheck: true,
+                        sensitivity: sensitivity
+                    )
+                }
 
                 // Filter out suggestions that overlap with grammar errors (to avoid duplicating spelling/grammar fixes)
                 let beforeGrammarFilter = filteredSuggestions.count

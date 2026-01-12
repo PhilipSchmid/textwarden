@@ -377,14 +377,8 @@ extension AnalysisCoordinator {
         // Guard: Don't run if suppressed (user just acted on style suggestions)
         // This prevents the "endless suggestion loop" where applying a suggestion
         // triggers re-analysis that finds new suggestions
-        // Note: Using unified SuggestionTracker (will remove legacy flag in future commit)
         guard suggestionTracker.shouldRunAutoStyleAnalysis() else {
-            Logger.debug("Auto style check: Skipping - suppressed until user edit (SuggestionTracker)", category: Logger.llm)
-            return
-        }
-        // Legacy suppression check (to be removed once SuggestionTracker is fully integrated)
-        guard !styleAnalysisSuppressedUntilUserEdit else {
-            Logger.debug("Auto style check: Skipping - suppressed until user edit (legacy)", category: Logger.llm)
+            Logger.debug("Auto style check: Skipping - suppressed until user edit", category: Logger.llm)
             return
         }
 
@@ -453,7 +447,22 @@ extension AnalysisCoordinator {
         // Check cache first
         let cacheKey = computeStyleCacheKey(text: text)
         if let cached = styleCache[cacheKey], text == styleAnalysisSourceText {
-            var filteredCached = cached.filter { !dismissedStyleSuggestionHashes.contains($0.originalText.hashValue) }
+            // Get style sensitivity from user preferences
+            let sensitivityName = userPreferences.styleSensitivity
+            let sensitivity = StyleSensitivity(rawValue: sensitivityName) ?? .balanced
+
+            // Filter using SuggestionTracker (unified loop prevention)
+            // Auto style check applies impact filtering (unlike manual check)
+            var filteredCached = cached.filter { suggestion in
+                suggestionTracker.shouldShowStyleSuggestion(
+                    originalText: suggestion.originalText,
+                    confidence: suggestion.confidence,
+                    impact: suggestion.impact,
+                    source: "appleIntelligence",
+                    isManualCheck: false,  // Auto check applies stricter filtering
+                    sensitivity: sensitivity
+                )
+            }
             filteredCached = filterStyleSuggestionsNotOverlappingGrammarErrors(filteredCached, grammarErrors: currentErrors)
 
             Logger.debug("Auto style check: Cache hit, \(filteredCached.count) suggestion(s)", category: Logger.llm)
@@ -477,6 +486,10 @@ extension AnalysisCoordinator {
         styleAnalysisGeneration &+= 1
         let capturedGeneration = styleAnalysisGeneration
 
+        // Capture style sensitivity for filtering inside Task
+        let sensitivityName = userPreferences.styleSensitivity
+        let capturedSensitivity = StyleSensitivity(rawValue: sensitivityName) ?? .balanced
+
         // Capture readability settings
         let readabilityEnabled = userPreferences.readabilityEnabled
         let targetAudienceName = userPreferences.selectedTargetAudience
@@ -495,8 +508,18 @@ extension AnalysisCoordinator {
                         return
                     }
 
-                    // Filter suggestions
-                    var filtered = suggestions.filter { !self.dismissedStyleSuggestionHashes.contains($0.originalText.hashValue) }
+                    // Filter using SuggestionTracker (unified loop prevention)
+                    // Auto style check applies impact filtering (unlike manual check)
+                    var filtered = suggestions.filter { suggestion in
+                        self.suggestionTracker.shouldShowStyleSuggestion(
+                            originalText: suggestion.originalText,
+                            confidence: suggestion.confidence,
+                            impact: suggestion.impact,
+                            source: "appleIntelligence",
+                            isManualCheck: false,  // Auto check applies stricter filtering
+                            sensitivity: capturedSensitivity
+                        )
+                    }
                     filtered = self.filterStyleSuggestionsNotOverlappingGrammarErrors(filtered, grammarErrors: self.currentErrors)
 
                     // Update state with style suggestions

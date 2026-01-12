@@ -250,17 +250,6 @@ class AnalysisCoordinator: ObservableObject {
     /// Used to invalidate suggestions when the underlying text changes
     var styleAnalysisSourceText: String = ""
 
-    /// Tracks dismissed (accepted or rejected) style suggestions by original text hash
-    /// Prevents the same suggestion from reappearing after re-analysis
-    var dismissedStyleSuggestionHashes: Set<Int> = []
-
-    /// Tracks readability sentences that were just simplified.
-    /// Contains hashes of the NEW (simplified) text to prevent re-flagging:
-    /// When a readability suggestion is applied, the new text might still be detected
-    /// as "complex" by re-analysis. This set ensures we don't draw underlines for
-    /// text that the user just accepted as the simplification.
-    var dismissedReadabilitySentenceHashes: Set<Int> = []
-
     /// Last time auto style check was triggered (for rate limiting)
     var lastAutoStyleCheckTime: Date?
 
@@ -269,13 +258,6 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Whether an auto style check is currently in progress
     var isAutoStyleCheckInProgress: Bool = false
-
-    /// Suppresses auto style analysis until user makes a genuine text edit.
-    /// Set to true when user accepts/rejects a style suggestion to prevent
-    /// the "endless suggestion loop" where applying a suggestion triggers
-    /// re-analysis that finds new suggestions. Reset to false when user
-    /// types new text (not as a result of applying a suggestion).
-    var styleAnalysisSuppressedUntilUserEdit: Bool = false
 
     /// Minimum interval between auto style checks (seconds)
     let autoStyleCheckMinInterval: TimeInterval = 30.0
@@ -1578,12 +1560,6 @@ class AnalysisCoordinator: ObservableObject {
         if !isManualStyleCheckActive {
             currentStyleSuggestions = [] // Clear style suggestions
             suggestionTracker.resetDismissed() // Reset tracker dismissed state for new context
-            dismissedStyleSuggestionHashes.removeAll() // Reset dismissed tracking for new context (legacy)
-            styleAnalysisSuppressedUntilUserEdit = false // Re-enable auto style analysis for new context (legacy)
-            // NOTE: Do NOT clear dismissedReadabilitySentenceHashes here.
-            // These hashes are content-based (hash of the simplified sentence text), so they
-            // should persist across app switches. When user returns to the same text field,
-            // the same sentences will be detected and properly filtered out.
             styleDebounceTimer?.invalidate() // Cancel pending style analysis
             styleDebounceTimer = nil
             styleAnalysisGeneration &+= 1 // Invalidate any in-flight analysis
@@ -1806,12 +1782,6 @@ class AnalysisCoordinator: ObservableObject {
         if text != previousText, !isApplyingReplacement, !isInReplacementGracePeriod {
             // Notify unified SuggestionTracker of genuine user edit
             suggestionTracker.notifyTextChanged(isGenuineEdit: true)
-
-            // Legacy flag reset - to be removed once SuggestionTracker is fully integrated
-            if styleAnalysisSuppressedUntilUserEdit {
-                Logger.debug("AnalysisCoordinator: User edit detected - re-enabling auto style analysis", category: Logger.llm)
-                styleAnalysisSuppressedUntilUserEdit = false
-            }
         }
 
         invalidateCachesForTextChange(
@@ -2594,17 +2564,10 @@ class AnalysisCoordinator: ObservableObject {
                 // Filter out sentences that were just simplified to prevent re-flagging.
                 // When user applies a readability fix, the new text might still be detected
                 // as "complex" by re-analysis, but we don't want to underline it again.
-                Logger.debug("Readability filter [no-errors]: \(analysis.complexSentences.count) sentences, \(dismissedReadabilitySentenceHashes.count) dismissed hashes", category: Logger.analysis)
+                // Use SuggestionTracker to filter out dismissed/simplified sentences.
+                Logger.debug("Readability filter [no-errors]: \(analysis.complexSentences.count) sentences", category: Logger.analysis)
                 let filteredSentences = analysis.complexSentences.filter { sentence in
-                    let hash = sentence.sentence.hashValue
-                    let isDismissed = dismissedReadabilitySentenceHashes.contains(hash)
-                    if isDismissed {
-                        Logger.debug("Readability hash match [no-errors]: hash=\(hash)", category: Logger.analysis)
-                    } else if !dismissedReadabilitySentenceHashes.isEmpty {
-                        // Full sentence text logged at debug level for troubleshooting hash mismatches
-                        Logger.debug("Readability hash miss [no-errors]: hash=\(hash), text=«\(sentence.sentence)»", category: Logger.analysis)
-                    }
-                    return !isDismissed
+                    suggestionTracker.shouldShowReadabilitySuggestion(sentenceText: sentence.sentence)
                 }
                 Logger.debug("Readability filter result [no-errors]: \(filteredSentences.count) sentences remain", category: Logger.analysis)
 
@@ -2682,17 +2645,10 @@ class AnalysisCoordinator: ObservableObject {
                 // Filter out sentences that were just simplified to prevent re-flagging.
                 // When user applies a readability fix, the new text might still be detected
                 // as "complex" by re-analysis, but we don't want to underline it again.
-                Logger.debug("Readability filter: \(analysis.complexSentences.count) sentences, \(dismissedReadabilitySentenceHashes.count) dismissed hashes", category: Logger.analysis)
+                // Use SuggestionTracker to filter out dismissed/simplified sentences.
+                Logger.debug("Readability filter: \(analysis.complexSentences.count) sentences", category: Logger.analysis)
                 let filteredSentences = analysis.complexSentences.filter { sentence in
-                    let hash = sentence.sentence.hashValue
-                    let isDismissed = dismissedReadabilitySentenceHashes.contains(hash)
-                    if isDismissed {
-                        Logger.debug("Readability hash match: hash=\(hash)", category: Logger.analysis)
-                    } else if !dismissedReadabilitySentenceHashes.isEmpty {
-                        // Full sentence text logged at debug level for troubleshooting hash mismatches
-                        Logger.debug("Readability hash miss: hash=\(hash), text=«\(sentence.sentence)»", category: Logger.analysis)
-                    }
-                    return !isDismissed
+                    suggestionTracker.shouldShowReadabilitySuggestion(sentenceText: sentence.sentence)
                 }
                 Logger.debug("Readability filter result: \(filteredSentences.count) sentences remain", category: Logger.analysis)
 

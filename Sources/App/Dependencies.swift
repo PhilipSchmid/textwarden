@@ -85,6 +85,7 @@ protocol UserPreferencesProviding: AnyObject {
     var styleConfidenceThreshold: Double { get }
     var styleMinSentenceWords: Int { get }
     var styleTemperaturePreset: String { get }
+    var styleSensitivity: String { get }
 
     // Readability settings
     var readabilityEnabled: Bool { get }
