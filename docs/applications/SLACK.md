@@ -244,6 +244,7 @@ Slack uses the `SlackBehavior` specification for overlay behavior:
 | Popover hover delay | 0.3s |
 | Popover auto-hide | 3.0s |
 | Hide on scroll | No (unreliable scroll events) |
+| Frame validation | Yes (edit modal scrolls with message history) |
 | Analysis debounce | 1.0s |
 | Line height compensation | +2.0pt |
 | UTF-16 text indices | Yes |
@@ -398,6 +399,21 @@ TextMonitor now checks if there's a **new editable element** when about to prese
 3. If a new AXTextArea is found that's different from the monitored element, switch to it
 
 This ensures immediate detection of the Edit modal without requiring the user to defocus/refocus Slack.
+
+### Scroll Handling in Edit Modal
+
+When editing a previously sent message, the Edit modal is part of the message history view and scrolls along with the message list. This differs from the compose area at the bottom of the screen, which stays fixed.
+
+**Challenge:** Slack has unreliable scroll wheel events (`hideOnScrollStart: false`), so TextWarden cannot use the standard scroll detection mechanism. When the user scrolls the message history while editing, the Edit modal moves but underlines would stay at their old positions.
+
+**Solution:** TextWarden enables periodic frame validation for Slack (`requiresFrameValidation: true`). This polls the element's frame position every 200ms and:
+
+1. Detects when the element frame has moved (threshold: 3+ pixels)
+2. Hides underlines immediately when movement is detected
+3. Waits for the frame to stabilize (400ms of no movement)
+4. Redraws underlines at the new position via `onFrameStabilized` callback
+
+This ensures underlines stay correctly positioned even when the Edit modal scrolls with the message history.
 
 ## References
 

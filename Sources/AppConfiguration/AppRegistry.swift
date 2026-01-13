@@ -136,7 +136,7 @@ extension AppConfiguration {
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: true, // Electron byte offsets are fragile
             defersTextExtraction: false,
-            requiresFrameValidation: false,
+            requiresFrameValidation: true, // Edit modal scrolls with message history
             hasTextMarkerIndexOffset: false
         )
     )
