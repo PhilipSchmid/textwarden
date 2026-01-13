@@ -219,6 +219,21 @@ Format-preserving replacement gracefully degrades:
 
 Plain text replacement works correctly but formatting is lost for the replaced word only. The rest of the message retains formatting since we use partial selection.
 
+### Copy-to-Clipboard Fallback for Mentions
+
+When text contains **mentions** (`@user`) or **channel links** (`#channel`), automatic text replacement is unreliable. This is because mentions/links only exist at the root AX element level (depth=0) and not in child elements, making precise selection impossible without risking document corruption.
+
+**Detection:** TextWarden checks if the target text only exists at the root element before attempting selection. If so, it triggers the copy fallback.
+
+**User Experience:**
+1. Style popover shows a warning: "Auto-replace unavailable for text with mentions"
+2. "Accept" button changes to "Copy" button
+3. A "Skip" button appears to dismiss without action
+4. User clicks "Copy" to copy the suggestion to clipboard
+5. User manually pastes (Cmd+V) to replace the text
+
+This ensures users can still apply suggestions without risking corruption of mention/link formatting.
+
 ## Behavior Configuration
 
 Slack uses the `SlackBehavior` specification for overlay behavior:
@@ -359,6 +374,30 @@ Emojis in Slack are rendered as `[AXImage]` elements. The positioning strategy h
 - TextPart mapping naturally excludes non-text elements
 - Bounds queries on text runs return accurate positions regardless of surrounding emojis
 - Visual underlines remain accurate in text containing emojis
+
+## Edit Modal Detection
+
+When editing an existing message in Slack (via the "Edit message" menu), a new AXTextArea appears in the Edit modal. TextWarden automatically detects this transition.
+
+### Technical Challenge
+
+When clicking "Edit message":
+1. Slack shows a context menu (AXMenu, AXMenuItem focus events)
+2. TextMonitor correctly ignores these transient focus events
+3. Edit modal opens with a NEW AXTextArea
+4. BUT: System reports focus as AXWindow/AXWebArea, not the actual AXTextArea
+
+Previously, TextWarden would preserve monitoring on the old compose area (still valid) and miss the new Edit AXTextArea.
+
+### Solution
+
+TextMonitor now checks if there's a **new editable element** when about to preserve an existing one:
+
+1. Query the actual system-focused element via `AXFocusedUIElement`
+2. If it's a container (AXWebArea), search its children for editable elements
+3. If a new AXTextArea is found that's different from the monitored element, switch to it
+
+This ensures immediate detection of the Edit modal without requiring the user to defocus/refocus Slack.
 
 ## References
 
