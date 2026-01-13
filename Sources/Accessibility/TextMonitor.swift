@@ -607,6 +607,8 @@ class TextMonitor: ObservableObject {
             // they fire briefly when clicking in the compose field before focus settles.
             // Preserve existing editable element monitoring instead of clearing,
             // but only if the element still has a valid accessible frame.
+            // HOWEVER: Check if there's a NEW editable element (e.g., Edit modal in Slack)
+            // that should take over monitoring.
             if roleString == "AXWindow",
                let bundleID = currentContext?.bundleIdentifier,
                AppBehaviorRegistry.shared.behavior(for: bundleID).knownQuirks.contains(.webBasedRendering),
@@ -614,6 +616,12 @@ class TextMonitor: ObservableObject {
                isEditableElement(existingElement),
                hasValidAccessibleFrame(existingElement)
             {
+                // Check if there's a new editable element that should take over
+                if let newElement = findNewEditableElement(replacing: existingElement) {
+                    Logger.debug("TextMonitor: Found new editable element during AXWindow focus - switching to it", category: Logger.accessibility)
+                    monitorElement(newElement, retryAttempt: 0)
+                    return
+                }
                 Logger.debug("TextMonitor: Ignoring AXWindow focus in web-based app - preserving existing editable element", category: Logger.accessibility)
                 return
             }
@@ -663,12 +671,20 @@ class TextMonitor: ObservableObject {
                 // This prevents the issue where hovering over or clicking sidebar elements
                 // fires focus notifications that would otherwise hide overlays.
                 // Only preserve if the element still has a valid accessible frame (not hidden/destroyed).
+                // HOWEVER: Check if there's a NEW editable element (e.g., Edit modal in Slack)
+                // that should take over monitoring.
                 if let bundleID = currentContext?.bundleIdentifier,
                    AppBehaviorRegistry.shared.behavior(for: bundleID).knownQuirks.contains(.webBasedRendering),
                    let existingElement = monitoredElement,
                    isEditableElement(existingElement),
                    hasValidAccessibleFrame(existingElement)
                 {
+                    // Check if there's a new editable element that should take over
+                    if let newElement = findNewEditableElement(replacing: existingElement) {
+                        Logger.debug("TextMonitor: Found new editable element during \(roleString) focus - switching to it", category: Logger.accessibility)
+                        monitorElement(newElement, retryAttempt: 0)
+                        return
+                    }
                     Logger.debug("TextMonitor: Ignoring \(roleString) focus in web-based app - preserving existing editable element", category: Logger.accessibility)
                     return
                 }
@@ -1021,6 +1037,49 @@ private func axObserverCallback(
 // MARK: - Element Discovery
 
 extension TextMonitor {
+    /// Check if there's a new editable element that should take over monitoring.
+    /// This is important for Slack's Edit modal which opens with a new AXTextArea,
+    /// but the system may report AXWindow/AXWebArea as focused instead.
+    /// Returns the new editable element if found, nil otherwise.
+    private func findNewEditableElement(replacing existingElement: AXUIElement) -> AXUIElement? {
+        guard let context = currentContext else { return nil }
+
+        let appElement = AXUIElementCreateApplication(context.processID)
+        let bundleID = context.bundleIdentifier
+
+        // First, try the system's actual focused element
+        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXFocusedUIElement")
+        var focusedRef: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(
+            appElement,
+            kAXFocusedUIElementAttribute as CFString,
+            &focusedRef
+        )
+        AXWatchdog.shared.endCall()
+
+        if result == .success, let focused = focusedRef {
+            let focusedElement = unsafeBitCast(focused, to: AXUIElement.self)
+
+            // Check if this focused element is editable and different from existing
+            if isEditableElement(focusedElement),
+               !CFEqual(focusedElement, existingElement) {
+                Logger.debug("TextMonitor: Found new editable element via AXFocusedUIElement", category: Logger.accessibility)
+                return focusedElement
+            }
+
+            // The focused element might be a container (AXWebArea) - search for editable children
+            var elementsChecked = 0
+            if let editableChild = findEditableChild(in: focusedElement, maxDepth: 3, elementsChecked: &elementsChecked) {
+                if !CFEqual(editableChild, existingElement) {
+                    Logger.debug("TextMonitor: Found new editable element in focused container (checked \(elementsChecked) elements)", category: Logger.accessibility)
+                    return editableChild
+                }
+            }
+        }
+
+        return nil
+    }
+
     /// Search for editable field from main window
     /// This is more reliable than AXFocusedUIElement for Electron apps
     private func findEditableInMainWindow(_ appElement: AXUIElement) -> AXUIElement? {
