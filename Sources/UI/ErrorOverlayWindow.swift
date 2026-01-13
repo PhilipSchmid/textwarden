@@ -2381,27 +2381,6 @@ class UnderlineView: NSView {
             drawHighlight(in: context, bounds: hovered.drawingBounds, color: StyleUnderline.color)
         }
 
-        // Draw each grammar error underline (solid line)
-        // For multi-line underlines, draw underlines for each line
-        for (underlineIdx, underline) in underlines.enumerated() {
-            Logger.debug("Draw: Underline \(underlineIdx) has \(underline.allDrawingBounds.count) line bounds", category: Logger.ui)
-            for (lineIdx, lineBounds) in underline.allDrawingBounds.enumerated() {
-                Logger.debug("Draw: Drawing line \(lineIdx) at bounds \(lineBounds)", category: Logger.ui)
-                drawWavyUnderline(in: context, bounds: lineBounds, color: underline.color)
-
-                // Draw orange marker at underline START position for coordinate debugging
-                if UserPreferences.shared.showDebugCharacterMarkers {
-                    context.setFillColor(NSColor.systemOrange.cgColor)
-                    context.fill(CGRect(x: lineBounds.minX, y: lineBounds.minY, width: 6, height: 6))
-                }
-            }
-        }
-
-        // Draw each style suggestion underline (dotted purple line)
-        for styleUnderline in styleUnderlines {
-            drawDottedUnderline(in: context, bounds: styleUnderline.drawingBounds, color: StyleUnderline.color)
-        }
-
         // Draw highlight for hovered readability underline
         // For segmented underlines, only highlight the visible segments (first + last words)
         // not the entire sentence which would span multiple lines
@@ -2431,6 +2410,12 @@ class UnderlineView: NSView {
                 drawHighlight(in: context, bounds: lineBounds, color: ReadabilityUnderline.color)
             }
         }
+
+        // === UNDERLINE DRAW ORDER ===
+        // Draw in this order so grammar errors (most actionable) are always visible on top:
+        // 1. Readability underlines (bottom) - informational, less urgent
+        // 2. Style underlines (middle) - currently unused
+        // 3. Grammar underlines (top) - spelling/grammar errors, most actionable
 
         // Draw each readability underline (dashed violet line for complex sentences)
         Logger.trace("UnderlineView: Drawing \(readabilityUnderlines.count) readability underlines", category: Logger.ui)
@@ -2482,6 +2467,27 @@ class UnderlineView: NSView {
                 for lineBounds in readabilityUnderline.allDrawingBounds {
                     Logger.debug("UnderlineView: Drawing readability line at bounds: \(lineBounds)", category: Logger.ui)
                     drawDashedUnderline(in: context, bounds: lineBounds, color: ReadabilityUnderline.color)
+                }
+            }
+        }
+
+        // Draw each style suggestion underline (dotted purple line)
+        for styleUnderline in styleUnderlines {
+            drawDottedUnderline(in: context, bounds: styleUnderline.drawingBounds, color: StyleUnderline.color)
+        }
+
+        // Draw each grammar error underline (solid wavy line) - ON TOP so always visible
+        // For multi-line underlines, draw underlines for each line
+        for (underlineIdx, underline) in underlines.enumerated() {
+            Logger.debug("Draw: Underline \(underlineIdx) has \(underline.allDrawingBounds.count) line bounds", category: Logger.ui)
+            for (lineIdx, lineBounds) in underline.allDrawingBounds.enumerated() {
+                Logger.debug("Draw: Drawing line \(lineIdx) at bounds \(lineBounds)", category: Logger.ui)
+                drawWavyUnderline(in: context, bounds: lineBounds, color: underline.color)
+
+                // Draw orange marker at underline START position for coordinate debugging
+                if UserPreferences.shared.showDebugCharacterMarkers {
+                    context.setFillColor(NSColor.systemOrange.cgColor)
+                    context.fill(CGRect(x: lineBounds.minX, y: lineBounds.minY, width: 6, height: 6))
                 }
             }
         }
