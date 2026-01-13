@@ -111,6 +111,13 @@ class SuggestionPopover: NSObject, ObservableObject {
     /// Timer for auto-hiding status message
     private var statusMessageTimer: Timer?
 
+    /// When true, shows a "copy to clipboard" fallback UI instead of the normal suggestion view
+    /// Used when automatic replacement isn't possible (e.g., text with mentions in Slack)
+    @Published var showingCopyFallback: Bool = false
+
+    /// The text to copy when user clicks the copy button in fallback mode
+    @Published var copyFallbackText: String?
+
     /// All unified items (grammar errors + style suggestions) sorted by position
     var unifiedItems: [PopoverItem] {
         var items: [PopoverItem] = []
@@ -139,6 +146,9 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     /// Callback for regenerating style suggestion (to get alternative)
     var onRegenerateStyleSuggestion: ((StyleSuggestionModel) async -> StyleSuggestionModel?)?
+
+    /// Callback for when copy fallback is performed or cancelled (to remove from tracking)
+    var onCopyFallbackComplete: ((StyleSuggestionModel) -> Void)?
 
     /// Flag indicating style suggestion is being regenerated
     @Published var isRegenerating: Bool = false
@@ -822,6 +832,57 @@ class SuggestionPopover: NSObject, ObservableObject {
         }
     }
 
+    /// Show copy-to-clipboard fallback UI when automatic replacement isn't possible
+    /// - Parameter textToCopy: The suggested text that should be copied to clipboard
+    func showCopyFallback(textToCopy: String) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+
+            Logger.info("Popover: Showing copy fallback - automatic replacement not possible", category: Logger.ui)
+            self.copyFallbackText = textToCopy
+            self.showingCopyFallback = true
+            self.rebuildContentView()
+        }
+    }
+
+    /// Copy the fallback text to clipboard and move to next suggestion
+    func performCopyFallback() {
+        guard let text = copyFallbackText else { return }
+        let suggestion = currentStyleSuggestion
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+
+        Logger.info("Popover: Copied text to clipboard (\(text.count) chars)", category: Logger.ui)
+
+        // Reset fallback state
+        showingCopyFallback = false
+        copyFallbackText = nil
+
+        // Notify coordinator to remove from tracking
+        if let suggestion {
+            onCopyFallbackComplete?(suggestion)
+        }
+
+        moveToNextStyleSuggestion()
+    }
+
+    /// Cancel the copy fallback and move to next suggestion without copying
+    func cancelCopyFallback() {
+        let suggestion = currentStyleSuggestion
+
+        showingCopyFallback = false
+        copyFallbackText = nil
+
+        // Notify coordinator to remove from tracking
+        if let suggestion {
+            onCopyFallbackComplete?(suggestion)
+        }
+
+        moveToNextStyleSuggestion()
+    }
+
     // MARK: - Error Synchronization
 
     /// Synchronize the popover's error and style suggestion lists with the canonical lists from the coordinator.
@@ -1054,6 +1115,8 @@ class SuggestionPopover: NSObject, ObservableObject {
     // MARK: - Style Suggestion Actions
 
     /// Accept current style suggestion
+    /// Note: Does NOT automatically move to next - the replacement code will call
+    /// moveToNextStyleSuggestion() on success or showCopyFallback() if automatic replacement isn't possible
     func acceptStyleSuggestion() {
         Logger.debug("Style popover: Accept clicked", category: Logger.ui)
         guard let suggestion = currentStyleSuggestion else { return }
@@ -1061,8 +1124,8 @@ class SuggestionPopover: NSObject, ObservableObject {
         onAcceptStyleSuggestion?(suggestion)
         UserStatistics.shared.recordStyleAcceptance()
 
-        // Move to next suggestion or hide
-        moveToNextStyleSuggestion()
+        // Don't automatically move to next - let the replacement code control the flow
+        // It will call moveToNextStyleSuggestion() on success or showCopyFallback() on failure
     }
 
     /// Reject current style suggestion with category
@@ -1164,7 +1227,7 @@ class SuggestionPopover: NSObject, ObservableObject {
     }
 
     /// Move to next style suggestion after accept/reject
-    private func moveToNextStyleSuggestion() {
+    func moveToNextStyleSuggestion() {
         guard let current = currentStyleSuggestion else {
             hide()
             return
@@ -1917,74 +1980,132 @@ struct StylePopoverContentView: View {
                 .padding(.horizontal, 14)
                 .padding(.bottom, 10)
 
+                // Warning banner when automatic replacement isn't possible
+                if popover.showingCopyFallback {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                            .font(.system(size: baseTextSize * 0.9))
+
+                        Text("Auto-replace unavailable for text with mentions. Copy and paste manually.")
+                            .font(.system(size: baseTextSize * 0.8))
+                            .foregroundColor(colors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.orange.opacity(0.1))
+                }
+
                 // Bottom action bar (Tahoe style with rounded bottom corners)
                 // Hidden in info-only mode and loading mode (no suggestion to accept/reject yet)
                 if !isInfoOnlyMode, !isLoadingSimplification {
                     HStack(spacing: 8) {
-                        // Accept button - subtle style with accent color (purple for style, violet for readability)
-                        Button(action: { popover.acceptStyleSuggestion() }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 11, weight: .semibold))
-                                Text("Accept")
-                                    .font(.system(size: baseTextSize * 0.9, weight: .medium))
-                            }
-                            .foregroundColor(accentColor)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(accentColor.opacity(0.12))
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .fixedSize()
-                        .help("Accept this suggestion")
-                        .accessibilityLabel("Accept suggestion")
-
-                        // Reject menu - subtle style
-                        Menu {
-                            ForEach(SuggestionRejectionCategory.allCases, id: \.self) { category in
-                                Button(category.displayName) {
-                                    popover.rejectStyleSuggestion(category: category)
+                        if popover.showingCopyFallback {
+                            // Copy button when auto-replace isn't available
+                            Button(action: { popover.performCopyFallback() }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "doc.on.doc")
+                                        .font(.system(size: 11, weight: .semibold))
+                                    Text("Copy")
+                                        .font(.system(size: baseTextSize * 0.9, weight: .medium))
                                 }
+                                .foregroundColor(accentColor)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(accentColor.opacity(0.12))
+                                )
                             }
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 11, weight: .medium))
-                                Text("Reject")
-                                    .font(.system(size: baseTextSize * 0.9, weight: .medium))
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 8, weight: .semibold))
-                            }
-                            .foregroundColor(colors.textSecondary)
-                        }
-                        .menuStyle(.borderlessButton)
-                        .fixedSize()
-                        .accessibilityLabel("Reject suggestion")
+                            .buttonStyle(.plain)
+                            .fixedSize()
+                            .help("Copy suggestion to clipboard")
+                            .accessibilityLabel("Copy to clipboard")
 
-                        // Try Another button - regenerate style suggestion
-                        Button(action: { popover.regenerateStyleSuggestion() }) {
-                            HStack(spacing: 4) {
-                                if popover.isRegenerating {
-                                    ProgressView()
-                                        .scaleEffect(0.6)
-                                        .frame(width: 11, height: 11)
-                                } else {
-                                    Image(systemName: "arrow.clockwise")
+                            // Skip button (replaces Accept since auto-replace isn't possible)
+                            Button(action: { popover.cancelCopyFallback() }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "forward")
                                         .font(.system(size: 11, weight: .medium))
+                                    Text("Skip")
+                                        .font(.system(size: baseTextSize * 0.9, weight: .medium))
                                 }
-                                Text("Retry")
-                                    .font(.system(size: baseTextSize * 0.9, weight: .medium))
+                                .foregroundColor(colors.textSecondary)
                             }
-                            .foregroundColor(colors.textSecondary)
+                            .buttonStyle(.plain)
+                            .fixedSize()
+                            .help("Skip this suggestion")
+                            .accessibilityLabel("Skip suggestion")
+                        } else {
+                            // Normal Accept button
+                            Button(action: { popover.acceptStyleSuggestion() }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 11, weight: .semibold))
+                                    Text("Accept")
+                                        .font(.system(size: baseTextSize * 0.9, weight: .medium))
+                                }
+                                .foregroundColor(accentColor)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(accentColor.opacity(0.12))
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .fixedSize()
+                            .help("Accept this suggestion")
+                            .accessibilityLabel("Accept suggestion")
                         }
-                        .buttonStyle(.plain)
-                        .fixedSize()
-                        .disabled(popover.isRegenerating)
-                        .help("Generate alternative suggestion")
-                        .accessibilityLabel("Retry suggestion")
+
+                        // Reject menu and Retry button - hidden in fallback mode since we have Skip
+                        if !popover.showingCopyFallback {
+                            Menu {
+                                ForEach(SuggestionRejectionCategory.allCases, id: \.self) { category in
+                                    Button(category.displayName) {
+                                        popover.rejectStyleSuggestion(category: category)
+                                    }
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 11, weight: .medium))
+                                    Text("Reject")
+                                        .font(.system(size: baseTextSize * 0.9, weight: .medium))
+                                    Image(systemName: "chevron.down")
+                                        .font(.system(size: 8, weight: .semibold))
+                                }
+                                .foregroundColor(colors.textSecondary)
+                            }
+                            .menuStyle(.borderlessButton)
+                            .fixedSize()
+                            .accessibilityLabel("Reject suggestion")
+
+                            // Try Another button - regenerate style suggestion
+                            Button(action: { popover.regenerateStyleSuggestion() }) {
+                                HStack(spacing: 4) {
+                                    if popover.isRegenerating {
+                                        ProgressView()
+                                            .scaleEffect(0.6)
+                                            .frame(width: 11, height: 11)
+                                    } else {
+                                        Image(systemName: "arrow.clockwise")
+                                            .font(.system(size: 11, weight: .medium))
+                                    }
+                                    Text("Retry")
+                                        .font(.system(size: baseTextSize * 0.9, weight: .medium))
+                                }
+                                .foregroundColor(colors.textSecondary)
+                            }
+                            .buttonStyle(.plain)
+                            .fixedSize()
+                            .disabled(popover.isRegenerating)
+                            .help("Generate alternative suggestion")
+                            .accessibilityLabel("Retry suggestion")
+                        }
 
                         Spacer()
 

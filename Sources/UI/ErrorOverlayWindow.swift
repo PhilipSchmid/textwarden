@@ -1456,6 +1456,9 @@ class ErrorOverlayWindow: NSPanel {
             // If scroll detected, invalidate positioning cache (bounds are now stale)
             if scrollDetected {
                 ClaudeStrategy.invalidateCache()
+                // Also clear all strategy caches (SlackStrategy, NotionStrategy, etc.)
+                // Their cached TextParts have stale AXFrame data after scroll
+                PositionResolver.shared.clearCache()
             }
 
             // IMPORTANT: Set flag BEFORE hide() so timer keeps running

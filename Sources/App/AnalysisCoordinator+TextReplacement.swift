@@ -10,6 +10,22 @@ import AppKit
 @preconcurrency import ApplicationServices
 import Foundation
 
+// MARK: - Selection Result Type
+
+/// Result of text selection for replacement
+/// Used to differentiate between different failure modes so callers can handle appropriately
+enum SelectionResult {
+    /// Selection succeeded - safe to proceed with paste
+    case success
+
+    /// Selection failed due to root-only element (text with mentions/links)
+    /// Caller should offer copy-to-clipboard as fallback
+    case failedRootOnlyUnreliable
+
+    /// Selection failed for other reasons (element not found, AX error, etc.)
+    case failed
+}
+
 // MARK: - Text Replacement
 
 extension AnalysisCoordinator {
@@ -898,6 +914,19 @@ extension AnalysisCoordinator {
                 let result = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef)
                 if result == .success, let newText = textRef as? String {
                     self?.styleAnalysisSourceText = newText
+
+                    // Store hash of the ACTUAL text at the replacement position.
+                    // This is critical because if there was a selection offset error,
+                    // the actual text differs from the intended replacement text.
+                    let replacementLength = suggestion.suggestedText.count
+                    if startIndex >= 0,
+                       let startIdx = newText.index(newText.startIndex, offsetBy: startIndex, limitedBy: newText.endIndex),
+                       let endIdx = newText.index(startIdx, offsetBy: replacementLength, limitedBy: newText.endIndex)
+                    {
+                        let actualReplacedText = String(newText[startIdx ..< endIdx])
+                        self?.suggestionTracker.addActualReplacementText(actualReplacedText)
+                        Logger.debug("Style replace: Stored actual replacement text (keyboard): '\(actualReplacedText.prefix(50))...'", category: Logger.analysis)
+                    }
                 }
             }
 
@@ -910,10 +939,55 @@ extension AnalysisCoordinator {
     func applyStyleBrowserReplacement(for suggestion: StyleSuggestionModel, element: AXUIElement, context: ApplicationContext) {
         Logger.debug("Browser style replacement for \(context.applicationName)", category: Logger.analysis)
 
+        //Log full suggestion details for debugging position drift
+        Logger.debug("Style replace: suggestion.originalStart=\(suggestion.originalStart), originalEnd=\(suggestion.originalEnd)", category: Logger.analysis)
+        Logger.debug("Style replace: originalText='\(suggestion.originalText.prefix(50))...' (\(suggestion.originalText.count) chars)", category: Logger.analysis)
+        Logger.debug("Style replace: suggestedText='\(suggestion.suggestedText.prefix(50))...' (\(suggestion.suggestedText.count) chars)", category: Logger.analysis)
+
         // Get current text to find position for readability adjustment
         var currentTextRef: CFTypeRef?
         let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
         let currentText = (textResult == .success) ? (currentTextRef as? String) : nil
+
+        //Log current text length and special character analysis
+        if let text = currentText {
+            Logger.debug("Style replace: currentText.count=\(text.count), utf16.count=\((text as NSString).length)", category: Logger.analysis)
+
+            // CRITICAL: Check if originalText even exists in current document
+            // This detects stale suggestions where the text has been modified
+            if let range = text.range(of: suggestion.originalText) {
+                let actualPosition = text.distance(from: text.startIndex, to: range.lowerBound)
+                Logger.debug("Style replace: originalText FOUND at position \(actualPosition) (suggestion says \(suggestion.originalStart))", category: Logger.analysis)
+
+                // Check if position matches what suggestion expects
+                let positionDrift = actualPosition - suggestion.originalStart
+                if positionDrift != 0 {
+                    Logger.warning("Style replace: Position drift - text moved by \(positionDrift) chars (expected \(suggestion.originalStart), actual \(actualPosition))", category: Logger.analysis)
+                    Logger.debug("Style replace: This suggests document changed since suggestion was generated", category: Logger.analysis)
+                }
+
+                // Check for grapheme/UTF-16 mismatch in the prefix before the target
+                let graphemeStart = actualPosition
+                let utf16Start = (String(text[..<range.lowerBound]) as NSString).length
+                if graphemeStart != utf16Start {
+                    Logger.warning("Style replace: Grapheme/UTF-16 mismatch - graphemeStart=\(graphemeStart) vs utf16Start=\(utf16Start) (diff: \(utf16Start - graphemeStart))", category: Logger.analysis)
+                    // Log what characters are causing the mismatch
+                    let prefix = String(text[..<range.lowerBound])
+                    for (idx, char) in prefix.enumerated() {
+                        let charUtf16Count = String(char).utf16.count
+                        if charUtf16Count > 1 {
+                            Logger.trace("Style replace: Multi-UTF16 char at grapheme \(idx): '\(char)' (UTF-16 count: \(charUtf16Count))", category: Logger.analysis)
+                        }
+                    }
+                }
+            } else {
+                // CRITICAL: The original text no longer exists in the document!
+                Logger.error("Style replace: originalText NOT FOUND in current document!", category: Logger.analysis)
+                Logger.error("Style replace: Suggestion is STALE - text was modified. This should have been caught earlier!", category: Logger.analysis)
+            }
+        } else {
+            Logger.warning("Style replace: Could not get currentText from element", category: Logger.analysis)
+        }
 
         // CRITICAL: Handle punctuation consistency to avoid double-punctuation issues
         // If original text doesn't end with punctuation but suggested text does,
@@ -950,15 +1024,34 @@ extension AnalysisCoordinator {
         let lengthDelta = suggestion.suggestedText.count - targetText.count
 
         // Select the text to replace (handles Notion child element traversal internally)
-        guard selectTextForReplacement(
+        let selectionResult = selectTextForReplacement(
             targetText: targetText,
             fallbackRange: nil, // Style suggestions use text search, not byte offsets
             element: element,
             context: context
-        ) else {
+        )
+
+        switch selectionResult {
+        case .failedRootOnlyUnreliable:
+            // Text contains mentions/links that prevent reliable automatic replacement
+            // Show copy fallback UI so user can manually copy and paste
+            Logger.info("Style replacement: Root-only selection unreliable - showing copy fallback UI", category: Logger.analysis)
+
+            // Show the copy fallback UI in the popover
+            SuggestionPopover.shared.showCopyFallback(textToCopy: suggestion.suggestedText)
+
+            // Mark as dismissed so we don't re-suggest (will be removed when user clicks copy or skip)
+            suggestionTracker.markSuggestionDismissed(originalText: suggestion.originalText)
+            return
+
+        case .failed:
             Logger.debug("Failed to select text for style replacement", category: Logger.analysis)
             removeSuggestionFromTracking(suggestion)
+            SuggestionPopover.shared.moveToNextStyleSuggestion()
             return
+
+        case .success:
+            break // Continue with paste
         }
 
         // Save original pasteboard and copy suggestion
@@ -1053,11 +1146,27 @@ extension AnalysisCoordinator {
                 let result = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef)
                 if result == .success, let newText = textRef as? String {
                     self?.styleAnalysisSourceText = newText
+
+                    // Store hash of the ACTUAL text at the replacement position.
+                    // This is critical because if there was a selection offset error,
+                    // the actual text differs from the intended replacement text.
+                    let replacementLength = suggestion.suggestedText.count
+                    if replacementStart >= 0,
+                       let startIdx = newText.index(newText.startIndex, offsetBy: replacementStart, limitedBy: newText.endIndex),
+                       let endIdx = newText.index(startIdx, offsetBy: replacementLength, limitedBy: newText.endIndex)
+                    {
+                        let actualReplacedText = String(newText[startIdx ..< endIdx])
+                        self?.suggestionTracker.addActualReplacementText(actualReplacedText)
+                        Logger.debug("Style replace: Stored actual replacement text (browser): '\(actualReplacedText.prefix(50))...'", category: Logger.analysis)
+                    }
                 }
             }
 
             // Schedule re-analysis after grace period to restore grammar underlines
             self?.schedulePostStyleReplacementAnalysis()
+
+            // Move popover to next suggestion (since we removed auto-move from acceptStyleSuggestion)
+            SuggestionPopover.shared.moveToNextStyleSuggestion()
         }
     }
 
@@ -1429,13 +1538,13 @@ extension AnalysisCoordinator {
 
     /// Select text in an AX element for replacement
     /// Handles Electron/WebKit apps using app configuration features
-    /// Returns true if selection succeeded (or was attempted), false if it failed critically
+    /// Returns SelectionResult indicating success or failure reason
     func selectTextForReplacement(
         targetText: String,
         fallbackRange: CFRange?,
         element: AXUIElement,
         context: ApplicationContext
-    ) -> Bool {
+    ) -> SelectionResult {
         // Get app configuration for feature-based decisions
         let appConfig = AppRegistry.shared.effectiveConfiguration(for: context.bundleIdentifier)
         let appName = appConfig.displayName
@@ -1452,7 +1561,7 @@ extension AnalysisCoordinator {
                 } else {
                     Logger.debug("\(appName): WebKit selection failed - paste may go to wrong location", category: Logger.analysis)
                 }
-                return true // Always try paste even if selection fails
+                return .success // Always try paste even if selection fails
             } else {
                 // Try to find the text position
                 if let currentText = extractCurrentText(from: element),
@@ -1462,10 +1571,10 @@ extension AnalysisCoordinator {
                     let nsRange = NSRange(location: start, length: targetText.count)
                     let success = MailContentParser.selectTextForReplacement(range: nsRange, in: element)
                     Logger.debug("\(appName): Text search + selection \(success ? "succeeded" : "failed")", category: Logger.analysis)
-                    return true
+                    return .success
                 }
                 Logger.debug("\(appName): Could not find text to select", category: Logger.analysis)
-                return true // Still try paste
+                return .success // Still try paste
             }
         }
 
@@ -1498,7 +1607,20 @@ extension AnalysisCoordinator {
             // Try to find child element containing the text and select within it
             // Pass the expected position for disambiguation when there are multiple occurrences
             let expectedPosition = fallbackRange?.location
-            if let (childElement, offsetInChild) = findChildElementContainingText(searchText, in: element, expectedPosition: expectedPosition) {
+            Logger.debug("Selection: Looking for '\(searchText.prefix(40))...' in element, expectedPosition=\(expectedPosition ?? -1)", category: Logger.analysis)
+
+            if let result = findChildElementContainingText(searchText, in: element, expectedPosition: expectedPosition) {
+                let childElement = result.element
+                let offsetInChild = result.offset
+                let isRootOnly = result.isRootOnly
+
+                // If text only exists at root level (contains mentions/links), selection is
+                // known to be unreliable on Electron apps. Abort and offer copy-to-clipboard.
+                if isRootOnly {
+                    Logger.info("Selection: Root-only text detected (likely contains mentions/links) - offering manual paste", category: Logger.analysis)
+                    return .failedRootOnlyUnreliable
+                }
+
                 // Get the child element's text for UTF-16 conversion
                 // Slack/Notion use Chromium which expects UTF-16 indices, not grapheme clusters
                 var childTextRef: CFTypeRef?
@@ -1506,8 +1628,12 @@ extension AnalysisCoordinator {
                       let childText = childTextRef as? String
                 else {
                     Logger.debug("\(appName): Could not get child element text for UTF-16 conversion", category: Logger.analysis)
-                    return false
+                    return isRootOnly ? .failedRootOnlyUnreliable : .failed
                 }
+
+                //Log child element text details
+                Logger.debug("Selection: childText.count=\(childText.count), utf16.count=\((childText as NSString).length)", category: Logger.analysis)
+                Logger.debug("Selection: offsetInChild=\(offsetInChild) (grapheme clusters)", category: Logger.analysis)
 
                 // Calculate the actual selection range
                 // For single-char errors with context, adjust to select only the character
@@ -1523,6 +1649,24 @@ extension AnalysisCoordinator {
                     selectionLength = searchText.count
                 }
 
+                //Check for grapheme/UTF-16 mismatch in prefix of child text
+                if selectionOffset > 0, selectionOffset <= childText.count {
+                    let prefixEndIdx = childText.index(childText.startIndex, offsetBy: min(selectionOffset, childText.count))
+                    let prefixGraphemes = selectionOffset
+                    let prefixUTF16 = (String(childText[..<prefixEndIdx]) as NSString).length
+                    if prefixGraphemes != prefixUTF16 {
+                        Logger.warning("Selection: Prefix mismatch - graphemes=\(prefixGraphemes) vs utf16=\(prefixUTF16) (diff: \(prefixUTF16 - prefixGraphemes))", category: Logger.analysis)
+                    }
+                }
+
+                //Log what text we're about to select
+                if selectionOffset >= 0, selectionOffset + selectionLength <= childText.count {
+                    let startIdx = childText.index(childText.startIndex, offsetBy: selectionOffset)
+                    let endIdx = childText.index(startIdx, offsetBy: selectionLength)
+                    let textToSelect = String(childText[startIdx..<endIdx])
+                    Logger.debug("Selection: textToSelect='\(textToSelect.prefix(50))...' at grapheme \(selectionOffset)-\(selectionOffset + selectionLength)", category: Logger.analysis)
+                }
+
                 // Convert grapheme indices to UTF-16 indices
                 let utf16Range = TextIndexConverter.graphemeToUTF16Range(
                     NSRange(location: selectionOffset, length: selectionLength),
@@ -1530,11 +1674,15 @@ extension AnalysisCoordinator {
                 )
                 var childRange = CFRange(location: utf16Range.location, length: utf16Range.length)
 
-                Logger.trace("\(appName): UTF-16 range \(utf16Range.location)-\(utf16Range.location + utf16Range.length) (from grapheme \(selectionOffset)-\(selectionOffset + selectionLength))", category: Logger.analysis)
+                //Enhanced logging for UTF-16 conversion
+                Logger.debug("Selection: UTF-16 conversion: grapheme[\(selectionOffset), len=\(selectionLength)] -> utf16[\(utf16Range.location), len=\(utf16Range.length)]", category: Logger.analysis)
+                if utf16Range.location != selectionOffset || utf16Range.length != selectionLength {
+                    Logger.warning("Selection: UTF-16 conversion changed values (multi-byte chars in prefix)", category: Logger.analysis)
+                }
 
                 guard let childRangeValue = AXValueCreate(.cfRange, &childRange) else {
                     Logger.debug("\(appName): Failed to create AXValue for child range", category: Logger.analysis)
-                    return false
+                    return isRootOnly ? .failedRootOnlyUnreliable : .failed
                 }
 
                 let childSelectResult = AXUIElementSetAttributeValue(
@@ -1545,12 +1693,76 @@ extension AnalysisCoordinator {
 
                 if childSelectResult != .success {
                     Logger.debug("\(appName): Child selection failed (\(childSelectResult.rawValue)) - aborting", category: Logger.analysis)
-                    return false // Selection failed - caller should abort
+                    return isRootOnly ? .failedRootOnlyUnreliable : .failed
                 }
-                return true
+
+                // Verify what was actually selected
+                var selectedTextRef: CFTypeRef?
+                if AXUIElementCopyAttributeValue(childElement, kAXSelectedTextAttribute as CFString, &selectedTextRef) == .success,
+                   let selectedText = selectedTextRef as? String
+                {
+                    Logger.debug("Selection: Verification - selectedText='\(selectedText.prefix(50))...' (\(selectedText.count) chars)", category: Logger.analysis)
+
+                    if selectedText.isEmpty {
+                        // Empty could mean "can't read back" rather than "selection failed"
+                        if isRootOnly {
+                            // Root-only selection on Electron apps (text with mentions) is known to be unreliable
+                            // Abort to prevent document corruption - caller should offer copy-to-clipboard instead
+                            Logger.warning("Selection: Root-only with empty verification - aborting (text has mentions/links)", category: Logger.analysis)
+                            return .failedRootOnlyUnreliable
+                        }
+                        // For child elements, empty verification might just mean "can't read back"
+                        Logger.debug("Selection: Verification returned empty - proceeding (may not support read-back)", category: Logger.analysis)
+                    } else if selectedText != searchText {
+                        // Selection got wrong text - this would corrupt the document
+                        Logger.warning("Selection: Mismatch - expected '\(searchText.prefix(30))...' but got '\(selectedText.prefix(30))...'", category: Logger.analysis)
+                        Logger.debug("Selection: Expected \(searchText.count) chars, got \(selectedText.count) chars", category: Logger.analysis)
+
+                        // Detailed diff to find exactly where mismatch occurs
+                        let maxChars = min(searchText.count, selectedText.count, 50)
+                        var firstDiffIdx: Int?
+                        for i in 0 ..< maxChars {
+                            let expectedIdx = searchText.index(searchText.startIndex, offsetBy: i)
+                            let actualIdx = selectedText.index(selectedText.startIndex, offsetBy: i)
+                            if searchText[expectedIdx] != selectedText[actualIdx] {
+                                firstDiffIdx = i
+                                break
+                            }
+                        }
+
+                        if let diffIdx = firstDiffIdx {
+                            Logger.warning("Selection: First diff at char \(diffIdx)", category: Logger.analysis)
+                            // Show context around the diff
+                            let contextStart = max(0, diffIdx - 5)
+                            let contextEnd = min(maxChars, diffIdx + 10)
+                            let expectedCtxStart = searchText.index(searchText.startIndex, offsetBy: contextStart)
+                            let expectedCtxEnd = searchText.index(searchText.startIndex, offsetBy: contextEnd)
+                            let actualCtxStart = selectedText.index(selectedText.startIndex, offsetBy: contextStart)
+                            let actualCtxEnd = selectedText.index(selectedText.startIndex, offsetBy: contextEnd)
+                            Logger.warning("Selection:   Expected[\(contextStart)-\(contextEnd)]: '\(searchText[expectedCtxStart..<expectedCtxEnd])'", category: Logger.analysis)
+                            Logger.warning("Selection:   Actual[\(contextStart)-\(contextEnd)]:   '\(selectedText[actualCtxStart..<actualCtxEnd])'", category: Logger.analysis)
+                        } else if searchText.count != selectedText.count {
+                            Logger.warning("Selection: Content same for first \(maxChars) chars but lengths differ", category: Logger.analysis)
+                        }
+                        return isRootOnly ? .failedRootOnlyUnreliable : .failed
+                    } else {
+                        Logger.debug("Selection: Selection verified correct", category: Logger.analysis)
+                    }
+                } else {
+                    // Can't verify selection
+                    if isRootOnly {
+                        // Root-only selection on Electron apps is known to be unreliable
+                        Logger.warning("Selection: Root-only cannot be verified - aborting to prevent corruption", category: Logger.analysis)
+                        return .failedRootOnlyUnreliable
+                    }
+                    // For child elements, some apps don't support AXSelectedText - proceed with caution
+                    Logger.debug("Selection: Could not verify (AXSelectedText unavailable) - proceeding", category: Logger.analysis)
+                }
+
+                return .success
             } else {
                 Logger.debug("\(appName): Could not find child element containing text - selection failed", category: Logger.analysis)
-                return false // Selection failed - caller should abort
+                return .failed
             }
         } else {
             // Standard browser / Mac Catalyst: try AX API selection directly
@@ -1568,12 +1780,12 @@ extension AnalysisCoordinator {
                 // Need to find text in current element content
                 guard let currentText else {
                     Logger.debug("Could not get current text for browser replacement", category: Logger.analysis)
-                    return false
+                    return .failed
                 }
 
                 guard let textRange = currentText.range(of: targetText) else {
                     Logger.debug("Could not find target text in current content", category: Logger.analysis)
-                    return false
+                    return .failed
                 }
 
                 // Convert grapheme indices to UTF-16 indices for AX selection
@@ -1594,7 +1806,7 @@ extension AnalysisCoordinator {
 
                 guard let rangeValue = AXValueCreate(.cfRange, &calculatedRange) else {
                     Logger.debug("Failed to create AXValue for range", category: Logger.analysis)
-                    return false
+                    return .failed
                 }
 
                 let selectResult = AXUIElementSetAttributeValue(
@@ -1608,7 +1820,7 @@ extension AnalysisCoordinator {
                 } else {
                     Logger.debug("AX API selection failed (\(selectResult.rawValue)) - will try paste anyway", category: Logger.analysis)
                 }
-                return true
+                return .success
             }
 
             // Convert fallback range to UTF-16 if we have the text
@@ -1624,7 +1836,7 @@ extension AnalysisCoordinator {
 
             guard let rangeValue = AXValueCreate(.cfRange, &range) else {
                 Logger.debug("Failed to create AXValue for fallback range", category: Logger.analysis)
-                return false
+                return .failed
             }
 
             let selectResult = AXUIElementSetAttributeValue(
@@ -1638,7 +1850,7 @@ extension AnalysisCoordinator {
             } else {
                 Logger.debug("AX API selection failed (\(selectResult.rawValue)) - will try paste anyway", category: Logger.analysis)
             }
-            return true
+            return .success
         }
     }
 
@@ -1702,17 +1914,45 @@ extension AnalysisCoordinator {
     ///   - targetText: The text to find
     ///   - element: The root element to search in
     ///   - expectedPosition: Optional position in the full text for disambiguation when multiple occurrences exist
+    /// - Returns: Tuple of (element, offset, isRootOnly) where isRootOnly indicates we're using root element
+    ///           because no child elements contain the text (e.g., text with mentions)
     func findChildElementContainingText(
         _ targetText: String,
         in element: AXUIElement,
         expectedPosition: Int? = nil
-    ) -> (AXUIElement, Int)? {
-        var candidates: [(element: AXUIElement, text: String, offset: Int)] = []
+    ) -> (element: AXUIElement, offset: Int, isRootOnly: Bool)? {
+        Logger.debug("Find child: Looking for '\(targetText.prefix(40))...' (\(targetText.count) chars), expectedPosition=\(expectedPosition ?? -1)", category: Logger.analysis)
+
+        // Log special characters that might cause matching issues (mentions, links, emoji)
+        let specialChars = targetText.filter { $0 == "@" || $0 == "#" || $0.unicodeScalars.first?.value ?? 0 > 127 }
+        if !specialChars.isEmpty {
+            Logger.debug("Find child: Target contains special chars: '\(specialChars)' - may cause child element mismatch", category: Logger.analysis)
+        }
+
+        var candidates: [(element: AXUIElement, text: String, offset: Int, depth: Int)] = []
         collectTextElements(in: element, depth: 0, maxDepth: 10, candidates: &candidates, targetText: targetText)
+
+        Logger.debug("Find child: Found \(candidates.count) candidate elements", category: Logger.analysis)
+
+        // Check if the only candidate is the root element (depth=0)
+        // Electron apps (Slack, Notion, etc.) sometimes don't reliably support selection on root AXTextArea
+        // However, text with mentions (@user, #channel) only exists at root level, so we need to allow it
+        // Selection verification will catch off-by-one issues and abort if needed
+        let hasChildCandidate = candidates.contains { $0.depth > 0 }
+        if !candidates.isEmpty && !hasChildCandidate {
+            Logger.debug("Find child: Only root element (depth=0) contains target text", category: Logger.analysis)
+            Logger.debug("Find child: Text likely contains mentions/links - using root element with verification", category: Logger.analysis)
+            // Fall through to use root element - selection verification will catch issues
+        }
+
+        // Prefer child candidates, but allow root element as fallback for text with mentions
+        let childCandidates = candidates.filter { $0.depth > 0 }
+        let isRootOnly = childCandidates.isEmpty && !candidates.isEmpty
+        let candidatesToUse = childCandidates.isEmpty ? candidates : childCandidates
 
         // Sort by text length ascending to prefer most specific (smallest) element
         // Parent elements contain child text, so smaller = more specific
-        let sortedCandidates = candidates.sorted { $0.text.count < $1.text.count }
+        let sortedCandidates = candidatesToUse.sorted { $0.text.count < $1.text.count }
 
         for candidate in sortedCandidates {
             // Find ALL occurrences of the target text in this candidate
@@ -1726,11 +1966,43 @@ extension AnalysisCoordinator {
 
             guard !occurrences.isEmpty else { continue }
 
+            Logger.debug("Find child: Candidate element (size \(candidate.text.count)) has \(occurrences.count) occurrence(s)", category: Logger.analysis)
+
             // If there's only one occurrence, use it
             if occurrences.count == 1 {
                 let offset = candidate.text.distance(from: candidate.text.startIndex, to: occurrences[0].lowerBound)
                 Logger.trace("Found target text in child element (size \(candidate.text.count)) at offset \(offset)", category: Logger.analysis)
-                return (candidate.element, offset)
+
+                //Check grapheme vs UTF-16 for the prefix
+                let prefixEndIdx = occurrences[0].lowerBound
+                let prefixText = String(candidate.text[..<prefixEndIdx])
+                let graphemeCount = offset
+                let utf16Count = (prefixText as NSString).length
+
+                // ALWAYS log prefix analysis for debugging one-char-off issues
+                Logger.debug("Find child: Prefix analysis - graphemes=\(graphemeCount), utf16=\(utf16Count), diff=\(utf16Count - graphemeCount)", category: Logger.analysis)
+
+                // Show last 20 chars of prefix with hex codes to detect invisible chars
+                let lastCharsCount = min(20, prefixText.count)
+                if lastCharsCount > 0 {
+                    let startIdx = prefixText.index(prefixText.endIndex, offsetBy: -lastCharsCount)
+                    let lastChars = String(prefixText[startIdx...])
+                    let hexCodes = lastChars.unicodeScalars.map { String(format: "U+%04X", $0.value) }.joined(separator: " ")
+                    Logger.debug("Find child: Prefix last \(lastCharsCount) chars: '\(lastChars.replacingOccurrences(of: "\n", with: "\\n"))' hex=[\(hexCodes)]", category: Logger.analysis)
+                }
+
+                if graphemeCount != utf16Count {
+                    Logger.warning("Find child: Prefix grapheme/UTF-16 mismatch! grapheme=\(graphemeCount) vs utf16=\(utf16Count) (diff: \(utf16Count - graphemeCount))", category: Logger.analysis)
+                    // Find which characters cause the mismatch
+                    for (idx, char) in prefixText.enumerated() {
+                        let charUtf16 = String(char).utf16.count
+                        if charUtf16 > 1 {
+                            Logger.trace("Find child: Multi-UTF16 char at \(idx): '\(char)' (utf16=\(charUtf16))", category: Logger.analysis)
+                        }
+                    }
+                }
+
+                return (element: candidate.element, offset: offset, isRootOnly: isRootOnly)
             }
 
             // Multiple occurrences: use expectedPosition to disambiguate
@@ -1745,7 +2017,7 @@ extension AnalysisCoordinator {
                     // This is a heuristic: for short texts, the expected position should be close to the offset
                     if expectedPos == offset || (candidate.text.count < 500 && abs(expectedPos - offset) < 5) {
                         Logger.trace("Disambiguated: Found target at offset \(offset) (expected ~\(expectedPos))", category: Logger.analysis)
-                        return (candidate.element, offset)
+                        return (element: candidate.element, offset: offset, isRootOnly: isRootOnly)
                     }
                 }
                 // If no exact match, find closest occurrence
@@ -1756,79 +2028,55 @@ extension AnalysisCoordinator {
                 }!
                 let offset = candidate.text.distance(from: candidate.text.startIndex, to: closestRange.lowerBound)
                 Logger.trace("Closest match: Found target at offset \(offset) (expected \(expectedPos))", category: Logger.analysis)
-                return (candidate.element, offset)
+                return (element: candidate.element, offset: offset, isRootOnly: isRootOnly)
             }
 
             // No expected position provided, fall back to first occurrence
             let offset = candidate.text.distance(from: candidate.text.startIndex, to: occurrences[0].lowerBound)
             Logger.trace("No position hint, using first occurrence at offset \(offset)", category: Logger.analysis)
-            return (candidate.element, offset)
+            return (element: candidate.element, offset: offset, isRootOnly: isRootOnly)
         }
 
-        // Fallback: If no child element matched (e.g., for readability suggestions that span
-        // multiple child elements), try the root element directly. This handles cases where
-        // the target text is longer than what fits in a single paragraph element.
-        var textValue: CFTypeRef?
-        if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textValue) == .success,
-           let rootText = textValue as? String
-        {
-            // Find all occurrences in root text
-            var searchRange = rootText.startIndex ..< rootText.endIndex
-            var occurrences: [Range<String.Index>] = []
-            while let range = rootText.range(of: targetText, range: searchRange) {
-                occurrences.append(range)
-                searchRange = range.upperBound ..< rootText.endIndex
-            }
-
-            guard !occurrences.isEmpty else { return nil }
-
-            // If expectedPosition is available and there are multiple occurrences, disambiguate
-            let selectedRange: Range<String.Index> = if let expectedPos = expectedPosition, occurrences.count > 1 {
-                occurrences.min { range1, range2 in
-                    let offset1 = rootText.distance(from: rootText.startIndex, to: range1.lowerBound)
-                    let offset2 = rootText.distance(from: rootText.startIndex, to: range2.lowerBound)
-                    return abs(expectedPos - offset1) < abs(expectedPos - offset2)
-                }!
-            } else {
-                occurrences[0]
-            }
-
-            let offset = rootText.distance(from: rootText.startIndex, to: selectedRange.lowerBound)
-            Logger.debug("Fallback: Using root element for text selection (offset \(offset))", category: Logger.analysis)
-            return (element, offset)
-        }
-
+        // No child element contains the target text.
+        // This can happen if text spans multiple child elements (e.g., sentence crosses paragraph boundary).
+        // We don't fall back to root element because it doesn't work for Electron apps -
+        // they only support selection on individual child text nodes, not the root AXTextArea.
+        Logger.debug("Find child: No child element contains the full target text - cannot select", category: Logger.analysis)
+        Logger.debug("Find child: Text may span multiple elements or document structure changed", category: Logger.analysis)
         return nil
     }
 
     /// Collect child text elements for element tree traversal
+    /// Now includes depth in candidates to detect root-only scenarios
     func collectTextElements(
         in element: AXUIElement,
         depth: Int,
         maxDepth: Int,
-        candidates: inout [(element: AXUIElement, text: String, offset: Int)],
+        candidates: inout [(element: AXUIElement, text: String, offset: Int, depth: Int)],
         targetText: String
     ) {
         guard depth < maxDepth else { return }
 
         var textValue: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textValue) == .success,
-           let text = textValue as? String,
-           text.contains(targetText)
+           let text = textValue as? String
         {
-            var sizeValue: CFTypeRef?
-            var height: CGFloat = 0
-            if AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
-               let size = sizeValue,
-               let rectSize = safeAXValueGetSize(size)
-            {
-                height = rectSize.height
-            }
+            // Get element role for logging
+            var roleRef: CFTypeRef?
+            let role: String = if AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef) == .success,
+                                  let r = roleRef as? String { r } else { "unknown" }
 
-            // Prefer smaller elements (paragraph-level, not document-level)
-            if height > 0, height < GeometryConstants.maximumLineHeight {
-                candidates.append((element: element, text: text, offset: 0))
-                Logger.trace("Candidate element: height=\(Int(height)), length=\(text.count)", category: Logger.analysis)
+            if text.contains(targetText) {
+                // Accept all elements that contain the target text.
+                // The caller sorts candidates by text length (smallest first) to prefer
+                // the most specific element.
+                candidates.append((element: element, text: text, offset: 0, depth: depth))
+                Logger.trace("Collect: depth=\(depth), role=\(role), textLen=\(text.count) - ACCEPTED (contains target)", category: Logger.analysis)
+            } else if depth > 0 && text.count > 50 {
+                // Log child elements that DON'T contain the target - helps debug why no match
+                // Only log substantial text elements (>50 chars) to reduce noise
+                let preview = text.prefix(80).replacingOccurrences(of: "\n", with: "\\n")
+                Logger.trace("Collect: depth=\(depth), role=\(role), textLen=\(text.count) - NO MATCH, preview: '\(preview)...'", category: Logger.analysis)
             }
         }
 
@@ -2231,13 +2479,27 @@ extension AnalysisCoordinator {
             return
         }
 
-        let selectionSucceeded = selectTextForReplacement(targetText: targetText, fallbackRange: fallbackRange, element: element, context: context)
+        let selectionResult = selectTextForReplacement(targetText: targetText, fallbackRange: fallbackRange, element: element, context: context)
 
-        // If selection failed, abort to prevent pasting at wrong location
-        if !selectionSucceeded {
+        // Handle selection result
+        switch selectionResult {
+        case .failedRootOnlyUnreliable:
+            // Text contains mentions/links that prevent reliable automatic replacement
+            // Copy to clipboard and show warning so user can paste manually
+            Logger.info("Grammar replacement: Root-only selection unreliable - copying to clipboard for manual paste", category: Logger.analysis)
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(suggestion, forType: .string)
+            SuggestionPopover.shared.showStatusMessage("Copied to clipboard - paste manually (⌘V)")
+            return
+
+        case .failed:
             Logger.warning("Selection failed - aborting replacement to prevent text corruption", category: Logger.analysis)
             SuggestionPopover.shared.showStatusMessage("Could not select text - try clicking on the error first")
             return
+
+        case .success:
+            break // Continue with paste
         }
 
         // CRITICAL: ALWAYS validate selection before paste to prevent text corruption

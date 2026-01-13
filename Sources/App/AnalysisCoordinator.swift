@@ -703,6 +703,13 @@ class AnalysisCoordinator: ObservableObject {
             }
         }
 
+        // Handle copy fallback completion - remove from tracking
+        suggestionPopover.onCopyFallbackComplete = { [weak self] suggestion in
+            guard let self else { return }
+            Logger.debug("AnalysisCoordinator: Copy fallback completed for suggestion", category: Logger.analysis)
+            removeSuggestionFromTracking(suggestion)
+        }
+
         // Provide callback for popover to get current validated suggestions
         // This ensures the popover shows fresh, valid suggestions when navigating after accept/reject
         suggestionPopover.onGetValidSuggestions = { [weak self] in
@@ -1559,7 +1566,9 @@ class AnalysisCoordinator: ObservableObject {
         // During manual style check, preserve results so user sees them when returning
         if !isManualStyleCheckActive {
             currentStyleSuggestions = [] // Clear style suggestions
-            suggestionTracker.resetDismissed() // Reset tracker dismissed state for new context
+            // Note: Don't reset dismissed suggestions here - they should persist across app switches
+            // to prevent endless loops of re-suggesting text the user already accepted/rejected.
+            // The tracker is only fully reset when switching to a truly different document.
             styleDebounceTimer?.invalidate() // Cancel pending style analysis
             styleDebounceTimer = nil
             styleAnalysisGeneration &+= 1 // Invalidate any in-flight analysis
@@ -1791,6 +1800,12 @@ class AnalysisCoordinator: ObservableObject {
             isInReplacementGracePeriod: isInReplacementGracePeriod
         )
 
+        // Immediately invalidate style suggestions whose original text no longer exists
+        // This ensures the capsule count updates as soon as text changes
+        if text != previousText, !isApplyingReplacement, !isInReplacementGracePeriod {
+            invalidateStaleStyleSuggestions(currentText: text)
+        }
+
         // Restore cached content if applicable
         restoreCachedContent(text: text)
 
@@ -1823,6 +1838,46 @@ class AnalysisCoordinator: ObservableObject {
     }
 
     // MARK: - handleTextChange Helpers
+
+    /// Immediately invalidate style suggestions whose original text no longer exists in the document.
+    /// This ensures the capsule count updates as soon as the user edits text that was part of a suggestion.
+    private func invalidateStaleStyleSuggestions(currentText: String) {
+        guard !currentStyleSuggestions.isEmpty else { return }
+
+        let beforeCount = currentStyleSuggestions.count
+        currentStyleSuggestions.removeAll { suggestion in
+            let textExists = currentText.contains(suggestion.originalText)
+            if !textExists {
+                Logger.debug("invalidateStaleStyleSuggestions: Removing stale suggestion - originalText '\(suggestion.originalText.prefix(30))...' no longer in document", category: Logger.analysis)
+            }
+            return !textExists
+        }
+        let afterCount = currentStyleSuggestions.count
+
+        if beforeCount != afterCount {
+            Logger.debug("invalidateStaleStyleSuggestions: Removed \(beforeCount - afterCount) stale suggestions (was \(beforeCount), now \(afterCount))", category: Logger.analysis)
+
+            // Update popover's style suggestions
+            suggestionPopover.allStyleSuggestions = currentStyleSuggestions
+
+            // Update the floating indicator/capsule count immediately
+            if currentStyleSuggestions.isEmpty, currentErrors.isEmpty {
+                if !isManualStyleCheckActive {
+                    floatingIndicator.hide()
+                }
+            } else if let element = textMonitor.monitoredElement, let context = textMonitor.currentContext {
+                floatingIndicator.update(
+                    errors: currentErrors,
+                    styleSuggestions: currentStyleSuggestions,
+                    readabilityResult: currentReadabilityResult,
+                    readabilityAnalysis: currentReadabilityAnalysis,
+                    element: element,
+                    context: context,
+                    sourceText: currentText
+                )
+            }
+        }
+    }
 
     /// Check if we should preserve popover during focus bounces.
     /// Some apps (like Messages via Mac Catalyst) briefly lose focus during paste operations,

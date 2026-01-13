@@ -220,14 +220,21 @@ final class SuggestionTracker {
         isReadability: Bool
     ) {
         let originalHash = originalText.hashValue
+        let newTextHash = newText.hashValue
 
-        // Track the modified span
+        // Track both the original AND replacement text as modified spans.
+        // This prevents endless loops where we suggest changes to text that was just inserted
+        // as a replacement for a previous suggestion.
         modifiedSpans[originalHash] = Date()
+        modifiedSpans[newTextHash] = Date()
 
-        // Track dismissed so we don't re-suggest
+        // Track both as dismissed so we don't re-suggest either
         dismissedSuggestions.insert(originalHash)
+        dismissedSuggestions.insert(newTextHash)
 
-        // For readability suggestions, track the new (simplified) text and all its
+        Logger.debug("SuggestionTracker: Marked suggestion accepted (original: \(originalHash), replacement: \(newTextHash))", category: Logger.analysis)
+
+        // For readability suggestions, also track the new (simplified) text and all its
         // individual sentences so we don't re-flag them as complex.
         // The LLM may return multiple sentences in the simplified text, but
         // NLTokenizer (used by ReadabilityCalculator) will detect them as separate sentences.
@@ -245,9 +252,7 @@ final class SuggestionTracker {
             let fullHash = fullNormalized.hashValue
             simplifiedSentences.insert(fullHash)
 
-            Logger.debug("SuggestionTracker: Marked readability accepted (original: \(originalHash), sentences: \(sentences.count + 1))", category: Logger.analysis)
-        } else {
-            Logger.debug("SuggestionTracker: Marked suggestion accepted (hash: \(originalHash))", category: Logger.analysis)
+            Logger.debug("SuggestionTracker: Readability accepted with \(sentences.count + 1) sentence hashes", category: Logger.analysis)
         }
 
         // Suppress auto analysis until user makes a genuine edit
@@ -255,6 +260,17 @@ final class SuggestionTracker {
 
         // Decrement active count
         activeStyleSuggestionCount = max(0, activeStyleSuggestionCount - 1)
+    }
+
+    /// Add an additional text hash to the modified/dismissed sets.
+    /// Called after replacement completes to store the ACTUAL text from the document
+    /// (which may differ from the intended replacement due to selection offset issues).
+    /// - Parameter actualText: The actual text now in the document at the replacement position
+    func addActualReplacementText(_ actualText: String) {
+        let hash = actualText.hashValue
+        modifiedSpans[hash] = Date()
+        dismissedSuggestions.insert(hash)
+        Logger.debug("SuggestionTracker: Added actual replacement text hash: \(hash)", category: Logger.analysis)
     }
 
     /// Mark a suggestion as dismissed (rejected without accepting).

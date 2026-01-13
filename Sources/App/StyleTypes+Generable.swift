@@ -168,6 +168,14 @@ struct GenerationContext {
             let startIndex = text.distance(from: text.startIndex, to: range.lowerBound)
             let endIndex = text.distance(from: text.startIndex, to: range.upperBound)
 
+            // DIAGNOSTIC: Check for grapheme/UTF-16 mismatch in the prefix
+            let prefixText = String(text[..<range.lowerBound])
+            let prefixUtf16 = (prefixText as NSString).length
+            if startIndex != prefixUtf16 {
+                Logger.warning("STYLE_GEN: Position grapheme/UTF-16 mismatch! grapheme=\(startIndex) vs utf16=\(prefixUtf16) (diff: \(prefixUtf16 - startIndex))", category: Logger.analysis)
+            }
+            Logger.debug("STYLE_GEN: Position for '\(original.prefix(40))...' = \(startIndex)-\(endIndex) (grapheme clusters)", category: Logger.analysis)
+
             // Build diff segments
             let diff = buildDiffSegments(original: original, suggested: suggested)
 
