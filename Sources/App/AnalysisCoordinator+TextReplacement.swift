@@ -2133,15 +2133,19 @@ extension AnalysisCoordinator {
             let expectedText = extractTextFromSuggestions(error: error, suggestion: suggestion)
             Logger.trace("Keyboard position drift check: extracted='\(extractedText)', expected='\(expectedText ?? "nil")'", category: Logger.analysis)
 
-            if !extractedText.isEmpty, let expected = expectedText, extractedText != expected {
+            // Use case-insensitive comparison for drift detection
+            // Capitalization errors have same text with different case (e.g., "THis" vs "this")
+            let textsMatchIgnoringCase = extractedText.lowercased() == (expectedText?.lowercased() ?? "")
+            if !extractedText.isEmpty, let expected = expectedText, extractedText != expected, !textsMatchIgnoringCase {
                 Logger.debug("Keyboard replacement: Position drift detected at \(error.start)-\(error.end):", category: Logger.analysis)
                 Logger.debug("  Found text: '\(extractedText)'", category: Logger.analysis)
                 Logger.debug("  Expected:   '\(expected)'", category: Logger.analysis)
 
-                // Search nearby positions for the expected text
+                // Search nearby positions for the expected text (case-insensitive for capitalization errors)
                 let searchRadius = 5
                 let errorLength = error.end - error.start
                 var searchAttempts: [(offset: Int, text: String)] = []
+                let expectedLower = expected.lowercased()
 
                 for offset in -searchRadius ... searchRadius where offset != 0 {
                     let testStart = error.start + offset
@@ -2153,7 +2157,8 @@ extension AnalysisCoordinator {
                     let testText = String(currentText.unicodeScalars[testStartIdx ..< testEndIdx])
                     searchAttempts.append((offset: offset, text: testText))
 
-                    if testText == expected {
+                    // Use case-insensitive comparison to handle capitalization errors
+                    if testText.lowercased() == expectedLower {
                         Logger.info("Keyboard replacement: Position drift corrected: \(error.start)-\(error.end) -> \(testStart)-\(testEnd) (offset: \(offset))", category: Logger.analysis)
                         correctedStart = testStart
                         correctedEnd = testEnd
@@ -2165,7 +2170,7 @@ extension AnalysisCoordinator {
                 if correctedStart == error.start {
                     Logger.debug("  Search attempts:", category: Logger.analysis)
                     for attempt in searchAttempts {
-                        let match = attempt.text == expected ? "✓" : "✗"
+                        let match = attempt.text.lowercased() == expectedLower ? "✓" : "✗"
                         Logger.debug("    offset \(attempt.offset): '\(attempt.text)' \(match)", category: Logger.analysis)
                     }
                     Logger.warning("Keyboard replacement: Could not find expected text '\(expected)' near position \(error.start), aborting", category: Logger.analysis)
