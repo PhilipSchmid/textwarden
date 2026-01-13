@@ -669,6 +669,28 @@ pub fn analyze_text(
                             chars.into_iter().collect()
                         })
                         .collect();
+                } else {
+                    // If NOT at sentence start, lowercase suggestions that start with a capital
+                    // Exception: preserve "I" (the personal pronoun) which is always capitalized
+                    suggestions = suggestions
+                        .into_iter()
+                        .map(|s| {
+                            // Don't lowercase if suggestion starts with "I " (pronoun)
+                            // or is exactly "I" - the pronoun must stay capitalized
+                            if s.starts_with("I ") || s == "I" {
+                                return s;
+                            }
+
+                            let mut chars: Vec<char> = s.chars().collect();
+                            if let Some(first_char) = chars.first_mut() {
+                                if first_char.is_uppercase() {
+                                    *first_char =
+                                        first_char.to_lowercase().next().unwrap_or(*first_char);
+                                }
+                            }
+                            chars.into_iter().collect()
+                        })
+                        .collect();
                 }
             }
 
@@ -4560,6 +4582,98 @@ mod tests {
             }
         }
 
+        println!("=== END TEST ===\n");
+    }
+
+    #[test]
+    fn test_mid_sentence_initialism_lowercasing() {
+        // Test that initialisms like "IMO" are lowercased when mid-sentence
+        // Harper returns "In my opinion" (capitalized) because "IMO" is uppercase,
+        // but TextWarden should lowercase it when not at sentence start.
+        //
+        // Note: The pronoun "I" (e.g., in "I don't know") stays capitalized because
+        // we preserve suggestions starting with "I " - see the else branch in analyzer.rs.
+
+        let test_cases = vec![
+            // (text, initialism, expected_suggestion, description)
+            (
+                "IMO that is wrong.",
+                "IMO",
+                "In my opinion",
+                "sentence start - should be capitalized",
+            ),
+            (
+                "I think (IMO anyway) we should wait.",
+                "IMO",
+                "in my opinion",
+                "mid-sentence in parentheses - should be lowercase",
+            ),
+            (
+                "Well, IMO that is wrong.",
+                "IMO",
+                "in my opinion",
+                "after comma mid-sentence - should be lowercase",
+            ),
+            (
+                "The answer is IMO unclear.",
+                "IMO",
+                "in my opinion",
+                "mid-sentence - should be lowercase",
+            ),
+        ];
+
+        println!("\n=== MID-SENTENCE INITIALISM LOWERCASING ===");
+        for (text, initialism, expected, description) in test_cases {
+            println!("\nText: '{}' ({})", text, description);
+
+            let result = analyze_text(
+                text,
+                "American",
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                vec![],
+                true,  // enable_sentence_start_capitalization
+                true,  // enforce_oxford_comma
+                true,  // check_ellipsis
+                true,  // check_unclosed_quotes
+                true,  // check_dashes
+            );
+
+            // Find the error for the initialism
+            let chars: Vec<char> = text.chars().collect();
+            let initialism_error = result.errors.iter().find(|e| {
+                if e.start < chars.len() && e.end <= chars.len() {
+                    let error_text: String = chars[e.start..e.end].iter().collect();
+                    error_text == initialism
+                } else {
+                    false
+                }
+            });
+
+            if let Some(error) = initialism_error {
+                println!("  Found '{}' error", initialism);
+                println!("  Suggestions: {:?}", error.suggestions);
+
+                if let Some(first_sugg) = error.suggestions.first() {
+                    assert_eq!(
+                        first_sugg, expected,
+                        "Expected '{}' but got '{}' for '{}' in '{}'",
+                        expected, first_sugg, initialism, text
+                    );
+                    println!("  ✓ Correctly suggests '{}'", first_sugg);
+                } else {
+                    panic!("No suggestion found for '{}' in '{}'", initialism, text);
+                }
+            } else {
+                // Some initialisms might not trigger errors depending on config
+                println!("  ⚠️ No error found for '{}' (may be accepted)", initialism);
+            }
+        }
         println!("=== END TEST ===\n");
     }
 
