@@ -419,6 +419,69 @@ fn filter_dot_notation_capitalization_errors(
         .collect()
 }
 
+/// Capitalize standalone "I" pronouns throughout a string.
+///
+/// The English pronoun "I" should always be capitalized. This function finds
+/// all instances of lowercase "i" that appear as standalone words (not part of
+/// other words like "is" or "it") and capitalizes them.
+///
+/// Handles:
+/// - " i " → " I " (surrounded by spaces)
+/// - " i'" → " I'" (before contractions like i'm, i'll, i've, i'd)
+/// - " i," / " i." / " i!" / " i?" → " I," etc. (before punctuation)
+/// - "i " at start → "I " (at beginning of string)
+/// - "i'" at start → "I'" (contraction at start)
+/// - " i" at end → " I" (at end of string)
+fn capitalize_pronoun_i(s: &str) -> String {
+    if s.is_empty() {
+        return s.to_string();
+    }
+
+    // Handle the case where input is just "i"
+    if s == "i" {
+        return "I".to_string();
+    }
+
+    let mut result = s.to_string();
+
+    // Handle start of string: "i " or "i'" (contractions) or "i," etc.
+    if result.starts_with("i ") {
+        result = format!("I {}", &result[2..]);
+    } else if result.starts_with("i'") || result.starts_with("i'") {
+        // Handle both straight and curly apostrophe
+        result = format!("I{}", &result[1..]);
+    } else if result.starts_with("i,") || result.starts_with("i.")
+            || result.starts_with("i!") || result.starts_with("i?")
+            || result.starts_with("i;") || result.starts_with("i:") {
+        // Handle i followed by punctuation at start
+        result = format!("I{}", &result[1..]);
+    }
+
+    // Handle middle of string: " i " → " I "
+    result = result.replace(" i ", " I ");
+
+    // Handle before contractions: " i'" → " I'" (straight apostrophe)
+    result = result.replace(" i'", " I'");
+    // Handle curly apostrophe (U+2019)
+    result = result.replace(" i'", " I'");
+
+    // Handle before punctuation
+    result = result.replace(" i,", " I,");
+    result = result.replace(" i.", " I.");
+    result = result.replace(" i!", " I!");
+    result = result.replace(" i?", " I?");
+    result = result.replace(" i;", " I;");
+    result = result.replace(" i:", " I:");
+
+    // Handle end of string: " i" at the very end
+    if result.ends_with(" i") {
+        let len = result.len();
+        result = format!("{}I", &result[..len - 1]);
+    }
+
+    result
+}
+
 /// Analyze text for grammar errors using Harper
 ///
 /// # Arguments
@@ -661,34 +724,43 @@ pub fn analyze_text(
                     suggestions = suggestions
                         .into_iter()
                         .map(|s| {
+                            // Step 1: Capitalize first letter
                             let mut chars: Vec<char> = s.chars().collect();
                             if let Some(first_char) = chars.first_mut() {
                                 *first_char =
                                     first_char.to_uppercase().next().unwrap_or(*first_char);
                             }
-                            chars.into_iter().collect()
+                            let capitalized: String = chars.into_iter().collect();
+
+                            // Step 2: Ensure all standalone "I" pronouns are capitalized
+                            // Harper may return "If i recall correctly" with lowercase "i"
+                            capitalize_pronoun_i(&capitalized)
                         })
                         .collect();
                 } else {
-                    // If NOT at sentence start, lowercase suggestions that start with a capital
-                    // Exception: preserve "I" (the personal pronoun) which is always capitalized
+                    // If NOT at sentence start, lowercase the first character of suggestions
+                    // but preserve "I" (the pronoun) which is always capitalized in English
                     suggestions = suggestions
                         .into_iter()
                         .map(|s| {
-                            // Don't lowercase if suggestion starts with "I " (pronoun)
-                            // or is exactly "I" - the pronoun must stay capitalized
-                            if s.starts_with("I ") || s == "I" {
-                                return s;
-                            }
-
-                            let mut chars: Vec<char> = s.chars().collect();
-                            if let Some(first_char) = chars.first_mut() {
-                                if first_char.is_uppercase() {
-                                    *first_char =
-                                        first_char.to_lowercase().next().unwrap_or(*first_char);
+                            // Step 1: Lowercase the first character (unless it's "I" pronoun)
+                            let lowercased = if s.starts_with("I ") || s.starts_with("I'") || s == "I" {
+                                // Suggestion starts with pronoun "I" - keep as is
+                                s
+                            } else {
+                                let mut chars: Vec<char> = s.chars().collect();
+                                if let Some(first_char) = chars.first_mut() {
+                                    if first_char.is_uppercase() {
+                                        *first_char =
+                                            first_char.to_lowercase().next().unwrap_or(*first_char);
+                                    }
                                 }
-                            }
-                            chars.into_iter().collect()
+                                chars.into_iter().collect()
+                            };
+
+                            // Step 2: Ensure all standalone "I" pronouns are capitalized
+                            // This handles cases like "if i recall" → "if I recall"
+                            capitalize_pronoun_i(&lowercased)
                         })
                         .collect();
                 }
@@ -4591,8 +4663,10 @@ mod tests {
         // Harper returns "In my opinion" (capitalized) because "IMO" is uppercase,
         // but TextWarden should lowercase it when not at sentence start.
         //
-        // Note: The pronoun "I" (e.g., in "I don't know") stays capitalized because
-        // we preserve suggestions starting with "I " - see the else branch in analyzer.rs.
+        // IMPORTANT: The pronoun "I" must ALWAYS stay capitalized in English,
+        // even when the rest of the suggestion is lowercased. For example:
+        // - "IIRC" mid-sentence → "if I recall correctly" (not "if i recall correctly")
+        // - "IMO" mid-sentence → "in my opinion" (no "I" pronoun here)
 
         let test_cases = vec![
             // (text, initialism, expected_suggestion, description)
@@ -4619,6 +4693,25 @@ mod tests {
                 "IMO",
                 "in my opinion",
                 "mid-sentence - should be lowercase",
+            ),
+            // IIRC tests - the "I" pronoun must stay capitalized
+            (
+                "IIRC that happened last year.",
+                "IIRC",
+                "If I recall correctly",
+                "sentence start - fully capitalized",
+            ),
+            (
+                "Now, IIRC it works correctly.",
+                "IIRC",
+                "if I recall correctly",
+                "mid-sentence - lowercase first letter but 'I' stays capitalized",
+            ),
+            (
+                "The feature (IIRC) was added in v2.",
+                "IIRC",
+                "if I recall correctly",
+                "mid-sentence in parentheses - 'I' stays capitalized",
             ),
         ];
 
@@ -4673,6 +4766,47 @@ mod tests {
                 // Some initialisms might not trigger errors depending on config
                 println!("  ⚠️ No error found for '{}' (may be accepted)", initialism);
             }
+        }
+        println!("=== END TEST ===\n");
+    }
+
+    #[test]
+    fn test_capitalize_pronoun_i() {
+        // Test the capitalize_pronoun_i helper function directly
+        // The English pronoun "I" should always be capitalized
+
+        let test_cases = vec![
+            // (input, expected, description)
+            ("if i recall correctly", "if I recall correctly", "middle of string"),
+            ("i think so", "I think so", "start of string"),
+            ("what do i know", "what do I know", "middle of string"),
+            ("that's what i said", "that's what I said", "end of string before punctuation implicit"),
+            ("i'm happy", "I'm happy", "contraction at start with straight apostrophe"),
+            ("i'm happy", "I'm happy", "contraction at start with curly apostrophe"),
+            ("well, i'll do it", "well, I'll do it", "contraction mid-string"),
+            ("yes i can", "yes I can", "no punctuation around i"),
+            ("can i? yes!", "can I? yes!", "before question mark"),
+            ("i", "I", "just the pronoun"),
+            ("", "", "empty string"),
+            ("no pronoun here", "no pronoun here", "no i pronoun"),
+            ("it is fine", "it is fine", "i in other words - should NOT change"),
+            ("this is it", "this is it", "i in other words - should NOT change"),
+            ("i, robot", "I, robot", "i followed by comma"),
+            ("did i; maybe", "did I; maybe", "i followed by semicolon"),
+        ];
+
+        println!("\n=== CAPITALIZE_PRONOUN_I TESTS ===");
+        for (input, expected, description) in test_cases {
+            let result = capitalize_pronoun_i(input);
+            println!("\nInput: '{}' ({})", input, description);
+            println!("Expected: '{}'", expected);
+            println!("Got: '{}'", result);
+            assert_eq!(
+                result, expected,
+                "capitalize_pronoun_i failed for '{}': expected '{}' but got '{}'",
+                input, expected, result
+            );
+            println!("✓ Passed");
         }
         println!("=== END TEST ===\n");
     }
