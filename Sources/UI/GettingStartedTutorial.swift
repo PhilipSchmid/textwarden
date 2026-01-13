@@ -13,8 +13,7 @@ enum TutorialStep: Int, CaseIterable {
     case clickUnderline // Step 1: Grammar - click underlined word
     case clickStyleSection // Step 2: Style - click style section
     case clickComposeSection // Step 3: AI Compose - click compose section
-    case clickReadabilitySection // Step 4: Readability - click score section
-    case rightClickIndicator // Step 5: Right-click for menu
+    case rightClickIndicator // Step 4: Right-click for menu
     case complete
 
     var instruction: String {
@@ -25,8 +24,6 @@ enum TutorialStep: Int, CaseIterable {
             "Click the sparkle icon for style suggestions"
         case .clickComposeSection:
             "Click the pen icon to compose with AI"
-        case .clickReadabilitySection:
-            "Click the score to see readability details"
         case .rightClickIndicator:
             "Right-click the indicator for quick actions"
         case .complete:
@@ -42,8 +39,6 @@ enum TutorialStep: Int, CaseIterable {
             "Apple Intelligence can rewrite your text for better clarity, tone, or style."
         case .clickComposeSection:
             "Use AI to compose new text from your instructions - perfect for starting drafts."
-        case .clickReadabilitySection:
-            "The Flesch Reading Ease score shows how easy your text is to read. Higher scores mean simpler text."
         case .rightClickIndicator:
             "Right-click for quick access to pause, settings, and app controls. Click anywhere on the menu to continue."
         case .complete:
@@ -63,13 +58,11 @@ struct GettingStartedTutorialView: View {
     @State private var showSuggestionPopover = false
     @State private var showStylePopover = false
     @State private var showComposePopover = false
-    @State private var showReadabilityPopover = false
     @State private var showContextMenu = false
     @State private var pulseUnderline = true
     @State private var grammarFixed = false
     @State private var styleApplied = false
     @State private var composeApplied = false
-    @State private var readabilityViewed = false
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -99,7 +92,6 @@ struct GettingStartedTutorialView: View {
         switch tutorialStep {
         case .clickStyleSection: .style
         case .clickComposeSection: .compose
-        case .clickReadabilitySection: .readability
         case .rightClickIndicator: nil // Right-click works anywhere, no specific section
         default: nil
         }
@@ -149,7 +141,7 @@ struct GettingStartedTutorialView: View {
     }
 
     enum IndicatorSection {
-        case grammar, style, compose, readability
+        case grammar, style, compose
     }
 
     var body: some View {
@@ -207,11 +199,9 @@ struct GettingStartedTutorialView: View {
                                     onGrammarClick: {}, // Not used in this flow
                                     onStyleClick: handleStyleClick,
                                     onComposeClick: handleComposeClick,
-                                    onReadabilityClick: handleReadabilityClick,
                                     onRightClick: handleIndicatorRightClick,
                                     isStyleClickEnabled: tutorialStep == .clickStyleSection,
                                     isComposeClickEnabled: tutorialStep == .clickComposeSection,
-                                    isReadabilityClickEnabled: tutorialStep == .clickReadabilitySection,
                                     isRightClickEnabled: tutorialStep == .rightClickIndicator,
                                     highlightedSection: highlightedSection
                                 )
@@ -223,7 +213,7 @@ struct GettingStartedTutorialView: View {
                                                 TutorialCallout(text: "Click sparkle")
                                                 TutorialPointingArrow(direction: .right)
                                             }
-                                            .offset(x: -130, y: -18) // Point at style section (2nd from top)
+                                            .offset(x: -130, y: 0) // Point at style section (middle)
                                         }
 
                                         if tutorialStep == .clickComposeSection, !showComposePopover {
@@ -231,15 +221,7 @@ struct GettingStartedTutorialView: View {
                                                 TutorialCallout(text: "Click pen")
                                                 TutorialPointingArrow(direction: .right)
                                             }
-                                            .offset(x: -115, y: 18) // Point at compose section (3rd from top)
-                                        }
-
-                                        if tutorialStep == .clickReadabilitySection, !showReadabilityPopover {
-                                            HStack(spacing: 4) {
-                                                TutorialCallout(text: "Click score")
-                                                TutorialPointingArrow(direction: .right)
-                                            }
-                                            .offset(x: -115, y: 54) // Point at readability section (4th/bottom)
+                                            .offset(x: -115, y: 36) // Point at compose section (bottom)
                                         }
 
                                         if tutorialStep == .rightClickIndicator, !showContextMenu {
@@ -327,39 +309,13 @@ struct GettingStartedTutorialView: View {
                                     withAnimation {
                                         showComposePopover = false
                                         composeApplied = true
-                                        tutorialStep = .clickReadabilitySection
-                                    }
-                                }
-                            )
-                            .padding(.trailing, 50)
-                        }
-                        .offset(y: 50)
-                        .transition(.scale.combined(with: .opacity))
-                    }
-
-                    // Readability popover with external instruction
-                    if showReadabilityPopover {
-                        HStack(alignment: .center, spacing: 4) {
-                            Spacer()
-
-                            HStack(spacing: 4) {
-                                TutorialCallout(text: "Click to continue")
-                                TutorialPointingArrow(direction: .right)
-                            }
-
-                            TutorialReadabilityPopover(
-                                score: 72,
-                                onContinue: {
-                                    withAnimation {
-                                        showReadabilityPopover = false
-                                        readabilityViewed = true
                                         tutorialStep = .rightClickIndicator
                                     }
                                 }
                             )
                             .padding(.trailing, 50)
                         }
-                        .offset(y: 60)
+                        .offset(y: 50)
                         .transition(.scale.combined(with: .opacity))
                     }
 
@@ -392,7 +348,7 @@ struct GettingStartedTutorialView: View {
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 24)
-                        .padding(.top, showComposePopover ? 80 : (showReadabilityPopover ? 100 : 16))
+                        .padding(.top, showComposePopover ? 80 : 16)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -447,7 +403,6 @@ struct GettingStartedTutorialView: View {
             showSuggestionPopover = false
             showStylePopover = false
             showComposePopover = false
-            showReadabilityPopover = false
             showContextMenu = false
 
             switch tutorialStep {
@@ -460,12 +415,9 @@ struct GettingStartedTutorialView: View {
             case .clickComposeSection:
                 styleApplied = false
                 tutorialStep = .clickStyleSection
-            case .clickReadabilitySection:
+            case .rightClickIndicator:
                 composeApplied = false
                 tutorialStep = .clickComposeSection
-            case .rightClickIndicator:
-                readabilityViewed = false
-                tutorialStep = .clickReadabilitySection
             case .complete:
                 break // Can't go back from complete
             }
@@ -491,13 +443,6 @@ struct GettingStartedTutorialView: View {
         guard tutorialStep == .clickComposeSection else { return }
         withAnimation(.spring(response: 0.3)) {
             showComposePopover = true
-        }
-    }
-
-    private func handleReadabilityClick() {
-        guard tutorialStep == .clickReadabilitySection else { return }
-        withAnimation(.spring(response: 0.3)) {
-            showReadabilityPopover = true
         }
     }
 
@@ -561,11 +506,9 @@ private struct TutorialIndicatorInteractive: View {
     let onGrammarClick: () -> Void
     let onStyleClick: () -> Void
     let onComposeClick: () -> Void
-    let onReadabilityClick: () -> Void
     let onRightClick: () -> Void
     let isStyleClickEnabled: Bool
     let isComposeClickEnabled: Bool
-    let isReadabilityClickEnabled: Bool
     let isRightClickEnabled: Bool
     let highlightedSection: GettingStartedTutorialView.IndicatorSection?
 
@@ -582,12 +525,10 @@ private struct TutorialIndicatorInteractive: View {
         isDarkMode ? Color(red: 0.3, green: 0.7, blue: 1.0) : Color(red: 0.15, green: 0.5, blue: 0.8)
     }
 
-    private var readabilityColor: Color { .green }
-
     private let sectionHeight: CGFloat = 36
     private let capsuleWidth: CGFloat = 36
     private let cornerRadius: CGFloat = 18
-    private let sectionCount: CGFloat = 4
+    private let sectionCount: CGFloat = 3
 
     private var separatorColor: Color {
         isDarkMode ? Color.white.opacity(0.15) : Color.black.opacity(0.1)
@@ -639,22 +580,11 @@ private struct TutorialIndicatorInteractive: View {
                 .buttonStyle(.plain)
                 .disabled(!isStyleClickEnabled)
 
-                // Compose section - clickable (middle section now)
+                // Compose section - clickable (bottom - rounded bottom corners)
                 Button(action: onComposeClick) {
                     Image(systemName: "pencil.line")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(textGenColor)
-                        .frame(width: capsuleWidth, height: sectionHeight)
-                        .background(highlightedSection == .compose ? textGenColor.opacity(0.15) : Color.clear)
-                }
-                .buttonStyle(.plain)
-                .disabled(!isComposeClickEnabled)
-
-                // Readability section (bottom - rounded bottom corners)
-                Button(action: onReadabilityClick) {
-                    Text("72")
-                        .font(.system(size: 11, weight: .bold).monospacedDigit())
-                        .foregroundColor(readabilityColor)
                         .frame(width: capsuleWidth, height: sectionHeight)
                         .background(
                             UnevenRoundedRectangle(
@@ -663,18 +593,16 @@ private struct TutorialIndicatorInteractive: View {
                                 bottomTrailingRadius: cornerRadius,
                                 topTrailingRadius: 0
                             )
-                            .fill(highlightedSection == .readability ? readabilityColor.opacity(0.15) : Color.clear)
+                            .fill(highlightedSection == .compose ? textGenColor.opacity(0.15) : Color.clear)
                         )
                 }
                 .buttonStyle(.plain)
-                .disabled(!isReadabilityClickEnabled)
+                .disabled(!isComposeClickEnabled)
             }
 
-            // Separators - positioned at section boundaries
+            // Separators - positioned at section boundaries (2 separators for 3 sections)
             VStack(spacing: 0) {
                 Color.clear.frame(height: sectionHeight - 0.25)
-                separatorColor.frame(width: capsuleWidth - 12, height: 0.5)
-                Color.clear.frame(height: sectionHeight - 0.5)
                 separatorColor.frame(width: capsuleWidth - 12, height: 0.5)
                 Color.clear.frame(height: sectionHeight - 0.5)
                 separatorColor.frame(width: capsuleWidth - 12, height: 0.5)
@@ -993,131 +921,6 @@ private struct TutorialComposePopover: View {
     }
 }
 
-// MARK: - Tutorial Readability Popover
-
-private struct TutorialReadabilityPopover: View {
-    let score: Int
-    let onContinue: () -> Void
-
-    @Environment(\.colorScheme) private var colorScheme
-
-    private var isDarkMode: Bool { colorScheme == .dark }
-
-    // Score 72 = "Easy" (green)
-    private var scoreColor: Color { .green }
-    private var scoreLabel: String { "Easy to read" }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Header with title and close button
-            HStack(alignment: .center, spacing: 8) {
-                Image(systemName: "text.book.closed")
-                    .font(.system(size: 14))
-                    .foregroundColor(scoreColor)
-
-                Text("Readability Score")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.primary.opacity(0.85))
-
-                Spacer()
-
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundColor(.secondary)
-                    .frame(width: 18, height: 18)
-            }
-            .padding(.horizontal, 12)
-            .padding(.top, 10)
-            .padding(.bottom, 6)
-
-            // Score display
-            HStack(spacing: 12) {
-                // Large score number
-                Text("\(score)")
-                    .font(.system(size: 48, weight: .bold, design: .rounded))
-                    .foregroundColor(scoreColor)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(scoreLabel)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.primary)
-
-                    Text("Flesch Reading Ease")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-
-            Divider()
-                .padding(.horizontal, 12)
-
-            // Interpretation
-            Text("Your text is easy to understand. Most readers will find it accessible and clear.")
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Divider()
-                .padding(.horizontal, 12)
-
-            // Score legend (simplified)
-            VStack(alignment: .leading, spacing: 2) {
-                TutorialLegendItem(range: "90-100", label: "Very Easy", color: .green)
-                TutorialLegendItem(range: "70-89", label: "Easy", color: .green, isHighlighted: true)
-                TutorialLegendItem(range: "60-69", label: "Standard", color: .yellow)
-                TutorialLegendItem(range: "50-59", label: "Fairly Difficult", color: .orange)
-                TutorialLegendItem(range: "30-49", label: "Difficult", color: .orange)
-                TutorialLegendItem(range: "0-29", label: "Very Difficult", color: .red)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-        }
-        .background(
-            ZStack {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(isDarkMode ? Color(NSColor.windowBackgroundColor) : Color(NSColor.windowBackgroundColor))
-                RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(Color.primary.opacity(0.15), lineWidth: 0.5)
-            }
-        )
-        .frame(width: 240)
-        .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onContinue()
-        }
-    }
-}
-
-// MARK: - Tutorial Legend Item
-
-private struct TutorialLegendItem: View {
-    let range: String
-    let label: String
-    let color: Color
-    var isHighlighted: Bool = false
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(color)
-                .frame(width: 6, height: 6)
-
-            Text(range)
-                .font(.system(size: 10, weight: isHighlighted ? .bold : .medium).monospacedDigit())
-                .foregroundColor(isHighlighted ? .primary : .secondary)
-                .frame(width: 45, alignment: .leading)
-
-            Text(label)
-                .font(.system(size: 10, weight: isHighlighted ? .medium : .regular))
-                .foregroundColor(isHighlighted ? .primary : .secondary.opacity(0.8))
-        }
-    }
-}
 
 // MARK: - Style Chip for Tutorial
 
@@ -1950,10 +1753,8 @@ private struct TutorialIndicatorDraggable: View {
         isDarkMode ? Color(red: 0.3, green: 0.7, blue: 1.0) : Color(red: 0.15, green: 0.5, blue: 0.8)
     }
 
-    private var readabilityColor: Color { .green }
-
     private let sectionSize: CGFloat = 36
-    private let sectionCount: CGFloat = 4
+    private let sectionCount: CGFloat = 3
     private let cornerRadius: CGFloat = 18
 
     private var separatorColor: Color {
@@ -2002,18 +1803,11 @@ private struct TutorialIndicatorDraggable: View {
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(textGenColor)
                         .frame(width: sectionSize, height: sectionSize)
-
-                    Text("72")
-                        .font(.system(size: 11, weight: .bold).monospacedDigit())
-                        .foregroundColor(readabilityColor)
-                        .frame(width: sectionSize, height: sectionSize)
                 }
 
-                // Horizontal separators - positioned at section boundaries
+                // Horizontal separators - positioned at section boundaries (2 separators for 3 sections)
                 HStack(spacing: 0) {
                     Color.clear.frame(width: sectionSize - 0.25)
-                    separatorColor.frame(width: 0.5, height: sectionSize - 12)
-                    Color.clear.frame(width: sectionSize - 0.5)
                     separatorColor.frame(width: 0.5, height: sectionSize - 12)
                     Color.clear.frame(width: sectionSize - 0.5)
                     separatorColor.frame(width: 0.5, height: sectionSize - 12)
@@ -2036,18 +1830,11 @@ private struct TutorialIndicatorDraggable: View {
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(textGenColor)
                         .frame(width: sectionSize, height: sectionSize)
-
-                    Text("72")
-                        .font(.system(size: 11, weight: .bold).monospacedDigit())
-                        .foregroundColor(readabilityColor)
-                        .frame(width: sectionSize, height: sectionSize)
                 }
 
-                // Vertical separators - positioned at section boundaries
+                // Vertical separators - positioned at section boundaries (2 separators for 3 sections)
                 VStack(spacing: 0) {
                     Color.clear.frame(height: sectionSize - 0.25)
-                    separatorColor.frame(width: sectionSize - 12, height: 0.5)
-                    Color.clear.frame(height: sectionSize - 0.5)
                     separatorColor.frame(width: sectionSize - 12, height: 0.5)
                     Color.clear.frame(height: sectionSize - 0.5)
                     separatorColor.frame(width: sectionSize - 12, height: 0.5)

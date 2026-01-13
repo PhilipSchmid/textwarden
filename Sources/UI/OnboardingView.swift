@@ -455,11 +455,11 @@ struct OnboardingView: View {
                     .foregroundColor(.accentColor)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Writing Enhancements")
+                    Text("AI Writing Assistant")
                         .font(.title3)
                         .fontWeight(.semibold)
 
-                    Text("Improve clarity, tone, and readability")
+                    Text("Style suggestions and readability analysis powered by Apple Intelligence")
                         .font(.body)
                         .foregroundColor(.secondary)
                 }
@@ -467,73 +467,67 @@ struct OnboardingView: View {
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 20) {
-                // Readability Analysis section
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Readability Analysis")
-                                .font(.body)
-                                .fontWeight(.medium)
-                            Text("Show a Flesch Reading Ease score and highlight complex sentences")
-                                .font(.body)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        Toggle("", isOn: $enableReadability)
-                            .toggleStyle(.switch)
-                            .labelsHidden()
-                    }
-                }
-
-                Divider()
-
-                // AI Style Suggestions section
+            VStack(alignment: .leading, spacing: 16) {
+                // AI Features section
                 VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 6) {
-                                Text("AI Style Suggestions")
-                                    .font(.body)
-                                    .fontWeight(.medium)
-                                if appleIntelligenceStatus == .available {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.green)
-                                        .font(.caption)
-                                }
-                            }
-                            Text("Get AI-powered suggestions for clarity, tone, and conciseness")
-                                .font(.body)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        if appleIntelligenceStatus == .available {
-                            Toggle("", isOn: $enableStyleChecking)
-                                .toggleStyle(.switch)
-                                .labelsHidden()
-                        }
-                    }
-
-                    // Status message for AI features
+                    // Status indicator
                     switch appleIntelligenceStatus {
                     case .checking:
                         HStack(spacing: 8) {
                             ProgressView()
                                 .scaleEffect(0.7)
-                            Text("Checking availability...")
-                                .font(.caption)
+                            Text("Checking Apple Intelligence availability...")
+                                .font(.body)
                                 .foregroundColor(.secondary)
                         }
                     case .available:
-                        if enableStyleChecking {
-                            Text("Includes AI Compose for generating text from instructions. All processing happens on your device.")
+                        // Style Suggestions toggle
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 6) {
+                                    Text("Style Suggestions")
+                                        .font(.body)
+                                        .fontWeight(.medium)
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                        .font(.caption)
+                                }
+                                Text("AI-powered suggestions for clarity, tone, and conciseness")
+                                    .font(.body)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Toggle("", isOn: $enableStyleChecking)
+                                .toggleStyle(.switch)
+                                .labelsHidden()
+                        }
+
+                        // Readability Analysis toggle
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Readability Analysis")
+                                    .font(.body)
+                                    .fontWeight(.medium)
+                                Text("Flesch Reading Ease score and complex sentence highlighting")
+                                    .font(.body)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Toggle("", isOn: $enableReadability)
+                                .toggleStyle(.switch)
+                                .labelsHidden()
+                        }
+
+                        if enableStyleChecking || enableReadability {
+                            Text("Includes AI Compose for generating text. All processing happens on your device.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
+                                .padding(.top, 4)
                         }
                     case .notEnabled:
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Requires Apple Intelligence to be enabled in System Settings.")
-                                .font(.caption)
+                                .font(.body)
                                 .foregroundColor(.orange)
                             Button("Open Settings") {
                                 NSWorkspace.shared.open(AppURLs.appleIntelligenceSettings)
@@ -543,11 +537,11 @@ struct OnboardingView: View {
                         }
                     case .notEligible:
                         Text("Requires a Mac with Apple Silicon (M1 or later).")
-                            .font(.caption)
+                            .font(.body)
                             .foregroundColor(.secondary)
                     case .notSupported:
                         Text("Requires macOS 26 (Tahoe) or later.")
-                            .font(.caption)
+                            .font(.body)
                             .foregroundColor(.secondary)
                     }
                 }
