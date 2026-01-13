@@ -479,6 +479,7 @@ extension AnalysisCoordinator {
             Logger.debug("Element monitoring: Timeout waiting for stability - refreshing anyway", category: Logger.analysis)
             positionResolver.clearCache()
             _ = errorOverlay.update(errors: currentErrors, element: element, context: context)
+            floatingIndicator.reposition(for: element)
             lastCharacterBounds = nil
             contentStabilityCount = 0
 
@@ -508,6 +509,7 @@ extension AnalysisCoordinator {
                     Logger.debug("Element monitoring: AX API settled - refreshing underlines", category: Logger.analysis)
                     positionResolver.clearCache()
                     _ = errorOverlay.update(errors: currentErrors, element: element, context: context)
+                    floatingIndicator.reposition(for: element)
                     lastCharacterBounds = nil
                     contentStabilityCount = 0
 

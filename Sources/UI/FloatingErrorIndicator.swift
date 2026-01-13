@@ -762,6 +762,13 @@ class FloatingErrorIndicator: NSPanel {
         }
     }
 
+    /// Reposition indicator without changing state
+    /// Used when window is resized/moved but errors haven't changed
+    func reposition(for element: AXUIElement) {
+        guard isVisible else { return }
+        positionIndicator(for: element)
+    }
+
     /// Update indicator with errors using only context (no element required)
     /// Used when restoring from window minimize where element may not be available
     func updateWithContext(
