@@ -30,9 +30,9 @@ class PlainTextSTTextView: STTextView {
         // sizeToFit() calls ensureLayout which can crash if called during an active layout pass
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.needsLayout = true
-            self.needsDisplay = true
-            self.sizeToFit()
+            needsLayout = true
+            needsDisplay = true
+            sizeToFit()
         }
     }
 
@@ -40,7 +40,7 @@ class PlainTextSTTextView: STTextView {
 
     /// Remove all formatting from selected text (or entire document if no selection)
     /// Strips font, color, background, and other rich text attributes
-    @objc func removeFormatting(_ sender: Any?) {
+    @objc func removeFormatting(_: Any?) {
         guard let textContentStorage = textContentManager as? NSTextContentStorage,
               let storage = textContentStorage.textStorage
         else {

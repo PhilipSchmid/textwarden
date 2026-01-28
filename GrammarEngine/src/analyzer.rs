@@ -5667,11 +5667,7 @@ mod tests {
         let errors = vec![make_cap_error(0, 5)];
 
         let filtered = filter_emoji_capitalization_errors(errors, text);
-        assert_eq!(
-            filtered.len(),
-            1,
-            "Error at text start should be kept"
-        );
+        assert_eq!(filtered.len(), 1, "Error at text start should be kept");
     }
 
     #[test]
