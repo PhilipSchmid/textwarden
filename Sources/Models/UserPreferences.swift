@@ -923,7 +923,7 @@ class UserPreferences: ObservableObject {
         // Sketch Pad settings
         sketchPadCopyFormat = defaults.string(forKey: Keys.sketchPadCopyFormat) ?? "plainText"
         sketchPadShowLineNumbers = defaults.object(forKey: Keys.sketchPadShowLineNumbers) as? Bool ?? false
-        sketchPadHighlightLine = defaults.object(forKey: Keys.sketchPadHighlightLine) as? Bool ?? true
+        sketchPadHighlightLine = defaults.object(forKey: Keys.sketchPadHighlightLine) as? Bool ?? false
         sketchPadShowInvisibles = defaults.object(forKey: Keys.sketchPadShowInvisibles) as? Bool ?? false
         sketchPadLineWrapping = defaults.object(forKey: Keys.sketchPadLineWrapping) as? Bool ?? true
 
