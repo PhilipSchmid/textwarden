@@ -264,7 +264,19 @@ class SketchPadViewModel: ObservableObject {
         didSet {
             if !isInitializing, !isLoadingDocument, plainTextContentInternal != oldValue {
                 markAsUnsaved()
-                scheduleAnalysis()
+
+                // When text becomes empty, immediately clear all analysis results
+                // Don't wait for the debounced analysis - stale data looks like a bug
+                if plainTextContentInternal.isEmpty {
+                    clearAnalysisResults()
+                } else {
+                    // When text is shortened (deletion), immediately filter out insights
+                    // that are now out of range - don't show stale positions
+                    if plainTextContentInternal.count < oldValue.count {
+                        filterStaleAnalysisResults()
+                    }
+                    scheduleAnalysis()
+                }
 
                 // Notify tracker if this is a genuine user edit (not from applying a suggestion)
                 // This re-enables auto style analysis after user makes their own changes
@@ -1128,6 +1140,45 @@ class SketchPadViewModel: ObservableObject {
 
     // MARK: - Analysis
 
+    /// Clear all analysis results immediately
+    /// Called when text becomes empty or when we need to reset state
+    private func clearAnalysisResults() {
+        analysisTask?.cancel()
+        grammarErrors = []
+        styleSuggestions = []
+        readabilityResult = nil
+        unifiedInsights = []
+        underlineRects = []
+        Logger.debug("Cleared all analysis results", category: Logger.analysis)
+    }
+
+    /// Filter out stale analysis results that are now out of range
+    /// Called when text is partially deleted to immediately remove invalid insights
+    private func filterStaleAnalysisResults() {
+        // Filter grammar errors - use scalar positions (Harper uses unicode scalars)
+        let scalarLength = plainTextContentInternal.unicodeScalars.count
+        let validGrammarErrors = grammarErrors.filter { $0.end <= scalarLength }
+        if validGrammarErrors.count != grammarErrors.count {
+            grammarErrors = validGrammarErrors
+        }
+
+        // Filter style suggestions - use grapheme cluster (character) positions
+        let textLength = plainTextContentInternal.count
+        let validStyleSuggestions = styleSuggestions.filter { $0.originalEnd <= textLength }
+        if validStyleSuggestions.count != styleSuggestions.count {
+            styleSuggestions = validStyleSuggestions
+        }
+
+        // Filter unified insights - these use scalar positions
+        let validInsights = unifiedInsights.filter { $0.end <= scalarLength }
+        if validInsights.count != unifiedInsights.count {
+            unifiedInsights = validInsights
+        }
+
+        // Update underline rects after filtering
+        updateUnderlineRects()
+    }
+
     /// Schedule analysis after a delay (debounced)
     private func scheduleAnalysis() {
         analysisTask?.cancel()
@@ -1528,10 +1579,14 @@ class SketchPadViewModel: ObservableObject {
         isUpdatingUnderlines = true
         defer { isUpdatingUnderlines = false }
 
-        guard let stLayoutInfo else {
+        guard let stLayoutInfo, let stTextView else {
             // No layout info yet - rects will be calculated when it becomes available
             return
         }
+
+        // Ensure TextKit 2 viewport layout is up to date before calculating positions
+        // This is necessary because text content changes may not have triggered a full layout pass
+        stTextView.textLayoutManager.textViewportLayoutController.layoutViewport()
 
         // Update underline Y offset from font metrics
         underlineYOffset = stLayoutInfo.underlineYOffset
@@ -2117,7 +2172,7 @@ class SketchPadViewModel: ObservableObject {
     }
 
     /// Clear all formatting from selected text (or current line if no selection)
-    /// For markdown, removes formatting markers like **, *, ~~, `, #, -, >, etc.
+    /// Removes both markdown markers (**, *, ~~, etc.) and rich text attributes (font, color, background)
     func clearFormatting() {
         guard let stTextView, let text = stTextView.text else { return }
         let nsText = text as NSString
@@ -2171,9 +2226,16 @@ class SketchPadViewModel: ObservableObject {
             }
         }
 
+        // Insert plain text (this replaces the content without formatting)
         stTextView.insertText(lineText, replacementRange: lineRange)
+
+        // Also remove rich text attributes (font, color, background) from the text storage
+        if let plainTextView = stTextView as? PlainTextSTTextView {
+            plainTextView.removeFormatting(nil)
+        }
+
         syncFromSTTextView()
-        Logger.debug("Cleared markdown formatting", category: Logger.ui)
+        Logger.debug("Cleared markdown and rich text formatting", category: Logger.ui)
     }
 
     /// Toggle heading style on current line - adds/removes # prefix for markdown

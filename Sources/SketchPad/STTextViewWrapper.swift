@@ -242,11 +242,24 @@ struct STTextViewWrapper: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> NSScrollView {
-        // Use STTextView's factory method to get a properly configured text view with gutter
+        // Create our custom plain text view using the factory method, then swap the document view
         let scrollView = STTextView.scrollableTextView()
-        guard let textView = scrollView.documentView as? STTextView else {
+
+        // Get configuration from the factory-created text view
+        guard let factoryTextView = scrollView.documentView as? STTextView else {
             return scrollView
         }
+
+        // Create our custom subclass with the same frame
+        let textView = PlainTextSTTextView(frame: factoryTextView.frame)
+
+        // Copy configuration from factory text view
+        textView.textLayoutManager.textContainer?.lineFragmentPadding = factoryTextView.textLayoutManager.textContainer?.lineFragmentPadding ?? 5
+        textView.isHorizontallyResizable = factoryTextView.isHorizontallyResizable
+        textView.isVerticallyResizable = factoryTextView.isVerticallyResizable
+
+        // Replace the document view with our custom subclass
+        scrollView.documentView = textView
 
         // Configure scroll view
         // Respect macOS system preferences for scrollbar appearance
