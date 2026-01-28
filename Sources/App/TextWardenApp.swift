@@ -118,6 +118,23 @@ struct TextWardenApp: App {
                 }
                 .keyboardShortcut("\\", modifiers: .command)
             }
+
+            // Intercept Cmd+Q to close windows instead of quitting (menu bar app behavior)
+            // Users can quit via menu bar icon → "Quit TextWarden"
+            CommandGroup(replacing: .appTermination) {
+                Button("Quit TextWarden") {
+                    // If any window is key (focused), close it instead of quitting
+                    // This is the expected behavior for menu bar apps
+                    if let keyWindow = NSApp.keyWindow {
+                        // Close the focused window - app continues in menu bar
+                        keyWindow.close()
+                    } else {
+                        // No windows open - actually quit the app
+                        NSApp.terminate(nil)
+                    }
+                }
+                .keyboardShortcut("q", modifiers: .command)
+            }
         }
     }
 }
