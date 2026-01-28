@@ -450,9 +450,13 @@ fn capitalize_pronoun_i(s: &str) -> String {
     } else if result.starts_with("i'") || result.starts_with("i'") {
         // Handle both straight and curly apostrophe
         result = format!("I{}", &result[1..]);
-    } else if result.starts_with("i,") || result.starts_with("i.")
-            || result.starts_with("i!") || result.starts_with("i?")
-            || result.starts_with("i;") || result.starts_with("i:") {
+    } else if result.starts_with("i,")
+        || result.starts_with("i.")
+        || result.starts_with("i!")
+        || result.starts_with("i?")
+        || result.starts_with("i;")
+        || result.starts_with("i:")
+    {
         // Handle i followed by punctuation at start
         result = format!("I{}", &result[1..]);
     }
@@ -744,7 +748,10 @@ pub fn analyze_text(
                         .into_iter()
                         .map(|s| {
                             // Step 1: Lowercase the first character (unless it's "I" pronoun)
-                            let lowercased = if s.starts_with("I ") || s.starts_with("I'") || s == "I" {
+                            let lowercased = if s.starts_with("I ")
+                                || s.starts_with("I'")
+                                || s == "I"
+                            {
                                 // Suggestion starts with pronoun "I" - keep as is
                                 s
                             } else {
@@ -4730,11 +4737,11 @@ mod tests {
                 false,
                 false,
                 vec![],
-                true,  // enable_sentence_start_capitalization
-                true,  // enforce_oxford_comma
-                true,  // check_ellipsis
-                true,  // check_unclosed_quotes
-                true,  // check_dashes
+                true, // enable_sentence_start_capitalization
+                true, // enforce_oxford_comma
+                true, // check_ellipsis
+                true, // check_unclosed_quotes
+                true, // check_dashes
             );
 
             // Find the error for the initialism
@@ -4777,20 +4784,48 @@ mod tests {
 
         let test_cases = vec![
             // (input, expected, description)
-            ("if i recall correctly", "if I recall correctly", "middle of string"),
+            (
+                "if i recall correctly",
+                "if I recall correctly",
+                "middle of string",
+            ),
             ("i think so", "I think so", "start of string"),
             ("what do i know", "what do I know", "middle of string"),
-            ("that's what i said", "that's what I said", "end of string before punctuation implicit"),
-            ("i'm happy", "I'm happy", "contraction at start with straight apostrophe"),
-            ("i'm happy", "I'm happy", "contraction at start with curly apostrophe"),
-            ("well, i'll do it", "well, I'll do it", "contraction mid-string"),
+            (
+                "that's what i said",
+                "that's what I said",
+                "end of string before punctuation implicit",
+            ),
+            (
+                "i'm happy",
+                "I'm happy",
+                "contraction at start with straight apostrophe",
+            ),
+            (
+                "i'm happy",
+                "I'm happy",
+                "contraction at start with curly apostrophe",
+            ),
+            (
+                "well, i'll do it",
+                "well, I'll do it",
+                "contraction mid-string",
+            ),
             ("yes i can", "yes I can", "no punctuation around i"),
             ("can i? yes!", "can I? yes!", "before question mark"),
             ("i", "I", "just the pronoun"),
             ("", "", "empty string"),
             ("no pronoun here", "no pronoun here", "no i pronoun"),
-            ("it is fine", "it is fine", "i in other words - should NOT change"),
-            ("this is it", "this is it", "i in other words - should NOT change"),
+            (
+                "it is fine",
+                "it is fine",
+                "i in other words - should NOT change",
+            ),
+            (
+                "this is it",
+                "this is it",
+                "i in other words - should NOT change",
+            ),
             ("i, robot", "I, robot", "i followed by comma"),
             ("did i; maybe", "did I; maybe", "i followed by semicolon"),
         ];

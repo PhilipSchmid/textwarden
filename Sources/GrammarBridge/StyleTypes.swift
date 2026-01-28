@@ -72,14 +72,14 @@ public enum SuggestionImpact: Int, Comparable {
 // MARK: - Diff Segment
 
 /// Kind of change in a diff
-public enum DiffChangeKind: Equatable {
+public enum DiffChangeKind: Equatable, Sendable {
     case unchanged
     case added
     case removed
 }
 
 /// A segment of text in a diff
-public struct DiffSegmentModel: Identifiable {
+public struct DiffSegmentModel: Identifiable, Sendable {
     public let id = UUID()
     public let text: String
     public let kind: DiffChangeKind

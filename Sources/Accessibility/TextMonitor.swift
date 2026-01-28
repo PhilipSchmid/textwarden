@@ -1062,7 +1062,8 @@ extension TextMonitor {
 
             // Check if this focused element is editable and different from existing
             if isEditableElement(focusedElement),
-               !CFEqual(focusedElement, existingElement) {
+               !CFEqual(focusedElement, existingElement)
+            {
                 Logger.debug("TextMonitor: Found new editable element via AXFocusedUIElement", category: Logger.accessibility)
                 return focusedElement
             }

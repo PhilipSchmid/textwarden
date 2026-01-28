@@ -459,7 +459,7 @@ extension AnalysisCoordinator {
                     confidence: suggestion.confidence,
                     impact: suggestion.impact,
                     source: "appleIntelligence",
-                    isManualCheck: false,  // Auto check applies stricter filtering
+                    isManualCheck: false, // Auto check applies stricter filtering
                     sensitivity: sensitivity
                 )
             }
@@ -516,7 +516,7 @@ extension AnalysisCoordinator {
                             confidence: suggestion.confidence,
                             impact: suggestion.impact,
                             source: "appleIntelligence",
-                            isManualCheck: false,  // Auto check applies stricter filtering
+                            isManualCheck: false, // Auto check applies stricter filtering
                             sensitivity: capturedSensitivity
                         )
                     }

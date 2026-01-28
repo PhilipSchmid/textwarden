@@ -197,6 +197,7 @@ struct OnboardingView: View {
                 FeatureRow(icon: "checkmark.circle.fill", title: "Grammar & Spelling", description: "Instant detection of typos, grammar errors, and punctuation issues")
                 FeatureRow(icon: "sparkles", title: "AI Style Suggestions", description: "Apple Intelligence rewrites for clarity, tone, and readability")
                 FeatureRow(icon: "pencil.and.outline", title: "AI Compose", description: "Generate text from natural language instructions")
+                FeatureRow(icon: "doc.text", title: "Sketch Pad", description: "Built-in writing space with full AI integration — works for any text")
                 FeatureRow(icon: "textformat.size", title: "Readability Score", description: "Real-time Flesch Reading Ease score for your text")
                 FeatureRow(icon: "lock.shield.fill", title: "100% Private", description: "Everything runs locally — your text never leaves your device")
                 FeatureRow(icon: "macwindow.on.rectangle", title: "Works Everywhere", description: "Slack, Mail, Notes, browsers, and many more")

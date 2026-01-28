@@ -17,12 +17,107 @@ struct TextWardenApp: App {
     @StateObject private var permissionManager = PermissionManager.shared
 
     var body: some Scene {
-        // Menu bar app - use Settings scene as placeholder (doesn't auto-create window)
-        // Both settings and onboarding windows are created manually in AppDelegate for full control
-        // MenuBarController handles the actual menu bar icon
-        // Note: WindowGroup always creates a visible window, Settings does not
-        Settings {
+        // Menu bar app - hidden placeholder scene (no visible window)
+        WindowGroup(id: "hidden-placeholder") {
             EmptyView()
+                .frame(width: 0, height: 0)
+                .hidden()
+        }
+        .defaultSize(width: 0, height: 0)
+        .windowResizability(.contentSize)
+        .commands {
+            // App menu customizations
+            CommandGroup(replacing: .appInfo) {
+                Button("About TextWarden") {
+                    PreferencesWindowController.shared.selectTab(.about)
+                    NSApp.sendAction(#selector(AppDelegate.openSettingsWindow(selectedTab:)), to: nil, from: nil)
+                }
+            }
+
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates...") {
+                    UpdaterViewModel.shared.checkForUpdates()
+                }
+            }
+
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings...") {
+                    PreferencesWindowController.shared.selectTab(.general)
+                    NSApp.sendAction(#selector(AppDelegate.openSettingsWindow(selectedTab:)), to: nil, from: nil)
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+
+            // Replace default New Window with New Sketch
+            CommandGroup(replacing: .newItem) {
+                Button("New Sketch") {
+                    // Show Sketch Pad window if not visible
+                    SketchPadWindowController.shared.showWindow()
+                    // Create new sketch
+                    SketchPadViewModel.shared.newDocument()
+                }
+                .keyboardShortcut("n", modifiers: .command)
+            }
+
+            // Add Save command
+            CommandGroup(replacing: .saveItem) {
+                Button("Save") {
+                    Task {
+                        await SketchPadViewModel.shared.saveCurrentDocument()
+                    }
+                }
+                .keyboardShortcut("s", modifiers: .command)
+            }
+
+            // Standard Edit menu commands (Undo, Redo, Cut, Copy, Paste, Select All)
+            TextEditingCommands()
+
+            // Format menu for Sketch Pad text formatting
+            CommandMenu("Format") {
+                Button("Bold") {
+                    SketchPadViewModel.shared.toggleBold()
+                }
+                .keyboardShortcut("b", modifiers: .command)
+
+                Button("Italic") {
+                    SketchPadViewModel.shared.toggleItalic()
+                }
+                .keyboardShortcut("i", modifiers: .command)
+
+                Button("Underline") {
+                    SketchPadViewModel.shared.toggleUnderline()
+                }
+                .keyboardShortcut("u", modifiers: .command)
+
+                Button("Strikethrough") {
+                    SketchPadViewModel.shared.toggleStrikethrough()
+                }
+                .keyboardShortcut("x", modifiers: [.command, .shift])
+
+                Divider()
+
+                Button("Heading 1") {
+                    SketchPadViewModel.shared.toggleHeading(level: 1)
+                }
+                .keyboardShortcut("1", modifiers: .command)
+
+                Button("Heading 2") {
+                    SketchPadViewModel.shared.toggleHeading(level: 2)
+                }
+                .keyboardShortcut("2", modifiers: .command)
+
+                Button("Heading 3") {
+                    SketchPadViewModel.shared.toggleHeading(level: 3)
+                }
+                .keyboardShortcut("3", modifiers: .command)
+
+                Divider()
+
+                Button("Clear Formatting") {
+                    SketchPadViewModel.shared.clearFormatting()
+                }
+                .keyboardShortcut("\\", modifiers: .command)
+            }
         }
     }
 }
@@ -33,6 +128,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var analysisCoordinator: AnalysisCoordinator?
     var settingsWindow: NSWindow? // Keep strong reference to settings window
     var onboardingWindow: NSWindow? // Keep strong reference to onboarding window
+    var sketchPadWindow: NSWindow? // Keep strong reference to sketch pad window (managed by SketchPadWindowController)
 
     /// Shared updater view model for Sparkle auto-updates
     /// Uses singleton to ensure only ONE SPUStandardUpdaterController exists
@@ -40,6 +136,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_: Notification) {
         Logger.info("Application launched", category: Logger.lifecycle)
+
+        // Enable key repeat instead of showing accent picker when holding keys
+        // This is the expected behavior for text editors - users can still access
+        // accents via Option+key combinations
+        UserDefaults.standard.set(false, forKey: "ApplePressAndHoldEnabled")
 
         // Log build information for debugging
         Logger.info("Build Info - Version: \(BuildInfo.fullVersion), Built: \(BuildInfo.buildTimestamp) (\(BuildInfo.buildAge))", category: Logger.lifecycle)
@@ -101,9 +202,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarController = MenuBarController()
         Logger.info("Menu bar controller initialized", category: Logger.lifecycle)
 
-        // Setup main application menu (overrides default About action)
-        setupMainMenu()
-        Logger.info("Main application menu initialized", category: Logger.lifecycle)
+        // Note: Menus are configured via SwiftUI Commands in TextWardenApp.body.commands
+        Logger.info("SwiftUI Commands will handle menu setup", category: Logger.lifecycle)
 
         // Setup keyboard shortcuts
         setupKeyboardShortcuts()
@@ -261,6 +361,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_: Notification) {
         Logger.info("Application will terminate - cleaning up", category: Logger.lifecycle)
 
+        // Save Sketch Pad document synchronously before termination
+        SketchPadViewModel.shared.saveImmediately()
+
         // Stop crash recovery heartbeat for clean shutdown detection
         CrashRecoveryManager.shared.stopHeartbeat()
 
@@ -356,132 +459,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 extension AppDelegate: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
-        // When settings window closes, return to menu bar only mode
+        // When settings window closes, check if we should return to menu bar only mode
         if let window = notification.object as? NSWindow, window == settingsWindow {
-            Logger.debug("windowWillClose - ActivationPolicy: \(NSApp.activationPolicy().rawValue)", category: Logger.ui)
+            Logger.debug("Settings windowWillClose - ActivationPolicy: \(NSApp.activationPolicy().rawValue)", category: Logger.ui)
 
-            NSApp.setActivationPolicy(.accessory)
-
-            Logger.debug("setActivationPolicy(.accessory) completed - ActivationPolicy: \(NSApp.activationPolicy().rawValue)", category: Logger.ui)
+            // Only return to accessory mode if Sketch Pad is not visible
+            let sketchPadVisible = SketchPadWindowController.shared.isVisible
+            if !sketchPadVisible {
+                NSApp.setActivationPolicy(.accessory)
+                Logger.debug("setActivationPolicy(.accessory) completed - no other windows visible", category: Logger.ui)
+            } else {
+                Logger.debug("Sketch Pad still visible, staying in regular mode", category: Logger.ui)
+            }
         }
-    }
-
-    // MARK: - Menu Setup
-
-    /// Setup custom main application menu to override default About action
-    private func setupMainMenu() {
-        let mainMenu = NSMenu()
-
-        // Application menu (TextWarden)
-        let appMenuItem = NSMenuItem()
-        mainMenu.addItem(appMenuItem)
-
-        let appMenu = NSMenu()
-        appMenuItem.submenu = appMenu
-
-        // About TextWarden - custom action
-        let aboutItem = NSMenuItem(
-            title: "About TextWarden",
-            action: #selector(showAboutFromMenu),
-            keyEquivalent: ""
-        )
-        aboutItem.target = self
-        appMenu.addItem(aboutItem)
-
-        appMenu.addItem(NSMenuItem.separator())
-
-        // Check for Updates
-        let updateItem = NSMenuItem(
-            title: "Check for Updates...",
-            action: #selector(checkForUpdatesFromMenu),
-            keyEquivalent: ""
-        )
-        updateItem.target = self
-        appMenu.addItem(updateItem)
-
-        appMenu.addItem(NSMenuItem.separator())
-
-        // Preferences
-        let prefsItem = NSMenuItem(
-            title: "Settings...",
-            action: #selector(openSettingsWindowFromMenu),
-            keyEquivalent: ","
-        )
-        prefsItem.target = self
-        appMenu.addItem(prefsItem)
-
-        appMenu.addItem(NSMenuItem.separator())
-
-        // Hide TextWarden
-        let hideItem = NSMenuItem(
-            title: "Hide TextWarden",
-            action: #selector(NSApplication.hide(_:)),
-            keyEquivalent: "h"
-        )
-        appMenu.addItem(hideItem)
-
-        // Hide Others
-        let hideOthersItem = NSMenuItem(
-            title: "Hide Others",
-            action: #selector(NSApplication.hideOtherApplications(_:)),
-            keyEquivalent: "h"
-        )
-        hideOthersItem.keyEquivalentModifierMask = [.command, .option]
-        appMenu.addItem(hideOthersItem)
-
-        // Show All
-        let showAllItem = NSMenuItem(
-            title: "Show All",
-            action: #selector(NSApplication.unhideAllApplications(_:)),
-            keyEquivalent: ""
-        )
-        appMenu.addItem(showAllItem)
-
-        appMenu.addItem(NSMenuItem.separator())
-
-        // Quit TextWarden
-        let quitItem = NSMenuItem(
-            title: "Quit TextWarden",
-            action: #selector(NSApplication.terminate(_:)),
-            keyEquivalent: "q"
-        )
-        appMenu.addItem(quitItem)
-
-        // Help menu
-        let helpMenuItem = NSMenuItem()
-        mainMenu.addItem(helpMenuItem)
-
-        let helpMenu = NSMenu(title: "Help")
-        helpMenuItem.submenu = helpMenu
-
-        let helpItem = NSMenuItem(
-            title: "TextWarden Help",
-            action: #selector(showHelpFromMenu),
-            keyEquivalent: "?"
-        )
-        helpItem.target = self
-        helpMenu.addItem(helpItem)
-
-        NSApp.mainMenu = mainMenu
-    }
-
-    @MainActor @objc private func showAboutFromMenu() {
-        PreferencesWindowController.shared.selectTab(.about)
-        openSettingsWindow()
-    }
-
-    @MainActor @objc private func checkForUpdatesFromMenu() {
-        updaterViewModel.checkForUpdates()
-        showAboutFromMenu()
-    }
-
-    @MainActor @objc private func openSettingsWindowFromMenu() {
-        PreferencesWindowController.shared.selectTab(.general)
-        openSettingsWindow()
-    }
-
-    @objc private func showHelpFromMenu() {
-        NSApp.showHelp(nil)
     }
 
     // MARK: - Keyboard Shortcuts
@@ -529,8 +519,14 @@ extension AppDelegate: NSWindowDelegate {
 
                 Logger.debug("Keyboard shortcut: Run style check", category: Logger.ui)
 
-                // Trigger manual style check via AnalysisCoordinator
-                AnalysisCoordinator.shared.runManualStyleCheck()
+                // Check if Sketch Pad is the key window
+                if SketchPadWindowController.shared.isKeyWindow {
+                    // Trigger style analysis in Sketch Pad
+                    SketchPadViewModel.shared.triggerStyleAnalysis()
+                } else {
+                    // Trigger manual style check via AnalysisCoordinator for other apps
+                    AnalysisCoordinator.shared.runManualStyleCheck()
+                }
             }
         }
 
@@ -615,6 +611,17 @@ extension AppDelegate: NSWindowDelegate {
                     Logger.debug("Keyboard shortcut: Show Readability", category: Logger.ui)
                     FloatingErrorIndicator.shared.showReadabilityFromKeyboard()
                 }
+            }
+        }
+
+        // Toggle Sketch Pad window (Option+Control+N by default)
+        KeyboardShortcuts.onKeyUp(for: .toggleSketchPad) {
+            Task { @MainActor in
+                let preferences = UserPreferences.shared
+                guard preferences.keyboardShortcutsEnabled else { return }
+
+                Logger.debug("Keyboard shortcut: Toggle Sketch Pad", category: Logger.ui)
+                SketchPadWindowController.shared.toggleWindow()
             }
         }
 

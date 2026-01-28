@@ -11,6 +11,7 @@ This guide explains all the settings available in TextWarden and how they affect
 - [Custom Vocabulary](#custom-vocabulary)
 - [Readability](#readability)
 - [AI Style Suggestions](#ai-style-suggestions)
+- [Sketch Pad](#sketch-pad)
 - [Appearance](#appearance)
 - [Application Controls](#application-controls)
   - [Supported Applications](#supported-applications)
@@ -269,6 +270,55 @@ Style checking runs automatically after grammar analysis with smart rate limitin
 - **Creative** - More varied suggestions, still appropriate for writing tasks
 
 **Recommendation:** Use Consistent for professional documents where you want predictable results. Use Balanced for everyday writing.
+
+---
+
+## Sketch Pad
+
+Sketch Pad is TextWarden's built-in writing environment with full AI integration. Access it via the menu bar icon → **Sketch Pad** or the keyboard shortcut (default: `⌥⌃P`).
+
+### When to Use Sketch Pad
+
+- **Drafting content** - Write emails, messages, or documents in a focused environment before copying to your target application
+- **Unsupported applications** - When an application doesn't work well with TextWarden's accessibility integration, compose in Sketch Pad and paste
+- **Full AI access** - Get grammar checking, style suggestions, readability analysis, and AI quick actions all in one place
+
+### Features
+
+**Real-time Analysis**
+- Grammar and spelling errors are underlined as you type
+- Style suggestions appear when AI analysis completes
+- Readability score updates in real-time
+
+**Insights Panel**
+The right sidebar shows all detected issues organized by category:
+- **Correctness** - Spelling and grammar errors (red)
+- **Style** - Tone and word choice improvements (purple)
+- **Clarity** - Readability and complexity issues (blue)
+
+Click any insight to see the suggestion and apply it.
+
+**AI Assistant**
+The AI Assistant section provides quick actions and custom prompts:
+
+- **Quick Actions** - One-click buttons for common transformations:
+  - **Professional** - Formal, business-appropriate tone
+  - **Friendly** - Warm, conversational style
+  - **Concise** - Removes unnecessary words
+  - **Refine** - General polishing and improvement
+
+- **Custom Prompt** - Enter your own instructions for the AI (e.g., "Make this more persuasive" or "Simplify for a general audience")
+
+- **Scope** - Quick actions apply to selected text, or the entire document if nothing is selected
+
+**Undo Support**
+All AI-generated changes can be undone with `⌘Z`, so you can experiment freely and revert if needed.
+
+### Tips
+
+- Select specific text before using quick actions to transform only that portion
+- Use the readability score to gauge if your text matches your target audience
+- The Insights panel shows a count of issues - aim for zero before copying your final text
 
 ---
 

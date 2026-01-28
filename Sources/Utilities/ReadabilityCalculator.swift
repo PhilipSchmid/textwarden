@@ -657,7 +657,7 @@ final class ReadabilityCalculator: Sendable {
     // MARK: - Score Interpretation
 
     /// Get human-readable label for a Flesch Reading Ease score
-    private func labelForScore(_ score: Double) -> String {
+    func labelForScore(_ score: Double) -> String {
         switch score {
         case 90...: "Very Easy"
         case 80 ..< 90: "Easy"
@@ -670,7 +670,7 @@ final class ReadabilityCalculator: Sendable {
     }
 
     /// Get color for a Flesch Reading Ease score
-    private func colorForScore(_ score: Double) -> NSColor {
+    func colorForScore(_ score: Double) -> NSColor {
         switch score {
         case 70...: .systemGreen
         case 60 ..< 70: .systemYellow

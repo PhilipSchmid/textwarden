@@ -11,6 +11,8 @@
 		D48CD6972EDF31D9004B9B44 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = D48CD6982EDF31D9004B9B44 /* Sparkle */; };
 		D48EA19C2ED3B90E00CC5B73 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = D48EA1252ED3B88E00CC5B73 /* LaunchAtLogin */; };
 		D48EA28C2ED3BACB00CC5B73 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = D48EA2152ED3B9D900CC5B73 /* KeyboardShortcuts */; };
+		D4MARK0012F1000000000001 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = D4MARK0022F1000000000002 /* Markdown */; };
+		D4STTV0042F2000000000004 /* STTextView in Frameworks */ = {isa = PBXBuildFile; productRef = D4STTV0052F2000000000005 /* STTextView */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,7 +58,9 @@
 				D40C16252EFFCB1F00DFCA4A /* ConfettiSwiftUI in Frameworks */,
 				D48EA28C2ED3BACB00CC5B73 /* KeyboardShortcuts in Frameworks */,
 				D48EA19C2ED3B90E00CC5B73 /* LaunchAtLogin in Frameworks */,
+				D4MARK0012F1000000000001 /* Markdown in Frameworks */,
 				D48CD6972EDF31D9004B9B44 /* Sparkle in Frameworks */,
+				D4STTV0042F2000000000004 /* STTextView in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -130,6 +134,8 @@
 				D48EA2152ED3B9D900CC5B73 /* KeyboardShortcuts */,
 				D48CD6982EDF31D9004B9B44 /* Sparkle */,
 				D4CONF1022F0E000000000002 /* ConfettiSwiftUI */,
+				D4MARK0022F1000000000002 /* Markdown */,
+				D4STTV0052F2000000000005 /* STTextView */,
 			);
 			productName = TextWarden;
 			productReference = E8AC081A2EC11FBB008E37E6 /* TextWarden.app */;
@@ -168,6 +174,8 @@
 				D48EA2142ED3B9D900CC5B73 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 				D48CD6962EDF31D9004B9B44 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				D4CONF1012F0E000000000001 /* XCRemoteSwiftPackageReference "ConfettiSwiftUI" */,
+				D4MARK0032F1000000000003 /* XCRemoteSwiftPackageReference "swift-markdown" */,
+				D4STTV0032F2000000000003 /* XCRemoteSwiftPackageReference "STTextView" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E8AC081B2EC11FBB008E37E6 /* Products */;
@@ -608,6 +616,22 @@
 				minimumVersion = 2.0.0;
 			};
 		};
+		D4MARK0032F1000000000003 /* XCRemoteSwiftPackageReference "swift-markdown" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-markdown";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.4.0;
+			};
+		};
+		D4STTV0032F2000000000003 /* XCRemoteSwiftPackageReference "STTextView" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/krzyzanowskim/STTextView";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.2.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -630,6 +654,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D4CONF1012F0E000000000001 /* XCRemoteSwiftPackageReference "ConfettiSwiftUI" */;
 			productName = ConfettiSwiftUI;
+		};
+		D4MARK0022F1000000000002 /* Markdown */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D4MARK0032F1000000000003 /* XCRemoteSwiftPackageReference "swift-markdown" */;
+			productName = Markdown;
+		};
+		D4STTV0052F2000000000005 /* STTextView */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D4STTV0032F2000000000003 /* XCRemoteSwiftPackageReference "STTextView" */;
+			productName = STTextView;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

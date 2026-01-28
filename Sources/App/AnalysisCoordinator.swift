@@ -2315,96 +2315,32 @@ class AnalysisCoordinator: ObservableObject {
 
         Logger.debug("AnalysisCoordinator: applyFilters called with \(errors.count) errors", category: Logger.analysis)
 
-        var filteredErrors = errors
-
         // Log error categories
         for error in errors {
             Logger.debug("  Error category: '\(error.category)', message: '\(error.message)'", category: Logger.analysis)
         }
 
-        // HARD-CODED: Always exclude Harper's "Readability" category errors
-        // We use our own ReadabilityCalculator instead, which provides:
-        // - Flesch Reading Ease score (not just word count)
-        // - Target audience consideration
-        // - AI-powered simplification suggestions via Foundation Models
-        let beforeReadabilityFilter = filteredErrors.count
-        filteredErrors = filteredErrors.filter { $0.category != "Readability" }
-        if filteredErrors.count < beforeReadabilityFilter {
-            Logger.debug("  Filtered out \(beforeReadabilityFilter - filteredErrors.count) Harper Readability errors (using our own ReadabilityCalculator instead)", category: Logger.analysis)
-        }
+        // Apply standard filters using shared GrammarErrorFilter
+        // This includes: Readability exclusion, category filter, deduplication,
+        // ignored rules, custom vocabulary, macOS dictionary, ignored error texts
+        let filterConfig = GrammarFilterConfig(
+            enabledCategories: userPreferences.enabledCategories,
+            ignoredRules: userPreferences.ignoredRules,
+            ignoredErrorTexts: userPreferences.ignoredErrorTexts,
+            useMacOSDictionary: userPreferences.enableMacOSDictionary
+        )
+        var filteredErrors = GrammarErrorFilter.filter(
+            errors: errors,
+            sourceText: sourceText,
+            config: filterConfig,
+            customVocabulary: customVocabulary
+        )
 
-        // Filter by category (e.g., Spelling, Grammar, Style)
-        let enabledCategories = userPreferences.enabledCategories
-        Logger.debug("AnalysisCoordinator: Enabled categories: \(enabledCategories)", category: Logger.analysis)
+        Logger.debug("  After standard filters: \(filteredErrors.count) errors", category: Logger.analysis)
 
-        filteredErrors = filteredErrors.filter { error in
-            let contains = enabledCategories.contains(error.category)
-            if !contains {
-                Logger.debug("  Filtering out error with category: '\(error.category)'", category: Logger.analysis)
-            }
-            return contains
-        }
-
-        Logger.debug("  After category filter: \(filteredErrors.count) errors", category: Logger.analysis)
-
-        // Deduplicate consecutive identical errors (Issue #2)
-        // This prevents 157 "Horizontal ellipsis" errors from flooding the UI
-        filteredErrors = deduplicateErrors(filteredErrors)
-
-        Logger.debug("  After deduplication: \(filteredErrors.count) errors", category: Logger.analysis)
-
-        // Filter by dismissed rules
-        let dismissedRules = userPreferences.ignoredRules
-        filteredErrors = filteredErrors.filter { error in
-            !dismissedRules.contains(error.lintId)
-        }
-
-        // Filter by custom vocabulary and macOS system dictionary
-        // Skip errors that contain words from the user's custom dictionary or macOS learned words
-        // Note: error.start/end are Unicode scalar indices from Harper
-        let vocabulary = customVocabulary
-        let useMacOSDictionary = userPreferences.enableMacOSDictionary
+        // App-specific filters below (these need AXUIElement context)
+        // Precompute scalar count for app-specific filters that extract error text
         let sourceScalarCount = sourceText.unicodeScalars.count
-        filteredErrors = filteredErrors.filter { error in
-            // Extract error text from source using scalar indices
-            guard error.start < sourceScalarCount, error.end <= sourceScalarCount, error.start < error.end,
-                  let startIndex = TextIndexConverter.scalarIndexToStringIndex(error.start, in: sourceText),
-                  let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: sourceText)
-            else {
-                return true // Keep error if indices are invalid
-            }
-
-            let errorText = String(sourceText[startIndex ..< endIndex])
-
-            // Check custom vocabulary
-            if vocabulary.containsAnyWord(in: errorText) {
-                return false
-            }
-
-            // Check macOS system dictionary if enabled
-            if useMacOSDictionary, MacOSDictionary.shared.containsAnyWord(in: errorText) {
-                return false
-            }
-
-            return true
-        }
-
-        // Filter by globally ignored error texts
-        // Skip errors that match texts the user has chosen to ignore globally
-        let ignoredTexts = userPreferences.ignoredErrorTexts
-        filteredErrors = filteredErrors.filter { error in
-            // Extract error text from source using scalar indices
-            guard error.start < sourceScalarCount, error.end <= sourceScalarCount, error.start < error.end,
-                  let startIndex = TextIndexConverter.scalarIndexToStringIndex(error.start, in: sourceText),
-                  let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: sourceText)
-            else {
-                return true // Keep error if indices are invalid
-            }
-
-            let errorText = String(sourceText[startIndex ..< endIndex])
-
-            return !ignoredTexts.contains(errorText)
-        }
 
         // Filter out Notion-specific false positives
         // French spaces errors in Notion are often triggered by placeholder text artifacts

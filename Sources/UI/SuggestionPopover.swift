@@ -839,9 +839,9 @@ class SuggestionPopover: NSObject, ObservableObject {
             guard let self else { return }
 
             Logger.info("Popover: Showing copy fallback - automatic replacement not possible", category: Logger.ui)
-            self.copyFallbackText = textToCopy
-            self.showingCopyFallback = true
-            self.rebuildContentView()
+            copyFallbackText = textToCopy
+            showingCopyFallback = true
+            rebuildContentView()
         }
     }
 

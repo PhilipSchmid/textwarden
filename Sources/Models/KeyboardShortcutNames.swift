@@ -31,6 +31,9 @@ extension KeyboardShortcuts.Name {
     /// Show Readability popover - "R" for Readability
     static let showReadability = Self("showReadability", default: .init(.r, modifiers: [.option, .control]))
 
+    /// Toggle Sketch Pad window - "N" for New/Note
+    static let toggleSketchPad = Self("toggleSketchPad", default: .init(.n, modifiers: [.option, .control]))
+
     /// Trigger style check on current text - "S" for Style check
     static let runStyleCheck = Self("runStyleCheck", default: .init(.s, modifiers: [.option, .control]))
 

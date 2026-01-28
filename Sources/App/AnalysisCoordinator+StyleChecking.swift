@@ -388,7 +388,7 @@ extension AnalysisCoordinator {
                 let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
 
                 // Get style sensitivity from user preferences
-                let sensitivityName = self.userPreferences.styleSensitivity
+                let sensitivityName = userPreferences.styleSensitivity
                 let sensitivity = StyleSensitivity(rawValue: sensitivityName) ?? .balanced
 
                 // Filter using SuggestionTracker (unified loop prevention)

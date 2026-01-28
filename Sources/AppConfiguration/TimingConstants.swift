@@ -82,7 +82,12 @@ enum TimingConstants {
     static let accessibilityAnnounce: TimeInterval = 0.5
 
     /// Popover auto-hide delay (time to wait after mouse leaves before hiding)
-    static let popoverAutoHide: TimeInterval = 0.5
+    /// Increased from 0.5s to give users more time to move mouse from underline to popover
+    static let popoverAutoHide: TimeInterval = 0.8
+
+    /// Popover show delay (time to wait before showing popover on hover)
+    /// Prevents accidental popover triggers during fast mouse movement
+    static let popoverShowDelay: TimeInterval = 0.25
 
     /// Feedback display duration (e.g., "Copied!" message)
     static let feedbackDisplayDuration: TimeInterval = 1.5

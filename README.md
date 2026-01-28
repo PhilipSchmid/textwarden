@@ -41,6 +41,7 @@ A small indicator and/or underline appears when issues are found. Click to see s
 - **Real-time grammar and spelling** - Catches errors as you type
 - **AI-powered style suggestions** - Apple Intelligence ([Foundation Models](https://developer.apple.com/documentation/FoundationModels)) for clarity and readability improvements (macOS 26+)
 - **AI Compose** - Generate text from instructions using on-device AI (macOS 26+, Apple Silicon)
+- **Sketch Pad** - A built-in writing environment with full AI integration (see [Sketch Pad](#sketch-pad))
 - **Readability Score** - Real-time Flesch Reading Ease score for text with 30+ words
 - **Multilingual awareness** - Detects non-English documents and sentences, skipping grammar checks (no false positives on foreign text)
 - **Custom dictionary** - Add your own technical terms and proper nouns
@@ -107,6 +108,19 @@ Use cases:
 Enter your instruction (e.g., "Write a polite decline for a meeting invitation"), choose a writing style, and press Enter. The generated text can be inserted directly or copied to clipboard. Use "Retry" to get alternative versions.
 
 Like style suggestions, AI Compose runs entirely on-device using Apple Intelligence - your instructions and generated text never leave your Mac.
+
+### Sketch Pad
+
+Sketch Pad is TextWarden's built-in writing environment - a dedicated space where you can write, edit, and refine text with full access to all AI features. Open it from the menu bar icon or use the keyboard shortcut.
+
+**Why use Sketch Pad?**
+
+- **Full AI integration** - Grammar checking, style suggestions, readability analysis, and AI-powered quick actions (Professional, Friendly, Concise, Refine) all in one place
+- **Works with any text** - Draft content for any application, then copy it where you need it
+- **Universal solution** - Perfect for applications that TextWarden doesn't yet support or where accessibility integration is limited
+- **Distraction-free** - A clean, focused writing space with real-time feedback
+
+Sketch Pad gives you all of TextWarden's capabilities in a standalone window, making it ideal when you need to compose longer content or work with applications that don't fully support macOS Accessibility APIs.
 
 ### Multilingual Support
 

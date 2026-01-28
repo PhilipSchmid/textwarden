@@ -249,12 +249,12 @@ struct GenerationContext {
             let normalizedOriginal = normalizeQuotes(original)
             let normalizedSuggested = normalizeQuotes(suggested)
 
-            // Split into words, preserving whitespace with each word
-            let originalWords = splitIntoWords(normalizedOriginal)
-            let suggestedWords = splitIntoWords(normalizedSuggested)
+            // Split into tokens (words and whitespace separately)
+            let originalTokens = splitIntoTokens(normalizedOriginal)
+            let suggestedTokens = splitIntoTokens(normalizedSuggested)
 
             // Use Swift's built-in diff (Myers's algorithm)
-            let diff = suggestedWords.difference(from: originalWords)
+            let diff = suggestedTokens.difference(from: originalTokens)
 
             // Build a map of changes by index
             var removals: Set<Int> = []
@@ -274,7 +274,7 @@ struct GenerationContext {
             var origIdx = 0
             var suggIdx = 0
 
-            while origIdx < originalWords.count || suggIdx < suggestedWords.count {
+            while origIdx < originalTokens.count || suggIdx < suggestedTokens.count {
                 // Handle insertions at current suggested position
                 if let inserted = insertions[suggIdx] {
                     segments.append(DiffSegmentModel(text: inserted, kind: .added))
@@ -283,15 +283,15 @@ struct GenerationContext {
                 }
 
                 // Handle removals at current original position
-                if origIdx < originalWords.count, removals.contains(origIdx) {
-                    segments.append(DiffSegmentModel(text: originalWords[origIdx], kind: .removed))
+                if origIdx < originalTokens.count, removals.contains(origIdx) {
+                    segments.append(DiffSegmentModel(text: originalTokens[origIdx], kind: .removed))
                     origIdx += 1
                     continue
                 }
 
-                // Unchanged word
-                if origIdx < originalWords.count, suggIdx < suggestedWords.count {
-                    segments.append(DiffSegmentModel(text: suggestedWords[suggIdx], kind: .unchanged))
+                // Unchanged token
+                if origIdx < originalTokens.count, suggIdx < suggestedTokens.count {
+                    segments.append(DiffSegmentModel(text: suggestedTokens[suggIdx], kind: .unchanged))
                     origIdx += 1
                     suggIdx += 1
                 } else {
@@ -303,30 +303,36 @@ struct GenerationContext {
             return mergeSegments(segments)
         }
 
-        /// Split text into words, each word includes trailing whitespace
-        private func splitIntoWords(_ text: String) -> [String] {
-            var words: [String] = []
+        /// Split text into tokens where words and whitespace are separate
+        /// This ensures diff only marks words as changed, not surrounding spaces
+        private func splitIntoTokens(_ text: String) -> [String] {
+            var tokens: [String] = []
             var current = ""
+            var isInWhitespace = false
 
             for char in text {
-                if char.isWhitespace {
+                let charIsWhitespace = char.isWhitespace
+
+                if current.isEmpty {
+                    // Starting a new token
+                    current.append(char)
+                    isInWhitespace = charIsWhitespace
+                } else if charIsWhitespace == isInWhitespace {
+                    // Same type as current token, continue
                     current.append(char)
                 } else {
-                    if !current.isEmpty, current.last?.isWhitespace == true {
-                        // Previous was whitespace, start new word but keep whitespace with previous
-                        words.append(current)
-                        current = String(char)
-                    } else {
-                        current.append(char)
-                    }
+                    // Transition between word and whitespace
+                    tokens.append(current)
+                    current = String(char)
+                    isInWhitespace = charIsWhitespace
                 }
             }
 
             if !current.isEmpty {
-                words.append(current)
+                tokens.append(current)
             }
 
-            return words
+            return tokens
         }
 
         /// Merge consecutive segments of the same kind for cleaner display
@@ -452,6 +458,22 @@ struct GenerationContext {
         If the sentence cannot be simplified meaningfully, return an empty array.
         """)
         let alternatives: [String]
+    }
+
+    /// Result of readability tips generation from Foundation Models
+    @available(macOS 26.0, *)
+    @Generable
+    struct FMReadabilityTipsResult {
+        @Guide(description: """
+        2-3 concise, high-level tips to improve readability.
+        Each tip must:
+        - Be under 15 words
+        - NOT quote or repeat any text from the user
+        - Describe patterns (e.g., "2 long sentences" not "the sentence about X")
+        - Be actionable but general
+        Return empty array if text is well-written.
+        """)
+        let tips: [String]
     }
 
 #endif

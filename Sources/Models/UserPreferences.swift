@@ -637,6 +637,43 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    // MARK: - Sketch Pad Settings
+
+    /// Preferred copy format for Sketch Pad (plainText or markdown)
+    @Published var sketchPadCopyFormat: String {
+        didSet {
+            defaults.set(sketchPadCopyFormat, forKey: Keys.sketchPadCopyFormat)
+        }
+    }
+
+    /// Show line numbers in Sketch Pad editor
+    @Published var sketchPadShowLineNumbers: Bool {
+        didSet {
+            defaults.set(sketchPadShowLineNumbers, forKey: Keys.sketchPadShowLineNumbers)
+        }
+    }
+
+    /// Highlight the current line in Sketch Pad editor
+    @Published var sketchPadHighlightLine: Bool {
+        didSet {
+            defaults.set(sketchPadHighlightLine, forKey: Keys.sketchPadHighlightLine)
+        }
+    }
+
+    /// Show invisible characters (spaces, tabs, newlines) in Sketch Pad editor
+    @Published var sketchPadShowInvisibles: Bool {
+        didSet {
+            defaults.set(sketchPadShowInvisibles, forKey: Keys.sketchPadShowInvisibles)
+        }
+    }
+
+    /// Enable line wrapping in Sketch Pad editor
+    @Published var sketchPadLineWrapping: Bool {
+        didSet {
+            defaults.set(sketchPadLineWrapping, forKey: Keys.sketchPadLineWrapping)
+        }
+    }
+
     /// Available writing style options
     static let writingStyles = [
         "Default",
@@ -881,6 +918,13 @@ class UserPreferences: ObservableObject {
         styleInferencePreset = defaults.string(forKey: Keys.styleInferencePreset) ?? "balanced"
         styleTemperaturePreset = defaults.string(forKey: Keys.styleTemperaturePreset) ?? "balanced"
         styleSensitivity = defaults.string(forKey: Keys.styleSensitivity) ?? "balanced"
+
+        // Sketch Pad settings
+        sketchPadCopyFormat = defaults.string(forKey: Keys.sketchPadCopyFormat) ?? "plainText"
+        sketchPadShowLineNumbers = defaults.object(forKey: Keys.sketchPadShowLineNumbers) as? Bool ?? false
+        sketchPadHighlightLine = defaults.object(forKey: Keys.sketchPadHighlightLine) as? Bool ?? true
+        sketchPadShowInvisibles = defaults.object(forKey: Keys.sketchPadShowInvisibles) as? Bool ?? false
+        sketchPadLineWrapping = defaults.object(forKey: Keys.sketchPadLineWrapping) as? Bool ?? true
 
         // This prevents grammar checking in terminals where command output can cause false positives
         // Users can still enable terminals individually via Applications preferences
@@ -1312,5 +1356,12 @@ class UserPreferences: ObservableObject {
         static let styleInferencePreset = "styleInferencePreset"
         static let styleTemperaturePreset = "styleTemperaturePreset"
         static let styleSensitivity = "styleSensitivity"
+
+        // Sketch Pad
+        static let sketchPadCopyFormat = "sketchPadCopyFormat"
+        static let sketchPadShowLineNumbers = "sketchPadShowLineNumbers"
+        static let sketchPadHighlightLine = "sketchPadHighlightLine"
+        static let sketchPadShowInvisibles = "sketchPadShowInvisibles"
+        static let sketchPadLineWrapping = "sketchPadLineWrapping"
     }
 }

@@ -175,7 +175,8 @@ final class FoundationModelsEngine: ObservableObject {
         }
 
         let samplingInfo = temperaturePreset.usesGreedySampling ? "greedy" : "temp=\(temperaturePreset.temperature)"
-        Logger.debug("Apple Intelligence: Analyzing \(text.count) chars, style=\(style.displayName), \(samplingInfo)", category: Logger.llm)
+        Logger.info("Apple Intelligence: [Style] Starting analysis - chars=\(text.count), style=\(style.displayName), \(samplingInfo)", category: Logger.llm)
+        Logger.trace("Apple Intelligence: [Style] Calling session.respond()", category: Logger.llm)
 
         do {
             let response = try await session.respond(
@@ -185,19 +186,22 @@ final class FoundationModelsEngine: ObservableObject {
             )
 
             let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+            Logger.trace("Apple Intelligence: [Style] Response received in \(String(format: "%.2f", elapsed))s", category: Logger.llm)
 
             // Convert and validate results
             let suggestions = response.content.toStyleSuggestionModels(in: text, style: style)
 
-            Logger.debug("Apple Intelligence: Analysis complete, \(suggestions.count) suggestion(s) in \(String(format: "%.2f", elapsed))s", category: Logger.llm)
+            Logger.info("Apple Intelligence: [Style] Complete - \(suggestions.count) suggestion(s) in \(String(format: "%.2f", elapsed))s", category: Logger.llm)
 
             return suggestions
 
         } catch let error as LanguageModelSession.GenerationError {
-            Logger.error("Apple Intelligence: Generation error - \(error.localizedDescription)", category: Logger.llm)
+            let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+            Logger.error("Apple Intelligence: [Style] Generation error after \(String(format: "%.2f", elapsed))s - \(error.localizedDescription)", category: Logger.llm)
             throw FoundationModelsError.generationFailed(error.localizedDescription)
         } catch {
-            Logger.error("Apple Intelligence: Analysis failed - \(error.localizedDescription)", category: Logger.llm)
+            let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+            Logger.error("Apple Intelligence: [Style] Failed after \(String(format: "%.2f", elapsed))s - \(error.localizedDescription)", category: Logger.llm)
             throw FoundationModelsError.analysisError(error.localizedDescription)
         }
     }
@@ -507,6 +511,111 @@ final class FoundationModelsEngine: ObservableObject {
             throw FoundationModelsError.generationFailed(error.localizedDescription)
         } catch {
             Logger.error("Apple Intelligence: Simplification failed - \(error.localizedDescription)", category: Logger.llm)
+            throw FoundationModelsError.analysisError(error.localizedDescription)
+        }
+    }
+
+    // MARK: - Readability Tips Generation
+
+    /// Generate contextual readability tips for text using AI analysis.
+    ///
+    /// Analyzes the actual text content and provides specific, actionable tips
+    /// to improve readability. Tips reference actual issues in the text rather
+    /// than giving generic advice.
+    ///
+    /// - Parameters:
+    ///   - text: The text to analyze (document or selection)
+    ///   - score: The Flesch Reading Ease score of the text
+    ///   - targetAudience: The target audience level
+    /// - Returns: Array of 2-3 specific, actionable tips (may be empty for well-written text)
+    /// - Throws: If tip generation fails
+    func generateReadabilityTips(
+        for text: String,
+        score: Int,
+        targetAudience: TargetAudience
+    ) async throws -> [String] {
+        guard status == .available else {
+            Logger.warning("Apple Intelligence: Cannot generate tips, not available", category: Logger.llm)
+            throw FoundationModelsError.notAvailable(status)
+        }
+
+        // Don't analyze very short text
+        let wordCount = text.split { $0.isWhitespace || $0.isNewline }.count
+        guard wordCount >= 5 else {
+            return []
+        }
+
+        isAnalyzing = true
+        defer { isAnalyzing = false }
+
+        let startTime = CFAbsoluteTimeGetCurrent()
+
+        // Truncate text for analysis if very long (keep first ~1000 chars for context)
+        let analysisText = text.count > 1000 ? String(text.prefix(1000)) + "..." : text
+
+        // Determine if tips are expected based on score
+        let needsTips = score < 60 // Scores below 60 indicate readability issues
+
+        let instructions = """
+        You are a readability analyst. Analyze the text and provide helpful, actionable tips.
+
+        Text statistics: \(wordCount) words, readability score \(score)/100 (Flesch Reading Ease)
+        Target audience: \(targetAudience.displayName)
+
+        Score interpretation:
+        - 70+: Easy to read, minimal tips needed
+        - 50-69: Moderate difficulty, provide 1-2 tips
+        - Below 50: Difficult to read, provide 2-3 tips
+
+        Current score (\(score)) indicates: \(needsTips ? "text needs improvement" : "text is readable")
+
+        RULES:
+        - Provide general, actionable tips based on patterns you observe
+        - Do NOT quote specific text or mention exact word/sentence counts
+        - Keep tips concise (under 15 words each)
+        - Focus on: sentence length, word complexity, passive voice, clarity
+        - For scores below 60, ALWAYS provide at least 1-2 helpful tips
+        - For scores 70+, return empty array (text is already good)
+
+        Example good tips:
+        - "Consider breaking longer sentences into shorter ones."
+        - "Some formal words could be simplified for clarity."
+        - "Try using active voice more often."
+        """
+
+        let session = LanguageModelSession(instructions: instructions)
+        let options = GenerationOptions(temperature: TemperatureValues.low)
+
+        Logger.info("Apple Intelligence: [Readability] Starting tips generation - words=\(wordCount), score=\(score), audience=\(targetAudience.displayName)", category: Logger.llm)
+        Logger.trace("Apple Intelligence: [Readability] Calling session.respond()", category: Logger.llm)
+
+        do {
+            let response = try await session.respond(
+                to: "Analyze this text for readability and provide helpful tips:\n\n\"\(analysisText)\"",
+                generating: FMReadabilityTipsResult.self,
+                options: options
+            )
+
+            let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+            Logger.trace("Apple Intelligence: [Readability] Response received in \(String(format: "%.2f", elapsed))s", category: Logger.llm)
+
+            // Filter out empty tips
+            let validTips = response.content.tips.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+            Logger.info("Apple Intelligence: [Readability] Complete - \(validTips.count) tip(s) in \(String(format: "%.2f", elapsed))s", category: Logger.llm)
+            if !validTips.isEmpty {
+                Logger.trace("Apple Intelligence: [Readability] Tips: \(validTips.joined(separator: " | "))", category: Logger.llm)
+            }
+
+            return validTips
+
+        } catch let error as LanguageModelSession.GenerationError {
+            let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+            Logger.error("Apple Intelligence: [Readability] Generation error after \(String(format: "%.2f", elapsed))s - \(error.localizedDescription)", category: Logger.llm)
+            throw FoundationModelsError.generationFailed(error.localizedDescription)
+        } catch {
+            let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+            Logger.error("Apple Intelligence: [Readability] Failed after \(String(format: "%.2f", elapsed))s - \(error.localizedDescription)", category: Logger.llm)
             throw FoundationModelsError.analysisError(error.localizedDescription)
         }
     }

@@ -277,8 +277,20 @@ class MenuBarController: NSObject, NSMenuDelegate {
         menu?.addItem(NSMenuItem.separator())
     }
 
-    /// Add utility menu items (Preferences, Quit)
+    /// Add utility menu items (Sketch Pad, Preferences, Quit)
     private func addUtilityMenuItems() {
+        // Sketch Pad
+        let sketchPadItem = NSMenuItem(
+            title: "Open Sketch Pad",
+            action: #selector(openSketchPad),
+            keyEquivalent: "n"
+        )
+        sketchPadItem.keyEquivalentModifierMask = [.option, .control]
+        sketchPadItem.target = self
+        menu?.addItem(sketchPadItem)
+
+        menu?.addItem(NSMenuItem.separator())
+
         // Preferences
         let preferencesItem = NSMenuItem(
             title: "Preferences",
@@ -298,6 +310,11 @@ class MenuBarController: NSObject, NSMenuDelegate {
         )
         quitItem.target = self
         menu?.addItem(quitItem)
+    }
+
+    @objc private func openSketchPad() {
+        Logger.debug("Opening Sketch Pad from menu", category: Logger.ui)
+        SketchPadWindowController.shared.showWindow()
     }
 
     @objc private func setPauseActive() {

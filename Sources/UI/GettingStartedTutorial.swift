@@ -921,7 +921,6 @@ private struct TutorialComposePopover: View {
     }
 }
 
-
 // MARK: - Style Chip for Tutorial
 
 private struct TutorialStyleChip: View {

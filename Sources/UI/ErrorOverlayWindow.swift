@@ -896,7 +896,8 @@ class ErrorOverlayWindow: NSPanel {
     }
 
     /// Hide overlay
-    func hide() {
+    /// - Parameter preserveLockedHighlight: If true, preserves the locked highlight for re-application after underlines are recreated
+    func hide(preserveLockedHighlight: Bool = false) {
         // Performance profiling for overlay hide operations
         let (profilingState, profilingStartTime) = PerformanceProfiler.shared.beginInterval(.overlayHide, context: isCurrentlyVisible ? "visible" : "hidden")
         defer { PerformanceProfiler.shared.endInterval(.overlayHide, state: profilingState, startTime: profilingStartTime) }
@@ -920,10 +921,9 @@ class ErrorOverlayWindow: NSPanel {
         // Clear local tracking variables
         hoveredUnderline = nil
 
-        // Clear locked highlight - but preserve during replacement mode
-        // so it can be re-applied when underlines are recreated
-        let isInReplacementMode = AnalysisCoordinator.shared.isInReplacementMode
-        if !isInReplacementMode {
+        // Clear locked highlight unless caller wants to preserve it
+        // (e.g., during replacement mode to re-apply after underlines are recreated)
+        if !preserveLockedHighlight {
             lockedHighlightError = nil
         }
 

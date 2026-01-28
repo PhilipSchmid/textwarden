@@ -939,7 +939,7 @@ extension AnalysisCoordinator {
     func applyStyleBrowserReplacement(for suggestion: StyleSuggestionModel, element: AXUIElement, context: ApplicationContext) {
         Logger.debug("Browser style replacement for \(context.applicationName)", category: Logger.analysis)
 
-        //Log full suggestion details for debugging position drift
+        // Log full suggestion details for debugging position drift
         Logger.debug("Style replace: suggestion.originalStart=\(suggestion.originalStart), originalEnd=\(suggestion.originalEnd)", category: Logger.analysis)
         Logger.debug("Style replace: originalText='\(suggestion.originalText.prefix(50))...' (\(suggestion.originalText.count) chars)", category: Logger.analysis)
         Logger.debug("Style replace: suggestedText='\(suggestion.suggestedText.prefix(50))...' (\(suggestion.suggestedText.count) chars)", category: Logger.analysis)
@@ -949,7 +949,7 @@ extension AnalysisCoordinator {
         let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentTextRef)
         let currentText = (textResult == .success) ? (currentTextRef as? String) : nil
 
-        //Log current text length and special character analysis
+        // Log current text length and special character analysis
         if let text = currentText {
             Logger.debug("Style replace: currentText.count=\(text.count), utf16.count=\((text as NSString).length)", category: Logger.analysis)
 
@@ -1631,7 +1631,7 @@ extension AnalysisCoordinator {
                     return isRootOnly ? .failedRootOnlyUnreliable : .failed
                 }
 
-                //Log child element text details
+                // Log child element text details
                 Logger.debug("Selection: childText.count=\(childText.count), utf16.count=\((childText as NSString).length)", category: Logger.analysis)
                 Logger.debug("Selection: offsetInChild=\(offsetInChild) (grapheme clusters)", category: Logger.analysis)
 
@@ -1649,7 +1649,7 @@ extension AnalysisCoordinator {
                     selectionLength = searchText.count
                 }
 
-                //Check for grapheme/UTF-16 mismatch in prefix of child text
+                // Check for grapheme/UTF-16 mismatch in prefix of child text
                 if selectionOffset > 0, selectionOffset <= childText.count {
                     let prefixEndIdx = childText.index(childText.startIndex, offsetBy: min(selectionOffset, childText.count))
                     let prefixGraphemes = selectionOffset
@@ -1659,11 +1659,11 @@ extension AnalysisCoordinator {
                     }
                 }
 
-                //Log what text we're about to select
+                // Log what text we're about to select
                 if selectionOffset >= 0, selectionOffset + selectionLength <= childText.count {
                     let startIdx = childText.index(childText.startIndex, offsetBy: selectionOffset)
                     let endIdx = childText.index(startIdx, offsetBy: selectionLength)
-                    let textToSelect = String(childText[startIdx..<endIdx])
+                    let textToSelect = String(childText[startIdx ..< endIdx])
                     Logger.debug("Selection: textToSelect='\(textToSelect.prefix(50))...' at grapheme \(selectionOffset)-\(selectionOffset + selectionLength)", category: Logger.analysis)
                 }
 
@@ -1674,7 +1674,7 @@ extension AnalysisCoordinator {
                 )
                 var childRange = CFRange(location: utf16Range.location, length: utf16Range.length)
 
-                //Enhanced logging for UTF-16 conversion
+                // Enhanced logging for UTF-16 conversion
                 Logger.debug("Selection: UTF-16 conversion: grapheme[\(selectionOffset), len=\(selectionLength)] -> utf16[\(utf16Range.location), len=\(utf16Range.length)]", category: Logger.analysis)
                 if utf16Range.location != selectionOffset || utf16Range.length != selectionLength {
                     Logger.warning("Selection: UTF-16 conversion changed values (multi-byte chars in prefix)", category: Logger.analysis)
@@ -1739,8 +1739,8 @@ extension AnalysisCoordinator {
                             let expectedCtxEnd = searchText.index(searchText.startIndex, offsetBy: contextEnd)
                             let actualCtxStart = selectedText.index(selectedText.startIndex, offsetBy: contextStart)
                             let actualCtxEnd = selectedText.index(selectedText.startIndex, offsetBy: contextEnd)
-                            Logger.warning("Selection:   Expected[\(contextStart)-\(contextEnd)]: '\(searchText[expectedCtxStart..<expectedCtxEnd])'", category: Logger.analysis)
-                            Logger.warning("Selection:   Actual[\(contextStart)-\(contextEnd)]:   '\(selectedText[actualCtxStart..<actualCtxEnd])'", category: Logger.analysis)
+                            Logger.warning("Selection:   Expected[\(contextStart)-\(contextEnd)]: '\(searchText[expectedCtxStart ..< expectedCtxEnd])'", category: Logger.analysis)
+                            Logger.warning("Selection:   Actual[\(contextStart)-\(contextEnd)]:   '\(selectedText[actualCtxStart ..< actualCtxEnd])'", category: Logger.analysis)
                         } else if searchText.count != selectedText.count {
                             Logger.warning("Selection: Content same for first \(maxChars) chars but lengths differ", category: Logger.analysis)
                         }
@@ -1939,7 +1939,7 @@ extension AnalysisCoordinator {
         // However, text with mentions (@user, #channel) only exists at root level, so we need to allow it
         // Selection verification will catch off-by-one issues and abort if needed
         let hasChildCandidate = candidates.contains { $0.depth > 0 }
-        if !candidates.isEmpty && !hasChildCandidate {
+        if !candidates.isEmpty, !hasChildCandidate {
             Logger.debug("Find child: Only root element (depth=0) contains target text", category: Logger.analysis)
             Logger.debug("Find child: Text likely contains mentions/links - using root element with verification", category: Logger.analysis)
             // Fall through to use root element - selection verification will catch issues
@@ -1973,7 +1973,7 @@ extension AnalysisCoordinator {
                 let offset = candidate.text.distance(from: candidate.text.startIndex, to: occurrences[0].lowerBound)
                 Logger.trace("Found target text in child element (size \(candidate.text.count)) at offset \(offset)", category: Logger.analysis)
 
-                //Check grapheme vs UTF-16 for the prefix
+                // Check grapheme vs UTF-16 for the prefix
                 let prefixEndIdx = occurrences[0].lowerBound
                 let prefixText = String(candidate.text[..<prefixEndIdx])
                 let graphemeCount = offset
@@ -2072,7 +2072,7 @@ extension AnalysisCoordinator {
                 // the most specific element.
                 candidates.append((element: element, text: text, offset: 0, depth: depth))
                 Logger.trace("Collect: depth=\(depth), role=\(role), textLen=\(text.count) - ACCEPTED (contains target)", category: Logger.analysis)
-            } else if depth > 0 && text.count > 50 {
+            } else if depth > 0, text.count > 50 {
                 // Log child elements that DON'T contain the target - helps debug why no match
                 // Only log substantial text elements (>50 chars) to reduce noise
                 let preview = text.prefix(80).replacingOccurrences(of: "\n", with: "\\n")

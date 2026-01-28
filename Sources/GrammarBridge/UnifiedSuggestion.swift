@@ -243,15 +243,8 @@ public extension GrammarErrorModel {
     /// - Parameter text: The full text being analyzed (to extract original text)
     /// - Returns: UnifiedSuggestion representing this grammar error
     func toUnifiedSuggestion(in text: String) -> UnifiedSuggestion {
-        // Extract original text from the full text using the error range
-        let originalText = if let startIndex = text.index(text.startIndex, offsetBy: start, limitedBy: text.endIndex),
-                              let endIndex = text.index(text.startIndex, offsetBy: end, limitedBy: text.endIndex),
-                              startIndex < endIndex
-        {
-            String(text[startIndex ..< endIndex])
-        } else {
-            ""
-        }
+        // Extract original text using scalar indices (Harper uses Unicode scalar offsets)
+        let originalText = TextIndexConverter.extractErrorText(start: start, end: end, from: text) ?? ""
 
         // Use first suggestion as the primary replacement
         let suggestedText = suggestions.first
