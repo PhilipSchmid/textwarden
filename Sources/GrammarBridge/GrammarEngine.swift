@@ -17,7 +17,7 @@ import Foundation
     ///
     /// - Parameters:
     ///   - text: The text to analyze
-    ///   - dialect: English dialect (American, British, Canadian, Australian)
+    ///   - dialect: English dialect (American, British, Canadian, Australian, Indian)
     ///   - enableInternetAbbrev: Enable recognition of internet abbreviations (BTW, FYI, LOL, etc.)
     ///   - enableGenZSlang: Enable recognition of Gen Z slang (ghosting, sus, slay, etc.)
     ///   - enableITTerminology: Enable recognition of IT terminology (kubernetes, docker, API, etc.)
@@ -88,7 +88,7 @@ import Foundation
     ///
     /// - Parameters:
     ///   - text: The text to analyze
-    ///   - dialect: English dialect (American, British, Canadian, Australian)
+    ///   - dialect: English dialect (American, British, Canadian, Australian, Indian)
     ///   - enableInternetAbbrev: Enable recognition of internet abbreviations (BTW, FYI, LOL, etc.)
     ///   - enableGenZSlang: Enable recognition of Gen Z slang (ghosting, sus, slay, etc.)
     ///   - enableITTerminology: Enable recognition of IT terminology (kubernetes, docker, API, etc.)
@@ -181,7 +181,7 @@ import Foundation
     ///
     /// - Parameters:
     ///   - text: The text to analyze
-    ///   - dialect: English dialect (American, British, Canadian, Australian)
+    ///   - dialect: English dialect (American, British, Canadian, Australian, Indian)
     /// - Returns: Result containing analysis result or error
     @objc public func analyzeText(_ text: String, dialect: String) -> GrammarAnalysisResult {
         analyzeText(
@@ -222,7 +222,7 @@ import Foundation
     ///
     /// - Parameters:
     ///   - text: The text to analyze
-    ///   - dialect: English dialect (American, British, Canadian, Australian)
+    ///   - dialect: English dialect (American, British, Canadian, Australian, Indian)
     /// - Returns: Analysis result
     @available(macOS 10.15, *)
     public func analyzeText(_ text: String, dialect: String) async -> GrammarAnalysisResult {

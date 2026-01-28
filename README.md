@@ -45,7 +45,7 @@ A small indicator and/or underline appears when issues are found. Click to see s
 - **Readability Score** - Real-time Flesch Reading Ease score for text with 30+ words
 - **Multilingual awareness** - Detects non-English documents and sentences, skipping grammar checks (no false positives on foreign text)
 - **Custom dictionary** - Add your own technical terms and proper nouns
-- **Dialect support** - American, British, Canadian, or Australian English
+- **Dialect support** - American, British, Canadian, Australian, or Indian English
 - **App controls** - Enable, disable, or pause checking per application
 - **Automatic updates** - Stay current with optional update checks
 
@@ -139,7 +139,7 @@ Control exactly where TextWarden runs:
 ### Additional Features
 
 - **Custom dictionary** - Add technical terms, proper nouns, or specialized vocabulary
-- **Dialect support** - American, British, Canadian, or Australian English spelling rules
+- **Dialect support** - American, British, Canadian, Australian, or Indian English spelling rules
 - **Internet abbreviations** - Recognizes "btw", "afaik", "imo" without flagging them
 - **IT terminology** - Built-in dictionary of 10,000+ technical terms and company names
 - **Brand names** - 2,400+ company/brand names (Fortune 500, Forbes 2000, global brands)

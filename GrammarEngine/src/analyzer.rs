@@ -190,7 +190,7 @@ pub struct AnalysisResult {
 /// Parse a dialect string into Harper's Dialect enum
 ///
 /// # Arguments
-/// * `dialect_str` - Dialect name: "American", "British", "Canadian", or "Australian"
+/// * `dialect_str` - Dialect name: "American", "British", "Canadian", "Australian", or "Indian"
 ///
 /// # Returns
 /// The corresponding Dialect enum variant, defaulting to American if invalid
@@ -200,6 +200,7 @@ fn parse_dialect(dialect_str: &str) -> Dialect {
         "British" => Dialect::British,
         "Canadian" => Dialect::Canadian,
         "Australian" => Dialect::Australian,
+        "Indian" => Dialect::Indian,
         _ => Dialect::American, // Default to American
     }
 }
@@ -490,7 +491,7 @@ fn capitalize_pronoun_i(s: &str) -> String {
 ///
 /// # Arguments
 /// * `text` - The text to analyze
-/// * `dialect_str` - English dialect: "American", "British", "Canadian", or "Australian"
+/// * `dialect_str` - English dialect: "American", "British", "Canadian", "Australian", or "Indian"
 /// * `enable_internet_abbrev` - Enable internet abbreviations (BTW, FYI, LOL, etc.)
 /// * `enable_genz_slang` - Enable Gen Z slang words (ghosting, sus, slay, etc.)
 /// * `enable_it_terminology` - Enable IT terminology (kubernetes, docker, localhost, etc.)
@@ -1512,6 +1513,23 @@ mod tests {
             true, // check_unclosed_quotes
             true, // check_dashes
         );
+        let result_indian = analyze_text(
+            text,
+            "Indian",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+            true, // enforce_oxford_comma
+            true, // check_ellipsis
+            true, // check_unclosed_quotes
+            true, // check_dashes
+        );
         let result_invalid = analyze_text(
             text,
             "Invalid",
@@ -1535,6 +1553,7 @@ mod tests {
         assert!(result_british.word_count > 0);
         assert!(result_canadian.word_count > 0);
         assert!(result_australian.word_count > 0);
+        assert!(result_indian.word_count > 0);
         assert!(result_invalid.word_count > 0); // Should default to American
     }
 
@@ -2985,7 +3004,7 @@ mod tests {
     #[test]
     fn test_language_detection_all_dialects() {
         // Test that language detection works with all English dialects
-        let dialects = vec!["American", "British", "Canadian", "Australian"];
+        let dialects = vec!["American", "British", "Canadian", "Australian", "Indian"];
         let text = "Hallo Welt, wie geht es dir? English sentence here.";
 
         for dialect in dialects {

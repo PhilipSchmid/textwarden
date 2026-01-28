@@ -92,6 +92,7 @@ Click **Check for Updates** in the About section to immediately check for availa
 - British English
 - Canadian English
 - Australian English
+- Indian English
 
 **Recommendation:** Choose the dialect matching your audience or workplace standards.
 

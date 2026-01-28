@@ -626,7 +626,9 @@ struct OnboardingView: View {
                             .foregroundColor(selectedDialect == dialect ? .accentColor : .secondary)
                         Text(dialect)
                             .font(.body)
+                            .lineLimit(1)
                     }
+                    .fixedSize()
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .background(selectedDialect == dialect ? Color.accentColor.opacity(0.1) : Color.secondary.opacity(0.1))

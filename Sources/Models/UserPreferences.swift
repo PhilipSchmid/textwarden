@@ -251,6 +251,7 @@ class UserPreferences: ObservableObject {
         "British",
         "Canadian",
         "Australian",
+        "Indian",
     ]
 
     // MARK: - Predefined Wordlists
