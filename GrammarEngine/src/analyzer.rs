@@ -420,6 +420,77 @@ fn filter_dot_notation_capitalization_errors(
         .collect()
 }
 
+/// Filter out capitalization errors that occur after emojis
+///
+/// Harper's `UncapitalizedSentences` lint incorrectly treats emojis as sentence terminators,
+/// flagging the word after an emoji as needing capitalization. For example:
+/// "I saw the 📁 first" - Harper incorrectly flags "first" as needing capitalization
+///
+/// This filter removes capitalization errors where:
+/// - The error is preceded by whitespace followed by an emoji
+/// - The emoji is not actually a sentence terminator
+fn filter_emoji_capitalization_errors(errors: Vec<GrammarError>, text: &str) -> Vec<GrammarError> {
+    let chars: Vec<char> = text.chars().collect();
+
+    errors
+        .into_iter()
+        .filter(|error| {
+            // Only process capitalization errors
+            if error.category.to_uppercase() != "CAPITALIZATION" {
+                return true;
+            }
+
+            // Safety checks for bounds
+            if error.start == 0 || error.start > chars.len() {
+                return true;
+            }
+
+            // Look backwards from error position to find what precedes it
+            let mut pos = error.start - 1;
+
+            // Skip whitespace
+            while pos > 0 && chars[pos].is_whitespace() {
+                pos -= 1;
+            }
+
+            // Check if we hit a sentence-ending punctuation mark
+            // If so, this is a real sentence boundary - keep the error
+            if matches!(chars[pos], '.' | '!' | '?') {
+                return true;
+            }
+
+            // Skip non-sentence-ending punctuation (comma, semicolon, etc.)
+            // These might appear after an emoji but don't indicate sentence boundaries
+            while pos > 0 && matches!(chars[pos], ',' | ';' | ':' | '-' | ')' | ']' | '}' | '"' | '\'') {
+                pos -= 1;
+                // Skip any whitespace between punctuation and what's before it
+                while pos > 0 && chars[pos].is_whitespace() {
+                    pos -= 1;
+                }
+            }
+
+            let char_before = chars[pos];
+
+            // Check if it's an emoji or emoji-like character
+            // We consider it an emoji if it's:
+            // - Not ASCII
+            // - Not a common Unicode letter (like accented characters)
+            let is_emoji = !char_before.is_ascii() && !char_before.is_alphabetic();
+
+            if is_emoji {
+                tracing::debug!(
+                    "Filtering emoji-preceded capitalization error at position {}: char before = {:?}",
+                    error.start,
+                    char_before
+                );
+                return false; // Filter out this error
+            }
+
+            true // Keep the error
+        })
+        .collect()
+}
+
 /// Capitalize standalone "I" pronouns throughout a string.
 ///
 /// The English pronoun "I" should always be capitalized. This function finds
@@ -837,6 +908,19 @@ pub fn analyze_text(
             errors_before_dot_notation,
             errors.len(),
             errors_before_dot_notation - errors.len()
+        );
+    }
+
+    // Filter out capitalization errors after emojis
+    // Harper's UncapitalizedSentences lint incorrectly treats emojis as sentence terminators
+    let errors_before_emoji = errors.len();
+    errors = filter_emoji_capitalization_errors(errors, text);
+    if errors_before_emoji != errors.len() {
+        tracing::debug!(
+            "Emoji filter: {} errors before, {} after (filtered {})",
+            errors_before_emoji,
+            errors.len(),
+            errors_before_emoji - errors.len()
         );
     }
 
@@ -5506,6 +5590,181 @@ mod tests {
             filtered.len(),
             1,
             "Error at text start should be kept (can't be preceded by dot)"
+        );
+    }
+
+    // ==================== Emoji Capitalization Filter Tests ====================
+
+    #[test]
+    fn test_emoji_filter_filters_word_after_emoji() {
+        // Test case: "I saw the 📁 first" - "first" should NOT be flagged
+        let text = "I saw the 📁 first thing";
+        // 📁 is at character position 10, "first" starts at position 12 (after space)
+        let errors = vec![make_cap_error(12, 17)];
+
+        let filtered = filter_emoji_capitalization_errors(errors, text);
+        assert!(
+            filtered.is_empty(),
+            "Word after emoji should be filtered: {:?}",
+            filtered
+        );
+    }
+
+    #[test]
+    fn test_emoji_filter_filters_various_emojis() {
+        // Test with different emojis
+        let test_cases = vec![
+            ("Check ✅ this out", 8, 12),   // ✅
+            ("Hello 👋 world", 8, 13),      // 👋
+            ("The 🎉 party starts", 6, 11), // 🎉
+            ("See 📧 email below", 6, 11),  // 📧
+        ];
+
+        for (text, start, end) in test_cases {
+            let errors = vec![make_cap_error(start, end)];
+            let filtered = filter_emoji_capitalization_errors(errors, text);
+            assert!(
+                filtered.is_empty(),
+                "Word after emoji in '{}' should be filtered: {:?}",
+                text,
+                filtered
+            );
+        }
+    }
+
+    #[test]
+    fn test_emoji_filter_keeps_real_sentence_start() {
+        // Test case: "Hello! world" - exclamation mark IS a sentence boundary
+        let text = "Hello! world should be capitalized";
+        let errors = vec![make_cap_error(7, 12)]; // "world"
+
+        let filtered = filter_emoji_capitalization_errors(errors, text);
+        assert_eq!(
+            filtered.len(),
+            1,
+            "Real sentence boundary should NOT be filtered"
+        );
+    }
+
+    #[test]
+    fn test_emoji_filter_keeps_normal_text() {
+        // Test case: normal text without emojis
+        let text = "The quick brown fox";
+        let errors = vec![make_cap_error(4, 9)]; // "quick"
+
+        let filtered = filter_emoji_capitalization_errors(errors, text);
+        assert_eq!(
+            filtered.len(),
+            1,
+            "Normal capitalization errors should be kept"
+        );
+    }
+
+    #[test]
+    fn test_emoji_filter_at_text_start() {
+        // Edge case: error at position 0 should not cause panic
+        let text = "first word";
+        let errors = vec![make_cap_error(0, 5)];
+
+        let filtered = filter_emoji_capitalization_errors(errors, text);
+        assert_eq!(
+            filtered.len(),
+            1,
+            "Error at text start should be kept"
+        );
+    }
+
+    #[test]
+    fn test_emoji_filter_multiple_emojis() {
+        // Test case: multiple emojis before word
+        // "Check this 🎉🎊 celebration"
+        // Character positions: C=0, h=1, e=2, c=3, k=4, ' '=5, t=6, h=7, i=8, s=9, ' '=10, 🎉=11, 🎊=12, ' '=13, c=14
+        let text = "Check this 🎉🎊 celebration";
+        let errors = vec![make_cap_error(14, 25)]; // "celebration" starts at char index 14
+
+        let filtered = filter_emoji_capitalization_errors(errors, text);
+        assert!(
+            filtered.is_empty(),
+            "Word after multiple emojis should be filtered: {:?}",
+            filtered
+        );
+    }
+
+    #[test]
+    fn test_emoji_filter_keeps_non_capitalization_errors() {
+        // Non-capitalization errors should pass through
+        let text = "Check 📁 lerning"; // spelling error after emoji
+        let errors = vec![GrammarError {
+            start: 9,
+            end: 16,
+            message: "Did you mean 'learning'?".to_string(),
+            severity: ErrorSeverity::Error,
+            category: "Spelling".to_string(),
+            lint_id: "Spelling".to_string(),
+            suggestions: vec!["learning".to_string()],
+        }];
+
+        let filtered = filter_emoji_capitalization_errors(errors, text);
+        assert_eq!(
+            filtered.len(),
+            1,
+            "Non-capitalization errors should pass through"
+        );
+    }
+
+    #[test]
+    fn test_emoji_filter_empty_input() {
+        let errors: Vec<GrammarError> = vec![];
+        let filtered = filter_emoji_capitalization_errors(errors, "any 📁 text");
+        assert!(
+            filtered.is_empty(),
+            "Empty input should return empty output"
+        );
+    }
+
+    #[test]
+    fn test_emoji_filter_with_comma_after_emoji() {
+        // "Hey there 👋, how are you?" - comma is not a sentence boundary
+        // Character positions: H=0, e=1, y=2, ' '=3, t=4, h=5, e=6, r=7, e=8, ' '=9, 👋=10, ,=11, ' '=12, h=13
+        let text = "Hey there 👋, how are you?";
+        let errors = vec![make_cap_error(13, 16)]; // "how"
+
+        let filtered = filter_emoji_capitalization_errors(errors, text);
+        assert!(
+            filtered.is_empty(),
+            "Word after 'emoji + comma' should be filtered (comma is not sentence end): {:?}",
+            filtered
+        );
+    }
+
+    #[test]
+    fn test_emoji_filter_with_exclamation_after_emoji() {
+        // "Hey there 👋! how are you?" - exclamation IS a sentence boundary
+        // Even though there's an emoji, the ! is a real sentence terminator
+        // Character positions: H=0, e=1, y=2, ' '=3, t=4, h=5, e=6, r=7, e=8, ' '=9, 👋=10, !=11, ' '=12, h=13
+        let text = "Hey there 👋! how are you?";
+        let errors = vec![make_cap_error(13, 16)]; // "how"
+
+        let filtered = filter_emoji_capitalization_errors(errors, text);
+        assert_eq!(
+            filtered.len(),
+            1,
+            "Word after 'emoji + exclamation' should NOT be filtered (! is sentence end)"
+        );
+    }
+
+    #[test]
+    fn test_emoji_filter_just_emoji_before_word() {
+        // "Hey there 👋 how are you?" - just emoji with space, not a sentence boundary
+        // Character positions: H=0, e=1, y=2, ' '=3, t=4, h=5, e=6, r=7, e=8, ' '=9, 👋=10, ' '=11, h=12
+        let text = "Hey there 👋 how are you?";
+        let errors = vec![make_cap_error(12, 15)]; // "how"
+
+        let filtered = filter_emoji_capitalization_errors(errors, text);
+        assert!(
+            filtered.is_empty(),
+            "Word after 'emoji + space' should be filtered (emoji is not sentence end): {:?}",
+            filtered
         );
     }
 }
