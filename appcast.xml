@@ -3,6 +3,24 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.1.0-rc.8</title>
+            <pubDate>Wed, 28 Jan 2026 13:49:15 +0100</pubDate>
+            <sparkle:version>24</sparkle:version>
+            <sparkle:shortVersionString>0.1.0-rc.8</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:channel>experimental</sparkle:channel>
+            <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;chore: Fix Swift and Rust formatting issues (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/4cb34e9&quot;&gt;&lt;code&gt;4cb34e9&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Skip Wispr Flow overlay in modal dialog detection (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/1a68ede&quot;&gt;&lt;code&gt;1a68ede&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Filter false capitalization errors after emojis (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/e1542b1&quot;&gt;&lt;code&gt;e1542b1&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Make Cmd+Q close window instead of quitting app (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/6205ad3&quot;&gt;&lt;code&gt;6205ad3&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add plain text paste and fix stale insights in Sketch Pad (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/1c62a8c&quot;&gt;&lt;code&gt;1c62a8c&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Disable line highlighting by default in Sketch Pad (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/71d7f2f&quot;&gt;&lt;code&gt;71d7f2f&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-rc.8/TextWarden-0.1.0-rc.8-Universal.dmg" length="31202320" type="application/octet-stream" sparkle:edSignature="lXTDvbIpOdMDDcMkzMq2ADKlIc+3XfHnP5QM6Bpfw29u3dJZ5Sy3CEgybmf+zQOr6y4ETsgZFhDZIGGGxeEVCw=="/>
+        </item>
+        <item>
             <title>0.1.0-rc.7</title>
             <pubDate>Wed, 28 Jan 2026 09:55:36 +0100</pubDate>
             <sparkle:version>23</sparkle:version>
