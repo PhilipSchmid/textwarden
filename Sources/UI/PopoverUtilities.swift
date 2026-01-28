@@ -137,9 +137,11 @@ enum ModalDialogDetector {
             // Skip system UI (menu bar, status items, etc.)
             if ownerName == "Window Server" || ownerName == "SystemUIServer" { continue }
 
-            // Skip BetterDisplay - it has a persistent transparent overlay across virtual displays
-            // that is always present, unlike other apps that only show high-level windows during user interaction
-            if ownerName == "BetterDisplay" { continue }
+            // Skip apps with persistent high-level overlays that are always present
+            // unlike modal dialogs which only appear during user interaction
+            // - BetterDisplay: transparent overlay across virtual displays
+            // - Wispr Flow: voice dictation overlay in top portion of screen
+            if ownerName == "BetterDisplay" || ownerName == "Wispr Flow" { continue }
 
             // Convert CGWindow bounds (top-left origin) to Cocoa coords (bottom-left origin)
             // Use PRIMARY screen height (frame.origin == .zero), not NSScreen.screens.first
