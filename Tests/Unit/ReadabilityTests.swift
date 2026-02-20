@@ -154,17 +154,17 @@ final class ReadabilityTests: XCTestCase {
 
     // MARK: - Flesch Reading Ease Tests
 
-    func testFleschRE_VeryEasy() {
+    func testFleschRE_VeryEasy() throws {
         // Very simple text should score high (90+)
         let simpleText = "The cat sat on the mat. The dog ran fast. It was fun."
         let result = calculator.fleschReadingEase(for: simpleText)
 
         XCTAssertNotNil(result)
-        XCTAssertGreaterThan(result!.score, 80, "Simple text should score above 80")
-        XCTAssertEqual(result!.algorithm, .fleschReadingEase)
+        XCTAssertGreaterThan(try XCTUnwrap(result?.score), 80, "Simple text should score above 80")
+        XCTAssertEqual(result?.algorithm, .fleschReadingEase)
     }
 
-    func testFleschRE_Standard() {
+    func testFleschRE_Standard() throws {
         // Typical news article level text
         let standardText = """
         The government announced new policies yesterday. \
@@ -175,11 +175,11 @@ final class ReadabilityTests: XCTestCase {
 
         XCTAssertNotNil(result)
         // Standard text typically scores 50-70
-        XCTAssertGreaterThan(result!.score, 40)
-        XCTAssertLessThan(result!.score, 80)
+        XCTAssertGreaterThan(try XCTUnwrap(result?.score), 40)
+        XCTAssertLessThan(try XCTUnwrap(result?.score), 80)
     }
 
-    func testFleschRE_Difficult() {
+    func testFleschRE_Difficult() throws {
         // Academic/technical text should score lower
         let difficultText = """
         The epistemological implications of quantum mechanical phenomena necessitate \
@@ -190,16 +190,16 @@ final class ReadabilityTests: XCTestCase {
         let result = calculator.fleschReadingEase(for: difficultText)
 
         XCTAssertNotNil(result)
-        XCTAssertLessThan(result!.score, 50, "Academic text should score below 50")
+        XCTAssertLessThan(try XCTUnwrap(result?.score), 50, "Academic text should score below 50")
     }
 
-    func testFleschRE_ScoreClamping() {
+    func testFleschRE_ScoreClamping() throws {
         // Scores should be clamped to 0-100 range
         let result = calculator.fleschReadingEase(for: "Go. Do. Be. See. Run. Eat. Sit. Win.")
 
         XCTAssertNotNil(result)
-        XCTAssertLessThanOrEqual(result!.score, 100)
-        XCTAssertGreaterThanOrEqual(result!.score, 0)
+        XCTAssertLessThanOrEqual(try XCTUnwrap(result?.score), 100)
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(result?.score), 0)
     }
 
     // MARK: - Edge Cases
@@ -228,34 +228,34 @@ final class ReadabilityTests: XCTestCase {
 
     // MARK: - Result Properties
 
-    func testReadabilityResult_Labels() {
+    func testReadabilityResult_Labels() throws {
         // Test different score ranges produce correct labels
         let veryEasyText = "I am. He is. We go. You see."
         let result = calculator.fleschReadingEase(for: veryEasyText)
 
         XCTAssertNotNil(result)
-        XCTAssertFalse(result!.label.isEmpty, "Label should not be empty")
+        XCTAssertFalse(try XCTUnwrap(result?.label.isEmpty), "Label should not be empty")
     }
 
-    func testReadabilityResult_DisplayScore() {
+    func testReadabilityResult_DisplayScore() throws {
         let text = "This is a simple test sentence."
         let result = calculator.fleschReadingEase(for: text)
 
         XCTAssertNotNil(result)
-        XCTAssertGreaterThanOrEqual(result!.displayScore, 0)
-        XCTAssertLessThanOrEqual(result!.displayScore, 100)
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(result?.displayScore), 0)
+        XCTAssertLessThanOrEqual(try XCTUnwrap(result?.displayScore), 100)
     }
 
-    func testReadabilityResult_Emoji() {
+    func testReadabilityResult_Emoji() throws {
         let text = "This is a simple test."
         let result = calculator.fleschReadingEase(for: text)
 
         XCTAssertNotNil(result)
         let validEmojis = ["🟢", "🟡", "🟠", "🔴"]
-        XCTAssertTrue(validEmojis.contains(result!.emoji), "Should have a valid emoji")
+        XCTAssertTrue(try validEmojis.contains(XCTUnwrap(result?.emoji)), "Should have a valid emoji")
     }
 
-    func testReadabilityResult_ImprovementTips() {
+    func testReadabilityResult_ImprovementTips() throws {
         // Difficult text should have tips
         let difficultText = """
         The epistemological implications necessitate fundamental reconceptualization.
@@ -263,17 +263,17 @@ final class ReadabilityTests: XCTestCase {
         let result = calculator.fleschReadingEase(for: difficultText)
 
         XCTAssertNotNil(result)
-        if result!.score < 70 {
-            XCTAssertFalse(result!.improvementTips.isEmpty, "Difficult text should have improvement tips")
+        if try XCTUnwrap(result?.score) < 70 {
+            XCTAssertFalse(try XCTUnwrap(result?.improvementTips.isEmpty), "Difficult text should have improvement tips")
         }
     }
 
-    func testReadabilityResult_Interpretation() {
+    func testReadabilityResult_Interpretation() throws {
         let text = "This is a test sentence for checking interpretations."
         let result = calculator.fleschReadingEase(for: text)
 
         XCTAssertNotNil(result)
-        XCTAssertFalse(result!.interpretation.isEmpty, "Should have an interpretation")
+        XCTAssertFalse(try XCTUnwrap(result?.interpretation.isEmpty), "Should have an interpretation")
     }
 
     // MARK: - Performance Tests
@@ -311,7 +311,7 @@ final class ReadabilityTests: XCTestCase {
 
     // MARK: - Real-World Examples
 
-    func testFleschRE_GettysburgAddress() {
+    func testFleschRE_GettysburgAddress() throws {
         // The Gettysburg Address is written at approximately 9th grade level
         let text = """
         Four score and seven years ago our fathers brought forth on this continent \
@@ -322,11 +322,11 @@ final class ReadabilityTests: XCTestCase {
 
         XCTAssertNotNil(result)
         // Historical speeches typically score in the 50-70 range
-        XCTAssertGreaterThan(result!.score, 30)
-        XCTAssertLessThan(result!.score, 80)
+        XCTAssertGreaterThan(try XCTUnwrap(result?.score), 30)
+        XCTAssertLessThan(try XCTUnwrap(result?.score), 80)
     }
 
-    func testFleschRE_ChildrensText() {
+    func testFleschRE_ChildrensText() throws {
         let text = """
         See the cat. The cat is big. The cat runs fast. I like the cat.
         """
@@ -334,6 +334,6 @@ final class ReadabilityTests: XCTestCase {
 
         XCTAssertNotNil(result)
         // Very simple children's text should score 90+
-        XCTAssertGreaterThan(result!.score, 85)
+        XCTAssertGreaterThan(try XCTUnwrap(result?.score), 85)
     }
 }

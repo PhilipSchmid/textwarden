@@ -178,13 +178,13 @@ final class UserStatisticsTests: XCTestCase {
 
     // MARK: - Persistence Tests
 
-    func testStatisticsPersistence() {
+    func testStatisticsPersistence() throws {
         statistics.recordAnalysisSession(wordsProcessed: 100, errorsFound: 5)
         statistics.recordSuggestionApplied(category: "Spelling")
         statistics.recordSession()
 
         // Create a new instance with the same UserDefaults suite
-        let newStatistics = UserStatistics(defaults: UserDefaults(suiteName: "test.textwarden.statistics")!)
+        let newStatistics = try UserStatistics(defaults: XCTUnwrap(UserDefaults(suiteName: "test.textwarden.statistics")))
 
         XCTAssertEqual(newStatistics.analysisSessions, 1)
         XCTAssertEqual(newStatistics.wordsAnalyzed, 100)
@@ -193,20 +193,20 @@ final class UserStatisticsTests: XCTestCase {
         XCTAssertEqual(newStatistics.sessionCount, 1)
     }
 
-    func testCategoryBreakdownPersistence() {
+    func testCategoryBreakdownPersistence() throws {
         statistics.recordSuggestionApplied(category: "Spelling")
         statistics.recordSuggestionApplied(category: "Grammar")
 
-        let newStatistics = UserStatistics(defaults: UserDefaults(suiteName: "test.textwarden.statistics")!)
+        let newStatistics = try UserStatistics(defaults: XCTUnwrap(UserDefaults(suiteName: "test.textwarden.statistics")))
 
         XCTAssertEqual(newStatistics.categoryBreakdown["Spelling"], 1)
         XCTAssertEqual(newStatistics.categoryBreakdown["Grammar"], 1)
     }
 
-    func testActiveDaysPersistence() {
+    func testActiveDaysPersistence() throws {
         statistics.recordAnalysisSession(wordsProcessed: 100, errorsFound: 5)
 
-        let newStatistics = UserStatistics(defaults: UserDefaults(suiteName: "test.textwarden.statistics")!)
+        let newStatistics = try UserStatistics(defaults: XCTUnwrap(UserDefaults(suiteName: "test.textwarden.statistics")))
 
         XCTAssertEqual(newStatistics.activeDays.count, 1)
     }
@@ -914,7 +914,7 @@ final class UserStatisticsTests: XCTestCase {
 
     // MARK: - Persistence Tests for New Features
 
-    func testDetailedSessionsPersistence() {
+    func testDetailedSessionsPersistence() throws {
         statistics.recordDetailedAnalysisSession(
             wordsProcessed: 100,
             errorsFound: 5,
@@ -923,27 +923,27 @@ final class UserStatisticsTests: XCTestCase {
             latencyMs: 50.0
         )
 
-        let newStatistics = UserStatistics(defaults: UserDefaults(suiteName: "test.textwarden.statistics")!)
+        let newStatistics = try UserStatistics(defaults: XCTUnwrap(UserDefaults(suiteName: "test.textwarden.statistics")))
 
         XCTAssertEqual(newStatistics.detailedSessions.count, 1)
         XCTAssertEqual(newStatistics.detailedSessions[0].wordsProcessed, 100)
         XCTAssertEqual(newStatistics.detailedSessions[0].errorsFound, 5)
     }
 
-    func testSuggestionActionsPersistence() {
+    func testSuggestionActionsPersistence() throws {
         statistics.recordSuggestionApplied(category: "Spelling")
         statistics.recordSuggestionDismissed()
 
-        let newStatistics = UserStatistics(defaults: UserDefaults(suiteName: "test.textwarden.statistics")!)
+        let newStatistics = try UserStatistics(defaults: XCTUnwrap(UserDefaults(suiteName: "test.textwarden.statistics")))
 
         XCTAssertEqual(newStatistics.suggestionActions.count, 2)
     }
 
-    func testAppLaunchTimestampPersistence() {
+    func testAppLaunchTimestampPersistence() throws {
         let timestamp = Date()
         statistics.appLaunchTimestamp = timestamp
 
-        let newStatistics = UserStatistics(defaults: UserDefaults(suiteName: "test.textwarden.statistics")!)
+        let newStatistics = try UserStatistics(defaults: XCTUnwrap(UserDefaults(suiteName: "test.textwarden.statistics")))
 
         // Compare timestamps with 1 second tolerance
         XCTAssertEqual(
@@ -953,21 +953,21 @@ final class UserStatisticsTests: XCTestCase {
         )
     }
 
-    func testLatencySamplesPersistence() {
+    func testLatencySamplesPersistence() throws {
         statistics.recordLatency(milliseconds: 50.0)
         statistics.recordLatency(milliseconds: 100.0)
 
-        let newStatistics = UserStatistics(defaults: UserDefaults(suiteName: "test.textwarden.statistics")!)
+        let newStatistics = try UserStatistics(defaults: XCTUnwrap(UserDefaults(suiteName: "test.textwarden.statistics")))
 
         XCTAssertEqual(newStatistics.latencySamples.count, 2)
         XCTAssertEqual(newStatistics.latencySamples[0], 50.0)
         XCTAssertEqual(newStatistics.latencySamples[1], 100.0)
     }
 
-    func testAppUsageBreakdownPersistence() {
+    func testAppUsageBreakdownPersistence() throws {
         statistics.recordAppUsage(bundleIdentifier: "com.apple.Safari", errorCount: 5)
 
-        let newStatistics = UserStatistics(defaults: UserDefaults(suiteName: "test.textwarden.statistics")!)
+        let newStatistics = try UserStatistics(defaults: XCTUnwrap(UserDefaults(suiteName: "test.textwarden.statistics")))
 
         XCTAssertEqual(newStatistics.appUsageBreakdown["com.apple.Safari"], 5)
     }
