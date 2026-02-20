@@ -73,6 +73,8 @@ extension AnalysisCoordinator {
 
     /// Validate that the currently displayed errors match the current text
     /// If text has changed significantly, hide indicators and clear errors
+    ///
+    /// Uses async text extraction to avoid blocking the main thread during slow AX calls.
     func validateCurrentText() {
         // Only validate if we have active errors or indicators showing
         guard !currentErrors.isEmpty || floatingIndicator.isVisible else { return }
@@ -109,9 +111,55 @@ extension AnalysisCoordinator {
             return
         }
 
-        // Extract current text from the element synchronously
-        guard let currentText = extractTextSynchronously(from: element) else {
-            Logger.trace("Text validation: Could not extract text", category: Logger.analysis)
+        // Prevent concurrent validation operations (async extraction may be slow)
+        guard !isValidationInProgress else { return }
+        isValidationInProgress = true
+
+        // Extract text asynchronously to avoid blocking main thread
+        Task { [weak self] in
+            guard let self else { return }
+
+            // Try app-specific parser first (may have custom extraction logic)
+            // If parser returns nil, fall back to async AX value extraction
+            let currentText: String?
+            if let parserBundleID = textMonitor.currentContext?.bundleIdentifier {
+                let parser = contentParserFactory.parser(for: parserBundleID)
+                // Content parsers may need sync access to element attributes
+                if let parserText = parser.extractText(from: element) {
+                    currentText = parserText
+                } else {
+                    currentText = await AXAsyncBridge.extractTextValue(from: element, bundleID: bundleID)
+                }
+            } else {
+                currentText = await AXAsyncBridge.extractTextValue(from: element, bundleID: bundleID)
+            }
+
+            // Return to main actor for UI updates and state changes
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                defer { isValidationInProgress = false }
+
+                guard let currentText else {
+                    Logger.trace("Text validation: Could not extract text", category: Logger.analysis)
+                    return
+                }
+
+                processValidationResult(currentText: currentText, element: element)
+            }
+        }
+    }
+
+    /// Process text validation result after async extraction
+    /// Separated from validateCurrentText() for cleaner async flow
+    private func processValidationResult(currentText: String, element: AXUIElement) {
+        // CRITICAL: Verify we're still monitoring the same element.
+        // During the async extraction, focus could have changed to a different element.
+        // If we process results from a stale element, we could trigger re-analysis
+        // with old text but new context, causing incorrect error positions.
+        guard let currentMonitoredElement = textMonitor.monitoredElement,
+              CFEqual(element, currentMonitoredElement)
+        else {
+            Logger.debug("Text validation: Monitored element changed during async extraction - skipping", category: Logger.analysis)
             return
         }
 
@@ -304,11 +352,12 @@ extension AnalysisCoordinator {
         // - Mac Catalyst apps: text input field shrinks when message sent
         // - Web-based apps: element shifts when sidebar is toggled (Slack, Claude, ChatGPT, Perplexity, etc.)
         if let context = textMonitor.currentContext {
-            let bundleID = context.bundleIdentifier
-            let behavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
+            let contextBundleID = context.bundleIdentifier
+            let behavior = AppBehaviorRegistry.shared.behavior(for: contextBundleID)
             let isWebBasedApp = behavior.knownQuirks.contains(.webBasedRendering)
             if context.isMacCatalystApp || isWebBasedApp {
-                checkElementFrameForApps(element: element, isCatalyst: context.isMacCatalystApp)
+                // Use async element frame checking to avoid blocking main thread
+                checkElementFrameForAppsAsync(element: element, bundleID: contextBundleID, isCatalyst: context.isMacCatalystApp)
             }
         }
 
@@ -371,11 +420,43 @@ extension AnalysisCoordinator {
         lastWindowFrame = currentFrame
     }
 
-    /// Check element frame changes for Mac Catalyst and Electron apps
+    /// Check element frame changes asynchronously for Mac Catalyst and Electron apps
+    /// Uses async AX API calls to avoid blocking the main thread
     /// - Mac Catalyst: Detects message sent (shrink), typing (grow), conversation switch (position)
     /// - Electron apps: Detects sidebar toggle (position change without window change)
-    func checkElementFrameForApps(element: AXUIElement, isCatalyst: Bool) {
-        guard let currentElementFrame = AccessibilityBridge.getElementFrame(element) else {
+    func checkElementFrameForAppsAsync(element: AXUIElement, bundleID: String, isCatalyst: Bool) {
+        // Prevent concurrent checks
+        guard !isPositionCheckInProgress else { return }
+        isPositionCheckInProgress = true
+
+        Task { [weak self] in
+            guard let self else { return }
+
+            // Fetch element frame asynchronously
+            let currentElementFrame = await AXAsyncBridge.getElementFrame(element, bundleID: bundleID)
+
+            // Process result on main actor
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                defer { isPositionCheckInProgress = false }
+
+                guard let currentElementFrame else { return }
+                processElementFrameChange(currentElementFrame: currentElementFrame, element: element, isCatalyst: isCatalyst)
+            }
+        }
+    }
+
+    /// Process element frame change result (called after async frame fetch)
+    private func processElementFrameChange(currentElementFrame: CGRect, element: AXUIElement, isCatalyst: Bool) {
+        // CRITICAL: Verify we're still monitoring the same element.
+        // During the async gap, the monitored element could have changed (e.g., focus switch).
+        // If we compare frames from different elements, we'd get false position change detection.
+        guard let currentMonitoredElement = textMonitor.monitoredElement,
+              CFEqual(element, currentMonitoredElement)
+        else {
+            // Element changed during async operation - reset tracking to avoid false positives
+            Logger.debug("Element monitoring: Monitored element changed during async check - resetting tracking", category: Logger.analysis)
+            lastElementFrame = nil
             return
         }
 

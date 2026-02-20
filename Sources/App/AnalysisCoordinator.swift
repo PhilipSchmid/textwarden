@@ -198,6 +198,14 @@ class AnalysisCoordinator: ObservableObject {
     /// Periodically checks if source text has changed (since kAXValueChangedNotification is unreliable)
     var textValidationTimer: Timer?
 
+    /// Flag to prevent concurrent text validation operations
+    /// Set true when async validation is in progress, reset when complete
+    var isValidationInProgress = false
+
+    /// Flag to prevent concurrent position check operations
+    /// Set true when async position checking is in progress, reset when complete
+    var isPositionCheckInProgress = false
+
     // MARK: - LLM Style Checking
 
     /// Currently displayed style suggestions from LLM analysis (internal visibility for extensions)
@@ -2115,9 +2123,7 @@ class AnalysisCoordinator: ObservableObject {
 
         let totalMatching = matchingFromStart + matchingFromEnd
         let maxLen = max(oldChars.count, newChars.count)
-        let changedRatio = 1.0 - (Double(totalMatching) / Double(maxLen))
-
-        return changedRatio
+        return 1.0 - (Double(totalMatching) / Double(maxLen))
     }
 
     /// Restore cached errors and style suggestions
