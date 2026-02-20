@@ -186,7 +186,7 @@ extension ContentParserFactory: ContentParserProviding {}
 extension TypingDetector: TypingDetecting {}
 // Note: TextReplacementCoordinator conforms to TextReplacementCoordinating in its own file
 
-// UserPreferences conformance (needs explicit declaration due to static method)
+/// UserPreferences conformance (needs explicit declaration due to static method)
 extension UserPreferences: UserPreferencesProviding {}
 
 // MARK: - Dependency Container
@@ -201,7 +201,7 @@ struct DependencyContainer {
     let applicationTracker: ApplicationTracker
     let permissionManager: PermissionManager
 
-    // Analysis engines
+    /// Analysis engines
     let grammarEngine: GrammarAnalyzing
 
     // Configuration and preferences

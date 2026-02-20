@@ -13,7 +13,9 @@ public enum WritingStyle: String, CaseIterable, Identifiable, Sendable {
     case business
     case concise
 
-    public var id: String { rawValue }
+    public var id: String {
+        rawValue
+    }
 
     public var displayName: String {
         switch self {

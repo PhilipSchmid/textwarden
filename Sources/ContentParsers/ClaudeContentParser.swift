@@ -45,9 +45,7 @@ class ClaudeContentParser: ContentParser {
         let prefix = String(text[..<endStringIndex])
 
         // Count newlines - Chromium selection API treats these as zero-width
-        let newlineCount = prefix.count(where: { $0 == "\n" })
-
-        return newlineCount
+        return prefix.count(where: { $0 == "\n" })
     }
 
     func detectUIContext(element _: AXUIElement) -> String? {

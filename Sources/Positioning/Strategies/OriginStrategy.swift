@@ -14,10 +14,21 @@ import Foundation
 /// Position extraction strategy
 /// Uses AXBoundsForRange position even when width/height are zero
 class OriginStrategy: GeometryProvider {
-    var strategyName: String { "Origin" }
-    var strategyType: StrategyType { .origin }
-    var tier: StrategyTier { .reliable }
-    var tierPriority: Int { 20 }
+    var strategyName: String {
+        "Origin"
+    }
+
+    var strategyType: StrategyType {
+        .origin
+    }
+
+    var tier: StrategyTier {
+        .reliable
+    }
+
+    var tierPriority: Int {
+        20
+    }
 
     func canHandle(element _: AXUIElement, bundleID: String) -> Bool {
         // Designed for Chromium/Electron apps that return zero dimensions

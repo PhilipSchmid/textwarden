@@ -19,7 +19,9 @@ struct ElementScore {
     var roleScore: Int // Prefer AXStaticText
     var widthScore: Int // Prefer reasonable widths
 
-    var total: Int { sizeScore + roleScore + widthScore }
+    var total: Int {
+        sizeScore + roleScore + widthScore
+    }
 
     static func calculate(height: CGFloat, width: CGFloat, role: String) -> ElementScore {
         var score = ElementScore(sizeScore: 0, roleScore: 0, widthScore: 0)
@@ -60,15 +62,26 @@ struct ElementScore {
 class ElementTreeStrategy: GeometryProvider {
     // MARK: - Properties
 
-    var strategyName: String { "ElementTree" }
-    var strategyType: StrategyType { .elementTree }
-    var tier: StrategyTier { .reliable }
-    var tierPriority: Int { 5 }
+    var strategyName: String {
+        "ElementTree"
+    }
 
-    // Maximum depth for recursive traversal
+    var strategyType: StrategyType {
+        .elementTree
+    }
+
+    var tier: StrategyTier {
+        .reliable
+    }
+
+    var tierPriority: Int {
+        5
+    }
+
+    /// Maximum depth for recursive traversal
     private let maxTraversalDepth = 10
 
-    // Maximum number of children to process
+    /// Maximum number of children to process
     private let maxChildrenToProcess = 100
 
     func canHandle(element _: AXUIElement, bundleID: String) -> Bool {

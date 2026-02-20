@@ -30,10 +30,21 @@ private struct TextPart: BoundedTextPart {
 
 /// Dedicated Proton Mail positioning using AX tree traversal for bounds
 class ProtonMailStrategy: GeometryProvider {
-    var strategyName: String { "ProtonMail" }
-    var strategyType: StrategyType { .protonMail }
-    var tier: StrategyTier { .precise }
-    var tierPriority: Int { 0 }
+    var strategyName: String {
+        "ProtonMail"
+    }
+
+    var strategyType: StrategyType {
+        .protonMail
+    }
+
+    var tier: StrategyTier {
+        .precise
+    }
+
+    var tierPriority: Int {
+        0
+    }
 
     private static let protonMailBundleID = "ch.protonmail.desktop"
 

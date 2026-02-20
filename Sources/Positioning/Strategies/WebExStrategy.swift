@@ -15,10 +15,21 @@ import ApplicationServices
 
 /// Dedicated WebEx positioning using standard AXBoundsForRange
 class WebExStrategy: GeometryProvider {
-    var strategyName: String { "WebEx" }
-    var strategyType: StrategyType { .webex }
-    var tier: StrategyTier { .precise }
-    var tierPriority: Int { 6 }
+    var strategyName: String {
+        "WebEx"
+    }
+
+    var strategyType: StrategyType {
+        .webex
+    }
+
+    var tier: StrategyTier {
+        .precise
+    }
+
+    var tierPriority: Int {
+        6
+    }
 
     private static let webexBundleID = "Cisco-Systems.Spark"
 

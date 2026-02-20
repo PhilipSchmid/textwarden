@@ -138,7 +138,7 @@ enum AccessibilityStrings {
     static let export = "Export"
     static let refresh = "Refresh"
 
-    // Grammar errors
+    /// Grammar errors
     static func grammarError(category: String, message: String) -> String {
         "\(category) error: \(message)"
     }
@@ -147,12 +147,12 @@ enum AccessibilityStrings {
         "Suggestion \(index + 1): Replace with \(suggestion)"
     }
 
-    // Statistics
+    /// Statistics
     static func statistic(name: String, value: String) -> String {
         "\(name): \(value)"
     }
 
-    // Settings
+    /// Settings
     static func toggle(name: String, isOn: Bool) -> String {
         "\(name), currently \(isOn ? "enabled" : "disabled")"
     }

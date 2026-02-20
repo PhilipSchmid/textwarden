@@ -115,7 +115,7 @@ class ClickableScrollView: NSScrollView {
         super.mouseDown(with: event)
     }
 
-    // Also handle mouse down in empty areas of the scroll view
+    /// Also handle mouse down in empty areas of the scroll view
     override func hitTest(_ point: NSPoint) -> NSView? {
         let result = super.hitTest(point)
         // If click is in the scroll view but not on any subview, still activate the document view

@@ -12,10 +12,21 @@ import Foundation
 /// Range-based positioning using CFRange API
 /// Traditional approach that works well for native macOS apps
 class RangeBoundsStrategy: GeometryProvider {
-    var strategyName: String { "RangeBounds" }
-    var strategyType: StrategyType { .rangeBounds }
-    var tier: StrategyTier { .precise }
-    var tierPriority: Int { 20 }
+    var strategyName: String {
+        "RangeBounds"
+    }
+
+    var strategyType: StrategyType {
+        .rangeBounds
+    }
+
+    var tier: StrategyTier {
+        .precise
+    }
+
+    var tierPriority: Int {
+        20
+    }
 
     // Uses default canHandle (returns true) - works for most native macOS apps
 

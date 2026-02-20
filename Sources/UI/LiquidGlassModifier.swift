@@ -102,7 +102,6 @@ struct LiquidGlassModifier: ViewModifier {
 
     // MARK: - Glass Background (parameterized for consistency)
 
-    @ViewBuilder
     private func glassBackgroundView(isDark: Bool) -> some View {
         ZStack {
             // Base material layer - ultra thin for translucency

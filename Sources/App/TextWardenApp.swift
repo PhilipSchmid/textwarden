@@ -149,7 +149,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Shared updater view model for Sparkle auto-updates
     /// Uses singleton to ensure only ONE SPUStandardUpdaterController exists
-    @MainActor var updaterViewModel: UpdaterViewModel { UpdaterViewModel.shared }
+    @MainActor var updaterViewModel: UpdaterViewModel {
+        UpdaterViewModel.shared
+    }
 
     func applicationDidFinishLaunching(_: Notification) {
         Logger.info("Application launched", category: Logger.lifecycle)
@@ -370,7 +372,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // Prevent app from quitting when all windows close (menu bar app)
+    /// Prevent app from quitting when all windows close (menu bar app)
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
         false
     }

@@ -680,7 +680,9 @@ enum StyleTemperaturePreset: String, CaseIterable, Identifiable {
     case balanced
     case creative
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     /// The temperature value for Foundation Models generation.
     ///

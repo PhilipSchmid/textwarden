@@ -1310,7 +1310,7 @@ class UserPreferences: ObservableObject {
         static let enableLanguageDetection = "enableLanguageDetection"
         static let excludedLanguages = "excludedLanguages"
 
-        // Keyboard Shortcuts
+        /// Keyboard Shortcuts
         static let keyboardShortcutsEnabled = "keyboardShortcutsEnabled"
 
         // Suggestion Appearance

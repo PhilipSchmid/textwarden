@@ -39,7 +39,7 @@ struct AXCapabilityProfile: Codable {
     let boundsReturnsValidHeight: Bool
     let boundsNotWindowFrame: Bool
 
-    // Text replacement capability
+    /// Text replacement capability
     let axValueSettable: Bool
 
     // MARK: - Derived Properties

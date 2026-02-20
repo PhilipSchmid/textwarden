@@ -15,10 +15,21 @@ import Foundation
 /// Uses synthetic key events to move cursor and measure real screen position.
 /// Works when standard AX APIs fail.
 class NavigationStrategy: GeometryProvider {
-    var strategyName: String { "Navigation" }
-    var strategyType: StrategyType { .navigation }
-    var tier: StrategyTier { .fallback }
-    var tierPriority: Int { 4 }
+    var strategyName: String {
+        "Navigation"
+    }
+
+    var strategyType: StrategyType {
+        .navigation
+    }
+
+    var tier: StrategyTier {
+        .fallback
+    }
+
+    var tierPriority: Int {
+        4
+    }
 
     // Key codes for arrow keys
     private let kVK_LeftArrow: CGKeyCode = 123

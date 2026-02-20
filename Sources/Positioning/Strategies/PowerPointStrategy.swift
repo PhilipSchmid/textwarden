@@ -18,10 +18,21 @@ import ApplicationServices
 
 /// Dedicated PowerPoint positioning using AXBoundsForRange on Notes section
 class PowerPointStrategy: GeometryProvider {
-    var strategyName: String { "PowerPoint" }
-    var strategyType: StrategyType { .powerpoint }
-    var tier: StrategyTier { .precise }
-    var tierPriority: Int { 5 }
+    var strategyName: String {
+        "PowerPoint"
+    }
+
+    var strategyType: StrategyType {
+        .powerpoint
+    }
+
+    var tier: StrategyTier {
+        .precise
+    }
+
+    var tierPriority: Int {
+        5
+    }
 
     private static let powerpointBundleID = "com.microsoft.Powerpoint"
 

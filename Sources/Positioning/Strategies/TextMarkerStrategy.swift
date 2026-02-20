@@ -12,10 +12,21 @@ import ApplicationServices
 /// Positioning using opaque text marker API
 /// Works where traditional CFRange fails (Electron, Chrome)
 class TextMarkerStrategy: GeometryProvider {
-    var strategyName: String { "TextMarker" }
-    var strategyType: StrategyType { .textMarker }
-    var tier: StrategyTier { .precise }
-    var tierPriority: Int { 1 }
+    var strategyName: String {
+        "TextMarker"
+    }
+
+    var strategyType: StrategyType {
+        .textMarker
+    }
+
+    var tier: StrategyTier {
+        .precise
+    }
+
+    var tierPriority: Int {
+        1
+    }
 
     /// Get bundle ID from an AXUIElement
     private func getBundleID(from element: AXUIElement) -> String {

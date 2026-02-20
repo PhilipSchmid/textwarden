@@ -104,7 +104,7 @@ enum LogSanitizer {
 
 /// Apple Intelligence style checking diagnostics for export
 struct AppleIntelligenceDiagnostics: Codable {
-    // Feature status
+    /// Feature status
     let styleCheckingEnabled: Bool
 
     // Apple Intelligence availability
@@ -117,7 +117,7 @@ struct AppleIntelligenceDiagnostics: Codable {
     let temperaturePreset: String
     let confidenceThreshold: Double
 
-    // Runtime status
+    /// Runtime status
     let isAnalyzing: Bool
 
     @MainActor
@@ -300,14 +300,14 @@ struct StatisticsSnapshot: Codable {
     let p99LatencyMs: Double
     let totalLatencySamples: Int
 
-    // All-time resource usage metrics
+    /// All-time resource usage metrics
     let resourceUsage: ResourceUsageMetrics?
 
     // App launch tracking (for correlating resource usage with restarts)
     let currentAppLaunchTime: Date
     let appLaunchHistory: [Date]
 
-    // Time-filtered statistics (grouped by timeframe for performance insights)
+    /// Time-filtered statistics (grouped by timeframe for performance insights)
     let timeRangeStatistics: [TimeRangeStatistics]
 
     @MainActor
@@ -465,7 +465,7 @@ struct ApplicationState: Codable {
 
 /// Complete settings dump for diagnostic reports
 struct SettingsDump: Codable {
-    // Launch
+    /// Launch
     let autoStart: Bool
 
     // Language & Grammar
@@ -674,22 +674,22 @@ struct DiagnosticReport: Codable {
     let permissionsStatus: PermissionsStatus
     let applicationState: ApplicationState
 
-    // Settings (complete dump)
+    /// Settings (complete dump)
     let settings: SettingsDump
 
-    // Statistics (comprehensive with time-range breakdown and performance metrics)
+    /// Statistics (comprehensive with time-range breakdown and performance metrics)
     let statistics: StatisticsSnapshot
 
-    // Apple Intelligence Style Checking
+    /// Apple Intelligence Style Checking
     let appleIntelligence: AppleIntelligenceDiagnostics
 
-    // Strategy Profiles (auto-detected app capabilities)
+    /// Strategy Profiles (auto-detected app capabilities)
     let strategyProfiles: StrategyProfileDiagnostics
 
-    // Performance Profiling (OSSignposter metrics and signposts)
+    /// Performance Profiling (OSSignposter metrics and signposts)
     let performanceProfiling: PerformanceProfilingDiagnostics
 
-    // Crash Info (count of actual .crash/.ips files in crash_reports/ folder)
+    /// Crash Info (count of actual .crash/.ips files in crash_reports/ folder)
     let crashReportCount: Int
 
     // Note: Logs and full crash reports (.crash/.ips files) are exported as separate files in the ZIP

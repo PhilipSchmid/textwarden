@@ -1168,7 +1168,7 @@ private struct AIAssistantSection: View {
     @State private var showingReplacementConfirmation = false
     @State private var pendingTone: WritingStyle?
 
-    // Fixed max height for the text editor - keeps Quick Actions visible
+    /// Fixed max height for the text editor - keeps Quick Actions visible
     private let maxEditorHeight: CGFloat = 80
 
     /// Binding to the view model's AI prompt (cached per document)
@@ -1653,8 +1653,7 @@ private struct DynamicHeightTextEditor: View {
     @State private var contentHeight: CGFloat = 0
 
     private var editorHeight: CGFloat {
-        let height = max(minHeight, min(contentHeight, maxHeight))
-        return height
+        max(minHeight, min(contentHeight, maxHeight))
     }
 
     private var shouldScroll: Bool {

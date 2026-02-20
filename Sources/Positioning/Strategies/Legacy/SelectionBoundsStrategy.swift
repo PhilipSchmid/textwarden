@@ -16,10 +16,21 @@ import Foundation
 /// Selection-based positioning strategy using insertion point frame
 /// Sets cursor position, gets AXInsertionPointFrame, then calculates bounds
 class SelectionBoundsStrategy: GeometryProvider {
-    var strategyName: String { "SelectionBounds" }
-    var strategyType: StrategyType { .selectionBounds }
-    var tier: StrategyTier { .fallback }
-    var tierPriority: Int { 5 }
+    var strategyName: String {
+        "SelectionBounds"
+    }
+
+    var strategyType: StrategyType {
+        .selectionBounds
+    }
+
+    var tier: StrategyTier {
+        .fallback
+    }
+
+    var tierPriority: Int {
+        5
+    }
 
     func canHandle(element _: AXUIElement, bundleID _: String) -> Bool {
         // DISABLED: This strategy manipulates cursor position which interferes with typing.

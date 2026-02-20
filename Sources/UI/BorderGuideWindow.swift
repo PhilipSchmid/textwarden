@@ -90,8 +90,13 @@ class BorderGuideWindow: NSPanel {
         orderOut(nil)
     }
 
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
+    override var canBecomeKey: Bool {
+        false
+    }
+
+    override var canBecomeMain: Bool {
+        false
+    }
 }
 
 /// Custom view that draws a gradient border band around the window edge

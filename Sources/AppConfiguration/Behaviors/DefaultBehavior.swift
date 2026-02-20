@@ -14,7 +14,9 @@ import Foundation
 /// Default behavior for unknown applications
 struct DefaultBehavior: AppBehavior {
     let bundleIdentifier: String
-    var displayName: String { "Unknown App" }
+    var displayName: String {
+        "Unknown App"
+    }
 
     let underlineVisibility = UnderlineVisibilityBehavior(
         showDelay: 0.15,

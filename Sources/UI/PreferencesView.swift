@@ -433,7 +433,6 @@ private struct CustomVocabularyContent: View {
         return allTexts.filter { $0.localizedCaseInsensitiveContains(ignoredSearchText) }
     }
 
-    @ViewBuilder
     var body: some View {
         Group {
             // MARK: - Predefined Wordlists Section

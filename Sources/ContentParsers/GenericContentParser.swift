@@ -60,6 +60,6 @@ class GenericContentParser: ContentParser {
         config.horizontalPadding
     }
 
-    /// Generic parser uses default implementation from protocol
-    /// which tries AX API first, then falls back to text measurement
+    // Generic parser uses default implementation from protocol
+    // which tries AX API first, then falls back to text measurement
 }

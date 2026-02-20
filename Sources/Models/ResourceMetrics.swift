@@ -15,7 +15,7 @@ public struct ResourceMetricSample: Codable, Identifiable, Sendable {
     public let systemLoad5m: Double? // System 5-minute load average
     public let systemLoad15m: Double? // System 15-minute load average
 
-    // Legacy CPU percentage (deprecated, kept for backward compatibility)
+    /// Legacy CPU percentage (deprecated, kept for backward compatibility)
     public let cpuPercent: Double // Deprecated: use processLoad instead
 
     // Memory Metrics
@@ -23,7 +23,7 @@ public struct ResourceMetricSample: Codable, Identifiable, Sendable {
     public let memoryVirtualBytes: UInt64? // Optional: Virtual memory
     public let memoryPeakBytes: UInt64? // Optional: Peak since last reset
 
-    // Context
+    /// Context
     public let analysisSessionId: UUID? // Link to DetailedAnalysisSession if applicable
 
     public init(

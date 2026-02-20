@@ -27,10 +27,21 @@ private struct OutlookTextPart: BoundedTextPart {
 
 /// Dedicated Outlook positioning using element-specific approaches
 class OutlookStrategy: GeometryProvider {
-    var strategyName: String { "Outlook" }
-    var strategyType: StrategyType { .outlook }
-    var tier: StrategyTier { .precise }
-    var tierPriority: Int { 5 }
+    var strategyName: String {
+        "Outlook"
+    }
+
+    var strategyType: StrategyType {
+        .outlook
+    }
+
+    var tier: StrategyTier {
+        .precise
+    }
+
+    var tierPriority: Int {
+        5
+    }
 
     private static let outlookBundleID = "com.microsoft.Outlook"
 

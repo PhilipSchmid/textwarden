@@ -164,11 +164,7 @@ struct MilestoneCardView: View {
 
 /// Wrapper to ensure transparent background in NSHostingController
 struct TransparentBackgroundView<Content: View>: NSViewRepresentable {
-    let content: Content
-
-    init(@ViewBuilder content: () -> Content) {
-        self.content = content()
-    }
+    @ViewBuilder let content: Content
 
     func makeNSView(context _: Context) -> NSView {
         let hostingView = NSHostingView(rootView: content)
@@ -237,7 +233,7 @@ class MilestoneCardWindowController {
             hostingView.wantsLayer = true
             hostingView.layer?.backgroundColor = .clear
 
-            // Also clear any sublayers that might have backgrounds
+            /// Also clear any sublayers that might have backgrounds
             func clearBackgrounds(in layer: CALayer) {
                 layer.backgroundColor = .clear
                 layer.sublayers?.forEach { clearBackgrounds(in: $0) }

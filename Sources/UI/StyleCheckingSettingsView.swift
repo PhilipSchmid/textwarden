@@ -10,7 +10,7 @@ import SwiftUI
 struct StyleCheckingSettingsView: View {
     @ObservedObject private var preferences = UserPreferences.shared
 
-    // Foundation Models engine status - wrapped for availability
+    /// Foundation Models engine status - wrapped for availability
     @State private var fmStatus: StyleEngineStatus = .unknown("")
 
     var body: some View {

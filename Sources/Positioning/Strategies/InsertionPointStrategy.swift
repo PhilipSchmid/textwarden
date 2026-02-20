@@ -16,10 +16,21 @@ import Foundation
 /// Uses cursor position and selection range as anchors since AXBoundsForRange
 /// returns invalid values (0 width/height) for Catalyst apps like Apple Messages.
 class InsertionPointStrategy: GeometryProvider {
-    var strategyName: String { "InsertionPoint" }
-    var strategyType: StrategyType { .insertionPoint }
-    var tier: StrategyTier { .reliable }
-    var tierPriority: Int { 5 }
+    var strategyName: String {
+        "InsertionPoint"
+    }
+
+    var strategyType: StrategyType {
+        .insertionPoint
+    }
+
+    var tier: StrategyTier {
+        .reliable
+    }
+
+    var tierPriority: Int {
+        5
+    }
 
     func canHandle(element: AXUIElement, bundleID _: String) -> Bool {
         // Try to get insertion point info - if available, we can handle it

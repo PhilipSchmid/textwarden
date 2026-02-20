@@ -15,12 +15,23 @@ import Foundation
 /// Probes characters near the error to find one with valid bounds,
 /// then calculates the error position relative to that anchor.
 class AnchorSearchStrategy: GeometryProvider {
-    var strategyName: String { "AnchorSearch" }
-    var strategyType: StrategyType { .anchorSearch }
-    var tier: StrategyTier { .reliable }
-    var tierPriority: Int { 30 }
+    var strategyName: String {
+        "AnchorSearch"
+    }
 
-    // Maximum distance to probe from error position
+    var strategyType: StrategyType {
+        .anchorSearch
+    }
+
+    var tier: StrategyTier {
+        .reliable
+    }
+
+    var tierPriority: Int {
+        30
+    }
+
+    /// Maximum distance to probe from error position
     private let maxProbeDistance = 50
 
     // Uses default canHandle (returns true) - universal strategy

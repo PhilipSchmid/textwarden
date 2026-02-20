@@ -30,10 +30,21 @@ private struct TextPart: BoundedTextPart {
 
 /// Dedicated Teams positioning using AX tree traversal for bounds
 class TeamsStrategy: GeometryProvider {
-    var strategyName: String { "Teams" }
-    var strategyType: StrategyType { .teams }
-    var tier: StrategyTier { .precise }
-    var tierPriority: Int { 0 }
+    var strategyName: String {
+        "Teams"
+    }
+
+    var strategyType: StrategyType {
+        .teams
+    }
+
+    var tier: StrategyTier {
+        .precise
+    }
+
+    var tierPriority: Int {
+        0
+    }
 
     private static let teamsBundleID = "com.microsoft.teams2"
 

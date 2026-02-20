@@ -70,7 +70,7 @@ struct GettingStartedTutorialView: View {
         colorScheme == .dark
     }
 
-    // Text content that changes as user progresses
+    /// Text content that changes as user progresses
     private var displayedText: String {
         if composeApplied {
             "I would greatly appreciate your detailed feedback."
@@ -87,7 +87,7 @@ struct GettingStartedTutorialView: View {
         grammarFixed ? 0 : 1
     }
 
-    // Which section to highlight in the indicator
+    /// Which section to highlight in the indicator
     private var highlightedSection: IndicatorSection? {
         switch tutorialStep {
         case .clickStyleSection: .style
@@ -97,7 +97,7 @@ struct GettingStartedTutorialView: View {
         }
     }
 
-    // Dynamic text display with optional underline
+    /// Dynamic text display with optional underline
     @ViewBuilder
     private var textDisplay: some View {
         if !grammarFixed {
@@ -493,7 +493,7 @@ private class RightClickView: NSView {
         }
     }
 
-    // Only become the hit target for right-click events
+    /// Only become the hit target for right-click events
     override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
         onRightClick != nil
     }
@@ -514,9 +514,14 @@ private struct TutorialIndicatorInteractive: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    private var isDarkMode: Bool { colorScheme == .dark }
+    private var isDarkMode: Bool {
+        colorScheme == .dark
+    }
 
-    private var grammarColor: Color { Color(red: 0.95, green: 0.35, blue: 0.25) }
+    private var grammarColor: Color {
+        Color(red: 0.95, green: 0.35, blue: 0.25)
+    }
+
     private var styleColor: Color {
         isDarkMode ? Color(red: 0.95, green: 0.3, blue: 0.75) : Color(red: 0.6, green: 0.2, blue: 0.85)
     }
@@ -635,7 +640,9 @@ private struct TutorialStylePopover: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
 
-    private var isDarkMode: Bool { colorScheme == .dark }
+    private var isDarkMode: Bool {
+        colorScheme == .dark
+    }
 
     private var styleColor: Color {
         Color.purple
@@ -730,9 +737,17 @@ private struct TutorialComposePopover: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var generateHovered = false
 
-    private var isDarkMode: Bool { colorScheme == .dark }
-    private var composeColor: Color { Color.blue }
-    private var successColor: Color { Color.green }
+    private var isDarkMode: Bool {
+        colorScheme == .dark
+    }
+
+    private var composeColor: Color {
+        Color.blue
+    }
+
+    private var successColor: Color {
+        Color.green
+    }
 
     private var backgroundTop: Color {
         isDarkMode ? Color(white: 0.18) : Color(white: 0.99)
@@ -930,7 +945,9 @@ private struct TutorialStyleChip: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    private var isDarkMode: Bool { colorScheme == .dark }
+    private var isDarkMode: Bool {
+        colorScheme == .dark
+    }
 
     private var elevatedBg: Color {
         isDarkMode ? Color(white: 0.22) : Color(white: 0.94)
@@ -1426,7 +1443,7 @@ private struct TutorialPointingArrow: View {
     }
 }
 
-// Clean arrow shape with 90-degree angles
+/// Clean arrow shape with 90-degree angles
 private struct ArrowShape: Shape {
     let direction: TutorialPointingArrow.Direction
 
@@ -1496,7 +1513,9 @@ private struct TutorialDragDemo: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    private var isDarkMode: Bool { colorScheme == .dark }
+    private var isDarkMode: Bool {
+        colorScheme == .dark
+    }
 
     private let indicatorLength: CGFloat = 144 // Length along the edge (4 sections × 36px)
     private let indicatorThickness: CGFloat = 36 // Thickness perpendicular to edge
@@ -1504,7 +1523,7 @@ private struct TutorialDragDemo: View {
     private let borderGuideWidth: CGFloat = 40 // Wide gradient band like real implementation
     private let edgePadding: CGFloat = 4
 
-    // Border guide color - subtle gray matching real implementation
+    /// Border guide color - subtle gray matching real implementation
     private var borderGuideColor: Color {
         isDarkMode
             ? Color(hue: 30 / 360, saturation: 0.03, brightness: 0.45) // Warm gray for dark
@@ -1741,9 +1760,14 @@ private struct TutorialIndicatorDraggable: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    private var isDarkMode: Bool { colorScheme == .dark }
+    private var isDarkMode: Bool {
+        colorScheme == .dark
+    }
 
-    private var grammarColor: Color { Color(red: 0.95, green: 0.35, blue: 0.25) }
+    private var grammarColor: Color {
+        Color(red: 0.95, green: 0.35, blue: 0.25)
+    }
+
     private var styleColor: Color {
         isDarkMode ? Color(red: 0.95, green: 0.3, blue: 0.75) : Color(red: 0.6, green: 0.2, blue: 0.85)
     }
@@ -1760,7 +1784,7 @@ private struct TutorialIndicatorDraggable: View {
         isDarkMode ? Color.white.opacity(0.15) : Color.black.opacity(0.1)
     }
 
-    // Frame size depends on orientation
+    /// Frame size depends on orientation
     private var frameWidth: CGFloat {
         isHorizontal ? sectionSize * sectionCount : sectionSize
     }

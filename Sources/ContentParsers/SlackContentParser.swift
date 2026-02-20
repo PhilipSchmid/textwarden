@@ -621,13 +621,13 @@ class SlackContentParser: ContentParser {
             return nil
         }
 
-        // Helper to align to 4-byte boundary
+        /// Helper to align to 4-byte boundary
         func alignTo4(_ currentOffset: Int) -> Int {
             let remainder = currentOffset % 4
             return remainder == 0 ? currentOffset : currentOffset + (4 - remainder)
         }
 
-        // Helper to read uint32
+        /// Helper to read uint32
         func readUInt32(at currentOffset: Int) -> UInt32? {
             guard currentOffset + 4 <= data.count else { return nil }
             return data.withUnsafeBytes { ptr -> UInt32 in
@@ -635,8 +635,8 @@ class SlackContentParser: ContentParser {
             }
         }
 
-        // Helper to read String16 (UTF-16LE)
-        // Note: Chromium stores CHARACTER count, not byte count, so we multiply by 2
+        /// Helper to read String16 (UTF-16LE)
+        /// Note: Chromium stores CHARACTER count, not byte count, so we multiply by 2
         func readString16(at currentOffset: Int, charCount: Int) -> String? {
             let byteCount = charCount * 2 // UTF-16 = 2 bytes per character
             guard currentOffset + byteCount <= data.count else { return nil }
@@ -703,7 +703,7 @@ class SlackContentParser: ContentParser {
     func buildChromiumPickle(plainText: String, quillDelta: String) -> Data {
         var payload = Data()
 
-        // Helper to align data to 4-byte boundary
+        /// Helper to align data to 4-byte boundary
         func alignTo4(_ data: inout Data) {
             let remainder = data.count % 4
             if remainder != 0 {
@@ -711,13 +711,13 @@ class SlackContentParser: ContentParser {
             }
         }
 
-        // Helper to write uint32
+        /// Helper to write uint32
         func writeUInt32(_ data: inout Data, value: UInt32) {
             var v = value
             data.append(Data(bytes: &v, count: 4))
         }
 
-        // Helper to write String16 (character count + UTF-16LE data)
+        /// Helper to write String16 (character count + UTF-16LE data)
         func writeString16(_ data: inout Data, string: String) {
             guard let utf16Data = string.data(using: .utf16LittleEndian) else {
                 writeUInt32(&data, value: 0)

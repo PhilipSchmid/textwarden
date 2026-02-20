@@ -30,7 +30,7 @@ enum PopoverPositioner {
         constraintFrame: CGRect,
         padding: CGFloat = 20
     ) -> (origin: CGPoint, usedDirection: PopoverOpenDirection) {
-        // Calculate origin for a given direction
+        /// Calculate origin for a given direction
         func originFor(dir: PopoverOpenDirection) -> CGPoint {
             switch dir {
             case .left:
@@ -44,7 +44,7 @@ enum PopoverPositioner {
             }
         }
 
-        // Check if origin fits within constraint frame
+        /// Check if origin fits within constraint frame
         func fitsScreen(origin: CGPoint) -> Bool {
             let minX = constraintFrame.minX + padding
             let maxX = constraintFrame.maxX - panelSize.width - padding
@@ -53,7 +53,7 @@ enum PopoverPositioner {
             return origin.x >= minX && origin.x <= maxX && origin.y >= minY && origin.y <= maxY
         }
 
-        // Get opposite direction for fallback
+        /// Get opposite direction for fallback
         func opposite(_ dir: PopoverOpenDirection) -> PopoverOpenDirection {
             switch dir {
             case .left: .right

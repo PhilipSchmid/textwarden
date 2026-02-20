@@ -34,10 +34,21 @@ private struct TextPart: BoundedTextPart {
 
 /// Dedicated Notion positioning using AX tree traversal for bounds
 class NotionStrategy: GeometryProvider {
-    var strategyName: String { "Notion" }
-    var strategyType: StrategyType { .notion }
-    var tier: StrategyTier { .precise }
-    var tierPriority: Int { 0 }
+    var strategyName: String {
+        "Notion"
+    }
+
+    var strategyType: StrategyType {
+        .notion
+    }
+
+    var tier: StrategyTier {
+        .precise
+    }
+
+    var tierPriority: Int {
+        0
+    }
 
     private static let notionBundleIDs = ["notion.id", "com.notion.id", "com.notion.desktop"]
 

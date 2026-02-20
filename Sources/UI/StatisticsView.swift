@@ -46,8 +46,7 @@ struct StatisticsView: View {
                         .frame(width: 120)
                         .help(selectedTimeRange == .session ?
                             "Shows statistics since the app was last restarted" :
-                            "Shows statistics for the selected time period"
-                        )
+                            "Shows statistics for the selected time period")
                     }
                 }
                 .padding(.bottom, 4)

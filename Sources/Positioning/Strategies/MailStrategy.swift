@@ -19,10 +19,21 @@ import ApplicationServices
 
 /// Dedicated positioning strategy for Apple Mail's WebKit-based compose windows
 class MailStrategy: GeometryProvider {
-    var strategyName: String { "Mail" }
-    var strategyType: StrategyType { .mail }
-    var tier: StrategyTier { .precise }
-    var tierPriority: Int { 0 }
+    var strategyName: String {
+        "Mail"
+    }
+
+    var strategyType: StrategyType {
+        .mail
+    }
+
+    var tier: StrategyTier {
+        .precise
+    }
+
+    var tierPriority: Int {
+        0
+    }
 
     private static let mailBundleID = "com.apple.mail"
 

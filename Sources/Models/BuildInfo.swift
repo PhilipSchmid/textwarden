@@ -52,10 +52,18 @@ enum BuildInfo {
         return launchTimestamp
     }
 
-    // Legacy aliases for backward compatibility
-    static var buildTimestamp: String { launchTimestamp }
-    static var buildDate: Date { launchDate }
-    static var buildAge: String { uptime }
+    /// Legacy aliases for backward compatibility
+    static var buildTimestamp: String {
+        launchTimestamp
+    }
+
+    static var buildDate: Date {
+        launchDate
+    }
+
+    static var buildAge: String {
+        uptime
+    }
 
     /// App version from Info.plist
     static let appVersion: String = {

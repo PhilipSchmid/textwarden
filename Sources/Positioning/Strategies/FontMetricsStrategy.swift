@@ -12,10 +12,21 @@ import Foundation
 /// Font metrics-based positioning strategy
 /// Uses ContentParser's adjustBounds() for app-specific estimation
 class FontMetricsStrategy: GeometryProvider {
-    var strategyName: String { "FontMetrics" }
-    var strategyType: StrategyType { .fontMetrics }
-    var tier: StrategyTier { .estimated }
-    var tierPriority: Int { 10 }
+    var strategyName: String {
+        "FontMetrics"
+    }
+
+    var strategyType: StrategyType {
+        .fontMetrics
+    }
+
+    var tier: StrategyTier {
+        .estimated
+    }
+
+    var tierPriority: Int {
+        10
+    }
 
     // Uses default canHandle (returns true) - always available as fallback
 

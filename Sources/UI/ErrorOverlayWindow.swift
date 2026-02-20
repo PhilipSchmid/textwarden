@@ -20,7 +20,9 @@ class ErrorOverlayWindow: NSPanel {
     private var monitoredElement: AXUIElement?
 
     /// Public accessor for the last monitored element (used for AX tree validation)
-    var lastMonitoredElement: AXUIElement? { monitoredElement }
+    var lastMonitoredElement: AXUIElement? {
+        monitoredElement
+    }
 
     /// Underline view
     private var underlineView: UnderlineView?

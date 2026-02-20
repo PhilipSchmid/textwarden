@@ -19,10 +19,21 @@ import ApplicationServices
 
 /// Dedicated Word positioning using AXBoundsForRange
 class WordStrategy: GeometryProvider {
-    var strategyName: String { "Word" }
-    var strategyType: StrategyType { .word }
-    var tier: StrategyTier { .precise }
-    var tierPriority: Int { 5 }
+    var strategyName: String {
+        "Word"
+    }
+
+    var strategyType: StrategyType {
+        .word
+    }
+
+    var tier: StrategyTier {
+        .precise
+    }
+
+    var tierPriority: Int {
+        5
+    }
 
     private static let wordBundleID = "com.microsoft.Word"
 

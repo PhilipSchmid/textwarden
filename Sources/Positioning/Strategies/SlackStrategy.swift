@@ -29,10 +29,21 @@ private struct TextPart: BoundedTextPart {
 
 /// Dedicated Slack positioning using AX tree traversal for bounds
 class SlackStrategy: GeometryProvider {
-    var strategyName: String { "Slack" }
-    var strategyType: StrategyType { .slack }
-    var tier: StrategyTier { .precise }
-    var tierPriority: Int { 0 }
+    var strategyName: String {
+        "Slack"
+    }
+
+    var strategyType: StrategyType {
+        .slack
+    }
+
+    var tier: StrategyTier {
+        .precise
+    }
+
+    var tierPriority: Int {
+        0
+    }
 
     private static let slackBundleID = "com.tinyspeck.slackmacgap"
 

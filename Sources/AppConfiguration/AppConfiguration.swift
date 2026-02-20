@@ -292,7 +292,7 @@ struct AppConfiguration {
     let bundleIDs: Set<String>
     let category: AppCategory
 
-    // Parser (required)
+    /// Parser (required)
     let parserType: ParserType
 
     // Optional overrides (nil = use category defaults)

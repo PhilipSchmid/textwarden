@@ -47,10 +47,7 @@ enum Logger {
     private static let fileLoggingQueue = DispatchQueue(label: "io.textwarden.TextWarden.logger", qos: .utility)
 
     /// Cached date formatter (creating a new one per log is expensive)
-    private static let dateFormatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        return formatter
-    }()
+    private static let dateFormatter: ISO8601DateFormatter = .init()
 
     /// Persistent file handle for efficient writes
     private static var cachedFileHandle: FileHandle?

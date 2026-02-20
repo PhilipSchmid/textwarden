@@ -105,10 +105,10 @@ class DismissedSuggestionsStore {
 class SketchPadViewModel: ObservableObject {
     static let shared = SketchPadViewModel()
 
-    // Flag to prevent triggering save during initialization
+    /// Flag to prevent triggering save during initialization
     private var isInitializing = true
 
-    // Flag to prevent triggering analysis during document load (cache handles it)
+    /// Flag to prevent triggering analysis during document load (cache handles it)
     private var isLoadingDocument = false
 
     // MARK: - Document State

@@ -98,9 +98,8 @@ class CapsuleStateManager {
         case .vertical:
             // Multiple sections stacked vertically
             let sectionCount = CGFloat(sections.count)
-            let totalHeight = (sectionCount * UIConstants.capsuleSectionHeight) +
+            return (sectionCount * UIConstants.capsuleSectionHeight) +
                 ((sectionCount - 1) * UIConstants.capsuleSectionSpacing)
-            return totalHeight
         case .horizontal:
             // Fixed height for horizontal capsule
             return UIConstants.capsuleSectionHeight
@@ -122,9 +121,8 @@ class CapsuleStateManager {
         case .horizontal:
             // Multiple sections arranged horizontally
             let sectionCount = CGFloat(sections.count)
-            let totalWidth = (sectionCount * UIConstants.capsuleSectionHeight) + // Section size is square
+            return (sectionCount * UIConstants.capsuleSectionHeight) + // Section size is square
                 ((sectionCount - 1) * UIConstants.capsuleSectionSpacing)
-            return totalWidth
         }
     }
 

@@ -81,11 +81,15 @@ protocol GeometryProvider {
 
 extension GeometryProvider {
     /// Default tier priority within a tier
-    var tierPriority: Int { 50 }
+    var tierPriority: Int {
+        50
+    }
 
     /// Default canHandle returns true (works for most elements)
     /// Strategies with specific requirements should override this
-    func canHandle(element _: AXUIElement, bundleID _: String) -> Bool { true }
+    func canHandle(element _: AXUIElement, bundleID _: String) -> Bool {
+        true
+    }
 
     /// Default implementation - no cache to clear
     func clearInternalCache() {}

@@ -112,7 +112,6 @@ struct ResourceMonitoringView: View {
 
     // MARK: - CPU Metrics View
 
-    @ViewBuilder
     private func cpuMetricsView(samples: [ResourceMetricSample]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -288,7 +287,6 @@ struct ResourceMonitoringView: View {
 
     // MARK: - Memory Metrics View
 
-    @ViewBuilder
     private func memoryMetricsView(samples: [ResourceMetricSample]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {

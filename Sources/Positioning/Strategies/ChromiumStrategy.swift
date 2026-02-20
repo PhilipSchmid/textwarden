@@ -22,10 +22,21 @@ import Foundation
 ///
 /// Note: Slack has its own dedicated SlackStrategy for better positioning accuracy.
 class ChromiumStrategy: GeometryProvider {
-    var strategyName: String { "Chromium" }
-    var strategyType: StrategyType { .chromium }
-    var tier: StrategyTier { .precise }
-    var tierPriority: Int { 5 }
+    var strategyName: String {
+        "Chromium"
+    }
+
+    var strategyType: StrategyType {
+        .chromium
+    }
+
+    var tier: StrategyTier {
+        .precise
+    }
+
+    var tierPriority: Int {
+        5
+    }
 
     // MARK: - Thread Safety
 

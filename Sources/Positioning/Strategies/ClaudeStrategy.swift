@@ -19,10 +19,21 @@ import Foundation
 /// Finds the AXStaticText child element containing the error and uses
 /// its AXBoundsForRange for accurate positioning.
 class ClaudeStrategy: GeometryProvider {
-    var strategyName: String { "Claude" }
-    var strategyType: StrategyType { .claude }
-    var tier: StrategyTier { .precise }
-    var tierPriority: Int { 0 }
+    var strategyName: String {
+        "Claude"
+    }
+
+    var strategyType: StrategyType {
+        .claude
+    }
+
+    var tier: StrategyTier {
+        .precise
+    }
+
+    var tierPriority: Int {
+        0
+    }
 
     // MARK: - Thread Safety
 

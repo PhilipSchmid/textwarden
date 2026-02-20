@@ -186,8 +186,7 @@ extension AnalysisCoordinator {
     func computeStyleCacheKey(text: String) -> String {
         let style = userPreferences.selectedWritingStyle
         let temperaturePreset = userPreferences.styleTemperaturePreset
-        let combined = "\(text.hashValue)_\(style)_fm_\(temperaturePreset)"
-        return combined
+        return "\(text.hashValue)_\(style)_fm_\(temperaturePreset)"
     }
 
     /// Evict old style cache entries

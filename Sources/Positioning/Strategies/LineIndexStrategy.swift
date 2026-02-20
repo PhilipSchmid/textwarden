@@ -14,10 +14,21 @@ import Foundation
 /// Line-based positioning strategy
 /// Gets line bounds then calculates X offset within the line
 class LineIndexStrategy: GeometryProvider {
-    var strategyName: String { "LineIndex" }
-    var strategyType: StrategyType { .lineIndex }
-    var tier: StrategyTier { .reliable }
-    var tierPriority: Int { 10 }
+    var strategyName: String {
+        "LineIndex"
+    }
+
+    var strategyType: StrategyType {
+        .lineIndex
+    }
+
+    var tier: StrategyTier {
+        .reliable
+    }
+
+    var tierPriority: Int {
+        10
+    }
 
     // Uses default canHandle (returns true) - universal approach, fails gracefully
 

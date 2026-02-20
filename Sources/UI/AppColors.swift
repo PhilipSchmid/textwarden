@@ -274,17 +274,8 @@ struct AppColors {
     }
 }
 
-// MARK: - Environment Key
-
-struct AppColorsKey: EnvironmentKey {
-    static let defaultValue = AppColors(for: .light)
-}
-
 extension EnvironmentValues {
-    var appColors: AppColors {
-        get { self[AppColorsKey.self] }
-        set { self[AppColorsKey.self] = newValue }
-    }
+    @Entry var appColors: AppColors = .init(for: .light)
 }
 
 // MARK: - View Extension
