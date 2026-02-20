@@ -3,6 +3,22 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.1.0</title>
+            <pubDate>Fri, 20 Feb 2026 19:14:57 +0100</pubDate>
+            <sparkle:version>25</sparkle:version>
+            <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;chore: Bump harper-core from 1.5 to 1.8 (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/3eba62b&quot;&gt;&lt;code&gt;3eba62b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;style: Apply consistent Swift formatting and doc comments (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/5c7bd39&quot;&gt;&lt;code&gt;5c7bd39&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;test: Replace force unwraps with XCTUnwrap in tests (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/1b1b04f&quot;&gt;&lt;code&gt;1b1b04f&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;refactor: Move AX API calls off main thread with async bridge (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/2fc6c9c&quot;&gt;&lt;code&gt;2fc6c9c&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add early language detection to skip Harper analysis for non-English documents (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/3f1ee00&quot;&gt;&lt;code&gt;3f1ee00&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0/TextWarden-0.1.0-Universal.dmg" length="31319736" type="application/octet-stream" sparkle:edSignature="JsrE/FUaPNXb587ULoJd/NbAr3zCY6bAjGFqoLoezLHeiEisIchd2VzUy1dngdSFAW4JawZ5UhMyIDhhL3RmBg=="/>
+        </item>
+        <item>
             <title>0.1.0-rc.8</title>
             <pubDate>Wed, 28 Jan 2026 13:49:15 +0100</pubDate>
             <sparkle:version>24</sparkle:version>
