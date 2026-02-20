@@ -175,6 +175,8 @@ pub struct AnalysisResult {
     pub is_non_english_document: bool,
 
     // Timing breakdown for performance profiling
+    /// Time spent in early language check (before Harper analysis)
+    pub early_language_check_ms: u64,
     /// Time spent building the merged dictionary with custom wordlists
     pub dictionary_build_ms: u64,
     /// Time spent creating and configuring the Harper linter
@@ -604,6 +606,38 @@ pub fn analyze_text(
     // Parse the dialect string
     let dialect = parse_dialect(dialect_str);
 
+    // --- PHASE 0: Early Language Check ---
+    // Quick check to skip expensive Harper analysis for non-English documents.
+    // This saves ~4.5s for documents primarily in excluded languages.
+    let early_lang_start = Instant::now();
+    let early_language_check = crate::language_filter::should_skip_harper_analysis(
+        text,
+        enable_language_detection,
+        &excluded_languages,
+    );
+    let early_language_check_ms = early_lang_start.elapsed().as_millis() as u64;
+
+    if let Some(true) = early_language_check {
+        let word_count = text.split_whitespace().count();
+        tracing::info!(
+            "Early language bailout: {} words, {}ms - document primarily in excluded language",
+            word_count,
+            early_language_check_ms
+        );
+        return AnalysisResult {
+            errors: vec![],
+            word_count,
+            analysis_time_ms: start_time.elapsed().as_millis() as u64,
+            is_non_english_document: true,
+            early_language_check_ms,
+            dictionary_build_ms: 0,
+            linter_setup_ms: 0,
+            document_parse_ms: 0,
+            harper_lint_ms: 0,
+            post_process_ms: 0,
+        };
+    }
+
     // --- PHASE 1: Dictionary Build (with caching) ---
     let dict_start = Instant::now();
 
@@ -966,6 +1000,7 @@ pub fn analyze_text(
         word_count,
         analysis_time_ms,
         is_non_english_document,
+        early_language_check_ms,
         dictionary_build_ms,
         linter_setup_ms,
         document_parse_ms,

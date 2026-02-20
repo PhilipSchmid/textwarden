@@ -6,6 +6,11 @@
 use crate::analyzer::GrammarError;
 use whichlang::{detect_language, Lang};
 
+/// Threshold for considering a document "primarily" in a given language.
+/// If more than this ratio of sentences are in an excluded language, the document
+/// is treated as non-English for filtering purposes.
+const NON_ENGLISH_THRESHOLD: f64 = 0.6;
+
 /// Language filter configuration
 pub struct LanguageFilter {
     enabled: bool,
@@ -57,42 +62,25 @@ impl LanguageFilter {
             return errors;
         }
 
-        // First, detect the dominant language of the entire document
-        // If more than 60% of the document is in an excluded language, filter ALL errors
-        let doc_lang = detect_language(text);
-        if self.excluded_languages.contains(&doc_lang) {
-            // Count how many sentences are in the document language vs other languages
-            let sentences = split_into_sentences(text);
-            let total_sentences = sentences.len();
+        // First, check if document is primarily in an excluded language
+        // If so, filter ALL errors (no point in sentence-level detection)
+        if let Some((lang, ratio)) =
+            calculate_excluded_language_ratio(text, &self.excluded_languages)
+        {
+            tracing::info!(
+                "LanguageFilter: Document language {:?} detected ({:.0}% of sentences)",
+                lang,
+                ratio * 100.0
+            );
 
-            if total_sentences > 0 {
-                let doc_lang_sentences = sentences
-                    .iter()
-                    .filter(|&&(start, end)| {
-                        text.get(start..end)
-                            .map(|s| detect_language(s) == doc_lang)
-                            .unwrap_or(false)
-                    })
-                    .count();
-
-                let ratio = doc_lang_sentences as f64 / total_sentences as f64;
+            if ratio > NON_ENGLISH_THRESHOLD {
                 tracing::info!(
-                    "LanguageFilter: Document language {:?} detected in {}/{} sentences ({:.0}%)",
-                    doc_lang,
-                    doc_lang_sentences,
-                    total_sentences,
-                    ratio * 100.0
+                    "LanguageFilter: Document is primarily {:?} (>{:.0}%), filtering ALL {} errors",
+                    lang,
+                    NON_ENGLISH_THRESHOLD * 100.0,
+                    errors.len()
                 );
-
-                // If majority of document (>60%) is in excluded language, filter ALL errors
-                if ratio > 0.6 {
-                    tracing::info!(
-                        "LanguageFilter: Document is primarily {:?} (>60%), filtering ALL {} errors",
-                        doc_lang,
-                        errors.len()
-                    );
-                    return vec![];
-                }
+                return vec![];
             }
         }
 
@@ -152,50 +140,66 @@ impl LanguageFilter {
             return false;
         }
 
-        // Detect the dominant language of the document
-        let doc_lang = detect_language(text);
-
-        // If the detected language is not in our excluded list, it's likely English
-        if !self.excluded_languages.contains(&doc_lang) {
-            return false;
+        // Check if document is primarily in an excluded language
+        if let Some((lang, ratio)) =
+            calculate_excluded_language_ratio(text, &self.excluded_languages)
+        {
+            tracing::debug!(
+                "LanguageFilter: Document language check - {:?} ({:.0}%), is_non_english={}",
+                lang,
+                ratio * 100.0,
+                ratio > NON_ENGLISH_THRESHOLD
+            );
+            return ratio > NON_ENGLISH_THRESHOLD;
         }
 
-        // Check if majority (>60%) of sentences are in the detected language
-        let sentences = split_into_sentences(text);
-        let total_sentences = sentences.len();
-
-        if total_sentences == 0 {
-            return false;
-        }
-
-        let doc_lang_sentences = sentences
-            .iter()
-            .filter(|&&(start, end)| {
-                text.get(start..end)
-                    .map(|s| detect_language(s) == doc_lang)
-                    .unwrap_or(false)
-            })
-            .count();
-
-        let ratio = doc_lang_sentences as f64 / total_sentences as f64;
-
-        tracing::debug!(
-            "LanguageFilter: Document language check - {:?} in {}/{} sentences ({:.0}%), is_non_english={}",
-            doc_lang,
-            doc_lang_sentences,
-            total_sentences,
-            ratio * 100.0,
-            ratio > 0.6
-        );
-
-        ratio > 0.6
+        false
     }
+}
+
+/// Calculate the ratio of sentences in an excluded language.
+///
+/// Returns `Some((lang, ratio))` if the document's dominant language is in the excluded list,
+/// where `lang` is the detected language and `ratio` is the proportion of sentences in that language.
+/// Returns `None` if the document's dominant language is not in the excluded list.
+///
+/// This is the core logic shared by `filter_errors`, `is_document_primarily_non_english`,
+/// and `should_skip_harper_analysis`.
+fn calculate_excluded_language_ratio(
+    text: &str,
+    excluded_languages: &[Lang],
+) -> Option<(Lang, f64)> {
+    // Detect the dominant language of the document
+    let doc_lang = detect_language(text);
+
+    // If detected language is not in excluded list, return None
+    if !excluded_languages.contains(&doc_lang) {
+        return None;
+    }
+
+    // Split into sentences and calculate ratio
+    let sentences = split_into_sentences(text);
+    if sentences.is_empty() {
+        return Some((doc_lang, 0.0));
+    }
+
+    let doc_lang_count = sentences
+        .iter()
+        .filter(|(s, e)| {
+            text.get(*s..*e)
+                .map(|t| detect_language(t) == doc_lang)
+                .unwrap_or(false)
+        })
+        .count();
+
+    let ratio = doc_lang_count as f64 / sentences.len() as f64;
+    Some((doc_lang, ratio))
 }
 
 /// Split text into sentences/segments for language detection
 /// Handles: punctuation (.!?), paragraph breaks, bullet points, numbered lists
 /// Returns a vector of (start, end) byte positions for each segment
-fn split_into_sentences(text: &str) -> Vec<(usize, usize)> {
+pub fn split_into_sentences(text: &str) -> Vec<(usize, usize)> {
     let mut sentences = Vec::new();
     let mut start = 0;
     let mut i = 0;
@@ -360,8 +364,43 @@ fn is_sentence_boundary(rest: &str) -> bool {
     }
 }
 
+/// Quick check if document should skip Harper analysis entirely.
+///
+/// Returns `Some(true)` if >60% of sentences are in an excluded language,
+/// `Some(false)` if document is likely English or a mix that should be analyzed,
+/// `None` if language detection is disabled or no languages are excluded.
+///
+/// This is used as an early bailout before expensive Harper analysis to avoid
+/// wasting ~4.5s on documents that will have all errors filtered anyway.
+pub fn should_skip_harper_analysis(
+    text: &str,
+    enabled: bool,
+    excluded_languages: &[String],
+) -> Option<bool> {
+    // Disabled or no exclusions - can't make a determination
+    if !enabled || excluded_languages.is_empty() {
+        return None;
+    }
+
+    // Convert language strings to Lang enums
+    let langs: Vec<Lang> = excluded_languages
+        .iter()
+        .filter_map(|s| lang_from_string(s))
+        .collect();
+
+    if langs.is_empty() {
+        return None;
+    }
+
+    // Use shared logic to calculate excluded language ratio
+    match calculate_excluded_language_ratio(text, &langs) {
+        Some((_, ratio)) => Some(ratio > NON_ENGLISH_THRESHOLD),
+        None => Some(false), // Document language not in excluded list
+    }
+}
+
 /// Convert language string to whichlang Lang enum
-fn lang_from_string(s: &str) -> Option<Lang> {
+pub fn lang_from_string(s: &str) -> Option<Lang> {
     match s.to_lowercase().as_str() {
         "spanish" | "spa" => Some(Lang::Spa),
         "french" | "fra" | "fre" => Some(Lang::Fra),
@@ -857,5 +896,94 @@ mod tests {
             !filter.is_document_primarily_non_english(""),
             "Empty text should return false"
         );
+    }
+
+    // MARK: - Early Language Detection Tests (should_skip_harper_analysis)
+
+    #[test]
+    fn test_should_skip_harper_disabled() {
+        // When disabled, returns None (no determination)
+        let result = should_skip_harper_analysis(
+            "Das ist ein deutscher Text.",
+            false,
+            &["german".to_string()],
+        );
+        assert!(result.is_none(), "Should return None when disabled");
+    }
+
+    #[test]
+    fn test_should_skip_harper_no_excluded_languages() {
+        // When no languages excluded, returns None
+        let result = should_skip_harper_analysis("Das ist ein deutscher Text.", true, &[]);
+        assert!(
+            result.is_none(),
+            "Should return None when no languages excluded"
+        );
+    }
+
+    #[test]
+    fn test_should_skip_harper_english_document() {
+        // English document should not be skipped
+        let result = should_skip_harper_analysis(
+            "This is an English document. It contains several sentences. We want to analyze it.",
+            true,
+            &["german".to_string()],
+        );
+        assert_eq!(
+            result,
+            Some(false),
+            "English document should not be skipped"
+        );
+    }
+
+    #[test]
+    fn test_should_skip_harper_german_document() {
+        // German document (>60% German) should be skipped
+        let result = should_skip_harper_analysis(
+            "Das ist ein langer deutscher Text. Er enthält mehrere Sätze. Die Sprache ist Deutsch. Wir wollen sicherstellen, dass die Erkennung funktioniert.",
+            true,
+            &["german".to_string()],
+        );
+        assert_eq!(
+            result,
+            Some(true),
+            "German document should be skipped when German is excluded"
+        );
+    }
+
+    #[test]
+    fn test_should_skip_harper_mixed_document() {
+        // Mixed document with <60% German should not be skipped
+        let result = should_skip_harper_analysis(
+            "This is English. Hello world. How are you today? Das ist Deutsch. This is more English text.",
+            true,
+            &["german".to_string()],
+        );
+        assert_eq!(
+            result,
+            Some(false),
+            "Mixed document with <60% German should not be skipped"
+        );
+    }
+
+    #[test]
+    fn test_should_skip_harper_wrong_excluded_language() {
+        // German document but only Spanish is excluded - should not skip
+        let result = should_skip_harper_analysis(
+            "Das ist ein langer deutscher Text. Er enthält mehrere Sätze.",
+            true,
+            &["spanish".to_string()],
+        );
+        assert_eq!(
+            result,
+            Some(false),
+            "German document should not be skipped when only Spanish is excluded"
+        );
+    }
+
+    #[test]
+    fn test_should_skip_harper_empty_text() {
+        let result = should_skip_harper_analysis("", true, &["german".to_string()]);
+        assert_eq!(result, Some(false), "Empty text should return Some(false)");
     }
 }

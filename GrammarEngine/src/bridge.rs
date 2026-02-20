@@ -48,6 +48,7 @@ mod ffi {
         fn is_non_english_document(&self) -> bool;
 
         // Timing breakdown for performance profiling
+        fn early_language_check_ms(&self) -> u64;
         fn dictionary_build_ms(&self) -> u64;
         fn linter_setup_ms(&self) -> u64;
         fn document_parse_ms(&self) -> u64;
@@ -146,6 +147,7 @@ pub struct AnalysisResult {
     is_non_english_document: bool,
 
     // Timing breakdown for performance profiling
+    early_language_check_ms: u64,
     dictionary_build_ms: u64,
     linter_setup_ms: u64,
     document_parse_ms: u64,
@@ -180,6 +182,10 @@ impl AnalysisResult {
 
     fn is_non_english_document(&self) -> bool {
         self.is_non_english_document
+    }
+
+    fn early_language_check_ms(&self) -> u64 {
+        self.early_language_check_ms
     }
 
     fn dictionary_build_ms(&self) -> u64 {
@@ -338,6 +344,7 @@ fn analyze_text(
         memory_after_bytes: memory_after,
         memory_delta_bytes: memory_delta,
         is_non_english_document: result.is_non_english_document,
+        early_language_check_ms: result.early_language_check_ms,
         dictionary_build_ms: result.dictionary_build_ms,
         linter_setup_ms: result.linter_setup_ms,
         document_parse_ms: result.document_parse_ms,
