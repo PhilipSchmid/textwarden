@@ -84,9 +84,24 @@ Logger.warning("Failed to get bounds for element: \(elementRole)", category: Log
 
 ## Git Workflow
 
+### Branch Protection (MANDATORY)
+
+**NEVER commit directly to `main`.** All changes must go through pull requests.
+
+1. Create a feature branch from `main` before making any changes
+2. Commit to the feature branch
+3. Push the branch and create a pull request targeting `main`
+4. Merge only after review/approval
+
+Branch naming: `<type>/<short-description>` (e.g., `feat/outlook-support`, `fix/underline-positioning`)
+
+### Commit Rules
+
 - Only commit after user validates and explicitly requests it
 - **Always run `make ci-check` and fix all findings before committing**
-- Always sign-off git commits, but not with Claude Code. Also don't mention co-authored by any AI.
+- Always sign-off git commits (`-s`)
+- **All commits must be cryptographically signed (`-S`).** Never use `--no-gpg-sign` or skip signing.
+- When committing: `git commit -s -S -m "message"`
 
 ### Conventional Commits (MANDATORY)
 
@@ -98,7 +113,7 @@ Format: `<type>: <description>` where type is one of:
 Examples:
 - `feat: Add Microsoft Outlook support`
 - `fix: Correct underline positioning in Slack`
-- `docs: Update README with new app support` 
+- `docs: Update README with new app support`
 
 ## Testing
 
@@ -114,17 +129,20 @@ make ci-check       # Run CI checks - ONLY before committing, not after every ch
 
 Use the makefile targets to create releases. The release process handles building, code signing, notarization, DMG creation, appcast updates, and GitHub release creation.
 
-```bash
-make release-alpha VERSION=X.Y.Z-alpha.N   # Alpha release (experimental)
-make release-beta VERSION=X.Y.Z-beta.N     # Beta release (experimental channel)
-make release-rc VERSION=X.Y.Z-rc.N         # Release candidate (experimental)
-make release VERSION=X.Y.Z                 # Production release (stable channel)
-```
+**Releases must go through a PR** (direct pushes to `main` are blocked):
 
-After a release is prepared:
 ```bash
-git push && git push --tags                # Push commits and tags
-make release-upload VERSION=X.Y.Z-beta.N   # Upload DMG to GitHub releases
+# 1. Create a release branch from main
+git checkout -b release/vX.Y.Z main
+
+# 2. Run the release target
+make release VERSION=X.Y.Z                 # or release-alpha, release-beta, release-rc
+
+# 3. Push branch and tags, create PR, merge
+git push -u origin HEAD && git push --tags
+gh pr create --title "Release vX.Y.Z" --body "Release vX.Y.Z"
+# After PR is merged:
+make release-upload VERSION=X.Y.Z
 ```
 
 Version format follows semver with pre-release suffixes:
