@@ -730,7 +730,7 @@ do_release() {
     # Commit version changes
     echo -e "${BLUE}Committing version changes...${NC}"
     git add "$PROJECT_ROOT/Info.plist" "$PROJECT_ROOT/appcast.xml"
-    git commit -m "Release v$version"
+    git commit -s -S -m "Release v$version"
 
     # Create git tag
     git tag -a "v$version" -m "Release v$version"
@@ -742,8 +742,9 @@ do_release() {
     echo ""
     echo -e "Next steps:"
     echo -e "  1. Review: git log -1 && git diff HEAD~1"
-    echo -e "  2. Push:   git push && git push --tags"
-    echo -e "  3. Upload: make release-upload VERSION=$version"
+    echo -e "  2. Push:   git push -u origin HEAD && git push --tags"
+    echo -e "  3. Create PR: gh pr create --title 'Release v$version' --body 'Release v$version'"
+    echo -e "  4. Merge PR, then: make release-upload VERSION=$version"
     echo ""
     echo -e "DMG location: $dmg_path"
 }
