@@ -135,18 +135,18 @@ final class AppBehaviorRegressionTests: XCTestCase {
     /// Valid reasons: Mac Catalyst, WebKit compose view, or documented UTF-16 AX API usage
     func testNativeAppsWithoutWebKitUseGrapheme() {
         // Apps that are known to be native but use WebKit internally
-        let webKitNativeApps: Set<String> = [
+        let webKitNativeApps: Set = [
             "com.apple.mail", // Uses WebKit for compose
         ]
 
         // Mac Catalyst apps (use UTF-16 but aren't "web-based" in the Electron sense)
-        let catalystApps: Set<String> = [
+        let catalystApps: Set = [
             "com.apple.MobileSMS", // Messages
             "net.whatsapp.WhatsApp", // WhatsApp
         ]
 
         // Native apps that use UTF-16 for AX APIs (documented in behavior file)
-        let nativeWithUTF16AX: Set<String> = [
+        let nativeWithUTF16AX: Set = [
             "ru.keepcoder.Telegram", // Uses UTF-16 for AXNumberOfCharacters
         ]
 
