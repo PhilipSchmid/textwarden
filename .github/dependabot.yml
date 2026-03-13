@@ -8,6 +8,7 @@ updates:
       day: "monday"
       time: "07:00"
       timezone: "Europe/Berlin"
+    versioning-strategy: increase
     open-pull-requests-limit: 10
     commit-message:
       prefix: "deps(rust):"
