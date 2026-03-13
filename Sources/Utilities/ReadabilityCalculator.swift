@@ -12,14 +12,14 @@ import Foundation
 // MARK: - Types
 
 /// Readability algorithm types (expandable for future algorithms)
-enum ReadabilityAlgorithm: String, CaseIterable, Codable, Sendable {
+enum ReadabilityAlgorithm: String, CaseIterable, Codable {
     case fleschReadingEase
     // Future: fleschKincaidGrade, gunningFog, smog, colemanLiau, ari
 }
 
 /// Target audience level for readability scoring
 /// Each level has a minimum Flesch score threshold - text scoring below is considered too complex
-enum TargetAudience: String, CaseIterable, Codable, Sendable {
+enum TargetAudience: String, CaseIterable, Codable {
     case accessible // Everyone should understand (casual writing)
     case general // Average adult reader (default writing)
     case professional // Business readers
@@ -90,7 +90,7 @@ enum TargetAudience: String, CaseIterable, Codable, Sendable {
 }
 
 /// Result of a readability calculation
-struct ReadabilityResult: Sendable {
+struct ReadabilityResult {
     let score: Double
     let label: String
     let color: NSColor
@@ -133,7 +133,7 @@ struct ReadabilityResult: Sendable {
 }
 
 /// Result of readability analysis for a single sentence
-struct SentenceReadabilityResult: Sendable {
+struct SentenceReadabilityResult {
     let sentence: String
     let range: NSRange
     let score: Double
@@ -148,7 +148,7 @@ struct SentenceReadabilityResult: Sendable {
 }
 
 /// Full readability analysis including per-sentence breakdown
-struct TextReadabilityAnalysis: Sendable {
+struct TextReadabilityAnalysis {
     let overallResult: ReadabilityResult
     let sentenceResults: [SentenceReadabilityResult]
     let targetAudience: TargetAudience

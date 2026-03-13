@@ -88,7 +88,7 @@ class ElementTreeStrategy: GeometryProvider {
         // Designed for Chromium-based apps where other strategies fail
         // Note: Teams is NOT included here - its child elements have broken frame data
         // (child element frames don't match their visual position)
-        let targetApps: Set<String> = [
+        let targetApps: Set = [
             "notion.id",
             "com.notion.id",
             "com.google.Chrome",

@@ -33,7 +33,7 @@ class OriginStrategy: GeometryProvider {
     func canHandle(element _: AXUIElement, bundleID: String) -> Bool {
         // Designed for Chromium/Electron apps that return zero dimensions
         // Note: Slack has its own dedicated SlackStrategy
-        let chromiumApps: Set<String> = [
+        let chromiumApps: Set = [
             "notion.id",
             "com.notion.id",
             "com.google.Chrome",
