@@ -865,9 +865,77 @@ struct PopoverContentView: View {
                     .padding(.bottom, 6)
                 }
 
+                // Warning banner when automatic replacement isn't possible
+                if popover.showingCopyFallback {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                            .font(.system(size: baseTextSize * 0.9))
+
+                        Text("Auto-replace unavailable for text with mentions. Copy and paste manually.")
+                            .font(.system(size: baseTextSize * 0.8))
+                            .foregroundColor(colors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.orange.opacity(0.1))
+                }
+
                 // Content area
                 VStack(alignment: .leading, spacing: 2) {
-                    if isAIRephrase {
+                    if popover.showingCopyFallback {
+                        // Copy fallback mode - show suggestion text (non-interactive) and Copy/Skip buttons
+                        if let fallbackText = popover.copyFallbackText {
+                            Text(fallbackText)
+                                .font(.system(size: bodyTextSize, weight: .medium))
+                                .foregroundColor(colors.textPrimary)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                        }
+
+                        HStack(spacing: 8) {
+                            Button(action: { popover.performCopyFallback() }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "doc.on.doc")
+                                        .font(.system(size: 11, weight: .semibold))
+                                    Text("Copy")
+                                        .font(.system(size: baseTextSize * 0.9, weight: .medium))
+                                }
+                                .foregroundColor(colors.link)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(colors.link.opacity(0.12))
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .fixedSize()
+                            .help("Copy suggestion to clipboard")
+                            .accessibilityLabel("Copy to clipboard")
+
+                            Button(action: { popover.cancelCopyFallback() }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "forward")
+                                        .font(.system(size: 11, weight: .medium))
+                                    Text("Skip")
+                                        .font(.system(size: baseTextSize * 0.9, weight: .medium))
+                                }
+                                .foregroundColor(colors.textSecondary)
+                            }
+                            .buttonStyle(.plain)
+                            .fixedSize()
+                            .help("Skip this suggestion")
+                            .accessibilityLabel("Skip suggestion")
+
+                            Spacer()
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+
+                    } else if isAIRephrase {
                         // AI rephrase - show before/after
                         let originalText = validSuggestions[0]
                         let rephraseText = validSuggestions[1]
@@ -1054,8 +1122,8 @@ struct PopoverContentView: View {
                     )
             }
         )
-        // Width: 400 for indicator with sentence context (match style popover), 300 for AI rephrase, 220 for inline
-        .frame(width: popover.openedFromIndicator && !popover.sourceText.isEmpty ? 400 : (isAIRephraseError ? 300 : 220))
+        // Width: 400 for indicator with sentence context (match style popover), 300 for AI rephrase/copy fallback, 220 for inline
+        .frame(width: popover.openedFromIndicator && !popover.sourceText.isEmpty ? 400 : (isAIRephraseError || popover.showingCopyFallback ? 300 : 220))
         .fixedSize(horizontal: false, vertical: true)
         .colorScheme(effectiveColorScheme)
         .accessibilityElement(children: .contain)

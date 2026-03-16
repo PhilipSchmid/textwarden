@@ -244,6 +244,8 @@ class SuggestionPopover: NSObject, ObservableObject {
         openedFromIndicator = false
 
         mode = .grammarError
+        showingCopyFallback = false
+        copyFallbackText = nil
         self.allErrors = allErrors
         self.sourceText = sourceText
 
@@ -278,6 +280,8 @@ class SuggestionPopover: NSObject, ObservableObject {
         openedFromIndicator = false
 
         mode = .styleSuggestion
+        showingCopyFallback = false
+        copyFallbackText = nil
         currentStyleSuggestion = suggestion
         allStyleSuggestions = allSuggestions
         currentStyleIndex = allSuggestions.firstIndex(where: { $0.id == suggestion.id }) ?? 0
@@ -845,42 +849,51 @@ class SuggestionPopover: NSObject, ObservableObject {
         }
     }
 
-    /// Copy the fallback text to clipboard and move to next suggestion
+    /// Copy the fallback text to clipboard and move to next item
     func performCopyFallback() {
         guard let text = copyFallbackText else { return }
-        let suggestion = currentStyleSuggestion
 
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
 
-        Logger.info("Popover: Copied text to clipboard (\(text.count) chars)", category: Logger.ui)
+        Logger.info("Popover: Copied text to clipboard (\(text.count) chars, mode: \(mode))", category: Logger.ui)
 
         // Reset fallback state
         showingCopyFallback = false
         copyFallbackText = nil
 
-        // Notify coordinator to remove from tracking
-        if let suggestion {
-            onCopyFallbackComplete?(suggestion)
-        }
+        switch mode {
+        case .grammarError:
+            // Dismiss the current error and move to next
+            dismissError()
 
-        moveToNextStyleSuggestion()
+        case .styleSuggestion:
+            // Notify coordinator to remove from tracking
+            if let suggestion = currentStyleSuggestion {
+                onCopyFallbackComplete?(suggestion)
+            }
+            moveToNextStyleSuggestion()
+        }
     }
 
-    /// Cancel the copy fallback and move to next suggestion without copying
+    /// Cancel the copy fallback and move to next item without copying
     func cancelCopyFallback() {
-        let suggestion = currentStyleSuggestion
-
         showingCopyFallback = false
         copyFallbackText = nil
 
-        // Notify coordinator to remove from tracking
-        if let suggestion {
-            onCopyFallbackComplete?(suggestion)
-        }
+        switch mode {
+        case .grammarError:
+            // Dismiss the current error and move to next
+            dismissError()
 
-        moveToNextStyleSuggestion()
+        case .styleSuggestion:
+            // Notify coordinator to remove from tracking
+            if let suggestion = currentStyleSuggestion {
+                onCopyFallbackComplete?(suggestion)
+            }
+            moveToNextStyleSuggestion()
+        }
     }
 
     // MARK: - Error Synchronization
