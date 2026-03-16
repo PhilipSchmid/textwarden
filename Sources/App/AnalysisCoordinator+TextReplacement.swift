@@ -2490,12 +2490,9 @@ extension AnalysisCoordinator {
         switch selectionResult {
         case .failedRootOnlyUnreliable:
             // Text contains mentions/links that prevent reliable automatic replacement
-            // Copy to clipboard and show warning so user can paste manually
-            Logger.info("Grammar replacement: Root-only selection unreliable - copying to clipboard for manual paste", category: Logger.analysis)
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(suggestion, forType: .string)
-            SuggestionPopover.shared.showStatusMessage("Copied to clipboard - paste manually (⌘V)")
+            // Show copy fallback UI so user can manually copy and paste
+            Logger.info("Grammar replacement: Root-only selection unreliable - showing copy fallback UI", category: Logger.analysis)
+            SuggestionPopover.shared.showCopyFallback(textToCopy: suggestion)
             return
 
         case .failed:
