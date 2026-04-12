@@ -3,6 +3,28 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.2.0</title>
+            <pubDate>Sun, 12 Apr 2026 15:05:20 +0200</pubDate>
+            <sparkle:version>27</sparkle:version>
+            <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;chore: Update Sparkle signing key (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/6a8f49b"&gt;&lt;code&gt;6a8f49b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;chore: Bump harper-core from 1.10 to 2.0 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/1f45b50"&gt;&lt;code&gt;1f45b50&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;deps(actions): Bump actions/checkout from 4 to 6 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/452e6a5"&gt;&lt;code&gt;452e6a5&lt;/code&gt;&lt;/a&gt;) by @dependabot[bot]&lt;/li&gt;
+&lt;li&gt;Release v0.2.0-rc.1 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/e49b82a"&gt;&lt;code&gt;e49b82a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add copy-to-clipboard fallback UI for grammar error popovers (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/2dd810a"&gt;&lt;code&gt;2dd810a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;"Claude Code Review workflow" (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/f929a63"&gt;&lt;code&gt;f929a63&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;"Claude PR Assistant workflow" (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/4a78ee2"&gt;&lt;code&gt;4a78ee2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;style: Fix redundantSendable and redundantType lint warnings (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/e21805b"&gt;&lt;code&gt;e21805b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;ci: Use increase versioning strategy for Cargo dependabot (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/6cfb495"&gt;&lt;code&gt;6cfb495&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;chore: Bump harper-core from 1.8 to 1.10 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/42dcbf2"&gt;&lt;code&gt;42dcbf2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;chore: Enforce PR-based workflow and commit signing (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/cd5c023"&gt;&lt;code&gt;cd5c023&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.2.0/TextWarden-0.2.0-Universal.dmg" length="31337426" type="application/octet-stream" sparkle:edSignature="C5ny/T0rHS/+sgjOgc0zfPR0QWduHSFbZi4pGEax/p9w0C1PFwG95of3InEiq/wrwABhi6L/pEnqK7PeGD8dBg=="/>
+        </item>
+        <item>
             <title>0.2.0-rc.1</title>
             <pubDate>Mon, 16 Mar 2026 21:25:44 +0100</pubDate>
             <sparkle:version>26</sparkle:version>
@@ -11,13 +33,13 @@
             <sparkle:channel>experimental</sparkle:channel>
             <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
 &lt;ul&gt;
-&lt;li&gt;feat: Add copy-to-clipboard fallback UI for grammar error popovers (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/2dd810a&quot;&gt;&lt;code&gt;2dd810a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;&quot;Claude Code Review workflow&quot; (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/f929a63&quot;&gt;&lt;code&gt;f929a63&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;&quot;Claude PR Assistant workflow&quot; (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/4a78ee2&quot;&gt;&lt;code&gt;4a78ee2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;style: Fix redundantSendable and redundantType lint warnings (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/e21805b&quot;&gt;&lt;code&gt;e21805b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;ci: Use increase versioning strategy for Cargo dependabot (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/6cfb495&quot;&gt;&lt;code&gt;6cfb495&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;chore: Bump harper-core from 1.8 to 1.10 (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/42dcbf2&quot;&gt;&lt;code&gt;42dcbf2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;chore: Enforce PR-based workflow and commit signing (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/cd5c023&quot;&gt;&lt;code&gt;cd5c023&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add copy-to-clipboard fallback UI for grammar error popovers (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/2dd810a"&gt;&lt;code&gt;2dd810a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;"Claude Code Review workflow" (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/f929a63"&gt;&lt;code&gt;f929a63&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;"Claude PR Assistant workflow" (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/4a78ee2"&gt;&lt;code&gt;4a78ee2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;style: Fix redundantSendable and redundantType lint warnings (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/e21805b"&gt;&lt;code&gt;e21805b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;ci: Use increase versioning strategy for Cargo dependabot (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/6cfb495"&gt;&lt;code&gt;6cfb495&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;chore: Bump harper-core from 1.8 to 1.10 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/42dcbf2"&gt;&lt;code&gt;42dcbf2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;chore: Enforce PR-based workflow and commit signing (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/cd5c023"&gt;&lt;code&gt;cd5c023&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
 &lt;/ul&gt;</description>
             <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.2.0-rc.1/TextWarden-0.2.0-rc.1-Universal.dmg" length="31255705" type="application/octet-stream" sparkle:edSignature="pdWeoCW/ZqHCbgM4U/umg921SG3O2BOi22ek7Jfgqj3pjeZ9znfvW2RNjxzicG0geMYEZhqIbBHLyrFZFYoaDw=="/>
         </item>
@@ -29,11 +51,11 @@
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
 &lt;ul&gt;
-&lt;li&gt;chore: Bump harper-core from 1.5 to 1.8 (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/3eba62b&quot;&gt;&lt;code&gt;3eba62b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;style: Apply consistent Swift formatting and doc comments (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/5c7bd39&quot;&gt;&lt;code&gt;5c7bd39&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;test: Replace force unwraps with XCTUnwrap in tests (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/1b1b04f&quot;&gt;&lt;code&gt;1b1b04f&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;refactor: Move AX API calls off main thread with async bridge (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/2fc6c9c&quot;&gt;&lt;code&gt;2fc6c9c&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;feat: Add early language detection to skip Harper analysis for non-English documents (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/3f1ee00&quot;&gt;&lt;code&gt;3f1ee00&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;chore: Bump harper-core from 1.5 to 1.8 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/3eba62b"&gt;&lt;code&gt;3eba62b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;style: Apply consistent Swift formatting and doc comments (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/5c7bd39"&gt;&lt;code&gt;5c7bd39&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;test: Replace force unwraps with XCTUnwrap in tests (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/1b1b04f"&gt;&lt;code&gt;1b1b04f&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;refactor: Move AX API calls off main thread with async bridge (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/2fc6c9c"&gt;&lt;code&gt;2fc6c9c&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add early language detection to skip Harper analysis for non-English documents (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/3f1ee00"&gt;&lt;code&gt;3f1ee00&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
 &lt;/ul&gt;</description>
             <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0/TextWarden-0.1.0-Universal.dmg" length="31319736" type="application/octet-stream" sparkle:edSignature="JsrE/FUaPNXb587ULoJd/NbAr3zCY6bAjGFqoLoezLHeiEisIchd2VzUy1dngdSFAW4JawZ5UhMyIDhhL3RmBg=="/>
         </item>
@@ -46,12 +68,12 @@
             <sparkle:channel>experimental</sparkle:channel>
             <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
 &lt;ul&gt;
-&lt;li&gt;chore: Fix Swift and Rust formatting issues (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/4cb34e9&quot;&gt;&lt;code&gt;4cb34e9&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Skip Wispr Flow overlay in modal dialog detection (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/1a68ede&quot;&gt;&lt;code&gt;1a68ede&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Filter false capitalization errors after emojis (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/e1542b1&quot;&gt;&lt;code&gt;e1542b1&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;feat: Make Cmd+Q close window instead of quitting app (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/6205ad3&quot;&gt;&lt;code&gt;6205ad3&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;feat: Add plain text paste and fix stale insights in Sketch Pad (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/1c62a8c&quot;&gt;&lt;code&gt;1c62a8c&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Disable line highlighting by default in Sketch Pad (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/71d7f2f&quot;&gt;&lt;code&gt;71d7f2f&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;chore: Fix Swift and Rust formatting issues (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/4cb34e9"&gt;&lt;code&gt;4cb34e9&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Skip Wispr Flow overlay in modal dialog detection (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/1a68ede"&gt;&lt;code&gt;1a68ede&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Filter false capitalization errors after emojis (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/e1542b1"&gt;&lt;code&gt;e1542b1&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Make Cmd+Q close window instead of quitting app (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/6205ad3"&gt;&lt;code&gt;6205ad3&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add plain text paste and fix stale insights in Sketch Pad (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/1c62a8c"&gt;&lt;code&gt;1c62a8c&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Disable line highlighting by default in Sketch Pad (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/71d7f2f"&gt;&lt;code&gt;71d7f2f&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
 &lt;/ul&gt;</description>
             <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-rc.8/TextWarden-0.1.0-rc.8-Universal.dmg" length="31202320" type="application/octet-stream" sparkle:edSignature="lXTDvbIpOdMDDcMkzMq2ADKlIc+3XfHnP5QM6Bpfw29u3dJZ5Sy3CEgybmf+zQOr6y4ETsgZFhDZIGGGxeEVCw=="/>
         </item>
@@ -64,14 +86,14 @@
             <sparkle:channel>experimental</sparkle:channel>
             <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
 &lt;ul&gt;
-&lt;li&gt;feat: Add Indian English dialect support and update Harper to 1.5 (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/3e8a9ac&quot;&gt;&lt;code&gt;3e8a9ac&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;deps(rust): Update sysinfo requirement in /GrammarEngine (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/5acff28&quot;&gt;&lt;code&gt;5acff28&lt;/code&gt;&lt;/a&gt;) by @dependabot[bot]&lt;/li&gt;
-&lt;li&gt;feat: Add Sketch Pad with style suggestions and AI quick actions (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/2643cc3&quot;&gt;&lt;code&gt;2643cc3&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Detect scroll in Slack edit modal via frame validation (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/27faabb&quot;&gt;&lt;code&gt;27faabb&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Reposition indicator when window is resized in web-based apps (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/728dc85&quot;&gt;&lt;code&gt;728dc85&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Draw grammar underlines on top of readability underlines (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/0009bb1&quot;&gt;&lt;code&gt;0009bb1&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Use case-insensitive comparison for position drift detection (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/0a1f29b&quot;&gt;&lt;code&gt;0a1f29b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Capitalize pronoun 'I' in initialism suggestions (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/942bb19&quot;&gt;&lt;code&gt;942bb19&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add Indian English dialect support and update Harper to 1.5 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/3e8a9ac"&gt;&lt;code&gt;3e8a9ac&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;deps(rust): Update sysinfo requirement in /GrammarEngine (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/5acff28"&gt;&lt;code&gt;5acff28&lt;/code&gt;&lt;/a&gt;) by @dependabot[bot]&lt;/li&gt;
+&lt;li&gt;feat: Add Sketch Pad with style suggestions and AI quick actions (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/2643cc3"&gt;&lt;code&gt;2643cc3&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Detect scroll in Slack edit modal via frame validation (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/27faabb"&gt;&lt;code&gt;27faabb&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Reposition indicator when window is resized in web-based apps (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/728dc85"&gt;&lt;code&gt;728dc85&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Draw grammar underlines on top of readability underlines (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/0009bb1"&gt;&lt;code&gt;0009bb1&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Use case-insensitive comparison for position drift detection (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/0a1f29b"&gt;&lt;code&gt;0a1f29b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Capitalize pronoun 'I' in initialism suggestions (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/942bb19"&gt;&lt;code&gt;942bb19&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
 &lt;/ul&gt;</description>
             <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-rc.7/TextWarden-0.1.0-rc.7-Universal.dmg" length="31188680" type="application/octet-stream" sparkle:edSignature="s9KzABK5VdB71PGcsX7dYtLuas9i0QB36vb3oVA6Ly/pkd+bzTyse0WUuIziDu3sVlBdWedSEBi225QEQcDJAg=="/>
         </item>
@@ -84,49 +106,49 @@
             <sparkle:channel>experimental</sparkle:channel>
             <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
 &lt;ul&gt;
-&lt;li&gt;refactor: Update onboarding to reflect 3-section capsule design (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/75de212&quot;&gt;&lt;code&gt;75de212&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;docs: Update SLACK.md with copy fallback and Edit modal detection (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/230b2d1&quot;&gt;&lt;code&gt;230b2d1&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Detect new editable elements when preserving in web apps (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/8106b36&quot;&gt;&lt;code&gt;8106b36&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Lowercase initialism suggestions when mid-sentence (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/b5a2a71&quot;&gt;&lt;code&gt;b5a2a71&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;feat: Add copy-to-clipboard fallback for text with mentions (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/4c6ec9b&quot;&gt;&lt;code&gt;4c6ec9b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;refactor: Unify suggestion tracking with SuggestionTracker (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/0c965ac&quot;&gt;&lt;code&gt;0c965ac&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Correct position drift in sequential text replacements (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/a11eb80&quot;&gt;&lt;code&gt;a11eb80&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Add subtle blue-gray tint to dark mode backgrounds (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/af91d49&quot;&gt;&lt;code&gt;af91d49&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Improve suggestion link color contrast for both themes (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/ef19cf8&quot;&gt;&lt;code&gt;ef19cf8&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Make grammar suggestions visually indicate clickability (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/a1ab9ba&quot;&gt;&lt;code&gt;a1ab9ba&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Match grammar popover width and font size with style popover (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/050bbc2&quot;&gt;&lt;code&gt;050bbc2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Deduplicate suggestions to one per original text span (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/9919f61&quot;&gt;&lt;code&gt;9919f61&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;feat: Add hover-based readability tips popover (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/102ebde&quot;&gt;&lt;code&gt;102ebde&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;feat: Show sentence context in grammar popover from indicator (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/07f8bca&quot;&gt;&lt;code&gt;07f8bca&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;refactor: Simplify FloatingErrorIndicator to 3-section design (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/6700d7a&quot;&gt;&lt;code&gt;6700d7a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;feat: Add category colors to AppColors for unified suggestions (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/4271557&quot;&gt;&lt;code&gt;4271557&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;feat: Add UnifiedSuggestion model with category system (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/dd0be2a&quot;&gt;&lt;code&gt;dd0be2a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;test: Add unit tests for SuggestionTracker (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/a09d5ad&quot;&gt;&lt;code&gt;a09d5ad&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;feat: Add style suggestion impact filtering (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/26da515&quot;&gt;&lt;code&gt;26da515&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;refactor: Integrate SuggestionTracker into AnalysisCoordinator (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/5cfcb87&quot;&gt;&lt;code&gt;5cfcb87&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;feat: Add SuggestionTracker for unified loop prevention (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/4686a6d&quot;&gt;&lt;code&gt;4686a6d&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Use quirk-based text retrieval for WebKit app style replacement (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/a686a50&quot;&gt;&lt;code&gt;a686a50&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Clear overlays when element leaves AX tree in web apps (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/7bb48e2&quot;&gt;&lt;code&gt;7bb48e2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Add AX tree validation to frame validation timer for web apps (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/fa7e78f&quot;&gt;&lt;code&gt;fa7e78f&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Validate element AX tree membership before preserving in web apps (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/f2562c8&quot;&gt;&lt;code&gt;f2562c8&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;docs: Clarify testing workflow in CLAUDE.md (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/d925329&quot;&gt;&lt;code&gt;d925329&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Trigger re-analysis after failed text replacement (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/0f78493&quot;&gt;&lt;code&gt;0f78493&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Clear readability analysis on app switch (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/239f4e1&quot;&gt;&lt;code&gt;239f4e1&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Correct readability underline positioning in Outlook (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/d706649&quot;&gt;&lt;code&gt;d706649&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Add hasUnstableTextRetrieval quirk for Outlook (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/f12d34f&quot;&gt;&lt;code&gt;f12d34f&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;refactor: Disable Harper's Readability category entirely (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/ccacb19&quot;&gt;&lt;code&gt;ccacb19&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Remove misleading &quot;Generating suggestion...&quot; for Readability grammar errors (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/6406fcc&quot;&gt;&lt;code&gt;6406fcc&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Improve style suggestion quality with filters and sanitization (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/955d3d3&quot;&gt;&lt;code&gt;955d3d3&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Add safety guards to prevent text corruption during replacement (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/cc0680d&quot;&gt;&lt;code&gt;cc0680d&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Add style analysis suppression to prevent endless suggestion loop (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/f3f3006&quot;&gt;&lt;code&gt;f3f3006&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Resolve popover issues with indicator hover and stale suggestions (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/295881e&quot;&gt;&lt;code&gt;295881e&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Resolve text replacement and sentence detection bugs (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/200fdd7&quot;&gt;&lt;code&gt;200fdd7&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;perf: Reduce retry attempts and expand non-editable role detection (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/24ec203&quot;&gt;&lt;code&gt;24ec203&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;perf: Add focus event settling to coalesce rapid focus changes (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/31b5407&quot;&gt;&lt;code&gt;31b5407&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;perf: Reduce logging noise by ~32% and improve log level accuracy (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/5ad181a&quot;&gt;&lt;code&gt;5ad181a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;perf: Reduce app-switch polling interval from 250ms to 50ms (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/b224132&quot;&gt;&lt;code&gt;b224132&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Resolve race condition preventing AnalysisCoordinator initialization after onboarding (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/6644074&quot;&gt;&lt;code&gt;6644074&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;docs: Add Behavior Configuration sections to all app documentation (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/88fb7e9&quot;&gt;&lt;code&gt;88fb7e9&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;refactor: Update onboarding to reflect 3-section capsule design (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/75de212"&gt;&lt;code&gt;75de212&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;docs: Update SLACK.md with copy fallback and Edit modal detection (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/230b2d1"&gt;&lt;code&gt;230b2d1&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Detect new editable elements when preserving in web apps (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/8106b36"&gt;&lt;code&gt;8106b36&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Lowercase initialism suggestions when mid-sentence (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/b5a2a71"&gt;&lt;code&gt;b5a2a71&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add copy-to-clipboard fallback for text with mentions (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/4c6ec9b"&gt;&lt;code&gt;4c6ec9b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;refactor: Unify suggestion tracking with SuggestionTracker (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/0c965ac"&gt;&lt;code&gt;0c965ac&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Correct position drift in sequential text replacements (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/a11eb80"&gt;&lt;code&gt;a11eb80&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Add subtle blue-gray tint to dark mode backgrounds (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/af91d49"&gt;&lt;code&gt;af91d49&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Improve suggestion link color contrast for both themes (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/ef19cf8"&gt;&lt;code&gt;ef19cf8&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Make grammar suggestions visually indicate clickability (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/a1ab9ba"&gt;&lt;code&gt;a1ab9ba&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Match grammar popover width and font size with style popover (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/050bbc2"&gt;&lt;code&gt;050bbc2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Deduplicate suggestions to one per original text span (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/9919f61"&gt;&lt;code&gt;9919f61&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add hover-based readability tips popover (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/102ebde"&gt;&lt;code&gt;102ebde&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Show sentence context in grammar popover from indicator (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/07f8bca"&gt;&lt;code&gt;07f8bca&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;refactor: Simplify FloatingErrorIndicator to 3-section design (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/6700d7a"&gt;&lt;code&gt;6700d7a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add category colors to AppColors for unified suggestions (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/4271557"&gt;&lt;code&gt;4271557&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add UnifiedSuggestion model with category system (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/dd0be2a"&gt;&lt;code&gt;dd0be2a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;test: Add unit tests for SuggestionTracker (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/a09d5ad"&gt;&lt;code&gt;a09d5ad&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add style suggestion impact filtering (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/26da515"&gt;&lt;code&gt;26da515&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;refactor: Integrate SuggestionTracker into AnalysisCoordinator (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/5cfcb87"&gt;&lt;code&gt;5cfcb87&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add SuggestionTracker for unified loop prevention (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/4686a6d"&gt;&lt;code&gt;4686a6d&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Use quirk-based text retrieval for WebKit app style replacement (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/a686a50"&gt;&lt;code&gt;a686a50&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Clear overlays when element leaves AX tree in web apps (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/7bb48e2"&gt;&lt;code&gt;7bb48e2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Add AX tree validation to frame validation timer for web apps (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/fa7e78f"&gt;&lt;code&gt;fa7e78f&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Validate element AX tree membership before preserving in web apps (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/f2562c8"&gt;&lt;code&gt;f2562c8&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;docs: Clarify testing workflow in CLAUDE.md (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/d925329"&gt;&lt;code&gt;d925329&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Trigger re-analysis after failed text replacement (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/0f78493"&gt;&lt;code&gt;0f78493&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Clear readability analysis on app switch (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/239f4e1"&gt;&lt;code&gt;239f4e1&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Correct readability underline positioning in Outlook (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/d706649"&gt;&lt;code&gt;d706649&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Add hasUnstableTextRetrieval quirk for Outlook (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/f12d34f"&gt;&lt;code&gt;f12d34f&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;refactor: Disable Harper's Readability category entirely (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/ccacb19"&gt;&lt;code&gt;ccacb19&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Remove misleading "Generating suggestion..." for Readability grammar errors (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/6406fcc"&gt;&lt;code&gt;6406fcc&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Improve style suggestion quality with filters and sanitization (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/955d3d3"&gt;&lt;code&gt;955d3d3&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Add safety guards to prevent text corruption during replacement (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/cc0680d"&gt;&lt;code&gt;cc0680d&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Add style analysis suppression to prevent endless suggestion loop (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/f3f3006"&gt;&lt;code&gt;f3f3006&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Resolve popover issues with indicator hover and stale suggestions (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/295881e"&gt;&lt;code&gt;295881e&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Resolve text replacement and sentence detection bugs (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/200fdd7"&gt;&lt;code&gt;200fdd7&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;perf: Reduce retry attempts and expand non-editable role detection (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/24ec203"&gt;&lt;code&gt;24ec203&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;perf: Add focus event settling to coalesce rapid focus changes (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/31b5407"&gt;&lt;code&gt;31b5407&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;perf: Reduce logging noise by ~32% and improve log level accuracy (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/5ad181a"&gt;&lt;code&gt;5ad181a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;perf: Reduce app-switch polling interval from 250ms to 50ms (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/b224132"&gt;&lt;code&gt;b224132&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Resolve race condition preventing AnalysisCoordinator initialization after onboarding (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/6644074"&gt;&lt;code&gt;6644074&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;docs: Add Behavior Configuration sections to all app documentation (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/88fb7e9"&gt;&lt;code&gt;88fb7e9&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
 &lt;/ul&gt;</description>
             <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-rc.6/TextWarden-0.1.0-rc.6-Universal.dmg" length="20200100" type="application/octet-stream" sparkle:edSignature="SK0JA4O2YAeCQKYOzphB8BUspyXUMyEMKCCD66KYjnpy4OdVQuCgZ+Hf/qAJYywdjayHxEb+IzJbl5oCsbz5AA=="/>
         </item>
@@ -139,38 +161,38 @@
             <sparkle:channel>experimental</sparkle:channel>
             <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
 &lt;ul&gt;
-&lt;li&gt;fix: Resolve popover not opening on external monitors (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/5c58791&quot;&gt;&lt;code&gt;5c58791&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;feat: Redesign verbose logging warning as sheet dialog (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/a145744&quot;&gt;&lt;code&gt;a145744&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;refactor: Update logging policy to allow text at DEBUG/TRACE levels (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/c1509e8&quot;&gt;&lt;code&gt;c1509e8&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Preserve readability dismissed hashes across app switches (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/07534ca&quot;&gt;&lt;code&gt;07534ca&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Normalize text before hashing to prevent readability re-flagging (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/aff5ec4&quot;&gt;&lt;code&gt;aff5ec4&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Prevent readability underlines reappearing on simplified text (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/1d5711f&quot;&gt;&lt;code&gt;1d5711f&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Use simplified text score in readability popover (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/27dcf2f&quot;&gt;&lt;code&gt;27dcf2f&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Add root element fallbacks for Slack positioning and text selection (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/c22c4ac&quot;&gt;&lt;code&gt;c22c4ac&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Clear stale grammar underlines when style suggestions exist (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/e4663be&quot;&gt;&lt;code&gt;e4663be&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Make SlackStrategy TextPart building more robust (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/e57f4cf&quot;&gt;&lt;code&gt;e57f4cf&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;refactor: Integrate UnderlineStateManager into ErrorOverlayWindow (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/de1b3d4&quot;&gt;&lt;code&gt;de1b3d4&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;feat: Add UnderlineStateManager for unified state management (Phase 1) (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/6d5bf6a&quot;&gt;&lt;code&gt;6d5bf6a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Prevent grammar underline persistence when readability underlines exist (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/60272c6&quot;&gt;&lt;code&gt;60272c6&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;feat: Add robust text selection with verification for Slack replacements (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/54330d6&quot;&gt;&lt;code&gt;54330d6&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Improve SlackStrategy bounds validation and add coverage logging (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/1d0a799&quot;&gt;&lt;code&gt;1d0a799&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;feat: Add AppConfiguration-aware behavior lookup in AppBehaviorRegistry (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/44433a5&quot;&gt;&lt;code&gt;44433a5&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Correct sentence range offset after trimming in readability calculator (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/ecdb16a&quot;&gt;&lt;code&gt;ecdb16a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;refactor: Introduce per-app behavior system with AppBehaviorRegistry (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/e0a0bb9&quot;&gt;&lt;code&gt;e0a0bb9&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;feat: Redesign diagnostic export confirmation dialog (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/ec489b8&quot;&gt;&lt;code&gt;ec489b8&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Remove duplicate label from log level picker (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/13b0017&quot;&gt;&lt;code&gt;13b0017&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;perf: Add dictionary caching in grammar engine (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/d5c73cf&quot;&gt;&lt;code&gt;d5c73cf&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;feat: Add comprehensive performance profiling system (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/320e8d2&quot;&gt;&lt;code&gt;320e8d2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Update Logger subsystem to match bundle identifier (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/e5c955c&quot;&gt;&lt;code&gt;e5c955c&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Prevent capitalization of suggestions in dot-notation contexts (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/af4dac6&quot;&gt;&lt;code&gt;af4dac6&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;feat: Skip readability analysis for non-English documents (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/96164bb&quot;&gt;&lt;code&gt;96164bb&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: ReadabilityPopover auto-close on click outside (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/1cbc4ea&quot;&gt;&lt;code&gt;1cbc4ea&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;feat: Filter meeting invite boilerplate in emails (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/ec63f05&quot;&gt;&lt;code&gt;ec63f05&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Prevent underlines and popovers from overlapping modal dialogs (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/2a36dfa&quot;&gt;&lt;code&gt;2a36dfa&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Correct Unicode position handling for Notion emoji-prefixed links (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/76d0c5b&quot;&gt;&lt;code&gt;76d0c5b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Eliminate underline flickering during Notion sidebar toggle (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/a130417&quot;&gt;&lt;code&gt;a130417&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;feat: Add document-level language detection for non-English text (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/cad62bc&quot;&gt;&lt;code&gt;cad62bc&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Improve overlay stability for Slack and Electron apps (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/6e4182b&quot;&gt;&lt;code&gt;6e4182b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Resolve popover not opening on external monitors (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/5c58791"&gt;&lt;code&gt;5c58791&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Redesign verbose logging warning as sheet dialog (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/a145744"&gt;&lt;code&gt;a145744&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;refactor: Update logging policy to allow text at DEBUG/TRACE levels (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/c1509e8"&gt;&lt;code&gt;c1509e8&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Preserve readability dismissed hashes across app switches (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/07534ca"&gt;&lt;code&gt;07534ca&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Normalize text before hashing to prevent readability re-flagging (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/aff5ec4"&gt;&lt;code&gt;aff5ec4&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Prevent readability underlines reappearing on simplified text (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/1d5711f"&gt;&lt;code&gt;1d5711f&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Use simplified text score in readability popover (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/27dcf2f"&gt;&lt;code&gt;27dcf2f&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Add root element fallbacks for Slack positioning and text selection (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/c22c4ac"&gt;&lt;code&gt;c22c4ac&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Clear stale grammar underlines when style suggestions exist (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/e4663be"&gt;&lt;code&gt;e4663be&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Make SlackStrategy TextPart building more robust (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/e57f4cf"&gt;&lt;code&gt;e57f4cf&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;refactor: Integrate UnderlineStateManager into ErrorOverlayWindow (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/de1b3d4"&gt;&lt;code&gt;de1b3d4&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add UnderlineStateManager for unified state management (Phase 1) (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/6d5bf6a"&gt;&lt;code&gt;6d5bf6a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Prevent grammar underline persistence when readability underlines exist (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/60272c6"&gt;&lt;code&gt;60272c6&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add robust text selection with verification for Slack replacements (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/54330d6"&gt;&lt;code&gt;54330d6&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Improve SlackStrategy bounds validation and add coverage logging (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/1d0a799"&gt;&lt;code&gt;1d0a799&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add AppConfiguration-aware behavior lookup in AppBehaviorRegistry (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/44433a5"&gt;&lt;code&gt;44433a5&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Correct sentence range offset after trimming in readability calculator (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/ecdb16a"&gt;&lt;code&gt;ecdb16a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;refactor: Introduce per-app behavior system with AppBehaviorRegistry (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/e0a0bb9"&gt;&lt;code&gt;e0a0bb9&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Redesign diagnostic export confirmation dialog (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/ec489b8"&gt;&lt;code&gt;ec489b8&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Remove duplicate label from log level picker (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/13b0017"&gt;&lt;code&gt;13b0017&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;perf: Add dictionary caching in grammar engine (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/d5c73cf"&gt;&lt;code&gt;d5c73cf&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add comprehensive performance profiling system (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/320e8d2"&gt;&lt;code&gt;320e8d2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Update Logger subsystem to match bundle identifier (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/e5c955c"&gt;&lt;code&gt;e5c955c&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Prevent capitalization of suggestions in dot-notation contexts (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/af4dac6"&gt;&lt;code&gt;af4dac6&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Skip readability analysis for non-English documents (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/96164bb"&gt;&lt;code&gt;96164bb&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: ReadabilityPopover auto-close on click outside (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/1cbc4ea"&gt;&lt;code&gt;1cbc4ea&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Filter meeting invite boilerplate in emails (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/ec63f05"&gt;&lt;code&gt;ec63f05&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Prevent underlines and popovers from overlapping modal dialogs (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/2a36dfa"&gt;&lt;code&gt;2a36dfa&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Correct Unicode position handling for Notion emoji-prefixed links (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/76d0c5b"&gt;&lt;code&gt;76d0c5b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Eliminate underline flickering during Notion sidebar toggle (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/a130417"&gt;&lt;code&gt;a130417&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add document-level language detection for non-English text (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/cad62bc"&gt;&lt;code&gt;cad62bc&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Improve overlay stability for Slack and Electron apps (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/6e4182b"&gt;&lt;code&gt;6e4182b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
 &lt;/ul&gt;</description>
             <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-rc.5/TextWarden-0.1.0-rc.5-Universal.dmg" length="20029066" type="application/octet-stream" sparkle:edSignature="dtEY1Zk9++xqSZeNG1VHC+LBzxkyv7gLQg63tjQ1TCaZuTB3gUsiVCKK8yHnbNHbM8twnImIk6NFm4uDAwNUCw=="/>
         </item>
@@ -183,7 +205,7 @@
             <sparkle:channel>experimental</sparkle:channel>
             <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
 &lt;ul&gt;
-&lt;li&gt;fix: Use singleton pattern for UpdaterViewModel to prevent multiple Sparkle instances (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/ef25111&quot;&gt;&lt;code&gt;ef25111&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Use singleton pattern for UpdaterViewModel to prevent multiple Sparkle instances (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/ef25111"&gt;&lt;code&gt;ef25111&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
 &lt;/ul&gt;</description>
             <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-rc.4/TextWarden-0.1.0-rc.4-Universal.dmg" length="19765979" type="application/octet-stream" sparkle:edSignature="pFgu3jduoKQoQ7dGUiju1f4+4c2VtwRATNTY4R/RPvelSeVHnAKmqISstnnmD5vdbsanAUv2y2yiwND/tDZBCg=="/>
         </item>
@@ -196,9 +218,9 @@
             <sparkle:channel>experimental</sparkle:channel>
             <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
 &lt;ul&gt;
-&lt;li&gt;fix: Prevent multiple Sparkle update windows and improve release notes (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/07a02e2&quot;&gt;&lt;code&gt;07a02e2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Handle GitHub API failures gracefully in release notes (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/6904f61&quot;&gt;&lt;code&gt;6904f61&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Add proper markdown spacing for changelog link in releases (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/805bd90&quot;&gt;&lt;code&gt;805bd90&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Prevent multiple Sparkle update windows and improve release notes (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/07a02e2"&gt;&lt;code&gt;07a02e2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Handle GitHub API failures gracefully in release notes (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/6904f61"&gt;&lt;code&gt;6904f61&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Add proper markdown spacing for changelog link in releases (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/805bd90"&gt;&lt;code&gt;805bd90&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
 &lt;/ul&gt;</description>
             <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-rc.3/TextWarden-0.1.0-rc.3-Universal.dmg" length="19768398" type="application/octet-stream" sparkle:edSignature="LurIhusCm9UpsVCeJ4BGR4T/C0Aa3tgj9t6mF4pt7B1Xn7u8LBDa2vU8LRMlyIIV9VXbChPmmmVXScd6iB31AQ=="/>
         </item>
@@ -211,9 +233,9 @@
             <sparkle:channel>experimental</sparkle:channel>
             <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
 &lt;ul&gt;
-&lt;li&gt;fix: Sign DMG after notarization stapling in release script (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/64805ec&quot;&gt;&lt;code&gt;64805ec&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Prevent Check for Updates button from flashing on About page (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/9033b03&quot;&gt;&lt;code&gt;9033b03&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Remove &quot;Full Changelog&quot; link from Sparkle release notes (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/bd2b36b&quot;&gt;&lt;code&gt;bd2b36b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Sign DMG after notarization stapling in release script (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/64805ec"&gt;&lt;code&gt;64805ec&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Prevent Check for Updates button from flashing on About page (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/9033b03"&gt;&lt;code&gt;9033b03&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Remove "Full Changelog" link from Sparkle release notes (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/bd2b36b"&gt;&lt;code&gt;bd2b36b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
 &lt;/ul&gt;</description>
             <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-rc.2/TextWarden-0.1.0-rc.2-Universal.dmg" length="19767117" type="application/octet-stream" sparkle:edSignature="BKvQOk+Ya8oVSAr/vIzusB61+ZGACESCZ8tjya1GxESY2uIddpvNfrevrKYhSctcMZUEiVxh5xDb+O0qw7gVBw=="/>
         </item>
@@ -226,7 +248,7 @@
             <sparkle:channel>experimental</sparkle:channel>
             <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
 &lt;ul&gt;
-&lt;li&gt;fix: Treat Sparkle &quot;no update found&quot; as success, not error (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/d233d9e&quot;&gt;&lt;code&gt;d233d9e&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Treat Sparkle "no update found" as success, not error (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/d233d9e"&gt;&lt;code&gt;d233d9e&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;&lt;b&gt;Full Changelog&lt;/b&gt;: https://github.com/PhilipSchmid/textwarden/compare/v0.1.0-beta.7...HEAD&lt;/p&gt;</description>
             <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-rc.1/TextWarden-0.1.0-rc.1-Universal.dmg" length="19767767" type="application/octet-stream" sparkle:edSignature="KwKJecrQba5sKRIe0Q2cn5UtP5PfHiDpPg+eGffnUgSexEvm1E6y2TQfStzKCTHYZhmBIbitHfoAdF5YDz4BCA=="/>
@@ -240,12 +262,12 @@
             <sparkle:channel>experimental</sparkle:channel>
             <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
 &lt;ul&gt;
-&lt;li&gt;docs: Add GitHub CI and status badges to README (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/0371dc0&quot;&gt;&lt;code&gt;0371dc0&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Prevent multiple Sparkle update windows by respecting scheduler (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/c87da65&quot;&gt;&lt;code&gt;c87da65&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Correct Sparkle EdDSA signatures and add verification (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/8e5cc0e&quot;&gt;&lt;code&gt;8e5cc0e&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;feat: Include release notes in Sparkle update dialog (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/4c72975&quot;&gt;&lt;code&gt;4c72975&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;fix: Lower test target deployment target to 26.0 for CI compatibility (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/de25dda&quot;&gt;&lt;code&gt;de25dda&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
-&lt;li&gt;feat: Add Microsoft PowerPoint Notes section support (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/e2c7746&quot;&gt;&lt;code&gt;e2c7746&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;docs: Add GitHub CI and status badges to README (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/0371dc0"&gt;&lt;code&gt;0371dc0&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Prevent multiple Sparkle update windows by respecting scheduler (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/c87da65"&gt;&lt;code&gt;c87da65&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Correct Sparkle EdDSA signatures and add verification (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/8e5cc0e"&gt;&lt;code&gt;8e5cc0e&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Include release notes in Sparkle update dialog (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/4c72975"&gt;&lt;code&gt;4c72975&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Lower test target deployment target to 26.0 for CI compatibility (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/de25dda"&gt;&lt;code&gt;de25dda&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add Microsoft PowerPoint Notes section support (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/e2c7746"&gt;&lt;code&gt;e2c7746&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;&lt;b&gt;Full Changelog&lt;/b&gt;: https://github.com/PhilipSchmid/textwarden/compare/v0.1.0-beta.6...HEAD&lt;/p&gt;</description>
             <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.1.0-beta.7/TextWarden-0.1.0-beta.7-Universal.dmg" length="19770312" type="application/octet-stream" sparkle:edSignature="mRpvKvQsiMIdqVHSu9VT0KcQVEnk681JXdArXqwv1ovVjZKiWqC64XX2Xsv/qORkIpGmjy0a/O9ePBSul5dsBQ=="/>
