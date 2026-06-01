@@ -3,6 +3,32 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.3.0</title>
+            <pubDate>Mon, 01 Jun 2026 12:06:53 +0200</pubDate>
+            <sparkle:version>28</sparkle:version>
+            <sparkle:shortVersionString>0.3.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;chore: Bump harper-core to 2.3.1 and other dependencies (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/61da481"&gt;&lt;code&gt;61da481&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;ci: Allow Dependabot to trigger Claude code review (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/a740060"&gt;&lt;code&gt;a740060&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;deps(rust): Update sysinfo requirement in /GrammarEngine (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/3a47d95"&gt;&lt;code&gt;3a47d95&lt;/code&gt;&lt;/a&gt;) by @dependabot[bot]&lt;/li&gt;
+&lt;li&gt;Release v0.2.0 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/622c34c"&gt;&lt;code&gt;622c34c&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;chore: Update Sparkle signing key (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/12f7b62"&gt;&lt;code&gt;12f7b62&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;chore: Bump harper-core from 1.10 to 2.0 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/1f45b50"&gt;&lt;code&gt;1f45b50&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;deps(actions): Bump actions/checkout from 4 to 6 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/452e6a5"&gt;&lt;code&gt;452e6a5&lt;/code&gt;&lt;/a&gt;) by @dependabot[bot]&lt;/li&gt;
+&lt;li&gt;Release v0.2.0-rc.1 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/e49b82a"&gt;&lt;code&gt;e49b82a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add copy-to-clipboard fallback UI for grammar error popovers (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/2dd810a"&gt;&lt;code&gt;2dd810a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;"Claude Code Review workflow" (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/f929a63"&gt;&lt;code&gt;f929a63&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;"Claude PR Assistant workflow" (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/4a78ee2"&gt;&lt;code&gt;4a78ee2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;style: Fix redundantSendable and redundantType lint warnings (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/e21805b"&gt;&lt;code&gt;e21805b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;ci: Use increase versioning strategy for Cargo dependabot (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/6cfb495"&gt;&lt;code&gt;6cfb495&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;chore: Bump harper-core from 1.8 to 1.10 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/42dcbf2"&gt;&lt;code&gt;42dcbf2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;chore: Enforce PR-based workflow and commit signing (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/cd5c023"&gt;&lt;code&gt;cd5c023&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.3.0/TextWarden-0.3.0-Universal.dmg" length="31623578" type="application/octet-stream" sparkle:edSignature="cjcox96y4O8//IOYtE+Siby289fXwL/t96Y0fJ5nRHHsbGxFrbFoR0EzjGSJyH5+W4dg/oIUlMMpOWE2wyydBA=="/>
+        </item>
+        <item>
             <title>0.2.0</title>
             <pubDate>Sun, 12 Apr 2026 15:05:20 +0200</pubDate>
             <sparkle:version>27</sparkle:version>
