@@ -135,7 +135,11 @@ enum ModalDialogDetector {
             if ownerName == "TextWarden" { continue }
 
             // Skip system UI (menu bar, status items, etc.)
-            if ownerName == "Window Server" || ownerName == "SystemUIServer" { continue }
+            // - Window Server: menu bar, cursor, transition effects
+            // - SystemUIServer: status menu items
+            // - Dock: kCGDockWindowLevel (20) backdrop can span the full screen on
+            //   macOS Tahoe and is never a modal dialog (issue #66)
+            if ownerName == "Window Server" || ownerName == "SystemUIServer" || ownerName == "Dock" { continue }
 
             // Skip apps with persistent high-level overlays that are always present
             // unlike modal dialogs which only appear during user interaction
@@ -154,6 +158,11 @@ enum ModalDialogDetector {
                 height: height
             )
 
+            // Skip windows that cover most of a display: real modal dialogs are
+            // bounded panels, not full-screen backdrops. This catches invisible
+            // overlays from system processes we don't enumerate by name.
+            if isFullScreenBackdrop(windowFrame) { continue }
+
             // Check if mouse is inside this window
             if windowFrame.contains(mouseLocation) {
                 Logger.debug("ModalDialogDetector: Detected modal-level window '\(ownerName)' (level \(windowLevel)) at \(windowFrame) containing mouse at \(mouseLocation)", category: Logger.ui)
@@ -161,6 +170,22 @@ enum ModalDialogDetector {
             }
         }
 
+        return false
+    }
+
+    /// True when a window covers ≥80% of any connected display in both dimensions.
+    /// Real modal dialogs are bounded panels; backdrops span the full screen.
+    private static func isFullScreenBackdrop(_ windowFrame: CGRect) -> Bool {
+        let coverageThreshold: CGFloat = 0.80
+        for screen in NSScreen.screens {
+            let screenFrame = screen.frame
+            guard screenFrame.width > 0, screenFrame.height > 0 else { continue }
+            let widthRatio = windowFrame.width / screenFrame.width
+            let heightRatio = windowFrame.height / screenFrame.height
+            if widthRatio >= coverageThreshold, heightRatio >= coverageThreshold {
+                return true
+            }
+        }
         return false
     }
 }
