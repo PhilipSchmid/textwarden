@@ -3,6 +3,19 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.3.1-beta.1</title>
+            <pubDate>Sat, 06 Jun 2026 10:40:27 +0200</pubDate>
+            <sparkle:version>29</sparkle:version>
+            <sparkle:shortVersionString>0.3.1-beta.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:channel>experimental</sparkle:channel>
+            <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;fix: Skip Dock backdrop in modal dialog detection (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/e6def7e"&gt;&lt;code&gt;e6def7e&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.3.1-beta.1/TextWarden-0.3.1-beta.1-Universal.dmg" length="31625421" type="application/octet-stream" sparkle:edSignature="+vJ/+NbFQAlp9p523rAiMoSr2oNzijv66Z5xBlxXAQLO+fgnl87fQlEKQO5P1Lqoc7KgQ3MRkn9fdhYOJjRZBg=="/>
+        </item>
+        <item>
             <title>0.3.0</title>
             <pubDate>Mon, 01 Jun 2026 12:06:53 +0200</pubDate>
             <sparkle:version>28</sparkle:version>
