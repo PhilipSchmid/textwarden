@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["staticlib"]
 
 [dependencies]
-harper-core = { git = "https://github.com/Automattic/harper", tag = "v2.3.1" }
+harper-core = { git = "https://github.com/Automattic/harper", tag = "v2.4.0" }
 swift-bridge = "0.1.59"
 uuid = { version = "1.0", features = ["v4"] }
 whichlang = "0.1.0"
