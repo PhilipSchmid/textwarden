@@ -3,6 +3,22 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.3.1</title>
+            <pubDate>Mon, 22 Jun 2026 10:09:59 +0200</pubDate>
+            <sparkle:version>30</sparkle:version>
+            <sparkle:shortVersionString>0.3.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;ci: Remove automated Claude code review workflow (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/7b94f78"&gt;&lt;code&gt;7b94f78&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;deps(rust): Bump harper-core from v2.3.1 to v2.5.0 in /GrammarEngine (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/4fa6cce"&gt;&lt;code&gt;4fa6cce&lt;/code&gt;&lt;/a&gt;) by @dependabot[bot]&lt;/li&gt;
+&lt;li&gt;deps(actions): Bump actions/checkout from 6 to 7 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/c87c5f5"&gt;&lt;code&gt;c87c5f5&lt;/code&gt;&lt;/a&gt;) by @dependabot[bot]&lt;/li&gt;
+&lt;li&gt;Release v0.3.1-beta.1 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/4e9a7ec"&gt;&lt;code&gt;4e9a7ec&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Skip Dock backdrop in modal dialog detection (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/e6def7e"&gt;&lt;code&gt;e6def7e&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.3.1/TextWarden-0.3.1-Universal.dmg" length="31625353" type="application/octet-stream" sparkle:edSignature="bvJ7NdwxijzFSmB5WySPPcRtaJuOMWGbyObTJJu9Cy/KNnNufNOSn7x7CM/i8/7jsh+vWKNJUc3IEkzDlxRRBg=="/>
+        </item>
+        <item>
             <title>0.3.1-beta.1</title>
             <pubDate>Sat, 06 Jun 2026 10:40:27 +0200</pubDate>
             <sparkle:version>29</sparkle:version>
