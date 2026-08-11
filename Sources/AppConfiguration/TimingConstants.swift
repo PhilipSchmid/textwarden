@@ -28,9 +28,6 @@ enum TimingConstants {
 
     // MARK: - Cache Expiration
 
-    /// Grammar analysis cache expiration (5 minutes)
-    static let analysisCacheExpiration: TimeInterval = 300
-
     /// Style analysis cache expiration (10 minutes)
     static let styleCacheExpiration: TimeInterval = 600
 

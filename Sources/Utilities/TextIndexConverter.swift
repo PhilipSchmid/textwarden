@@ -152,17 +152,12 @@ enum TextIndexConverter {
     ///   - string: The string to convert within
     /// - Returns: The grapheme cluster count, or nil if out of bounds
     static func utf16ToGraphemeIndex(_ utf16Offset: Int, in string: String) -> Int? {
-        guard utf16Offset >= 0 else { return nil }
-
-        let nsString = string as NSString
-        guard utf16Offset <= nsString.length else { return nil }
-
-        // Use Range(NSRange, in:) to convert UTF-16 position to String.Index
-        let utf16Range = NSRange(location: utf16Offset, length: 0)
-        guard let range = Range(utf16Range, in: string) else { return nil }
+        guard let stringIndex = characterBoundary(forUTF16Offset: utf16Offset, in: string) else {
+            return nil
+        }
 
         // Count grapheme clusters from start to this position
-        return string.distance(from: string.startIndex, to: range.lowerBound)
+        return string.distance(from: string.startIndex, to: stringIndex)
     }
 
     // MARK: - String.Index ↔ UTF-16
@@ -182,6 +177,12 @@ enum TextIndexConverter {
     ///   - string: The string to convert within
     /// - Returns: The corresponding String.Index, or nil if out of bounds
     static func stringIndex(forUTF16Offset utf16Offset: Int, in string: String) -> String.Index? {
+        characterBoundary(forUTF16Offset: utf16Offset, in: string)
+    }
+
+    /// Convert a UTF-16 offset only when it lands on a Character boundary.
+    /// Foundation can otherwise produce a String.Index inside a surrogate pair or ZWJ sequence.
+    private static func characterBoundary(forUTF16Offset utf16Offset: Int, in string: String) -> String.Index? {
         guard utf16Offset >= 0 else { return nil }
 
         let nsString = string as NSString
@@ -189,8 +190,13 @@ enum TextIndexConverter {
 
         let utf16Range = NSRange(location: utf16Offset, length: 0)
         guard let range = Range(utf16Range, in: string) else { return nil }
+        let index = range.lowerBound
 
-        return range.lowerBound
+        guard index == string.endIndex || string.indices.contains(index) else {
+            return nil
+        }
+
+        return index
     }
 
     // MARK: - Convenience Methods

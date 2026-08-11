@@ -10,6 +10,40 @@ import AppKit
 @preconcurrency import ApplicationServices
 import Foundation
 
+/// Immutable identity for one background grammar request.
+///
+/// AXUIElement is safe to retain for the lifetime of the request. The value is only compared
+/// on the main actor after analysis completes; grammar work never accesses it off-main.
+struct GrammarAnalysisRequest: @unchecked Sendable {
+    let generation: UInt64
+    let sourceText: String
+    let context: ApplicationContext
+    let element: AXUIElement?
+
+    func matches(
+        currentGeneration: UInt64,
+        currentText: String?,
+        currentContext: ApplicationContext?,
+        currentElement: AXUIElement?
+    ) -> Bool {
+        guard generation == currentGeneration,
+              sourceText == currentText,
+              context == currentContext
+        else {
+            return false
+        }
+
+        switch (element, currentElement) {
+        case (nil, nil):
+            return true
+        case let (expected?, current?):
+            return CFEqual(expected, current)
+        default:
+            return false
+        }
+    }
+}
+
 // MARK: - Grammar Analysis
 
 extension AnalysisCoordinator {
@@ -48,6 +82,36 @@ extension AnalysisCoordinator {
             checkEllipsis: userPreferences.checkEllipsis,
             checkUnclosedQuotes: userPreferences.checkUnclosedQuotes,
             checkDashes: userPreferences.checkDashes
+        )
+    }
+
+    /// Invalidate any grammar result that has not reached the main actor yet.
+    func invalidateGrammarAnalysis() {
+        grammarAnalysisGeneration &+= 1
+    }
+
+    /// Create an identity token for a newly dispatched grammar request.
+    private func beginGrammarAnalysis(
+        text: String,
+        context: ApplicationContext,
+        element: AXUIElement?
+    ) -> GrammarAnalysisRequest {
+        grammarAnalysisGeneration &+= 1
+        return GrammarAnalysisRequest(
+            generation: grammarAnalysisGeneration,
+            sourceText: text,
+            context: context,
+            element: element
+        )
+    }
+
+    /// Check all mutable inputs that could make a completed result stale.
+    private func isCurrentGrammarAnalysis(_ request: GrammarAnalysisRequest) -> Bool {
+        request.matches(
+            currentGeneration: grammarAnalysisGeneration,
+            currentText: currentSegment?.content,
+            currentContext: monitoredContext,
+            currentElement: textMonitor.monitoredElement
         )
     }
 
@@ -116,6 +180,11 @@ extension AnalysisCoordinator {
         // CRITICAL: Capture the monitored element BEFORE async operation
         let capturedElement = textMonitor.monitoredElement
         let segmentContent = segment.content
+        let request = beginGrammarAnalysis(
+            text: segmentContent,
+            context: segment.context,
+            element: capturedElement
+        )
 
         // Capture UserPreferences values on main thread before async dispatch
         let dialect = userPreferences.selectedDialect
@@ -159,7 +228,11 @@ extension AnalysisCoordinator {
 
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                updateErrorCache(for: segment, with: result.errors)
+                guard isCurrentGrammarAnalysis(request) else {
+                    Logger.debug("AnalysisCoordinator: Discarding stale incremental grammar result", category: Logger.analysis)
+                    return
+                }
+
                 applyFilters(to: result.errors, sourceText: segmentContent, element: capturedElement)
 
                 // Record statistics with full details
@@ -193,6 +266,11 @@ extension AnalysisCoordinator {
     ) {
         // Capture grammar engine reference before async dispatch
         let grammarEngineRef = grammarEngine
+        let request = beginGrammarAnalysis(
+            text: text,
+            context: segment.context,
+            element: element
+        )
 
         analysisQueue.async { [weak self] in
             guard let self else { return }
@@ -220,6 +298,11 @@ extension AnalysisCoordinator {
 
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
+                guard isCurrentGrammarAnalysis(request) else {
+                    Logger.debug("AnalysisCoordinator: Discarding stale grammar result", category: Logger.analysis)
+                    return
+                }
+
                 handleGrammarResults(
                     grammarResult,
                     segment: segment,
@@ -238,7 +321,6 @@ extension AnalysisCoordinator {
         element: AXUIElement?
     ) {
         let errorsWithCachedAI = enhanceErrorsWithCachedAI(result.errors, sourceText: text)
-        updateErrorCache(for: segment, with: errorsWithCachedAI)
         applyFilters(to: errorsWithCachedAI, sourceText: text, element: element)
 
         // Record statistics

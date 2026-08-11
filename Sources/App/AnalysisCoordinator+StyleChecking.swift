@@ -2,7 +2,7 @@
 //  AnalysisCoordinator+StyleChecking.swift
 //  TextWarden
 //
-//  Style checking and performance optimization functionality extracted from AnalysisCoordinator.
+//  Style checking functionality extracted from AnalysisCoordinator.
 //  Handles Apple Intelligence style analysis, AI-enhanced readability suggestions, and style caching.
 //
 
@@ -14,170 +14,7 @@ import Foundation
     import FoundationModels
 #endif
 
-// MARK: - Performance Optimizations (User Story 4)
-
 extension AnalysisCoordinator {
-    /// Find changed region using text diffing
-    func findChangedRegion(oldText: String, newText: String) -> Range<String.Index>? {
-        guard oldText != newText else { return nil }
-
-        let oldChars = Array(oldText)
-        let newChars = Array(newText)
-
-        // Find common prefix
-        var prefixLength = 0
-        let minLength = min(oldChars.count, newChars.count)
-
-        while prefixLength < minLength, oldChars[prefixLength] == newChars[prefixLength] {
-            prefixLength += 1
-        }
-
-        // Find common suffix
-        var suffixLength = 0
-        let oldSuffixStart = oldChars.count - 1
-        let newSuffixStart = newChars.count - 1
-
-        while suffixLength < minLength - prefixLength,
-              oldChars[oldSuffixStart - suffixLength] == newChars[newSuffixStart - suffixLength]
-        {
-            suffixLength += 1
-        }
-
-        // Calculate changed region using safe index operations
-        guard let changeStart = newText.index(newText.startIndex, offsetBy: prefixLength, limitedBy: newText.endIndex),
-              let changeEnd = newText.index(newText.endIndex, offsetBy: -suffixLength, limitedBy: newText.startIndex),
-              changeStart <= changeEnd
-        else {
-            return nil
-        }
-
-        return changeStart ..< changeEnd
-    }
-
-    /// Detect sentence boundaries for context-aware analysis
-    func detectSentenceBoundaries(in text: String, around range: Range<String.Index>) -> Range<String.Index> {
-        let sentenceTerminators = CharacterSet(charactersIn: ".!?")
-
-        // Find sentence start (search backward for sentence terminator)
-        var sentenceStart = range.lowerBound
-        var searchIndex = sentenceStart
-
-        while searchIndex > text.startIndex {
-            searchIndex = text.index(before: searchIndex)
-            let char = text[searchIndex]
-
-            if let firstScalar = char.unicodeScalars.first,
-               sentenceTerminators.contains(firstScalar)
-            {
-                // Move past the terminator and any whitespace
-                sentenceStart = text.index(after: searchIndex)
-                while sentenceStart < text.endIndex, text[sentenceStart].isWhitespace {
-                    sentenceStart = text.index(after: sentenceStart)
-                }
-                break
-            }
-        }
-
-        // Find sentence end (search forward for sentence terminator)
-        var sentenceEnd = range.upperBound
-        searchIndex = sentenceEnd
-
-        while searchIndex < text.endIndex {
-            let char = text[searchIndex]
-
-            if let firstScalar = char.unicodeScalars.first,
-               sentenceTerminators.contains(firstScalar)
-            {
-                // Include the terminator
-                sentenceEnd = text.index(after: searchIndex)
-                break
-            }
-
-            searchIndex = text.index(after: searchIndex)
-        }
-
-        return sentenceStart ..< sentenceEnd
-    }
-
-    /// Merge new analysis results with cached results
-    func mergeResults(new: [GrammarErrorModel], cached: [GrammarErrorModel], changedRange: Range<Int>) -> [GrammarErrorModel] {
-        var merged: [GrammarErrorModel] = []
-
-        // Keep cached errors outside changed range
-        for error in cached {
-            let errorRange = error.start ..< error.end
-            if !errorRange.overlaps(changedRange) {
-                merged.append(error)
-            }
-        }
-
-        merged.append(contentsOf: new)
-
-        // Sort by position
-        return merged.sorted { $0.start < $1.start }
-    }
-
-    /// Check if edit is large enough to invalidate cache
-    func isLargeEdit(oldText: String, newText: String) -> Bool {
-        let diff = abs(newText.count - oldText.count)
-
-        // Consider large if >1000 chars changed (copy/paste scenario)
-        return diff > 1000
-    }
-
-    /// Purge expired cache entries
-    func purgeExpiredCache() {
-        let now = Date()
-        var expiredKeys: [String] = []
-
-        for (key, metadata) in cacheMetadata {
-            if now.timeIntervalSince(metadata.lastAccessed) > cacheExpirationTime {
-                expiredKeys.append(key)
-            }
-        }
-
-        for key in expiredKeys {
-            errorCache.removeValue(forKey: key)
-            cacheMetadata.removeValue(forKey: key)
-        }
-
-        if !expiredKeys.isEmpty {
-            Logger.debug("AnalysisCoordinator: Purged \(expiredKeys.count) expired cache entries", category: Logger.performance)
-        }
-    }
-
-    /// Evict least recently used cache entries
-    func evictLRUCacheIfNeeded() {
-        guard cacheMetadata.count > maxCachedDocuments else { return }
-
-        // Sort by last accessed time
-        let sortedEntries = cacheMetadata.sorted { $0.value.lastAccessed < $1.value.lastAccessed }
-
-        let toRemove = sortedEntries.count - maxCachedDocuments
-        for i in 0 ..< toRemove {
-            let key = sortedEntries[i].key
-            errorCache.removeValue(forKey: key)
-            cacheMetadata.removeValue(forKey: key)
-        }
-
-        Logger.debug("AnalysisCoordinator: Evicted \(toRemove) LRU cache entries", category: Logger.performance)
-    }
-
-    /// Update cache with access time tracking
-    func updateErrorCache(for segment: TextSegment, with errors: [GrammarErrorModel]) {
-        let cacheKey = segment.id.uuidString
-        errorCache[cacheKey] = errors
-
-        cacheMetadata[cacheKey] = CacheMetadata(
-            lastAccessed: Date(),
-            documentSize: segment.content.count
-        )
-
-        // Perform cache maintenance
-        purgeExpiredCache()
-        evictLRUCacheIfNeeded()
-    }
-
     // MARK: - Style Cache Methods
 
     /// Compute a cache key for style analysis based on text content, style, and temperature preset
@@ -871,14 +708,6 @@ extension AnalysisCoordinator {
         }
         return range.location
     }
-}
-
-// MARK: - Cache Metadata
-
-/// Metadata for cache entries to support LRU eviction and expiration
-struct CacheMetadata {
-    let lastAccessed: Date
-    let documentSize: Int
 }
 
 /// Metadata for style cache entries
