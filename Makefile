@@ -88,12 +88,12 @@ test: test-rust test-swift ## Run all tests
 
 test-rust: ## Run Rust tests
 	@echo "$(BLUE)🦀 Running Rust tests...$(NC)"
-	@cd $(RUST_DIR) && cargo test
+	@cd $(RUST_DIR) && cargo test --locked
 	@echo "$(GREEN)✅ Rust tests passed$(NC)"
 
 test-swift: ## Run Swift tests (unit tests only, excludes performance benchmarks)
 	@echo "$(BLUE)🍎 Running Swift tests...$(NC)"
-	@xcodebuild test -scheme TextWarden -destination 'platform=macOS' \
+	@set -o pipefail; xcodebuild test -scheme TextWarden -destination 'platform=macOS' \
 		-only-testing:TextWardenTests/AppBehaviorConsistencyTests \
 		-only-testing:TextWardenTests/AppBehaviorRegistryTests \
 		-only-testing:TextWardenTests/AppBehaviorRegressionTests \
@@ -108,7 +108,7 @@ test-swift: ## Run Swift tests (unit tests only, excludes performance benchmarks
 		-only-testing:TextWardenTests/UnderlineStateManagerTests \
 		-only-testing:TextWardenTests/UserStatisticsTests \
 		-only-testing:TextWardenTests/VirtualKeyCodeTests \
-		2>&1 | tail -20
+		2>&1 | grep -E '(failed|error:|TEST SUCCEEDED|TEST FAILED)'
 	@echo "$(GREEN)✅ Swift tests passed$(NC)"
 
 ##@ Installation
@@ -152,7 +152,7 @@ ci-check: ## Run CI checks locally (use before pushing)
 	@echo "$(GREEN)✅ OK$(NC)"
 	@echo ""
 	@echo "$(YELLOW)[2/7] Running Clippy...$(NC)"
-	@cd $(RUST_DIR) && cargo clippy --all-targets -- -D warnings
+	@cd $(RUST_DIR) && cargo clippy --locked --all-targets -- -D warnings
 	@echo "$(GREEN)✅ OK$(NC)"
 	@echo ""
 	@echo "$(YELLOW)[3/7] Checking Swift formatting...$(NC)"
@@ -164,11 +164,11 @@ ci-check: ## Run CI checks locally (use before pushing)
 	@echo "$(GREEN)✅ OK$(NC)"
 	@echo ""
 	@echo "$(YELLOW)[5/7] Running Rust tests...$(NC)"
-	@cd $(RUST_DIR) && cargo test
+	@cd $(RUST_DIR) && cargo test --locked
 	@echo "$(GREEN)✅ OK$(NC)"
 	@echo ""
 	@echo "$(YELLOW)[6/7] Running Swift tests...$(NC)"
-	@xcodebuild test -scheme TextWarden -destination 'platform=macOS' \
+	@set -o pipefail; xcodebuild test -scheme TextWarden -destination 'platform=macOS' \
 		-only-testing:TextWardenTests/AppBehaviorConsistencyTests \
 		-only-testing:TextWardenTests/AppBehaviorRegistryTests \
 		-only-testing:TextWardenTests/AppBehaviorRegressionTests \
@@ -183,7 +183,7 @@ ci-check: ## Run CI checks locally (use before pushing)
 		-only-testing:TextWardenTests/UnderlineStateManagerTests \
 		-only-testing:TextWardenTests/UserStatisticsTests \
 		-only-testing:TextWardenTests/VirtualKeyCodeTests \
-		2>&1 | grep -E '(Test case|passed|failed|error:)' | tail -20
+		2>&1 | grep -E '(failed|error:|TEST SUCCEEDED|TEST FAILED)'
 	@echo "$(GREEN)✅ OK$(NC)"
 	@echo ""
 	@echo "$(YELLOW)[7/7] Building...$(NC)"
@@ -210,7 +210,7 @@ lint: ## Lint all code (Rust + Swift)
 	@make -s lint-swift
 
 lint-rust: ## Run Clippy linter on Rust code
-	@cd $(RUST_DIR) && cargo clippy --all-targets -- -D warnings
+	@cd $(RUST_DIR) && cargo clippy --locked --all-targets -- -D warnings
 	@echo "$(GREEN)✅ Rust lint passed$(NC)"
 
 lint-swift: ## Run SwiftLint on Swift code

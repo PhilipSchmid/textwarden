@@ -122,15 +122,12 @@ final class SlackStrategyValidationTests: XCTestCase {
     /// Test that zero/negative bounds are rejected.
     func testZeroAndNegativeBoundsAreRejected() {
         let zeroBounds = CGRect(x: 0, y: 0, width: 0, height: 0)
-        let zeroValid = zeroBounds.width > 0 && zeroBounds.height > 0
-        XCTAssertFalse(zeroValid, "Zero bounds should be rejected")
+        XCTAssertFalse(CoordinateMapper.validateBounds(zeroBounds), "Zero bounds should be rejected")
 
         let negativeWidth = CGRect(x: 0, y: 0, width: -100, height: 19)
-        let negativeWidthValid = negativeWidth.width > 0 && negativeWidth.height > 0
-        XCTAssertFalse(negativeWidthValid, "Negative width should be rejected")
+        XCTAssertFalse(CoordinateMapper.validateBounds(negativeWidth), "Negative width should be rejected")
 
         let negativeHeight = CGRect(x: 0, y: 0, width: 100, height: -19)
-        let negativeHeightValid = negativeHeight.width > 0 && negativeHeight.height > 0
-        XCTAssertFalse(negativeHeightValid, "Negative height should be rejected")
+        XCTAssertFalse(CoordinateMapper.validateBounds(negativeHeight), "Negative height should be rejected")
     }
 }

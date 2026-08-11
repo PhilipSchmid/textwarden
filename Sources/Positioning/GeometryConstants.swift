@@ -191,21 +191,21 @@ enum GeometryConstants {
 
     /// Check if bounds represent a valid single-line text region
     static func isValidSingleLineBounds(_ bounds: CGRect) -> Bool {
-        bounds.width > 0 &&
-            bounds.height > minimumBoundsSize &&
-            bounds.height < maximumLineHeight
+        bounds.size.width > 0 &&
+            bounds.size.height > minimumBoundsSize &&
+            bounds.size.height < maximumLineHeight
     }
 
     /// Check if bounds represent a valid character or small text region
     static func isValidCharacterBounds(_ bounds: CGRect) -> Bool {
-        bounds.width > 0 &&
-            bounds.width < maximumCharacterWidth &&
-            bounds.height > 0 &&
-            bounds.height < conservativeMaxLineHeight
+        bounds.size.width > 0 &&
+            bounds.size.width < maximumCharacterWidth &&
+            bounds.size.height > 0 &&
+            bounds.size.height < conservativeMaxLineHeight
     }
 
     /// Check if bounds are non-zero (basic validity)
     static func hasValidSize(_ bounds: CGRect) -> Bool {
-        bounds.width > 0 && bounds.height > 0
+        bounds.size.width > 0 && bounds.size.height > 0
     }
 }

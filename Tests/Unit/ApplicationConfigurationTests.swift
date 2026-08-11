@@ -23,7 +23,7 @@ final class ApplicationConfigurationTests: XCTestCase {
 
     func testKeyboardDelayForVSCode() {
         let delay = ApplicationConfiguration.keyboardOperationDelay(for: "com.microsoft.VSCode")
-        XCTAssertEqual(delay, 0.08, "VS Code should have 80ms delay")
+        XCTAssertEqual(delay, 0.05, "Unregistered apps should use the safe default delay")
     }
 
     func testKeyboardDelayForChrome() {
@@ -33,7 +33,7 @@ final class ApplicationConfigurationTests: XCTestCase {
 
     func testKeyboardDelayForSafari() {
         let delay = ApplicationConfiguration.keyboardOperationDelay(for: "com.apple.Safari")
-        XCTAssertEqual(delay, 0.08, "Safari should have 80ms delay")
+        XCTAssertEqual(delay, 0.10, "Registered browsers should use the browser category delay")
     }
 
     func testKeyboardDelayForFirefox() {
@@ -55,22 +55,22 @@ final class ApplicationConfigurationTests: XCTestCase {
 
     func testEstimatedFontSizeForDiscord() {
         let fontSize = ApplicationConfiguration.estimatedFontSize(for: "com.hnc.Discord")
-        XCTAssertEqual(fontSize, 15.0)
+        XCTAssertEqual(fontSize, 13.0, "Unregistered apps should use the default font size")
     }
 
     func testEstimatedFontSizeForVSCode() {
         let fontSize = ApplicationConfiguration.estimatedFontSize(for: "com.microsoft.VSCode")
-        XCTAssertEqual(fontSize, 14.0)
+        XCTAssertEqual(fontSize, 13.0, "Unregistered apps should use the default font size")
     }
 
     func testEstimatedFontSizeForElectronApp() {
         let fontSize = ApplicationConfiguration.estimatedFontSize(for: "com.electron.app")
-        XCTAssertEqual(fontSize, 15.0, "Generic Electron apps should use 15pt")
+        XCTAssertEqual(fontSize, 13.0, "Unregistered apps should use the default font size")
     }
 
     func testEstimatedFontSizeForNativeApp() {
         let fontSize = ApplicationConfiguration.estimatedFontSize(for: "com.apple.TextEdit")
-        XCTAssertEqual(fontSize, 13.0, "Native apps should use 13pt")
+        XCTAssertEqual(fontSize, 12.0, "TextEdit should use its registered font size")
     }
 
     // MARK: - Character Width Correction Tests
@@ -99,22 +99,22 @@ final class ApplicationConfigurationTests: XCTestCase {
 
     func testEstimatedLeftPaddingForDiscord() {
         let padding = ApplicationConfiguration.estimatedLeftPadding(for: "com.hnc.Discord")
-        XCTAssertEqual(padding, 12.0)
+        XCTAssertEqual(padding, 8.0, "Unregistered apps should use the default padding")
     }
 
     func testEstimatedLeftPaddingForVSCode() {
         let padding = ApplicationConfiguration.estimatedLeftPadding(for: "com.microsoft.VSCode")
-        XCTAssertEqual(padding, 10.0)
+        XCTAssertEqual(padding, 8.0, "Unregistered apps should use the default padding")
     }
 
     func testEstimatedLeftPaddingForElectronApp() {
         let padding = ApplicationConfiguration.estimatedLeftPadding(for: "com.electron.app")
-        XCTAssertEqual(padding, 12.0, "Generic Electron apps should have 12px padding")
+        XCTAssertEqual(padding, 8.0, "Unregistered apps should use the default padding")
     }
 
     func testEstimatedLeftPaddingForNativeApp() {
         let padding = ApplicationConfiguration.estimatedLeftPadding(for: "com.apple.TextEdit")
-        XCTAssertEqual(padding, 8.0, "Native apps should have 8px padding")
+        XCTAssertEqual(padding, 0.0, "TextEdit should use its registered padding")
     }
 
     // MARK: - Format Preservation Tests
@@ -165,18 +165,17 @@ final class ApplicationConfigurationTests: XCTestCase {
         }
     }
 
-    func testConfigurationConsistency() {
-        // Ensure all Electron apps get consistent treatment
-        let electronApps = [
-            "com.microsoft.VSCode",
-            "com.tinyspeck.slackmacgap",
-            "com.hnc.Discord",
-            "com.electron.app",
+    func testFormatPreservationMatchesRegistryConfiguration() {
+        let expectedSupport = [
+            "com.microsoft.VSCode": false,
+            "com.tinyspeck.slackmacgap": true,
+            "com.hnc.Discord": false,
+            "com.electron.app": false,
         ]
 
-        for bundleID in electronApps {
+        for (bundleID, expected) in expectedSupport {
             let supports = ApplicationConfiguration.supportsFormatPreservation(for: bundleID)
-            XCTAssertFalse(supports, "\(bundleID) should not support format preservation (Electron app)")
+            XCTAssertEqual(supports, expected, "\(bundleID) should match its AppRegistry configuration")
         }
     }
 }

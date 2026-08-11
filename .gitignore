@@ -40,7 +40,6 @@ Package.resolved
 
 # Rust
 target/
-Cargo.lock
 **/*.rs.bk
 *.rlib
 debug/

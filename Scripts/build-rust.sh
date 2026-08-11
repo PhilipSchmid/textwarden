@@ -70,10 +70,10 @@ else
 fi
 
 echo -e "${GREEN}Building for x86_64-apple-darwin (${BUILD_DIR})...${NC}"
-cargo build $CARGO_BUILD_FLAG $CARGO_FEATURES_FLAG --target x86_64-apple-darwin
+cargo build --locked $CARGO_BUILD_FLAG $CARGO_FEATURES_FLAG --target x86_64-apple-darwin
 
 echo -e "${GREEN}Building for aarch64-apple-darwin (${BUILD_DIR})...${NC}"
-cargo build $CARGO_BUILD_FLAG $CARGO_FEATURES_FLAG --target aarch64-apple-darwin
+cargo build --locked $CARGO_BUILD_FLAG $CARGO_FEATURES_FLAG --target aarch64-apple-darwin
 
 # Determine paths based on build type
 X86_LIB="$TARGET_DIR/x86_64-apple-darwin/${BUILD_DIR}/libgrammar_engine.a"
