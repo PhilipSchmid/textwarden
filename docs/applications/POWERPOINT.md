@@ -1,168 +1,55 @@
-# Microsoft PowerPoint Integration
+# TextWarden for Microsoft PowerPoint on macOS
 
-This document describes how TextWarden handles Microsoft PowerPoint on macOS.
+TextWarden adds local grammar checking and writing assistance to PowerPoint speaker notes. PowerPoint does not expose slide text boxes as editable text through the macOS Accessibility tree used by TextWarden.
 
-## Overview
+## Support summary
 
-Microsoft PowerPoint (`com.microsoft.Powerpoint`) is a native macOS application. TextWarden provides grammar checking and visual underlines for the **Notes section only**.
+| Item | Speaker notes | Slide text boxes |
+|------|---------------|------------------|
+| Grammar checking | Supported | Not supported |
+| Visual underlines | Supported | Not supported |
+| One-click corrections | Supported | Not supported |
 
-**Important Limitation:** Slide text boxes are NOT accessible via macOS Accessibility API. This is a limitation of Microsoft's PowerPoint implementation, not TextWarden.
-
-## What Works
-
-| Feature | Notes Section | Slide Text Boxes |
-|---------|---------------|------------------|
-| Grammar checking | ✅ Yes | ❌ No |
-| Visual underlines | ✅ Yes | ❌ No |
-| Text replacement | ✅ Yes | ❌ No |
-| Error indicator capsule | ✅ Yes | ❌ No |
-
-## Technical Details
-
-### App Type
-
-| Property | Value |
-|----------|-------|
+| Integration detail | Current behavior |
+|--------------------|------------------|
 | Bundle ID | `com.microsoft.Powerpoint` |
-| Category | Native macOS |
-| Parser Type | PowerPoint (dedicated) |
-| Text Replacement | Browser-style (selection + keyboard paste) |
-| Visual Underlines | Supported (Notes only) |
+| App type | Native Microsoft Office app |
+| Content parser | `PowerPointContentParser` |
+| Positioning | Dedicated `PowerPointStrategy` |
+| Correction method | Focus the notes editor, select the range, then paste with `Command-V` |
 
-### Accessibility API Findings
+## Why support is limited to speaker notes
 
-PowerPoint's accessibility tree exposes different levels of access for different areas:
+The Notes editor is exposed as an Accessibility text element with an `AXValue` and usable range bounds. TextWarden can extract its text, analyze it, and place underlines.
 
-**Notes Section:**
-- Accessible via `AXTextArea` element
-- Full `AXBoundsForRange` support for precise underline positioning
-- `AXValue` contains the notes text
-- Parent chain: `AXLayoutItem` (desc="Slide Notes") → `AXLayoutArea` (desc="Notes Pane")
+Slide text boxes are not exposed as editable text elements in the Accessibility tree observed by the app. Without the source text and character ranges, TextWarden cannot analyze or position corrections safely. The integration does not infer text from the rendered slide.
 
-**Slide Editor:**
-- Returns `AXLayoutArea` with `AXNumberOfCharacters: 0`
-- Text boxes are NOT exposed, even when editing
-- No `AXTextArea` or `AXTextField` children appear
-- This is consistent whether clicking, double-clicking, or actively editing text
+`PowerPointContentParser` filters toolbar, ribbon, font, menu, and popup controls so Office interface labels are not mistaken for presentation content.
 
-### Why Slide Text is Inaccessible
+## Underline positioning
 
-Microsoft's PowerPoint implementation does not expose slide content through macOS Accessibility APIs. Testing confirms:
+`PowerPointStrategy` converts the grammar range to UTF-16 and asks the notes element for `AXBoundsForRange`. It first tries line-specific bounds for an issue spanning multiple lines, then falls back to one combined range.
 
-1. **No text elements in slide area** - The "Slide Editor Pane" `AXLayoutArea` has 0 children
-2. **No focused element changes** - Clicking into a text box doesn't create accessible text elements
-3. **Element at position returns layout area** - Even hovering over visible text returns the parent `AXLayoutArea`, not a text element
-4. **System-wide checks confirm** - Both app-level and system-wide accessibility queries return no text content
+PowerPoint uses a 300 ms analysis debounce and does not require a separate typing pause. Focus-bounce protection keeps the existing notes editor monitored when focus briefly moves to a non-editable Office element.
 
-This appears to be a deliberate design choice by Microsoft - likely because slide content uses a custom rendering system that doesn't integrate with macOS accessibility.
+## Corrections and formatting
 
-### Positioning Strategy
+PowerPoint uses the Office replacement path because direct value replacement is not reliable. TextWarden focuses the notes editor, sets its selected range, prepares the clipboard, activates PowerPoint, and pastes. The clipboard value is verified before the paste is sent.
 
-TextWarden uses a dedicated `PowerPointStrategy` for the Notes section:
+Rich-text layout changes trigger position refreshes. PowerPoint controls the final formatting inherited by pasted text.
 
-```swift
-preferredStrategies: [.powerpoint]
-```
+## Troubleshooting
 
-**How it works:**
-1. Detect Notes `AXTextArea` via `PowerPointContentParser.isSlideElement()`
-2. Use direct `AXBoundsForRange` queries for character-level positioning
-3. Support multi-line bounds for errors spanning multiple lines
-4. Convert Quartz coordinates to Cocoa for accurate overlay positioning
+- Show the Notes pane and click inside the notes text. Slide-canvas focus cannot provide grammar checking.
+- If a click on the ribbon briefly removes focus, TextWarden keeps a valid monitored notes element when it can still read its value.
+- If the Notes editor returns no range bounds, TextWarden omits the underline rather than estimating a slide position.
+- Presenter view and slide-show content are outside the supported Notes editing path.
 
-### Text Replacement
+## Implementation
 
-PowerPoint uses browser-style text replacement:
-
-```swift
-textReplacementMethod: .browserStyle  // Selection + Cmd+V paste
-```
-
-Standard `AXValue` setting doesn't work reliably, so corrections are applied via:
-1. Select the error range in the Notes text area
-2. Copy the suggestion to clipboard
-3. Paste via simulated Cmd+V
-
-### Font Configuration
-
-```swift
-FontConfig(
-    defaultSize: 18,      // Notes default font size
-    fontFamily: nil,      // System font
-    spacingMultiplier: 1.0
-)
-horizontalPadding: 4
-```
-
-## Behavior Configuration
-
-PowerPoint uses the `PowerPointBehavior` specification for overlay behavior:
-
-| Behavior | Value |
-|----------|-------|
-| Underline show delay | 0.1s |
-| Bounds validation | Require positive origin |
-| Popover hover delay | 0.3s |
-| Popover auto-hide | 3.0s |
-| Hide on scroll | Yes |
-| Analysis debounce | 0.3s |
-| UTF-16 text indices | No |
-
-**Known Quirks:**
-- `requiresBrowserStyleReplacement` - Needs clipboard+paste
-- `requiresFocusPasteReplacement` - Focus-based paste method
-- `hasFocusBounceProtection` - Handles focus changes during paste
-
-## Implementation Files
-
-- `Sources/AppConfiguration/AppRegistry.swift`: App configuration
-- `Sources/AppConfiguration/Behaviors/PowerPointBehavior.swift`: Behavior specification
-- `Sources/ContentParsers/PowerPointContentParser.swift`: Content parser for Notes detection
-- `Sources/Positioning/Strategies/PowerPointStrategy.swift`: AXBoundsForRange-based positioning
-
-## Usage Tips
-
-1. **Use the Notes section** - This is where TextWarden can help with grammar checking
-2. **Notes appear below the slide** - Make sure the Notes pane is visible (View → Notes)
-3. **Speaker notes benefit from proofreading** - Catch typos before your presentation
-
-## Comparison with Other Apps
-
-| App | Text Accessible? | Underlines? | Strategy |
-|-----|------------------|-------------|----------|
-| PowerPoint Notes | ✅ Yes | ✅ Yes | PowerPointStrategy |
-| PowerPoint Slides | ❌ No | ❌ No | N/A |
-| Word | ✅ Yes | ✅ Yes | WordStrategy |
-| Outlook | ✅ Yes | ✅ Yes | OutlookStrategy |
-
-## Debugging
-
-### Notes Section Not Working
-
-If grammar checking isn't working in Notes:
-
-1. **Ensure Notes pane is visible** - View → Notes
-2. **Click inside the Notes area** - The cursor should be in the notes text
-3. **Check logs for PowerPointStrategy**:
-   ```
-   PowerPointStrategy: Calculating for range...
-   PowerPointStrategy: SUCCESS - bounds: ...
-   ```
-
-### Common Log Messages
-
-```
-PowerPointContentParser: Accepting - AXTextArea (Notes)
-PowerPointStrategy: SUCCESS - bounds: (951.0, 812.0, 26.0, 16.0)
-```
-
-## Known Limitations
-
-1. **Slide text not accessible** - Microsoft limitation, cannot be worked around
-2. **Presenter view** - May not work in presenter/slideshow mode
-3. **Embedded objects** - Text in shapes, SmartArt, etc. not accessible
-
-## References
-
-- [Microsoft Office Accessibility](https://support.microsoft.com/en-us/office/accessibility-support-for-powerpoint-9d2b646d-0b79-4135-a570-b8c7ad33ac2f)
-- This behavior is consistent with how Grammarly handles PowerPoint on macOS (Notes only)
+- `Sources/AppConfiguration/AppRegistry.swift`
+- `Sources/AppConfiguration/Behaviors/PowerPointBehavior.swift`
+- `Sources/ContentParsers/PowerPointContentParser.swift`
+- `Sources/Positioning/Strategies/PowerPointStrategy.swift`
+- `Sources/Accessibility/TextMonitor.swift`
+- `Sources/App/AnalysisCoordinator+TextReplacement.swift`

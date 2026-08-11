@@ -1,438 +1,203 @@
 # Contributing to TextWarden
 
-Thank you for your interest in contributing to TextWarden! This guide will help you get started with development.
+TextWarden is a Swift and Rust macOS grammar checker. Contributions are welcome, especially focused fixes for Accessibility behavior, app compatibility, grammar quality, and tests.
 
 ## Prerequisites
 
-### Required Software
+- macOS 26 for the complete Swift test suite
+- Xcode 26 or later with Command Line Tools
+- Rust 1.95 or later through [rustup](https://rustup.rs/)
+- Intel and Apple Silicon Rust targets
+- Homebrew
+- SwiftFormat, SwiftLint, and Pandoc
 
-1. **macOS 26+** (Tahoe or later)
-   ```bash
-   sw_vers  # Check your version
-   ```
+The shipped app targets macOS 14. macOS 26 and Xcode 26 are required for developing and testing its Apple Foundation Models integration.
 
-2. **Xcode 26+** with Command Line Tools
-   ```bash
-   # Install from Mac App Store, then:
-   xcode-select --install
-   xcodebuild -version  # Verify installation
-   ```
-
-3. **Rust 1.75+** with both macOS targets (Intel and Apple Silicon)
-
-   Install Rust via [rustup](https://www.rust-lang.org/tools/install), then add the required targets:
-   ```bash
-   # Add required targets for universal binary
-   rustup target add x86_64-apple-darwin aarch64-apple-darwin
-
-   # Verify installation
-   rustc --version
-   rustup target list --installed
-   ```
-
-4. **Homebrew** (for additional build tools) - [brew.sh](https://brew.sh)
-
-5. **SwiftFormat** (for code formatting)
-   ```bash
-   brew install swiftformat
-   swiftformat --version  # Verify installation
-   ```
-
-6. **SwiftLint** (for linting)
-   ```bash
-   brew install swiftlint
-   swiftlint --version  # Verify installation
-   ```
-
-7. **Pandoc** (for building Help documentation)
-   ```bash
-   brew install pandoc
-   pandoc --version  # Verify installation
-   ```
-
-### Verify Setup
-
-Run these commands to ensure everything is installed correctly:
+Install the command-line dependencies:
 
 ```bash
-sw_vers                           # macOS 26+
-xcodebuild -version               # Xcode 26+
-rustc --version                   # Rust 1.75+
-swiftformat --version             # SwiftFormat
-swiftlint --version               # SwiftLint
-pandoc --version                  # Pandoc (any recent version)
+rustup update stable
+rustup target add x86_64-apple-darwin aarch64-apple-darwin
+brew install swiftformat swiftlint pandoc
 ```
 
-## Quick Start
+Check the toolchain:
 
 ```bash
-# Clone the repository
-git clone https://github.com/philipschmid/textwarden.git
+xcodebuild -version
+rustc --version
+rustup target list --installed
+swiftformat --version
+swiftlint --version
+pandoc --version
+```
+
+## Set Up the Project
+
+```bash
+git clone https://github.com/PhilipSchmid/textwarden.git
 cd textwarden
-
-# Build everything (Rust universal binary + Swift app)
 make build
-
-# Run tests
 make test
-
-# Open in Xcode
 open TextWarden.xcodeproj
 ```
 
-The `make build` command will:
-1. Build the Rust grammar engine for both Intel and Apple Silicon
-2. Create a universal binary using `lipo`
-3. Generate Help documentation from markdown files (using Pandoc)
-4. Build the Swift application linking against the Rust library
+`make build` compiles the Rust grammar engine for Intel and Apple Silicon, creates a universal static library, generates the Help Book from Markdown, and builds the Swift app. See [BUILD.md](BUILD.md) for individual targets and troubleshooting.
 
-## Project Structure
+## Repository Layout
 
-```
+```text
 textwarden/
-├── Sources/              # Swift application code
-│   ├── App/              # Main application logic
-│   ├── UI/               # SwiftUI views
-│   ├── Accessibility/    # macOS Accessibility API integration
-│   ├── Positioning/      # Error underline positioning strategies
-│   ├── ContentParsers/   # App-specific text parsing
-│   └── AppConfiguration/ # Per-app configuration registry
-├── GrammarEngine/        # Rust grammar checking engine
-│   └── src/
-│       ├── analyzer.rs   # Harper integration
-│       └── bridge.rs     # Swift-Rust FFI
-└── Tests/                # Test suites
+├── Sources/                # Swift app
+│   ├── Accessibility/      # Focused-element monitoring and AX helpers
+│   ├── App/                # Coordination, Foundation Models, updates, lifecycle
+│   ├── AppConfiguration/   # Per-app strategies and behavior
+│   ├── ContentParsers/     # Text extraction for supported editors
+│   ├── Positioning/        # Character-bound and overlay positioning
+│   ├── SketchPad/          # Built-in writing editor
+│   ├── TextReplacement/    # Validated correction application
+│   ├── UI/                 # SwiftUI and AppKit views
+│   └── Utilities/          # Shared conversion and readability helpers
+├── GrammarEngine/          # Rust library and Harper integration
+├── Tests/                  # Swift unit, integration, contract, and performance tests
+├── Scripts/                # Build, release, reset, and Help Book scripts
+└── docs/                   # Internal and application-specific documentation
 ```
 
-For a comprehensive understanding of the codebase architecture, design patterns, threading model, and coding principles, see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
+Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing module boundaries, dependency flow, app behavior, or Accessibility strategy selection.
 
 ## Development Workflow
 
-### Making Changes
+Never commit directly to `main`.
 
-1. **Rust changes** (`GrammarEngine/`):
-   ```bash
-   cd GrammarEngine
-   cargo test          # Run tests
-   cargo check         # Quick compilation check
-   cd .. && make build # Rebuild everything
-   ```
+1. Create a branch from the current `main` using `<type>/<short-description>`, such as `fix/outlook-positioning` or `feat/app-support`.
+2. Make one focused change at a time.
+3. Run `make run` after a code change so you test the installed app, not a stale build.
+4. Test the affected host apps manually when Accessibility behavior changes.
+5. Run `make ci-check` before committing.
+6. Create a pull request targeting `main`.
 
-2. **Swift changes** (`Sources/`):
-   - Build in Xcode (⌘B)
-   - Run tests (⌘U)
+Useful commands:
 
-3. **Before committing**:
-   ```bash
-   make ci-check  # Runs formatting, linting, tests, and build
-   ```
+| Command | Purpose |
+| --- | --- |
+| `make run` | Build, install to `/Applications`, and launch |
+| `make test` | Run Rust and selected Swift tests |
+| `make ci-check` | Run all formatting, linting, testing, and build gates |
+| `make reset-onboarding` | Show onboarding on the next launch |
+| `make fmt` | Format Rust and Swift sources |
+| `make lint` | Run Clippy and SwiftLint |
 
-4. **Testing onboarding flow**:
-   ```bash
-   make reset-onboarding  # Reset onboarding flag
-   make run               # Restart app to see onboarding wizard
-   ```
+## Accessibility Permission
 
-### Accessibility Permissions
+TextWarden needs Accessibility permission to inspect and update text in other apps. Enable the exact build you are testing under **System Settings → Privacy & Security → Accessibility**. A build at a different path or with a different signature may need permission again.
 
-TextWarden requires Accessibility permissions to monitor text in other applications. When you first run the app, macOS will prompt you to grant permissions. You can also enable it manually:
+## Adding or Fixing App Support
 
-1. System Settings → Privacy & Security → Accessibility
-2. Enable TextWarden in the list
+Most app-specific behavior lives in three places:
 
-## Adding Application Support
+- `Sources/AppConfiguration/AppRegistry.swift` selects parsers, positioning strategies, replacement methods, and feature flags.
+- `Sources/AppConfiguration/AppBehaviorRegistry.swift` registers isolated overlay, timing, scrolling, coordinate, and text-index behavior.
+- `Sources/ContentParsers/` handles editors whose exposed text needs app-specific parsing.
 
-TextWarden uses three configuration systems for applications:
+Unknown apps are profiled through Accessibility probes and cached in `~/Library/Application Support/TextWarden/strategy-profiles.json`. Profiles expire after seven days. Add explicit support when automatic detection cannot capture an app's quirks or when it needs dedicated parsing, replacement, or positioning.
 
-1. **AppRegistry** (`Sources/AppConfiguration/AppRegistry.swift`) - Technical behavior like positioning strategies, text replacement methods, and font configuration
-2. **AppBehaviorRegistry** (`Sources/AppConfiguration/AppBehaviorRegistry.swift`) - Per-app overlay behaviors (underline visibility, popover timing, scroll handling, quirks)
-3. **UserPreferences** (`Sources/Models/UserPreferences.swift`) - Default pause/hidden states
+When adding an app:
 
-Most applications work out of the box with automatic capability detection. You only need to add custom configuration if an app requires special handling.
+1. Find its bundle identifier in **Preferences → Applications**, with `osascript -e 'id of app "AppName"'`, or with `mdls -name kMDItemCFBundleIdentifier /Applications/AppName.app`.
+2. Inspect the editor with Xcode's Accessibility Inspector. Check `AXValue`, selection attributes, range bounds, text-marker support, focus behavior, and what changes while typing or scrolling.
+3. Add the narrowest configuration or behavior needed. Do not copy another app's quirks without confirming them.
+4. Register any new `AppBehavior` and `AppConfiguration` explicitly.
+5. Add regression tests under `Tests/Unit/` and an application note under `docs/applications/`.
+6. Test typing, scrolling, focus changes, multiple windows, replacement, emoji, rich text, and external displays where relevant.
 
-### Automatic Capability Detection
-
-When TextWarden encounters an unknown application (no pre-configured settings), it automatically profiles the app's accessibility capabilities by probing:
-
-- **Positioning APIs**: AXBoundsForRange, AXBoundsForTextMarkerRange, AXLineForIndex, AXRangeForLine
-- **Text replacement**: Whether AXValue is settable (standard vs browser-style replacement)
-
-Based on these probes, TextWarden automatically:
-- Selects the best positioning strategies
-- Chooses the appropriate text replacement method
-- Enables/disables visual underlines
-
-This means most apps work without any configuration. You only need to add custom AppRegistry entries for apps that:
-1. Have quirks not detectable by probing (e.g., apps that crash on certain AX calls like Word)
-2. Need specific font configurations for accurate underline positioning
-3. Require special behavioral flags (typing pause, notification delays)
-
-Profiles are cached to disk (`~/Library/Application Support/TextWarden/strategy-profiles.json`) for 7 days.
-
-To see what TextWarden detected for an app, check the logs (Debug mode):
-```
-StrategyProfiler: Profiled com.example.app:
-  Positioning:
-    - BoundsForRange: supported (width:true, height:true, notFrame:true)
-    - TextMarkerRange: unsupported
-    - LineForIndex: supported, RangeForLine: supported
-  Recommendations:
-    - Strategies: [rangeBounds, lineIndex, fontMetrics]
-    - Visual underlines: enabled
-```
-
-### Finding Bundle Identifiers
-
-The easiest way is to use TextWarden's Settings → Applications list. Each app shows its bundle identifier with a copy icon next to it.
-
-Alternatively, use the terminal:
-```bash
-osascript -e 'id of app "AppName"'
-# or
-mdls -name kMDItemCFBundleIdentifier /Applications/AppName.app
-```
-
-### Adding Default Paused or Hidden Applications
-
-Some applications should be paused or hidden by default because grammar checking isn't useful or causes false positives. Edit `Sources/Models/UserPreferences.swift`.
-
-TextWarden has two levels of default application restrictions:
-
-| Type | Shown in UI | Grammar Checking | User Can Enable |
-|------|-------------|------------------|-----------------|
-| **Hidden** | No (not in Applications list) | Disabled | Yes (unhide first, then enable) |
-| **Paused** | Yes (in Applications list) | Disabled by default | Yes (just enable) |
-
-**Hidden by default** - Apps that don't appear in the Applications list at all. Use this for apps where grammar checking is almost never useful (system utilities, background services, media players). Users can still unhide these apps in Preferences → Applications → "Show Hidden" and then enable grammar checking if they really want to.
-
-```swift
-static let defaultHiddenApplications: Set<String> = [
-    // ... existing entries ...
-    "com.example.myapp",  // My App - reason for hiding
-]
-```
-
-**Paused by default** - Apps shown in the Applications list but paused initially. Use this for apps where most users don't want grammar checking, but some might (IDEs, spreadsheets, calendars). The app appears in the list with a "Paused" badge, making it easy for users to enable if they want to.
-
-```swift
-static let defaultPausedApplications: Set<String> = [
-    "com.apple.iCal",     // Apple Calendar
-    "com.example.myapp",  // My App - reason for pausing
-]
-```
-
-**Terminal applications** - Special category of paused apps. Always paused by default to avoid false positives from command output. Terminals are listed separately because they share a common reason for being paused.
-
-```swift
-static let terminalApplications: Set<String> = [
-    // ... existing entries ...
-    "com.example.terminal",  // My Terminal
-]
-```
-
-**Note:** An app can be in both `defaultHiddenApplications` and `defaultPausedApplications`. In this case, the app is hidden by default, but if the user unhides it, it will still be paused (they'd need to explicitly enable it).
-
-### Adding Custom App Behavior
-
-For apps that need special handling, you may need to add configuration to **both** `AppRegistry` (for positioning/replacement) and `AppBehaviorRegistry` (for overlay/timing behavior).
-
-**For detailed instructions, see [ARCHITECTURE.md](ARCHITECTURE.md#how-to-add-a-new-app)** which covers:
-- Creating a new `AppBehavior` implementation
-- Registering in `AppBehaviorRegistry`
-- Adding `AppConfiguration` to `AppRegistry` if needed
-- Which quirks to use for common issues
-
-**Quick example - AppBehavior for overlay timing:**
-
-Create `Sources/AppConfiguration/Behaviors/MyAppBehavior.swift`:
-
-```swift
-struct MyAppBehavior: AppBehavior {
-    let bundleIdentifier = "com.example.myapp"
-    let displayName = "My App"
-
-    let underlineVisibility = UnderlineVisibilityBehavior(
-        showDelay: 0.1,
-        boundsValidation: .requirePositiveOrigin,
-        showDuringTyping: false,
-        minimumTextLength: 1
-    )
-
-    // See ARCHITECTURE.md for all behavior types
-    let knownQuirks: Set<AppQuirk> = [
-        .webBasedRendering,           // Web-based text rendering
-        .requiresBrowserStyleReplacement,  // Needs clipboard+paste
-    ]
-
-    let usesUTF16TextIndices = false  // true for web apps like Notion/Slack
-}
-```
-
-Register in `AppBehaviorRegistry.init()`:
-```swift
-register(MyAppBehavior())
-```
-
-### Testing Accessibility APIs
-
-Use Accessibility Inspector (Xcode → Open Developer Tool) to test if the app's accessibility APIs return valid character bounds. If `AXBoundsForRange` returns garbage values, set `visualUnderlinesEnabled: false` in `AppRegistry`.
-
-### Per-App Isolation
-
-TextWarden uses **per-app isolation** rather than category-based grouping. Each app has its own complete configuration in a dedicated behavior file (e.g., `SlackBehavior.swift`, `NotionBehavior.swift`). This prevents cross-app contamination where fixing one app would break another.
+Terminal apps are the only fixed paused-by-default set in `UserPreferences`. Other unknown apps are paused when first discovered and can be enabled by the user; there is no separate hidden-app registry.
 
 ## Code Style
 
-- **Swift**: Follow existing patterns, use `Logger` instead of `print()`
-- **Rust**: Run `cargo fmt` and `cargo clippy`
-- **Comments**: Explain "why", not "what"
-- **No force unwraps** (`!`) on external data
-- **Use centralized constants**: `TimingConstants` for delays, `GeometryConstants` for bounds, `UIConstants` for UI sizing. Never use magic numbers like `0.5` directly - add a named constant instead. See `Sources/AppConfiguration/TimingConstants.swift` for examples.
+### Swift
 
-For detailed coding principles, threading guidelines, and common pitfalls, see **[ARCHITECTURE.md](ARCHITECTURE.md#design-principles)**.
+- Use `Logger`, never `print()`.
+- Do not force-unwrap Accessibility values or external data.
+- Keep UI state on the main actor and move blocking work off the main thread.
+- Check `Sources/Utilities/` before adding text-index, coordinate, or other shared helpers.
+- Use named constants from `TimingConstants`, `GeometryConstants`, or `UIConstants` when the value is shared or behavior-defining.
 
-### Logging Guidelines
+### Rust
 
-TextWarden processes sensitive user text, so proper logging hygiene is critical:
+- Return `Result<T, E>` from fallible library code.
+- Propagate errors instead of panicking across the library or FFI boundary.
+- Keep the Swift bridge surface small and validate Swift inputs.
+- Run `cargo fmt`, Clippy, and locked tests through `make ci-check`.
 
-**Never log user content:**
+Comments should explain why a constraint or workaround exists. Delete dead code instead of commenting it out.
+
+## Logging and Privacy
+
+Writing may contain credentials, private messages, and customer data. Do not put user text in Info, Warning, Error, or Critical logs. Prefer lengths, ranges, identifiers, timing, and result counts.
+
 ```swift
-// BAD - leaks user text
-Logger.debug("Processing text: '\(userText)'")
-Logger.debug("Error in: \(errorText)")
-Logger.debug("Suggestion: \(suggestion.originalText) → \(suggestion.suggestedText)")
+// Avoid: exposes user text
+Logger.debug("Processing: \(userText)", category: Logger.analysis)
 
-// GOOD - log metadata only
-Logger.debug("Processing text (\(userText.count) chars)")
-Logger.debug("Error at range \(error.start)-\(error.end)")
-Logger.debug("Applied suggestion (\(suggestion.suggestedText.count) chars)")
+// Prefer: records enough context without the text
+Logger.debug("Processing \(userText.count) characters", category: Logger.analysis)
 ```
 
-**Use appropriate log levels:**
-- `trace` - High-frequency events (mouse movement, per-character processing)
-- `debug` - Routine operations useful for debugging
-- `info` - Significant milestones (app launch, analysis complete)
-- `warning` - Recoverable issues (API fallbacks, timeouts)
-- `error` - Failures that affect functionality
-- `critical` - Unrecoverable errors
+Use the existing categories: `general`, `permissions`, `analysis`, `accessibility`, `ffi`, `llm`, `ui`, `performance`, `errors`, `lifecycle`, and `rust`.
 
-**Use the appropriate category:**
-- `Logger.general` - Default, general application logs
-- `Logger.permissions` - Permission checks and changes
-- `Logger.analysis` - Grammar/style analysis operations
-- `Logger.accessibility` - Accessibility API interactions
-- `Logger.ffi` - Rust FFI calls
-- `Logger.llm` - Apple Intelligence / LLM operations
-- `Logger.ui` - UI updates and positioning
-- `Logger.performance` - Performance measurements
-- `Logger.errors` - Error conditions
-- `Logger.lifecycle` - App lifecycle events
-- `Logger.rust` - Logs forwarded from Rust code
-
-**Use consistent prefixes** for log messages:
-```swift
-Logger.debug("AppleIntelligence: Analysis complete", category: Logger.llm)
-Logger.debug("TextMonitor: Focus changed", category: Logger.accessibility)
-Logger.debug("AnalysisCoordinator: Started analysis", category: Logger.analysis)
-```
-
-Log volume is tracked in the Diagnostics view (by severity), so avoid excessive logging that could impact performance or storage.
+Debug and Trace logs may include text for targeted troubleshooting. Keep those cases deliberate and make the privacy consequence visible to the user.
 
 ## Commit Messages
 
-Use [Conventional Commits](https://www.conventionalcommits.org/) format for all commit messages.
+Use [Conventional Commits](https://www.conventionalcommits.org/) with one of these types:
 
-**All commits must be signed off** using `git commit -s` to certify you have the right to submit the code under the project's license ([Developer Certificate of Origin](https://developercertificate.org/)).
+`feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `chore`, or `ci`.
 
-```
-<type>: <description>
+Write an imperative subject with no period:
 
-[optional body]
-
-Signed-off-by: Your Name <your.email@example.com>
-```
-
-### Types
-
-| Type | Description |
-|------|-------------|
-| `feat` | New feature or functionality |
-| `fix` | Bug fix |
-| `docs` | Documentation only changes |
-| `refactor` | Code change that neither fixes a bug nor adds a feature |
-| `perf` | Performance improvement |
-| `test` | Adding or correcting tests |
-| `chore` | Maintenance tasks, dependencies, build changes |
-| `ci` | CI/CD configuration changes |
-
-### Guidelines
-
-- **Subject line**: Imperative mood, no period, ≤50 characters
-  - Good: `feat: Add Outlook support`
-  - Bad: `Added outlook support.`
-- **Body**: Wrap at 72 characters, explain "why" not "what"
-- **Atomic commits**: One logical change per commit
-
-### Examples
-
-```
-feat: Add Microsoft Outlook support with visual underlines
-
-Implement positioning strategy for Outlook's Copilot chat panel.
-Uses TextMarker API with index offset detection for invisible chars.
-
-Signed-off-by: Jane Doe <jane@example.com>
-```
-
-```
+```text
 fix: Correct underline positioning in Slack
-
-Signed-off-by: Jane Doe <jane@example.com>
 ```
 
-## Submitting Changes
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run `make ci-check`
-5. Commit using conventional commit format
-6. Submit a pull request
-
-## Releasing
-
-> **Note**: Releases can only be created by the project maintainer (@PhilipSchmid), as they require a valid Apple Developer account for code signing and notarization.
-
-The release process involves:
-- **Code signing** with a Developer ID certificate
-- **Apple notarization** for Gatekeeper approval
-- **Sparkle signing** for secure auto-updates
-
-### Release Commands
+Every commit must be cryptographically signed and include the Developer Certificate of Origin sign-off created by Git:
 
 ```bash
-# Build and prepare a release
-./Scripts/release.sh release 0.1.0-alpha.3
-
-# Upload a prepared release to GitHub
-./Scripts/release.sh upload 0.1.0-alpha.3
-
-# Generate release notes (for review)
-./Scripts/release.sh notes [FROM_TAG] [TO_TAG]
-
-# Show current version
-./Scripts/release.sh version
+git commit -s -S -m "fix: Correct underline positioning in Slack"
 ```
 
-### Version Format
+Do not type a `Signed-off-by`, `Co-Authored-By`, or other trailer manually.
 
-TextWarden follows [Semantic Versioning](https://semver.org/) with pre-release identifiers:
-- `0.1.0-alpha.1` - Alpha releases (experimental features)
-- `0.1.0-beta.1` - Beta releases (feature complete, testing)
-- `0.1.0-rc.1` - Release candidates (final testing)
-- `0.1.0` - Stable releases
+## Pull Requests
 
-## Getting Help
+- Keep the pull request focused and describe the user-visible result.
+- Link the issue when one exists.
+- Include manual test context for app-specific behavior.
+- Make sure `make ci-check` passes.
+- Keep history linear; maintainers use rebase merge.
 
-- [GitHub Issues](https://github.com/philipschmid/textwarden/issues) for bugs
-- [GitHub Discussions](https://github.com/philipschmid/textwarden/discussions) for questions and feature requests
+## Bug Reports and Feature Requests
+
+Use the [bug report template](https://github.com/PhilipSchmid/textwarden/issues/new/choose) for defects. Include the TextWarden version, macOS version, host app, exact steps, expected behavior, actual behavior, and a diagnostic export when appropriate.
+
+Use [GitHub Discussions](https://github.com/PhilipSchmid/textwarden/discussions) for feature requests and questions.
+
+## Releases
+
+Releases are maintainer-only because production builds require Developer ID signing, notarization credentials, and the Sparkle signing key. Releases still go through a pull request.
+
+```bash
+git switch -c release/vX.Y.Z main
+make release VERSION=X.Y.Z
+git push -u origin HEAD
+git push --tags
+gh pr create --title "Release vX.Y.Z" --body "Release vX.Y.Z"
+```
+
+After the release pull request is merged:
+
+```bash
+make release-upload VERSION=X.Y.Z
+```
+
+Versions follow Semantic Versioning, including `alpha`, `beta`, and `rc` prerelease identifiers.

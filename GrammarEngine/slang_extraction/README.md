@@ -1,155 +1,82 @@
-# Slang and Abbreviations Wordlist Extraction
+# Slang and Abbreviations Wordlists
 
-Documentation for the slang and abbreviations wordlists used by the TextWarden grammar checker.
-
-## Overview
-
-This directory contains manually curated slang and abbreviation wordlists from public educational sources and community datasets. These wordlists help TextWarden recognize informal internet language and modern slang that might otherwise be flagged as spelling errors.
+TextWarden keeps local wordlists for internet abbreviations, modern slang, and IT terminology. They reduce false spelling alerts in informal and technical writing. All entries stay on the device as part of the Rust grammar engine.
 
 ## Directory Structure
 
-```
+```text
 slang_extraction/
-├── SLANG_SOURCES.md     # Detailed source attribution and methodology
-└── README.md            # This file
+├── README.md            # Maintenance notes and current counts
+└── SLANG_SOURCES.md     # Source attribution and collection history
 
-../wordlists/            # Final wordlists (✓ in git)
-├── internet_abbreviations.txt  # 3,211 internet abbreviations
-├── genz_slang.txt              # 274 Gen Z slang terms
-└── it_terminology.txt          # 10,041 IT technical terms
+../wordlists/
+├── internet_abbreviations.txt  # 3,211 entries
+├── genz_slang.txt              # 274 entries
+└── it_terminology.txt          # 10,041 entries
 ```
+
+The IT list has its own [generation notes and scripts](../it_terminology_extraction/README.md). The abbreviation and Gen Z lists are curated manually; this directory has no regeneration script.
 
 ## Wordlists
 
-### Internet Abbreviations (3,211 terms)
+### Internet Abbreviations
 
-Common internet abbreviations and initialisms used in digital communication.
+`internet_abbreviations.txt` contains 3,211 abbreviations and initialisms such as `btw`, `fyi`, `lol`, `asap`, and `afaict`. The committed file header identifies the [Chat / Internet Slang dataset on Kaggle](https://www.kaggle.com/datasets/gowrishankarp/chat-slang-abbreviations-acronyms) as its source. Other sites listed in [SLANG_SOURCES.md](SLANG_SOURCES.md) were used as references.
 
-**Examples:** btw, fyi, lol, asap, imho, afaict, brb, ttyl, imo, fwiw
+### Gen Z Slang
 
-**Sources:**
-- Messente Blog - "Top 250+ Text Abbreviations"
-- Preply Blog - "100+ Coolest Internet Abbreviations of 2025"
-- SimpleTexting - "50+ most common abbreviations for text in 2024"
+`genz_slang.txt` contains terms such as `ghosting`, `sus`, `slay`, `lowkey`, and `yeet`. Its provenance notes record several Kaggle, Hugging Face, GitHub, and web references.
 
-**License:** Public educational content
+The file currently has 274 non-comment entries but 262 case-insensitive unique values. Eleven normalized terms appear more than once, so a future wordlist cleanup should deduplicate the file before its count is described as unique.
 
-### Gen Z Slang (274 terms)
+### IT Terminology
 
-Modern slang words and phrases used in informal digital communication and social media.
+`it_terminology.txt` contains 10,041 technical terms drawn from recorded sources including NIST, IANA, Linux, CNCF, GitHub Linguist, MDN, and Stack Overflow. See the [IT terminology README](../it_terminology_extraction/README.md) and [source record](../it_terminology_extraction/IT_SOURCES.md) for the actual pipeline and source-specific terms.
 
-**Examples:** ghosting, sus, slay, vibe, lit, flex, salty, cringe, savage, yeet
+## Current Counts
 
-**Sources:**
-- Hugging Face Dataset - "MLBtrio/genz-slang-dataset" (1,779 terms with descriptions)
-- Kaggle Dataset - "Gen Z words and Phrases Dataset" (MIT License, 500 terms)
-- Kaggle Dataset - "Chat / Internet Slang | Abbreviations" (3,000+ terms)
-- GitHub Repository - "kaspercools/genz-dataset" (146 curated terms)
+Counts exclude blank lines and comments and were verified from the committed files on 2026-08-11.
 
-**License:** MIT License + Community datasets (publicly available)
+| Wordlist | Entries | Case-insensitive unique entries |
+|---|---:|---:|
+| Internet abbreviations | 3,211 | 3,211 |
+| Gen Z slang | 274 | 262 |
+| IT terminology | 10,041 | 10,041 |
+| **Total entries loaded** | **13,526** | Not measured across all three lists |
 
-### IT Terminology (10,041 terms)
+`13,526` is an entry count, not a claim that every normalized term is unique across categories.
 
-Technical IT terms from authoritative sources covering cloud, DevOps, programming, networking, security, and system administration.
+## Runtime Loading
 
-**Examples:** kubernetes, docker, nginx, api, json, http, tcp, ssh, firewall, encryption, python, javascript, chmod
-
-**Sources:**
-- NIST Cybersecurity Glossary (CSRC)
-- IANA Protocol/Service Names
-- Linux System Calls and Commands
-- CNCF Technologies
-- GitHub Linguist Programming Languages
-- And more (see ../it_terminology_extraction/README.md)
-
-**License:** Public domain / Open source terms
-
-## Current Statistics
-
-- **Total Wordlists**: 3
-- **Internet Abbreviations**: 3,211 terms
-- **Gen Z Slang**: 274 terms
-- **IT Terminology**: 10,041 terms
-- **Total Terms**: 13,526 unique entries
-
-## Usage
-
-These wordlists are directly referenced by the TextWarden grammar engine via `include_str!()` in `src/slang_dict.rs`:
+[`GrammarEngine/src/slang_dict.rs`](../src/slang_dict.rs) embeds the files with `include_str!()`. Its loader skips blank lines and comments, lowercases each remaining line, and adds it to Harper's dictionary.
 
 ```rust
 WordlistCategory::InternetAbbreviations => {
     const ABBREVIATIONS: &str = include_str!("../wordlists/internet_abbreviations.txt");
     load_words_lowercase_only(ABBREVIATIONS)
 }
-WordlistCategory::GenZSlang => {
-    const GENZ_SLANG: &str = include_str!("../wordlists/genz_slang.txt");
-    load_words_lowercase_only(GENZ_SLANG)
-}
-WordlistCategory::ITTerminology => {
-    const IT_TERMS: &str = include_str!("../wordlists/it_terminology.txt");
-    load_words_lowercase_only(IT_TERMS)
-}
 ```
 
-## Updating Wordlists
+Because the loader lowercases the entries, these lists support case-insensitive recognition. They do not validate preferred capitalization.
 
-### Manual Updates
+## Updating the Lists
 
-Since these are curated wordlists, they are manually updated:
+For `internet_abbreviations.txt` or `genz_slang.txt`:
 
-1. Edit the wordlist files directly:
-   - `../wordlists/internet_abbreviations.txt`
-   - `../wordlists/genz_slang.txt`
-   - `../wordlists/it_terminology.txt`
+1. Record the source URL, license or terms, access date, and selection method in [SLANG_SOURCES.md](SLANG_SOURCES.md).
+2. Keep one term per line. Comments must begin with `#`.
+3. Remove blank entries and case-insensitive duplicates.
+4. Recount the file and update this README.
+5. Run the GrammarEngine tests before committing.
 
-2. Format: One term per line
-   ```
-   # Comments start with #
-   term1
-   term2
-   ```
+Regenerate `it_terminology.txt` with the scripts documented in the [IT terminology directory](../it_terminology_extraction/README.md), not by editing it as part of a slang refresh.
 
-3. Harper's spell checker automatically matches all case variations when words are stored in lowercase
-
-### Adding New Sources
-
-When adding new sources:
-
-1. Update `SLANG_SOURCES.md` with:
-   - Source name and URL
-   - License information
-   - Number of terms contributed
-   - Access date
-
-2. Add terms to appropriate source file
-
-3. Remove duplicates
-
-4. Update statistics in this README
-
-## Methodology
-
-Terms are included if they meet these criteria:
-
-1. Appeared in multiple independent sources
-2. Listed in curated datasets (MIT or open source licensed)
-3. Documented in 2024-2025 as actively used
-4. Common enough to warrant spell-check recognition
-
-## Future Wordlists
-
-Potential expansions:
-- Regional slang variations
-- Gaming terminology
-- Social media platform-specific terms
-- Professional jargon (business, academic, etc.)
+Publicly accessible articles and datasets do not automatically permit redistribution. Check the source terms before importing new material.
 
 ## See Also
 
-- **SLANG_SOURCES.md** - Detailed source attribution and methodology
-- **../it_terminology_extraction/** - IT terminology wordlist system
-- **../wordlists/** - Generated wordlist output directory
+- [Slang source record](SLANG_SOURCES.md)
+- [IT terminology pipeline](../it_terminology_extraction/README.md)
+- [Names and brands](../names_extraction/README.md)
 
-## Last Updated
-
-2025-11-16
+Last source review: 2025-01-14. Counts verified: 2026-08-11.

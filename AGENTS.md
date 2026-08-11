@@ -19,7 +19,7 @@ Logger.debug("Details", category: Logger.ui)
 Logger.error("Failed", category: Logger.analysis)
 ```
 
-Categories: `permissions`, `ui`, `analysis`, `general`, `performance`, `accessibility`
+Categories: `general`, `permissions`, `analysis`, `accessibility`, `ffi`, `llm`, `ui`, `performance`, `errors`, `lifecycle`, `rust`
 Levels: `trace` (high-frequency) → `debug` → `info` → `warning` → `error` → `critical`
 
 ### Safety & Error Handling
@@ -74,7 +74,7 @@ Logger.warning("Failed to get bounds for element: \(elementRole)", category: Log
 - Keep functions focused and small
 - Prefer editing existing files over creating new ones
 - **Check `Sources/Utilities/` before implementing common operations** (TextIndexConverter, CoordinateMapper, etc.)
-- No backward compatibility required - this is a new product, focus on first release
+- Avoid compatibility shims unless a current file format, user setting, or supported workflow needs one
 
 ## Design
 

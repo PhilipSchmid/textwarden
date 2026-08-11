@@ -1,421 +1,74 @@
-# Slack Integration
+# TextWarden for Slack on macOS
 
-This document describes how TextWarden handles Slack's rich text formatting, including format-preserving text replacement.
+TextWarden adds local grammar checking and writing assistance to the Slack message composer. Slack’s Electron editor needs dedicated parsing, positioning, selection validation, and rich-text clipboard handling.
 
-## Overview
+## Support summary
 
-Slack uses [Quill Delta](https://quilljs.com/docs/delta/) format internally to represent rich text. When copying text from Slack, the formatting information is stored in the clipboard using Chromium's custom data format (`org.chromium.web-custom-data`).
+| Item | Current behavior |
+|------|------------------|
+| Application | Slack for macOS |
+| Bundle ID | `com.tinyspeck.slackmacgap` |
+| App type | Electron/Chromium |
+| Checked content | Editable message text |
+| Excluded content | Detected mentions, channels, links, inline code, code blocks, and blockquotes |
+| Visual underlines | Enabled |
+| Content parser | `SlackContentParser` |
+| Positioning | Dedicated `SlackStrategy` |
+| Correction method | Verified child selection with format-aware paste; plain-text or copy fallback when needed |
 
-TextWarden leverages this to:
-1. Detect exclusion zones (mentions, channels, code blocks, blockquotes, links) via Accessibility APIs
-2. Apply grammar corrections while preserving formatting (bold, italic, inline code, etc.)
+## Content filtering
 
-## Exclusion Detection via Accessibility APIs
+Slack exposes message formatting through several Accessibility representations. TextWarden combines them instead of relying on visible punctuation:
 
-TextWarden uses multiple AX APIs to detect content that should be excluded from grammar checking:
+- `AXBackgroundColor` ranges identify special spans such as mentions, channels, and code.
+- `AXLink` children identify URLs.
+- `AXCodeStyleGroup` and `AXBlockQuoteLevel` provide tree-based fallbacks for code and blockquotes.
+- Mention and channel child text is recognized by `@` and `#` prefixes when richer attributes are missing.
 
-### AXBackgroundColor Detection
+Attributed text is read in adaptive chunks from 200 characters down to one. Adjacent ranges are merged so an exclusion split across two queries remains one span.
 
-Slack applies `AXBackgroundColor` attributes to styled content, which TextWarden detects via `AXAttributedStringForRange`:
+If the clipboard already contains Slack’s `org.chromium.web-custom-data`, the parser can also read its Quill Delta data. Clipboard monitoring records later Slack copies without changing the clipboard by itself. Bold, italic, underline, and strikethrough prose remain eligible for grammar checking.
 
-- **Mentions** (@user): Light blue background
-- **Channels** (#channel): Light blue background
-- **Inline code**: Gray background (backticks)
-- **Block code**: Gray background (triple backticks)
+## Underline positioning
 
-### Link Detection via AXLink Elements
+Slack’s root composer does not provide consistently reliable range bounds. `SlackStrategy` traverses the Accessibility tree, maps child `AXStaticText` runs to source ranges, and queries `AXBoundsForRange` on the matching child. When no mapped child overlaps the issue, it makes a tightly validated root-range query as a fallback. Suspicious multiline geometry is rejected.
 
-Links (URLs) don't have `AXBackgroundColor` in Slack. Instead, they appear as `AXLink` child elements in the accessibility tree. TextWarden traverses the element tree to find these:
+Slack is configured to use only this dedicated strategy. If neither child geometry nor the validated root fallback is safe, TextWarden keeps the issue in its indicator instead of guessing an underline position.
 
-```
-[AXTextArea]
-  └─ [AXLink]
-       └─ [AXStaticText] value: "https://example.com"
-```
+Slack scroll notifications are treated as unreliable. TextWarden watches bounds movement rather than hiding underlines on every scroll event. Periodic frame validation also catches movement in the message-edit modal.
 
-The link text is extracted from the `AXStaticText` child and matched against the main text to determine the exclusion range.
+## Format-aware corrections
 
-### Adaptive Chunk Sizing
+TextWarden first converts the grammar engine’s scalar offsets to Swift and UTF-16 ranges. It then searches child elements for the exact error text and reads `AXSelectedText` back to verify the selection.
 
-Slack's AX API has a quirk where `AXAttributedStringForRange` fails with error -25212 when ranges extend near the text end. TextWarden handles this with adaptive chunk sizing:
+For the format-aware path, TextWarden:
 
-```swift
-let chunkSizes = [100, 50, 25, 10, 5, 1]
-// Try progressively smaller chunks until one succeeds
-```
+1. Saves the current clipboard.
+2. Copies the verified Slack selection to obtain its Quill Delta attributes.
+3. Builds replacement clipboard data with the suggestion and retained attributes.
+4. Activates Slack, pastes, and restores the previous clipboard.
 
-This ensures reliable detection even for edge cases near text boundaries.
+If formatting data is unavailable, the same verified selection can use plain text. If only the unreliable root element contains the target, TextWarden offers a copy action for manual paste. A failed verification never proceeds with automatic replacement.
 
-### Range Merging
+## Native popovers and scrolling
 
-Since chunks may split exclusion zones, TextWarden merges adjacent ranges after collection:
+Slack uses an `AXPopover` for its own formatting and suggestion UI. TextWarden hides its popover when that native popover is detected, avoiding overlapping controls.
 
-```
-Before merge: [54-69, 94-100, 100-106]  // #development split at chunk boundary
-After merge:  [54-69, 94-106]           // Properly merged
-```
+The behavior does not hide overlays on Slack’s unreliable scroll-start events. Instead, it uses a 10-point bounds-movement threshold and clears strategy caches when layout changes are detected.
 
-## Quill Delta Format
+## Troubleshooting
 
-Quill Delta represents text as an array of operations (`ops`). Each operation has:
-- `insert`: The text content (string) or embedded object (dict)
-- `attributes`: Optional formatting (bold, italic, code, etc.)
+- An issue without an underline means Slack did not expose safe geometry for that range. The indicator can still show the issue.
+- “Could not select text” means selection verification failed. Click near the word, let Slack settle, and retry after reanalysis.
+- Text containing mentions or links may only exist on the root element. In that case, use the offered copy action and paste manually.
+- In an edited message, scrolling can move the composer with the history. Frame validation should relocate the overlay after the layout settles.
+- TextWarden uses the clipboard briefly for corrections and restores the previous clipboard after the format-aware path completes.
 
-**Example:**
-```json
-{
-  "ops": [
-    {"insert": "This is "},
-    {"attributes": {"bold": true}, "insert": "bold"},
-    {"insert": " and "},
-    {"attributes": {"italic": true}, "insert": "italic"},
-    {"insert": " text.\n"}
-  ]
-}
-```
+## Implementation
 
-### Embedded Objects and Exclusions
-
-Slack uses embedded objects and attributes for special content. Some are **excluded** from grammar checking, others are **checked with formatting preserved**:
-
-**Excluded from grammar checking:**
-- **Mentions**: `{"insert": {"slackmention": {"id": "U123", "label": "@user"}}}`
-- **Channels**: `{"insert": {"slackmention": {"id": "C456", "label": "#channel"}}}`
-- **Emoji**: `{"insert": {"slackemoji": {"name": "smile"}}}`
-- **Links**: `{"insert": "text", "attributes": {"link": "https://..."}}`
-- **Inline code**: `{"attributes": {"code": true}, "insert": "text"}`
-- **Code blocks**: `{"attributes": {"code-block": true}, ...}`
-- **Blockquotes**: `{"attributes": {"blockquote": true}, ...}`
-
-**Checked with formatting preserved:**
-- **Bold**: `{"attributes": {"bold": true}, "insert": "text"}`
-- **Italic**: `{"attributes": {"italic": true}, "insert": "text"}`
-- **Strikethrough**: `{"attributes": {"strike": true}, "insert": "text"}`
-
-## Chromium Pickle Format
-
-Slack (Electron/Chromium) stores Quill Delta in the clipboard using `org.chromium.web-custom-data` pasteboard type with Chromium's Pickle serialization format.
-
-### Structure
-
-```
-[uint32 payload_size]      // Size of everything after this header
-[uint32 num_entries]       // Number of key-value entries
-[Entry 0]
-[Entry 1]
-...
-```
-
-Each entry:
-```
-[uint32 type_char_count]   // Character count (NOT byte count)
-[UTF-16LE type_string]     // Type identifier (e.g., "slack/texty")
-[padding to 4-byte align]
-[uint32 value_char_count]  // Character count (NOT byte count)
-[UTF-16LE value_string]    // Value (e.g., Quill Delta JSON)
-[padding to 4-byte align]
-```
-
-### Important: Character Count vs Byte Count
-
-Chromium stores **character count**, not byte count. Since UTF-16LE uses 2 bytes per character:
-```swift
-let byteCount = charCount * 2
-```
-
-### Slack's Type Identifier
-
-Slack uses `slack/texty` as the type for Quill Delta content (not `Quill.Delta`).
-
-### Example Pickle Data
-
-For text "Hello **BOLD** world!":
-```
-00000000: 74 01 00 00  // payload_size = 372
-00000004: 02 00 00 00  // num_entries = 2
-// Entry 0: plain text
-00000008: 16 00 00 00  // type chars = 22 ("public.utf8-plain-text")
-0000000c: 70 00 75 00 62 00 6c 00 ...  // UTF-16LE type
-...
-// Entry 1: Quill Delta
-000000xx: 0b 00 00 00  // type chars = 11 ("slack/texty")
-000000xx: 73 00 6c 00 61 00 63 00 ...  // UTF-16LE type
-000000xx: xx xx xx xx  // value chars
-000000xx: 7b 00 22 00 6f 00 70 00 ...  // UTF-16LE JSON
-```
-
-## Format-Preserving Replacement
-
-When applying a grammar correction in Slack, TextWarden preserves formatting through a partial-selection approach that targets only the error word, not the entire message.
-
-### Child Element Selection (Critical Implementation Detail)
-
-Slack's `AXTextArea` root element ignores `AXSelectedTextRange` attribute changes - setting selection on it returns success but has no effect. However, child elements (`AXStaticText`) DO respect selection changes.
-
-**The approach:**
-
-1. **Find child element containing the error text**:
-   - Traverse the accessibility tree to find `AXStaticText` children
-   - Sort by element height (prefer smaller paragraph-level elements over document-level)
-   - Find the element containing the target error text
-
-2. **Select within the child element**:
-   - Calculate the UTF-16 offset of the error within the child element's text
-   - Set `AXSelectedTextRange` on the child element (not the root)
-   - Validate selection via `AXSelectedText` to confirm the correct text is selected
-
-3. **Copy selected text to get formatting**:
-   - Cmd+C to copy the selected word
-   - Extract Quill Delta from clipboard to get formatting attributes (bold, italic, etc.)
-
-4. **Create replacement with formatting**:
-   - Build new Quill Delta with the suggestion text and extracted formatting
-   - Write both plain text and Pickle to clipboard
-
-5. **Paste replacement**:
-   - Cmd+V to paste (replaces selection with formatted text)
-   - Formatting is preserved because the new Quill Delta includes the same attributes
-
-### Example: Correcting "errror" to "error" in Bold Text
-
-**Before:**
-```json
-{"ops":[{"insert":"This is "},{"attributes":{"bold":true},"insert":"errror"},{"insert":" text\n"}]}
-```
-
-**After:**
-```json
-{"ops":[{"insert":"This is "},{"attributes":{"bold":true},"insert":"error"},{"insert":" text\n"}]}
-```
-
-The `attributes: {"bold": true}` stays attached - only the `insert` value changes.
-
-### Multi-Op Corrections
-
-If an error spans multiple ops (e.g., starts in bold, ends in normal text), the correction falls back to plain text replacement. This is a safety measure to avoid complex formatting merges.
-
-## Clipboard Monitoring
-
-TextWarden monitors the clipboard while Slack is active. When the user copies text from Slack:
-
-1. Clipboard change detected via `NSPasteboard.changeCount`
-2. Check for `org.chromium.web-custom-data` type
-3. Parse Pickle and extract Quill Delta JSON
-4. Cache both the JSON and corresponding plain text
-
-This cached data is used for format-preserving replacement.
-
-## Fallback Behavior
-
-Format-preserving replacement gracefully degrades:
-
-| Scenario | Behavior |
-|----------|----------|
-| Child element selection + copy succeeds | Format preserved (optimal path) |
-| Child element not found | Fall back to plain text |
-| Selection validation fails | Fall back to plain text |
-| Pickle parsing fails | Fall back to plain text |
-| Any other failure | Fall back to plain text |
-
-Plain text replacement works correctly but formatting is lost for the replaced word only. The rest of the message retains formatting since we use partial selection.
-
-### Copy-to-Clipboard Fallback for Mentions
-
-When text contains **mentions** (`@user`) or **channel links** (`#channel`), automatic text replacement is unreliable. This is because mentions/links only exist at the root AX element level (depth=0) and not in child elements, making precise selection impossible without risking document corruption.
-
-**Detection:** TextWarden checks if the target text only exists at the root element before attempting selection. If so, it triggers the copy fallback.
-
-**User Experience:**
-1. Style popover shows a warning: "Auto-replace unavailable for text with mentions"
-2. "Accept" button changes to "Copy" button
-3. A "Skip" button appears to dismiss without action
-4. User clicks "Copy" to copy the suggestion to clipboard
-5. User manually pastes (Cmd+V) to replace the text
-
-This ensures users can still apply suggestions without risking corruption of mention/link formatting.
-
-## Behavior Configuration
-
-Slack uses the `SlackBehavior` specification for overlay behavior:
-
-| Behavior | Value |
-|----------|-------|
-| Underline show delay | 0.1s |
-| Popover hover delay | 0.3s |
-| Popover auto-hide | 3.0s |
-| Hide on scroll | No (unreliable scroll events) |
-| Frame validation | Yes (edit modal scrolls with message history) |
-| Analysis debounce | 1.0s |
-| Line height compensation | +2.0pt |
-| UTF-16 text indices | Yes |
-
-**Known Quirks:**
-- `chromiumEmojiWidthBug` - Emoji width calculation issues
-- `negativeXCoordinates` - Some elements have negative X
-- `hasConflictingNativePopover` - Native popover detection required
-- `unreliableScrollEvents` - Scroll events don't fire reliably
-- `webBasedRendering` - Web-based text rendering
-- `requiresBrowserStyleReplacement` - Needs clipboard+paste
-- `requiresSelectionValidationBeforePaste` - Validate selection before paste
-- `hasSlackFormatPreservingReplacement` - Quill Delta format support
-- `hasFormattingToolbarNearCompose` - Formatting toolbar near compose area
-
-## Implementation Files
-
-- `Sources/AppConfiguration/Behaviors/SlackBehavior.swift`: Behavior specification
-- `Sources/ContentParsers/SlackContentParser.swift`: Content parsing and text replacement
-  - `extractUsingCFRange()`: AXBackgroundColor-based exclusion detection
-  - `detectLinks()`: Link detection via AXLink child elements
-  - `getAttributedStringAdaptive()`: Adaptive chunk sizing for AX API
-  - `mergeAdjacentExclusions()`: Merge fragmented exclusion ranges
-  - `parseChromiumPickle()`: Pickle parser
-  - `buildChromiumPickle()`: Pickle writer
-  - `applyFormatPreservingReplacement()`: Main replacement logic using child element selection
-  - `findChildElementContainingText()`: Find child element for partial selection
-  - `collectTextElements()`: Traverse AX tree to find text elements
-  - `extractFormattingForText()`: Extract formatting attributes from Quill Delta
-  - `checkClipboardForQuillDelta()`: Clipboard monitoring
-
-- `Sources/Positioning/Strategies/SlackStrategy.swift`: Underline positioning
-  - `buildTextPartMap()`: AX tree traversal for text runs
-  - `calculateSubElementBounds()`: AXBoundsForRange on child elements
-
-## Debugging
-
-### Exclusion Detection
-
-Exclusion detection logs summary information without revealing user content:
-
-```
-SlackContentParser: Extracting exclusions via Accessibility APIs
-SlackContentParser: CFRange method found 5 exclusions
-SlackContentParser: Detected 6 total exclusion ranges
-AnalysisCoordinator: Filtered 6 errors in Slack exclusion zones
-```
-
-If exclusions aren't being detected:
-1. Is the content actually styled? (mentions should show blue background in Slack)
-2. Check for AX API errors in logs (error -25212 = range issue)
-3. Verify `AXNumberOfCharacters` matches expected text length
-4. For links: check if AXLink elements appear in the element tree dump
-
-### Format-Preserving Replacement
-
-Enable debug logging to see format-preserving replacement in action:
-
-```
-SlackContentParser: Attempting partial-selection replacement at 0-5
-SlackContentParser: Found target text in child element (size 32) at offset 0
-SlackContentParser: Child selection validated - text matches 'errror'
-SlackContentParser: Got Quill Delta from clipboard
-SlackContentParser: Extracted formatting: ["bold": 1]
-SlackContentParser: Replacement completed successfully
-```
-
-If you see "fallbackToPlainText", check the logs for:
-1. "Could not find child element" - The text element wasn't found in the AX tree
-2. "Child selection validation failed" - Selection was set but wrong text was selected
-3. "Could not get child element text" - AX API failed to read child element's text
-
-## Popover Detection
-
-TextWarden automatically fades error underlines when Slack's native popovers (channel previews, @mention previews) are displayed to avoid visual clutter.
-
-### Technical Approach
-
-Slack uses [React Modal](https://github.com/reactjs/react-modal) for hover popovers. TextWarden detects these by polling the accessibility tree for elements with `AXDOMClassList` containing `ReactModal__Content`.
-
-**Detection flow:**
-1. When underlines are shown in Slack, start polling every 100ms
-2. Search the AX tree for `AXGroup` elements with `ReactModal__Content` class
-3. When found: hide any open TextWarden popovers and fade underlines to 15% opacity
-4. When gone: restore underlines to 100% opacity
-
-### Why This Approach
-
-Alternative approaches were considered:
-
-| Approach | Issue |
-|----------|-------|
-| `AXObserver` notifications | Slack's Electron app doesn't fire notifications for modal appearance |
-| Window-based detection | Popovers render inside the main Slack window, not as separate windows |
-| Size-based heuristics | Too fragile; other UI elements match popover dimensions |
-| Mouse position tracking | Can't reliably detect if user is interacting with popover content |
-
-The `ReactModal__Content` class is a reliable identifier since it's part of React Modal's public API.
-
-### Implementation
-
-- `ErrorOverlayWindow.startSlackPopoverDetection()`: Starts the 100ms polling timer
-- `ErrorOverlayWindow.hasReactModalPopover()`: Returns true if a ReactModal element exists
-- `ErrorOverlayWindow.findReactModalElement()`: Recursively searches AX tree for the modal
-
-## Positioning Strategy
-
-TextWarden uses a dedicated positioning strategy for Slack (`SlackStrategy`) that provides pixel-perfect underline positioning.
-
-### Technical Approach
-
-Slack's main `AXTextArea` element doesn't support standard `AXBoundsForRange` queries (returns invalid data). However, child `AXStaticText` elements DO support `AXBoundsForRange` with local range offsets.
-
-**Strategy:**
-1. Traverse the AX children tree to find all `AXStaticText` elements (text runs)
-2. Build a TextPart map: character ranges → visual frames + element references
-3. For each error, find the overlapping TextPart(s)
-4. Query `AXBoundsForRange` on the child element with local range offset
-5. Fall back to font measurement only if AX query fails
-
-### Click-Based Position Recheck
-
-Slack's AX tree updates asynchronously after user interactions. TextWarden monitors mouse clicks and triggers a debounced position recheck (200ms delay) to ensure underlines stay aligned when the user navigates or edits text.
-
-### Emoji Handling
-
-Emojis in Slack are rendered as `[AXImage]` elements. The positioning strategy handles this gracefully:
-- TextPart mapping naturally excludes non-text elements
-- Bounds queries on text runs return accurate positions regardless of surrounding emojis
-- Visual underlines remain accurate in text containing emojis
-
-## Edit Modal Detection
-
-When editing an existing message in Slack (via the "Edit message" menu), a new AXTextArea appears in the Edit modal. TextWarden automatically detects this transition.
-
-### Technical Challenge
-
-When clicking "Edit message":
-1. Slack shows a context menu (AXMenu, AXMenuItem focus events)
-2. TextMonitor correctly ignores these transient focus events
-3. Edit modal opens with a NEW AXTextArea
-4. BUT: System reports focus as AXWindow/AXWebArea, not the actual AXTextArea
-
-Previously, TextWarden would preserve monitoring on the old compose area (still valid) and miss the new Edit AXTextArea.
-
-### Solution
-
-TextMonitor now checks if there's a **new editable element** when about to preserve an existing one:
-
-1. Query the actual system-focused element via `AXFocusedUIElement`
-2. If it's a container (AXWebArea), search its children for editable elements
-3. If a new AXTextArea is found that's different from the monitored element, switch to it
-
-This ensures immediate detection of the Edit modal without requiring the user to defocus/refocus Slack.
-
-### Scroll Handling in Edit Modal
-
-When editing a previously sent message, the Edit modal is part of the message history view and scrolls along with the message list. This differs from the compose area at the bottom of the screen, which stays fixed.
-
-**Challenge:** Slack has unreliable scroll wheel events (`hideOnScrollStart: false`), so TextWarden cannot use the standard scroll detection mechanism. When the user scrolls the message history while editing, the Edit modal moves but underlines would stay at their old positions.
-
-**Solution:** TextWarden enables periodic frame validation for Slack (`requiresFrameValidation: true`). This polls the element's frame position every 200ms and:
-
-1. Detects when the element frame has moved (threshold: 3+ pixels)
-2. Hides underlines immediately when movement is detected
-3. Waits for the frame to stabilize (400ms of no movement)
-4. Redraws underlines at the new position via `onFrameStabilized` callback
-
-This ensures underlines stay correctly positioned even when the Edit modal scrolls with the message history.
-
-## References
-
-- [Quill Delta Format](https://quilljs.com/docs/delta/)
-- [Chromium Pickle Format](https://chromium.googlesource.com/chromium/src/+/main/base/pickle.h)
+- `Sources/AppConfiguration/AppRegistry.swift`
+- `Sources/AppConfiguration/Behaviors/SlackBehavior.swift`
+- `Sources/ContentParsers/SlackContentParser.swift`
+- `Sources/Positioning/Strategies/SlackStrategy.swift`
+- `Sources/App/AnalysisCoordinator+TextReplacement.swift`
+- `Tests/Unit/SlackStrategyValidationTests.swift`
