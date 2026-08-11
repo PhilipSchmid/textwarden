@@ -730,7 +730,7 @@ do_release() {
     # Commit version changes
     echo -e "${BLUE}Committing version changes...${NC}"
     git add "$PROJECT_ROOT/Info.plist" "$PROJECT_ROOT/appcast.xml"
-    git commit -s -S -m "Release v$version"
+    git commit -s -S -m "chore: release v$version"
 
     # Create git tag
     git tag -a "v$version" -m "Release v$version"
