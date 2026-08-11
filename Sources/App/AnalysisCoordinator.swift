@@ -95,14 +95,6 @@ class AnalysisCoordinator: ObservableObject {
     /// Floating error indicator for apps without visual underlines
     let floatingIndicator: FloatingErrorIndicator
 
-    // MARK: - Grammar Analysis Cache (internal for cross-file extension access)
-
-    /// Error cache mapping text segments to detected errors
-    var errorCache: [String: [GrammarErrorModel]] = [:]
-
-    /// Cache metadata for LRU eviction
-    var cacheMetadata: [String: CacheMetadata] = [:]
-
     /// AI rephrase suggestions cache - maps original sentence text to AI-generated rephrase
     /// This cache persists across app switches and re-analyses to avoid regenerating expensive LLM suggestions
     /// Thread-safe: AIRephraseCache handles synchronization internally
@@ -133,12 +125,6 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Track sentences with pending simplification requests (by range location)
     private var pendingSimplificationRequests = Set<Int>()
-
-    /// Maximum number of cached documents
-    let maxCachedDocuments = 10
-
-    /// Cache expiration time in seconds
-    let cacheExpirationTime: TimeInterval = TimingConstants.analysisCacheExpiration
 
     // MARK: - Window Tracking State (internal for cross-file extension access)
 
@@ -245,6 +231,9 @@ class AnalysisCoordinator: ObservableObject {
     /// Generation ID for style analysis - incremented on each text change
     /// Used to detect and skip stale analysis (when text changed during LLM inference)
     var styleAnalysisGeneration: UInt64 = 0
+
+    /// Generation ID for grammar analysis. Every new request or context change invalidates older work.
+    var grammarAnalysisGeneration: UInt64 = 0
 
     /// Whether style checking should run for the current text
     private var shouldRunStyleChecking: Bool {
@@ -1244,6 +1233,7 @@ class AnalysisCoordinator: ObservableObject {
             // from showing overlays for the old app after switching
             if !isSameApp {
                 Logger.trace("AnalysisCoordinator: Stopping monitoring for previous app", category: Logger.analysis)
+                invalidateGrammarAnalysis()
                 textMonitor.stopMonitoring()
                 // CRITICAL: Clear all cached analysis when switching apps to prevent
                 // showing stale errors/readability from the previous application
@@ -1554,6 +1544,7 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Stop monitoring
     private func stopMonitoring() {
+        invalidateGrammarAnalysis()
         textMonitor.stopMonitoring()
         currentErrors = []
         currentSegment = nil
@@ -1760,6 +1751,12 @@ class AnalysisCoordinator: ObservableObject {
     /// Handle text change and trigger analysis
     func handleTextChange(_ text: String, in context: ApplicationContext) {
         Logger.debug("AnalysisCoordinator: Text changed in \(context.applicationName) (\(text.count) chars)", category: Logger.analysis)
+
+        // Invalidate in-flight work before any early return. Results for the old text or app
+        // must not appear while analysis is paused, focus is settling, or monitoring is cleared.
+        if currentSegment?.content != text || currentSegment?.context != context {
+            invalidateGrammarAnalysis()
+        }
 
         // Check if app is paused - skip all analysis if so
         if let pauseDuration = userPreferences.appPauseDurations[context.bundleIdentifier],
@@ -2269,8 +2266,6 @@ class AnalysisCoordinator: ObservableObject {
     // Note: Grammar analysis methods (analyzeText, analyzeFullText, analyzeChangedPortion, etc.)
     // are implemented in AnalysisCoordinator+GrammarAnalysis.swift
 
-    // Note: updateErrorCache is now implemented in the Performance Optimizations extension
-
     /// Deduplicate consecutive identical errors at the same position
     /// This prevents flooding the UI with 157 "Horizontal ellipsis" errors when they're all at the same spot
     /// But keeps separate errors for the same misspelling at different positions in the text
@@ -2777,9 +2772,9 @@ class AnalysisCoordinator: ObservableObject {
         applyFilters(to: currentErrors, sourceText: sourceText, element: textMonitor.monitoredElement)
     }
 
-    /// Clear error cache
+    /// Clear current analysis state and the style cache
     func clearCache() {
-        errorCache.removeAll()
+        invalidateGrammarAnalysis()
         currentErrors.removeAll()
         previousText = ""
         // Also clear style cache

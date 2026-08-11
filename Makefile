@@ -98,6 +98,7 @@ test-swift: ## Run Swift tests (unit tests only, excludes performance benchmarks
 		-only-testing:TextWardenTests/AppBehaviorRegistryTests \
 		-only-testing:TextWardenTests/AppBehaviorRegressionTests \
 		-only-testing:TextWardenTests/ApplicationConfigurationTests \
+		-only-testing:TextWardenTests/GrammarAnalysisRequestTests \
 		-only-testing:TextWardenTests/GrammarEngineFFITests \
 		-only-testing:TextWardenTests/PerformanceProfilerTests \
 		-only-testing:TextWardenTests/ReadabilityTests \
@@ -105,6 +106,7 @@ test-swift: ## Run Swift tests (unit tests only, excludes performance benchmarks
 		-only-testing:TextWardenTests/SlackStrategyValidationTests \
 		-only-testing:TextWardenTests/SuggestionPopoverTests \
 		-only-testing:TextWardenTests/TextMonitorTests \
+		-only-testing:TextWardenTests/TextIndexConverterTests \
 		-only-testing:TextWardenTests/UnderlineStateManagerTests \
 		-only-testing:TextWardenTests/UserStatisticsTests \
 		-only-testing:TextWardenTests/VirtualKeyCodeTests \
@@ -173,6 +175,7 @@ ci-check: ## Run CI checks locally (use before pushing)
 		-only-testing:TextWardenTests/AppBehaviorRegistryTests \
 		-only-testing:TextWardenTests/AppBehaviorRegressionTests \
 		-only-testing:TextWardenTests/ApplicationConfigurationTests \
+		-only-testing:TextWardenTests/GrammarAnalysisRequestTests \
 		-only-testing:TextWardenTests/GrammarEngineFFITests \
 		-only-testing:TextWardenTests/PerformanceProfilerTests \
 		-only-testing:TextWardenTests/ReadabilityTests \
@@ -180,6 +183,7 @@ ci-check: ## Run CI checks locally (use before pushing)
 		-only-testing:TextWardenTests/SlackStrategyValidationTests \
 		-only-testing:TextWardenTests/SuggestionPopoverTests \
 		-only-testing:TextWardenTests/TextMonitorTests \
+		-only-testing:TextWardenTests/TextIndexConverterTests \
 		-only-testing:TextWardenTests/UnderlineStateManagerTests \
 		-only-testing:TextWardenTests/UserStatisticsTests \
 		-only-testing:TextWardenTests/VirtualKeyCodeTests \
