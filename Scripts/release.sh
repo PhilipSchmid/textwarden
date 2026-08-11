@@ -234,16 +234,23 @@ build_archive() {
     local archive_path="$RELEASE_DIR/$APP_NAME.xcarchive"
     echo -e "${BLUE}Creating Xcode archive...${NC}" >&2
 
+    # Never allow a failed archive command to fall back to a previous release.
+    rm -rf "$archive_path"
+
     # Run xcodebuild in subshell with clean environment
-    (
+    if ! (
         cd "$PROJECT_ROOT"
         xcodebuild archive \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -configuration Release \
+            -destination 'generic/platform=macOS' \
             -archivePath "$archive_path" \
-            2>&1 | grep -E "(error:|warning:|ARCHIVE SUCCEEDED|ARCHIVE FAILED)" || true
-    ) >&2
+            2>&1 | grep -E "(error:|warning:|ARCHIVE SUCCEEDED|ARCHIVE FAILED)"
+    ) >&2; then
+        echo -e "${RED}Archive command failed${NC}" >&2
+        exit 1
+    fi
 
     # Verify archive succeeded
     if [[ ! -d "$archive_path" ]]; then
@@ -254,6 +261,15 @@ build_archive() {
     # Verify the app exists in the archive
     if [[ ! -d "$archive_path/Products/Applications/$APP_NAME.app" ]]; then
         echo -e "${RED}Archive created but app bundle not found${NC}" >&2
+        exit 1
+    fi
+
+    # Confirm the archive is the release requested in this run.
+    local archived_info="$archive_path/Products/Applications/$APP_NAME.app/Contents/Info.plist"
+    local archived_version=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$archived_info")
+    local archived_build=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$archived_info")
+    if [[ "$archived_version" != "$(get_version)" || "$archived_build" != "$(get_build)" ]]; then
+        echo -e "${RED}Archive version does not match Info.plist${NC}" >&2
         exit 1
     fi
 
@@ -294,6 +310,7 @@ export_app() {
 # Notarize the app
 notarize_app() {
     local dmg_path="$1"
+    local required="${2:-false}"
 
     echo -e "${BLUE}Notarizing app...${NC}"
 
@@ -302,9 +319,16 @@ notarize_app() {
         echo -e "${YELLOW}APPLE_ID not set. Checking keychain for notarytool credentials...${NC}"
         # Try using stored keychain profile
         if ! xcrun notarytool history --keychain-profile "TextWarden" >/dev/null 2>&1; then
-            echo -e "${YELLOW}No keychain profile found. Skipping notarization.${NC}"
-            echo -e "${YELLOW}To enable notarization, run:${NC}"
+            if [[ "$required" == "true" ]]; then
+                echo -e "${RED}No keychain profile found. Production releases require notarization.${NC}"
+            else
+                echo -e "${YELLOW}No keychain profile found. Skipping notarization.${NC}"
+            fi
+            echo -e "${YELLOW}Configure notarization with:${NC}"
             echo -e "  xcrun notarytool store-credentials \"TextWarden\" --apple-id YOUR_APPLE_ID --team-id $TEAM_ID"
+            if [[ "$required" == "true" ]]; then
+                return 1
+            fi
             return 0
         fi
         local auth_args="--keychain-profile TextWarden"
@@ -327,7 +351,10 @@ notarize_app() {
     else
         echo -e "${RED}Notarization failed:${NC}"
         echo "$result"
-        echo -e "${YELLOW}Continuing without notarization...${NC}"
+        if [[ "$required" == "true" ]]; then
+            return 1
+        fi
+        echo -e "${YELLOW}Continuing prerelease without notarization...${NC}"
     fi
 }
 
@@ -644,9 +671,11 @@ do_release() {
 
     local version_type=$(parse_version_type "$version")
     local is_prerelease="false"
+    local notarization_required="true"
 
     if [[ "$version_type" != "release" ]]; then
         is_prerelease="true"
+        notarization_required="false"
     fi
 
     echo ""
@@ -678,7 +707,7 @@ do_release() {
     mkdir -p "$RELEASE_DIR"
 
     # Get last tag for release notes
-    local last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+    local last_tag=$(git tag --sort=-creatordate | grep -v "^v$version$" | head -1)
 
     # Ensure all commits are pushed before generating release notes
     # This allows GitHub API to look up the proper @username for each commit
@@ -719,7 +748,7 @@ do_release() {
     local dmg_path=$(create_dmg "$app_path" "$version")
 
     # Notarize the DMG FIRST (stapling modifies the DMG)
-    notarize_app "$dmg_path"
+    notarize_app "$dmg_path" "$notarization_required"
 
     # Sign with Sparkle AFTER stapling (signature must be for final DMG)
     local signature=$(sign_update "$dmg_path" "$sparkle_bin")
