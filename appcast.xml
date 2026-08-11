@@ -3,6 +3,26 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.3.2</title>
+            <pubDate>Tue, 11 Aug 2026 21:26:11 +0200</pubDate>
+            <sparkle:version>31</sparkle:version>
+            <sparkle:shortVersionString>0.3.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;fix: update quinn-proto to 0.11.16 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/ccd202a"&gt;&lt;code&gt;ccd202a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: fail closed during release preparation (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/704a4c5"&gt;&lt;code&gt;704a4c5&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: use Conventional Commit for releases (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/fd08967"&gt;&lt;code&gt;fd08967&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: update vulnerable quinn-proto lock (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/7df0b30"&gt;&lt;code&gt;7df0b30&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: stabilize Harper 2.7 update (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/675d10c"&gt;&lt;code&gt;675d10c&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;deps(rust): Bump harper-core from v2.6.0 to v2.7.0 in /GrammarEngine (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/9d50004"&gt;&lt;code&gt;9d50004&lt;/code&gt;&lt;/a&gt;) by @dependabot[bot]&lt;/li&gt;
+&lt;li&gt;deps(rust): Bump harper-core from v2.5.0 to v2.6.0 in /GrammarEngine (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/85311ca"&gt;&lt;code&gt;85311ca&lt;/code&gt;&lt;/a&gt;) by @dependabot[bot]&lt;/li&gt;
+&lt;li&gt;chore: Dedupe agent instructions via CLAUDE.md symlink (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/c250240"&gt;&lt;code&gt;c250240&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;Release v0.3.1 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/ff70306"&gt;&lt;code&gt;ff70306&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.3.2/TextWarden-0.3.2-Universal.dmg" length="31836888" type="application/octet-stream" sparkle:edSignature="fqx9V1Dvmq09YcC4BO3pSvj2N3peVul7ieG3o2j7PR55Cd+p0f78Uo0ih8yad1QNS4Z4GeY1w/vgJtoRe2EoCQ=="/>
+        </item>
+        <item>
             <title>0.3.1</title>
             <pubDate>Mon, 22 Jun 2026 10:09:59 +0200</pubDate>
             <sparkle:version>30</sparkle:version>
