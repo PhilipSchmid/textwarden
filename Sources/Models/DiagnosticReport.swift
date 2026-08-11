@@ -21,13 +21,19 @@ import LaunchAtLogin
 /// Utility for anonymizing file paths to protect user privacy
 enum PathSanitizer {
     /// Patterns to detect and replace usernames in paths
-    private static let userPathPattern = try! NSRegularExpression(
-        pattern: "/Users/[^/]+/",
-        options: []
-    )
+    private static let userPathPattern: NSRegularExpression? = {
+        do {
+            return try NSRegularExpression(pattern: "/Users/[^/]+/", options: [])
+        } catch {
+            Logger.error("Failed to initialize path sanitizer: \(error.localizedDescription)", category: Logger.general)
+            return nil
+        }
+    }()
 
     /// Anonymize a file path by replacing username with placeholder
     static func anonymize(_ path: String) -> String {
+        guard let userPathPattern else { return "<redacted-path>" }
+
         let range = NSRange(path.startIndex..., in: path)
         return userPathPattern.stringByReplacingMatches(
             in: path,

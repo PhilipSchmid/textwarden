@@ -32,11 +32,11 @@ jobs:
 
       - name: Run Clippy
         working-directory: GrammarEngine
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --locked --all-targets -- -D warnings
 
       - name: Run tests
         working-directory: GrammarEngine
-        run: cargo test
+        run: cargo test --locked
 
   swift-build-test:
     name: Swift Build & Test
@@ -69,7 +69,7 @@ jobs:
       - name: Build Rust library (arm64 only, without LLM)
         working-directory: GrammarEngine
         run: |
-          cargo build --release --target aarch64-apple-darwin
+          cargo build --locked --release --target aarch64-apple-darwin
           mkdir -p target
           cp target/aarch64-apple-darwin/release/libgrammar_engine.a target/libgrammar_engine_universal.a
 
@@ -89,7 +89,19 @@ jobs:
             -project TextWarden.xcodeproj \
             -scheme TextWarden \
             -destination 'platform=macOS,arch=arm64' \
+            -only-testing:TextWardenTests/AppBehaviorConsistencyTests \
+            -only-testing:TextWardenTests/AppBehaviorRegistryTests \
+            -only-testing:TextWardenTests/AppBehaviorRegressionTests \
+            -only-testing:TextWardenTests/ApplicationConfigurationTests \
+            -only-testing:TextWardenTests/GrammarEngineFFITests \
+            -only-testing:TextWardenTests/PerformanceProfilerTests \
             -only-testing:TextWardenTests/ReadabilityTests \
+            -only-testing:TextWardenTests/RetrySchedulerTests \
+            -only-testing:TextWardenTests/SlackStrategyValidationTests \
+            -only-testing:TextWardenTests/SuggestionPopoverTests \
+            -only-testing:TextWardenTests/TextMonitorTests \
+            -only-testing:TextWardenTests/UnderlineStateManagerTests \
             -only-testing:TextWardenTests/UserStatisticsTests \
+            -only-testing:TextWardenTests/VirtualKeyCodeTests \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO

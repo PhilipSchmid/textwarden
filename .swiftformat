@@ -1,0 +1,2 @@
+# Keep the established project style stable across SwiftFormat releases.
+--disable redundantSwiftUIGroup,wrapIfExpressionBodies,wrapIfStatementBodies
