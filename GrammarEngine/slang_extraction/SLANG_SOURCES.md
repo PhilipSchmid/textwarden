@@ -1,128 +1,80 @@
-# Internet Slang Dictionary Sources
+# Slang and Abbreviations Sources
 
-This document tracks the sources used to compile the slang dictionaries for TextWarden's grammar engine.
+This file records the stated sources behind TextWarden's internet abbreviation and Gen Z slang wordlists. The downloaded datasets and intermediate extraction files are not committed, so the coverage figures and processing steps below are provenance notes, not a reproducible manifest.
 
-## Internet Abbreviations Dictionary (`internet_abbreviations.txt`)
+## Internet Abbreviations (`internet_abbreviations.txt`)
 
-### Primary Sources
+The committed wordlist header identifies the Kaggle Chat / Internet Slang dataset as its direct source. The other pages were recorded as references during curation.
 
-1. **Messente Blog** - "Top 250+ Text Abbreviations, Acronyms and Short Form Words"
-   - URL: https://messente.com/blog/text-abbreviations
+### Recorded Sources
+
+| Source | URL | Recorded coverage | Access record | License status in this repository |
+|---|---|---:|---|---|
+| Chat / Internet Slang, Abbreviations, Acronyms | https://www.kaggle.com/datasets/gowrishankarp/chat-slang-abbreviations-acronyms | 3,000+ entries | 2025-01-14 | Unknown; review the current Kaggle dataset terms before re-importing. |
+| Messente, “Top 250+ Text Abbreviations” | https://messente.com/blog/text-abbreviations | 250+ examples | Accessed 2025-01-14 | No redistribution license recorded. |
+| Preply, “Internet Abbreviations” | https://preply.com/en/blog/the-most-used-internet-abbreviations-for-texting-and-tweeting/ | 100+ examples | Accessed 2025-01-14 | No redistribution license recorded. |
+| SimpleTexting, “Text Abbreviations” | https://simpletexting.com/blog/text-abbreviations/ | 50+ examples | Referenced 2025-01-14 | No redistribution license recorded. |
+| EZ Texting, “Popular Text Abbreviations” | https://www.eztexting.com/resources/sms-resources/popular-text-abbreviations | 117 examples recorded | Reference only | No redistribution license recorded. |
+| Mobile Text Alerts, “Texting Abbreviations” | https://mobile-text-alerts.com/articles/texting-abbreviations | 145+ examples recorded | Reference only | No redistribution license recorded. |
+| ContentStudio, “Social Media Acronyms” | https://contentstudio.io/blog/social-media-acronyms | 210+ examples recorded | Reference only | No redistribution license recorded. |
+
+The current output contains 3,211 entries, all case-insensitively unique.
+
+## Gen Z Slang (`genz_slang.txt`)
+
+### Recorded Sources
+
+1. [MLBtrio/genz-slang-dataset on Hugging Face](https://huggingface.co/datasets/MLBtrio/genz-slang-dataset)
+   - Recorded coverage: 1,779 terms with descriptions, examples, and context
+   - Recorded format: CSV columns for slang, description, example, and context
    - Accessed: 2025-01-14
-   - Coverage: 250+ text abbreviations including BTW, FYI, LOL, ASAP, etc.
-   - License: Public educational content
+   - License status: public availability was recorded, but no explicit license was captured in this repository. Check the dataset card before re-importing.
 
-2. **Preply Blog** - "100+ Coolest Internet Abbreviations of 2025"
-   - URL: https://preply.com/en/blog/the-most-used-internet-abbreviations-for-texting-and-tweeting/
+2. [Gen Z Words and Phrases Dataset on Kaggle](https://www.kaggle.com/datasets/tawfiayeasmin/gen-z-words-and-phrases-dataset)
+   - Recorded coverage: 500 terms, acronyms, and phrases
+   - Recorded format: word or phrase, definition, example sentence, and popularity level
    - Accessed: 2025-01-14
-   - Coverage: 100+ modern internet abbreviations
-   - License: Public educational content
+   - License recorded at collection time: MIT
 
-3. **SimpleTexting** - "50+ most common abbreviations for text in 2024"
-   - URL: https://simpletexting.com/blog/text-abbreviations/
-   - Referenced: 2025-01-14
-   - Coverage: Common text abbreviations
-   - License: Public educational content
+3. [Chat / Internet Slang, Abbreviations, Acronyms on Kaggle](https://www.kaggle.com/datasets/gowrishankarp/chat-slang-abbreviations-acronyms)
+   - Recorded coverage: 3,000+ entries
+   - Recorded formats: CSV, JSON, TXT, and PKL
+   - Recorded source note: compiled from Urban Dictionary
+   - Accessed: 2025-01-14
+   - License status: unknown
+
+4. [kaspercools/genz-dataset on GitHub](https://github.com/kaspercools/genz-dataset/blob/main/genz_slang.csv)
+   - Recorded coverage: 146 terms with descriptions
+   - Accessed: 2025-01-14
+   - License status: no specific license was recorded. “Open source” is not enough to determine redistribution rights.
 
 ### Additional References
 
-- EZ Texting - "The 117 Most Popular Text Abbreviations"
-  - URL: https://www.eztexting.com/resources/sms-resources/popular-text-abbreviations
+- [Sadman Hasib's Gen Z slang dataset on Kaggle](https://www.kaggle.com/datasets/sadmanhasib/gen-z-slang), recorded as Apache-2.0
+- [SlangWise: 200 Internet Slang Words](https://slangwise.com/200-most-popular-internet-slangs-of-2025/), no license recorded
+- [Gabb: Teen Slang Dictionary](https://gabb.com/blog/teen-slang/), no license recorded
 
-- Mobile Text Alerts - "Top 145+ Texting Abbreviations with Examples [2024]"
-  - URL: https://mobile-text-alerts.com/articles/texting-abbreviations
+The current output has 274 entries and 262 case-insensitive unique values. The loader lowercases every entry, so case-only variants become duplicate dictionary rows at runtime.
 
-- Content Studio - "210+ popular social media acronyms and slang you should know"
-  - URL: https://contentstudio.io/blog/social-media-acronyms
+## Recorded Selection and Processing
 
-## Gen Z Slang Dictionary (`genz_slang.txt`)
+The original notes described this selection policy:
 
-### Primary Sources
+- Include a term when it appeared in multiple independent sources, came from a curated dataset, or was judged common enough to prevent a noisy spelling alert.
+- Prefer terms documented as current in 2024 or 2025.
+- Normalize to one term per line and cross-check spelling across sources.
 
-1. **Hugging Face Dataset** - "MLBtrio/genz-slang-dataset"
-   - URL: https://huggingface.co/datasets/MLBtrio/genz-slang-dataset
-   - Accessed: 2025-01-14
-   - Coverage: 1,779 Gen Z slang terms with descriptions, examples, and context
-   - Format: CSV with columns: Slang, Description, Example, Context
-   - License: Community dataset, publicly available
-   - Sources: Compiled from Kaggle collections and GitHub repositories
+The repository does not contain the raw datasets or a script that proves those steps for the current outputs. It also does not fully satisfy the recorded deduplication step: `genz_slang.txt` contains 11 normalized values that appear more than once, accounting for 12 excess entries.
 
-2. **Kaggle Dataset** - "Gen Z words and Phrases Dataset" by Tawfia Yeasmin
-   - URL: https://www.kaggle.com/datasets/tawfiayeasmin/gen-z-words-and-phrases-dataset
-   - Accessed: 2025-01-14
-   - Coverage: 500 Gen Z slang terms, acronyms, and phrases
-   - Format: CSV with Word/Phrase, Definition, Example Sentence, Popularity/Trend Level
-   - License: MIT License
-   - Description: Language used in digital communication and social media
+## Rights and Maintenance
 
-3. **Kaggle Dataset** - "Chat / Internet Slang | Abbreviations | Acronyms"
-   - URL: https://www.kaggle.com/datasets/gowrishankarp/chat-slang-abbreviations-acronyms
-   - Accessed: 2025-01-14
-   - Coverage: 3,000+ chat slang abbreviations
-   - Format: CSV, JSON, TXT, PKL (acronym | expansion)
-   - Source: Urban Dictionary
-   - License: Unknown
+This document preserves attribution; it does not grant rights to the source material. Common words and abbreviations may not themselves be copyrightable, but articles, dataset selection, descriptions, and compilations can carry separate rights. Before refreshing either list:
 
-4. **GitHub Repository** - "kaspercools/genz-dataset"
-   - URL: https://github.com/kaspercools/genz-dataset/blob/main/genz_slang.csv
-   - Accessed: 2025-01-14
-   - Coverage: 146 curated Gen Z slang terms
-   - Format: CSV with keyword | description
-   - License: Open source
-   - Examples: NGL, TFW, Sus, Ghosting, Slay, etc.
+1. Check the current license or terms for every imported source.
+2. Save the exact source snapshot or add a reproducible extraction script.
+3. Record which source contributed each imported row when practical.
+4. Remove case-insensitive duplicates, then verify counts from the output file.
 
-### Additional References
+Review the lists periodically for new terms, outdated spellings, and source changes.
 
-- Kaggle Dataset - "gen z slang" by Sadman Hasib
-  - URL: https://www.kaggle.com/datasets/sadmanhasib/gen-z-slang
-  - License: Apache 2.0
-
-- SlangWise - "List of 200 Most Popular Internet Slang Words of 2025"
-  - URL: https://slangwise.com/200-most-popular-internet-slangs-of-2025/
-
-- Gabb - "2025 Teen Slang Dictionary: Decode Gen Z Lingo"
-  - URL: https://gabb.com/blog/teen-slang/
-
-## Usage and Licensing
-
-### For Internet Abbreviations Dictionary
-
-The internet abbreviations are compiled from publicly available educational resources. These are standard, widely-used abbreviations that are part of common internet vernacular. The compilation is:
-- For educational and functional purposes
-- Based on publicly documented language usage
-- Not subject to copyright (facts/common usage)
-
-### For Gen Z Slang Dictionary
-
-The Gen Z slang dictionary combines data from:
-- MIT-licensed dataset (500 terms)
-- Community datasets (publicly available)
-- Open source GitHub repositories
-
-This compilation is used under fair use for educational and functional purposes as a grammar checking reference.
-
-## Methodology
-
-### Selection Criteria
-
-Terms were included if they met at least one of these criteria:
-1. Appeared in multiple independent sources
-2. Listed in curated datasets (MIT or open source licensed)
-3. Documented in 2024-2025 as actively used
-4. Common enough to warrant spell-check recognition
-
-### Processing
-
-1. **Deduplication**: Removed duplicate terms across sources
-2. **Normalization**: Standardized format (one term per line)
-3. **Validation**: Cross-referenced against multiple sources
-4. **Coverage**: Ensured all case variations (lowercase, UPPERCASE, Capitalized)
-
-## Updates
-
-This dictionary should be periodically updated to reflect:
-- New slang terms entering common usage
-- Deprecated terms no longer in active use
-- Changes in preferred spelling or capitalization
-
-Last updated: 2025-01-14
+Last source review: 2025-01-14. Counts verified: 2026-08-11.

@@ -1,32 +1,29 @@
-# Application-Specific Documentation
+# TextWarden app integrations for macOS
 
-This folder contains detailed documentation for applications that require special handling in TextWarden.
+TextWarden is a private macOS grammar checker and writing assistant. These guides explain the app-specific Accessibility API work needed to show grammar underlines and apply corrections in supported desktop apps.
 
-## Contents
+## Integration guides
 
-| Application | Description |
-|-------------|-------------|
-| [CHATGPT.md](CHATGPT.md) | ChatGPT Electron app, RangeBounds positioning, fast 50ms debounce |
-| [CLAUDE.md](CLAUDE.md) | Claude Electron app, tree-traversal positioning via ClaudeStrategy, dedicated parser |
-| [MAIL.md](MAIL.md) | Apple Mail WebKit compose, TextMarker-based positioning, keyboard-based format-preserving replacement |
-| [MESSAGES.md](MESSAGES.md) | Apple Messages Mac Catalyst app, conversation switch detection, browser-style replacement |
-| [NOTION.md](NOTION.md) | Notion Electron app, child element tree traversal, UI element filtering |
-| [OUTLOOK.md](OUTLOOK.md) | Microsoft Outlook compose windows, AXBoundsForRange positioning, browser-style replacement |
-| [PAGES.md](PAGES.md) | Apple Pages word processor, line-based positioning, clipboard-style replacement |
-| [PERPLEXITY.md](PERPLEXITY.md) | Perplexity Electron app, AnchorSearch positioning, fast 50ms debounce |
-| [SLACK.md](SLACK.md) | Quill Delta format, Chromium Pickle, child element selection, format-preserving replacement |
-| [TEAMS.md](TEAMS.md) | Microsoft Teams Chromium-based compose, child element tree traversal, formatting exclusions |
-| [TELEGRAM.md](TELEGRAM.md) | Telegram native macOS app, RangeBounds positioning, standard AX text replacement |
-| [WEBEX.md](WEBEX.md) | Cisco WebEx chat, compose area detection, UTF-16 conversion for emoji support |
-| [WHATSAPP.md](WHATSAPP.md) | WhatsApp Mac Catalyst app, stale AX data handling, conversation switch detection |
-| [WORD.md](WORD.md) | Microsoft Word documents, dedicated strategy for Word's DOM structure |
+| Application | TextWarden integration |
+|-------------|------------------------|
+| [ChatGPT](CHATGPT.md) | Direct range positioning in the ChatGPT prompt editor |
+| [Claude](CLAUDE.md) | Child-element positioning in Claude Desktop |
+| [Apple Mail](MAIL.md) | Subject and compose-body checking with WebKit-aware replacement |
+| [Apple Messages](MESSAGES.md) | Catalyst positioning and conversation-change handling |
+| [Notion](NOTION.md) | Block-aware filtering with partial visual underline coverage |
+| [Microsoft Outlook](OUTLOOK.md) | Subject and message-body checking with Office-safe replacement |
+| [Apple Pages](PAGES.md) | Native document positioning with focused clipboard replacement |
+| [Perplexity](PERPLEXITY.md) | Anchor-based positioning in the Perplexity prompt editor |
+| [Microsoft PowerPoint](POWERPOINT.md) | Grammar checking in speaker notes |
+| [Slack](SLACK.md) | Rich-text exclusions and format-aware replacement in the message composer |
+| [Microsoft Teams](TEAMS.md) | Child-element positioning and formatted-content exclusions |
+| [Telegram](TELEGRAM.md) | Native range positioning in the message composer |
+| [Cisco Webex](WEBEX.md) | Compose-field detection that ignores sent messages |
+| [WhatsApp](WHATSAPP.md) | Catalyst positioning with stale-text protection |
+| [Microsoft Word](WORD.md) | Direct document-range positioning with Office-safe replacement |
 
-## Adding New Documentation
+TextWarden also supports apps that work through shared native or browser configurations. The main [README](../../README.md#supported-apps) has the full support table.
 
-When adding special handling for a new application:
+## Adding an integration guide
 
-1. Create `<APP_NAME>.md` in this folder
-2. Document the app-specific format/protocol
-3. Explain any special parsing or replacement logic
-4. Add a link in the table above
-5. Update the reference in [ARCHITECTURE.md](../../ARCHITECTURE.md)
+Document behavior that is backed by `AppRegistry`, an `AppBehavior`, a content parser, or a positioning strategy. Include the bundle identifier, monitored editing surface, correction method, known limits, and implementation files. Avoid version guarantees unless the application enforces them at runtime.

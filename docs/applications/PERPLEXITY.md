@@ -1,141 +1,42 @@
-# Perplexity Integration
+# TextWarden for Perplexity on macOS
 
-This document describes how TextWarden handles Perplexity, an Electron-based AI search desktop application.
+TextWarden adds local grammar checking and writing assistance to the Perplexity macOS desktop app. It checks focused prompt text, shows grammar underlines, and applies corrections through Accessibility-based selection and paste.
 
-## Overview
+## Support summary
 
-Perplexity (`ai.perplexity.mac`) is an Electron app that provides AI-powered search and answers. TextWarden uses anchor-based positioning for accurate underline placement.
-
-TextWarden provides:
-1. Visual underlines for grammar errors
-2. Text replacement via browser-style selection + paste
-3. Fast analysis with minimal debounce delay
-
-## Technical Details
-
-### App Type
-
-| Property | Value |
-|----------|-------|
+| Item | Current behavior |
+|------|------------------|
+| Application | Perplexity for macOS |
 | Bundle ID | `ai.perplexity.mac` |
-| Category | Electron |
-| Parser Type | Generic |
-| Text Replacement | Browser-style (selection + keyboard paste) |
-| Visual Underlines | Supported |
+| App type | Electron |
+| Checked content | Focused editable prompt text |
+| Visual underlines | Enabled |
+| Content parser | Generic |
+| Positioning | `AnchorSearch` → `TextMarker` → `ElementTree` |
+| Correction method | Select the text, then paste with `Command-V` |
 
-### Positioning Strategy
+## How the integration works
 
-Perplexity uses AnchorSearchStrategy as the primary positioning method:
+Perplexity does not provide dependable full-range geometry on its root editor. `AnchorSearchStrategy` probes nearby characters until it finds one with valid Accessibility bounds, then measures the text between that anchor and the grammar error. Text-marker and child-tree positioning remain available as fallbacks.
 
-1. **AnchorSearch** (primary) - Searches for anchor points in the AX tree
-2. **TextMarker** - Apple's text marker API as fallback
-3. **ElementTree** - Child element traversal
+The strategy converts offsets to UTF-16 before querying the Accessibility API, which keeps positions aligned after emoji and other multi-unit characters.
 
-**Why AnchorSearch:** Perplexity's `AXBoundsForRange` and ChromiumStrategy don't return reliable results. The AnchorSearchStrategy finds positioning anchors through alternative AX queries.
+Perplexity batches accessibility notifications, so TextWarden also watches keyboard activity. The app behavior uses a 1-second analysis debounce and requests a full reanalysis after corrections.
 
-### Text Replacement
+## Corrections
 
-Perplexity uses browser-style text replacement:
+The prompt is treated as plain text. TextWarden uses browser-style selection and paste, including special handling for a replacement at position zero. Selection is validated when possible; an unsafe or stale selection is rejected.
 
-```swift
-textReplacementMethod: .browserStyle  // Selection + Cmd+V paste
-```
+## Troubleshooting
 
-**Replacement Flow:**
-1. Select error text using AX selection APIs
-2. Copy suggestion to clipboard
-3. Paste via Cmd+V keyboard event
+- Click in the prompt editor first. Read-only answers and other unfocused text are not the intended editing surface.
+- If an underline appears late, allow the 1-second analysis debounce to finish.
+- If positioning is unavailable for a range, the Perplexity editor did not expose a usable anchor or fallback element.
+- If a correction says the text changed, wait for reanalysis before trying again.
 
-### Font Configuration
+## Implementation
 
-```swift
-FontConfig(
-    defaultSize: 16,
-    fontFamily: nil,  // System font
-    spacingMultiplier: 1.0
-)
-horizontalPadding: 12
-```
-
-## Performance Optimizations
-
-### Fast Debounce
-
-Perplexity uses the default 50ms debounce (not the 1.0s Chromium debounce):
-
-```swift
-requiresTypingPause: false  // Uses anchorSearch, no cursor manipulation needed
-```
-
-This means underlines appear almost instantly after typing stops.
-
-### AX Notification Handling
-
-```swift
-delaysAXNotifications: true  // Electron app batches AX notifications
-```
-
-Perplexity batches accessibility notifications, so TextWarden uses keyboard-based typing detection for more responsive updates.
-
-## Behavior Configuration
-
-Perplexity uses the `PerplexityBehavior` specification for overlay behavior:
-
-| Behavior | Value |
-|----------|-------|
-| Underline show delay | 0.1s |
-| Bounds validation | Require within screen |
-| Popover hover delay | 0.3s |
-| Popover auto-hide | 3.0s |
-| Hide on scroll | Yes |
-| Analysis debounce | 1.0s |
-| UTF-16 text indices | Yes |
-
-**Known Quirks:**
-- `chromiumEmojiWidthBug` - Emoji width calculation issues
-- `webBasedRendering` - Web-based text rendering
-- `batchedAXNotifications` - Notifications are batched
-- `requiresBrowserStyleReplacement` - Needs clipboard+paste
-- `requiresFullReanalysisAfterReplacement` - Fragile byte offsets
-- `requiresDirectTypingAtPosition0` - Special handling for position 0
-
-## Implementation Files
-
-- `Sources/AppConfiguration/AppRegistry.swift`: App configuration (line ~203)
-- `Sources/AppConfiguration/Behaviors/PerplexityBehavior.swift`: Behavior specification
-- `Sources/Positioning/Strategies/AnchorSearchStrategy.swift`: Primary positioning strategy
-
-## Debugging
-
-### Positioning Issues
-
-If underlines appear misaligned:
-
-```
-Perplexity uses AnchorSearchStrategy
-Check logs for anchor point detection
-```
-
-Typical log output:
-```
-PositionResolver: Trying anchorSearch for Perplexity
-AnchorSearchStrategy: Found anchor at position X
-```
-
-### Text Replacement
-
-Browser-style replacement logs:
-```
-AnalysisCoordinator: Using browser-style text replacement
-```
-
-## Related Apps
-
-Perplexity also has a browser called **Perplexity Comet** (`ai.perplexity.comet`), which is handled by the generic browser configuration.
-
-## Known Limitations
-
-1. **Plain text only** - Perplexity input doesn't support rich text formatting
-2. **Delayed AX notifications** - Uses keyboard detection for typing awareness
-3. **Electron quirks** - Requires full re-analysis after replacement due to fragile byte offsets
-4. **Limited positioning APIs** - AXBoundsForRange doesn't work reliably, uses anchor search instead
+- `Sources/AppConfiguration/AppRegistry.swift`
+- `Sources/AppConfiguration/Behaviors/PerplexityBehavior.swift`
+- `Sources/Positioning/Strategies/AnchorSearchStrategy.swift`
+- `Sources/App/AnalysisCoordinator+TextReplacement.swift`

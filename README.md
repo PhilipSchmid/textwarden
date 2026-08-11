@@ -1,273 +1,163 @@
+# TextWarden: Private Grammar Checker for macOS
 
-# TextWarden
-
-[![CI](https://github.com/philipschmid/textwarden/actions/workflows/ci.yml/badge.svg)](https://github.com/philipschmid/textwarden/actions/workflows/ci.yml)
+[![CI](https://github.com/PhilipSchmid/textwarden/actions/workflows/ci.yml/badge.svg)](https://github.com/PhilipSchmid/textwarden/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/PhilipSchmid/textwarden)](https://github.com/PhilipSchmid/textwarden/releases/latest)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![macOS](https://img.shields.io/badge/macOS-26%2B-brightgreen.svg)](https://github.com/philipschmid/textwarden/releases)
+[![macOS](https://img.shields.io/badge/macOS-14%2B-brightgreen.svg)](https://github.com/PhilipSchmid/textwarden/releases/latest)
 
-**Grammar checking that respects your privacy.**
+TextWarden is a free, open-source grammar checker and writing assistant for macOS. It checks English spelling, grammar, punctuation, and style while you type.
 
-TextWarden checks your spelling and grammar while you type - in any app on your Mac. Unlike other tools, everything runs locally on your computer. Your writing never leaves your device.
+**Nothing you type is sent anywhere.** Your writing never leaves your Mac: not for grammar checking, not for AI features, and not for analytics. There is no account to create and no subscription.
 
 <p align="center">
-  <img src="Assets/textwarden_logo.svg" alt="TextWarden Logo" width="320" height="320">
+  <img src="Assets/textwarden_logo.svg" alt="TextWarden macOS grammar checker logo" width="320" height="320">
 </p>
 
 <p align="center">
-  <a href="https://github.com/philipschmid/textwarden/releases">
-    <img src="Assets/download-macos-button.png" alt="Download for macOS" width="180">
+  <a href="https://github.com/PhilipSchmid/textwarden/releases/latest">
+    <img src="Assets/download-macos-button.png" alt="Download TextWarden for macOS" width="180">
   </a>
 </p>
 
 > [!NOTE]
-> **Beta Software**: TextWarden is in active development and you may encounter bugs. For example, some visual underlines might be misaligned, some suggestions might not be perfect, or certain applications may not work as expected. Much like printers and projectors that still mysteriously fail on first try after decades of existence, macOS Accessibility APIs and the apps that implement them each have their own quirks that require app-specific tuning. That said, it should be stable enough for daily use and I'd love for you to try it! Your bug reports help make TextWarden better for everyone. Found something broken? [Report it here](#support).
+> TextWarden is under active development. Apps do not all share text with macOS in the same way, so underlines and corrections may work differently from one app to another. If something breaks, please [open a bug report](https://github.com/PhilipSchmid/textwarden/issues/new/choose).
 
 ## Why TextWarden?
 
-**Private by Design**
-Your text stays on your Mac. No cloud servers, no accounts, no data collection. Works completely offline.
-
-**Blazingly Fast**
-Powered by [Harper](https://github.com/automattic/harper), a high-performance Rust-based grammar engine.
-
-**Works Everywhere**
-Integrates with most macOS apps through the Accessibility API - Mail, Outlook, Teams, Slack, and more.
-
-**Simple and Unobtrusive**
-A small indicator and/or underline appears when issues are found. Click to see suggestions. Accept with one click. That's it.
+- **Your writing stays on your Mac:** Grammar checks run locally with [Harper](https://github.com/Automattic/harper), and optional AI features use Apple Intelligence on your Mac. TextWarden never uploads your text or prompts.
+- **Works in many Mac apps:** Check writing in Apple apps, browsers, chat apps, web-based editors, and Microsoft Office.
+- **Fast feedback:** TextWarden underlines errors when an app provides the location of each word. Otherwise, a small floating indicator shows the suggestions.
+- **No account or subscription:** Download the app and grant Accessibility permission. Your usage statistics and custom dictionary stay on your Mac.
 
 ## Features
 
-- **Real-time grammar and spelling** - Catches errors as you type
-- **AI-powered style suggestions** - Apple Intelligence ([Foundation Models](https://developer.apple.com/documentation/FoundationModels)) for clarity and readability improvements (macOS 26+)
-- **AI Compose** - Generate text from instructions using on-device AI (macOS 26+, Apple Silicon)
-- **Sketch Pad** - A built-in writing environment with full AI integration (see [Sketch Pad](#sketch-pad))
-- **Readability Score** - Real-time Flesch Reading Ease score for text with 30+ words
-- **Multilingual awareness** - Detects non-English documents and sentences, skipping grammar checks (no false positives on foreign text)
-- **Custom dictionary** - Add your own technical terms and proper nouns
-- **Dialect support** - American, British, Canadian, Australian, or Indian English
-- **App controls** - Enable, disable, or pause checking per application
-- **Automatic updates** - Stay current with optional update checks
+- Real-time English grammar, spelling, punctuation, capitalization, and word-choice suggestions
+- One-click corrections and a **Fix All** command for clear-cut errors
+- American, British, Canadian, Australian, and Indian English dialects
+- Custom vocabulary, the macOS learned-word dictionary, and optional word lists for technical terms, names, brands, abbreviations, and slang
+- Optional detection of selected non-English languages to avoid false positives in multilingual documents
+- Readability scores and sentence-complexity underlines for text with at least 30 words
+- Per-app pause controls, per-app underline controls, and website exclusions
+- A built-in Sketch Pad for focused drafting and revision
+- Optional automatic updates, with a separate channel for experimental releases
+
+### Apple Intelligence writing tools
+
+On macOS 26 or later, a compatible Mac with an Apple M-series chip can use Apple's built-in, on-device AI for:
+
+- Style suggestions for clear, concise, formal, casual, or business writing
+- AI Compose, which generates text from an instruction and optional document context
+- Sentence simplification and readability tips
+- Quick actions in Sketch Pad for professional, friendly, concise, or refined rewrites
+
+These features are off by default. Grammar checking, spell checking, custom dictionaries, language detection, and readability scoring do not require Apple Intelligence.
 
 ## Requirements
 
-- macOS 26 (Tahoe) or later
-- Any Mac that supports macOS 26 (Intel or Apple Silicon)
+- macOS 14 Sonoma or later
+- An Intel or Apple Silicon Mac
+- Accessibility permission, so TextWarden can read and update text in other apps
 
-> **Note for Intel Mac users**: TextWarden runs on Intel Macs, but **AI-powered style suggestions are not available**. Apple Intelligence requires Apple Silicon (M1 or later) due to the Neural Engine hardware. Grammar and spelling checking work fully on Intel Macs.
+Apple Intelligence features additionally require macOS 26, a supported Mac with an Apple M-series chip, and Apple Intelligence enabled in System Settings.
 
-## Getting Started
+## Install TextWarden
 
-1. Download the latest release from the [Releases page](https://github.com/philipschmid/textwarden/releases)
-   - The DMG is a **Universal binary** that works on both Intel and Apple Silicon Macs
-2. Move TextWarden to your Applications folder and open it
-3. Grant Accessibility permission when prompted (required to read text in other apps)
-4. **Recommended**: Disable built-in spell/grammar checking in apps you use with TextWarden to avoid confusion from overlapping underlines (e.g., in System Settings → Keyboard → Text Input, or within individual apps like Slack, Word, etc.)
-5. Start typing - TextWarden works automatically in the background
+1. Download the latest TextWarden installer (`.dmg`) from [GitHub Releases](https://github.com/PhilipSchmid/textwarden/releases/latest).
+2. Drag TextWarden into the Applications folder and open it.
+3. Grant Accessibility permission when macOS asks.
+4. Start typing in a supported app.
 
-For detailed explanations of all settings and how they affect your experience, see the **[Configuration Guide](CONFIGURATION.md)**.
+The download works on both Intel and Apple Silicon Macs. To avoid overlapping suggestions, turn off the other app's built-in spelling and grammar checker when you use TextWarden there.
 
-## Feature Details
+See the [Configuration Guide](CONFIGURATION.md) for every setting and the [Troubleshooting Guide](TROUBLESHOOTING.md) if the app, indicator, or underlines do not behave as expected.
 
-### Real-Time Grammar and Spelling
+## How It Works
 
-TextWarden continuously monitors your writing and highlights errors as you type. Corrections appear in a popover with one-click apply. Supported error categories include:
+After you grant permission, TextWarden reads the text field you are typing in and checks it locally with the bundled Harper grammar checker. Suggestions appear as underlines or in a small floating indicator beside the app.
 
-- Spelling mistakes and typos
-- Grammar errors (subject-verb agreement, tense, etc.)
-- Punctuation issues
-- Capitalization errors
-- Word choice and commonly confused words
-- Redundant phrases
+When Apple Intelligence features are enabled, TextWarden gives the current text or selection to Apple's on-device AI. TextWarden does not operate a grammar or AI server.
 
-You can enable or disable specific categories in Settings.
+## Supported Apps
 
-### AI-Powered Style Suggestions
+TextWarden is tuned for the apps below. Some apps give macOS less information about their text fields than others, so the exact experience varies.
 
-Beyond rule-based grammar checking, TextWarden offers intelligent style suggestions powered by Apple Intelligence running entirely on your Mac. This feature is disabled by default and can be enabled in Settings → Style.
+| Application | Grammar checking | Visual underlines |
+| --- | --- | --- |
+| Slack | Full | Full |
+| Claude | Full | Full |
+| ChatGPT | Full | Full |
+| Perplexity | Full | Full |
+| Safari | Full | Indicator only[^browsers] |
+| Chrome and Comet | Full | Indicator only[^browsers] |
+| Apple Mail | Full | Full |
+| Apple Notes | Full | Full |
+| Apple Messages | Full | Full |
+| Apple Calendar | Full | Full |
+| Apple Pages | Full | Full |
+| Apple Reminders | Full | Full |
+| TextEdit | Full | Full |
+| Notion | Full | Partial[^notion] |
+| Telegram | Full | Full |
+| WhatsApp | Full | Full |
+| Webex | Full | Full |
+| Microsoft Word | Full | Full |
+| Microsoft PowerPoint | Notes only[^powerpoint] | Notes only[^powerpoint] |
+| Microsoft Outlook | Full | Full |
+| Microsoft Teams | Full | Full |
+| Proton Mail | Full | Full |
+| Microsoft Excel | Not supported | Not available |
 
-When enabled, style checking runs automatically after grammar analysis with smart rate limiting. You can also trigger it manually:
+[^notion]: Notion does not make every text block available to macOS at once, so some errors appear in the indicator without an underline. See [Notion support notes](docs/applications/NOTION.md).
+[^powerpoint]: PowerPoint lets TextWarden read speaker notes, but not text boxes on slides. See [PowerPoint support notes](docs/applications/POWERPOINT.md).
+[^browsers]: Browser editors can be checked and corrected, but TextWarden currently disables visual underlines for the browser app category.
 
-- **Keyboard shortcut**: Press `Option+Control+S` (customizable) to run a style check on demand
-- **Indicator click**: Click or hover over the style section of the capsule indicator
+TextWarden recognizes Safari, Chrome, Firefox, Microsoft Edge, Opera, Arc, Brave, Vivaldi, and Comet. Website editors vary, especially editors with formatting controls. TextWarden pauses in unrecognized apps until you enable them in **Preferences → Applications**. The floating indicator can still show suggestions when an app does not provide the exact on-screen position of each word.
 
-When using the keyboard shortcut with text selected, only the selected portion is analyzed. Without a selection, the entire text field is analyzed.
+Terminal apps are paused by default because command output and source code produce poor grammar-checking results.
 
-Available writing styles: Default, Concise, Formal, Casual, and Business.
+## Privacy: Nothing You Write Leaves Your Mac
 
-### AI Compose
+TextWarden does not send your writing anywhere. It has no cloud grammar service, remote AI model, analytics, telemetry, advertising, or automatic crash reporting. Your text, AI prompts, corrections, custom vocabulary, settings, usage statistics, logs, and diagnostic reports stay on your Mac.
 
-AI Compose lets you generate text directly from natural language instructions. Click the pen icon on the indicator (when style checking is enabled) to open the compose panel.
+Grammar checks, language detection, and readability scores run inside TextWarden. Optional AI features run on your Mac through Apple Intelligence. Nothing is uploaded for processing.
 
-Use cases:
-- Draft emails, messages, or responses
-- Expand bullet points into full paragraphs
-- Rewrite or rephrase selected text
-- Generate placeholder content
+If you enable update checks, TextWarden downloads release information from GitHub. The update check does not upload your writing, prompts, usage data, logs, or diagnostics.
 
-Enter your instruction (e.g., "Write a polite decline for a meeting invitation"), choose a writing style, and press Enter. The generated text can be inserted directly or copied to clipboard. Use "Retry" to get alternative versions.
-
-Like style suggestions, AI Compose runs entirely on-device using Apple Intelligence - your instructions and generated text never leave your Mac.
-
-### Sketch Pad
-
-Sketch Pad is TextWarden's built-in writing environment - a dedicated space where you can write, edit, and refine text with full access to all AI features. Open it from the menu bar icon or use the keyboard shortcut.
-
-**Why use Sketch Pad?**
-
-- **Full AI integration** - Grammar checking, style suggestions, readability analysis, and AI-powered quick actions (Professional, Friendly, Concise, Refine) all in one place
-- **Works with any text** - Draft content for any application, then copy it where you need it
-- **Universal solution** - Perfect for applications that TextWarden doesn't yet support or where accessibility integration is limited
-- **Distraction-free** - A clean, focused writing space with real-time feedback
-
-Sketch Pad gives you all of TextWarden's capabilities in a standalone window, making it ideal when you need to compose longer content or work with applications that don't fully support macOS Accessibility APIs.
-
-### Multilingual Support
-
-TextWarden uses document-level and sentence-level language detection to avoid false positives when you write in other languages. If more than 60% of a document is detected as German, Spanish, or another non-English language, all grammar checking is skipped for that document. For mixed-language documents, each sentence is analyzed independently - foreign-language sentences have their errors suppressed while English sentences are still checked. This handles both fully foreign documents and emails that include phrases like "Freundliche Grüsse" or "Merci beaucoup".
-
-Supported languages for detection: Spanish, French, German, Italian, Portuguese, Dutch, Russian, Chinese, Japanese, Korean, Arabic, Hindi, Turkish, Swedish, and Vietnamese.
-
-### App and Website Controls
-
-Control exactly where TextWarden runs:
-
-- Enable or disable checking for specific applications
-- Pause checking temporarily (1 hour, 24 hours, or indefinitely)
-- Disable checking for specific websites when using browsers
-
-### Additional Features
-
-- **Custom dictionary** - Add technical terms, proper nouns, or specialized vocabulary
-- **Dialect support** - American, British, Canadian, Australian, or Indian English spelling rules
-- **Internet abbreviations** - Recognizes "btw", "afaik", "imo" without flagging them
-- **IT terminology** - Built-in dictionary of 10,000+ technical terms and company names
-- **Brand names** - 2,400+ company/brand names (Fortune 500, Forbes 2000, global brands)
-- **Person names** - 100,000+ international first names (US SSA + worldwide sources)
-- **Surnames** - 150,000+ last names from US Census data
-- **Usage statistics** - Track errors found and corrections applied (stored locally)
-- **Keyboard shortcuts** - Customizable shortcuts for common actions
-- **Menu bar integration** - Quick access to pause, resume, and settings
-- **Launch at login** - Optionally start TextWarden when you log in
-
-### Automatic Updates
-
-TextWarden can automatically check for updates and notify you when a new version is available. Enable automatic update checks in Settings → Advanced.
-
-To receive early access to new features, enable the **experimental channel** in Settings. This includes alpha, beta, and release candidate versions.
+Logs can contain parts of your writing, especially with Debug or Trace logging enabled, but they remain on your Mac. TextWarden only creates a diagnostic ZIP when you ask it to, and it never uploads that file for you. Review the file yourself before choosing to share it.
 
 ## Known Limitations
 
-TextWarden is a privacy-focused, local-first tool with certain trade-offs:
+- Grammar checking is English-only. Language detection suppresses checks for selected non-English languages; it does not proofread those languages.
+- Some custom text editors do not give macOS enough information for accurate underlines or safe corrections.
+- A correction can remove formatting in apps that only let TextWarden replace the entire text field.
+- Apple Intelligence style and composition features are unavailable on Intel Macs and on macOS releases before 26.
+- TextWarden is a macOS app. There are no Windows, Linux, iOS, or Android versions.
 
-- **macOS only** - Available for Intel and Apple Silicon Macs running macOS 26+. There are no plans to support Windows or Linux - approximately 98% of TextWarden's development effort goes into macOS-specific integration: precise cursor positioning via the Accessibility API, pixel-perfect error underline placement, seamless text replacement that preserves formatting, and per-application behavior tuning. These deep OS integrations don't translate to other platforms.
-- **Style suggestions require Apple Silicon** - AI-powered style suggestions use Apple Intelligence, which requires the Neural Engine in M1 chips or later. Intel Macs can use all grammar and spelling features but won't have access to style suggestions.
-- **English only** - Grammar checking limited to English (Harper's current language support)
-- **Accessibility API constraints** - Some apps with custom text rendering may not work correctly
-- **Text formatting** - When applying corrections in some apps, formatting (bold, italic) may not be preserved
-- **Visual underlines** - Not all applications support visual error underlines; see [Tested Applications](#tested-applications) for details and the [Troubleshooting Guide](TROUBLESHOOTING.md#visual-underlines-appear-misaligned) for help
+## Project Documentation
 
-### Looking for More?
-
-If you need cross-platform support (Windows, Linux, iOS, Android), grammar checking in languages other than English, consider:
-
-- **[Grammarly](https://www.grammarly.com)** - Excellent product with broad application support and a refined user experience developed over many years
-- **[LanguageTool](https://languagetool.org/)** - "Open-source" grammar checker with support for 30+ languages, available as browser extensions and desktop apps
-
-TextWarden focuses specifically on privacy, local processing, and full transparency as an open-source project - which comes with the trade-offs mentioned above.
-
-## Privacy
-
-TextWarden never sends your text anywhere. All grammar checking and style analysis happens on-device using Harper (grammar) and Apple Intelligence (style suggestions). Block TextWarden in your firewall and it works exactly the same (except for automatic update checks).
-
-## AI Declaration
-
-The majority of TextWarden's code was generated using Anthropic's Claude, with human oversight, review, and testing throughout the development process.
-
-The TextWarden logo was created with [Recraft](https://www.recraft.ai/) - an amazing AI image generation tool with background removal, image vectorization, and more. Highly recommended for creating app icons and design assets.
+- [Configuration](CONFIGURATION.md)
+- [Troubleshooting](TROUBLESHOOTING.md)
+- [Building from source](BUILD.md)
+- [Contributing](CONTRIBUTING.md)
+- [Architecture](ARCHITECTURE.md)
+- [Apple Foundation Models integration](docs/FOUNDATION_MODELS.md)
+- [Application-specific notes](docs/applications/README.md)
 
 ## Credits
 
-### Harper - The Grammar Engine
+TextWarden uses [Harper](https://github.com/Automattic/harper), an open-source English grammar checker written in Rust. It also depends on [swift-bridge](https://github.com/chinedufn/swift-bridge), [whichlang](https://github.com/quickwit-oss/whichlang), [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts), [LaunchAtLogin-Modern](https://github.com/sindresorhus/LaunchAtLogin-Modern), [Sparkle](https://sparkle-project.org), [swift-markdown](https://github.com/apple/swift-markdown), [STTextView](https://github.com/krzyzanowskim/STTextView), and [ConfettiSwiftUI](https://github.com/simibac/ConfettiSwiftUI).
 
-TextWarden is powered by [Harper](https://writewithharper.com/), an open-source grammar checker built in Rust by Automattic. Harper is what makes TextWarden fast and private - it runs entirely on your device without sending text to any server.
-
-If you need grammar checking **inside your browser** with full support for rich text editors, form fields, and web apps, check out [Harper's Chrome Extension](https://writewithharper.com/). Unlike TextWarden (which uses macOS Accessibility APIs from outside the browser), Harper's extension runs directly in the browser with full DOM and JavaScript access - this means better integration with complex web applications like Google Docs, Gmail compose, and other rich text editors.
-
-- **Harper Website**: [writewithharper.com](https://writewithharper.com/)
-- **Harper Source Code**: [github.com/Automattic/harper](https://github.com/Automattic/harper)
-
-### VoiceInk - Voice-to-Text
-
-I used [VoiceInk](https://tryvoiceink.com?atp=Ylsxyh&sub1=tw) extensively while developing TextWarden. It saved me countless hours by letting me dictate AI prompts, documentation, and commit messages instead of typing everything. Like TextWarden, it runs entirely locally on your Mac. *(Referral link - helps support TextWarden's development)*
-
-### Other Open Source Projects
-
-- [swift-bridge](https://github.com/chinedufn/swift-bridge) - Rust/Swift interoperability
-- [whichlang](https://github.com/quickwit-oss/whichlang) - Language detection
-- [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) - Global keyboard shortcuts for macOS
-- [LaunchAtLogin-Modern](https://github.com/sindresorhus/LaunchAtLogin-Modern) - Launch at login functionality
-- [ConfettiSwiftUI](https://github.com/simibac/ConfettiSwiftUI) - Confetti animations
+The codebase was developed with substantial AI assistance and human review. The TextWarden logo was created with [Recraft](https://www.recraft.ai/).
 
 ## Support the Project
 
-TextWarden is a side project built during evenings and weekends. If you find it useful, you can support its development:
+TextWarden is maintained as a side project. If it helps your writing, you can support its development:
 
-<a href="https://buymeacoffee.com/textwarden"><img src="Assets/bmc-button-black.png" alt="Buy Me a Coffee" height="40"></a>
+<a href="https://buymeacoffee.com/textwarden"><img src="Assets/bmc-button-black.png" alt="Support TextWarden on Buy Me a Coffee" height="40"></a>
 
-**Tip:** If you have an open issue or feature request, include the GitHub link in your message - supporters' requests get prioritized!
-
-## Troubleshooting
-
-See the [Troubleshooting Guide](TROUBLESHOOTING.md) for help with common problems and how to collect diagnostic information.
-
-### Tested Applications
-
-TextWarden uses the macOS Accessibility API and works with most applications. Visual underlines (showing errors directly in the text) have been specifically tested and calibrated for:
-
-| Application | Grammar Checking | Visual Underlines |
-|-------------|-----------------|-------------------|
-| **Slack** | Full | Full |
-| **Claude** | Full | Full |
-| **ChatGPT** | Full | Full |
-| **Perplexity** | Full | Full |
-| **Safari** | Full | Full |
-| **Chrome, Comet** | Full | Full |
-| **Apple Mail** | Full | Full |
-| **Apple Notes** | Full | Full |
-| **Apple Messages** | Full | Full |
-| **Apple Calendar** | Full | Full |
-| **Apple Pages** | Full | Full |
-| **Apple Reminders** | Full | Full |
-| **TextEdit** | Full | Full |
-| **Notion** | Full | Partial** |
-| **Telegram** | Full | Full |
-| **WhatsApp** | Full | Full |
-| **Webex** | Full | Full |
-| **Microsoft Word** | Full | Full |
-| **Microsoft PowerPoint** | Notes only* | Notes only* |
-| **Microsoft Outlook** | Full | Full |
-| **Microsoft Excel** | Not supported | N/A |
-| **Microsoft Teams** | Full | Full |
-| **Proton Mail** | Full | Full |
-
-*\*PowerPoint exposes only the Notes section via the macOS Accessibility API. Slide text boxes are not accessible programmatically (Microsoft limitation), so grammar checking and visual underlines are limited to speaker notes. See [PowerPoint documentation](docs/applications/POWERPOINT.md) for details.*
-
-*\*\*Notion: Underlines appear for ~50% of text blocks. Due to Notion's React/Electron virtualization, some blocks aren't exposed in the accessibility tree. Errors in virtualized blocks show in the indicator count but without underlines. Shift+Enter (soft breaks) work; Enter (new blocks) may not. See [Notion documentation](docs/applications/NOTION.md) for details.*
-
-> [!NOTE]
-> Terminal apps are not supported as their accessibility APIs typically don't expose text content in a way that's useful for grammar checking.
-
-**Other applications**: TextWarden works with most apps that support standard text editing. Grammar checking and the floating error indicator work broadly; visual underlines may vary. [Request support](https://github.com/philipschmid/textwarden/discussions) for additional apps.
-
-### Support
-
-- **Bug reports**: [Open an issue](https://github.com/philipschmid/textwarden/issues/new/choose) with diagnostic information
-- **Feature requests**: Use [GitHub Discussions](https://github.com/philipschmid/textwarden/discussions)
-- **Questions**: Check existing discussions or start a new one
-
-If best-effort community support isn't sufficient for you and you need more advanced support, contact [sales@textwarden.io](mailto:sales@textwarden.io).
+- [Report a bug](https://github.com/PhilipSchmid/textwarden/issues/new/choose)
+- [Request a feature or ask a question](https://github.com/PhilipSchmid/textwarden/discussions)
 
 ## License
 
-Apache License 2.0
+TextWarden is available under the [Apache License 2.0](LICENSE).

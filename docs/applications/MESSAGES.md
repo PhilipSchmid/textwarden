@@ -1,143 +1,48 @@
-# Apple Messages Integration
+# TextWarden for Apple Messages on macOS
 
-This document describes how TextWarden handles Apple Messages, a Mac Catalyst application.
+TextWarden adds local grammar checking and writing assistance to the Apple Messages compose field. Messages is a Mac Catalyst app, so TextWarden combines several positioning methods with extra checks for conversation changes and sent messages.
 
-## Overview
+## Support summary
 
-Apple Messages (`com.apple.MobileSMS`) is a Mac Catalyst app - an iOS app running on macOS via Apple's Catalyst framework. This affects how accessibility APIs behave compared to native macOS apps.
-
-TextWarden provides:
-1. Visual underlines for grammar errors
-2. Text replacement via browser-style selection + paste
-3. Conversation switch detection with automatic re-analysis
-
-## Technical Details
-
-### App Type
-
-| Property | Value |
-|----------|-------|
+| Item | Current behavior |
+|------|------------------|
+| Application | Apple Messages |
 | Bundle ID | `com.apple.MobileSMS` |
-| Category | Mac Catalyst |
-| Parser Type | Generic |
-| Text Replacement | Browser-style (selection + keyboard paste) |
-| Visual Underlines | Supported |
+| App type | Mac Catalyst |
+| Checked content | Focused message composer |
+| Visual underlines | Enabled |
+| Content parser | Generic |
+| Positioning | `TextMarker` → `RangeBounds` → `LineIndex` → `InsertionPoint` → `FontMetrics` |
+| Correction method | Accessibility selection with keyboard-based replacement |
 
-### Positioning Strategy
+## Catalyst handling
 
-Messages uses a strategy chain for positioning:
+Messages can report imperfect range geometry on wrapped text, especially after emoji or other multi-codepoint characters. TextWarden starts with text-marker and direct range queries, then falls back to line, insertion-point, and font-metric calculations.
 
-1. **TextMarker** (primary) - Apple's text marker API
-2. **RangeBounds** - `AXBoundsForRange` with UTF-16 adjustment for emojis
-3. **LineIndex** - Fallback for wrapped lines
-4. **InsertionPoint** - Cursor-based positioning
-5. **FontMetrics** - Text measurement as last resort
+The monitored compose frame is also used as a signal:
 
-**Known Quirk:** Catalyst apps return slightly inaccurate X coordinates on wrapped lines with multi-codepoint characters (emojis). Y coordinates are correct. `RangeBoundsStrategy` handles this with UTF-16 index adjustment.
+- A movement greater than 10 points is treated as a likely conversation switch. TextWarden clears old results and rechecks after 200 ms.
+- A height decrease greater than 5 points is treated as a likely sent message and clears the old errors.
+- A height increase greater than 5 points invalidates underline positions while the field grows.
 
-### Text Replacement
+A 500 ms validation timer compares the current compose text with the analyzed text because Catalyst notifications are not always sufficient on their own.
 
-Messages uses browser-style text replacement because Catalyst apps have incomplete AX text manipulation support - standard `AXSetValue` doesn't work reliably.
+## Corrections
 
-**Replacement Flow:**
-1. Select error text using AX selection APIs
-2. Copy suggestion to clipboard
-3. Paste via Cmd+V keyboard event
+Messages is configured for browser-style replacement rather than direct `AXValue` replacement. TextWarden selects the issue and uses keyboard input in the frontmost app. It validates current text and error positions before changing anything, then performs a full reanalysis.
 
-### Font Configuration
+The compose field is treated as plain text; there is no app-specific rich-text preservation path.
 
-```swift
-FontConfig(
-    defaultSize: 13,
-    fontFamily: "SF Pro",
-    spacingMultiplier: 1.0
-)
-horizontalPadding: 5
-```
+## Troubleshooting
 
-## Messenger Behavior
+- Pause after switching conversations. Results from the previous compose field are cleared before the new text is analyzed.
+- If a multiline underline looks slightly offset after emoji, the Catalyst API may have returned imperfect X coordinates. Editing the text or changing focus forces fresh positioning.
+- If a sent message leaves an indicator behind, focus the empty composer; periodic validation should clear stale results on its next pass.
 
-Messages shares behavioral patterns with other messenger apps (WhatsApp, Telegram) via `MessengerBehavior`:
+## Implementation
 
-### Conversation Switch Detection
-
-TextWarden detects conversation switches by monitoring the text input element's position:
-
-1. Element position changes significantly (>10px) → conversation was switched
-2. Hide all overlays and clear errors
-3. Wait for UI to settle (0.2s delay)
-4. Re-extract text and trigger fresh analysis
-
-### Message Sent Detection
-
-When a message is sent:
-
-1. Text field shrinks (height decreases >5px)
-2. TextWarden detects this and clears all errors
-3. Indicators and underlines are hidden
-
-### Text Validation Timer
-
-Mac Catalyst apps don't reliably send `kAXValueChangedNotification`. TextWarden uses a timer-based polling approach:
-
-- Poll interval: 500ms
-- Compares current text with last analyzed text
-- Triggers re-analysis or clears errors as needed
-
-## Behavior Configuration
-
-Messages uses the `MessagesBehavior` specification for overlay behavior:
-
-| Behavior | Value |
-|----------|-------|
-| Underline show delay | 0.1s |
-| Bounds validation | Require within screen |
-| Popover hover delay | 0.3s |
-| Popover auto-hide | 3.0s |
-| Hide on scroll | Yes |
-| Analysis debounce | 0.5s |
-| UTF-16 text indices | Yes |
-
-**Known Quirks:**
-- `requiresBrowserStyleReplacement` - Needs clipboard+paste
-- `requiresFullReanalysisAfterReplacement` - AX state changes after paste
-
-## Implementation Files
-
-- `Sources/AppConfiguration/AppRegistry.swift`: App configuration (line ~367)
-- `Sources/AppConfiguration/Behaviors/MessagesBehavior.swift`: Behavior specification
-- `Sources/AppConfiguration/MessengerBehavior.swift`: Shared messenger patterns
-- `Sources/App/AnalysisCoordinator+WindowTracking.swift`: Conversation switch and message sent detection
-
-## Debugging
-
-### Positioning Issues
-
-If underlines appear misaligned:
-
-```
-Messages uses strategy chain: textMarker → rangeBounds → lineIndex
-Check logs for strategy selection and coordinate conversion
-```
-
-### Conversation Switch
-
-Conversation switch detection logs:
-
-```
-Element monitoring: Element position changed by Xpx in Mac Catalyst app - triggering re-analysis (conversation switch)
-```
-
-### Message Sent
-
-Message sent detection logs:
-
-```
-Element monitoring: Text field shrunk by Xpx in Mac Catalyst app - clearing errors
-```
-
-## Known Limitations
-
-1. **Emoji positioning** - Multi-codepoint emojis may cause slight X-coordinate inaccuracy on wrapped lines
-2. **No format support** - Messages input is plain text only (no bold/italic)
-3. **Typing detection** - Text field height growing triggers position cache invalidation
+- `Sources/AppConfiguration/AppRegistry.swift`
+- `Sources/AppConfiguration/Behaviors/MessagesBehavior.swift`
+- `Sources/AppConfiguration/MessengerBehavior.swift`
+- `Sources/App/AnalysisCoordinator+WindowTracking.swift`
+- `Sources/App/AnalysisCoordinator+TextReplacement.swift`

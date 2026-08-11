@@ -1,136 +1,41 @@
-# ChatGPT Integration
+# TextWarden for ChatGPT on macOS
 
-This document describes how TextWarden handles ChatGPT, OpenAI's Electron-based desktop application.
+TextWarden adds local grammar checking and writing assistance to the ChatGPT macOS desktop app. It monitors the focused prompt editor, draws grammar underlines, and applies selected corrections through the macOS Accessibility API.
 
-## Overview
+## Support summary
 
-ChatGPT (`com.openai.chat`) is an Electron app that provides a native desktop experience for OpenAI's ChatGPT. TextWarden uses direct AX APIs for fast, accurate positioning.
-
-TextWarden provides:
-1. Visual underlines for grammar errors
-2. Text replacement via browser-style selection + paste
-3. Fast analysis with minimal debounce delay
-
-## Technical Details
-
-### App Type
-
-| Property | Value |
-|----------|-------|
+| Item | Current behavior |
+|------|------------------|
+| Application | ChatGPT for macOS |
 | Bundle ID | `com.openai.chat` |
-| Category | Electron |
-| Parser Type | Generic |
-| Text Replacement | Browser-style (selection + keyboard paste) |
-| Visual Underlines | Supported |
+| App type | Electron |
+| Checked content | Focused editable prompt text |
+| Visual underlines | Enabled |
+| Content parser | Generic |
+| Positioning | `RangeBounds` → `TextMarker` → `ElementTree` → `LineIndex` |
+| Correction method | Select the text, then paste with `Command-V` |
 
-### Positioning Strategy
+## How the integration works
 
-ChatGPT uses `AXBoundsForRange` as the primary positioning method:
+ChatGPT exposes usable `AXBoundsForRange` results on its editor, so TextWarden starts with direct range positioning. It converts grammar-engine offsets to the UTF-16 ranges expected by macOS accessibility APIs, then falls back through text-marker and child-tree strategies if the direct query fails.
 
-1. **RangeBounds** (primary) - Direct `AXBoundsForRange` queries for pixel-perfect positioning
-2. **TextMarker** - Fallback using Apple's text marker API
-3. **ElementTree** - Child element traversal
-4. **LineIndex** - Line-based calculation as last resort
+ChatGPT batches some accessibility notifications. TextWarden keeps keyboard-based typing detection enabled and performs a full reanalysis after a correction so old Electron offsets are not reused.
 
-**Why RangeBounds works:** Unlike some Electron apps, ChatGPT's accessibility implementation properly supports `AXBoundsForRange`, allowing direct position queries without cursor manipulation.
+The configuration does not require the separate cursor-positioning pause used by some Electron apps. The behavior profile still uses a 1-second analysis debounce to let the editor settle.
 
-### Text Replacement
+## Corrections
 
-ChatGPT uses browser-style text replacement:
+The prompt editor is treated as plain text. TextWarden selects the reported range, validates the selection when the accessibility API exposes it, places the correction on the clipboard, activates ChatGPT, and pastes. If selection cannot be trusted, the replacement stops instead of changing the wrong text.
 
-```swift
-textReplacementMethod: .browserStyle  // Selection + Cmd+V paste
-```
+## Troubleshooting
 
-**Replacement Flow:**
-1. Select error text using AX selection APIs
-2. Copy suggestion to clipboard
-3. Paste via Cmd+V keyboard event
+- Click inside the prompt editor before expecting an underline. TextWarden only monitors editable focused content.
+- If an underline disappears while scrolling, pause briefly. The behavior hides stale overlays during scrolling and recalculates them afterward.
+- If a correction reports that the text changed, wait for the new analysis. This is a safety check against replacing stale offsets.
 
-### Font Configuration
+## Implementation
 
-```swift
-FontConfig(
-    defaultSize: 16,
-    fontFamily: nil,  // System font
-    spacingMultiplier: 1.0
-)
-horizontalPadding: 12
-```
-
-## Performance Optimizations
-
-### Fast Debounce
-
-ChatGPT uses the default 50ms debounce (not the 1.0s Chromium debounce):
-
-```swift
-requiresTypingPause: false  // Uses rangeBounds, no cursor manipulation needed
-```
-
-This means underlines appear almost instantly after typing stops, unlike apps that require cursor-based positioning.
-
-### AX Notification Handling
-
-```swift
-delaysAXNotifications: true  // ChatGPT batches AX notifications
-```
-
-ChatGPT batches accessibility notifications, so TextWarden uses keyboard-based typing detection for more responsive updates.
-
-## Behavior Configuration
-
-ChatGPT uses the `ChatGPTBehavior` specification for overlay behavior:
-
-| Behavior | Value |
-|----------|-------|
-| Underline show delay | 0.1s |
-| Bounds validation | Require within screen |
-| Popover hover delay | 0.3s |
-| Popover auto-hide | 3.0s |
-| Hide on scroll | Yes |
-| Analysis debounce | 1.0s |
-| UTF-16 text indices | Yes |
-
-**Known Quirks:**
-- `chromiumEmojiWidthBug` - Emoji width calculation issues
-- `webBasedRendering` - Web-based text rendering
-- `batchedAXNotifications` - Notifications are batched
-- `requiresBrowserStyleReplacement` - Needs clipboard+paste
-- `requiresFullReanalysisAfterReplacement` - Fragile byte offsets
-
-## Implementation Files
-
-- `Sources/AppConfiguration/AppRegistry.swift`: App configuration (line ~173)
-- `Sources/AppConfiguration/Behaviors/ChatGPTBehavior.swift`: Behavior specification
-- `Sources/Positioning/Strategies/RangeBoundsStrategy.swift`: Primary positioning strategy
-
-## Debugging
-
-### Positioning Issues
-
-If underlines appear misaligned:
-
-```
-ChatGPT uses RangeBoundsStrategy (AXBoundsForRange)
-Check logs for strategy selection and bounds calculation
-```
-
-Typical log output:
-```
-PositionResolver: Trying rangeBounds for ChatGPT
-RangeBoundsStrategy: SUCCESS - bounds from AXBoundsForRange
-```
-
-### Text Replacement
-
-Browser-style replacement logs:
-```
-AnalysisCoordinator: Using browser-style text replacement
-```
-
-## Known Limitations
-
-1. **Plain text only** - ChatGPT input doesn't support rich text formatting
-2. **Delayed AX notifications** - Uses keyboard detection for typing awareness
-3. **Electron quirks** - Requires full re-analysis after replacement due to fragile byte offsets
+- `Sources/AppConfiguration/AppRegistry.swift`
+- `Sources/AppConfiguration/Behaviors/ChatGPTBehavior.swift`
+- `Sources/Positioning/Strategies/RangeBoundsStrategy.swift`
+- `Sources/App/AnalysisCoordinator+TextReplacement.swift`

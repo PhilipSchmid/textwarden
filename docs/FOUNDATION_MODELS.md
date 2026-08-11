@@ -1,422 +1,172 @@
 # Apple Foundation Models Integration
 
-This document describes how TextWarden uses Apple's [Foundation Models framework](https://developer.apple.com/documentation/FoundationModels) for AI-powered features.
+TextWarden uses Apple's [Foundation Models framework](https://developer.apple.com/documentation/FoundationModels) for optional, on-device writing assistance. Harper remains the grammar and spell-checking engine; Foundation Models handles style suggestions, composition, sentence simplification, and readability tips.
 
-## Overview
+## Availability
 
-The Foundation Models framework (macOS 26+) provides access to Apple's ~3B parameter on-device language model that powers Apple Intelligence. TextWarden uses this for:
+The app targets macOS 14, but Foundation Models code is compiled conditionally and guarded with `@available(macOS 26.0, *)`.
 
-1. **Style Analysis** - Analyzing text for style improvements
-2. **Style Regeneration** - Generating alternative suggestions
-3. **AI Compose** - Creating new text based on user instructions
-4. **Sentence Simplification** - Simplifying complex sentences for target audiences
+Users need:
 
-All processing happens **on-device** with complete privacy and no API costs.
+- macOS 26 or later
+- A Mac eligible for Apple Intelligence
+- Apple Intelligence enabled in **System Settings → Apple Intelligence & Siri**
+- The system language model downloaded and ready
 
-### Requirements
+`FoundationModelsEngine.checkAvailability()` maps `SystemLanguageModel.default.availability` to the app's `StyleEngineStatus`:
 
-- macOS 26 (Tahoe) or later
-- Apple Silicon Mac
-- Apple Intelligence enabled in System Settings → Apple Intelligence & Siri
+| TextWarden status | Foundation Models state | Meaning |
+| --- | --- | --- |
+| `available` | Model available | Requests can run |
+| `appleIntelligenceNotEnabled` | Apple Intelligence disabled | User must enable it in System Settings |
+| `deviceNotEligible` | Device not eligible | Hardware cannot use the system model |
+| `modelNotReady` | Model not ready | Model is downloading or preparing; retry later |
+| `unknown(String)` | Future or unknown state | Feature stays unavailable and shows the reason |
 
-### Availability States
+Every public operation checks availability before creating a session.
 
-The engine checks availability before every operation:
+## Implementation Files
 
-| Status | Description | User Action |
-|--------|-------------|-------------|
-| `available` | Ready to use | None |
-| `appleIntelligenceNotEnabled` | AI not enabled | Enable in System Settings |
-| `deviceNotEligible` | Requires Apple Silicon | Hardware limitation |
-| `modelNotReady` | Model downloading/preparing | Wait and retry |
+| File | Responsibility |
+| --- | --- |
+| `Sources/App/FoundationModelsEngine.swift` | Availability, sessions, prompts, generation options, and errors |
+| `Sources/App/StyleTypes+Generable.swift` | Guided-generation result types and conversion to app models |
+| `Sources/App/StyleInstructions.swift` | Shared and writing-style-specific instructions |
+| `Sources/App/AnalysisCoordinator+StyleChecking.swift` | Manual checks, caching, regeneration, and readability integration |
+| `Sources/App/AnalysisCoordinator+GrammarAnalysis.swift` | Automatic style-check scheduling and result handling |
+| `Sources/SketchPad/SketchPadViewModel.swift` | Sketch Pad analysis, quick actions, and readability tips |
 
-## Key Concepts
+## Session Model
 
-### @Generable Types (Guided Generation)
+TextWarden creates a fresh `LanguageModelSession` for each operation. Style analysis, composition, and readability tasks do not share conversation history.
 
-Foundation Models uses **guided generation** to ensure structured, predictable output. TextWarden defines `@Generable` structs with `@Guide` annotations:
+This keeps unrelated documents isolated and prevents prior prompts from consuming the next request's context window. `prewarm()` creates and prewarms a temporary session to reduce setup latency; it does not become a persistent chat session.
 
-```swift
-@Generable
-struct FMStyleSuggestion {
-    @Guide(description: "The exact phrase from the input text...")
-    let original: String
+## Guided Generation
 
-    @Guide(description: "The improved version of the phrase...")
-    let suggested: String
+Foundation Models returns typed `@Generable` values rather than unstructured JSON:
 
-    @Guide(description: "Brief explanation, max 10 words...")
-    let explanation: String
-}
-```
+| Type | Output |
+| --- | --- |
+| `FMStyleAnalysisResult` | Up to five `FMStyleSuggestion` values |
+| `FMTextGenerationResult` | Text ready to insert |
+| `FMSentenceSimplificationResult` | Zero or one simplified alternative in an array |
+| `FMReadabilityTipsResult` | A short list of readability tips |
 
-The model generates instances of these types, ensuring output always matches the expected structure.
+The style suggestion type contains the exact source phrase, its replacement, and a short explanation. Conversion to `StyleSuggestionModel` rejects output that is unchanged, too short, absent from the source, truncated around parenthetical punctuation, or spread across multiple list items. Overlapping suggestions are filtered before display.
 
-### Temperature Configuration
+Guided generation constrains the shape of a response. It does not make the response correct, so source matching and replacement validation remain required.
 
-Temperature controls randomness vs determinism. TextWarden uses **conservative values** because grammar/style tasks require accuracy over creativity:
+## Style Analysis
 
-| Preset | Temperature | Sampling | Use Case |
-|--------|-------------|----------|----------|
-| Consistent | 0.0 | Greedy | Deterministic, reproducible |
-| Balanced | 0.3 | Temperature | Default, slight variation |
-| Creative | 0.5 | Temperature | More variety (regeneration) |
+`analyzeStyle(_:style:temperaturePreset:customVocabulary:)` builds instructions from the selected `WritingStyle` and custom vocabulary. It asks for meaningful changes only and converts the typed result into validated `StyleSuggestionModel` values.
 
-Higher temperatures increase hallucination risk, so values are intentionally kept low.
+Supported writing styles are Default, Concise, Formal, Casual, and Business. In code, the user-facing Casual option maps to `WritingStyle.informal`.
 
-### LanguageModelSession
+### Sampling presets
 
-Each operation creates a **fresh** `LanguageModelSession` with task-specific instructions:
+| Preset | Generation option |
+| --- | --- |
+| Consistent | Greedy sampling |
+| Balanced | Temperature `0.3` |
+| Creative | Temperature `0.5` |
 
-```swift
-let session = LanguageModelSession(instructions: instructions)
-let response = try await session.respond(
-    to: prompt,
-    generating: FMStyleAnalysisResult.self,
-    options: GenerationOptions(temperature: 0.3)
-)
-```
+Manual style checks pass the selected preset. The automatic style path currently calls `analyzeStyle` without a preset argument, so it uses the default Balanced preset.
 
-### Session Architecture: Fresh Per Operation
+### Automatic checks
 
-TextWarden intentionally creates a **new session for each operation** rather than maintaining persistent sessions. This design choice is driven by several factors:
+Enabling AI Style Suggestions enables automatic checks. `AnalysisCoordinator` applies these guards before a request:
 
-**Why not persistent sessions?**
+- Three-second debounce after grammar analysis
+- At least 50 characters
+- At least 30 seconds since the last automatic style request
+- Text must differ from the last request
+- No manual or automatic style request already active
+- Apple Intelligence, the focused Accessibility element, and app context must still be available
+- Automatic checks stay suppressed after accepting or dismissing a style suggestion until the user edits again
 
-1. **Token budget constraints** - With only 4,096 tokens total, a persistent session would accumulate history quickly. After 2-3 operations, you'd need complex summarization logic or risk running out of context.
+The coordinator increments a generation counter and discards a result if newer style work has started.
 
-2. **Operations are isolated** - Style analysis of one text has no relevance to generating new text later. Mixing contexts could confuse the model or bias responses.
+### Manual checks and caching
 
-3. **Predictable behavior** - Fresh sessions ensure consistent, reproducible results. Users expect grammar/style tools to be stateless.
+`runManualStyleCheck()` checks selected text when a non-empty Accessibility selection exists; otherwise it checks the full field. The cache key combines the analyzed text hash, writing style, engine identifier, and selected temperature name. Entries expire after ten minutes and the cache is limited to 20 entries.
 
-4. **No context pollution** - Each operation gets the full token budget without interference from previous requests.
-
-**How retries work without session history:**
-
-Instead of relying on session memory to "remember" previous outputs, TextWarden uses:
-
-- **Seed-based variation**: Each retry gets a unique seed via `random(top: 40, seed: uniqueSeed)`, guaranteeing different sampling paths
-- **Explicit exclusion**: For style regeneration, previous suggestions are passed in the prompt: "Do NOT suggest: X"
-- **Higher temperature**: Retries use 0.8 temperature (vs 0.3 for first generation) to encourage variety
-
-This approach provides the benefits of "memory" (avoiding duplicates) without the token overhead of persistent sessions.
-
-## Feature 1: Style Analysis
-
-**Purpose:** Analyze text and suggest style improvements based on user's preferred writing style.
-
-**File:** `Sources/App/FoundationModelsEngine.swift` → `analyzeStyle()`
-
-### Configuration
-
-| Parameter | Value | Rationale |
-|-----------|-------|-----------|
-| Temperature | User-configurable preset | Balanced by default |
-| Max suggestions | 5 | Prevent overwhelming user |
-| Output type | `FMStyleAnalysisResult` | Array of suggestions |
-
-### System Instructions
-
-Built by `StyleInstructions.build()` in `Sources/App/StyleInstructions.swift`:
-
-```
-You are a professional writing style assistant.
-
-TASK: Analyze the provided text and suggest improvements for clarity,
-readability, and style.
-
-RULES:
-1. The "original" field MUST be an exact verbatim substring
-2. The "suggested" field MUST be DIFFERENT from "original"
-3. Preserve the original meaning
-4. Only suggest meaningful improvements
-5. Return empty list if text is already well-written
-...
-```
-
-### Style-Specific Instructions
-
-Additional instructions are appended based on writing style:
-
-| Style | Focus |
-|-------|-------|
-| **Formal** | Professional vocabulary, no contractions, objective tone |
-| **Informal** | Conversational, contractions preferred, shorter sentences |
-| **Business** | Clear, action-oriented, concise |
-| **Concise** | Remove unnecessary words, eliminate filler |
-| **Default** | Balanced clarity and natural flow |
-
-### Prompt Format
-
-```
-Analyze this text for style improvements:
-
-<user's text>
-```
-
-### Output Processing
-
-Results are validated and filtered:
-1. Reject identical original/suggested (hallucinations)
-2. Verify original text exists in input (exact substring)
-3. Reject multi-paragraph suggestions
-4. Filter overlapping suggestions
-
-## Feature 2: Style Regeneration
-
-**Purpose:** Generate an alternative suggestion when user wants a different option.
-
-**File:** `Sources/App/FoundationModelsEngine.swift` → `regenerateStyleSuggestion()`
-
-### Configuration
-
-| Parameter | Value | Rationale |
-|-----------|-------|-----------|
-| Temperature | 0.5 (moderate) | Encourage variety |
-| Exclusion | Previous suggestion | Avoid duplicates |
-
-### System Instructions
-
-Base style instructions plus exclusion:
-
-```
-<base style instructions>
-
-IMPORTANT: You must provide a DIFFERENT suggestion than this previous one:
-Previous suggestion: "<previous suggested text>"
-
-Provide an alternative way to improve the text. Be creative but accurate.
-```
-
-### Prompt Format
-
-```
-Provide an alternative style improvement for this text:
-
-<original text>
-```
-
-## Feature 3: AI Compose
-
-**Purpose:** Generate new text based on user instructions (e.g., "Write a greeting" or "Summarize this").
-
-**File:** `Sources/App/FoundationModelsEngine.swift` → `generateText()`
-
-### Configuration
-
-| Parameter | First Generation | Retry (with variationSeed) |
-|-----------|------------------|---------------------------|
-| Sampling | Default | `random(top: 40, seed: <unique>)` |
-| Temperature | 0.3 (low) | 0.8 (higher for variety) |
-| Context limit | 4,500 chars (~1,500 tokens) | 4,500 chars (~1,500 tokens) |
-| Output type | `FMTextGenerationResult` | `FMTextGenerationResult` |
-
-### Token Budget
-
-Apple Foundation Models has a **4,096 token context window** (input + output combined). At ~3-4 characters per token for English:
-
-| Component | Token Budget | Character Budget |
-|-----------|--------------|------------------|
-| System instructions | ~400 tokens | ~1,200 chars |
-| User instruction | ~100 tokens | ~300 chars |
-| **Context** | **~1,500 tokens** | **~4,500 chars** |
-| Output buffer | ~1,000+ tokens | ~3,000+ chars |
-
-Reference: [TN3193: Managing the on-device foundation model's context window](https://developer.apple.com/documentation/technotes/tn3193-managing-the-on-device-foundation-model-s-context-window)
-
-### Retry Mechanism
-
-When users click "Retry", the system generates different outputs by:
-1. Using **random top-k sampling** (`top: 40`) instead of default sampling
-2. Providing a **unique seed** (timestamp XOR counter) for each attempt
-3. Using **higher temperature** (0.8) to encourage creative alternatives
-
-This approach is based on Apple's [Foundation Models documentation](https://developer.apple.com/documentation/FoundationModels):
-> "You fix the number of available responses and provide a stable seed. As soon as seed changes, the response changes."
-
-### System Instructions
-
-```
-You are a text generation assistant. Your ONLY job is to follow the user's instruction exactly.
-
-Critical rules:
-- The user's instruction is ABSOLUTE - follow it precisely
-- If the user asks for "unrelated" or "random" text, generate completely NEW content
-- Do NOT copy, paraphrase, or base your output on any provided context unless explicitly asked
-- Context is ONLY provided as optional reference - ignore it unless the instruction refers to it
-- Output ONLY the generated text - no explanations, labels, or meta-commentary
-- Match the specified writing style
-```
-
-### Prompt Format
-
-```
-User instruction: <user's instruction>
-
-Writing style: <selected style>
-
-[Optional reference - nearby text for context only]:
-"""
-<limited context, max 4,500 chars>
-"""
-```
-
-### Context Handling
-
-Context is provided as **optional reference only**:
-
-| Context Source | Description | Included |
-|----------------|-------------|----------|
-| Selection | User-selected text | Yes (up to 4,500 chars) |
-| Cursor window | Text around cursor | Yes (up to 4,500 chars) |
-| Document start | Beginning of short docs | Yes (up to 4,500 chars) |
-| None | No context available | Omitted |
-
-**Important:** The user's instruction takes absolute priority over context. If user asks for "unrelated" content, the model should ignore context entirely.
-
-## Feature 4: Sentence Simplification
-
-**Purpose:** Simplify complex sentences to make them appropriate for a target audience's reading level.
-
-**File:** `Sources/App/FoundationModelsEngine.swift` → `simplifySentence()`
-
-### How It Works
-
-When readability analysis identifies sentences that are too complex for the selected target audience (based on Flesch score thresholds), users can hover over the violet dashed underlines to get AI-powered simplification suggestions.
-
-### Target Audiences
-
-| Audience | Min Flesch Score | Grade Level | Description |
-|----------|------------------|-------------|-------------|
-| Accessible | 65+ | ~8th grade | Everyone should understand |
-| General | 50+ | ~10th grade | Average adult reader |
-| Professional | 40+ | ~12th grade | Business readers |
-| Technical | 30+ | College | Specialized readers |
-| Academic | 20+ | Graduate | Academic/research |
-
-**Noise reduction:** Sentences must have ≥12 words and score 10+ points below the threshold to be flagged.
-
-### Configuration
-
-| Parameter | First Generation | Regeneration |
-|-----------|------------------|--------------|
-| Temperature | Low (0.3) | High (0.9) |
-| Output type | `FMSentenceSimplificationResult` | `FMSentenceSimplificationResult` |
-
-### System Instructions
-
-```
-You are a readability expert. Your task is to simplify sentences for a specific target audience.
-
-Target audience: <audience name> (<description>)
-Target reading level: <grade level>
-Writing style: <selected style>
-
-Simplification guidelines:
-- Break long sentences into shorter ones if needed
-- Replace complex words with simpler alternatives
-- Use active voice instead of passive voice
-- Remove unnecessary jargon and filler words
-- Preserve the core meaning exactly
-- Match the specified writing style
-- Do NOT add information that wasn't in the original
-```
+Cached results still pass sensitivity, overlap, and suggestion-history filters before display.
 
 ### Regeneration
 
-When a user clicks "Retry", the system:
-1. Passes the previous suggestion in the prompt with explicit exclusion instruction
-2. Uses higher temperature (0.9) to encourage variety
-3. Filters out alternatives identical to the previous suggestion
+`regenerateStyleSuggestion()` includes the previous suggestion in the new session's instructions, uses temperature `0.5`, and returns the first validated result whose replacement differs from the previous one.
 
-### Output Processing
+## AI Compose
 
-Results are filtered to remove:
-1. Empty alternatives
-2. Alternatives identical to the original sentence
-3. Alternatives identical to the previous suggestion (for regeneration)
+`generateText(instruction:context:style:variationSeed:)` gives the user instruction priority and can include selected or nearby text as optional reference.
 
-## @Generable Type Definitions
+Context is limited to 4,500 Swift characters. The source is recorded as one of:
 
-Located in `Sources/App/StyleTypes+Generable.swift`:
+- Selected text
+- A window around the cursor
+- The beginning of a short document
+- No context
 
-### FMStyleSuggestion
+The first request uses temperature `0.3`. Retry generates a new seed from the current time and retry counter, then uses random top-40 sampling with temperature `0.8`. The returned `FMTextGenerationResult.generatedText` is shown for insertion or copying.
 
-```swift
-@Generable
-struct FMStyleSuggestion {
-    @Guide(description: "The exact phrase from the input text that should be improved. Must be a verbatim substring.")
-    let original: String
+## Sentence Simplification
 
-    @Guide(description: "The improved version. MUST be different from original.")
-    let suggested: String
+`simplifySentence(_:targetAudience:writingStyle:previousSuggestion:)` asks for one simpler version that preserves meaning and matches the selected audience and writing style.
 
-    @Guide(description: "Brief explanation, maximum 10 words.")
-    let explanation: String
-}
-```
+- First request: temperature `0.3`
+- Retry: temperature `0.9`, with the rejected suggestion included as an exclusion
 
-### FMStyleAnalysisResult
+Empty output, the unchanged source sentence, and the rejected previous suggestion are filtered out. The coordinator currently generates simplifications for at most the first three complex sentences in one style-analysis pass.
 
-```swift
-@Generable
-struct FMStyleAnalysisResult {
-    @Guide(description: "List of suggestions. Return empty array if text is well-written. Maximum 5 suggestions.")
-    let suggestions: [FMStyleSuggestion]
-}
-```
+Sentence eligibility comes from `ReadabilityCalculator`: a sentence needs at least 12 words and must score more than 10 Flesch points below the selected audience threshold.
 
-### FMTextGenerationResult
+## Readability Tips
 
-```swift
-@Generable
-struct FMTextGenerationResult {
-    @Guide(description: "The generated text. Ready to insert directly. No explanations or meta-commentary.")
-    let generatedText: String
-}
-```
+`generateReadabilityTips(for:score:targetAudience:)` provides general advice about sentence length, word complexity, passive voice, and clarity.
 
-### FMSentenceSimplificationResult
+- Input needs at least five words.
+- Analysis context is truncated to the first 1,000 characters.
+- Generation uses temperature `0.3`.
+- Empty tips are removed.
+- The guided result asks for two or three tips shorter than 15 words and no quotation of user text.
 
-```swift
-@Generable
-struct FMSentenceSimplificationResult {
-    @Guide(description: "A single simplified version of the sentence in an array.")
-    let alternatives: [String]
-}
-```
+Sketch Pad caches tips and rate-limits regeneration so the system model is not called after every edit.
 
 ## Error Handling
 
 All operations throw `FoundationModelsError`:
 
-| Error | Cause | Recovery |
-|-------|-------|----------|
-| `notAvailable` | AI not ready/eligible | Check `status.canRetry` |
-| `generationFailed` | Model error | Retry or show error |
-| `analysisError` | Other failures | Show error to user |
+| Error | Meaning |
+| --- | --- |
+| `notAvailable(StyleEngineStatus)` | The system model cannot run in its current state |
+| `generationFailed(String)` | `LanguageModelSession.GenerationError` |
+| `analysisError(String)` | Another request or conversion failure |
 
-## Performance
+Callers log the failure and keep Harper grammar results available. Foundation Models failures do not disable local grammar checking.
 
-### Prewarming
+## Privacy and Logging
 
-Call `prewarm()` on app launch to reduce first-response latency:
+Requests go to Apple's on-device system model. TextWarden does not send them to a TextWarden service and does not require an API key.
 
-```swift
-Task {
-    await foundationModelsEngine.prewarm()
-}
-```
+Info-level Foundation Models logs use lengths, counts, timing, styles, status, and sampling metadata. Some Debug or Trace messages currently include generated alternatives, tips, or source fragments during validation. Users are warned that verbose logging may contain analyzed text, and diagnostic exports should be reviewed before sharing.
 
-### Typical Latency
+## Verification Checklist
 
-- Style analysis: 0.5-2.0s (depends on text length)
-- Regeneration: 0.5-1.5s
-- Text generation: 0.5-2.0s (depends on output length)
+When changing the integration:
+
+1. Test every availability state and confirm Harper still works when AI is unavailable.
+2. Test selected-text and full-field manual checks.
+3. Confirm stale automatic results are discarded after editing or changing focus.
+4. Test all sampling presets and regeneration paths.
+5. Verify custom vocabulary survives style analysis unchanged.
+6. Test emoji and composed Unicode characters in source ranges.
+7. Confirm replacement validation aborts when the field no longer contains the expected source.
+8. Run `make ci-check`.
 
 ## References
 
-- [Foundation Models Documentation](https://developer.apple.com/documentation/FoundationModels)
+- [Foundation Models documentation](https://developer.apple.com/documentation/FoundationModels)
+- [TN3193: Managing the on-device foundation model's context window](https://developer.apple.com/documentation/technotes/tn3193-managing-the-on-device-foundation-model-s-context-window)
 - [WWDC25: Meet the Foundation Models framework](https://developer.apple.com/videos/play/wwdc2025/286/)
 - [WWDC25: Deep dive into the Foundation Models framework](https://developer.apple.com/videos/play/wwdc2025/301/)
-- [Apple Machine Learning Research](https://machinelearning.apple.com/research/apple-foundation-models-2025-updates)

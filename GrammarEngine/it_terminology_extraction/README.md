@@ -1,173 +1,97 @@
 # IT Terminology Wordlist Extraction
 
-Comprehensive documentation for the IT terminology wordlist generation system used by the TextWarden grammar checker.
+This directory contains the source snapshots and scripts used to build TextWarden's dictionary of programming, cloud, DevOps, networking, cybersecurity, web, and Linux terminology. The Rust grammar engine embeds the generated wordlist at compile time.
 
-## Quick Start
+## Current Output
 
-Regenerate the wordlist from project root:
+`GrammarEngine/wordlists/it_terminology.txt` contains **10,041 sorted, unique entries**. Blank lines and comments are not counted.
+
+The checked-in source snapshots come from 12 collections:
+
+- IANA protocol and service registries
+- RFC 4949 security terminology
+- GitHub Linguist language names and aliases
+- CNCF Cloud Native Landscape project and product names
+- Stack Overflow survey technologies and tags
+- MDN Web Docs glossary terms
+- Linux system calls, BPF/eBPF terms, and filesystem names
+- NIST CSRC glossary terms and abbreviations
+
+See [IT_SOURCES.md](IT_SOURCES.md) for the recorded URLs, retrieval dates, licenses, and extraction notes.
+
+## Regenerate the Checked-In Wordlist
+
+Run the script from any working directory:
+
 ```bash
-make update-terminology
+LC_ALL=en_US.UTF-8 GrammarEngine/it_terminology_extraction/scripts/regenerate_wordlist.sh
 ```
 
-Or manually:
-```bash
-cd GrammarEngine/it_terminology_extraction/scripts
-./regenerate_wordlist.sh
-```
+The script rebuilds `GrammarEngine/wordlists/it_terminology.txt` from the committed files under `source/`. It does not download fresh upstream data. Refreshing a source snapshot is a separate, reviewed step.
 
-## Directory Structure
+The script relies on the host `sort` order. `LC_ALL=en_US.UTF-8` reproduces the checked-in byte order; another locale can produce the same 10,041 terms in a different order.
 
-```
+## Files
+
+```text
 it_terminology_extraction/
-├── source/              # Manually curated source files (✓ in git)
-│   ├── protocols.txt              # IANA protocol names
-│   ├── services.txt               # IANA service names
-│   ├── security_terms.txt         # RFC 4949 security glossary
-│   ├── linux_syscalls.txt         # Linux kernel syscalls (377)
-│   ├── linux_bpf.txt              # BPF/eBPF subsystem (173)
-│   ├── linux_filesystems.txt      # Linux filesystems (90)
-│   ├── nist_terms.txt             # NIST CSRC Glossary (6,391)
-│   ├── mdn_glossary.txt           # MDN web tech glossary
-│   ├── stackoverflow_survey.txt   # Stack Overflow developer survey
-│   ├── stackoverflow_tags.txt     # Stack Overflow top tags
-│   ├── cncf_technologies.txt      # CNCF Landscape projects
-│   └── languages.txt              # GitHub Linguist languages
-│
-├── scripts/             # Build scripts (✓ in git)
-│   ├── regenerate_wordlist.sh     # Main regeneration script
-│   └── split_hyphens.sh           # Intelligent hyphen splitter
-│
-├── downloads/           # Downloaded raw files (✗ not in git)
-│   └── ...              # Large source files, regenerated on demand
-│
-├── build/               # Build artifacts (✗ not in git)
-│   └── ...              # Temporary intermediate files
-│
-└── IT_SOURCES.md        # Detailed source documentation
+├── source/                              Checked-in normalized source snapshots
+│   ├── cncf_technologies.txt
+│   ├── languages.txt
+│   ├── linux_bpf.txt
+│   ├── linux_filesystems.txt
+│   ├── linux_syscalls.txt
+│   ├── mdn_glossary.txt
+│   ├── nist_terms.txt
+│   ├── protocols.txt
+│   ├── security_terms.txt
+│   ├── services.txt
+│   ├── stackoverflow_survey.txt
+│   ├── stackoverflow_tags.txt
+│   └── valid_hyphenated_compounds.txt
+├── scripts/
+│   ├── extract_hyphenated_compounds.py  Rebuild the preserved-compound allowlist
+│   ├── extract_nist_terms.py             Extract terms from a downloaded NIST JSON export
+│   ├── regenerate_wordlist.sh            Combine, filter, sort, and publish the wordlist
+│   └── split_hyphens.sh                  Split product-style names while preserving compounds
+├── build/                                Ignored intermediate output
+├── downloads/                            Ignored upstream downloads
+├── IT_SOURCES.md                         Provenance and methodology
+└── README.md
 ```
 
-## Output
+## Processing Rules
 
-Generated in `GrammarEngine/wordlists/` directory:
-- **it_terminology.txt** - 10,041 unique IT terms
+The regeneration script:
 
-## Current Statistics (v2.2)
+1. Splits unapproved hyphenated entries from the GitHub Linguist and CNCF snapshots.
+2. Preserves entries listed in `source/valid_hyphenated_compounds.txt`, currently 166 terms.
+3. Combines those results with the other 10 source snapshots.
+4. Keeps lowercase terms that match `[a-z0-9][a-z0-9_-]*` and are 2-40 characters long.
+5. Removes a small built-in list of common English function words.
+6. Sorts and deduplicates the final output.
 
-- **Total Sources**: 12 authoritative sources
-- **Final Unique Terms**: 10,041
+For example, `apache-kafka` becomes `apache` and `kafka`, while a recognized compound such as `server-side` stays intact.
 
-### Breakdown by Source
+## Reproducibility Boundary
 
-| Source | Terms | % of Final |
-|--------|-------|------------|
-| NIST CSRC Glossary | 6,174 | 61.5% |
-| CNCF Landscape (split) | 3,067 | 30.5% |
-| GitHub Linguist (split) | 1,564 | 15.6% |
-| IANA Services | 739 | 7.4% |
-| Linux System Calls | 377 | 3.8% |
-| Linux BPF/eBPF | 173 | 1.7% |
-| Others | ~500 | ~5% |
+The final 10,041-entry content is reproducible from the source snapshots committed to this repository. Use `LC_ALL=en_US.UTF-8` when byte-for-byte ordering matters. The upstream refresh process is only partly automated: NIST and compound extraction have dedicated Python scripts, while other snapshots use the commands and source notes recorded in [IT_SOURCES.md](IT_SOURCES.md).
 
-*Note: Percentages exceed 100% due to overlap before deduplication*
+When refreshing data:
 
-## Key Features
+1. Record the upstream URL, revision or retrieval date, license, and extraction command.
+2. Update the relevant file under `source/`.
+3. Regenerate the wordlist.
+4. Review the diff for accidental prose, malformed identifiers, and overly broad terms.
+5. Update the counts in both documentation files.
 
-### 1. Intelligent Hyphen Splitting
+## Licensing and Attribution
 
-Differentiates between:
-- **Vendor-product names** → Split: `apache-kafka` → `apache` + `kafka`
-- **Technical compounds** → Keep: `api-gateway`, `just-in-time`, `server-side`
+The source material uses several different terms, including CC0, MIT, Apache-2.0 or CC BY 4.0, CC BY-SA, IETF Trust terms, and Linux kernel licensing. Do not describe the combined output as uniformly MIT-licensed. Keep the attribution records in [IT_SOURCES.md](IT_SOURCES.md), and review upstream terms when importing a new snapshot.
 
-80+ valid hyphenated technical terms preserved in `scripts/split_hyphens.sh`.
+## History
 
-### 2. Comprehensive Coverage
-
-- **Programming**: Languages, frameworks, tools from GitHub Linguist + CNCF
-- **Networking**: IANA protocols and services
-- **Security**: RFC 4949 + NIST CSRC Glossary (cryptography, authentication, compliance)
-- **Linux Kernel**: Syscalls, BPF/eBPF, filesystems from official kernel sources
-- **Web Tech**: MDN Glossary
-- **Industry**: Stack Overflow survey data
-
-### 3. 100% Reproducible
-
-All extractions are programmatic with documented commands. No manual curation.
-
-## Processing Pipeline
-
-```
-source/*.txt → split_hyphens.sh → build/*_split.txt
-                                          ↓
-                                   combine & filter
-                                          ↓
-                          sort | dedupe | lowercase
-                                          ↓
-                              it_terminology.txt
-```
-
-**Filters applied:**
-1. Lowercase conversion
-2. Character validation: `[a-z0-9_-]` only
-3. Length: 2-40 characters
-4. Common English word removal (a, an, the, is, etc.)
-5. Deduplication
-
-## License Compliance
-
-All sources are from public domain or permissively licensed data:
-
-| Source | License |
-|--------|---------|
-| IANA (Protocols & Services) | Public Domain |
-| RFC 4949 | Public Domain |
-| NIST CSRC Glossary | Public Domain (US Gov) |
-| GitHub Linguist | MIT |
-| CNCF Landscape | CC-BY-4.0 |
-| Stack Overflow | ODbL / CC-BY-SA 4.0 |
-| MDN Glossary | CC-BY-SA 2.5 |
-| Linux Kernel | GPLv2 (data compilation) |
-
-**This compilation is licensed under MIT** with proper attribution.
-
-## Update Schedule
-
-- **IANA registries**: Quarterly
-- **Stack Overflow Survey**: Annual (May)
-- **GitHub Linguist**: Quarterly
-- **CNCF Landscape**: Semi-annual (June & December)
-- **Linux Kernel**: Quarterly (syscalls, BPF features)
-- **NIST CSRC**: Semi-annual
-- **RFC/MDN glossaries**: Semi-annual
-
-**Last Updated**: 2025-11-16
-**Next Scheduled Update**: 2026-02-16
-
-## Version History
-
-### v2.1 (2025-11-16)
-- Added 6,391 NIST cybersecurity/privacy terms
-- Total: 10,193 terms (up from 4,529)
-
-### v2.0 (2025-11-16)
-- Added 377 Linux syscalls, 173 BPF terms, 90 filesystems
-- Implemented intelligent hyphen splitting
-- Removed manual curation
-- Total: 4,529 terms (up from 3,915)
-
-### v1.0 (2025-11-15)
-- Initial release with 10 sources
-- 3,915 terms with manual curation
-
-## Contributing
-
-To suggest additions or corrections:
-
-1. Open an issue at: https://github.com/philipschmid/textwarden/issues
-2. Provide the term(s) with justification
-3. Reference a reliable source (IANA, RFC, official docs, etc.)
-4. Terms reviewed and added in next scheduled update
-
-## Detailed Documentation
-
-For complete extraction methodology, source URLs, and command-line examples, see:
-- **IT_SOURCES.md** (in this directory) - Full technical documentation
+- **v2.2 (2025-11-16):** Cleaned the NIST extraction, generated the hyphenated-compound allowlist, and produced the current 10,041-entry output.
+- **v2.1 (2025-11-16):** Added the first NIST CSRC glossary extraction, producing 10,193 entries.
+- **v2.0 (2025-11-16):** Added Linux kernel sources and hyphen splitting, producing 4,529 entries.
+- **v1.0 (2025-11-15):** Initial 3,915-entry compilation.

@@ -1,173 +1,84 @@
-# Names and Brands Wordlist Extraction
+# Names and Brands Wordlists
 
-Documentation for the person names, last names, and brand names wordlists used by the TextWarden grammar checker.
-
-## Overview
-
-This directory contains manually curated wordlists for person names and brand names. These wordlists help TextWarden recognize:
-- Common person names (first names/forenames) that might otherwise be flagged as spelling errors
-- Common surnames (last names) from US Census data
-- Brand and product names with their correct capitalization (e.g., iPhone, macOS, LinkedIn)
+TextWarden includes first names, surnames, and brand names in its local Harper dictionary. These lists reduce false spelling alerts for proper nouns. They do not enforce official capitalization: the Rust loader converts every entry to lowercase before passing it to Harper.
 
 ## Directory Structure
 
-```
+```text
 names_extraction/
-├── README.md            # This file
-└── SOURCES.md           # Detailed source attribution and methodology
+├── README.md            # Maintenance notes and current counts
+└── SOURCES.md           # Source attribution and collection history
 
-../wordlists/            # Final wordlists (in git)
-├── person_names.txt     # ~100,000 international person names (first names)
-├── last_names.txt       # ~151,000 surnames from US Census
-└── brand_names.txt      # ~2,400 brand/company names
+../wordlists/
+├── person_names.txt     # 100,761 international first names
+├── last_names.txt       # 151,671 surnames
+└── brand_names.txt      # 2,433 brand and company names
 ```
+
+The checked-in wordlists are the runtime inputs. This directory does not contain a regeneration script or the original downloaded datasets.
 
 ## Wordlists
 
-### Person Names (~100,000 terms)
+### Person Names
 
-Comprehensive first names (forenames) from US historical data and international sources.
+`person_names.txt` combines names from the [US Social Security Administration baby names data](https://www.ssa.gov/oact/babynames/) and the [Popular Names by Country Dataset](https://github.com/sigpwned/popular-names-by-country-dataset). The source record says the latter covers 106 countries.
 
-**Examples:** James, Maria, Muhammad, Aisha, Chen, Dmitri, Fatima, Hans, Kenji, Olga
+Examples include `James`, `Maria`, `Muhammad`, `Aisha`, and `Kenji`.
 
-**Sources:**
-- US Social Security Administration Baby Names (1880-present, all 100,364 names)
-  - GitHub: hackerb9/ssa-baby-names (Public Domain)
-  - Original: https://www.ssa.gov/oact/babynames/names.zip
-  - Contains every name given to 5+ babies in the US since 1880
-- Popular Names by Country Dataset (CC0 License)
-  - GitHub: sigpwned/popular-names-by-country-dataset
-  - ~1,400 forenames from 106 countries worldwide
+### Last Names
 
-**License:** Public Domain (SSA) + CC0 (International names)
+`last_names.txt` is based on US Census 2000 surname data published through [FiveThirtyEight's most-common-name dataset](https://github.com/fivethirtyeight/data/tree/master/most-common-name). The upstream description covers surnames recorded at least 100 times.
 
-### Last Names (~151,000 terms)
+The checked-in file contains 151,671 entries. Its header and the historical source notes say 151,670, so that one-entry difference should be reconciled before the next refresh.
 
-Comprehensive US surnames from Census Bureau data.
+### Brand Names
 
-**Examples:** Smith, Johnson, Williams, Brown, Jones, Garcia, Miller, Davis, Rodriguez, Martinez
+`brand_names.txt` combines company and product names recorded from the Fortune 500, Forbes Global 2000, Interbrand, Brand Finance, and company materials. It contains names such as `Apple`, `Microsoft`, `Coca-Cola`, and `Mercedes-Benz`.
 
-**Sources:**
-- US Census Bureau Surnames via FiveThirtyEight (Public Domain)
-  - GitHub: fivethirtyeight/data/tree/master/most-common-name
-  - Contains 151,670 surnames occurring 100+ times in US Census 2000
-  - Original source: US Census Bureau
+The file retains display casing for review, but runtime matching is case-insensitive. Trademark rights remain with their owners; inclusion is not an endorsement.
 
-**License:** Public Domain (US Government data)
+## Current Counts
 
-### Brand Names (~2,400 terms)
+Counts below exclude blank lines and comments. They were verified from the committed files on 2026-08-11.
 
-Comprehensive list of brand and company names from global rankings.
+| Wordlist | Entries | Case-insensitive unique entries |
+|---|---:|---:|
+| First names | 100,761 | 100,761 |
+| Last names | 151,671 | 151,671 |
+| Brand names | 2,433 | 2,433 |
+| **Total** | **254,865** | **254,865 within the three individual files** |
 
-**Examples:** Apple, Microsoft, Amazon, Walmart, Samsung, Toyota, Coca-Cola, Nike, Mercedes-Benz
+The total does not claim that the three categories have no terms in common.
 
-**Sources:**
-- Fortune 500 (https://github.com/cmusam/fortune500) - US largest corporations
-- Forbes Global 2000 (https://github.com/vincentarelbundock/Rdatasets) - World's largest public companies
-- Interbrand Best Global Brands (https://interbrand.com/best-global-brands/)
-- Brand Finance Global 500 (https://brandirectory.com/)
-- Official brand style guides (for special capitalization like iPhone, eBay)
+## Runtime Loading
 
-**License:** Public dataset compilations + Educational use
-
-## Current Statistics
-
-- **Total Wordlists**: 3
-- **Person Names**: ~100,761 unique first names
-- **Last Names**: ~151,670 unique surnames
-- **Brand Names**: ~2,433 terms
-- **Total Terms**: ~254,864 unique entries
-
-## Usage
-
-These wordlists are referenced by the TextWarden grammar engine via `include_str!()` in `src/slang_dict.rs`:
+[`GrammarEngine/src/slang_dict.rs`](../src/slang_dict.rs) embeds each file with `include_str!()` and calls `load_words_lowercase_only`. The loader skips blank lines and lines beginning with `#`, then stores each remaining entry in lowercase.
 
 ```rust
 WordlistCategory::PersonNames => {
     const PERSON_NAMES: &str = include_str!("../wordlists/person_names.txt");
     load_words_lowercase_only(PERSON_NAMES)
 }
-WordlistCategory::LastNames => {
-    const LAST_NAMES: &str = include_str!("../wordlists/last_names.txt");
-    load_words_lowercase_only(LAST_NAMES)
-}
-WordlistCategory::BrandNames => {
-    const BRAND_NAMES: &str = include_str!("../wordlists/brand_names.txt");
-    load_words_lowercase_only(BRAND_NAMES)
-}
 ```
 
-## Updating Wordlists
+The brand, first-name, and last-name categories can be enabled independently through the grammar engine configuration.
 
-### Manual Updates
+## Updating the Lists
 
-Since these are curated wordlists, they are manually updated:
+No automated update command is checked in. Treat a refresh as a source-data change:
 
-1. Edit the wordlist files directly:
-   - `../wordlists/person_names.txt`
-   - `../wordlists/last_names.txt`
-   - `../wordlists/brand_names.txt`
+1. Record the source URL, license or terms, access date, and extraction method in [SOURCES.md](SOURCES.md).
+2. Rebuild the relevant list from the recorded source data. Keep one entry per line; comments must begin with `#`.
+3. Remove blank entries and case-insensitive duplicates.
+4. Recount the committed file and update this README.
+5. Run the GrammarEngine tests before committing.
 
-2. Format: One term per line
-   ```
-   # Comments start with #
-   Name1
-   Name2
-   ```
-
-3. Harper's spell checker automatically matches all case variations when words are stored in lowercase
-
-### Adding New Sources
-
-When adding new sources:
-
-1. Update `SOURCES.md` with:
-   - Source name and URL
-   - License information
-   - Number of terms contributed
-   - Access date
-
-2. Add terms to appropriate wordlist file
-
-3. Remove duplicates (case-insensitive)
-
-4. Update statistics in this README
-
-## Methodology
-
-### Person Names (First Names)
-
-Names are included if they meet these criteria:
-
-1. Listed in SSA database (any name given to 5+ babies in US, 1880-present)
-2. Listed in popular names by country dataset (106 countries)
-3. Proper noun formatting (first letter capitalized)
-4. Case-insensitive deduplication applied
-
-### Last Names (Surnames)
-
-Surnames are included if they meet these criteria:
-
-1. Listed in US Census Bureau database (occurring 100+ times in Census 2000)
-2. Case-insensitive deduplication applied
-3. No filtering for cultural/regional origin - comprehensive coverage
-
-### Brand Names
-
-Brands are included if they meet these criteria:
-
-1. Listed in Interbrand Best Global Brands or Brand Finance Global 500
-2. Have notable special capitalization (not just "Company Name")
-3. Technology companies and consumer brands prioritized
-4. Official style guide capitalization used
+Do not add a source merely because it is publicly accessible. Confirm that its terms permit the intended use and redistribution.
 
 ## See Also
 
-- **SOURCES.md** - Detailed source attribution and methodology
-- **../wordlists/** - Generated wordlist output directory
-- **../slang_extraction/** - Slang and abbreviations wordlist system
-- **../it_terminology_extraction/** - IT terminology wordlist system
+- [Source attribution and collection notes](SOURCES.md)
+- [Slang and abbreviations](../slang_extraction/README.md)
+- [IT terminology](../it_terminology_extraction/README.md)
 
-## Last Updated
-
-2025-12-11
+Last source review: 2025-12-11. Counts verified: 2026-08-11.

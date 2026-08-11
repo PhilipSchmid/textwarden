@@ -1,187 +1,51 @@
-# Microsoft Word Integration
+# TextWarden for Microsoft Word on macOS
 
-This document describes how TextWarden handles Microsoft Word, the native macOS Office application.
+TextWarden adds local grammar checking and writing assistance to editable Microsoft Word documents. A dedicated parser keeps Word’s ribbon out of the analysis, while a dedicated strategy positions grammar underlines against document ranges.
 
-## Overview
+## Support summary
 
-Microsoft Word (`com.microsoft.Word`) is a native macOS application that uses Microsoft's Office framework (mso99). TextWarden provides full grammar checking and visual underlines using a dedicated positioning strategy.
-
-TextWarden provides:
-1. Visual underlines for grammar errors
-2. Text replacement via browser-style selection + paste
-3. Dedicated content parser for toolbar/ribbon filtering
-
-## Technical Details
-
-### App Type
-
-| Property | Value |
-|----------|-------|
+| Item | Current behavior |
+|------|------------------|
+| Application | Microsoft Word for macOS |
 | Bundle ID | `com.microsoft.Word` |
-| Category | Native |
-| Parser Type | Word (dedicated) |
-| Text Replacement | Browser-style (selection + keyboard paste) |
-| Visual Underlines | Full support (Word 16.104+) |
+| App type | Native Microsoft Office app |
+| Checked content | Focused editable document text |
+| Visual underlines | Enabled |
+| Content parser | `WordContentParser` |
+| Positioning | Dedicated `WordStrategy` |
+| Correction method | Focus the editor, select the range, then paste with `Command-V` |
 
-### Positioning Strategy
+## Document detection and extraction
 
-Word uses the dedicated WordStrategy:
+`WordContentParser` accepts document text areas and text-bearing document containers. It rejects toolbar and ribbon controls, menu elements, popup buttons, and font selectors such as “Aptos (Body).” If focus lands on another Office element, the parser can search the window for the document text area.
 
-```swift
-preferredStrategies: [.word]
-```
+Document text is read from `AXValue`. The positioning strategy treats Word’s editor as a flat text element rather than depending on child text runs.
 
-**Why this approach:** Word's AXTextArea is a flat element containing all document text (no child elements unlike Outlook). The `AXBoundsForRange` API works reliably on Word 16.104+ for direct position queries. If the dedicated strategy fails, the PositionResolver automatically falls back to other strategies.
+## Underline positioning
 
-### AX Tree Structure
+`WordStrategy` converts grammar ranges to UTF-16, then queries the document element with `AXBoundsForRange`. For issues spanning multiple lines, it uses line-specific bounds and returns them to the overlay; otherwise it uses the single range result.
 
-Word's accessibility tree is straightforward:
+Invalid or unusually small geometry is rejected. Word uses a 300 ms analysis debounce and does not require a separate typing pause. Formatting interactions clear cached positions because they can change line wrapping.
 
-```
-AXApplication (Microsoft Word)
-└── AXWindow
-    └── AXSplitGroup
-        └── AXScrollArea
-            └── AXTextArea (document body)
-                └── AXValue: "Your document text..."
-                └── AXBoundsForRange(0, N) → ✅ WORKS!
-```
+The source notes that direct range positioning was tested with Word 16.104 and later. TextWarden does not enforce a minimum Word version at runtime, so older versions may work but are not guaranteed by the current implementation.
 
-Key insight: Unlike Outlook (which has AXStaticText children), Word exposes all text in a single AXTextArea element. All standard AX APIs work directly on this element.
+## Corrections and formatting
 
-### Text Replacement
+Direct `AXValue` replacement is not considered reliable in Word. TextWarden focuses the document element, selects the issue, verifies the clipboard content, activates Word, and pastes with `Command-V`. The previous clipboard string is restored when available.
 
-Word uses browser-style text replacement:
+This path is designed to let Word inherit surrounding formatting. Complex document formatting is still controlled by Word, so preservation is not guaranteed for every structure.
 
-```swift
-textReplacementMethod: .browserStyle  // Selection + Cmd+V paste
-```
+## Troubleshooting
 
-**Why browser-style:** Standard AX `setValue` doesn't work reliably for Word. The clipboard-based approach preserves formatting.
+- Click inside the document body. Ribbon controls and font fields are filtered deliberately.
+- If the document is open but no text is monitored, move focus into the body so TextWarden can find the document text element.
+- If an older Word build returns bad bounds, the indicator may show an issue without a usable underline.
+- After editing around an existing issue, wait for fresh analysis before applying its correction. The Office path searches the live document for the analyzed text before falling back to the recorded range.
 
-**Replacement Flow:**
-1. Select error text using AX selection APIs
-2. Copy suggestion to clipboard
-3. Paste via Cmd+V keyboard event
-4. Original formatting is preserved
+## Implementation
 
-### Content Parser
-
-Word has a dedicated `WordContentParser` that handles:
-
-- **Toolbar/Ribbon Filtering** - Excludes toolbar controls from monitoring
-- **Font Selector Filtering** - Filters "Aptos (Body)" and similar dropdown values
-- **Document Element Detection** - Validates AXTextArea is the document, not UI
-
-```swift
-parserType: .word
-```
-
-**Filtered UI Elements:**
-- Toolbar and ribbon controls
-- Font selector dropdowns
-- Menu items and popups
-- Elements with toolbar ancestors (up to 10 levels deep)
-
-### Font Configuration
-
-```swift
-FontConfig(
-    defaultSize: 12,
-    fontFamily: nil,  // System font
-    spacingMultiplier: 1.0
-)
-horizontalPadding: 4
-```
-
-## Timing Behavior
-
-### Typing Pause
-
-Word does not require a typing pause:
-
-```swift
-requiresTypingPause: false  // AX APIs are fast enough for real-time
-```
-
-### AX Notifications
-
-```swift
-delaysAXNotifications: false  // Word sends AX notifications promptly
-```
-
-Word's accessibility implementation is responsive and reliable.
-
-## Behavior Configuration
-
-Word uses the `WordBehavior` specification for overlay behavior:
-
-| Behavior | Value |
-|----------|-------|
-| Underline show delay | 0.1s |
-| Bounds validation | Require positive origin |
-| Popover hover delay | 0.3s |
-| Popover auto-hide | 3.0s |
-| Hide on scroll | Yes |
-| Analysis debounce | 0.3s |
-| UTF-16 text indices | No |
-
-**Known Quirks:**
-- `requiresBrowserStyleReplacement` - Needs clipboard+paste
-- `requiresFocusPasteReplacement` - Focus-based paste method
-- `hasCustomElementFinder` - Custom element detection
-
-## Implementation Files
-
-- `Sources/AppConfiguration/AppRegistry.swift`: App configuration (Word section)
-- `Sources/AppConfiguration/Behaviors/WordBehavior.swift`: Behavior specification
-- `Sources/ContentParsers/WordContentParser.swift`: Toolbar/ribbon filtering
-- `Sources/Positioning/Strategies/WordStrategy.swift`: Direct AXBoundsForRange positioning
-
-## Debugging
-
-### Positioning Issues
-
-If underlines appear misaligned:
-
-```
-WordStrategy uses direct AXBoundsForRange on document AXTextArea
-Check logs for bounds queries and coordinate conversion
-```
-
-Typical log output:
-```
-WordStrategy: Calculating for range {5, 7} in text length 264
-WordStrategy: SUCCESS - bounds: (123.0, 456.0, 78.0, 20.0)
-```
-
-### Content Parser
-
-If errors appear in toolbar or font selector:
-
-```
-WordContentParser: Checking element - role: AXTextArea, subrole: ...
-WordContentParser: Rejecting - toolbar/ribbon element
-```
-
-## Known Limitations
-
-1. **Formatting preservation** - Text replacement uses clipboard paste which generally preserves formatting, but complex formatting may occasionally be affected
-2. **Large documents** - Very large documents may have slower AX API responses
-3. **Headers/Footers** - Currently monitors main document body; header/footer editing uses same strategy
-
-## Version Compatibility
-
-Visual underlines require Word 16.104 or later. Earlier versions may have AX API limitations.
-
-| Word Version | Grammar Checking | Visual Underlines |
-|--------------|-----------------|-------------------|
-| 16.104+ | Full | Full |
-| Earlier | Full | May vary |
-
-## Related Apps
-
-Word shares patterns with other Microsoft Office applications:
-- **Outlook** - OutlookStrategy with child element traversal (compose body has AXStaticText children)
-- **PowerPoint** - Limited to Notes section (slide text not accessible via AX API)
-- **Excel** - Not supported (spreadsheet cells have different AX structure)
+- `Sources/AppConfiguration/AppRegistry.swift`
+- `Sources/AppConfiguration/Behaviors/WordBehavior.swift`
+- `Sources/ContentParsers/WordContentParser.swift`
+- `Sources/Positioning/Strategies/WordStrategy.swift`
+- `Sources/App/AnalysisCoordinator+TextReplacement.swift`

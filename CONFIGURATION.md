@@ -1,606 +1,253 @@
 # TextWarden Configuration Guide
 
-This guide explains all the settings available in TextWarden and how they affect your experience. Access settings via the TextWarden menu bar icon → **Preferences**.
+Open **Preferences** from the TextWarden menu bar icon to change grammar checking, app support, appearance, Apple Intelligence features, and diagnostics.
 
-## Table of Contents
+## General
 
-- [Table of Contents](#table-of-contents)
-- [General Settings](#general-settings)
-- [Updates](#updates)
-- [Grammar \& Language](#grammar--language)
-- [Custom Vocabulary](#custom-vocabulary)
-- [Readability](#readability)
-- [AI Style Suggestions](#ai-style-suggestions)
-- [Sketch Pad](#sketch-pad)
-- [Appearance](#appearance)
-- [Application Controls](#application-controls)
-  - [Supported Applications](#supported-applications)
-  - [Other Applications](#other-applications)
-  - [Terminal Applications](#terminal-applications)
-- [Keyboard Shortcuts](#keyboard-shortcuts)
-- [Advanced Settings](#advanced-settings)
-- [Troubleshooting Tips](#troubleshooting-tips)
-- [Getting Help](#getting-help)
+### Grammar checking state
 
----
+The global **Grammar checking** menu has four states:
 
-## General Settings
+- **Active**
+- **Paused for 1 Hour**
+- **Paused for 24 Hours**
+- **Paused Until Resumed**
 
-### Launch at Login
+The same pause durations are available per app under **Preferences → Applications**.
 
-**What it does:** Automatically starts TextWarden when you log into your Mac.
+### Launch at login
 
-**Recommendation:** Enable this for always-on grammar checking without having to remember to launch the app.
+Enable **Launch at Login** to start TextWarden when you sign in to your Mac. This uses the standard macOS login-item mechanism.
 
----
+### Accessibility permission
+
+TextWarden needs Accessibility permission to read editable text, position overlays, and apply corrections in other apps. Grant it under **System Settings → Privacy & Security → Accessibility**. TextWarden does not need this permission to edit text inside its own Sketch Pad.
 
 ## Updates
 
-TextWarden uses [Sparkle](https://sparkle-project.org) for secure, automatic updates. Update settings are found in **Preferences → About**.
+Update controls live under **Preferences → About**. TextWarden uses [Sparkle](https://sparkle-project.org/) with an HTTPS appcast, EdDSA update signatures, Apple code signing, and notarized release builds.
 
-### How Updates Work
+- **Automatically check for updates on launch:** Enables Sparkle's scheduled checks. When enabled, the interval is 24 hours.
+- **Include experimental releases:** Adds the `experimental` channel, which carries alpha, beta, and release-candidate builds as well as stable releases.
+- **Check for Updates:** Runs a manual check immediately.
 
-When you check for updates (manually or automatically), TextWarden:
-1. Securely connects to the update server over HTTPS
-2. Downloads an update feed signed with EdDSA cryptographic signatures
-3. Compares your version against available releases
-4. If a newer version is available, shows a dialog with release notes and options to update now or skip
+Onboarding asks whether to enable automatic checks and saves that choice. Update checks do not send the text you write.
 
-All updates are code-signed by the developer and notarized by Apple, ensuring they haven't been tampered with.
+## Grammar and Spell Checking
 
-### Automatically Check for Updates
+### English dialect
 
-**What it does:** When enabled, TextWarden checks for updates once every 24 hours in the background. If an update is found, you'll see a notification.
+Choose American, British, Canadian, Australian, or Indian English. The dialect changes Harper's spelling and grammar rules.
 
-**Default:** Disabled (opt-in for privacy)
+### Grammar categories
 
-**Recommendation:** Enable this to stay up to date with bug fixes and new features without having to remember to check manually.
+Under **Preferences → Grammar**, you can enable or disable Harper categories individually. They cover spelling, typos, grammar and agreement, punctuation, capitalization, repetition, word choice, usage, regional forms, formatting, and style-related rules.
 
-### Include Experimental Releases
+All categories are enabled by default. The punctuation category also exposes four rule switches:
 
-**What it does:** Opts you into the experimental update channel, which includes pre-release versions (alpha and beta builds) in addition to stable releases.
+- Oxford comma
+- Ellipsis formatting
+- Unclosed quotes
+- Dash usage
 
-**What you'll get:**
-- **Stable channel (default):** Only production releases (e.g., 1.0.0, 1.1.0)
-- **Experimental channel:** Pre-release versions (e.g., 0.1.0-alpha.3, 1.1.0-beta.1) plus stable releases
+### Custom vocabulary
 
-**When to enable:**
-- You want to try new features before they're officially released
-- You're willing to report bugs and provide feedback
-- You understand that experimental releases may have rough edges
+Add project terms, product names, or proper nouns to the custom dictionary so they are no longer flagged. You can also add a flagged term from its suggestion popover.
 
-**When to keep disabled:**
-- You prefer stability over new features
-- You rely on TextWarden for critical work
+The Grammar tab includes optional predefined word lists. They are enabled by default:
 
-**Note:** Experimental releases go through the same code signing and notarization process as stable releases—they're not less secure, just less tested.
+| Word list | Included terms |
+| --- | --- |
+| Internet Abbreviations | More than 3,200 common abbreviations |
+| Gen Z Slang | More than 270 modern terms |
+| IT & Tech Terminology | More than 10,000 technical terms |
+| Brand & Company Names | More than 2,400 names |
+| Person Names | More than 100,000 international first names |
+| Surnames | More than 150,000 US Census surnames |
 
-### Manual Update Check
+Matching is case-insensitive. You can also enable **Import macOS learned words**, which asks `NSSpellChecker` about words learned through the system **Learn Spelling** command. TextWarden's own custom words remain separate from the macOS dictionary.
 
-Click **Check for Updates** in the About section to immediately check for available updates. This shows the update dialog if a newer version is available, or confirms you're up to date.
+### Language detection
 
----
+Language detection is off by default. When enabled, select the languages TextWarden should ignore:
 
-## Grammar & Language
+Arabic, Dutch, French, German, Hindi, Italian, Japanese, Korean, Mandarin, Portuguese, Russian, Spanish, Swedish, Turkish, and Vietnamese.
 
-### English Dialect
+TextWarden first checks whether more than 60% of a document's detected sentences use one of the selected languages. If so, it skips the full document. Otherwise it suppresses Harper errors within individual sentences detected as one of those languages. English sentences in a mixed-language document are still checked.
 
-**What it does:** Determines spelling and grammar rules. For example, "colour" vs "color", "analyse" vs "analyze".
-
-**Options:**
-- American English
-- British English
-- Canadian English
-- Australian English
-- Indian English
-
-**Recommendation:** Choose the dialect matching your audience or workplace standards.
-
-### Language Detection
-
-**What it does:** When enabled, TextWarden detects non-English text and skips grammar checking. If more than 60% of a document is in an excluded language, all checking is skipped for that document. For mixed-language documents, each sentence is analyzed and foreign-language sentences are skipped while English sentences are still checked.
-
-**Excluded Languages:** Specify which languages to ignore (e.g., German, French, Spanish). Documents primarily written in these languages will be skipped entirely.
-
-**Recommendation:** Enable if you write in multiple languages. This prevents false positives on foreign text while still checking your English writing.
-
-### Grammar Categories
-
-**What it does:** Choose which types of errors TextWarden flags.
-
-**Categories include:**
-- **Spelling** - Misspelled words
-- **Grammar** - Subject-verb agreement, tense consistency
-- **Punctuation** - Missing or incorrect punctuation (with sub-options, see below)
-- **Style** - Wordiness, passive voice, clichés
-- **Capitalization** - Proper nouns, sentence starts
-- **Repetition** - Repeated words like "the the"
-
-**Recommendation:** Enable all categories initially. Disable specific ones only if they generate too many unwanted suggestions for your writing style.
-
-### Punctuation Sub-options
-
-When the Punctuation category is enabled, additional fine-tuning options appear:
-
-- **Oxford Comma** - Flag lists missing the serial comma (e.g., "apples, bananas and oranges" → "apples, bananas, and oranges")
-- **Ellipsis Formatting** - Suggest proper ellipsis character (…) instead of three periods (...)
-- **Unclosed Quotes** - Flag quotation marks that are opened but never closed
-- **Dash Usage** - Check correct usage of em-dashes (—), en-dashes (–), and hyphens (-)
-
-All sub-options are enabled by default. Disable individual rules if they don't match your preferred writing style.
-
----
-
-## Custom Vocabulary
-
-### Your Words
-
-**What it does:** Words you add here will never be flagged as spelling errors. Useful for names, technical terms, brand names, and jargon specific to your field.
-
-**How to add words:**
-1. Click "Add Word" and type the term
-2. Or right-click any flagged word → "Add to Dictionary"
-
-### Built-in Word Lists
-
-TextWarden includes optional word lists you can enable:
-
-- **Internet Abbreviations** - Common online terms (lol, btw, imo, etc.)
-- **Gen Z Slang** - Modern slang terms (vibe, slay, bussin, etc.)
-- **IT Terminology** - Technical terms (kubernetes, nginx, oauth, etc.)
-- **Brand Names** - Company and product names (iPhone, LinkedIn, etc.)
-- **Person Names** - Common first and last names
-
-**Recommendation:** Enable the lists matching your typical writing context. Developers might enable IT Terminology; social media managers might enable Internet Abbreviations and Gen Z Slang.
-
-### macOS System Dictionary
-
-**What it does:** Respects words you've already taught to macOS via "Learn Spelling" in other apps (like Safari, Mail, or Pages). This avoids having to add the same words twice.
-
-**How it works:** TextWarden checks each flagged word against macOS's spell checker to see if you've previously learned it.
-
-**Note:** This is read-only. Words you add via TextWarden go into TextWarden's own Custom Dictionary (below), not the macOS system dictionary.
-
-**Default:** Enabled
-
-**Recommendation:** Keep enabled to automatically respect words you've already taught to macOS. Disable only if you want TextWarden to use a completely separate dictionary.
-
----
+This feature prevents false positives. It does not translate or proofread non-English text.
 
 ## Readability
 
-TextWarden analyzes text complexity using the Flesch Reading Ease formula. These settings are found in **Settings → Style** under the Readability section.
+Readability analysis is on by default and does not require Apple Intelligence. For text with at least 30 words, TextWarden calculates a Flesch Reading Ease score and checks sentence complexity against the selected audience.
 
-> **Note:** Readability features work independently of Apple Intelligence and are available on all supported macOS versions.
+### Target audience
 
-### Enable Readability Analysis
+| Audience | Minimum score | Intended reader |
+| --- | ---: | --- |
+| Accessible | 65 | Broad audience, roughly eighth-grade reading level |
+| General | 50 | Average adult reader |
+| Professional | 40 | Business and professional readers |
+| Technical | 30 | Readers familiar with specialized material |
+| Academic | 20 | Graduate-level or academic readers |
 
-**What it does:** Master toggle for all readability features. When enabled:
-- Displays a Flesch Reading Ease score in the floating indicator (for text with 30+ words)
-- Analyzes individual sentences for complexity
-- Flags sentences that are too difficult for your target audience
-- Provides AI-powered simplification suggestions (when Apple Intelligence is available)
+**General** is the default. A sentence is eligible for a complexity underline when it has at least 12 words and scores more than 10 points below the selected threshold.
 
-**Score interpretation:**
-| Score | Label | What it means |
-|-------|-------|---------------|
-| 90-100 | Very Easy | Easily understood by an average 11-year-old |
-| 70-89 | Easy | Conversational English for consumers |
-| 60-69 | Standard | Easily understood by 13-15 year olds |
-| 50-59 | Fairly Difficult | Fairly difficult to read |
-| 30-49 | Difficult | College-level reading |
-| 0-29 | Very Difficult | Best understood by university graduates |
+Turn off **Show Complexity Underlines** if you want the overall score without violet dashed sentence underlines.
 
-**How it works:** Click on the readability score in the indicator to see a detailed breakdown with improvement tips.
+## Apple Intelligence Features
 
-**Default:** On
+AI Style Suggestions and AI Compose require macOS 26 or later, a supported Apple Silicon Mac, and Apple Intelligence enabled in System Settings. TextWarden uses Apple's Foundation Models framework on-device. The feature is unavailable on Intel Macs, but Harper grammar checking and readability scoring continue to work.
 
-### Target Audience
+### AI Style Suggestions
 
-**What it does:** Sets the expected reading level for your audience. TextWarden uses this to determine which sentences are "too complex" and need simplification suggestions.
+AI style suggestions are off by default. Once enabled, TextWarden runs style analysis after grammar analysis with a three-second debounce, a 50-character minimum, and a 30-second minimum interval between automatic checks. You can trigger a check immediately with `⌥⌃S`; selected text is checked by itself, otherwise TextWarden checks the full field.
 
-**Options:**
-| Audience | Min Flesch Score | Description |
-|----------|------------------|-------------|
-| Accessible | 65+ | Everyone should understand (~8th grade level) |
-| General | 50+ | Average adult reader (~10th grade level) |
-| Professional | 40+ | Business readers (~12th grade level) |
-| Technical | 30+ | Specialized readers (college level) |
-| Academic | 20+ | Academic/research (graduate level) |
+Choose one writing style:
 
-**How it works:** Sentences with a Flesch score significantly below (10+ points) the threshold for your selected audience are flagged. Short sentences (<12 words) are not flagged.
+- **Default:** Clear, natural writing
+- **Concise:** Less repetition and filler
+- **Formal:** Professional vocabulary and complete sentences
+- **Casual:** Conversational phrasing
+- **Business:** Direct, action-oriented writing
 
-**Default:** General (50+ Flesch score)
+The **Creativity** control has three presets:
 
-**Recommendation:** Match this to your audience. Use "Accessible" for public-facing content, "Professional" for business documents, "Technical" for developer documentation.
+- **Consistent:** Greedy sampling for repeatable output
+- **Balanced:** Temperature `0.3` and the default setting
+- **Creative:** Temperature `0.5` for more variation
 
-### Show Complexity Underlines
+The selected preset is used for manual style checks. Automatic style checks currently use Balanced.
 
-**What it does:** Controls whether violet dashed underlines appear under complex sentences. Only available when readability analysis is enabled.
+TextWarden filters model output before showing it. Suggestions must point to exact source text, change that text, avoid overlapping ranges, and pass app-level safety checks before replacement.
 
-**Default:** On
+### AI Compose
 
-**Use case:** Disable this if you want readability scoring and AI simplification suggestions but find the visual underlines distracting.
+AI Compose generates text from an instruction. Open it from the writing section of the floating indicator or press `⌥⌃W`. If text is selected, it can be included as context; otherwise TextWarden may include nearby document text. The instruction remains the primary input.
 
----
-
-## AI Style Suggestions
-
-> **Requires:** macOS 26 (Tahoe) or later with Apple Intelligence enabled
-
-### Availability Status
-
-At the top of this section, you'll see the current availability status of AI features:
-- **Ready** - Apple Intelligence is available and working
-- **Not Available** - Shows the reason (not enabled, device not eligible, or macOS version too old)
-
-If Apple Intelligence isn't enabled, you can click "Open Settings" to configure it in System Settings.
-
-### Enable AI Style Suggestions
-
-**What it does:** Activates AI-powered writing enhancement features:
-- **Style Suggestions** - Get suggestions for clarity, tone, and conciseness
-- **AI Compose** - Generate text from instructions by clicking the pen icon in the indicator
-
-All processing happens locally on your device using Apple Intelligence.
-
-Style checking runs automatically after grammar analysis with smart rate limiting. You can also trigger it manually via keyboard shortcut or by clicking the style section of the indicator.
-
-**What you'll see:** When enabled, you may get suggestions like "Consider rephrasing for clarity" or "This could be more concise."
-
-### Writing Style
-
-**What it does:** Tailors suggestions to match your intended tone.
-
-**Options:**
-- **Default** - Balanced improvements for general writing
-- **Formal** - Professional tone, complete sentences, suitable for business documents
-- **Casual** - Friendly, conversational, good for emails to friends or social media
-- **Business** - Clear, action-oriented, ideal for professional communication
-- **Concise** - Removes filler words and unnecessary verbosity
-
-**Recommendation:** Match this to your current task. Switch between styles as needed—formal for reports, casual for Slack messages.
-
-### Temperature Preset
-
-**What it does:** Controls how creative vs. consistent the AI suggestions are.
-
-**Options:**
-- **Consistent** - Same input produces same suggestions (deterministic)
-- **Balanced** - Slight variation while maintaining accuracy
-- **Creative** - More varied suggestions, still appropriate for writing tasks
-
-**Recommendation:** Use Consistent for professional documents where you want predictable results. Use Balanced for everyday writing.
-
----
+Generated text can be inserted into the active field or copied. Retry uses a different sampling seed and a higher temperature to produce another version.
 
 ## Sketch Pad
 
-Sketch Pad is TextWarden's built-in writing environment with full AI integration. Access it via the menu bar icon → **Sketch Pad** or the keyboard shortcut (default: `⌥⌃P`).
+Sketch Pad is TextWarden's built-in editor. Open it from the menu bar or press `⌥⌃N`.
 
-### When to Use Sketch Pad
+It provides:
 
-- **Drafting content** - Write emails, messages, or documents in a focused environment before copying to your target application
-- **Unsupported applications** - When an application doesn't work well with TextWarden's accessibility integration, compose in Sketch Pad and paste
-- **Full AI access** - Get grammar checking, style suggestions, readability analysis, and AI quick actions all in one place
+- Real-time Harper grammar and spell checking
+- Readability scores and sentence analysis
+- Apple Intelligence style suggestions and quick rewrites when available
+- An insights sidebar grouped by correctness, style, and clarity
+- Undo and redo
+- Line-number, current-line, invisible-character, and line-wrapping controls
+- Automatic document saving
 
-### Features
-
-**Real-time Analysis**
-- Grammar and spelling errors are underlined as you type
-- Style suggestions appear when AI analysis completes
-- Readability score updates in real-time
-
-**Insights Panel**
-The right sidebar shows all detected issues organized by category:
-- **Correctness** - Spelling and grammar errors (red)
-- **Style** - Tone and word choice improvements (purple)
-- **Clarity** - Readability and complexity issues (blue)
-
-Click any insight to see the suggestion and apply it.
-
-**AI Assistant**
-The AI Assistant section provides quick actions and custom prompts:
-
-- **Quick Actions** - One-click buttons for common transformations:
-  - **Professional** - Formal, business-appropriate tone
-  - **Friendly** - Warm, conversational style
-  - **Concise** - Removes unnecessary words
-  - **Refine** - General polishing and improvement
-
-- **Custom Prompt** - Enter your own instructions for the AI (e.g., "Make this more persuasive" or "Simplify for a general audience")
-
-- **Scope** - Quick actions apply to selected text, or the entire document if nothing is selected
-
-**Undo Support**
-All AI-generated changes can be undone with `⌘Z`, so you can experiment freely and revert if needed.
-
-### Tips
-
-- Select specific text before using quick actions to transform only that portion
-- Use the readability score to gauge if your text matches your target audience
-- The Insights panel shows a count of issues - aim for zero before copying your final text
-
----
+AI quick actions apply to the selection when one exists, or the full document otherwise. The current actions are Professional, Friendly, Concise, and Refine.
 
 ## Appearance
 
-### App Theme
+### Suggestion popover
 
-**What it does:** Controls the overall look of TextWarden's interface.
+- **Position:** Auto, Above, or Below
+- **Show on hover:** Opens suggestions when the pointer rests over an underline or indicator
+- **Text size:** 10–20 pt; 13 pt by default
+- **Theme:** System, Light, or Dark for the preferences window
+- **Overlay Theme:** System, Light, or Dark for popovers and indicators
 
-**Options:**
-- **System** - Follows your Mac's appearance setting
-- **Light** - Always light mode
-- **Dark** - Always dark mode
+### Underlines
 
-### Overlay Theme
+**Show error underlines** controls grammar and spelling underlines globally. Thickness ranges from 1 to 5 pt and defaults to 2 pt. TextWarden hides underlines when the error count exceeds the configured threshold; the threshold ranges from 1 to 20 and defaults to 10.
 
-**What it does:** Controls the appearance of suggestion popovers and indicators.
+An app must expose usable character geometry for underlines to appear. The floating indicator remains available when only error counts and suggestions can be shown.
 
-**Options:**
-- **System** - Matches your Mac's appearance
-- **Light** - Light background for popovers
-- **Dark** - Dark background for popovers
+### Floating indicator
 
-### Suggestion Opacity
+The default position can be Top Left, Top Right, Center Left, Center Right, Bottom Left, or Bottom Right. It defaults to Center Right. Drag the indicator along the window edge to remember a different position for a specific app.
 
-**What it does:** How transparent the suggestion popover appears.
+**Always show indicator** keeps a green checkmark visible when there are no issues. **Hover delay** ranges from 0 to 1,000 ms in 50 ms steps and defaults to instant.
 
-**Range:** 50% (more transparent) to 100% (fully opaque)
+## Application and Website Controls
 
-**Recommendation:** If popovers feel too prominent, reduce opacity. If they're hard to read, increase it.
+### Supported applications
 
-### Text Size
+Apps with dedicated TextWarden configurations are enabled by default. The registry includes Slack, Teams, Claude, ChatGPT, Perplexity, supported browsers, Notion, Apple Mail, Messages, Notes, TextEdit, Reminders, Calendar, Pages, WhatsApp, Telegram, Microsoft Word, PowerPoint, Outlook, Webex, and Proton Mail.
 
-**What it does:** Size of text in suggestion popovers.
+See the [supported-app matrix](README.md#supported-apps) and [application notes](docs/applications/README.md) for known limitations.
 
-**Range:** Small to Large
+### Other applications
 
-**Recommendation:** Adjust based on your display and visual preferences.
+An app without a dedicated configuration is paused the first time TextWarden discovers it. Enable it manually under **Preferences → Applications**. TextWarden can profile unknown apps' Accessibility capabilities and cache a strategy recommendation for seven days, but results still depend on the editor.
 
-### Underline Thickness
+### Terminal applications
 
-**What it does:** Thickness of the wavy underlines shown under errors.
+Terminal, iTerm2, Hyper, Warp, Alacritty, Kitty, WezTerm, and Ghostty are paused until resumed by default. You can enable one manually, though command output and code tend to produce noisy suggestions.
 
-**Range:** Thin to Thick
+### Per-app controls
 
-**Recommendation:** Thicker lines are more noticeable but may feel intrusive. Find your balance.
+Each discovered app can be Active, paused for one hour, paused for 24 hours, or paused until resumed. The underline button disables visual underlines for that app without turning off grammar checking.
 
-### Indicator
+### Website exclusions
 
-#### Default Position
-
-**What it does:** Where the floating indicator appears relative to the text field.
-
-**Options:**
-- **Auto** - TextWarden chooses based on available space
-- **Top Right** - Above and to the right
-- **Bottom Right** - Below and to the right
-- **Top Left** - Above and to the left
-- **Bottom Left** - Below and to the left
-
-You can drag the indicator to any position along the window border, and positions are remembered per application.
-
-#### Always Show Indicator
-
-**What it does:** When enabled, the indicator remains visible even when there are no grammar errors or style suggestions, displaying a green checkmark as confirmation that everything is fine.
-
-**Why you'd enable it:** Provides constant visual feedback about your text quality. When Apple Intelligence is enabled, also gives quick mouse access to Style Check and AI Compose features.
-
-**Default:** Off. The indicator only appears when there are grammar errors or style suggestions.
-
-#### Hover Delay
-
-**What it does:** Controls how long you need to hover over the indicator before the suggestion popover appears.
-
-**Range:** 0ms (instant) to 1000ms
-
-**Default:** 0ms (instant display)
-
-**Recommendation:** Keep at 0ms for immediate feedback. Increase the delay if you find the popover appearing too quickly when you're just moving the mouse across the screen.
-
----
-
-## Application Controls
-
-TextWarden organizes applications into two categories based on their support level.
-
-### Supported Applications
-
-**What they are:** Applications that TextWarden has been tested and optimized for. These have dedicated configuration profiles that ensure accurate underline positioning and proper text replacement.
-
-**Default behavior:** Active (grammar checking enabled)
-
-**Examples:** Slack, Claude, Safari, Apple Mail, Microsoft Word, Apple Notes, and many more. See the full list in Settings → Applications.
-
-### Other Applications
-
-**What they are:** Applications discovered on your system that don't have a dedicated configuration profile. Grammar checking may work, but visual underlines might be inaccurate.
-
-**Default behavior:** Paused indefinitely on first discovery. This prevents unexpected behavior in apps where TextWarden hasn't been tested.
-
-**How to enable:** You can manually set any "Other" application to Active in Settings → Applications. Your choice persists across restarts.
-
-**Request support:** Want TextWarden to fully support an app you use? Click the "Request" button in the Other Applications section to submit a feature request.
-
-### Terminal Applications
-
-**What they are:** Command-line applications like Terminal, iTerm2, Warp, and others.
-
-**Default behavior:** Paused indefinitely. Grammar checking in terminals typically produces false positives from command output, error messages, and code snippets.
-
-**How to enable:** You can manually enable any terminal if desired, though this isn't recommended.
-
-### Per-App Settings
-
-**Options for each app:**
-- **Active** - TextWarden monitors and checks text
-- **Paused for 1 Hour** - Temporarily disabled, automatically resumes
-- **Paused for 24 Hours** - Temporarily disabled, automatically resumes
-- **Paused Until Resumed** - Disabled until you manually re-enable
-
-**Use cases:**
-- Pause for apps where you intentionally write unconventionally
-- Pause during presentations or screen sharing
-- Enable an "Other" application you want to try with TextWarden
-
-### Visual Underlines Toggle
-
-Each application row has an underline button (U) that lets you enable or disable visual error underlines for that specific app, independent of grammar checking. This is useful when:
-- You want grammar checking but find underlines distracting
-- An app has positioning issues that make underlines inaccurate
-
-### Global Pause
-
-**What it does:** Quickly pause TextWarden across all applications.
-
-**How to use:** Click the menu bar icon → select a pause duration
-
-**Options:**
-- 15 minutes
-- 1 hour
-- 4 hours
-- Until tomorrow
-- Indefinitely
-
----
+Under **Preferences → Websites**, add a domain to disable TextWarden in browser text fields on that site. Exact domains such as `github.com` and wildcard patterns such as `*.google.com` are supported.
 
 ## Keyboard Shortcuts
 
-TextWarden supports global keyboard shortcuts that work in any application.
+All shortcuts can be changed under **Preferences → General**. They can also be disabled together with **Enable keyboard shortcuts**.
 
-### Global Shortcuts
+| Action | Default shortcut |
+| --- | --- |
+| Toggle TextWarden | `⌥⌃T` |
+| Fix all grammar errors with one suggestion | `⌥⌃A` |
+| Show grammar suggestions | `⌥⌃G` |
+| Show style suggestions | `⌥⌃Y` |
+| Show AI Compose | `⌥⌃W` |
+| Show readability | `⌥⌃R` |
+| Run style check | `⌥⌃S` |
+| Open or close Sketch Pad | `⌥⌃N` |
 
-| Action | Default | Description |
-|--------|---------|-------------|
-| Toggle TextWarden | ⌥⌃T | Enable/disable grammar checking globally |
-| Fix All Grammar Errors | ⌥⌃A | Apply all single-suggestion grammar fixes at once |
+When a suggestion popover is open:
 
-### Feature Shortcuts
+| Action | Default shortcut |
+| --- | --- |
+| Accept the current suggestion | `Tab` |
+| Dismiss the popover | `⌥Esc` |
+| Previous suggestion | `⌥←` |
+| Next suggestion | `⌥→` |
+| Apply suggestion 1, 2, or 3 | `⌥1`, `⌥2`, or `⌥3` |
 
-| Action | Default | Description |
-|--------|---------|-------------|
-| Show Grammar Suggestions | ⌥⌃G | Toggle the grammar suggestions popover |
-| Show Style Suggestions | ⌥⌃Y | Toggle the style suggestions popover |
-| Show AI Compose | ⌥⌃W | Toggle the AI text generation popover |
-| Show Readability | ⌥⌃R | Toggle the readability score popover |
-| Run Style Check | ⌥⌃S | Trigger manual style analysis |
+## Diagnostics and Logging
 
-### Popover Navigation
+### Log levels
 
-| Action | Default | Description |
-|--------|---------|-------------|
-| Accept Suggestion | Tab | Apply the current suggestion |
-| Dismiss Suggestion | ⌥Esc | Dismiss without applying |
-| Previous Suggestion | ⌥← | Navigate to previous error |
-| Next Suggestion | ⌥→ | Navigate to next error |
-| Apply Suggestion 1 | ⌥1 | Apply first suggestion option |
-| Apply Suggestion 2 | ⌥2 | Apply second suggestion option |
-| Apply Suggestion 3 | ⌥3 | Apply third suggestion option |
+TextWarden writes to macOS Unified Logging at these levels: Trace, Debug, Info, Warning, Error, and Critical. Info is the default.
 
-### Customizing Shortcuts
+File logging is optional. Its default path is:
 
-1. Open Preferences → Shortcuts tab
-2. Click on any shortcut to record a new key combination
-3. Press your desired keys
-4. Click elsewhere to confirm
+```text
+~/Library/Logs/TextWarden/textwarden.log
+```
 
-**Tip:** Choose shortcuts that don't conflict with your most-used applications.
+Most Info-level messages record metadata, but warning and error diagnostics for failed or stale replacements can include short text fragments. Debug and Trace logs may contain more analyzed text. Use verbose logging only while investigating a problem, and review any log before sharing it.
 
-**Known Conflicts:**
-- **Apple Mail**: `⌥⌃A` (Fix All Obvious) may conflict with some application shortcuts. Consider customizing if needed.
+### Debug overlays
 
----
+The Diagnostics tab can draw text-field bounds, CGWindow coordinates, Cocoa coordinates, and character-position markers. These tools help identify Accessibility and coordinate-conversion problems. Leave them off during normal use.
 
-## Advanced Settings
+### Export Diagnostics
 
-These settings are found in **Preferences → Diagnostics**.
+**Preferences → Diagnostics → Export Diagnostics** creates a ZIP containing:
 
-### Logging Configuration
+- `diagnostic_overview.json` with system, permission, settings, application-state, statistics, performance, and Apple Intelligence metadata
+- Sanitized current and rotated TextWarden log files, when present
+- Up to ten recent TextWarden `.crash` or `.ips` reports, when present
 
-**What it does:** Controls what information TextWarden records for diagnostics.
+The settings dump omits custom-dictionary entries and ignored rule or error text. Website and per-app underline overrides are recorded as counts, while the selected language exclusions are listed by name. Log sanitization anonymizes `/Users/<name>/` paths and removes lines containing common secret keywords. Logs and Apple crash reports can still contain sensitive context, so extract and inspect the ZIP before sharing it.
 
-**Log Levels:**
-- **Error** - Only serious problems
-- **Warning** - Potential issues
-- **Info** - General operation info (default)
-- **Debug** - Detailed technical info, **may include analyzed text**
-- **Trace** - Everything, **may include analyzed text** (generates large log files)
+### Reset options
 
-**Privacy Note:** At Info level and above, logs contain only metadata (character counts, hashes, etc.) without your actual text. When you select Debug or Trace level, TextWarden displays a warning because these levels may include portions of analyzed text for troubleshooting purposes. Be mindful of what text you analyze and who you share log files with when using verbose logging.
-
-**File Logging:** When enabled, writes logs to disk for later review. You can choose a custom log file location or use the default (`~/Library/Logs/TextWarden/textwarden.log`).
-
-**Recommendation:** Keep at "Warning" or "Info" for normal use. Enable "Debug" only when troubleshooting issues, and be aware of the privacy implications.
-
-### Debug Overlays
-
-**What it does:** Shows colored borders around detected text fields. Useful for troubleshooting positioning issues.
-
-**Options:**
-- **Text Field Bounds** - Where TextWarden thinks the text area is
-- **Window Coordinates** - Raw window position data
-- **Cocoa Coordinates** - Converted screen coordinates
-
-**Recommendation:** Keep disabled unless troubleshooting. These are developer tools.
-
-### Diagnostic Export
-
-**What it does:** Creates a ZIP file containing system information, settings, and logs to help troubleshoot issues. Access via **Preferences → Diagnostics → Export Diagnostics**.
-
-**What's Included:**
-- System information (macOS version, hardware, memory)
-- All TextWarden settings (grammar rules, word lists, UI preferences)
-- Usage statistics (words analyzed, corrections applied, app usage)
-- Recent log files (sanitized for privacy)
-- Crash reports (if any)
-- List of applications used with TextWarden
-
-**Privacy Protections:**
-- **Text content protected at default levels** - At Info level and above, logs only contain metadata (e.g., "analyzed 50 chars"). Debug and Trace levels may include text for troubleshooting (see [Logging Configuration](#logging-configuration)).
-- **Path anonymization** - File paths are sanitized (e.g., `/Users/[REDACTED]/Documents/...`)
-- **Sensitive data filtering** - Lines containing passwords, tokens, keys, or secrets are automatically removed from logs
-- **Custom dictionary excluded** - Your personal dictionary words are not included
-
-**What's NOT Included (at default log levels):**
-- Text you've typed or analyzed
-- Personal dictionary entries
-- Authentication credentials
-- Private document content
-
-**Note:** If you've enabled Debug or Trace logging, the diagnostic export may contain portions of analyzed text. Consider switching back to Info level before exporting if privacy is a concern.
-
-**Recommendation:** Before sharing a diagnostic export, unzip it and review the contents. This lets you verify exactly what's included and feel confident about what you're sharing.
-
----
-
-## Troubleshooting Tips
-
-**Suggestions aren't appearing:**
-1. Check that TextWarden is running (look for the menu bar icon)
-2. Verify the app isn't paused (icon should not show a pause indicator)
-3. Ensure the current application isn't in the paused list
-
-**Too many suggestions:**
-1. Disable grammar categories that don't apply to your writing
-2. Add frequently-flagged terms to your custom dictionary
-3. Enable appropriate word lists (IT Terminology, etc.)
-
-**Style checking unavailable:**
-1. Requires macOS 26 (Tahoe) or later
-2. Apple Intelligence must be enabled in System Settings → Apple Intelligence & Siri
-3. Requires an Apple Silicon Mac (M1 or later)
-
-**Underlines in wrong position:**
-1. Try a different application if possible—some apps have limited accessibility support
-2. Check Debug Overlays to see what TextWarden detects
-3. Report the issue with a diagnostic export (Help → Export Diagnostics)
-
----
+The Diagnostics tab can reset all settings, clear the custom dictionary, clear ignored rules or error text, and reset milestone prompts. Statistics have a separate reset control under **Preferences → Statistics**. **Reset All Settings** relaunches TextWarden and shows onboarding again.
 
 ## Getting Help
 
-- **Troubleshooting Guide:** See [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
-- **Report Issues:** [GitHub Issues](https://github.com/philipschmid/textwarden/issues)
-- **Export Diagnostics:** Preferences → Diagnostics (see [Diagnostic Export](#diagnostic-export) for privacy details)
+- Read [Troubleshooting](TROUBLESHOOTING.md).
+- [Open a bug report](https://github.com/PhilipSchmid/textwarden/issues/new/choose).
+- Use [GitHub Discussions](https://github.com/PhilipSchmid/textwarden/discussions) for feature requests and questions.
