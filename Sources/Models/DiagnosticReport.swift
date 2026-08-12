@@ -430,7 +430,7 @@ struct ApplicationState: Codable {
 
         // Get applications that are paused by default (terminals, etc.)
         var pausedByDefault: [String: String] = [:]
-        for bundleID in UserPreferences.terminalApplications {
+        for bundleID in AppRegistry.shared.defaultPausedBundleIDs {
             let appName = getApplicationName(for: bundleID)
             pausedByDefault[bundleID] = appName
         }

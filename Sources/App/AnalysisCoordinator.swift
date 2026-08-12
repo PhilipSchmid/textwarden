@@ -323,8 +323,8 @@ class AnalysisCoordinator: ObservableObject {
     /// Unknown apps are opt-in. Until the user explicitly starts a safe trial, TextWarden does
     /// not ask Accessibility for their text.
     func requiresSafeTrial(for context: ApplicationContext) -> Bool {
-        !appRegistry.isKnownApplication(context.bundleIdentifier)
-            && !UserPreferences.shared.hasRespondedToSafeTrial(for: context.bundleIdentifier)
+        appRegistry.requiresSafeTrialConsent(for: context.bundleIdentifier)
+            && !UserPreferences.shared.safeTrialApplications.contains(context.bundleIdentifier)
     }
 
     func isCurrentAppInSafeTrial() -> Bool {
@@ -1323,7 +1323,33 @@ class AnalysisCoordinator: ObservableObject {
             hoverSwitchTimer = nil
             pendingHoverError = nil
 
-            // Unknown apps need explicit consent before TextWarden reads a single character.
+            if let pauseScope = userPreferences.effectivePauseScope(for: context.bundleIdentifier) {
+                monitoredContext = context
+                stopMonitoring()
+                RuntimeHealthStore.shared.update(
+                    state: .inactive,
+                    reason: pauseScope == .global ? .globalPause : .appPause,
+                    context: context,
+                    action: .resume
+                )
+                MenuBarController.shared?.updateMenu()
+                return
+            }
+
+            if userPreferences.disabledApplications.contains(context.bundleIdentifier) || !context.isEnabled {
+                monitoredContext = context
+                stopMonitoring()
+                RuntimeHealthStore.shared.update(
+                    state: .inactive,
+                    reason: .appPause,
+                    context: context,
+                    action: .enable
+                )
+                MenuBarController.shared?.updateMenu()
+                return
+            }
+
+            // Unverified apps need explicit consent before TextWarden reads a single character.
             // Keep the current app in health state so the menu can offer the safe-trial action.
             if requiresSafeTrial(for: context) {
                 monitoredContext = context
@@ -1602,8 +1628,30 @@ class AnalysisCoordinator: ObservableObject {
             return
         }
 
+        if let pauseScope = userPreferences.effectivePauseScope(for: context.bundleIdentifier) {
+            let pauseDuration = userPreferences.getPauseDuration(for: context.bundleIdentifier)
+            Logger.debug("AnalysisCoordinator: App is paused (\(pauseDuration.rawValue)) - not starting monitoring", category: Logger.analysis)
+            RuntimeHealthStore.shared.update(
+                state: .inactive,
+                reason: pauseScope == .global ? .globalPause : .appPause,
+                context: context,
+                action: .resume
+            )
+            return
+        }
+
+        if userPreferences.disabledApplications.contains(context.bundleIdentifier) || !context.isEnabled {
+            RuntimeHealthStore.shared.update(
+                state: .inactive,
+                reason: .appPause,
+                context: context,
+                action: .enable
+            )
+            return
+        }
+
         // This method is also reached after launch and permission changes. Keep the consent
-        // boundary here so a new route can never begin reading an unknown app's text by mistake.
+        // boundary here so a new route can never begin reading an unverified app's text.
         if requiresSafeTrial(for: context) {
             RuntimeHealthStore.shared.update(
                 state: .inactive,
@@ -1612,19 +1660,6 @@ class AnalysisCoordinator: ObservableObject {
                 action: .trySafely
             )
             MenuBarController.shared?.showSafeTrialPrompt(for: context)
-            return
-        }
-
-        // Check if app is paused - don't start monitoring if so
-        if userPreferences.effectivePauseScope(for: context.bundleIdentifier) == .application(context.bundleIdentifier) {
-            let pauseDuration = userPreferences.getPauseDuration(for: context.bundleIdentifier)
-            Logger.debug("AnalysisCoordinator: App is paused (\(pauseDuration.rawValue)) - not starting monitoring", category: Logger.analysis)
-            RuntimeHealthStore.shared.update(
-                state: .inactive,
-                reason: .appPause,
-                context: context,
-                action: .resume
-            )
             return
         }
 

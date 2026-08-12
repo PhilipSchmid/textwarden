@@ -46,8 +46,7 @@ struct ApplicationSettingsView: View {
                     ForEach(filteredSupportedApps, id: \.bundleIdentifier) { app in
                         ApplicationRow(
                             app: app,
-                            preferences: preferences,
-                            isSupported: true
+                            preferences: preferences
                         )
                     }
                 } header: {
@@ -104,8 +103,7 @@ struct ApplicationSettingsView: View {
                                 ForEach(filteredOtherApps, id: \.bundleIdentifier) { app in
                                     ApplicationRow(
                                         app: app,
-                                        preferences: preferences,
-                                        isSupported: false
+                                        preferences: preferences
                                     )
                                 }
                             },
@@ -122,7 +120,7 @@ struct ApplicationSettingsView: View {
                         )
 
                         if !isOtherSectionExpanded {
-                            Text("Apps without dedicated support. Grammar checking may work but underlines might be inaccurate. Paused by default.")
+                            Text("Apps without dedicated support require your approval and start in safe mode.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -133,7 +131,7 @@ struct ApplicationSettingsView: View {
             .listStyle(.inset)
 
             // Info text
-            Text("Supported applications have full grammar checking and visual underlines. Other applications are paused by default but can be enabled manually.")
+            Text("Supported apps use their verified capabilities. Other apps start with copy-only fixes after you approve them.")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -176,11 +174,6 @@ struct ApplicationSettingsView: View {
 
     // MARK: - Load Applications
 
-    /// Check if an app has a dedicated configuration profile
-    private func isSupported(_ bundleID: String) -> Bool {
-        AppRegistry.shared.hasConfiguration(for: bundleID)
-    }
-
     /// Load all applications and split into supported/other
     private func loadApplications() {
         var allBundleIDs = Set<String>()
@@ -212,22 +205,22 @@ struct ApplicationSettingsView: View {
             allBundleIDs.insert(bundleID)
         }
 
+        // 5. Include installed apps with a registry-owned paused-by-default policy.
+        allBundleIDs.formUnion(AppRegistry.shared.defaultPausedBundleIDs)
+
         // Convert to ApplicationInfo and split by support status
         var supported: [ApplicationInfo] = []
         var other: [ApplicationInfo] = []
 
         for bundleID in allBundleIDs {
             if let app = getApplicationInfo(for: bundleID) {
-                if isSupported(bundleID) {
+                switch app.policy {
+                case .supported:
                     supported.append(app)
-                } else {
-                    // Auto-pause unsupported apps that haven't been configured yet
-                    if preferences.getPauseDuration(for: bundleID) == .active,
-                       !preferences.appPauseDurations.keys.contains(bundleID)
-                    {
-                        preferences.setPauseDuration(for: bundleID, duration: .indefinite)
-                    }
+                case .safeTrial, .pausedByDefault:
                     other.append(app)
+                case .ignored:
+                    break
                 }
             }
         }
@@ -251,7 +244,8 @@ struct ApplicationSettingsView: View {
         return ApplicationInfo(
             name: appName,
             bundleIdentifier: bundleID,
-            icon: icon
+            icon: icon,
+            policy: AppRegistry.shared.policy(for: bundleID)
         )
     }
 }
@@ -261,7 +255,6 @@ struct ApplicationSettingsView: View {
 private struct ApplicationRow: View {
     let app: ApplicationInfo
     @ObservedObject var preferences: UserPreferences
-    let isSupported: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -278,20 +271,8 @@ private struct ApplicationRow: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(app.name)
-                            .font(.body)
-
-                        if !isSupported {
-                            Text("Experimental")
-                                .font(.caption2)
-                                .foregroundColor(.orange)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 1)
-                                .background(Color.orange.opacity(0.15))
-                                .cornerRadius(3)
-                        }
-                    }
+                    Text(app.name)
+                        .font(.body)
                     HStack(spacing: 4) {
                         Text(app.bundleIdentifier)
                             .font(.caption)
@@ -306,39 +287,55 @@ private struct ApplicationRow: View {
                         .buttonStyle(.plain)
                         .help("Copy bundle identifier")
                     }
+
+                    if let statusDescription {
+                        Text(statusDescription)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Spacer()
 
-                // Pause duration picker
-                Picker("", selection: Binding(
-                    get: {
-                        preferences.getPauseDuration(for: app.bundleIdentifier)
-                    },
-                    set: { duration in
-                        preferences.setPauseDuration(for: app.bundleIdentifier, duration: duration)
+                if needsSafeTrialConsent {
+                    Button("Try Safely") {
+                        preferences.allowSafeTrial(for: app.bundleIdentifier)
+                        preferences.setPauseDuration(for: app.bundleIdentifier, duration: .active)
                     }
-                )) {
-                    Text("Active").tag(PauseDuration.active)
-                    Text("Paused for 1 Hour").tag(PauseDuration.oneHour)
-                    Text("Paused for 24 Hours").tag(PauseDuration.twentyFourHours)
-                    Text("Paused Until Resumed").tag(PauseDuration.indefinite)
-                }
-                .pickerStyle(.menu)
-                .frame(width: 200)
-                .help("Set pause duration for \(app.name)")
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .help("Allow indicator and copy-only fixes in \(app.name)")
+                } else {
+                    Picker("", selection: Binding(
+                        get: {
+                            preferences.getPauseDuration(for: app.bundleIdentifier)
+                        },
+                        set: { duration in
+                            preferences.setPauseDuration(for: app.bundleIdentifier, duration: duration)
+                        }
+                    )) {
+                        Text("Active").tag(PauseDuration.active)
+                        Text("Paused for 1 Hour").tag(PauseDuration.oneHour)
+                        Text("Paused for 24 Hours").tag(PauseDuration.twentyFourHours)
+                        Text("Paused Until Resumed").tag(PauseDuration.indefinite)
+                    }
+                    .pickerStyle(.menu)
+                    .frame(width: 200)
+                    .help("Set pause duration for \(app.name)")
 
-                // Underline toggle button
-                Button {
-                    let currentlyEnabled = preferences.areUnderlinesEnabled(for: app.bundleIdentifier)
-                    preferences.setUnderlinesEnabled(!currentlyEnabled, for: app.bundleIdentifier)
-                } label: {
-                    Image(systemName: "underline")
-                        .foregroundColor(preferences.areUnderlinesEnabled(for: app.bundleIdentifier) ? .accentColor : .secondary)
+                    if app.policy == .supported {
+                        Button {
+                            let currentlyEnabled = preferences.areUnderlinesEnabled(for: app.bundleIdentifier)
+                            preferences.setUnderlinesEnabled(!currentlyEnabled, for: app.bundleIdentifier)
+                        } label: {
+                            Image(systemName: "underline")
+                                .foregroundColor(preferences.areUnderlinesEnabled(for: app.bundleIdentifier) ? .accentColor : .secondary)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .help(preferences.areUnderlinesEnabled(for: app.bundleIdentifier) ? "Disable underlines for \(app.name)" : "Enable underlines for \(app.name)")
+                    }
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help(preferences.areUnderlinesEnabled(for: app.bundleIdentifier) ? "Disable underlines for \(app.name)" : "Enable underlines for \(app.name)")
             }
 
             // Resume time if paused
@@ -356,6 +353,27 @@ private struct ApplicationRow: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private var needsSafeTrialConsent: Bool {
+        app.policy.requiresSafeTrialConsent
+            && !preferences.safeTrialApplications.contains(app.bundleIdentifier)
+    }
+
+    private var statusDescription: String? {
+        if preferences.safeTrialApplications.contains(app.bundleIdentifier) {
+            return "Safe trial · indicator and copy-only fixes"
+        }
+        if needsSafeTrialConsent,
+           app.policy == .pausedByDefault,
+           preferences.getPauseDuration(for: app.bundleIdentifier) != .active
+        {
+            return "Paused by default"
+        }
+        if needsSafeTrialConsent {
+            return "Approval required before checking text"
+        }
+        return nil
     }
 
     private func formatTime(_ date: Date) -> String {
@@ -377,4 +395,5 @@ private struct ApplicationInfo {
     let name: String
     let bundleIdentifier: String
     let icon: NSImage?
+    let policy: ApplicationPolicy
 }

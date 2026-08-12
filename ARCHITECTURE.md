@@ -157,6 +157,10 @@ TextWarden intentionally separates technical capabilities from interaction behav
 - font assumptions;
 - feature flags such as typing pauses, deferred extraction, formatted text, and frame validation.
 
+The registry also assigns one default product policy to every bundle identifier: supported,
+safe trial, paused by default, or ignored. `UserPreferences` stores only the user's overrides;
+settings views must not change application state merely by listing an app.
+
 Unknown applications can be probed by `StrategyProfiler`. `StrategyRecommendationEngine` turns the observed AX capabilities into a configuration, and `StrategyProfileCache` stores the result in `~/Library/Application Support/TextWarden/strategy-profiles.json`. Profiles expire after seven days.
 
 ### AppBehaviorRegistry
