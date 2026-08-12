@@ -525,6 +525,9 @@ extension AnalysisCoordinator {
 
         let styleName = userPreferences.selectedWritingStyle
         let style = WritingStyle.allCases.first { $0.displayName == styleName } ?? .default
+        let temperaturePresetName = userPreferences.styleTemperaturePreset
+        let temperaturePreset = StyleTemperaturePreset(rawValue: temperaturePresetName) ?? .balanced
+        let vocabulary = customVocabulary.allWords()
 
         // Check cache first
         let cacheKey = computeStyleCacheKey(text: text)
@@ -580,7 +583,12 @@ extension AnalysisCoordinator {
 
         Task {
             do {
-                let suggestions = try await fmEngine.analyzeStyle(text, style: style)
+                let suggestions = try await fmEngine.analyzeStyle(
+                    text,
+                    style: style,
+                    temperaturePreset: temperaturePreset,
+                    customVocabulary: vocabulary
+                )
 
                 await MainActor.run {
                     // Check if still valid (text may have changed during analysis)

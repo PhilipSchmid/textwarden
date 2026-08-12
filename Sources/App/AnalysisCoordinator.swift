@@ -318,6 +318,80 @@ class AnalysisCoordinator: ObservableObject {
     /// Last analyzed source text (for popover context display)
     var lastAnalyzedText: String = ""
 
+    // MARK: - Runtime Health and Safe Trial
+
+    /// Unknown apps are opt-in. Until the user explicitly starts a safe trial, TextWarden does
+    /// not ask Accessibility for their text.
+    func requiresSafeTrial(for context: ApplicationContext) -> Bool {
+        !appRegistry.isKnownApplication(context.bundleIdentifier)
+            && !UserPreferences.shared.hasRespondedToSafeTrial(for: context.bundleIdentifier)
+    }
+
+    func isCurrentAppInSafeTrial() -> Bool {
+        guard let bundleID = monitoredContext?.bundleIdentifier else { return false }
+        return !AppRegistry.shared.hasConfiguration(for: bundleID)
+            && UserPreferences.shared.safeTrialApplications.contains(bundleID)
+    }
+
+    func capabilities(for context: ApplicationContext) -> CapabilitySet {
+        if !AppRegistry.shared.hasConfiguration(for: context.bundleIdentifier),
+           UserPreferences.shared.safeTrialApplications.contains(context.bundleIdentifier)
+        {
+            return .indicatorOnly
+        }
+
+        let configuration = appRegistry.effectiveConfiguration(for: context.bundleIdentifier)
+        var capabilities: CapabilitySet = [.textReading, .grammar]
+        if userPreferences.enableStyleChecking {
+            capabilities.insert(.style)
+        }
+        if configuration.features.visualUnderlinesEnabled,
+           !UserPreferences.shared.appUnderlinesDisabled.contains(context.bundleIdentifier)
+        {
+            capabilities.insert(.inlinePositioning)
+        }
+        if configuration.features.textReplacementMethod == .standard {
+            capabilities.insert(.safeReplacement)
+        }
+        return capabilities
+    }
+
+    /// Resume the current app after the user explicitly chooses its safe trial.
+    func startSafeTrial(for bundleID: String) {
+        UserPreferences.shared.allowSafeTrial(for: bundleID)
+        UserPreferences.shared.resume(.application(bundleID))
+        guard let context = applicationTracker.activeApplication,
+              context.bundleIdentifier == bundleID,
+              context.shouldCheck()
+        else {
+            return
+        }
+
+        monitoredContext = context
+        RuntimeHealthStore.shared.update(
+            state: .limited,
+            capabilities: .indicatorOnly,
+            context: context,
+            action: .reportCompatibility
+        )
+        startMonitoring(context: context)
+        MenuBarController.shared?.updateMenu()
+    }
+
+    func retryCurrentCheck() {
+        guard let context = monitoredContext else { return }
+        if AXWatchdog.shared.recoveryCooldown(for: context.bundleIdentifier) != nil {
+            RuntimeHealthStore.shared.update(
+                state: .recovering,
+                capabilities: capabilities(for: context),
+                context: context,
+                action: .retry
+            )
+            return
+        }
+        triggerReanalysis()
+    }
+
     // MARK: - Initialization
 
     /// Initialize with default production dependencies
@@ -516,14 +590,10 @@ class AnalysisCoordinator: ObservableObject {
     private func insertViaClipboardAsync(_ text: String, context: ApplicationContext, isMacCatalyst: Bool) async {
         Logger.debug("AnalysisCoordinator: Inserting via clipboard for \(context.applicationName)", category: Logger.analysis)
 
-        // Save current clipboard
-        let pasteboard = NSPasteboard.general
-        let previousContent = pasteboard.string(forType: .string)
-        let originalChangeCount = pasteboard.changeCount
-
-        // Set new content
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
+        // Preserve every clipboard representation and restore it only when the user has not
+        // changed the clipboard while TextWarden was pasting.
+        let savedClipboard = ClipboardManager.save()
+        let replacementClipboard = ClipboardManager.setForReplacement(text, savedState: savedClipboard)
 
         // Activate target app so paste goes to the right window
         if let targetApp = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier).first {
@@ -538,11 +608,7 @@ class AnalysisCoordinator: ObservableObject {
             Logger.debug("AnalysisCoordinator: Using direct typing for Mac Catalyst", category: Logger.analysis)
             typeTextDirectly(text)
 
-            // Restore clipboard
-            if let previous = previousContent {
-                pasteboard.clearContents()
-                pasteboard.setString(previous, forType: .string)
-            }
+            ClipboardManager.restore(replacementClipboard)
 
             let typingDelay = Double(text.count) * 0.01 + 0.1
             try? await Task.sleep(nanoseconds: UInt64(typingDelay * 1_000_000_000))
@@ -572,15 +638,7 @@ class AnalysisCoordinator: ObservableObject {
         // Wait for paste to complete
         try? await Task.sleep(nanoseconds: 150_000_000) // 150ms
 
-        // Restore clipboard if unchanged by user
-        if pasteboard.changeCount == originalChangeCount + 1 {
-            if let previous = previousContent {
-                pasteboard.clearContents()
-                pasteboard.setString(previous, forType: .string)
-            } else {
-                pasteboard.clearContents()
-            }
-        }
+        ClipboardManager.restore(replacementClipboard)
 
         Logger.debug("AnalysisCoordinator: Text insertion complete", category: Logger.analysis)
     }
@@ -658,6 +716,10 @@ class AnalysisCoordinator: ObservableObject {
         // Handle apply suggestion
         suggestionPopover.onApplySuggestion = { [weak self] error, suggestion in
             guard let self else { return }
+            if isCurrentAppInSafeTrial() {
+                suggestionPopover.showCopyFallback(textToCopy: suggestion)
+                return
+            }
             await applyTextReplacementAsync(for: error, with: suggestion)
         }
 
@@ -682,6 +744,10 @@ class AnalysisCoordinator: ObservableObject {
         // Handle accept style suggestion - apply text replacement
         suggestionPopover.onAcceptStyleSuggestion = { [weak self] suggestion in
             guard let self else { return }
+            if isCurrentAppInSafeTrial() {
+                suggestionPopover.showCopyFallback(textToCopy: suggestion.suggestedText)
+                return
+            }
             applyStyleTextReplacement(for: suggestion)
         }
 
@@ -1262,8 +1328,33 @@ class AnalysisCoordinator: ObservableObject {
             hoverSwitchTimer = nil
             pendingHoverError = nil
 
+            // Unknown apps need explicit consent before TextWarden reads a single character.
+            // Keep the current app in health state so the menu can offer the safe-trial action.
+            if requiresSafeTrial(for: context) {
+                monitoredContext = context
+                stopMonitoring()
+                RuntimeHealthStore.shared.update(
+                    state: .inactive,
+                    reason: .consentRequired,
+                    context: context,
+                    action: .trySafely
+                )
+                MenuBarController.shared?.showSafeTrialPrompt(for: context)
+                MenuBarController.shared?.updateMenu()
+                return
+            }
+
             // Start monitoring new application if enabled
             if context.shouldCheck() {
+                let isSafeTrial = !AppRegistry.shared.hasConfiguration(for: context.bundleIdentifier)
+                    && UserPreferences.shared.safeTrialApplications.contains(context.bundleIdentifier)
+                RuntimeHealthStore.shared.update(
+                    state: isSafeTrial ? .limited : .active,
+                    capabilities: capabilities(for: context),
+                    context: context,
+                    action: isSafeTrial ? .reportCompatibility : nil
+                )
+                MenuBarController.shared?.updateMenu()
                 if isSameApp {
                     Logger.debug("AnalysisCoordinator: Returning to same app - forcing immediate re-analysis", category: Logger.analysis)
                     // CRITICAL: Set context even for same app (might have been cleared when switching away)
@@ -1335,6 +1426,27 @@ class AnalysisCoordinator: ObservableObject {
             } else {
                 Logger.trace("AnalysisCoordinator: Application not in check list - stopping monitoring", category: Logger.analysis)
                 stopMonitoring()
+                if appRegistry.isIntentionallyDisabled(context.bundleIdentifier) {
+                    RuntimeHealthStore.shared.update(
+                        state: .inactive,
+                        reason: .unsupportedApplication,
+                        context: context
+                    )
+                } else if let pauseScope = userPreferences.effectivePauseScope(for: context.bundleIdentifier) {
+                    RuntimeHealthStore.shared.update(
+                        state: .inactive,
+                        reason: pauseScope == .global ? .globalPause : .appPause,
+                        context: context,
+                        action: .resume
+                    )
+                } else {
+                    RuntimeHealthStore.shared.update(
+                        state: .inactive,
+                        reason: .appPause,
+                        context: context,
+                        action: .enable
+                    )
+                }
                 monitoredContext = nil
             }
         }
@@ -1372,6 +1484,12 @@ class AnalysisCoordinator: ObservableObject {
                     self?.resumeMonitoring()
                 } else {
                     self?.stopMonitoring()
+                    RuntimeHealthStore.shared.update(
+                        state: .inactive,
+                        reason: .permission,
+                        context: self?.monitoredContext,
+                        action: .grantPermission
+                    )
                 }
             }
             .store(in: &cancellables)
@@ -1379,50 +1497,34 @@ class AnalysisCoordinator: ObservableObject {
         // Monitor global pause state changes - hide overlays when paused, re-analyze when resumed
         UserPreferences.shared.$pauseDuration
             .dropFirst() // Skip initial value to avoid hiding on launch
-            .sink { [weak self] duration in
-                guard let self else { return }
-                if duration != .active {
-                    Logger.info("AnalysisCoordinator: Global pause activated (\(duration.rawValue)) - hiding overlays", category: Logger.analysis)
-                    hideAllOverlays()
-                    suggestionPopover.hide()
-                    floatingIndicator.hide()
-                } else {
-                    // Resumed - trigger re-analysis to show errors again
-                    Logger.info("AnalysisCoordinator: Global pause deactivated - triggering re-analysis", category: Logger.analysis)
-                    triggerReanalysis()
+            .sink { [weak self] _ in
+                // @Published emits before its stored value changes. Reconcile on the next
+                // main-loop turn so UserPreferences is the authoritative pause state.
+                DispatchQueue.main.async { [weak self] in
+                    self?.synchronizeRuntimeWithPausePreferences()
                 }
             }
             .store(in: &cancellables)
 
-        // Monitor app-specific pause state changes - hide overlays if current app is paused
-        // Track previous pause states to detect resume (key removal = resume)
+        // Monitor app-specific pause state changes. `.active` is intentionally persisted for
+        // some apps, so compare values rather than treating only key removal as a resume.
         var previousAppPauses: [String: PauseDuration] = UserPreferences.shared.appPauseDurations
         UserPreferences.shared.$appPauseDurations
             .dropFirst() // Skip initial value
             .sink { [weak self] pauseDurations in
-                guard let self,
-                      let currentBundleID = monitoredContext?.bundleIdentifier
-                else {
+                guard let self else { return }
+                guard let currentBundleID = applicationTracker.activeApplication?.bundleIdentifier else {
                     previousAppPauses = pauseDurations
                     return
                 }
 
-                let wasCurrentAppPaused = previousAppPauses[currentBundleID] != nil
-                let isCurrentAppNowPaused = pauseDurations[currentBundleID] != nil
-
-                if let appPause = pauseDurations[currentBundleID], appPause != .active {
-                    // App is now paused
-                    Logger.info("AnalysisCoordinator: App-specific pause activated for \(currentBundleID) (\(appPause.rawValue)) - hiding overlays", category: Logger.analysis)
-                    hideAllOverlays()
-                    suggestionPopover.hide()
-                    floatingIndicator.hide()
-                } else if wasCurrentAppPaused, !isCurrentAppNowPaused {
-                    // App was paused, but key was removed (means it's now active)
-                    Logger.info("AnalysisCoordinator: App-specific pause deactivated for \(currentBundleID) - triggering re-analysis", category: Logger.analysis)
-                    triggerReanalysis()
-                }
-
+                let changedCurrentApp = previousAppPauses[currentBundleID] != pauseDurations[currentBundleID]
                 previousAppPauses = pauseDurations
+                guard changedCurrentApp else { return }
+
+                DispatchQueue.main.async { [weak self] in
+                    self?.synchronizeRuntimeWithPausePreferences()
+                }
             }
             .store(in: &cancellables)
 
@@ -1436,6 +1538,12 @@ class AnalysisCoordinator: ObservableObject {
                 if disabledApps.contains(currentBundleID) {
                     Logger.info("AnalysisCoordinator: App disabled for \(currentBundleID) - hiding overlays and stopping monitoring", category: Logger.analysis)
                     stopMonitoring()
+                    RuntimeHealthStore.shared.update(
+                        state: .inactive,
+                        reason: .appPause,
+                        context: monitoredContext,
+                        action: .enable
+                    )
                 }
             }
             .store(in: &cancellables)
@@ -1490,16 +1598,49 @@ class AnalysisCoordinator: ObservableObject {
     func startMonitoring(context: ApplicationContext) {
         Logger.debug("AnalysisCoordinator: startMonitoring called for \(context.applicationName)", category: Logger.analysis)
 
+        guard !appRegistry.isIntentionallyDisabled(context.bundleIdentifier) else {
+            RuntimeHealthStore.shared.update(
+                state: .inactive,
+                reason: .unsupportedApplication,
+                context: context
+            )
+            return
+        }
+
+        // This method is also reached after launch and permission changes. Keep the consent
+        // boundary here so a new route can never begin reading an unknown app's text by mistake.
+        if requiresSafeTrial(for: context) {
+            RuntimeHealthStore.shared.update(
+                state: .inactive,
+                reason: .consentRequired,
+                context: context,
+                action: .trySafely
+            )
+            MenuBarController.shared?.showSafeTrialPrompt(for: context)
+            return
+        }
+
         // Check if app is paused - don't start monitoring if so
-        if let pauseDuration = userPreferences.appPauseDurations[context.bundleIdentifier],
-           pauseDuration != .active
-        {
+        if userPreferences.effectivePauseScope(for: context.bundleIdentifier) == .application(context.bundleIdentifier) {
+            let pauseDuration = userPreferences.getPauseDuration(for: context.bundleIdentifier)
             Logger.debug("AnalysisCoordinator: App is paused (\(pauseDuration.rawValue)) - not starting monitoring", category: Logger.analysis)
+            RuntimeHealthStore.shared.update(
+                state: .inactive,
+                reason: .appPause,
+                context: context,
+                action: .resume
+            )
             return
         }
 
         guard permissionManager.isPermissionGranted else {
             Logger.debug("AnalysisCoordinator: Accessibility permissions not granted", category: Logger.analysis)
+            RuntimeHealthStore.shared.update(
+                state: .inactive,
+                reason: .permission,
+                context: context,
+                action: .grantPermission
+            )
             return
         }
 
@@ -1577,8 +1718,101 @@ class AnalysisCoordinator: ObservableObject {
         errorOverlay.hide()
         suggestionPopover.hide()
         DebugBorderWindow.clearAll() // Clear debug borders when stopping
-        MenuBarController.shared?.setIconState(.active)
         stopWindowPositionMonitoring()
+    }
+
+    /// Reconciles operational state after either global or application pause changes.
+    /// UserPreferences owns pause state; runtime health and monitoring are derived from it here.
+    private func synchronizeRuntimeWithPausePreferences() {
+        guard let context = applicationTracker.activeApplication else {
+            MenuBarController.shared?.updateMenu()
+            return
+        }
+
+        // TextWarden's own windows use the independent Sketch Pad pipeline.
+        guard context.bundleIdentifier != "io.textwarden.TextWarden" else {
+            MenuBarController.shared?.updateMenu()
+            return
+        }
+
+        if !permissionManager.isPermissionGranted {
+            stopMonitoring()
+            RuntimeHealthStore.shared.update(
+                state: .inactive,
+                reason: .permission,
+                context: context,
+                action: .grantPermission
+            )
+            MenuBarController.shared?.updateMenu()
+            return
+        }
+
+        if appRegistry.isIntentionallyDisabled(context.bundleIdentifier) {
+            stopMonitoring()
+            RuntimeHealthStore.shared.update(
+                state: .inactive,
+                reason: .unsupportedApplication,
+                context: context
+            )
+            MenuBarController.shared?.updateMenu()
+            return
+        }
+
+        if let pauseScope = userPreferences.effectivePauseScope(for: context.bundleIdentifier) {
+            let reason: InactiveReason = pauseScope == .global ? .globalPause : .appPause
+            Logger.info("AnalysisCoordinator: \(reason.rawValue) is active for \(context.bundleIdentifier)", category: Logger.analysis)
+            stopMonitoring()
+            RuntimeHealthStore.shared.update(
+                state: .inactive,
+                reason: reason,
+                context: context,
+                action: .resume
+            )
+            MenuBarController.shared?.updateMenu()
+            return
+        }
+
+        if userPreferences.disabledApplications.contains(context.bundleIdentifier) || !context.isEnabled {
+            stopMonitoring()
+            RuntimeHealthStore.shared.update(
+                state: .inactive,
+                reason: .appPause,
+                context: context,
+                action: .enable
+            )
+            MenuBarController.shared?.updateMenu()
+            return
+        }
+
+        if requiresSafeTrial(for: context) {
+            stopMonitoring()
+            RuntimeHealthStore.shared.update(
+                state: .inactive,
+                reason: .consentRequired,
+                context: context,
+                action: .trySafely
+            )
+            MenuBarController.shared?.showSafeTrialPrompt(for: context)
+            MenuBarController.shared?.updateMenu()
+            return
+        }
+
+        let isSafeTrial = !AppRegistry.shared.hasConfiguration(for: context.bundleIdentifier)
+            && userPreferences.safeTrialApplications.contains(context.bundleIdentifier)
+        RuntimeHealthStore.shared.update(
+            state: isSafeTrial ? .limited : .active,
+            capabilities: capabilities(for: context),
+            context: context,
+            action: isSafeTrial ? .reportCompatibility : nil
+        )
+
+        if monitoredContext?.bundleIdentifier != context.bundleIdentifier || textMonitor.monitoredElement == nil {
+            monitoredContext = context
+            startMonitoring(context: context)
+        } else {
+            triggerReanalysis()
+        }
+        MenuBarController.shared?.updateMenu()
     }
 
     /// Resume monitoring after permission grant
@@ -1759,9 +1993,8 @@ class AnalysisCoordinator: ObservableObject {
         }
 
         // Check if app is paused - skip all analysis if so
-        if let pauseDuration = userPreferences.appPauseDurations[context.bundleIdentifier],
-           pauseDuration != .active
-        {
+        if userPreferences.effectivePauseScope(for: context.bundleIdentifier) == .application(context.bundleIdentifier) {
+            let pauseDuration = userPreferences.getPauseDuration(for: context.bundleIdentifier)
             Logger.debug("AnalysisCoordinator: App is paused (\(pauseDuration.rawValue)) - skipping analysis", category: Logger.analysis)
             return
         }
@@ -2439,6 +2672,13 @@ class AnalysisCoordinator: ObservableObject {
 
         currentErrors = filteredErrors
 
+        if let context = monitoredContext {
+            RuntimeHealthStore.shared.recordSuccessfulCheck(
+                for: context,
+                capabilities: capabilities(for: context)
+            )
+        }
+
         showErrorUnderlines(filteredErrors, element: element, isFromReplacementUI: isFromReplacementUI)
 
         // Sync the popover's error and style suggestion lists with the canonical lists
@@ -2453,6 +2693,25 @@ class AnalysisCoordinator: ObservableObject {
     /// - Parameter isFromReplacementUI: If true, this call is from `removeErrorAndUpdateUI` and should not be skipped during replacement mode
     func showErrorUnderlines(_ errors: [GrammarErrorModel], element: AXUIElement?, isFromReplacementUI: Bool = false) {
         Logger.debug("AnalysisCoordinator: showErrorUnderlines called with \(errors.count) errors, isFromReplacementUI: \(isFromReplacementUI)", category: Logger.analysis)
+
+        // An unknown application's safe trial is deliberately indicator-only. It can prove
+        // that grammar analysis works without making an unverified geometry or replacement
+        // claim about that app.
+        if isCurrentAppInSafeTrial() {
+            errorOverlay.hide()
+            if let element, let context = monitoredContext {
+                floatingIndicator.update(
+                    errors: errors,
+                    styleSuggestions: currentStyleSuggestions,
+                    readabilityResult: currentReadabilityResult,
+                    readabilityAnalysis: currentReadabilityAnalysis,
+                    element: element,
+                    context: context,
+                    sourceText: lastAnalyzedText
+                )
+            }
+            return
+        }
 
         // During replacement mode, skip calls from re-analysis (async completion with stale data)
         // Only allow calls from removeErrorAndUpdateUI which has the correct updated error list

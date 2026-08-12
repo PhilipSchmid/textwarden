@@ -52,7 +52,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         // Set initial icon state based on whether grammar checking is enabled
         let initialState: IconState = UserPreferences.shared.isEnabled ? .active : .inactive
-        let icon = initialState == .active ? TextWardenIcon.create() : TextWardenIcon.createDisabled()
+        let icon = initialState == .active ? TextWardenIcon.create() : TextWardenIcon.createPaused()
         button.image = icon
         button.toolTip = initialState == .active ? "TextWarden Grammar Checker" : "TextWarden (Paused)"
 
@@ -69,6 +69,11 @@ class MenuBarController: NSObject, NSMenuDelegate {
     /// Called when the status bar button is clicked
     /// Captures the frontmost app BEFORE the menu opens
     @objc private func statusBarButtonClicked(_ sender: NSStatusBarButton) {
+        if SafeTrialPromptController.shared.handleStatusItemClick(sender) {
+            return
+        }
+        SafeTrialPromptController.shared.dismiss()
+
         // Performance profiling for menu bar display
         let (profilingState, profilingStartTime) = PerformanceProfiler.shared.beginInterval(.menuBarDisplay, context: "click")
 
@@ -78,20 +83,6 @@ class MenuBarController: NSObject, NSMenuDelegate {
         // Capture the frontmost app before our app potentially becomes active
         menuTargetApp = NSWorkspace.shared.frontmostApplication
         let frontmostAppTime = (CFAbsoluteTimeGetCurrent() - stepStart) * 1000
-        stepStart = CFAbsoluteTimeGetCurrent()
-
-        // Check for pending milestones first (only if onboarding is complete)
-        if UserPreferences.shared.hasCompletedOnboarding,
-           let milestone = MilestoneManager.shared.checkForMilestones()
-        {
-            let milestoneCheckTime = (CFAbsoluteTimeGetCurrent() - stepStart) * 1000
-            Logger.info("MenuBar timing: frontmostApp=\(String(format: "%.1f", frontmostAppTime))ms, milestoneCheck=\(String(format: "%.1f", milestoneCheckTime))ms (showing milestone)", category: Logger.performance)
-            // Mark as shown immediately so it won't show again on next click
-            MilestoneManager.shared.markMilestoneShown(milestone)
-            showMilestoneCard(milestone, from: sender)
-            return
-        }
-        let milestoneCheckTime = (CFAbsoluteTimeGetCurrent() - stepStart) * 1000
         stepStart = CFAbsoluteTimeGetCurrent()
 
         // Rebuild menu with the captured app
@@ -104,7 +95,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         // Log timing BEFORE popUp (which blocks until menu dismissed)
         let prepTime = (CFAbsoluteTimeGetCurrent() - totalStart) * 1000
-        Logger.info("MenuBar timing: frontmostApp=\(String(format: "%.1f", frontmostAppTime))ms, milestoneCheck=\(String(format: "%.1f", milestoneCheckTime))ms, createMenu=\(String(format: "%.1f", createMenuTime))ms, totalPrep=\(String(format: "%.1f", prepTime))ms", category: Logger.performance)
+        Logger.info("MenuBar timing: frontmostApp=\(String(format: "%.1f", frontmostAppTime))ms, createMenu=\(String(format: "%.1f", createMenuTime))ms, totalPrep=\(String(format: "%.1f", prepTime))ms", category: Logger.performance)
 
         // End profiling BEFORE popUp - don't measure how long user has menu open
         PerformanceProfiler.shared.endInterval(.menuBarDisplay, state: profilingState, startTime: profilingStartTime)
@@ -177,6 +168,18 @@ class MenuBarController: NSObject, NSMenuDelegate {
         menuBarTooltipController?.showTooltip(near: buttonFrameOnScreen)
     }
 
+    /// Present the unknown-application choice using the system popover attached to TextWarden.
+    func showSafeTrialPrompt(for context: ApplicationContext) {
+        guard let button = statusItem?.button else {
+            Logger.warning("Cannot show safe-trial prompt: no status item button", category: Logger.ui)
+            return
+        }
+
+        setIconState(.inactive)
+        button.toolTip = "TextWarden is paused in \(context.applicationName) — click to choose"
+        SafeTrialPromptController.shared.present(for: context, relativeTo: button)
+    }
+
     private func createMenu() {
         menu = NSMenu()
 
@@ -186,6 +189,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
         menu?.addItem(headerItem)
         menu?.addItem(NSMenuItem.separator())
 
+        addRuntimeHealthMenuItems()
+
         addGlobalPauseMenuItems()
         menu?.addItem(NSMenuItem.separator())
 
@@ -194,6 +199,67 @@ class MenuBarController: NSObject, NSMenuDelegate {
         addUtilityMenuItems()
 
         // Menu is shown manually in statusBarButtonClicked, not attached to statusItem
+    }
+
+    /// Add a short, actionable answer to “is TextWarden working here?”
+    private func addRuntimeHealthMenuItems() {
+        let snapshot = RuntimeHealthStore.shared.snapshot
+        let appName = snapshot.applicationName ?? menuTargetApp?.localizedName
+        let prefix = appName.map { "\($0): " } ?? ""
+        let statusItem = NSMenuItem(title: "\(prefix)\(snapshot.menuTitle)", action: nil, keyEquivalent: "")
+        statusItem.isEnabled = false
+        menu?.addItem(statusItem)
+
+        if let lastSuccess = snapshot.lastSuccessfulCheck {
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .full
+            let text = formatter.localizedString(for: lastSuccess, relativeTo: Date())
+            let successItem = NSMenuItem(title: "Last check \(text)", action: nil, keyEquivalent: "")
+            successItem.isEnabled = false
+            menu?.addItem(successItem)
+        }
+
+        if let action = snapshot.action {
+            addRecoveryMenuItem(for: action, snapshot: snapshot)
+        }
+        menu?.addItem(NSMenuItem.separator())
+    }
+
+    private func addRecoveryMenuItem(for action: RecoveryAction, snapshot: RuntimeHealthSnapshot) {
+        let item: NSMenuItem
+        switch action {
+        case .grantPermission:
+            item = NSMenuItem(title: "Grant Accessibility Permission…", action: #selector(openAccessibilitySettings), keyEquivalent: "")
+        case .resume:
+            let title: String = switch snapshot.resumeScope {
+            case .application:
+                snapshot.applicationName.map { "Resume in \($0)" } ?? "Resume Here"
+            case .global, nil:
+                "Resume TextWarden"
+            }
+            item = NSMenuItem(title: title, action: #selector(resumePause(_:)), keyEquivalent: "")
+            item.representedObject = snapshot.resumeScope
+        case .trySafely:
+            let appName = snapshot.applicationName.map { " in \($0)" } ?? ""
+            item = NSMenuItem(title: "Try TextWarden Safely\(appName)", action: #selector(trySafeTrial(_:)), keyEquivalent: "")
+            item.representedObject = snapshot.bundleIdentifier
+        case .retry:
+            item = NSMenuItem(title: "Retry Now", action: #selector(retryCurrentCheck), keyEquivalent: "")
+        case .resetIndicatorPosition:
+            item = NSMenuItem(title: "Reset Indicator Position", action: #selector(openPreferences), keyEquivalent: "")
+        case .enable, .openSettings, .reportCompatibility, .copyDiagnostics, .keepPaused:
+            item = NSMenuItem(title: "Open Settings…", action: #selector(openPreferences), keyEquivalent: "")
+        }
+        item.target = self
+        menu?.addItem(item)
+
+        if action == .trySafely, let bundleID = snapshot.bundleIdentifier {
+            let appName = snapshot.applicationName ?? "This App"
+            let pauseItem = NSMenuItem(title: "Keep \(appName) Paused", action: #selector(keepSafeTrialPaused(_:)), keyEquivalent: "")
+            pauseItem.target = self
+            pauseItem.representedObject = bundleID
+            menu?.addItem(pauseItem)
+        }
     }
 
     /// Add global pause menu items
@@ -261,7 +327,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         // This was captured BEFORE the menu opened, so it's the app the user was in
         guard let targetApp = menuTargetApp,
               let bundleID = targetApp.bundleIdentifier,
-              bundleID != "io.textwarden.TextWarden"
+              !AppRegistry.shared.isIntentionallyDisabled(bundleID)
         else {
             return
         }
@@ -318,27 +384,19 @@ class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func setPauseActive() {
-        UserPreferences.shared.pauseDuration = .active
-        setIconState(.active)
-        updateMenu()
+        UserPreferences.shared.resume(.global)
     }
 
     @objc private func setPauseOneHour() {
-        UserPreferences.shared.pauseDuration = .oneHour
-        setIconState(.inactive)
-        updateMenu()
+        UserPreferences.shared.setPauseDuration(.oneHour, for: .global)
     }
 
     @objc private func setPauseTwentyFourHours() {
-        UserPreferences.shared.pauseDuration = .twentyFourHours
-        setIconState(.inactive)
-        updateMenu()
+        UserPreferences.shared.setPauseDuration(.twentyFourHours, for: .global)
     }
 
     @objc private func setPauseIndefinite() {
-        UserPreferences.shared.pauseDuration = .indefinite
-        setIconState(.inactive)
-        updateMenu()
+        UserPreferences.shared.setPauseDuration(.indefinite, for: .global)
     }
 
     // MARK: - App-Specific Pause
@@ -357,7 +415,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         // Active option
         let activeItem = NSMenuItem(
-            title: "  Active for \(appName)",
+            title: "  Active",
             action: #selector(setAppPauseActive),
             keyEquivalent: ""
         )
@@ -368,7 +426,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         // Pause for 1 Hour option
         let oneHourItem = NSMenuItem(
-            title: "  Paused for 1 Hour for \(appName)",
+            title: "  Paused for 1 Hour",
             action: #selector(setAppPauseOneHour),
             keyEquivalent: ""
         )
@@ -379,7 +437,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         // Pause for 24 Hours option
         let twentyFourHoursItem = NSMenuItem(
-            title: "  Paused for 24 Hours for \(appName)",
+            title: "  Paused for 24 Hours",
             action: #selector(setAppPauseTwentyFourHours),
             keyEquivalent: ""
         )
@@ -390,7 +448,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         // Pause Indefinitely option
         let indefiniteItem = NSMenuItem(
-            title: "  Paused Until Resumed for \(appName)",
+            title: "  Paused Until Resumed",
             action: #selector(setAppPauseIndefinite),
             keyEquivalent: ""
         )
@@ -413,27 +471,102 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func setAppPauseActive(_ sender: NSMenuItem) {
         guard let bundleID = sender.representedObject as? String else { return }
-        UserPreferences.shared.setPauseDuration(for: bundleID, duration: .active)
+        UserPreferences.shared.resume(.application(bundleID))
     }
 
     @objc private func setAppPauseOneHour(_ sender: NSMenuItem) {
         guard let bundleID = sender.representedObject as? String else { return }
-        UserPreferences.shared.setPauseDuration(for: bundleID, duration: .oneHour)
+        UserPreferences.shared.setPauseDuration(.oneHour, for: .application(bundleID))
     }
 
     @objc private func setAppPauseTwentyFourHours(_ sender: NSMenuItem) {
         guard let bundleID = sender.representedObject as? String else { return }
-        UserPreferences.shared.setPauseDuration(for: bundleID, duration: .twentyFourHours)
+        UserPreferences.shared.setPauseDuration(.twentyFourHours, for: .application(bundleID))
     }
 
     @objc private func setAppPauseIndefinite(_ sender: NSMenuItem) {
         guard let bundleID = sender.representedObject as? String else { return }
-        UserPreferences.shared.setPauseDuration(for: bundleID, duration: .indefinite)
+        UserPreferences.shared.setPauseDuration(.indefinite, for: .application(bundleID))
+    }
+
+    @objc private func resumePause(_ sender: NSMenuItem) {
+        guard let scope = sender.representedObject as? PauseScope else {
+            Logger.warning("Resume action has no pause scope", category: Logger.ui)
+            return
+        }
+        UserPreferences.shared.resume(scope)
+    }
+
+    @objc private func trySafeTrial(_ sender: NSMenuItem) {
+        guard let bundleID = sender.representedObject as? String else { return }
+        AnalysisCoordinator.shared.startSafeTrial(for: bundleID)
+    }
+
+    @objc private func keepSafeTrialPaused(_ sender: NSMenuItem) {
+        guard let bundleID = sender.representedObject as? String else { return }
+        UserPreferences.shared.declineSafeTrial(for: bundleID)
+        UserPreferences.shared.setPauseDuration(.indefinite, for: .application(bundleID))
+        RuntimeHealthStore.shared.update(
+            state: .inactive,
+            reason: .appPause,
+            context: ApplicationTracker.shared.activeApplication,
+            action: .resume
+        )
+        updateMenu()
+    }
+
+    @objc private func retryCurrentCheck() {
+        AnalysisCoordinator.shared.retryCurrentCheck()
+        updateMenu()
+    }
+
+    @objc private func openAccessibilitySettings() {
+        PermissionManager.shared.openSystemSettings()
     }
 
     /// Update menu to reflect current pause state
     func updateMenu() {
+        refreshIconForActiveApplication()
         createMenu()
+    }
+
+    /// Keep the status icon tied to the current app instead of whichever app last changed it.
+    private func refreshIconForActiveApplication() {
+        guard let context = ApplicationTracker.shared.activeApplication else {
+            setIconState(UserPreferences.shared.isEnabled ? .active : .inactive)
+            return
+        }
+
+        let preferences = UserPreferences.shared
+        let isAwaitingConsent = !AppRegistry.shared.isKnownApplication(context.bundleIdentifier)
+            && !preferences.hasRespondedToSafeTrial(for: context.bundleIdentifier)
+        let snapshot = RuntimeHealthStore.shared.snapshot
+        let matchingInactiveReason = snapshot.bundleIdentifier == context.bundleIdentifier
+            && snapshot.state == .inactive ? snapshot.reason : nil
+
+        setIconState(Self.iconState(
+            isEnabledForActiveApplication: context.shouldCheck(),
+            isAwaitingConsent: isAwaitingConsent,
+            matchingInactiveReason: matchingInactiveReason
+        ))
+    }
+
+    static func iconState(
+        isEnabledForActiveApplication: Bool,
+        isAwaitingConsent: Bool,
+        matchingInactiveReason: InactiveReason?
+    ) -> IconState {
+        guard isEnabledForActiveApplication, !isAwaitingConsent else {
+            return .inactive
+        }
+
+        switch matchingInactiveReason {
+        case .permission, .siteDisabled, .consentRequired:
+            return .inactive
+        case .globalPause, .appPause, .secureField, .unsupportedField, .unsupportedApplication,
+             .noEditableField, nil:
+            return .active
+        }
     }
 
     @objc private func openPreferences() {
@@ -464,10 +597,10 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         previousIconState = state
 
-        // Use disabled icon with strikethrough when paused, normal icon otherwise
+        // Keep the feather recognizable and add a compact pause badge when inactive.
         let icon: NSImage = switch state {
         case .inactive:
-            TextWardenIcon.createDisabled()
+            TextWardenIcon.createPaused()
         case .active, .error, .restarting:
             TextWardenIcon.create()
         }

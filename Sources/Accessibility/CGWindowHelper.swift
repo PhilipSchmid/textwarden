@@ -12,6 +12,36 @@ import Foundation
 /// Helper to get window bounds using CGWindow API
 /// This is more reliable than AXUIElement bounds for Electron apps
 enum CGWindowHelper {
+    /// Get the frontmost substantial layer-zero window for a process.
+    /// The returned frame uses Quartz coordinates (top-left origin).
+    static func getFrontmostWindowBounds(for processID: pid_t) -> CGRect? {
+        let options = CGWindowListOption([.optionOnScreenOnly, .excludeDesktopElements])
+        guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return nil
+        }
+
+        for windowInfo in windowList {
+            guard let windowPID = windowInfo[kCGWindowOwnerPID as String] as? pid_t,
+                  windowPID == processID,
+                  let layer = windowInfo[kCGWindowLayer as String] as? Int,
+                  layer == 0,
+                  let boundsDict = windowInfo[kCGWindowBounds as String] as? [String: CGFloat],
+                  let x = boundsDict["X"],
+                  let y = boundsDict["Y"],
+                  let width = boundsDict["Width"],
+                  let height = boundsDict["Height"],
+                  width >= 200,
+                  height >= 120
+            else {
+                continue
+            }
+
+            return CGRect(x: x, y: y, width: width, height: height)
+        }
+
+        return nil
+    }
+
     /// Get window bounds for process using CGWindow API
     static func getWindowBounds(for processID: pid_t) -> CGRect? {
         let options = CGWindowListOption([.optionOnScreenOnly, .excludeDesktopElements])

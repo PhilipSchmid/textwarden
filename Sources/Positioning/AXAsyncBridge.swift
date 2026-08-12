@@ -14,14 +14,15 @@ import Foundation
 /// This bridge moves AX operations off the main thread to prevent UI sluggishness
 /// during slow AX calls (particularly common with Notion, Outlook, and other Electron apps).
 ///
-/// All operations respect the `AXWatchdog` blocklist and busy-guard to prevent
-/// pile-up of blocked calls.
+/// All operations reserve a per-process slot from `AXWatchdog`; the bounded queue allows
+/// unrelated applications to proceed while a problematic app is cooling down.
 enum AXAsyncBridge {
-    /// Dedicated serial queue for AX operations.
-    /// Using serial queue ensures calls don't pile up and provides predictable ordering.
+    /// Concurrent executor. `AXWatchdog.tryBeginCall` provides the global bound and the
+    /// one-in-flight-call-per-process guarantee.
     private static let axQueue = DispatchQueue(
         label: "com.textwarden.ax-operations",
-        qos: .userInitiated
+        qos: .userInitiated,
+        attributes: .concurrent
     )
 
     // MARK: - Element Properties
@@ -43,9 +44,13 @@ enum AXAsyncBridge {
 
         return await withCheckedContinuation { continuation in
             axQueue.async {
-                AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXFrame")
+                guard let token = AXWatchdog.shared.tryBeginCall(bundleID: bundleID, attribute: "AXFrame") else {
+                    Logger.debug("AXAsyncBridge.getElementFrame: No execution slot for \(bundleID)", category: Logger.accessibility)
+                    continuation.resume(returning: nil)
+                    return
+                }
                 let result = AccessibilityBridge.getElementFrame(element)
-                AXWatchdog.shared.endCall()
+                AXWatchdog.shared.endCall(token)
                 continuation.resume(returning: result)
             }
         }
@@ -70,7 +75,11 @@ enum AXAsyncBridge {
 
         return await withCheckedContinuation { continuation in
             axQueue.async {
-                AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXValue")
+                guard let token = AXWatchdog.shared.tryBeginCall(bundleID: bundleID, attribute: "AXValue") else {
+                    Logger.debug("AXAsyncBridge.extractTextValue: No execution slot for \(bundleID)", category: Logger.accessibility)
+                    continuation.resume(returning: nil)
+                    return
+                }
 
                 var value: CFTypeRef?
                 let result = AXUIElementCopyAttributeValue(
@@ -79,11 +88,12 @@ enum AXAsyncBridge {
                     &value
                 )
 
-                AXWatchdog.shared.endCall()
+                AXWatchdog.shared.endCall(token)
 
                 if result == .success, let textValue = value as? String {
                     continuation.resume(returning: textValue)
                 } else {
+                    Logger.debug("AXAsyncBridge.extractTextValue: \(AXClient.outcome(for: result)) for \(bundleID)", category: Logger.accessibility)
                     continuation.resume(returning: nil)
                 }
             }

@@ -6,6 +6,7 @@
 //  Used by StrategyRecommendationEngine to auto-detect optimal configurations.
 //
 
+import AppKit
 import Foundation
 
 // MARK: - Probe Result
@@ -26,6 +27,9 @@ struct AXCapabilityProfile: Codable {
     let bundleID: String
     let probedAt: Date
     let appVersion: String?
+    let appBuild: String?
+    let macOSVersion: String?
+    let macOSBuild: String?
 
     // Positioning capabilities
     let boundsForRange: ProbeResult
@@ -102,10 +106,26 @@ struct AXCapabilityProfile: Codable {
         )
     }
 
-    /// Check if profile has expired (older than 7 days)
+    /// Check if profile has expired or no longer matches the application and system that produced it.
     var isExpired: Bool {
         let expirationDays = 7.0
         let expirationInterval = expirationDays * 24 * 60 * 60
-        return Date().timeIntervalSince(probedAt) > expirationInterval
+        return Date().timeIntervalSince(probedAt) > expirationInterval || !matchesCurrentEnvironment
+    }
+
+    private var matchesCurrentEnvironment: Bool {
+        let systemVersion = ProcessInfo.processInfo.operatingSystemVersion
+        let currentMacOSVersion = "\(systemVersion.majorVersion).\(systemVersion.minorVersion).\(systemVersion.patchVersion)"
+        guard macOSVersion == currentMacOSVersion,
+              macOSBuild == ProcessInfo.processInfo.operatingSystemVersionString,
+              let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID),
+              let bundle = Bundle(url: appURL)
+        else {
+            return false
+        }
+
+        let currentVersion = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let currentBuild = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        return currentVersion == appVersion && currentBuild == appBuild
     }
 }
