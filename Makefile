@@ -79,8 +79,8 @@ status: ## Show app status
 
 logs: ## Watch app logs
 	@echo "$(BLUE)Watching logs (Ctrl+C to stop)...$(NC)"
-	@log stream --predicate 'subsystem == "com.textwarden.app"' --style compact --color always 2>/dev/null || \
-	 log stream --predicate 'subsystem == "com.textwarden.app"' --style compact
+	@log stream --predicate 'subsystem == "io.textwarden.TextWarden"' --style compact --color always 2>/dev/null || \
+	 log stream --predicate 'subsystem == "io.textwarden.TextWarden"' --style compact
 
 ##@ Testing
 
@@ -94,22 +94,8 @@ test-rust: ## Run Rust tests
 test-swift: ## Run Swift tests (unit tests only, excludes performance benchmarks)
 	@echo "$(BLUE)🍎 Running Swift tests...$(NC)"
 	@set -o pipefail; xcodebuild test -scheme TextWarden -destination 'platform=macOS' \
-		-only-testing:TextWardenTests/AppBehaviorConsistencyTests \
-		-only-testing:TextWardenTests/AppBehaviorRegistryTests \
-		-only-testing:TextWardenTests/AppBehaviorRegressionTests \
-		-only-testing:TextWardenTests/ApplicationConfigurationTests \
-		-only-testing:TextWardenTests/GrammarAnalysisRequestTests \
-		-only-testing:TextWardenTests/GrammarEngineFFITests \
-		-only-testing:TextWardenTests/PerformanceProfilerTests \
-		-only-testing:TextWardenTests/ReadabilityTests \
-		-only-testing:TextWardenTests/RetrySchedulerTests \
-		-only-testing:TextWardenTests/SlackStrategyValidationTests \
-		-only-testing:TextWardenTests/SuggestionPopoverTests \
-		-only-testing:TextWardenTests/TextMonitorTests \
-		-only-testing:TextWardenTests/TextIndexConverterTests \
-		-only-testing:TextWardenTests/UnderlineStateManagerTests \
-		-only-testing:TextWardenTests/UserStatisticsTests \
-		-only-testing:TextWardenTests/VirtualKeyCodeTests \
+		-skip-testing:TextWardenTests/GrammarAnalysisPerformanceTests \
+		-skip-testing:TextWardenTests/LargeDocumentPerformanceTests \
 		2>&1 | grep -E '(failed|error:|TEST SUCCEEDED|TEST FAILED)'
 	@echo "$(GREEN)✅ Swift tests passed$(NC)"
 
@@ -171,22 +157,8 @@ ci-check: ## Run CI checks locally (use before pushing)
 	@echo ""
 	@echo "$(YELLOW)[6/7] Running Swift tests...$(NC)"
 	@set -o pipefail; xcodebuild test -scheme TextWarden -destination 'platform=macOS' \
-		-only-testing:TextWardenTests/AppBehaviorConsistencyTests \
-		-only-testing:TextWardenTests/AppBehaviorRegistryTests \
-		-only-testing:TextWardenTests/AppBehaviorRegressionTests \
-		-only-testing:TextWardenTests/ApplicationConfigurationTests \
-		-only-testing:TextWardenTests/GrammarAnalysisRequestTests \
-		-only-testing:TextWardenTests/GrammarEngineFFITests \
-		-only-testing:TextWardenTests/PerformanceProfilerTests \
-		-only-testing:TextWardenTests/ReadabilityTests \
-		-only-testing:TextWardenTests/RetrySchedulerTests \
-		-only-testing:TextWardenTests/SlackStrategyValidationTests \
-		-only-testing:TextWardenTests/SuggestionPopoverTests \
-		-only-testing:TextWardenTests/TextMonitorTests \
-		-only-testing:TextWardenTests/TextIndexConverterTests \
-		-only-testing:TextWardenTests/UnderlineStateManagerTests \
-		-only-testing:TextWardenTests/UserStatisticsTests \
-		-only-testing:TextWardenTests/VirtualKeyCodeTests \
+		-skip-testing:TextWardenTests/GrammarAnalysisPerformanceTests \
+		-skip-testing:TextWardenTests/LargeDocumentPerformanceTests \
 		2>&1 | grep -E '(failed|error:|TEST SUCCEEDED|TEST FAILED)'
 	@echo "$(GREEN)✅ OK$(NC)"
 	@echo ""
