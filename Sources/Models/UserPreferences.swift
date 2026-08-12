@@ -16,6 +16,12 @@ enum PauseDuration: String, CaseIterable, Codable {
     case indefinite = "Paused Until Resumed"
 }
 
+/// Identifies which pause setting a user action should change.
+enum PauseScope: Equatable {
+    case global
+    case application(String)
+}
+
 /// Observable user preferences with automatic persistence
 @MainActor
 class UserPreferences: ObservableObject {
@@ -105,6 +111,21 @@ class UserPreferences: ObservableObject {
     @Published var discoveredApplications: Set<String> {
         didSet {
             persist(discoveredApplications, forKey: Keys.discoveredApplications)
+        }
+    }
+
+    /// Unknown applications the user explicitly allowed TextWarden to try in safe mode.
+    /// Safe mode never enables inline positioning or direct replacement.
+    @Published var safeTrialApplications: Set<String> {
+        didSet {
+            persist(safeTrialApplications, forKey: Keys.safeTrialApplications)
+        }
+    }
+
+    /// Unknown applications the user chose to keep paused.
+    @Published var declinedTrialApplications: Set<String> {
+        didSet {
+            persist(declinedTrialApplications, forKey: Keys.declinedTrialApplications)
         }
     }
 
@@ -690,6 +711,8 @@ class UserPreferences: ObservableObject {
         pausedUntil = nil
         disabledApplications = []
         discoveredApplications = []
+        safeTrialApplications = []
+        declinedTrialApplications = []
         appUnderlinesDisabled = []
         disabledWebsites = []
         appPauseDurations = [:]
@@ -776,6 +799,18 @@ class UserPreferences: ObservableObject {
            let set = try? decoder.decode(Set<String>.self, from: data)
         {
             discoveredApplications = set
+        }
+
+        if let data = defaults.data(forKey: Keys.safeTrialApplications),
+           let set = try? decoder.decode(Set<String>.self, from: data)
+        {
+            safeTrialApplications = set
+        }
+
+        if let data = defaults.data(forKey: Keys.declinedTrialApplications),
+           let set = try? decoder.decode(Set<String>.self, from: data)
+        {
+            declinedTrialApplications = set
         }
 
         if let data = defaults.data(forKey: Keys.appUnderlinesDisabled),
@@ -934,8 +969,7 @@ class UserPreferences: ObservableObject {
                 appPauseDurations[terminalID] = .indefinite
             }
         }
-        // Note: Other unsupported apps are auto-paused via ApplicationTracker and ApplicationSettingsView
-        // when they're first discovered (whitelist approach)
+        // Unknown apps require a one-time safe-trial decision before their text is read.
 
         if pauseDuration == .oneHour, let until = pausedUntil, Date() < until {
             setupResumeTimer(until: until)
@@ -1042,10 +1076,8 @@ class UserPreferences: ObservableObject {
 
     /// Check if grammar checking is enabled for a specific application
     func isEnabled(for bundleIdentifier: String) -> Bool {
-        // Never check grammar in TextWarden's own UI
-        if bundleIdentifier == "io.textwarden.TextWarden" {
-            return false
-        }
+        // Known non-writing apps never enter the external Accessibility pipeline.
+        guard !AppRegistry.shared.isIntentionallyDisabled(bundleIdentifier) else { return false }
 
         // First check global pause state
         guard isEnabled else { return false }
@@ -1070,6 +1102,16 @@ class UserPreferences: ObservableObject {
         case .indefinite:
             return false
         }
+    }
+
+    /// Returns the pause that currently prevents checking in an application.
+    /// Global pause always wins so recovery actions match the runtime-health priority.
+    func effectivePauseScope(for bundleIdentifier: String) -> PauseScope? {
+        guard isEnabled else { return .global }
+        guard getPauseDuration(for: bundleIdentifier) == .active else {
+            return .application(bundleIdentifier)
+        }
+        return nil
     }
 
     /// Check if underlines are enabled for a specific application
@@ -1179,6 +1221,21 @@ class UserPreferences: ObservableObject {
 
     // MARK: - App-Specific Pause Management
 
+    /// Updates the single preference store for either a global or application pause.
+    func setPauseDuration(_ duration: PauseDuration, for scope: PauseScope) {
+        switch scope {
+        case .global:
+            pauseDuration = duration
+        case let .application(bundleIdentifier):
+            setPauseDuration(for: bundleIdentifier, duration: duration)
+        }
+    }
+
+    /// Resumes the requested scope without changing any independent pause.
+    func resume(_ scope: PauseScope) {
+        setPauseDuration(.active, for: scope)
+    }
+
     /// Sets the pause duration for a specific application.
     /// - Parameters:
     ///   - bundleIdentifier: The bundle identifier of the application
@@ -1239,6 +1296,22 @@ class UserPreferences: ObservableObject {
         appPausedUntil[bundleIdentifier]
     }
 
+    // MARK: - Unknown Application Safe Trial
+
+    func hasRespondedToSafeTrial(for bundleIdentifier: String) -> Bool {
+        safeTrialApplications.contains(bundleIdentifier) || declinedTrialApplications.contains(bundleIdentifier)
+    }
+
+    func allowSafeTrial(for bundleIdentifier: String) {
+        declinedTrialApplications.remove(bundleIdentifier)
+        safeTrialApplications.insert(bundleIdentifier)
+    }
+
+    func declineSafeTrial(for bundleIdentifier: String) {
+        safeTrialApplications.remove(bundleIdentifier)
+        declinedTrialApplications.insert(bundleIdentifier)
+    }
+
     /// Reset all preferences to defaults
     func resetToDefaults() {
         hasCompletedOnboarding = false
@@ -1246,10 +1319,17 @@ class UserPreferences: ObservableObject {
         pauseDuration = .active
         pausedUntil = nil
         disabledApplications = []
+        appPauseDurations = [:]
+        appPausedUntil = [:]
+        safeTrialApplications = []
+        declinedTrialApplications = []
+        appUnderlinesDisabled = []
+        disabledWebsites = []
         // Note: We intentionally don't reset discoveredApplications
         // as it's useful to remember which apps have been used
         customDictionary = []
         ignoredRules = []
+        ignoredErrorTexts = []
         enabledCategories = UserPreferences.allCategories
         enforceOxfordComma = true
         checkEllipsis = true
@@ -1282,6 +1362,8 @@ class UserPreferences: ObservableObject {
         static let pausedUntil = "pausedUntil"
         static let disabledApplications = "disabledApplications"
         static let discoveredApplications = "discoveredApplications"
+        static let safeTrialApplications = "safeTrialApplications"
+        static let declinedTrialApplications = "declinedTrialApplications"
         static let appUnderlinesDisabled = "appUnderlinesDisabled"
         static let disabledWebsites = "disabledWebsites"
         static let appPauseDurations = "appPauseDurations"

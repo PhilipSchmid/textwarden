@@ -13,15 +13,45 @@ import UniformTypeIdentifiers
 struct DiagnosticsView: View {
     @ObservedObject var preferences: UserPreferences
     @ObservedObject private var applicationTracker = ApplicationTracker.shared
+    @ObservedObject private var runtimeHealth = RuntimeHealthStore.shared
     @State private var isExporting: Bool = false
     @State private var showingExportSuccess: Bool = false
     @State private var showingExportError: Bool = false
     @State private var exportedFilePath: String = ""
     @State private var exportedFileSize: String = ""
-    @State private var lastMilestoneResetClick: Date?
+    @State private var pendingResetAction: ResetAction?
 
     var body: some View {
         Form {
+            Section {
+                let snapshot = runtimeHealth.snapshot
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text(snapshot.applicationName ?? "No active application")
+                            .font(.headline)
+                        Spacer()
+                        Text(snapshot.state.displayName)
+                            .foregroundColor(.secondary)
+                    }
+                    Text(snapshot.title)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    if snapshot.capabilities.rawValue != 0 {
+                        Text("Capabilities: \(snapshot.capabilities.supportLabel)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    if let bundleID = snapshot.bundleIdentifier {
+                        Text(bundleID)
+                            .font(.caption2)
+                            .textSelection(.enabled)
+                    }
+                }
+            } header: {
+                Text("Runtime Health")
+                    .font(.headline)
+            }
+
             // MARK: - Active Application Monitoring
 
             Section {
@@ -326,11 +356,7 @@ struct DiagnosticsView: View {
                     VStack(spacing: 12) {
                         HStack(spacing: 12) {
                             Button {
-                                preferences.resetToDefaults()
-                                // Relaunch the app to start fresh with onboarding
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                    Self.relaunchApp()
-                                }
+                                pendingResetAction = .allSettings
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack {
@@ -347,7 +373,7 @@ struct DiagnosticsView: View {
                             .help("Reset all preferences and restart onboarding")
 
                             Button {
-                                preferences.customDictionary.removeAll()
+                                pendingResetAction = .customDictionary
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack {
@@ -366,7 +392,7 @@ struct DiagnosticsView: View {
 
                         HStack(spacing: 12) {
                             Button {
-                                preferences.ignoredRules.removeAll()
+                                pendingResetAction = .ignoredRules
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack {
@@ -383,7 +409,7 @@ struct DiagnosticsView: View {
                             .help("Re-enable all previously ignored grammar rules")
 
                             Button {
-                                preferences.ignoredErrorTexts.removeAll()
+                                pendingResetAction = .ignoredErrorTexts
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack {
@@ -402,25 +428,7 @@ struct DiagnosticsView: View {
 
                         HStack(spacing: 12) {
                             Button {
-                                // Easter egg: double-click shows milestone preview instead of resetting
-                                let now = Date()
-                                if let lastClick = lastMilestoneResetClick,
-                                   now.timeIntervalSince(lastClick) < 0.4
-                                {
-                                    // Double-click detected - show preview
-                                    MenuBarController.shared?.showMilestonePreview()
-                                    lastMilestoneResetClick = nil
-                                } else {
-                                    // Single click - reset milestones
-                                    lastMilestoneResetClick = now
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                                        if lastMilestoneResetClick != nil {
-                                            preferences.milestonesDisabled = false
-                                            preferences.shownMilestones.removeAll()
-                                            lastMilestoneResetClick = nil
-                                        }
-                                    }
-                                }
+                                pendingResetAction = .milestones
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack {
@@ -473,9 +481,38 @@ struct DiagnosticsView: View {
         } message: {
             Text("Failed to export diagnostic package. Please check the logs for details.")
         }
+        .alert(item: $pendingResetAction) { action in
+            Alert(
+                title: Text(action.title),
+                message: Text(action.message),
+                primaryButton: .destructive(Text(action.confirmationTitle)) {
+                    performReset(action)
+                },
+                secondaryButton: .cancel()
+            )
+        }
     }
 
     // MARK: - Export Methods
+
+    private func performReset(_ action: ResetAction) {
+        switch action {
+        case .allSettings:
+            preferences.resetToDefaults()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                Self.relaunchApp()
+            }
+        case .customDictionary:
+            preferences.customDictionary.removeAll()
+        case .ignoredRules:
+            preferences.ignoredRules.removeAll()
+        case .ignoredErrorTexts:
+            preferences.ignoredErrorTexts.removeAll()
+        case .milestones:
+            preferences.milestonesDisabled = false
+            preferences.shownMilestones.removeAll()
+        }
+    }
 
     private func exportDiagnosticsToFile() {
         isExporting = true
@@ -563,6 +600,48 @@ struct DiagnosticsView: View {
                     NSApp.terminate(nil)
                 }
             }
+        }
+    }
+}
+
+private enum ResetAction: Identifiable {
+    case allSettings
+    case customDictionary
+    case ignoredRules
+    case ignoredErrorTexts
+    case milestones
+
+    var id: String {
+        title
+    }
+
+    var title: String {
+        switch self {
+        case .allSettings: "Reset All Settings?"
+        case .customDictionary: "Clear Custom Dictionary?"
+        case .ignoredRules: "Clear Ignored Rules?"
+        case .ignoredErrorTexts: "Clear Ignored Error Texts?"
+        case .milestones: "Reset Milestones?"
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .allSettings: "This restores TextWarden's settings and restarts the app."
+        case .customDictionary: "This removes every word in your custom dictionary."
+        case .ignoredRules: "This re-enables every rule you previously ignored."
+        case .ignoredErrorTexts: "This removes every text pattern ignored everywhere."
+        case .milestones: "This restores milestone prompts you have already dismissed."
+        }
+    }
+
+    var confirmationTitle: String {
+        switch self {
+        case .allSettings: "Reset Settings"
+        case .customDictionary: "Clear Dictionary"
+        case .ignoredRules: "Clear Rules"
+        case .ignoredErrorTexts: "Clear Ignored Texts"
+        case .milestones: "Reset Milestones"
         }
     }
 }

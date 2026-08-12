@@ -73,7 +73,10 @@ struct KeyboardReplacement {
         let savedState = ClipboardManager.save()
 
         // Set replacement text on clipboard
-        ClipboardManager.copy(context.replacement)
+        let replacementClipboardState = ClipboardManager.setForReplacement(
+            context.replacement,
+            savedState: savedState
+        )
 
         // Activate the target application
         activateTargetApp(context)
@@ -97,12 +100,9 @@ struct KeyboardReplacement {
         try? await Task.sleep(nanoseconds: UInt64(0.15 * 1_000_000_000))
 
         // Restore clipboard
-        ClipboardManager.restoreAfterDelay(savedState, delay: TimingConstants.clipboardRestoreDelay)
+        ClipboardManager.restoreAfterDelay(replacementClipboardState, delay: TimingConstants.clipboardRestoreDelay)
 
-        Logger.info(
-            "KeyboardReplacement: Replaced '\(context.errorText)' with '\(context.replacement)'",
-            category: Logger.analysis
-        )
+        Logger.info("KeyboardReplacement: Completed a clipboard-based replacement", category: Logger.analysis)
 
         // Electron apps can't verify replacement, return unverified
         return .unverified

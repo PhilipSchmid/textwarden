@@ -36,12 +36,18 @@ enum ClipboardManager {
 
     /// Saved clipboard state for restoration
     struct SavedState {
-        let text: String?
-        let changeCount: Int
+        fileprivate struct Item {
+            let representations: [String: Data]
+        }
 
-        fileprivate init(text: String?, changeCount: Int) {
-            self.text = text
+        fileprivate let items: [Item]
+        let changeCount: Int
+        fileprivate let replacementChangeCount: Int?
+
+        fileprivate init(items: [Item], changeCount: Int, replacementChangeCount: Int? = nil) {
+            self.items = items
             self.changeCount = changeCount
+            self.replacementChangeCount = replacementChangeCount
         }
     }
 
@@ -49,8 +55,17 @@ enum ClipboardManager {
     /// - Returns: The saved state to pass to `restore(_:)`
     static func save() -> SavedState {
         let pasteboard = NSPasteboard.general
+        let items = (pasteboard.pasteboardItems ?? []).map { item in
+            var representations: [String: Data] = [:]
+            for type in item.types {
+                if let data = item.data(forType: type) {
+                    representations[type.rawValue] = data
+                }
+            }
+            return SavedState.Item(representations: representations)
+        }
         return SavedState(
-            text: pasteboard.string(forType: .string),
+            items: items,
             changeCount: pasteboard.changeCount
         )
     }
@@ -59,10 +74,15 @@ enum ClipboardManager {
     /// - Parameters:
     ///   - text: The text to set on clipboard
     ///   - saved: Previously saved state (for change count tracking)
-    static func setForReplacement(_ text: String, savedState _: SavedState) {
+    static func setForReplacement(_ text: String, savedState: SavedState) -> SavedState {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        return SavedState(
+            items: savedState.items,
+            changeCount: savedState.changeCount,
+            replacementChangeCount: pasteboard.changeCount
+        )
     }
 
     /// Restore clipboard to saved state.
@@ -72,20 +92,28 @@ enum ClipboardManager {
     static func restore(_ state: SavedState) {
         let pasteboard = NSPasteboard.general
 
-        // Only restore if clipboard wasn't modified by user since we set it
-        // Change count increments by 1 for our clearContents+setString
-        guard pasteboard.changeCount == state.changeCount + 1 else {
+        // Only restore if our replacement content is still on the clipboard. The exact change
+        // count is captured after setting it because clearContents and setString may advance the
+        // counter differently across macOS versions.
+        guard let replacementChangeCount = state.replacementChangeCount,
+              pasteboard.changeCount == replacementChangeCount
+        else {
             Logger.debug("ClipboardManager: Skipping restore - clipboard was modified by user", category: Logger.analysis)
             return
         }
 
         pasteboard.clearContents()
-        if let originalText = state.text {
-            pasteboard.setString(originalText, forType: .string)
-            Logger.debug("ClipboardManager: Restored original clipboard content", category: Logger.analysis)
-        } else {
-            Logger.debug("ClipboardManager: Cleared clipboard (no original content to restore)", category: Logger.analysis)
+        let restoredItems = state.items.compactMap { savedItem -> NSPasteboardItem? in
+            let item = NSPasteboardItem()
+            for (rawType, data) in savedItem.representations {
+                item.setData(data, forType: NSPasteboard.PasteboardType(rawValue: rawType))
+            }
+            return savedItem.representations.isEmpty ? nil : item
         }
+        if !restoredItems.isEmpty {
+            pasteboard.writeObjects(restoredItems)
+        }
+        Logger.debug("ClipboardManager: Restored \(restoredItems.count) original clipboard item(s)", category: Logger.analysis)
     }
 
     /// Restore clipboard to saved state after a delay.
@@ -110,11 +138,11 @@ enum ClipboardManager {
     @MainActor
     static func withTemporaryContent<T>(_ text: String, restoreDelay: TimeInterval = TimingConstants.clipboardRestoreDelay, operation: () async throws -> T) async rethrows -> T {
         let savedState = save()
-        copy(text)
+        let replacementState = setForReplacement(text, savedState: savedState)
 
         let result = try await operation()
 
-        restoreAfterDelay(savedState, delay: restoreDelay)
+        restoreAfterDelay(replacementState, delay: restoreDelay)
         return result
     }
 
@@ -126,11 +154,11 @@ enum ClipboardManager {
     @MainActor
     static func withTemporaryContentImmediate<T>(_ text: String, operation: () async throws -> T) async rethrows -> T {
         let savedState = save()
-        copy(text)
+        let replacementState = setForReplacement(text, savedState: savedState)
 
         let result = try await operation()
 
-        restore(savedState)
+        restore(replacementState)
         return result
     }
 }

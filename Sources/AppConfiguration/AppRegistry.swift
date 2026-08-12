@@ -14,6 +14,16 @@ import Foundation
 final class AppRegistry {
     static let shared = AppRegistry()
 
+    /// Known applications where writing assistance is not useful. These apps should never
+    /// be treated as unknown or ask for a safe-trial decision.
+    private static let intentionallyDisabledBundleIDs: Set<String> = [
+        "io.textwarden.TextWarden",
+        "com.apple.finder",
+        "com.apple.notificationcenterui",
+        "com.apple.systempreferences",
+        "com.apple.UserNotificationCenter",
+    ]
+
     /// Bundle ID -> Configuration mapping
     private var configurations: [String: AppConfiguration] = [:]
 
@@ -45,6 +55,16 @@ final class AppRegistry {
     /// Check if a bundle ID has a specific configuration
     func hasConfiguration(for bundleID: String) -> Bool {
         configurations[bundleID] != nil
+    }
+
+    /// Whether TextWarden already has an explicit disposition for this application.
+    func isKnownApplication(_ bundleID: String) -> Bool {
+        hasConfiguration(for: bundleID) || Self.intentionallyDisabledBundleIDs.contains(bundleID)
+    }
+
+    /// Whether TextWarden intentionally stays inactive in this application.
+    func isIntentionallyDisabled(_ bundleID: String) -> Bool {
+        Self.intentionallyDisabledBundleIDs.contains(bundleID)
     }
 
     /// Get effective configuration for a bundle ID.
@@ -83,6 +103,7 @@ final class AppRegistry {
     }
 
     private func registerBuiltInConfigurations() {
+        register(.textWarden)
         register(.slack)
         register(.teams)
         register(.claude)
@@ -111,6 +132,32 @@ final class AppRegistry {
 // MARK: - Built-in Configurations
 
 extension AppConfiguration {
+    // MARK: - TextWarden
+
+    /// TextWarden's own windows are never monitored through Accessibility.
+    /// Sketch Pad runs its separate, in-process analysis pipeline.
+    static let textWarden = AppConfiguration(
+        identifier: "textwarden",
+        displayName: "TextWarden",
+        bundleIDs: ["io.textwarden.TextWarden"],
+        category: .native,
+        parserType: .generic,
+        preferredStrategies: [],
+        features: AppFeatures(
+            visualUnderlinesEnabled: false,
+            textReplacementMethod: .standard,
+            requiresTypingPause: false,
+            supportsFormattedText: false,
+            childElementTraversal: false,
+            delaysAXNotifications: false,
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: false,
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
+        )
+    )
+
     // MARK: - Slack
 
     static let slack = AppConfiguration(

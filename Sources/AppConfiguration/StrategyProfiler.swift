@@ -31,8 +31,8 @@ final class StrategyProfiler {
 
         Logger.info("StrategyProfiler: Starting profile for \(bundleID)", category: Logger.accessibility)
 
-        // Get app version for cache invalidation
-        let appVersion = getAppVersion(for: bundleID)
+        // Capture the complete local environment fingerprint for cache invalidation.
+        let appIdentity = getAppIdentity(for: bundleID)
 
         // Probe positioning capabilities
         let (boundsForRange, validWidth, validHeight, notWindowFrame) = probeBoundsForRange(element: element)
@@ -43,10 +43,15 @@ final class StrategyProfiler {
         // Probe text replacement capability
         let axValueSettable = probeTextReplacementMethod(element: element)
 
+        let systemVersion = ProcessInfo.processInfo.operatingSystemVersion
+        let macOSVersion = "\(systemVersion.majorVersion).\(systemVersion.minorVersion).\(systemVersion.patchVersion)"
         let profile = AXCapabilityProfile(
             bundleID: bundleID,
             probedAt: Date(),
-            appVersion: appVersion,
+            appVersion: appIdentity.version,
+            appBuild: appIdentity.build,
+            macOSVersion: macOSVersion,
+            macOSBuild: ProcessInfo.processInfo.operatingSystemVersionString,
             boundsForRange: boundsForRange,
             boundsForTextMarkerRange: boundsForTextMarkerRange,
             lineForIndex: lineForIndex,
@@ -262,13 +267,16 @@ final class StrategyProfiler {
         return result == .success ? rangeValue : nil
     }
 
-    private func getAppVersion(for bundleID: String) -> String? {
+    private func getAppIdentity(for bundleID: String) -> (version: String?, build: String?) {
         guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID),
               let bundle = Bundle(url: appURL)
         else {
-            return nil
+            return (nil, nil)
         }
-        return bundle.infoDictionary?["CFBundleShortVersionString"] as? String
+        return (
+            bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+            bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        )
     }
 
     // MARK: - Logging

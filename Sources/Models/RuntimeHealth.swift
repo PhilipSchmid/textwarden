@@ -1,0 +1,205 @@
+//
+//  RuntimeHealth.swift
+//  TextWarden
+//
+//  A privacy-safe, user-facing summary of TextWarden's current ability to check text.
+//
+
+import Combine
+import Foundation
+
+enum CheckingState: String, Codable, Equatable {
+    case active
+    case limited
+    case recovering
+    case inactive
+
+    var displayName: String {
+        switch self {
+        case .active: "Active"
+        case .limited: "Limited support"
+        case .recovering: "Recovering"
+        case .inactive: "Paused"
+        }
+    }
+}
+
+enum InactiveReason: String, Codable, Equatable {
+    case permission
+    case globalPause
+    case appPause
+    case siteDisabled
+    case consentRequired
+    case secureField
+    case unsupportedField
+    case unsupportedApplication
+    case noEditableField
+
+    var displayMessage: String {
+        switch self {
+        case .permission: "Accessibility permission is needed to check writing in other apps."
+        case .globalPause: "TextWarden is paused."
+        case .appPause: "TextWarden is paused for this app."
+        case .siteDisabled: "TextWarden is disabled for this website."
+        case .consentRequired: "Choose how TextWarden works here."
+        case .secureField: "TextWarden never reads password or protected fields."
+        case .unsupportedField: "This field does not provide the information TextWarden needs."
+        case .unsupportedApplication: "TextWarden is not used in this app."
+        case .noEditableField: "Move the cursor to an editable text field to start checking."
+        }
+    }
+
+    /// Short status used in the fixed-width menu-bar menu.
+    var menuMessage: String {
+        switch self {
+        case .permission: "Permission needed"
+        case .globalPause: "Paused"
+        case .appPause: "Paused in this app"
+        case .siteDisabled: "Disabled on this website"
+        case .consentRequired: "Choose how TextWarden works here"
+        case .secureField: "Protected field"
+        case .unsupportedField: "Unsupported text field"
+        case .unsupportedApplication: "Not used in this app"
+        case .noEditableField: "No editable text field"
+        }
+    }
+}
+
+struct CapabilitySet: OptionSet, Codable, Equatable {
+    let rawValue: Int
+
+    static let textReading = CapabilitySet(rawValue: 1 << 0)
+    static let grammar = CapabilitySet(rawValue: 1 << 1)
+    static let style = CapabilitySet(rawValue: 1 << 2)
+    static let inlinePositioning = CapabilitySet(rawValue: 1 << 3)
+    static let safeReplacement = CapabilitySet(rawValue: 1 << 4)
+
+    static let full: CapabilitySet = [.textReading, .grammar, .style, .inlinePositioning, .safeReplacement]
+    static let indicatorOnly: CapabilitySet = [.textReading, .grammar]
+
+    var supportLabel: String {
+        if contains(.inlinePositioning), contains(.safeReplacement) {
+            return "Full support"
+        }
+        if contains(.textReading), contains(.grammar) {
+            return contains(.inlinePositioning) ? "Limited support" : "Indicator only"
+        }
+        return "Unavailable"
+    }
+}
+
+enum RecoveryAction: String, Codable, Equatable {
+    case grantPermission
+    case resume
+    case enable
+    case retry
+    case resetIndicatorPosition
+    case openSettings
+    case copyDiagnostics
+    case reportCompatibility
+    case trySafely
+    case keepPaused
+}
+
+struct RuntimeHealthSnapshot: Equatable {
+    let state: CheckingState
+    let reason: InactiveReason?
+    let capabilities: CapabilitySet
+    let applicationName: String?
+    let bundleIdentifier: String?
+    let lastSuccessfulCheck: Date?
+    let action: RecoveryAction?
+
+    static let idle = RuntimeHealthSnapshot(
+        state: .inactive,
+        reason: .noEditableField,
+        capabilities: [],
+        applicationName: nil,
+        bundleIdentifier: nil,
+        lastSuccessfulCheck: nil,
+        action: nil
+    )
+
+    var title: String {
+        switch state {
+        case .active:
+            capabilities.supportLabel
+        case .limited:
+            capabilities.supportLabel
+        case .recovering:
+            "Recovering"
+        case .inactive:
+            reason?.displayMessage ?? "TextWarden is paused."
+        }
+    }
+
+    var menuTitle: String {
+        switch state {
+        case .active, .limited:
+            capabilities.supportLabel
+        case .recovering:
+            "Recovering"
+        case .inactive:
+            reason?.menuMessage ?? "Paused"
+        }
+    }
+
+    var privacyMessage: String {
+        "TextWarden works locally. Your writing is never sent anywhere."
+    }
+
+    /// The preference scope a resume action should change.
+    /// The runtime reason determines the scope; unrelated pause settings stay untouched.
+    var resumeScope: PauseScope? {
+        switch reason {
+        case .globalPause:
+            return .global
+        case .appPause:
+            guard let bundleIdentifier else { return nil }
+            return .application(bundleIdentifier)
+        case .permission, .siteDisabled, .consentRequired, .secureField,
+             .unsupportedField, .unsupportedApplication, .noEditableField, nil:
+            return nil
+        }
+    }
+}
+
+/// Holds operational state only. It deliberately never stores captured text or suggestion content.
+@MainActor
+final class RuntimeHealthStore: ObservableObject {
+    static let shared = RuntimeHealthStore()
+
+    @Published private(set) var snapshot: RuntimeHealthSnapshot = .idle
+
+    private init() {}
+
+    func update(
+        state: CheckingState,
+        reason: InactiveReason? = nil,
+        capabilities: CapabilitySet = [],
+        context: ApplicationContext? = nil,
+        action: RecoveryAction? = nil,
+        successfulAt: Date? = nil
+    ) {
+        snapshot = RuntimeHealthSnapshot(
+            state: state,
+            reason: reason,
+            capabilities: capabilities,
+            applicationName: context?.applicationName,
+            bundleIdentifier: context?.bundleIdentifier,
+            lastSuccessfulCheck: successfulAt ?? (
+                context?.bundleIdentifier == snapshot.bundleIdentifier ? snapshot.lastSuccessfulCheck : nil
+            ),
+            action: action
+        )
+    }
+
+    func recordSuccessfulCheck(for context: ApplicationContext, capabilities: CapabilitySet) {
+        update(
+            state: capabilities == .full ? .active : .limited,
+            capabilities: capabilities,
+            context: context,
+            successfulAt: Date()
+        )
+    }
+}

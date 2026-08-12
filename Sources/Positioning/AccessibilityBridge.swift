@@ -130,10 +130,9 @@ final class AXWatchdog {
     /// Check every 0.1s to quickly detect hangs (must be less than hangThreshold)
     private let checkInterval: TimeInterval = 0.1
 
-    /// Maximum time to consider the worker "busy" before allowing new calls.
-    /// If exceeded, we consider the worker stuck and allow new calls (blocklist handles prevention).
-    /// Set to 1.2s - slightly longer than the 1.0s timeout to account for overhead.
-    private let maxBusyTime: TimeInterval = 1.2
+    /// Maximum number of concurrent AX calls across all processes. Calls for a single process
+    /// are always serialized; this only bounds work when several apps are changing at once.
+    private let maximumConcurrentCalls = 4
 
     // MARK: - State
 
@@ -147,8 +146,11 @@ final class AXWatchdog {
     /// Blocklisted apps with expiration time
     private var blocklist: [String: Date] = [:]
 
-    /// Currently active call (if any)
-    private var activeCall: ActiveCall?
+    /// Active calls are tokenized so a late completion cannot clear a newer call.
+    private var activeCalls: [AXCallToken: ActiveCall] = [:]
+
+    /// Compatibility stack for older beginCall/endCall callers that do not retain a token.
+    private var legacyCallTokens: [ObjectIdentifier: [AXCallToken]] = [:]
 
     /// Lock for thread safety
     private let lock = NSLock()
@@ -186,25 +188,26 @@ final class AXWatchdog {
 
     // MARK: - Monitoring
 
-    /// Background timer callback - checks if any active call has exceeded the hang threshold
+    /// Background timer callback - checks every active call independently.
     private func checkForHangingCalls() {
         lock.lock()
         defer { lock.unlock() }
 
-        guard let call = activeCall else { return }
-
-        let elapsed = Date().timeIntervalSince(call.startTime)
-        if elapsed > hangThreshold, blocklist[call.bundleID] == nil {
-            // This app is hanging - blocklist it
-            Logger.warning("AXWatchdog: Detected slow AX call to \(call.bundleID) (\(call.attribute)) - \(String(format: "%.1f", elapsed))s elapsed, blocklisting for \(Int(blocklistDuration))s", category: Logger.accessibility)
-            blocklist[call.bundleID] = Date().addingTimeInterval(blocklistDuration)
+        let now = Date()
+        for call in activeCalls.values {
+            let elapsed = now.timeIntervalSince(call.startTime)
+            if elapsed > hangThreshold, blocklist[call.bundleID] == nil {
+                Logger.warning("AXWatchdog: Detected slow AX call to \(call.bundleID) (\(call.attribute)) - \(String(format: "%.1f", elapsed))s elapsed, blocklisting for \(Int(blocklistDuration))s", category: Logger.accessibility)
+                blocklist[call.bundleID] = now.addingTimeInterval(blocklistDuration)
+            }
         }
     }
 
     // MARK: - Public API
 
     /// Check if we should skip AX calls for an app.
-    /// Returns true if the app is blocklisted or another call is currently in progress.
+    /// Returns true when this app is cooling down, already has an in-flight call, or the global
+    /// executor is saturated. An unrelated app's slow call no longer pauses this app.
     func shouldSkipCalls(for bundleID: String) -> Bool {
         lock.lock()
         defer { lock.unlock() }
@@ -219,38 +222,78 @@ final class AXWatchdog {
             Logger.info("AXWatchdog: Blocklist expired for \(bundleID), allowing AX calls again", category: Logger.accessibility)
         }
 
-        // Check if worker is busy (protects against pile-up)
-        if let call = activeCall {
-            let elapsed = Date().timeIntervalSince(call.startTime)
-            if elapsed < maxBusyTime {
-                return true
-            }
-            // Worker stuck too long - allow new calls (blocklist will prevent repeats)
-        }
-
-        return false
+        return activeCalls.values.contains { $0.bundleID == bundleID } || activeCalls.count >= maximumConcurrentCalls
     }
 
-    /// Mark the start of an AX call. Call `endCall()` when the call completes.
-    func beginCall(bundleID: String, attribute: String) {
+    /// Atomically reserve a bounded AX execution slot for a process. Unlike a separate
+    /// `shouldSkipCalls`/`beginCall` pair, this cannot race another focus or display update.
+    func tryBeginCall(bundleID: String, attribute: String) -> AXCallToken? {
         lock.lock()
         defer { lock.unlock() }
 
-        activeCall = ActiveCall(bundleID: bundleID, startTime: Date(), attribute: attribute)
+        if let expiration = blocklist[bundleID] {
+            guard Date() >= expiration else { return nil }
+            blocklist.removeValue(forKey: bundleID)
+            Logger.info("AXWatchdog: Blocklist expired for \(bundleID), allowing AX calls again", category: Logger.accessibility)
+        }
+
+        guard !activeCalls.values.contains(where: { $0.bundleID == bundleID }),
+              activeCalls.count < maximumConcurrentCalls
+        else {
+            return nil
+        }
+
+        let token = AXCallToken()
+        activeCalls[token] = ActiveCall(bundleID: bundleID, startTime: Date(), attribute: attribute)
+        return token
     }
 
-    /// Mark the end of an AX call.
+    /// Mark the start of an AX call and return the identity needed to finish that exact call.
+    @discardableResult
+    func beginCall(bundleID: String, attribute: String) -> AXCallToken {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let token = AXCallToken()
+        activeCalls[token] = ActiveCall(bundleID: bundleID, startTime: Date(), attribute: attribute)
+        legacyCallTokens[ObjectIdentifier(Thread.current), default: []].append(token)
+        return token
+    }
+
+    /// Mark the end of a specific AX call. Late completions cannot clear newer calls.
+    func endCall(_ token: AXCallToken) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        // A token-aware caller may run on the same thread as legacy callers. Remove this token
+        // from any compatibility stack so it cannot accumulate or later complete a different call.
+        for threadID in Array(legacyCallTokens.keys) {
+            guard let tokens = legacyCallTokens[threadID] else { continue }
+            let remaining = tokens.filter { $0 != token }
+            legacyCallTokens[threadID] = remaining.isEmpty ? nil : remaining
+        }
+        finishCall(token)
+    }
+
+    /// Compatibility overload for existing synchronous callers.
     func endCall() {
         lock.lock()
         defer { lock.unlock() }
 
-        // Record latency for dynamic slow-app detection
-        if let call = activeCall {
-            let duration = Date().timeIntervalSince(call.startTime)
-            recordLatency(duration, for: call.bundleID)
+        let threadID = ObjectIdentifier(Thread.current)
+        guard var tokens = legacyCallTokens[threadID], let token = tokens.popLast() else {
+            Logger.warning("AXWatchdog: endCall() without a matching beginCall()", category: Logger.accessibility)
+            return
         }
+        legacyCallTokens[threadID] = tokens.isEmpty ? nil : tokens
+        finishCall(token)
+    }
 
-        activeCall = nil
+    /// Ends an in-flight call and records latency while the lock is held.
+    private func finishCall(_ token: AXCallToken) {
+        guard let call = activeCalls.removeValue(forKey: token) else { return }
+        let duration = Date().timeIntervalSince(call.startTime)
+        recordLatency(duration, for: call.bundleID)
     }
 
     // MARK: - Latency Tracking Methods
@@ -309,10 +352,18 @@ final class AXWatchdog {
         Logger.warning("AXWatchdog: Blocklisting \(bundleID) - \(reason)", category: Logger.accessibility)
         blocklist[bundleID] = Date().addingTimeInterval(blocklistDuration)
 
-        // Clear active call if it was for this app
-        if activeCall?.bundleID == bundleID {
-            activeCall = nil
-        }
+        // Keep an already-running native call tracked. Its late completion cannot affect a
+        // newer call because calls are now tokenized.
+    }
+
+    /// Remaining app-specific cooldown for recovery UI. No text or AX values are retained.
+    func recoveryCooldown(for bundleID: String) -> TimeInterval? {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard let expiration = blocklist[bundleID] else { return nil }
+        let remaining = expiration.timeIntervalSinceNow
+        return remaining > 0 ? remaining : nil
     }
 }
 

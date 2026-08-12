@@ -1805,8 +1805,7 @@ class FloatingErrorIndicator: NSPanel {
     // MARK: - Global Pause Actions
 
     @objc private func setGlobalPauseActive() {
-        UserPreferences.shared.pauseDuration = .active
-        MenuBarController.shared?.setIconState(.active)
+        UserPreferences.shared.resume(.global)
         // Trigger re-analysis to show errors immediately
         AnalysisCoordinator.shared.triggerReanalysis()
         Logger.debug("FloatingErrorIndicator: Grammar checking enabled globally", category: Logger.ui)
@@ -1825,8 +1824,7 @@ class FloatingErrorIndicator: NSPanel {
     }
 
     private func setGlobalPause(_ duration: PauseDuration) {
-        UserPreferences.shared.pauseDuration = duration
-        MenuBarController.shared?.setIconState(.inactive)
+        UserPreferences.shared.setPauseDuration(duration, for: .global)
         // Hide all overlays immediately
         hide()
         SuggestionPopover.shared.hide()
@@ -1838,7 +1836,7 @@ class FloatingErrorIndicator: NSPanel {
 
     @objc private func setAppPauseActive(_ sender: NSMenuItem) {
         guard let bundleID = sender.representedObject as? String else { return }
-        UserPreferences.shared.setPauseDuration(for: bundleID, duration: .active)
+        UserPreferences.shared.resume(.application(bundleID))
         // Trigger re-analysis to show errors immediately
         AnalysisCoordinator.shared.triggerReanalysis()
         Logger.debug("FloatingErrorIndicator: Grammar checking enabled for \(bundleID)", category: Logger.ui)
@@ -1860,7 +1858,7 @@ class FloatingErrorIndicator: NSPanel {
     }
 
     private func setAppPause(for bundleID: String, duration: PauseDuration) {
-        UserPreferences.shared.setPauseDuration(for: bundleID, duration: duration)
+        UserPreferences.shared.setPauseDuration(duration, for: .application(bundleID))
         // Hide all overlays immediately for this app
         hide()
         SuggestionPopover.shared.hide()

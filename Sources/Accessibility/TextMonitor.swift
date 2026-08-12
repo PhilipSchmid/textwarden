@@ -213,6 +213,11 @@ class TextMonitor: ObservableObject {
         // Notify with empty text to hide overlays
         if let context = currentContext {
             onTextChange?("", context)
+            RuntimeHealthStore.shared.update(
+                state: .inactive,
+                reason: .noEditableField,
+                context: context
+            )
         }
 
         Logger.debug("TextMonitor: Cleared monitoring and hid overlays", category: Logger.accessibility)
@@ -450,6 +455,7 @@ class TextMonitor: ObservableObject {
         let bundleID = currentContext?.bundleIdentifier ?? "unknown"
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
             Logger.debug("TextMonitor: monitorElement skipping - watchdog active for \(bundleID)", category: Logger.accessibility)
+            recordRecoveryStateIfNeeded()
             return
         }
 
@@ -458,6 +464,19 @@ class TextMonitor: ObservableObject {
 
         guard let observer else {
             Logger.debug("TextMonitor: No observer available", category: Logger.accessibility)
+            return
+        }
+
+        // Password and protected fields are never inspected. Do this before parser selection or
+        // text extraction so the privacy boundary does not depend on an app-specific parser.
+        if isProtectedTextElement(element) {
+            Logger.info("TextMonitor: Ignoring protected text field", category: Logger.accessibility)
+            clearMonitoringAndHideOverlays()
+            RuntimeHealthStore.shared.update(
+                state: .inactive,
+                reason: .secureField,
+                context: currentContext
+            )
             return
         }
 
@@ -763,6 +782,7 @@ class TextMonitor: ObservableObject {
         // CRITICAL: Check watchdog at the START before any AX calls
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
             Logger.debug("TextMonitor: extractText skipping - watchdog active for \(bundleID)", category: Logger.accessibility)
+            recordRecoveryStateIfNeeded()
             return
         }
 
@@ -1316,6 +1336,11 @@ extension TextMonitor {
 
     /// Check if element is an editable text field (not read-only content)
     func isEditableElement(_ element: AXUIElement) -> Bool {
+        guard !isProtectedTextElement(element) else {
+            Logger.trace("TextMonitor: Protected text field - skipping", category: Logger.accessibility)
+            return false
+        }
+
         // Check role
         var role: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
@@ -1405,6 +1430,47 @@ extension TextMonitor {
         // If we can't check, assume editable (to avoid false negatives)
         Logger.trace("TextMonitor: Could not check enabled status, assuming editable", category: Logger.accessibility)
         return true
+    }
+
+    /// Accessibility represents password fields through the secure subrole. Some WebKit views
+    /// expose the equivalent role string instead, so check both forms and fail closed.
+    private func isProtectedTextElement(_ element: AXUIElement) -> Bool {
+        var subroleValue: CFTypeRef?
+        let subroleResult = AXUIElementCopyAttributeValue(
+            element,
+            kAXSubroleAttribute as CFString,
+            &subroleValue
+        )
+        let subrole = subroleResult == .success ? subroleValue as? String : nil
+        if subrole == kAXSecureTextFieldSubrole as String || subrole == "AXSecureTextField" {
+            return true
+        }
+
+        var roleValue: CFTypeRef?
+        let roleResult = AXUIElementCopyAttributeValue(
+            element,
+            kAXRoleAttribute as CFString,
+            &roleValue
+        )
+        let role = roleResult == .success ? roleValue as? String : nil
+        return role == "AXSecureTextField"
+    }
+
+    /// A cooldown means the Accessibility API has become unreliable for this process. Keep the
+    /// everyday UI focused on the next safe action rather than exposing AX error details.
+    private func recordRecoveryStateIfNeeded() {
+        guard let context = currentContext,
+              AXWatchdog.shared.recoveryCooldown(for: context.bundleIdentifier) != nil
+        else {
+            return
+        }
+
+        RuntimeHealthStore.shared.update(
+            state: .recovering,
+            capabilities: .indicatorOnly,
+            context: context,
+            action: .retry
+        )
     }
 
     /// Check if element is valid content for the specific app (not toolbar/UI element)

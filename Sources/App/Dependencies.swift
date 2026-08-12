@@ -54,6 +54,7 @@ protocol UserPreferencesProviding: AnyObject {
     var isEnabled: Bool { get }
     var disabledApplications: Set<String> { get }
     var appPauseDurations: [String: PauseDuration] { get }
+    var safeTrialApplications: Set<String> { get }
 
     // Grammar settings
     var selectedDialect: String { get }
@@ -98,6 +99,8 @@ protocol UserPreferencesProviding: AnyObject {
     var showDebugBorderTextFieldBounds: Bool { get }
 
     // Methods
+    func getPauseDuration(for bundleIdentifier: String) -> PauseDuration
+    func effectivePauseScope(for bundleIdentifier: String) -> PauseScope?
     func isEnabled(forURL url: URL) -> Bool
     func ignoreErrorText(_ text: String)
     func ignoreRule(_ ruleId: String)
@@ -117,6 +120,8 @@ protocol CustomVocabularyProviding {
 protocol AppConfigurationProviding {
     func configuration(for bundleID: String) -> AppConfiguration
     func effectiveConfiguration(for bundleID: String) -> AppConfiguration
+    func isKnownApplication(_ bundleID: String) -> Bool
+    func isIntentionallyDisabled(_ bundleID: String) -> Bool
 }
 
 /// Protocol for browser URL extraction

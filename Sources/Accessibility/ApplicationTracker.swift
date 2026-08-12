@@ -124,13 +124,11 @@ class ApplicationTracker: ObservableObject {
         let isNewApp = !UserPreferences.shared.discoveredApplications.contains(bundleIdentifier)
         UserPreferences.shared.discoveredApplications.insert(bundleIdentifier)
 
-        // Pause unsupported apps by default on first discovery
+        // Unknown apps remain untouched until AnalysisCoordinator asks the user whether to
+        // try them safely. This tracker must not change a user's app pause settings merely
+        // because an app has not been registered yet.
         if isNewApp, !AppRegistry.shared.hasConfiguration(for: bundleIdentifier) {
-            // Only set pause if user hasn't already configured this app
-            if UserPreferences.shared.getPauseDuration(for: bundleIdentifier) == .active {
-                UserPreferences.shared.setPauseDuration(for: bundleIdentifier, duration: .indefinite)
-                Logger.info("Auto-paused unsupported app: \(bundleIdentifier)", category: Logger.general)
-            }
+            Logger.info("Discovered unknown app awaiting safe-trial consent: \(bundleIdentifier)", category: Logger.general)
         }
 
         // Track previous app before updating current

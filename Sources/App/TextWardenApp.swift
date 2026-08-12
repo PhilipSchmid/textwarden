@@ -40,6 +40,12 @@ struct TextWardenApp: App {
                 }
             }
 
+            CommandGroup(after: .help) {
+                Button("Replay Tutorial") {
+                    NSApp.sendAction(#selector(AppDelegate.openTutorialWindow), to: nil, from: nil)
+                }
+            }
+
             CommandGroup(replacing: .appSettings) {
                 Button("Settings...") {
                     PreferencesWindowController.shared.selectTab(.general)
@@ -118,23 +124,6 @@ struct TextWardenApp: App {
                 }
                 .keyboardShortcut("\\", modifiers: .command)
             }
-
-            // Intercept Cmd+Q to close windows instead of quitting (menu bar app behavior)
-            // Users can quit via menu bar icon → "Quit TextWarden"
-            CommandGroup(replacing: .appTermination) {
-                Button("Quit TextWarden") {
-                    // If any window is key (focused), close it instead of quitting
-                    // This is the expected behavior for menu bar apps
-                    if let keyWindow = NSApp.keyWindow {
-                        // Close the focused window - app continues in menu bar
-                        keyWindow.close()
-                    } else {
-                        // No windows open - actually quit the app
-                        NSApp.terminate(nil)
-                    }
-                }
-                .keyboardShortcut("q", modifiers: .command)
-            }
         }
     }
 }
@@ -145,6 +134,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var analysisCoordinator: AnalysisCoordinator?
     var settingsWindow: NSWindow? // Keep strong reference to settings window
     var onboardingWindow: NSWindow? // Keep strong reference to onboarding window
+    var tutorialWindow: NSWindow? // Replayable interactive tutorial
     var sketchPadWindow: NSWindow? // Keep strong reference to sketch pad window (managed by SketchPadWindowController)
 
     /// Shared updater view model for Sparkle auto-updates
@@ -155,6 +145,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_: Notification) {
         Logger.info("Application launched", category: Logger.lifecycle)
+
+        // Initialize crash tracking at launch so the previous session can be assessed before
+        // TextWarden starts Accessibility work. The manager stores only heartbeat metadata.
+        _ = CrashRecoveryManager.shared
 
         // Enable key repeat instead of showing accent picker when holding keys
         // This is the expected behavior for text editors - users can still access
@@ -372,6 +366,50 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Opens the existing interactive tutorial without changing onboarding completion state.
+    @objc func openTutorialWindow() {
+        if let tutorialWindow {
+            NSApp.setActivationPolicy(.regular)
+            tutorialWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let closeTutorial: () -> Void = { [weak self] in
+            self?.tutorialWindow?.close()
+        }
+        let tutorial = GettingStartedTutorialView(
+            onSkip: closeTutorial,
+            onComplete: closeTutorial,
+            onBackToOnboarding: nil
+        )
+        let window = NSWindow(contentViewController: NSHostingController(rootView: tutorial))
+        window.title = "TextWarden Tutorial"
+        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.isReleasedWhenClosed = false
+        window.setContentSize(NSSize(width: 640, height: 660))
+        window.minSize = NSSize(width: 640, height: 660)
+        window.center()
+        tutorialWindow = window
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.tutorialWindow = nil
+                if !SketchPadWindowController.shared.isVisible, self?.settingsWindow?.isVisible != true {
+                    NSApp.setActivationPolicy(.accessory)
+                }
+            }
+        }
+
+        NSApp.setActivationPolicy(.regular)
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
     /// Prevent app from quitting when all windows close (menu bar app)
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
         false
@@ -508,8 +546,7 @@ extension AppDelegate: NSWindowDelegate {
                 // Toggle pause duration between active and indefinite
                 if preferences.pauseDuration == .active {
                     // Disabling - hide all overlays immediately
-                    preferences.pauseDuration = .indefinite
-                    MenuBarController.shared?.setIconState(.inactive)
+                    preferences.setPauseDuration(.indefinite, for: .global)
 
                     // Hide error underlines, indicator, and popover
                     FloatingErrorIndicator.shared.hide()
@@ -519,8 +556,7 @@ extension AppDelegate: NSWindowDelegate {
                     Logger.debug("Grammar checking disabled - hid all overlays", category: Logger.ui)
                 } else {
                     // Enabling - trigger re-analysis to show errors
-                    preferences.pauseDuration = .active
-                    MenuBarController.shared?.setIconState(.active)
+                    preferences.resume(.global)
 
                     // Trigger re-analysis of current text to show errors immediately
                     AnalysisCoordinator.shared.triggerReanalysis()

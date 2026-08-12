@@ -15,10 +15,52 @@ import SwiftUI
 struct GeneralPreferencesView: View {
     @ObservedObject var preferences: UserPreferences
     @ObservedObject private var permissionManager = PermissionManager.shared
+    @ObservedObject private var runtimeHealth = RuntimeHealthStore.shared
     @State private var showingPermissionDialog = false
 
     var body: some View {
         Form {
+            Section {
+                let snapshot = runtimeHealth.snapshot
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 10) {
+                        Image(systemName: statusIcon(for: snapshot.state))
+                            .foregroundColor(statusColor(for: snapshot.state))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(snapshot.applicationName ?? "TextWarden status")
+                                .font(.headline)
+                            Text(snapshot.title)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Text(snapshot.state.displayName)
+                            .font(.caption)
+                            .foregroundColor(statusColor(for: snapshot.state))
+                    }
+
+                    if snapshot.capabilities.rawValue != 0 {
+                        Text(snapshot.capabilities.supportLabel)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    if let lastCheck = snapshot.lastSuccessfulCheck {
+                        Text("Last successful check \(lastCheck.formatted(date: .omitted, time: .shortened))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Text(snapshot.privacyMessage)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    runtimeHealthAction(for: snapshot)
+                }
+            } header: {
+                Text("TextWarden Status")
+                    .font(.headline)
+            }
+
             // MARK: Application Settings Group
 
             Section {
@@ -29,11 +71,6 @@ struct GeneralPreferencesView: View {
                         }
                     }
                     .help("Pause grammar checking temporarily or indefinitely")
-                    .onChange(of: preferences.pauseDuration) { _, newValue in
-                        // Update menu bar icon when pause duration changes
-                        let iconState: MenuBarController.IconState = newValue == .active ? .active : .inactive
-                        MenuBarController.shared?.setIconState(iconState)
-                    }
 
                     if preferences.pauseDuration == .oneHour, let until = preferences.pausedUntil {
                         Text("Will resume at \(until.formatted(date: .omitted, time: .shortened))")
@@ -314,6 +351,20 @@ struct GeneralPreferencesView: View {
             }
 
             Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Need a refresher on the indicator, suggestions, and controls?")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Button("Replay Tutorial") {
+                        NSApp.sendAction(#selector(AppDelegate.openTutorialWindow), to: nil, from: nil)
+                    }
+                }
+            } header: {
+                Text("Help")
+                    .font(.headline)
+            }
+
+            Section {
                 KeyboardShortcuts.Recorder("Toggle TextWarden:", name: .toggleTextWarden)
                 KeyboardShortcuts.Recorder("Fix All Grammar Errors:", name: .fixAllObvious)
 
@@ -379,6 +430,55 @@ struct GeneralPreferencesView: View {
             }
         } message: {
             Text("Please check System Settings to grant Accessibility permission to TextWarden.")
+        }
+    }
+
+    @ViewBuilder
+    private func runtimeHealthAction(for snapshot: RuntimeHealthSnapshot) -> some View {
+        switch snapshot.action {
+        case .grantPermission:
+            Button("Open Accessibility Settings") {
+                permissionManager.openSystemSettings()
+            }
+        case .resume:
+            let title = snapshot.resumeScope.flatMap { scope -> String? in
+                guard case .application = scope else { return nil }
+                return snapshot.applicationName.map { "Resume TextWarden in \($0)" }
+            } ?? "Resume TextWarden"
+            Button(title) {
+                if let scope = snapshot.resumeScope {
+                    preferences.resume(scope)
+                }
+            }
+        case .trySafely:
+            Button("Try Safely") {
+                if let bundleID = snapshot.bundleIdentifier {
+                    AnalysisCoordinator.shared.startSafeTrial(for: bundleID)
+                }
+            }
+        case .retry:
+            Button("Retry Now") {
+                AnalysisCoordinator.shared.retryCurrentCheck()
+            }
+        case .none, .enable, .resetIndicatorPosition, .openSettings, .copyDiagnostics, .reportCompatibility, .keepPaused:
+            EmptyView()
+        }
+    }
+
+    private func statusIcon(for state: CheckingState) -> String {
+        switch state {
+        case .active: "checkmark.circle.fill"
+        case .limited: "exclamationmark.circle.fill"
+        case .recovering: "arrow.triangle.2.circlepath.circle.fill"
+        case .inactive: "pause.circle.fill"
+        }
+    }
+
+    private func statusColor(for state: CheckingState) -> Color {
+        switch state {
+        case .active: .green
+        case .limited, .recovering: .orange
+        case .inactive: .secondary
         }
     }
 }

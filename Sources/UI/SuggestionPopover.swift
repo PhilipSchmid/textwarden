@@ -853,11 +853,10 @@ class SuggestionPopover: NSObject, ObservableObject {
     func performCopyFallback() {
         guard let text = copyFallbackText else { return }
 
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
+        ClipboardManager.copy(text)
 
-        Logger.info("Popover: Copied text to clipboard (\(text.count) chars, mode: \(mode))", category: Logger.ui)
+        Logger.info("Popover: Copied a suggestion to the clipboard", category: Logger.ui)
+        showStatusMessage("Copied to clipboard")
 
         // Reset fallback state
         showingCopyFallback = false
