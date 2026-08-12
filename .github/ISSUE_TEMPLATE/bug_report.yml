@@ -91,11 +91,12 @@ body:
       description: |
         Please attach a diagnostic export from TextWarden:
         1. Open TextWarden Settings
-        2. Go to the **Advanced** tab
+        2. Go to the **Diagnostics** tab
         3. Click **Export Diagnostics**
         4. Attach the exported file here
 
-        The diagnostic export includes logs, system info, and configuration (no personal text data).
+        The export is created only when you choose it. Review it before attaching it and remove
+        anything you do not want to share. Do not include private writing or credentials in a bug report.
       placeholder: Drag and drop the diagnostic export file here...
     validations:
       required: false

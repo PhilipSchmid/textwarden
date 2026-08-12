@@ -89,21 +89,51 @@ jobs:
             -project TextWarden.xcodeproj \
             -scheme TextWarden \
             -destination 'platform=macOS,arch=arm64' \
-            -only-testing:TextWardenTests/AppBehaviorConsistencyTests \
-            -only-testing:TextWardenTests/AppBehaviorRegistryTests \
-            -only-testing:TextWardenTests/AppBehaviorRegressionTests \
-            -only-testing:TextWardenTests/ApplicationConfigurationTests \
-            -only-testing:TextWardenTests/GrammarAnalysisRequestTests \
-            -only-testing:TextWardenTests/GrammarEngineFFITests \
-            -only-testing:TextWardenTests/PerformanceProfilerTests \
-            -only-testing:TextWardenTests/ReadabilityTests \
-            -only-testing:TextWardenTests/RetrySchedulerTests \
-            -only-testing:TextWardenTests/SlackStrategyValidationTests \
-            -only-testing:TextWardenTests/SuggestionPopoverTests \
-            -only-testing:TextWardenTests/TextMonitorTests \
-            -only-testing:TextWardenTests/TextIndexConverterTests \
-            -only-testing:TextWardenTests/UnderlineStateManagerTests \
-            -only-testing:TextWardenTests/UserStatisticsTests \
-            -only-testing:TextWardenTests/VirtualKeyCodeTests \
+            -skip-testing:TextWardenTests/GrammarAnalysisPerformanceTests \
+            -skip-testing:TextWardenTests/LargeDocumentPerformanceTests \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+  swift-minimum-os:
+    name: macOS 14 Build & Test
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: GrammarEngine
+
+      - name: Build Rust library (x86_64, without LLM)
+        working-directory: GrammarEngine
+        run: |
+          cargo build --locked --release --target x86_64-apple-darwin
+          mkdir -p target
+          cp target/x86_64-apple-darwin/release/libgrammar_engine.a target/libgrammar_engine_universal.a
+
+      - name: Build app at its minimum supported macOS version
+        run: |
+          xcodebuild build \
+            -project TextWarden.xcodeproj \
+            -scheme TextWarden \
+            -configuration Release \
+            -destination 'platform=macOS,arch=x86_64' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Run automatically discovered unit tests
+        run: |
+          xcodebuild test \
+            -project TextWarden.xcodeproj \
+            -scheme TextWarden \
+            -destination 'platform=macOS,arch=x86_64' \
+            -skip-testing:TextWardenTests/GrammarAnalysisPerformanceTests \
+            -skip-testing:TextWardenTests/LargeDocumentPerformanceTests \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
