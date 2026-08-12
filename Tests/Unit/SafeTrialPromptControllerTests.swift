@@ -24,16 +24,41 @@ final class SafeTrialPromptControllerTests: XCTestCase {
     func testKnownNonWritingSystemAppsNeverRequireSafeTrial() {
         let registry = AppRegistry.shared
         let bundleIDs = [
+            "com.apple.ActivityMonitor",
+            "com.apple.AppStore",
             "com.apple.finder",
             "com.apple.notificationcenterui",
             "com.apple.systempreferences",
             "com.apple.UserNotificationCenter",
+            "com.knollsoft.Rectangle",
         ]
 
         for bundleID in bundleIDs {
-            XCTAssertTrue(registry.isKnownApplication(bundleID))
+            XCTAssertEqual(registry.policy(for: bundleID), .ignored)
             XCTAssertTrue(registry.isIntentionallyDisabled(bundleID))
+            XCTAssertFalse(registry.requiresSafeTrialConsent(for: bundleID))
             XCTAssertFalse(UserPreferences.shared.isEnabled(for: bundleID))
+        }
+    }
+
+    func testTerminalsArePausedByDefaultButStillRequireConsentWhenResumed() {
+        let registry = AppRegistry.shared
+        let bundleIDs = [
+            "com.apple.Terminal",
+            "com.googlecode.iterm2",
+            "co.zeit.hyper",
+            "dev.warp.Warp-Stable",
+            "org.alacritty",
+            "net.kovidgoyal.kitty",
+            "com.github.wez.wezterm",
+            "com.mitchellh.ghostty",
+        ]
+
+        XCTAssertEqual(registry.defaultPausedBundleIDs, Set(bundleIDs))
+        for bundleID in bundleIDs {
+            XCTAssertEqual(registry.policy(for: bundleID), .pausedByDefault)
+            XCTAssertFalse(registry.isIntentionallyDisabled(bundleID))
+            XCTAssertTrue(registry.requiresSafeTrialConsent(for: bundleID))
         }
     }
 
@@ -41,8 +66,16 @@ final class SafeTrialPromptControllerTests: XCTestCase {
         let registry = AppRegistry.shared
         let bundleID = "com.example.new-editor"
 
-        XCTAssertFalse(registry.isKnownApplication(bundleID))
+        XCTAssertEqual(registry.policy(for: bundleID), .safeTrial)
         XCTAssertFalse(registry.isIntentionallyDisabled(bundleID))
+        XCTAssertTrue(registry.requiresSafeTrialConsent(for: bundleID))
+    }
+
+    func testConfiguredWritingAppIsSupported() {
+        let registry = AppRegistry.shared
+
+        XCTAssertEqual(registry.policy(for: "com.apple.TextEdit"), .supported)
+        XCTAssertFalse(registry.requiresSafeTrialConsent(for: "com.apple.TextEdit"))
     }
 
     func testVisibleStatusItemIsAUsablePopoverAnchor() {

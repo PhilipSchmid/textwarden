@@ -538,8 +538,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         let preferences = UserPreferences.shared
-        let isAwaitingConsent = !AppRegistry.shared.isKnownApplication(context.bundleIdentifier)
-            && !preferences.hasRespondedToSafeTrial(for: context.bundleIdentifier)
+        let isAwaitingConsent = AppRegistry.shared.requiresSafeTrialConsent(for: context.bundleIdentifier)
+            && !preferences.safeTrialApplications.contains(context.bundleIdentifier)
         let snapshot = RuntimeHealthStore.shared.snapshot
         let matchingInactiveReason = snapshot.bundleIdentifier == context.bundleIdentifier
             && snapshot.state == .inactive ? snapshot.reason : nil

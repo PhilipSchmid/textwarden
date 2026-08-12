@@ -223,19 +223,6 @@ class UserPreferences: ObservableObject {
         didSet { defaults.set(checkDashes, forKey: Keys.checkDashes) }
     }
 
-    /// Terminal applications disabled by default (users can enable them in Applications preferences)
-    /// These apps are set to .indefinite pause on first run to avoid false positives from command output
-    static let terminalApplications: Set<String> = [
-        "com.apple.Terminal",
-        "com.googlecode.iterm2",
-        "co.zeit.hyper",
-        "dev.warp.Warp-Stable",
-        "org.alacritty",
-        "net.kovidgoyal.kitty",
-        "com.github.wez.wezterm",
-        "com.mitchellh.ghostty",
-    ]
-
     /// Always open settings window in foreground on launch
     @Published var openInForeground: Bool {
         didSet {
@@ -962,15 +949,6 @@ class UserPreferences: ObservableObject {
         sketchPadShowInvisibles = defaults.object(forKey: Keys.sketchPadShowInvisibles) as? Bool ?? false
         sketchPadLineWrapping = defaults.object(forKey: Keys.sketchPadLineWrapping) as? Bool ?? true
 
-        // This prevents grammar checking in terminals where command output can cause false positives
-        // Users can still enable terminals individually via Applications preferences
-        for terminalID in Self.terminalApplications {
-            if appPauseDurations[terminalID] == nil {
-                appPauseDurations[terminalID] = .indefinite
-            }
-        }
-        // Unknown apps require a one-time safe-trial decision before their text is read.
-
         if pauseDuration == .oneHour, let until = pausedUntil, Date() < until {
             setupResumeTimer(until: until)
         }
@@ -1087,12 +1065,7 @@ class UserPreferences: ObservableObject {
             return false
         }
 
-        // Check app-specific pause
-        guard let appPause = appPauseDurations[bundleIdentifier] else {
-            return true // No app-specific pause set
-        }
-
-        switch appPause {
+        switch getPauseDuration(for: bundleIdentifier) {
         case .active:
             return true
         case .oneHour, .twentyFourHours:
@@ -1244,8 +1217,7 @@ class UserPreferences: ObservableObject {
     func setPauseDuration(for bundleIdentifier: String, duration: PauseDuration) {
         switch duration {
         case .active:
-            // Always store .active explicitly to prevent re-pausing by auto-pause logic
-            // (terminals are paused on init, unsupported apps are paused on discovery)
+            // An explicit active choice overrides a built-in paused-by-default policy.
             appPauseDurations[bundleIdentifier] = duration
             appPausedUntil.removeValue(forKey: bundleIdentifier)
 
@@ -1274,11 +1246,13 @@ class UserPreferences: ObservableObject {
 
     /// Gets the current pause duration for a specific application.
     /// - Parameter bundleIdentifier: The bundle identifier of the application
-    /// - Returns: The current pause duration, or `.active` if no pause is set or if a timed pause has expired
+    /// - Returns: The current pause duration, including the registry-owned default when no override exists
     /// - Note: This is a read-only query - expired pauses are cleaned up automatically by a background timer
     func getPauseDuration(for bundleIdentifier: String) -> PauseDuration {
         guard let duration = appPauseDurations[bundleIdentifier] else {
-            return .active
+            return AppRegistry.shared.policy(for: bundleIdentifier) == .pausedByDefault
+                ? .indefinite
+                : .active
         }
 
         // Check if timed pause has expired (no mutation - cleanup happens via timer)
@@ -1297,10 +1271,6 @@ class UserPreferences: ObservableObject {
     }
 
     // MARK: - Unknown Application Safe Trial
-
-    func hasRespondedToSafeTrial(for bundleIdentifier: String) -> Bool {
-        safeTrialApplications.contains(bundleIdentifier) || declinedTrialApplications.contains(bundleIdentifier)
-    }
 
     func allowSafeTrial(for bundleIdentifier: String) {
         declinedTrialApplications.remove(bundleIdentifier)

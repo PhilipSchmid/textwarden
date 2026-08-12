@@ -120,8 +120,9 @@ protocol CustomVocabularyProviding {
 protocol AppConfigurationProviding {
     func configuration(for bundleID: String) -> AppConfiguration
     func effectiveConfiguration(for bundleID: String) -> AppConfiguration
-    func isKnownApplication(_ bundleID: String) -> Bool
     func isIntentionallyDisabled(_ bundleID: String) -> Bool
+    func policy(for bundleID: String) -> ApplicationPolicy
+    func requiresSafeTrialConsent(for bundleID: String) -> Bool
 }
 
 /// Protocol for browser URL extraction

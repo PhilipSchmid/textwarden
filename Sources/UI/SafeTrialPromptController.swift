@@ -385,8 +385,16 @@ private struct SafeTrialPromptView: View {
         .frame(width: 336, height: 122, alignment: .topLeading)
         .background {
             if showsPanelBackground {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(.regularMaterial)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(.regularMaterial)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color(nsColor: .windowBackgroundColor).opacity(0.86))
+                }
+            } else {
+                // Native popovers remain translucent, but this semantic surface tint keeps
+                // their content legible over both bright and dark windows.
+                Color(nsColor: .windowBackgroundColor).opacity(0.86)
             }
         }
         .overlay {

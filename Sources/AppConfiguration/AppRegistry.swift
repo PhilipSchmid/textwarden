@@ -10,18 +10,40 @@ import Foundation
 
 // MARK: - App Registry
 
+enum ApplicationPolicy: Equatable {
+    case supported
+    case safeTrial
+    case pausedByDefault
+    case ignored
+
+    var requiresSafeTrialConsent: Bool {
+        self == .safeTrial || self == .pausedByDefault
+    }
+}
+
 /// Central registry for all app configurations
 final class AppRegistry {
     static let shared = AppRegistry()
 
-    /// Known applications where writing assistance is not useful. These apps should never
-    /// be treated as unknown or ask for a safe-trial decision.
-    private static let intentionallyDisabledBundleIDs: Set<String> = [
-        "io.textwarden.TextWarden",
-        "com.apple.finder",
-        "com.apple.notificationcenterui",
-        "com.apple.systempreferences",
-        "com.apple.UserNotificationCenter",
+    /// Explicit policy overrides for apps that should not inherit the normal supported or
+    /// safe-trial behavior. This is the single source of truth for built-in app defaults.
+    private static let policyOverrides: [String: ApplicationPolicy] = [
+        "io.textwarden.TextWarden": .ignored,
+        "com.apple.ActivityMonitor": .ignored,
+        "com.apple.AppStore": .ignored,
+        "com.apple.finder": .ignored,
+        "com.apple.notificationcenterui": .ignored,
+        "com.apple.systempreferences": .ignored,
+        "com.apple.UserNotificationCenter": .ignored,
+        "com.knollsoft.Rectangle": .ignored,
+        "com.apple.Terminal": .pausedByDefault,
+        "com.googlecode.iterm2": .pausedByDefault,
+        "co.zeit.hyper": .pausedByDefault,
+        "dev.warp.Warp-Stable": .pausedByDefault,
+        "org.alacritty": .pausedByDefault,
+        "net.kovidgoyal.kitty": .pausedByDefault,
+        "com.github.wez.wezterm": .pausedByDefault,
+        "com.mitchellh.ghostty": .pausedByDefault,
     ]
 
     /// Bundle ID -> Configuration mapping
@@ -57,14 +79,28 @@ final class AppRegistry {
         configurations[bundleID] != nil
     }
 
-    /// Whether TextWarden already has an explicit disposition for this application.
-    func isKnownApplication(_ bundleID: String) -> Bool {
-        hasConfiguration(for: bundleID) || Self.intentionallyDisabledBundleIDs.contains(bundleID)
-    }
-
     /// Whether TextWarden intentionally stays inactive in this application.
     func isIntentionallyDisabled(_ bundleID: String) -> Bool {
-        Self.intentionallyDisabledBundleIDs.contains(bundleID)
+        policy(for: bundleID) == .ignored
+    }
+
+    /// The default product policy for an application. User pause choices remain in
+    /// `UserPreferences`; this policy only supplies the built-in default.
+    func policy(for bundleID: String) -> ApplicationPolicy {
+        if let override = Self.policyOverrides[bundleID] {
+            return override
+        }
+        return hasConfiguration(for: bundleID) ? .supported : .safeTrial
+    }
+
+    func requiresSafeTrialConsent(for bundleID: String) -> Bool {
+        policy(for: bundleID).requiresSafeTrialConsent
+    }
+
+    var defaultPausedBundleIDs: Set<String> {
+        Set(Self.policyOverrides.compactMap { bundleID, policy in
+            policy == .pausedByDefault ? bundleID : nil
+        })
     }
 
     /// Get effective configuration for a bundle ID.
