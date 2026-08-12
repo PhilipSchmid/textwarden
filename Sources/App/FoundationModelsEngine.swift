@@ -69,6 +69,8 @@ enum StyleEngineStatus: Equatable {
 
 // MARK: - Foundation Models Engine
 
+// swiftformat:disable indent
+#if canImport(FoundationModels)
 /// Engine for style analysis using Apple's Foundation Models framework
 @available(macOS 26.0, *)
 @MainActor
@@ -620,6 +622,8 @@ final class FoundationModelsEngine: ObservableObject {
         }
     }
 }
+#endif
+// swiftformat:enable indent
 
 // MARK: - Errors
 
