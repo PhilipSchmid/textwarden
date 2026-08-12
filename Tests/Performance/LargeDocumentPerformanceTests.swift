@@ -60,8 +60,7 @@ final class LargeDocumentPerformanceTests: XCTestCase {
             _ = grammarEngine.analyzeText(text)
         }
 
-        // If we get here without crash, memory is managed properly
-        XCTAssertTrue(true)
+        // Repeated analysis is intentionally exercised under XCTest's memory instrumentation.
     }
 
     func testMultipleLargeDocumentsConcurrently() {
