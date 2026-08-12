@@ -643,11 +643,6 @@ class AnalysisCoordinator: ObservableObject {
         Logger.debug("AnalysisCoordinator: Text insertion complete", category: Logger.analysis)
     }
 
-    nonisolated deinit {
-        // Note: Timer invalidation and event monitor removal are safe from deinit
-        // because they don't access MainActor-isolated state
-    }
-
     /// Clean up resources (timers, event monitors)
     /// Called during app termination for explicit cleanup since deinit won't be called for singletons
     func cleanup() {
