@@ -260,6 +260,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "boxcar"
+version = "0.2.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "36f64beae40a84da1b4b26ff2761a5b895c12adc41dc25aaee1c4f2bbfe97a6e"
+
+[[package]]
 name = "bumpalo"
 version = "3.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2357,8 +2363,8 @@ dependencies = [
 
 [[package]]
 name = "harper-brill"
-version = "2.7.0"
-source = "git+https://github.com/Automattic/harper?tag=v2.7.0#dc1182cc2b33603748105df074d6bb47f0de3720"
+version = "2.8.0"
+source = "git+https://github.com/Automattic/harper?tag=v2.8.0#5d2053bec94f49daaed3cdeae4cc328b897036c6"
 dependencies = [
  "harper-pos-utils",
  "serde_json",
@@ -2366,12 +2372,13 @@ dependencies = [
 
 [[package]]
 name = "harper-core"
-version = "2.7.0"
-source = "git+https://github.com/Automattic/harper?tag=v2.7.0#dc1182cc2b33603748105df074d6bb47f0de3720"
+version = "2.8.0"
+source = "git+https://github.com/Automattic/harper?tag=v2.8.0#5d2053bec94f49daaed3cdeae4cc328b897036c6"
 dependencies = [
  "ammonia",
  "bitflags",
  "blanket",
+ "boxcar",
  "cached",
  "foldhash 0.2.0",
  "fst",
@@ -2401,8 +2408,8 @@ dependencies = [
 
 [[package]]
 name = "harper-pos-utils"
-version = "2.7.0"
-source = "git+https://github.com/Automattic/harper?tag=v2.7.0#dc1182cc2b33603748105df074d6bb47f0de3720"
+version = "2.8.0"
+source = "git+https://github.com/Automattic/harper?tag=v2.8.0#5d2053bec94f49daaed3cdeae4cc328b897036c6"
 dependencies = [
  "burn",
  "burn-ndarray",
@@ -2418,8 +2425,8 @@ dependencies = [
 
 [[package]]
 name = "harper-thesaurus"
-version = "2.7.0"
-source = "git+https://github.com/Automattic/harper?tag=v2.7.0#dc1182cc2b33603748105df074d6bb47f0de3720"
+version = "2.8.0"
+source = "git+https://github.com/Automattic/harper?tag=v2.8.0#5d2053bec94f49daaed3cdeae4cc328b897036c6"
 dependencies = [
  "hashbrown 0.16.1",
  "indexmap",
@@ -4099,9 +4106,9 @@ checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
 
 [[package]]
 name = "ruzstd"
-version = "0.8.3"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7c1c839d570d835527c9a5e4db7cb2198683a988cb9d7293fc8674e6bd58fc8"
+checksum = "a252f5e20f038fe7b4ea53e073e65398d652c864cc162fc77c56c2f13717b888"
 dependencies = [
  "twox-hash",
 ]
