@@ -111,7 +111,7 @@ TextWarden is tuned for the apps below. Some apps give macOS less information ab
 [^powerpoint]: PowerPoint lets TextWarden read speaker notes, but not text boxes on slides. See [PowerPoint support notes](docs/applications/POWERPOINT.md).
 [^browsers]: Browser editors can be checked and corrected, but TextWarden currently disables visual underlines for the browser app category.
 
-TextWarden recognizes Safari, Chrome, Firefox, Microsoft Edge, Opera, Arc, Brave, Vivaldi, and Comet. Website editors vary, especially editors with formatting controls. TextWarden pauses in unrecognized apps until you enable them in **Preferences → Applications**. The floating indicator can still show suggestions when an app does not provide the exact on-screen position of each word.
+TextWarden recognizes Safari, Chrome, Firefox, Microsoft Edge, Opera, Arc, Brave, Vivaldi, and Comet. Website editors vary, especially editors with formatting controls. Before TextWarden reads text in an unrecognized app, it asks whether you want to try it safely or keep it paused. A safe trial uses the floating indicator and copy-only fixes; underlines and direct edits stay off. You can change this choice later in **Preferences → Applications**.
 
 Terminal apps are paused by default because command output and source code produce poor grammar-checking results.
 

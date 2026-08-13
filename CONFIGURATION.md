@@ -175,7 +175,7 @@ See the [supported-app matrix](README.md#supported-apps) and [application notes]
 
 ### Other applications
 
-An app without a dedicated configuration is paused the first time TextWarden discovers it. Enable it manually under **Preferences → Applications**. TextWarden can profile unknown apps' Accessibility capabilities and cache a strategy recommendation for seven days, but results still depend on the editor.
+Before TextWarden reads text in an app without a dedicated configuration, it asks whether to **Try Safely** or **Keep Paused**. A safe trial uses the floating indicator and copy-only fixes; underlines and direct edits stay off. You can change this choice under **Preferences → Applications**. TextWarden can profile the app's Accessibility capabilities locally and cache a strategy recommendation for seven days, but results still depend on the editor.
 
 ### Terminal applications
 
