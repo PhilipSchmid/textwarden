@@ -368,6 +368,13 @@ extension AnalysisCoordinator {
             return
         }
 
+        guard let analyzedText = currentErrorSourceStore.sourceText(for: error, among: currentErrors) else {
+            Logger.warning("Replacement error is no longer part of the current analysis, aborting", category: Logger.analysis)
+            SuggestionPopover.shared.showStatusMessage("Text changed - re-analyzing...")
+            triggerImmediateReanalysis()
+            return
+        }
+
         Logger.debug("Have monitored element, context: \(monitoredContext?.applicationName ?? "nil")", category: Logger.analysis)
 
         lastReplacementTime = Date()
@@ -380,7 +387,49 @@ extension AnalysisCoordinator {
             let appBehavior = AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier)
             if appBehavior.knownQuirks.contains(.usesMailReplaceRangeAPI) {
                 Logger.debug("Detected Mail-style app - using WebKit-specific text replacement", category: Logger.analysis)
-                await applyMailTextReplacementAsync(for: error, with: suggestion, element: element)
+                guard let parser = contentParserFactory.parser(for: context.bundleIdentifier) as? MailContentParser,
+                      let currentText = parser.extractText(from: element)
+                else {
+                    Logger.warning("Mail replacement: Could not read current text for validation, aborting", category: Logger.analysis)
+                    SuggestionPopover.shared.showStatusMessage("Text unavailable - re-analyzing...")
+                    triggerImmediateReanalysis()
+                    return
+                }
+
+                let resolvedRange: Range<Int>
+                switch ReplacementTextMatcher.resolveRange(in: currentText, analyzedText: analyzedText, for: error) {
+                case let .matched(range):
+                    resolvedRange = range
+                case let .ambiguous(matches):
+                    Logger.warning("Mail replacement: Position drift is ambiguous near \(error.start) (\(matches.count) matches), aborting", category: Logger.analysis)
+                    SuggestionPopover.shared.showStatusMessage("Text changed - re-analyzing...")
+                    triggerImmediateReanalysis()
+                    return
+                case .notFound, .unavailable:
+                    Logger.warning("Mail replacement: Could not verify the analyzed text near \(error.start), aborting", category: Logger.analysis)
+                    SuggestionPopover.shared.showStatusMessage("Text changed - re-analyzing...")
+                    triggerImmediateReanalysis()
+                    return
+                }
+
+                guard let utf16Range = TextIndexConverter.scalarRangeToUTF16CFRange(
+                    start: resolvedRange.lowerBound,
+                    end: resolvedRange.upperBound,
+                    in: currentText
+                ) else {
+                    Logger.warning("Mail replacement: Could not convert the validated range to UTF-16, aborting", category: Logger.analysis)
+                    SuggestionPopover.shared.showStatusMessage("Text changed - re-analyzing...")
+                    triggerImmediateReanalysis()
+                    return
+                }
+
+                await applyMailTextReplacementAsync(
+                    for: error,
+                    with: suggestion,
+                    element: element,
+                    resolvedRange: resolvedRange,
+                    utf16Range: utf16Range
+                )
                 return
             }
         }
@@ -406,7 +455,12 @@ extension AnalysisCoordinator {
         // For native macOS apps, try AX API first (it's faster and preserves formatting)
         var textRef: CFTypeRef?
         let textResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef)
-        let currentText = (textResult == .success) ? (textRef as? String) : nil
+        guard textResult == .success, let currentText = textRef as? String else {
+            Logger.warning("Could not read current text to validate replacement, aborting", category: Logger.analysis)
+            SuggestionPopover.shared.showStatusMessage("Text unavailable - re-analyzing...")
+            triggerImmediateReanalysis()
+            return
+        }
 
         // Track potentially corrected positions
         var correctedStart = error.start
@@ -414,88 +468,59 @@ extension AnalysisCoordinator {
 
         // CRITICAL: Validate error positions against current text before proceeding
         // If positions are stale (e.g., text changed since analysis), abort to prevent wrong replacements
-        if let text = currentText {
-            let scalarCount = text.unicodeScalars.count
-            if error.end > scalarCount {
-                Logger.warning("Stale error positions detected: error range \(error.start)-\(error.end) exceeds current text length \(scalarCount)", category: Logger.analysis)
-                SuggestionPopover.shared.showStatusMessage("Text has changed - re-analyzing...")
+        let scalarCount = currentText.unicodeScalars.count
+        if error.end > scalarCount {
+            Logger.warning("Stale error positions detected: error range \(error.start)-\(error.end) exceeds current text length \(scalarCount)", category: Logger.analysis)
+            SuggestionPopover.shared.showStatusMessage("Text has changed - re-analyzing...")
 
-                // Trigger immediate re-analysis to restore overlays with updated errors
-                // Without this, overlays remain hidden after a failed replacement attempt
-                triggerImmediateReanalysis()
-                return
+            // Trigger immediate re-analysis to restore overlays with updated errors
+            // Without this, overlays remain hidden after a failed replacement attempt
+            triggerImmediateReanalysis()
+            return
+        }
+
+        switch ReplacementTextMatcher.resolveRange(in: currentText, analyzedText: analyzedText, for: error) {
+        case let .matched(range):
+            correctedStart = range.lowerBound
+            correctedEnd = range.upperBound
+            if range != error.start ..< error.end {
+                Logger.info("Position drift corrected: \(error.start)-\(error.end) -> \(range.lowerBound)-\(range.upperBound)", category: Logger.analysis)
             }
 
-            // Extract text at calculated position
-            let startIdx = text.unicodeScalars.index(text.unicodeScalars.startIndex, offsetBy: error.start)
-            let endIdx = text.unicodeScalars.index(text.unicodeScalars.startIndex, offsetBy: error.end)
-            let extractedText = String(text.unicodeScalars[startIdx ..< endIdx])
-            Logger.debug("Native replacement: Text at positions \(error.start)-\(error.end): '\(extractedText)'", category: Logger.analysis)
+        case let .ambiguous(matches):
+            Logger.warning("Position drift is ambiguous near \(error.start) (\(matches.count) matches), aborting replacement", category: Logger.analysis)
+            SuggestionPopover.shared.showStatusMessage("Text changed - re-analyzing...")
+            triggerImmediateReanalysis()
+            return
 
-            // POSITION DRIFT CORRECTION: If extracted text doesn't match expected error text,
-            // search nearby positions (±5) to find the correct location.
-            // This handles cumulative position drift from multiple sequential replacements.
-            let expectedText = extractTextFromSuggestions(error: error, suggestion: suggestion)
-            Logger.trace("Position drift check: extracted='\(extractedText)', expected='\(expectedText ?? "nil")', errorCategory='\(error.category)', message='\(error.message.prefix(50))'", category: Logger.analysis)
+        case .notFound:
+            Logger.warning("Could not verify the expected text near position \(error.start), aborting replacement", category: Logger.analysis)
+            SuggestionPopover.shared.showStatusMessage("Position mismatch - re-analyzing...")
+            triggerImmediateReanalysis()
+            return
 
-            if !extractedText.isEmpty, let expected = expectedText, extractedText != expected {
-                Logger.debug("Position drift detected at \(error.start)-\(error.end):", category: Logger.analysis)
-                Logger.debug("  Found text: '\(extractedText)'", category: Logger.analysis)
-                Logger.debug("  Expected:   '\(expected)'", category: Logger.analysis)
-                Logger.debug("  Text length: \(scalarCount), error message: '\(error.message.prefix(60))'", category: Logger.analysis)
-
-                // Search nearby positions for the expected text
-                let searchRadius = 5
-                let errorLength = error.end - error.start
-                Logger.trace("  Searching ±\(searchRadius) positions for '\(expected)' (length \(errorLength))...", category: Logger.analysis)
-
-                var searchAttempts: [(offset: Int, text: String)] = []
-                for offset in -searchRadius ... searchRadius where offset != 0 {
-                    let testStart = error.start + offset
-                    let testEnd = testStart + errorLength
-                    guard testStart >= 0, testEnd <= scalarCount else { continue }
-
-                    let testStartIdx = text.unicodeScalars.index(text.unicodeScalars.startIndex, offsetBy: testStart)
-                    let testEndIdx = text.unicodeScalars.index(text.unicodeScalars.startIndex, offsetBy: testEnd)
-                    let testText = String(text.unicodeScalars[testStartIdx ..< testEndIdx])
-                    searchAttempts.append((offset: offset, text: testText))
-
-                    if testText == expected {
-                        Logger.info("Position drift corrected: \(error.start)-\(error.end) -> \(testStart)-\(testEnd) (offset: \(offset))", category: Logger.analysis)
-                        correctedStart = testStart
-                        correctedEnd = testEnd
-                        break
-                    }
-                }
-
-                // Log search attempts if correction failed
-                if correctedStart == error.start {
-                    Logger.debug("  Search attempts:", category: Logger.analysis)
-                    for attempt in searchAttempts {
-                        let match = attempt.text == expected ? "✓" : "✗"
-                        Logger.debug("    offset \(attempt.offset): '\(attempt.text)' \(match)", category: Logger.analysis)
-                    }
-                    Logger.warning("Could not find expected text '\(expected)' near position \(error.start), aborting replacement", category: Logger.analysis)
-                    SuggestionPopover.shared.showStatusMessage("Position mismatch - re-analyzing...")
-                    triggerImmediateReanalysis()
-                    return
-                }
-            } else if let expected = expectedText, extractedText == expected {
-                Logger.trace("Position verified: text at \(error.start)-\(error.end) matches expected '\(expected)'", category: Logger.analysis)
-            }
+        case .unavailable:
+            Logger.warning("Could not validate the analyzed text at position \(error.start), aborting replacement", category: Logger.analysis)
+            SuggestionPopover.shared.showStatusMessage("Text changed - re-analyzing...")
+            triggerImmediateReanalysis()
+            return
         }
 
         // Use corrected positions for the actual replacement (handles position drift)
         let utf16Location: Int
         let utf16Length: Int
-        if let text = currentText {
-            let utf16Range = TextIndexConverter.graphemeToUTF16Range(NSRange(location: correctedStart, length: correctedEnd - correctedStart), in: text)
-            utf16Location = utf16Range.location
-            utf16Length = utf16Range.length
-        } else {
-            utf16Location = correctedStart
-            utf16Length = correctedEnd - correctedStart
+        guard let utf16Range = TextIndexConverter.scalarRangeToUTF16CFRange(
+            start: correctedStart,
+            end: correctedEnd,
+            in: currentText
+        ) else {
+            Logger.warning("Could not convert replacement range to UTF-16, aborting replacement", category: Logger.analysis)
+            SuggestionPopover.shared.showStatusMessage("Text changed - re-analyzing...")
+            triggerImmediateReanalysis()
+            return
         }
+        utf16Location = utf16Range.location
+        utf16Length = utf16Range.length
 
         var errorRange = CFRange(location: utf16Location, length: utf16Length)
         guard let rangeValue = AXValueCreate(.cfRange, &errorRange) else {
@@ -2101,6 +2126,13 @@ extension AnalysisCoordinator {
 
         Logger.debug("Using keyboard simulation for text replacement (app: \(context.applicationName), isBrowser: \(context.isBrowser))", category: Logger.analysis)
 
+        guard let analyzedText = currentErrorSourceStore.sourceText(for: error, among: currentErrors) else {
+            Logger.warning("Keyboard replacement: Error is no longer part of the current analysis, aborting", category: Logger.analysis)
+            SuggestionPopover.shared.showStatusMessage("Text changed - re-analyzing...")
+            triggerImmediateReanalysis()
+            return
+        }
+
         // CRITICAL: Validate error positions against current text before proceeding
         // This catches stale positions that would cause wrong text to be replaced
         var currentTextRef: CFTypeRef?
@@ -2110,75 +2142,48 @@ extension AnalysisCoordinator {
         var correctedStart = error.start
         var correctedEnd = error.end
 
-        if currentTextResult == .success, let currentText = currentTextRef as? String {
-            let scalarCount = currentText.unicodeScalars.count
-            if error.end > scalarCount {
-                Logger.warning("Keyboard replacement: Stale error positions \(error.start)-\(error.end) exceed text length \(scalarCount)", category: Logger.analysis)
-                SuggestionPopover.shared.showStatusMessage("Text has changed - re-analyzing...")
+        guard currentTextResult == .success, let currentText = currentTextRef as? String else {
+            Logger.warning("Keyboard replacement: Could not read current text for validation, aborting", category: Logger.analysis)
+            SuggestionPopover.shared.showStatusMessage("Text unavailable - re-analyzing...")
+            triggerImmediateReanalysis()
+            return
+        }
 
-                // Trigger immediate re-analysis to restore overlays with updated errors
-                triggerImmediateReanalysis()
-                return
+        let scalarCount = currentText.unicodeScalars.count
+        if error.end > scalarCount {
+            Logger.warning("Keyboard replacement: Stale error positions \(error.start)-\(error.end) exceed text length \(scalarCount)", category: Logger.analysis)
+            SuggestionPopover.shared.showStatusMessage("Text has changed - re-analyzing...")
+
+            // Trigger immediate re-analysis to restore overlays with updated errors
+            triggerImmediateReanalysis()
+            return
+        }
+
+        switch ReplacementTextMatcher.resolveRange(in: currentText, analyzedText: analyzedText, for: error) {
+        case let .matched(range):
+            correctedStart = range.lowerBound
+            correctedEnd = range.upperBound
+            if range != error.start ..< error.end {
+                Logger.info("Keyboard replacement: Position drift corrected: \(error.start)-\(error.end) -> \(range.lowerBound)-\(range.upperBound)", category: Logger.analysis)
             }
 
-            // Log extracted text for debugging (helps identify position drift)
-            let startIdx = currentText.unicodeScalars.index(currentText.unicodeScalars.startIndex, offsetBy: error.start)
-            let endIdx = currentText.unicodeScalars.index(currentText.unicodeScalars.startIndex, offsetBy: error.end)
-            let extractedText = String(currentText.unicodeScalars[startIdx ..< endIdx])
-            Logger.debug("Keyboard replacement: Text at positions \(error.start)-\(error.end): '\(extractedText)'", category: Logger.analysis)
+        case let .ambiguous(matches):
+            Logger.warning("Keyboard replacement: Position drift is ambiguous near \(error.start) (\(matches.count) matches), aborting", category: Logger.analysis)
+            SuggestionPopover.shared.showStatusMessage("Text changed - re-analyzing...")
+            triggerImmediateReanalysis()
+            return
 
-            // POSITION DRIFT CORRECTION: If extracted text doesn't match expected error text,
-            // search nearby positions (±5) to find the correct location.
-            // This handles cumulative position drift from multiple sequential replacements.
-            let expectedText = extractTextFromSuggestions(error: error, suggestion: suggestion)
-            Logger.trace("Keyboard position drift check: extracted='\(extractedText)', expected='\(expectedText ?? "nil")'", category: Logger.analysis)
+        case .notFound:
+            Logger.warning("Keyboard replacement: Could not verify the expected text near position \(error.start), aborting", category: Logger.analysis)
+            SuggestionPopover.shared.showStatusMessage("Selection error - please try again")
+            triggerImmediateReanalysis()
+            return
 
-            // Use case-insensitive comparison for drift detection
-            // Capitalization errors have same text with different case (e.g., "THis" vs "this")
-            let textsMatchIgnoringCase = extractedText.lowercased() == (expectedText?.lowercased() ?? "")
-            if !extractedText.isEmpty, let expected = expectedText, extractedText != expected, !textsMatchIgnoringCase {
-                Logger.debug("Keyboard replacement: Position drift detected at \(error.start)-\(error.end):", category: Logger.analysis)
-                Logger.debug("  Found text: '\(extractedText)'", category: Logger.analysis)
-                Logger.debug("  Expected:   '\(expected)'", category: Logger.analysis)
-
-                // Search nearby positions for the expected text (case-insensitive for capitalization errors)
-                let searchRadius = 5
-                let errorLength = error.end - error.start
-                var searchAttempts: [(offset: Int, text: String)] = []
-                let expectedLower = expected.lowercased()
-
-                for offset in -searchRadius ... searchRadius where offset != 0 {
-                    let testStart = error.start + offset
-                    let testEnd = testStart + errorLength
-                    guard testStart >= 0, testEnd <= scalarCount else { continue }
-
-                    let testStartIdx = currentText.unicodeScalars.index(currentText.unicodeScalars.startIndex, offsetBy: testStart)
-                    let testEndIdx = currentText.unicodeScalars.index(currentText.unicodeScalars.startIndex, offsetBy: testEnd)
-                    let testText = String(currentText.unicodeScalars[testStartIdx ..< testEndIdx])
-                    searchAttempts.append((offset: offset, text: testText))
-
-                    // Use case-insensitive comparison to handle capitalization errors
-                    if testText.lowercased() == expectedLower {
-                        Logger.info("Keyboard replacement: Position drift corrected: \(error.start)-\(error.end) -> \(testStart)-\(testEnd) (offset: \(offset))", category: Logger.analysis)
-                        correctedStart = testStart
-                        correctedEnd = testEnd
-                        break
-                    }
-                }
-
-                // Log search attempts if correction failed
-                if correctedStart == error.start {
-                    Logger.debug("  Search attempts:", category: Logger.analysis)
-                    for attempt in searchAttempts {
-                        let match = attempt.text.lowercased() == expectedLower ? "✓" : "✗"
-                        Logger.debug("    offset \(attempt.offset): '\(attempt.text)' \(match)", category: Logger.analysis)
-                    }
-                    Logger.warning("Keyboard replacement: Could not find expected text '\(expected)' near position \(error.start), aborting", category: Logger.analysis)
-                    SuggestionPopover.shared.showStatusMessage("Selection error - please try again")
-                    triggerImmediateReanalysis()
-                    return
-                }
-            }
+        case .unavailable:
+            Logger.warning("Keyboard replacement: Could not validate the analyzed text at position \(error.start), aborting", category: Logger.analysis)
+            SuggestionPopover.shared.showStatusMessage("Text changed - re-analyzing...")
+            triggerImmediateReanalysis()
+            return
         }
 
         // Get app behavior for quirk checks
@@ -2186,7 +2191,23 @@ extension AnalysisCoordinator {
 
         // SPECIAL HANDLING FOR APPLE MAIL (uses WebKit's AXReplaceRangeWithText API)
         if appBehavior.knownQuirks.contains(.usesMailReplaceRangeAPI) {
-            await applyMailTextReplacementAsync(for: error, with: suggestion, element: element)
+            guard let utf16Range = TextIndexConverter.scalarRangeToUTF16CFRange(
+                start: correctedStart,
+                end: correctedEnd,
+                in: currentText
+            ) else {
+                Logger.warning("Mail replacement: Could not convert the validated range to UTF-16, aborting", category: Logger.analysis)
+                SuggestionPopover.shared.showStatusMessage("Text changed - re-analyzing...")
+                triggerImmediateReanalysis()
+                return
+            }
+            await applyMailTextReplacementAsync(
+                for: error,
+                with: suggestion,
+                element: element,
+                resolvedRange: correctedStart ..< correctedEnd,
+                utf16Range: utf16Range
+            )
             return
         }
 
@@ -2274,20 +2295,35 @@ extension AnalysisCoordinator {
 
     /// Apply text replacement for Apple Mail (async version)
     @MainActor
-    func applyMailTextReplacementAsync(for error: GrammarErrorModel, with suggestion: String, element: AXUIElement) async {
+    func applyMailTextReplacementAsync(
+        for error: GrammarErrorModel,
+        with suggestion: String,
+        element: AXUIElement,
+        resolvedRange: Range<Int>,
+        utf16Range: CFRange
+    ) async {
         Logger.debug("Mail text replacement using AXReplaceRangeWithText (async)", category: Logger.analysis)
 
         lastReplacementTime = Date()
 
-        let currentError = currentErrors.first { err in
-            err.message == error.message && err.lintId == error.lintId && err.category == error.category
-        } ?? error
+        let currentError = GrammarErrorModel(
+            start: resolvedRange.lowerBound,
+            end: resolvedRange.upperBound,
+            message: error.message,
+            severity: error.severity,
+            category: error.category,
+            lintId: error.lintId,
+            suggestions: error.suggestions
+        )
 
-        let range = NSRange(location: currentError.start, length: currentError.end - currentError.start)
-        let lengthDelta = suggestion.count - (currentError.end - currentError.start)
+        let lengthDelta = suggestion.unicodeScalars.count - resolvedRange.count
 
         // Try the proper WebKit API first
-        if MailContentParser.replaceText(range: range, with: suggestion, in: element) {
+        if MailContentParser.replaceText(
+            range: NSRange(location: utf16Range.location, length: utf16Range.length),
+            with: suggestion,
+            in: element
+        ) {
             Logger.info("Mail: AXReplaceRangeWithText succeeded", category: Logger.analysis)
             statistics.recordSuggestionApplied(category: currentError.category)
             invalidateCacheAfterReplacement(at: currentError.start ..< currentError.end)
@@ -2298,7 +2334,12 @@ extension AnalysisCoordinator {
         // Fallback: selection + keyboard typing (preserves formatting)
         // Using keyboard typing instead of paste preserves the formatting of the selected text
         Logger.debug("Mail: AXReplaceRangeWithText failed, falling back to selection + keyboard typing", category: Logger.analysis)
-        _ = MailContentParser.selectTextForReplacement(range: range, in: element)
+        guard MailContentParser.selectTextForReplacement(utf16Range: utf16Range, in: element) else {
+            Logger.warning("Mail: Could not select the validated replacement range, aborting", category: Logger.analysis)
+            SuggestionPopover.shared.showStatusMessage("Selection unavailable - re-analyzing...")
+            triggerImmediateReanalysis()
+            return
+        }
 
         // Activate Mail
         if let mailApp = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.mail").first {
@@ -3207,38 +3248,5 @@ extension AnalysisCoordinator {
         Logger.info("Fix all obvious: Applied \(fixCount) fixes", category: Logger.analysis)
 
         return fixCount
-    }
-
-    // MARK: - Position Drift Correction
-
-    /// Extract the expected error text for position drift correction
-    /// Returns nil if we can't reliably determine the expected text (meaning no drift correction should be attempted)
-    private func extractTextFromSuggestions(error: GrammarErrorModel, suggestion _: String) -> String? {
-        let errorLength = error.end - error.start
-
-        // For spelling errors, the backtick in the message contains the EXACT misspelled word
-        // e.g., "Did you mean to spell `botth` this way?" - backtick has "botth"
-        // This is the most reliable source because it's what Harper actually flagged
-        let message = error.message
-        if let backtickStart = message.firstIndex(of: "`"),
-           let backtickEnd = message[message.index(after: backtickStart)...].firstIndex(of: "`")
-        {
-            let word = String(message[message.index(after: backtickStart) ..< backtickEnd])
-            // Only use backtick text if it matches the error span length
-            // This prevents mismatches like "and" vs "and also" for redundancy errors
-            if !word.isEmpty, word.unicodeScalars.count == errorLength {
-                Logger.trace("extractTextFromSuggestions: Found '\(word)' in backticks (length matches)", category: Logger.analysis)
-                return word
-            } else if !word.isEmpty {
-                Logger.trace("extractTextFromSuggestions: Backtick '\(word)' length \(word.unicodeScalars.count) != span \(errorLength)", category: Logger.analysis)
-            }
-        }
-
-        // For non-spelling errors (redundancy, style, etc.) where backticks don't have full text,
-        // we CAN'T reliably determine expected text for drift correction.
-        // Return nil to skip drift correction - the positions should be used as-is.
-        // This is safer than using potentially stale lastAnalyzedText.
-        Logger.trace("extractTextFromSuggestions: No backtick match, skipping drift correction for \(error.start)-\(error.end)", category: Logger.analysis)
-        return nil
     }
 }
