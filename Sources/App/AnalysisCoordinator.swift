@@ -356,6 +356,27 @@ class AnalysisCoordinator: ObservableObject {
         return capabilities
     }
 
+    /// Resolves permission, pause, consent, and capability priority in one place. Keep this
+    /// text-free so replay fixtures can exercise the exact policy used before monitoring starts.
+    func runtimeHealthDecision(for context: ApplicationContext) -> RuntimeHealthDecision {
+        let pauseScope = userPreferences.effectivePauseScope(for: context.bundleIdentifier)
+        let isSafeTrial = !AppRegistry.shared.hasConfiguration(for: context.bundleIdentifier)
+            && userPreferences.safeTrialApplications.contains(context.bundleIdentifier)
+
+        let conditions = RuntimeHealthConditions(
+            applicationSupported: !appRegistry.isIntentionallyDisabled(context.bundleIdentifier),
+            permissionGranted: permissionManager.isPermissionGranted,
+            globalPaused: pauseScope == .global,
+            applicationPaused: pauseScope == .application(context.bundleIdentifier),
+            applicationDisabled: userPreferences.disabledApplications.contains(context.bundleIdentifier)
+                || !context.isEnabled,
+            consentGranted: !requiresSafeTrial(for: context),
+            availableCapabilities: capabilities(for: context),
+            availableAction: isSafeTrial ? .reportCompatibility : nil
+        )
+        return RuntimeHealthPolicy.evaluate(conditions)
+    }
+
     /// Resume the current app after the user explicitly chooses its safe trial.
     func startSafeTrial(for bundleID: String) {
         UserPreferences.shared.allowSafeTrial(for: bundleID)
@@ -1323,58 +1344,21 @@ class AnalysisCoordinator: ObservableObject {
             hoverSwitchTimer = nil
             pendingHoverError = nil
 
-            if let pauseScope = userPreferences.effectivePauseScope(for: context.bundleIdentifier) {
+            let healthDecision = runtimeHealthDecision(for: context)
+            guard healthDecision.allowsMonitoring else {
                 monitoredContext = context
                 stopMonitoring()
-                RuntimeHealthStore.shared.update(
-                    state: .inactive,
-                    reason: pauseScope == .global ? .globalPause : .appPause,
-                    context: context,
-                    action: .resume
-                )
-                MenuBarController.shared?.updateMenu()
-                return
-            }
-
-            if userPreferences.disabledApplications.contains(context.bundleIdentifier) || !context.isEnabled {
-                monitoredContext = context
-                stopMonitoring()
-                RuntimeHealthStore.shared.update(
-                    state: .inactive,
-                    reason: .appPause,
-                    context: context,
-                    action: .enable
-                )
-                MenuBarController.shared?.updateMenu()
-                return
-            }
-
-            // Unverified apps need explicit consent before TextWarden reads a single character.
-            // Keep the current app in health state so the menu can offer the safe-trial action.
-            if requiresSafeTrial(for: context) {
-                monitoredContext = context
-                stopMonitoring()
-                RuntimeHealthStore.shared.update(
-                    state: .inactive,
-                    reason: .consentRequired,
-                    context: context,
-                    action: .trySafely
-                )
-                MenuBarController.shared?.showSafeTrialPrompt(for: context)
+                RuntimeHealthStore.shared.update(healthDecision, context: context)
+                if healthDecision.reason == .consentRequired {
+                    MenuBarController.shared?.showSafeTrialPrompt(for: context)
+                }
                 MenuBarController.shared?.updateMenu()
                 return
             }
 
             // Start monitoring new application if enabled
             if context.shouldCheck() {
-                let isSafeTrial = !AppRegistry.shared.hasConfiguration(for: context.bundleIdentifier)
-                    && UserPreferences.shared.safeTrialApplications.contains(context.bundleIdentifier)
-                RuntimeHealthStore.shared.update(
-                    state: isSafeTrial ? .limited : .active,
-                    capabilities: capabilities(for: context),
-                    context: context,
-                    action: isSafeTrial ? .reportCompatibility : nil
-                )
+                RuntimeHealthStore.shared.update(healthDecision, context: context)
                 MenuBarController.shared?.updateMenu()
                 if isSameApp {
                     Logger.debug("AnalysisCoordinator: Returning to same app - forcing immediate re-analysis", category: Logger.analysis)
@@ -1619,60 +1603,16 @@ class AnalysisCoordinator: ObservableObject {
     func startMonitoring(context: ApplicationContext) {
         Logger.debug("AnalysisCoordinator: startMonitoring called for \(context.applicationName)", category: Logger.analysis)
 
-        guard !appRegistry.isIntentionallyDisabled(context.bundleIdentifier) else {
-            RuntimeHealthStore.shared.update(
-                state: .inactive,
-                reason: .unsupportedApplication,
-                context: context
-            )
+        let healthDecision = runtimeHealthDecision(for: context)
+        guard healthDecision.allowsMonitoring else {
+            RuntimeHealthStore.shared.update(healthDecision, context: context)
+            if healthDecision.reason == .consentRequired {
+                MenuBarController.shared?.showSafeTrialPrompt(for: context)
+            }
             return
         }
 
-        if let pauseScope = userPreferences.effectivePauseScope(for: context.bundleIdentifier) {
-            let pauseDuration = userPreferences.getPauseDuration(for: context.bundleIdentifier)
-            Logger.debug("AnalysisCoordinator: App is paused (\(pauseDuration.rawValue)) - not starting monitoring", category: Logger.analysis)
-            RuntimeHealthStore.shared.update(
-                state: .inactive,
-                reason: pauseScope == .global ? .globalPause : .appPause,
-                context: context,
-                action: .resume
-            )
-            return
-        }
-
-        if userPreferences.disabledApplications.contains(context.bundleIdentifier) || !context.isEnabled {
-            RuntimeHealthStore.shared.update(
-                state: .inactive,
-                reason: .appPause,
-                context: context,
-                action: .enable
-            )
-            return
-        }
-
-        // This method is also reached after launch and permission changes. Keep the consent
-        // boundary here so a new route can never begin reading an unverified app's text.
-        if requiresSafeTrial(for: context) {
-            RuntimeHealthStore.shared.update(
-                state: .inactive,
-                reason: .consentRequired,
-                context: context,
-                action: .trySafely
-            )
-            MenuBarController.shared?.showSafeTrialPrompt(for: context)
-            return
-        }
-
-        guard permissionManager.isPermissionGranted else {
-            Logger.debug("AnalysisCoordinator: Accessibility permissions not granted", category: Logger.analysis)
-            RuntimeHealthStore.shared.update(
-                state: .inactive,
-                reason: .permission,
-                context: context,
-                action: .grantPermission
-            )
-            return
-        }
+        RuntimeHealthStore.shared.update(healthDecision, context: context)
 
         // Update TypingDetector with current bundle ID for keyboard event filtering
         typingDetector.currentBundleID = context.bundleIdentifier
@@ -1765,76 +1705,18 @@ class AnalysisCoordinator: ObservableObject {
             return
         }
 
-        if !permissionManager.isPermissionGranted {
+        let healthDecision = runtimeHealthDecision(for: context)
+        guard healthDecision.allowsMonitoring else {
             stopMonitoring()
-            RuntimeHealthStore.shared.update(
-                state: .inactive,
-                reason: .permission,
-                context: context,
-                action: .grantPermission
-            )
+            RuntimeHealthStore.shared.update(healthDecision, context: context)
+            if healthDecision.reason == .consentRequired {
+                MenuBarController.shared?.showSafeTrialPrompt(for: context)
+            }
             MenuBarController.shared?.updateMenu()
             return
         }
 
-        if appRegistry.isIntentionallyDisabled(context.bundleIdentifier) {
-            stopMonitoring()
-            RuntimeHealthStore.shared.update(
-                state: .inactive,
-                reason: .unsupportedApplication,
-                context: context
-            )
-            MenuBarController.shared?.updateMenu()
-            return
-        }
-
-        if let pauseScope = userPreferences.effectivePauseScope(for: context.bundleIdentifier) {
-            let reason: InactiveReason = pauseScope == .global ? .globalPause : .appPause
-            Logger.info("AnalysisCoordinator: \(reason.rawValue) is active for \(context.bundleIdentifier)", category: Logger.analysis)
-            stopMonitoring()
-            RuntimeHealthStore.shared.update(
-                state: .inactive,
-                reason: reason,
-                context: context,
-                action: .resume
-            )
-            MenuBarController.shared?.updateMenu()
-            return
-        }
-
-        if userPreferences.disabledApplications.contains(context.bundleIdentifier) || !context.isEnabled {
-            stopMonitoring()
-            RuntimeHealthStore.shared.update(
-                state: .inactive,
-                reason: .appPause,
-                context: context,
-                action: .enable
-            )
-            MenuBarController.shared?.updateMenu()
-            return
-        }
-
-        if requiresSafeTrial(for: context) {
-            stopMonitoring()
-            RuntimeHealthStore.shared.update(
-                state: .inactive,
-                reason: .consentRequired,
-                context: context,
-                action: .trySafely
-            )
-            MenuBarController.shared?.showSafeTrialPrompt(for: context)
-            MenuBarController.shared?.updateMenu()
-            return
-        }
-
-        let isSafeTrial = !AppRegistry.shared.hasConfiguration(for: context.bundleIdentifier)
-            && userPreferences.safeTrialApplications.contains(context.bundleIdentifier)
-        RuntimeHealthStore.shared.update(
-            state: isSafeTrial ? .limited : .active,
-            capabilities: capabilities(for: context),
-            context: context,
-            action: isSafeTrial ? .reportCompatibility : nil
-        )
+        RuntimeHealthStore.shared.update(healthDecision, context: context)
 
         if monitoredContext?.bundleIdentifier != context.bundleIdentifier || textMonitor.monitoredElement == nil {
             monitoredContext = context

@@ -101,6 +101,118 @@ enum RecoveryAction: String, Codable, Equatable {
     case keepPaused
 }
 
+enum RuntimeFieldCondition: Equatable {
+    case editable
+    case secure
+    case unsupported
+}
+
+/// Text-free inputs used to choose one user-visible runtime state. Production monitoring and
+/// deterministic AX fixtures both use this policy so their safety priority cannot drift apart.
+struct RuntimeHealthConditions: Equatable {
+    var applicationSupported = true
+    var permissionGranted = true
+    var globalPaused = false
+    var applicationPaused = false
+    var applicationDisabled = false
+    var siteDisabled = false
+    var consentGranted = true
+    var fieldCondition: RuntimeFieldCondition = .editable
+    var axOutcome: AXOperationOutcome = .success
+    var geometryReliable = true
+    var replacementVerifiable = true
+    var availableCapabilities: CapabilitySet = .full
+    var availableAction: RecoveryAction?
+}
+
+struct RuntimeHealthDecision: Equatable {
+    let state: CheckingState
+    let reason: InactiveReason?
+    let capabilities: CapabilitySet
+    let action: RecoveryAction?
+
+    var allowsMonitoring: Bool {
+        state == .active || state == .limited
+    }
+}
+
+enum RuntimeHealthPolicy {
+    static func evaluate(_ conditions: RuntimeHealthConditions) -> RuntimeHealthDecision {
+        // Intentionally ignored applications never enter the external AX pipeline.
+        guard conditions.applicationSupported else {
+            return inactive(reason: .unsupportedApplication)
+        }
+
+        // User-facing priority: permission, pause, consent, protected/unsupported field,
+        // recovery, then the available capability level.
+        if !conditions.permissionGranted || conditions.axOutcome == .permissionDenied {
+            return inactive(reason: .permission, action: .grantPermission)
+        }
+        if conditions.globalPaused {
+            return inactive(reason: .globalPause, action: .resume)
+        }
+        if conditions.applicationPaused {
+            return inactive(reason: .appPause, action: .resume)
+        }
+        if conditions.applicationDisabled {
+            return inactive(reason: .appPause, action: .enable)
+        }
+        if conditions.siteDisabled {
+            return inactive(reason: .siteDisabled, action: .enable)
+        }
+        if !conditions.consentGranted {
+            return inactive(reason: .consentRequired, action: .trySafely)
+        }
+        if conditions.fieldCondition == .secure {
+            return inactive(reason: .secureField)
+        }
+        if conditions.fieldCondition == .unsupported
+            || conditions.axOutcome == .unsupported
+            || conditions.axOutcome == .invalidValue
+        {
+            return inactive(reason: .unsupportedField, action: .retry)
+        }
+        if conditions.axOutcome == .timeout
+            || conditions.axOutcome == .unavailable
+            || conditions.axOutcome == .invalidElement
+        {
+            return RuntimeHealthDecision(
+                state: .recovering,
+                reason: nil,
+                capabilities: [],
+                action: .retry
+            )
+        }
+
+        var capabilities = conditions.availableCapabilities
+        if !conditions.geometryReliable {
+            capabilities.remove(.inlinePositioning)
+        }
+        if !conditions.replacementVerifiable {
+            capabilities.remove(.safeReplacement)
+        }
+
+        return RuntimeHealthDecision(
+            state: capabilities == .full ? .active : .limited,
+            reason: nil,
+            capabilities: capabilities,
+            action: conditions.availableAction
+        )
+    }
+
+    private static func inactive(
+        reason: InactiveReason,
+        action: RecoveryAction? = nil
+    ) -> RuntimeHealthDecision {
+        RuntimeHealthDecision(
+            state: .inactive,
+            reason: reason,
+            capabilities: [],
+            action: action
+        )
+    }
+}
+
 struct RuntimeHealthSnapshot: Equatable {
     let state: CheckingState
     let reason: InactiveReason?
@@ -191,6 +303,16 @@ final class RuntimeHealthStore: ObservableObject {
                 context?.bundleIdentifier == snapshot.bundleIdentifier ? snapshot.lastSuccessfulCheck : nil
             ),
             action: action
+        )
+    }
+
+    func update(_ decision: RuntimeHealthDecision, context: ApplicationContext?) {
+        update(
+            state: decision.state,
+            reason: decision.reason,
+            capabilities: decision.capabilities,
+            context: context,
+            action: decision.action
         )
     }
 

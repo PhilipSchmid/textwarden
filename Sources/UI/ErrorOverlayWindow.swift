@@ -489,11 +489,9 @@ class ErrorOverlayWindow: NSPanel {
         // The element passed is the actual text field, so we want ITS bounds
         var elementFrame: CGRect
 
-        // Strategy 1: Try AX API to get text field bounds
-        // CRITICAL: Track with watchdog so timeout triggers immediate blocklisting
-        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXPosition/AXSize")
+        // Strategy 1: Try AX API to get text field bounds. AccessibilityBridge owns the
+        // per-process reservation and native timeout.
         let frameResult = getElementFrameInCocoaCoords(element)
-        AXWatchdog.shared.endCall()
 
         // Abort immediately if watchdog detected slow call
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
@@ -577,23 +575,25 @@ class ErrorOverlayWindow: NSPanel {
         setFrame(extendedFrame, display: true)
         Logger.debug("ErrorOverlay: Window positioned at \(elementFrame)", category: Logger.ui)
 
-        // Extract full text once for all positioning calculations
-        // Use timeout wrapper to prevent freeze on slow AX APIs
-        // CRITICAL: Track with watchdog so timeout triggers immediate blocklisting
-        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXValue")
-        var fullText: String?
-        let textCompleted = executeWithTimeout(seconds: 1.5) {
-            var textValue: CFTypeRef?
-            let textError = AXUIElementCopyAttributeValue(
-                element,
-                kAXValueAttribute as CFString,
-                &textValue
-            )
-            if textError == .success, let text = textValue as? String {
-                fullText = text
+        // Extract full text once for all positioning calculations. A rejected reservation means
+        // no request is issued, and the native timeout prevents orphaned background work.
+        guard let textCall = AXClient.perform(
+            bundleID: bundleID,
+            attribute: "AXValue",
+            operation: {
+                AXUIElementSetMessagingTimeout(element, 1.0)
+                var textValue: CFTypeRef?
+                let error = AXUIElementCopyAttributeValue(
+                    element,
+                    kAXValueAttribute as CFString,
+                    &textValue
+                )
+                return (error: error, text: textValue as? String)
             }
+        ) else {
+            hide()
+            return 0
         }
-        AXWatchdog.shared.endCall()
 
         // Abort immediately if watchdog detected slow call
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
@@ -602,12 +602,8 @@ class ErrorOverlayWindow: NSPanel {
             return 0
         }
 
-        guard textCompleted, let extractedText = fullText else {
-            if !textCompleted {
-                Logger.warning("ErrorOverlay: AXValue extraction timed out", category: Logger.ui)
-            } else {
-                Logger.debug("ErrorOverlay: Could not extract text from element for positioning", category: Logger.ui)
-            }
+        guard textCall.value.error == .success, let extractedText = textCall.value.text else {
+            Logger.debug("ErrorOverlay: Could not extract text from element for positioning", category: Logger.ui)
             hide()
             return 0
         }
@@ -616,10 +612,8 @@ class ErrorOverlayWindow: NSPanel {
         // Get visible character range to filter out off-screen errors
         // Note: Some apps (like Mail's WebKit) return Int.max for visibleRange which is invalid
         // Note: Mac Catalyst apps (like Messages) return {0, 0} which means "unsupported"
-        // CRITICAL: Track with watchdog so timeout triggers immediate blocklisting
-        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXVisibleCharacterRange")
+        // AccessibilityBridge owns the reservation for this query.
         var visibleRange = AccessibilityBridge.getVisibleCharacterRange(element)
-        AXWatchdog.shared.endCall()
 
         // Abort immediately if watchdog detected slow call (prevents cascading timeouts)
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
@@ -1003,9 +997,8 @@ class ErrorOverlayWindow: NSPanel {
         // ALWAYS query fresh element frame for coordinate conversion.
         // The window frame might be stale or include extension offsets that
         // would cause misalignment between grammar and readability underlines.
-        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXPosition/AXSize")
+        // AccessibilityBridge owns the reservation for this frame query.
         let frameResult = getElementFrameInCocoaCoords(element)
-        AXWatchdog.shared.endCall()
 
         guard let rawFrame = frameResult else {
             Logger.debug("ErrorOverlay: Cannot get element frame for readability underlines", category: Logger.ui)
@@ -1630,11 +1623,6 @@ class ErrorOverlayWindow: NSPanel {
         }
 
         Logger.debug("DEBUG getElementFrame: RAW AX data (Quartz) - \(frame)", category: Logger.ui)
-
-        var roleValue: CFTypeRef?
-        AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue)
-        let role = roleValue as? String ?? "unknown"
-        Logger.debug("DEBUG getElementFrame: Element role: \(role)", category: Logger.ui)
 
         // CRITICAL: AX API returns coordinates in Quartz (top-left origin)
         // NSPanel.setFrame() uses Cocoa coordinates (bottom-left origin)
