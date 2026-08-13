@@ -165,10 +165,9 @@ class PositionResolver {
             return GeometryResult.unavailable(reason: "AX API unresponsive - skipping positioning")
         }
 
-        // Check visibility BEFORE attempting positioning
-        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXVisibleCharacterRange")
+        // Check visibility BEFORE attempting positioning. AccessibilityBridge owns the atomic
+        // reservation for this call.
         let isVisible = AccessibilityBridge.isRangeVisible(errorRange, in: element)
-        AXWatchdog.shared.endCall()
 
         // FAIL-FAST: If visibility check caused blocklisting (timed out), abort immediately
         // This prevents wasting 50+ seconds trying strategies that will all fail
@@ -182,10 +181,8 @@ class PositionResolver {
             return GeometryResult.unavailable(reason: "Range not visible (scrolled out of view)")
         }
 
-        // Get edit area frame for validation
-        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXPosition/AXSize")
+        // Get edit area frame for validation. AccessibilityBridge owns the reservation.
         let editAreaFrame = AccessibilityBridge.getEditAreaFrame(element)
-        AXWatchdog.shared.endCall()
 
         // FAIL-FAST: Check again after frame query
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {

@@ -66,8 +66,15 @@ class TextMarkerStrategy: GeometryProvider {
         let startIndex = errorRange.location + offset
         let endIndex = startIndex + errorRange.length
 
-        // Track AX calls with watchdog
-        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXTextMarkerForIndex")
+        // Reserve one atomic process slot for the marker transaction. All marker creation and
+        // bounds calls belong to the same logical operation.
+        guard let callToken = AXWatchdog.shared.tryBeginCall(
+            bundleID: bundleID,
+            attribute: "AXTextMarkerGeometry"
+        ) else {
+            Logger.debug("TextMarkerStrategy: No AX execution slot for \(bundleID)", category: Logger.ui)
+            return nil
+        }
 
         // Check if this app needs index offset detection
         let appConfig = AppRegistry.shared.configuration(for: bundleID)
@@ -111,7 +118,7 @@ class TextMarkerStrategy: GeometryProvider {
             at: adjustedStartIndex,
             from: element
         ) else {
-            AXWatchdog.shared.endCall()
+            AXWatchdog.shared.endCall(callToken)
             Logger.debug("TextMarkerStrategy: Failed to create start marker at index \(adjustedStartIndex)", category: Logger.ui)
             return nil
         }
@@ -120,13 +127,10 @@ class TextMarkerStrategy: GeometryProvider {
             at: adjustedEndIndex,
             from: element
         ) else {
-            AXWatchdog.shared.endCall()
+            AXWatchdog.shared.endCall(callToken)
             Logger.debug("TextMarkerStrategy: Failed to create end marker at index \(adjustedEndIndex)", category: Logger.ui)
             return nil
         }
-
-        // Update watchdog for bounds calculation
-        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXBoundsForTextMarkerRange")
 
         // Calculate bounds using markers
         guard let rawBounds = AccessibilityBridge.calculateBounds(
@@ -134,13 +138,13 @@ class TextMarkerStrategy: GeometryProvider {
             to: endMarker,
             in: element
         ) else {
-            AXWatchdog.shared.endCall()
+            AXWatchdog.shared.endCall(callToken)
             Logger.debug("TextMarkerStrategy: Failed to calculate bounds between markers", category: Logger.ui)
             return nil
         }
 
         // AX calls complete
-        AXWatchdog.shared.endCall()
+        AXWatchdog.shared.endCall(callToken)
 
         // Log raw bounds for debugging
         Logger.debug("TextMarkerStrategy: Raw bounds from AX: \(rawBounds)", category: Logger.ui)

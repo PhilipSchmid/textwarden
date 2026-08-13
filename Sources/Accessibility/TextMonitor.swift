@@ -9,6 +9,26 @@ import ApplicationServices
 import Combine
 import Foundation
 
+enum FocusedElementDisposition: Equatable {
+    case useFocusedElement
+    case searchForAlternative
+    case stopForProtectedField
+}
+
+/// Keeps the protected-field boundary independent from app-specific focus workarounds.
+enum FocusedElementPolicy {
+    static func disposition(
+        isProtected: Bool,
+        isEditable: Bool,
+        isValidContent: Bool
+    ) -> FocusedElementDisposition {
+        if isProtected {
+            return .stopForProtectedField
+        }
+        return isEditable && isValidContent ? .useFocusedElement : .searchForAlternative
+    }
+}
+
 /// Monitors text changes in applications via Accessibility API
 @MainActor
 class TextMonitor: ObservableObject {
@@ -202,7 +222,7 @@ class TextMonitor: ObservableObject {
 
     /// Clear current monitoring and hide overlays without fully stopping
     /// Used when focus changes to an invalid element (e.g., sent message in WebEx)
-    private func clearMonitoringAndHideOverlays() {
+    private func clearMonitoringAndHideOverlays(reason: InactiveReason = .noEditableField) {
         // Remove observer from current element
         if let observer, let previousElement = monitoredElement {
             AXObserverRemoveNotification(observer, previousElement, kAXValueChangedNotification as CFString)
@@ -215,7 +235,7 @@ class TextMonitor: ObservableObject {
             onTextChange?("", context)
             RuntimeHealthStore.shared.update(
                 state: .inactive,
-                reason: .noEditableField,
+                reason: reason,
                 context: context
             )
         }
@@ -239,15 +259,24 @@ class TextMonitor: ObservableObject {
             return
         }
 
-        // Track AX call with watchdog
-        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXFocusedUIElement")
-        var focusedElement: CFTypeRef?
-        let error = AXUIElementCopyAttributeValue(
-            appElement,
-            kAXFocusedUIElementAttribute as CFString,
-            &focusedElement
-        )
-        AXWatchdog.shared.endCall()
+        guard let focusedCall = AXClient.perform(
+            bundleID: bundleID,
+            attribute: "AXFocusedUIElement",
+            operation: {
+                var focusedElement: CFTypeRef?
+                let error = AXUIElementCopyAttributeValue(
+                    appElement,
+                    kAXFocusedUIElementAttribute as CFString,
+                    &focusedElement
+                )
+                return (error: error, element: focusedElement)
+            }
+        ) else {
+            recordRecoveryStateIfNeeded()
+            return
+        }
+        let error = focusedCall.value.error
+        let focusedElement = focusedCall.value.element
 
         guard error == .success, let element = focusedElement else {
             // Retry if we haven't reached max attempts AND watchdog isn't active
@@ -272,15 +301,32 @@ class TextMonitor: ObservableObject {
         // Safe: type verified by CFGetTypeID check above
         let axElement = unsafeBitCast(element, to: AXUIElement.self)
 
+        // A protected focused field is a hard privacy boundary. Never reuse the generic
+        // focus-recovery search here because it can select another editable field in the same
+        // authentication window.
+        let isProtected = isProtectedTextElement(axElement)
+        let isEditable = isProtected ? false : isEditableElement(axElement)
+        let isValidContent = if isEditable, let bundleID = currentContext?.bundleIdentifier {
+            isValidContentElement(axElement, bundleID: bundleID)
+        } else {
+            isEditable
+        }
+
+        let disposition = FocusedElementPolicy.disposition(
+            isProtected: isProtected,
+            isEditable: isEditable,
+            isValidContent: isValidContent
+        )
+
+        if disposition == .stopForProtectedField {
+            Logger.info("TextMonitor: Ignoring protected focused field", category: Logger.accessibility)
+            clearMonitoringAndHideOverlays(reason: .secureField)
+            return
+        }
+
         // CRITICAL FIX: AXFocusedUIElement might return the wrong element (e.g., sidebar in Slack)
         // If the focused element is not editable, search for editable text fields
-        var needsAlternativeElement = !isEditableElement(axElement)
-
-        // App-specific check: Some apps (like Word) may return toolbar elements as focused
-        // even though they pass isEditableElement. Check with the parser.
-        if !needsAlternativeElement, let bundleID = currentContext?.bundleIdentifier {
-            needsAlternativeElement = !isValidContentElement(axElement, bundleID: bundleID)
-        }
+        let needsAlternativeElement = disposition == .searchForAlternative
 
         if needsAlternativeElement {
             Logger.debug("TextMonitor: Focused element is not suitable, searching for content field...", category: Logger.accessibility)
@@ -471,12 +517,7 @@ class TextMonitor: ObservableObject {
         // text extraction so the privacy boundary does not depend on an app-specific parser.
         if isProtectedTextElement(element) {
             Logger.info("TextMonitor: Ignoring protected text field", category: Logger.accessibility)
-            clearMonitoringAndHideOverlays()
-            RuntimeHealthStore.shared.update(
-                state: .inactive,
-                reason: .secureField,
-                context: currentContext
-            )
+            clearMonitoringAndHideOverlays(reason: .secureField)
             return
         }
 
@@ -793,10 +834,20 @@ class TextMonitor: ObservableObject {
         // This allows apps like Apple Mail to use custom extraction logic
         // NOTE: Parser's extractText internally makes AX calls - timeout is already set on element
         if let bundleID = currentContext?.bundleIdentifier {
-            AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "parser.extractText")
             let parser = ContentParserFactory.shared.parser(for: bundleID)
-            let parserText = parser.extractText(from: element)
-            AXWatchdog.shared.endCall()
+            guard let parserCall = AXClient.perform(
+                bundleID: bundleID,
+                attribute: "parser.extractText",
+                operation: {
+                    (
+                        text: parser.extractText(from: element),
+                        alreadyPreprocessed: parser.extractTextReturnsPreprocessed
+                    )
+                }
+            ) else {
+                recordRecoveryStateIfNeeded()
+                return
+            }
 
             // Check if watchdog triggered during parser extraction
             if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
@@ -804,9 +855,9 @@ class TextMonitor: ObservableObject {
                 return
             }
 
-            if let text = parserText {
+            if let text = parserCall.value.text {
                 // Check if this parser returns already-preprocessed text
-                alreadyPreprocessed = parser.extractTextReturnsPreprocessed
+                alreadyPreprocessed = parserCall.value.alreadyPreprocessed
                 Logger.debug("TextMonitor: Got text from parser (\(text.count) chars, preprocessed=\(alreadyPreprocessed))", category: Logger.accessibility)
                 extractedText = text
             }
@@ -814,14 +865,24 @@ class TextMonitor: ObservableObject {
 
         // Fall back to standard AXValue extraction
         if extractedText == nil {
-            AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXValue")
-            var value: CFTypeRef?
-            let valueError = AXUIElementCopyAttributeValue(
-                element,
-                kAXValueAttribute as CFString,
-                &value
-            )
-            AXWatchdog.shared.endCall()
+            guard let valueCall = AXClient.perform(
+                bundleID: bundleID,
+                attribute: "AXValue",
+                operation: {
+                    var value: CFTypeRef?
+                    let error = AXUIElementCopyAttributeValue(
+                        element,
+                        kAXValueAttribute as CFString,
+                        &value
+                    )
+                    return (error: error, value: value)
+                }
+            ) else {
+                recordRecoveryStateIfNeeded()
+                return
+            }
+            let valueError = valueCall.value.error
+            let value = valueCall.value.value
 
             // Check if watchdog triggered
             if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
@@ -835,14 +896,24 @@ class TextMonitor: ObservableObject {
             } else {
                 Logger.debug("TextMonitor: AXValue empty or failed (error: \(valueError.rawValue)), trying AXSelectedText", category: Logger.accessibility)
                 // Fallback: try AXSelectedText
-                AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXSelectedText")
-                var selectedText: CFTypeRef?
-                let selectedError = AXUIElementCopyAttributeValue(
-                    element,
-                    kAXSelectedTextAttribute as CFString,
-                    &selectedText
-                )
-                AXWatchdog.shared.endCall()
+                guard let selectedCall = AXClient.perform(
+                    bundleID: bundleID,
+                    attribute: "AXSelectedText",
+                    operation: {
+                        var selectedText: CFTypeRef?
+                        let error = AXUIElementCopyAttributeValue(
+                            element,
+                            kAXSelectedTextAttribute as CFString,
+                            &selectedText
+                        )
+                        return (error: error, text: selectedText)
+                    }
+                ) else {
+                    recordRecoveryStateIfNeeded()
+                    return
+                }
+                let selectedError = selectedCall.value.error
+                let selectedText = selectedCall.value.text
 
                 if selectedError == .success, let selected = selectedText as? String {
                     Logger.debug("TextMonitor: Got AXSelectedText (\(selected.count) chars)", category: Logger.accessibility)
@@ -1068,14 +1139,23 @@ extension TextMonitor {
         let bundleID = context.bundleIdentifier
 
         // First, try the system's actual focused element
-        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXFocusedUIElement")
-        var focusedRef: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(
-            appElement,
-            kAXFocusedUIElementAttribute as CFString,
-            &focusedRef
-        )
-        AXWatchdog.shared.endCall()
+        guard let focusedCall = AXClient.perform(
+            bundleID: bundleID,
+            attribute: "AXFocusedUIElement",
+            operation: {
+                var focusedRef: CFTypeRef?
+                let result = AXUIElementCopyAttributeValue(
+                    appElement,
+                    kAXFocusedUIElementAttribute as CFString,
+                    &focusedRef
+                )
+                return (result: result, element: focusedRef)
+            }
+        ) else {
+            return nil
+        }
+        let result = focusedCall.value.result
+        let focusedRef = focusedCall.value.element
 
         if result == .success, let focused = focusedRef {
             let focusedElement = unsafeBitCast(focused, to: AXUIElement.self)
@@ -1435,25 +1515,37 @@ extension TextMonitor {
     /// Accessibility represents password fields through the secure subrole. Some WebKit views
     /// expose the equivalent role string instead, so check both forms and fail closed.
     private func isProtectedTextElement(_ element: AXUIElement) -> Bool {
-        var subroleValue: CFTypeRef?
-        let subroleResult = AXUIElementCopyAttributeValue(
-            element,
-            kAXSubroleAttribute as CFString,
-            &subroleValue
-        )
-        let subrole = subroleResult == .success ? subroleValue as? String : nil
-        if subrole == kAXSecureTextFieldSubrole as String || subrole == "AXSecureTextField" {
+        let bundleID = currentContext?.bundleIdentifier ?? AXClient.bundleIdentifier(for: element)
+        guard let call = AXClient.perform(
+            bundleID: bundleID,
+            attribute: "AXSubrole/AXRole",
+            operation: {
+                var subroleValue: CFTypeRef?
+                let subroleResult = AXUIElementCopyAttributeValue(
+                    element,
+                    kAXSubroleAttribute as CFString,
+                    &subroleValue
+                )
+                let subrole = subroleResult == .success ? subroleValue as? String : nil
+                if subrole == kAXSecureTextFieldSubrole as String || subrole == "AXSecureTextField" {
+                    return true
+                }
+
+                var roleValue: CFTypeRef?
+                let roleResult = AXUIElementCopyAttributeValue(
+                    element,
+                    kAXRoleAttribute as CFString,
+                    &roleValue
+                )
+                let role = roleResult == .success ? roleValue as? String : nil
+                return role == "AXSecureTextField"
+            }
+        ) else {
+            // If the protection check itself cannot run, do not inspect or traverse the field.
+            Logger.debug("TextMonitor: Protected-field check unavailable; failing closed", category: Logger.accessibility)
             return true
         }
-
-        var roleValue: CFTypeRef?
-        let roleResult = AXUIElementCopyAttributeValue(
-            element,
-            kAXRoleAttribute as CFString,
-            &roleValue
-        )
-        let role = roleResult == .success ? roleValue as? String : nil
-        return role == "AXSecureTextField"
+        return call.value
     }
 
     /// A cooldown means the Accessibility API has become unreliable for this process. Keep the

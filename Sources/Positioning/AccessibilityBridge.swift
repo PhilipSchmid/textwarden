@@ -71,23 +71,6 @@ func safeAXValueGetRange(_ value: CFTypeRef) -> CFRange? {
     return range
 }
 
-// MARK: - Timeout Wrapper
-
-/// Execute a closure with a timeout. Returns true if completed within timeout, false if timed out.
-/// The closure runs on a background thread, so the main thread is NOT blocked.
-/// WARNING: If the closure times out, it continues running in the background - use for read-only operations only.
-func executeWithTimeout(seconds: TimeInterval, closure: @escaping () -> Void) -> Bool {
-    let semaphore = DispatchSemaphore(value: 0)
-
-    DispatchQueue.global(qos: .userInitiated).async {
-        closure()
-        semaphore.signal()
-    }
-
-    let result = semaphore.wait(timeout: .now() + seconds)
-    return result == .success
-}
-
 // MARK: - AX Call Watchdog
 
 /// Watchdog that detects and blocklists apps with slow/hanging AX calls.
@@ -105,13 +88,9 @@ func executeWithTimeout(seconds: TimeInterval, closure: @escaping () -> Void) ->
 ///
 /// Usage:
 /// ```
-/// // Check before making AX call
-/// guard !AXWatchdog.shared.shouldSkipCalls(for: bundleID) else { return nil }
-///
-/// // Track the call
-/// AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXTextMarkerForIndex")
-/// let result = AXUIElementCopyParameterizedAttributeValue(...)
-/// AXWatchdog.shared.endCall()
+/// guard let call = AXClient.perform(bundleID: bundleID, attribute: "AXValue", operation: {
+///     AXUIElementCopyAttributeValue(...)
+/// }) else { return nil }
 /// ```
 final class AXWatchdog {
     static let shared = AXWatchdog()
@@ -141,6 +120,7 @@ final class AXWatchdog {
         let bundleID: String
         let startTime: Date
         let attribute: String
+        let ownerThread: ObjectIdentifier
     }
 
     /// Blocklisted apps with expiration time
@@ -149,8 +129,9 @@ final class AXWatchdog {
     /// Active calls are tokenized so a late completion cannot clear a newer call.
     private var activeCalls: [AXCallToken: ActiveCall] = [:]
 
-    /// Compatibility stack for older beginCall/endCall callers that do not retain a token.
-    private var legacyCallTokens: [ObjectIdentifier: [AXCallToken]] = [:]
+    /// Nested AXClient helpers reuse their caller's logical process slot. Their tokens do not
+    /// create additional active work and cannot finish the owning call.
+    private var nestedCallOwners: [AXCallToken: AXCallToken] = [:]
 
     /// Lock for thread safety
     private let lock = NSLock()
@@ -227,7 +208,11 @@ final class AXWatchdog {
 
     /// Atomically reserve a bounded AX execution slot for a process. Unlike a separate
     /// `shouldSkipCalls`/`beginCall` pair, this cannot race another focus or display update.
-    func tryBeginCall(bundleID: String, attribute: String) -> AXCallToken? {
+    func tryBeginCall(
+        bundleID: String,
+        attribute: String,
+        allowingReentrancy: Bool = false
+    ) -> AXCallToken? {
         lock.lock()
         defer { lock.unlock() }
 
@@ -237,6 +222,17 @@ final class AXWatchdog {
             Logger.info("AXWatchdog: Blocklist expired for \(bundleID), allowing AX calls again", category: Logger.accessibility)
         }
 
+        let threadID = ObjectIdentifier(Thread.current)
+        if allowingReentrancy,
+           let owner = activeCalls.first(where: {
+               $0.value.bundleID == bundleID && $0.value.ownerThread == threadID
+           })?.key
+        {
+            let nestedToken = AXCallToken()
+            nestedCallOwners[nestedToken] = owner
+            return nestedToken
+        }
+
         guard !activeCalls.values.contains(where: { $0.bundleID == bundleID }),
               activeCalls.count < maximumConcurrentCalls
         else {
@@ -244,19 +240,12 @@ final class AXWatchdog {
         }
 
         let token = AXCallToken()
-        activeCalls[token] = ActiveCall(bundleID: bundleID, startTime: Date(), attribute: attribute)
-        return token
-    }
-
-    /// Mark the start of an AX call and return the identity needed to finish that exact call.
-    @discardableResult
-    func beginCall(bundleID: String, attribute: String) -> AXCallToken {
-        lock.lock()
-        defer { lock.unlock() }
-
-        let token = AXCallToken()
-        activeCalls[token] = ActiveCall(bundleID: bundleID, startTime: Date(), attribute: attribute)
-        legacyCallTokens[ObjectIdentifier(Thread.current), default: []].append(token)
+        activeCalls[token] = ActiveCall(
+            bundleID: bundleID,
+            startTime: Date(),
+            attribute: attribute,
+            ownerThread: threadID
+        )
         return token
     }
 
@@ -264,28 +253,9 @@ final class AXWatchdog {
     func endCall(_ token: AXCallToken) {
         lock.lock()
         defer { lock.unlock() }
-
-        // A token-aware caller may run on the same thread as legacy callers. Remove this token
-        // from any compatibility stack so it cannot accumulate or later complete a different call.
-        for threadID in Array(legacyCallTokens.keys) {
-            guard let tokens = legacyCallTokens[threadID] else { continue }
-            let remaining = tokens.filter { $0 != token }
-            legacyCallTokens[threadID] = remaining.isEmpty ? nil : remaining
-        }
-        finishCall(token)
-    }
-
-    /// Compatibility overload for existing synchronous callers.
-    func endCall() {
-        lock.lock()
-        defer { lock.unlock() }
-
-        let threadID = ObjectIdentifier(Thread.current)
-        guard var tokens = legacyCallTokens[threadID], let token = tokens.popLast() else {
-            Logger.warning("AXWatchdog: endCall() without a matching beginCall()", category: Logger.accessibility)
+        if nestedCallOwners.removeValue(forKey: token) != nil {
             return
         }
-        legacyCallTokens[threadID] = tokens.isEmpty ? nil : tokens
         finishCall(token)
     }
 
@@ -376,35 +346,36 @@ enum AccessibilityBridge {
     /// Returns the range of characters currently visible on screen
     /// CRITICAL: Check visibility BEFORE attempting any positioning
     static func getVisibleCharacterRange(_ element: AXUIElement) -> NSRange? {
-        var result: NSRange?
+        let bundleID = AXClient.bundleIdentifier(for: element)
+        guard let call = AXClient.perform(
+            bundleID: bundleID,
+            attribute: "AXVisibleCharacterRange",
+            operation: { () -> NSRange? in
+                AXUIElementSetMessagingTimeout(element, 1.0)
+                var value: CFTypeRef?
+                let axResult = AXUIElementCopyAttributeValue(
+                    element,
+                    "AXVisibleCharacterRange" as CFString,
+                    &value
+                )
 
-        // 1.5s timeout gives buffer beyond native 1.0s timeout for overhead
-        let completed = executeWithTimeout(seconds: 1.5) {
-            var value: CFTypeRef?
-            let axResult = AXUIElementCopyAttributeValue(
-                element,
-                "AXVisibleCharacterRange" as CFString,
-                &value
-            )
+                guard axResult == .success, let axValue = value else {
+                    Logger.debug("AccessibilityBridge: AXVisibleCharacterRange not available", category: Logger.accessibility)
+                    return nil
+                }
 
-            guard axResult == .success, let axValue = value else {
-                Logger.debug("AccessibilityBridge: AXVisibleCharacterRange not available", category: Logger.accessibility)
-                return
+                guard let range = safeAXValueGetRange(axValue) else {
+                    Logger.debug("AccessibilityBridge: Could not extract CFRange from AXVisibleCharacterRange", category: Logger.accessibility)
+                    return nil
+                }
+
+                return NSRange(location: range.location, length: range.length)
             }
-
-            guard let range = safeAXValueGetRange(axValue) else {
-                Logger.debug("AccessibilityBridge: Could not extract CFRange from AXVisibleCharacterRange", category: Logger.accessibility)
-                return
-            }
-
-            result = NSRange(location: range.location, length: range.length)
+        ) else {
+            Logger.debug("AccessibilityBridge: AXVisibleCharacterRange skipped for \(bundleID)", category: Logger.accessibility)
+            return nil
         }
-
-        if !completed {
-            Logger.warning("AccessibilityBridge: getVisibleCharacterRange timed out", category: Logger.accessibility)
-        }
-
-        return result
+        return call.value
     }
 
     /// Check if a range is within the visible character range
@@ -582,16 +553,7 @@ enum AccessibilityBridge {
     /// Check if element supports modern opaque marker API
     /// Used to determine if ModernMarkerStrategy can be used
     static func supportsOpaqueMarkers(_ element: AXUIElement) -> Bool {
-        // Get bundleID for watchdog tracking
-        var pid: pid_t = 0
-        AXUIElementGetPid(element, &pid)
-        let bundleID = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? "unknown"
-
-        // Check if we should skip AX calls (blocklisted or worker busy)
-        if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
-            Logger.debug("supportsOpaqueMarkers: Skipping \(bundleID) - watchdog protection active", category: Logger.accessibility)
-            return false
-        }
+        let bundleID = AXClient.bundleIdentifier(for: element)
 
         // Try to create a marker for index 0 as capability test
         var indexValue = 0
@@ -603,20 +565,24 @@ enum AccessibilityBridge {
             return false
         }
 
-        // Track the AX call with watchdog
-        AXWatchdog.shared.beginCall(bundleID: bundleID, attribute: "AXTextMarkerForIndex")
-
-        var markerValue: CFTypeRef?
-        let result = AXUIElementCopyParameterizedAttributeValue(
-            element,
-            "AXTextMarkerForIndex" as CFString,
-            indexRef,
-            &markerValue
-        )
-
-        AXWatchdog.shared.endCall()
-
-        return result == .success && markerValue != nil
+        guard let call = AXClient.perform(
+            bundleID: bundleID,
+            attribute: "AXTextMarkerForIndex",
+            operation: {
+                var markerValue: CFTypeRef?
+                let result = AXUIElementCopyParameterizedAttributeValue(
+                    element,
+                    "AXTextMarkerForIndex" as CFString,
+                    indexRef,
+                    &markerValue
+                )
+                return result == .success && markerValue != nil
+            }
+        ) else {
+            Logger.debug("supportsOpaqueMarkers: Skipping \(bundleID) - watchdog protection active", category: Logger.accessibility)
+            return false
+        }
+        return call.value
     }
 
     // MARK: - Opaque Marker API (Modern - for Electron/Chrome)
@@ -1120,82 +1086,84 @@ enum AccessibilityBridge {
 
     /// Get element frame in Quartz coordinates
     /// Returns the frame (position + size) of an AXUIElement, or nil if unavailable
-    /// NOTE: Uses timeout to prevent freezing on slow AX implementations
+    /// Uses the native AX messaging timeout and the shared per-process execution bound.
     static func getElementFrame(_ element: AXUIElement) -> CGRect? {
-        var result: CGRect?
+        let bundleID = AXClient.bundleIdentifier(for: element)
+        guard let call = AXClient.perform(
+            bundleID: bundleID,
+            attribute: "AXPosition/AXSize",
+            operation: { () -> CGRect? in
+                AXUIElementSetMessagingTimeout(element, 1.0)
+                var positionValue: CFTypeRef?
+                var sizeValue: CFTypeRef?
 
-        // 1.5s timeout gives buffer beyond native 1.0s timeout for overhead
-        let completed = executeWithTimeout(seconds: 1.5) {
-            var positionValue: CFTypeRef?
-            var sizeValue: CFTypeRef?
+                let positionResult = AXUIElementCopyAttributeValue(
+                    element,
+                    kAXPositionAttribute as CFString,
+                    &positionValue
+                )
 
-            let positionResult = AXUIElementCopyAttributeValue(
-                element,
-                kAXPositionAttribute as CFString,
-                &positionValue
-            )
+                let sizeResult = AXUIElementCopyAttributeValue(
+                    element,
+                    kAXSizeAttribute as CFString,
+                    &sizeValue
+                )
 
-            let sizeResult = AXUIElementCopyAttributeValue(
-                element,
-                kAXSizeAttribute as CFString,
-                &sizeValue
-            )
+                guard positionResult == .success,
+                      sizeResult == .success,
+                      let position = positionValue,
+                      let size = sizeValue
+                else {
+                    return nil
+                }
 
-            guard positionResult == .success,
-                  sizeResult == .success,
-                  let position = positionValue,
-                  let size = sizeValue
-            else {
-                return
+                guard let origin = safeAXValueGetPoint(position),
+                      let rectSize = safeAXValueGetSize(size)
+                else {
+                    return nil
+                }
+
+                return CGRect(origin: origin, size: rectSize)
             }
-
-            guard let origin = safeAXValueGetPoint(position),
-                  let rectSize = safeAXValueGetSize(size)
-            else {
-                return
-            }
-
-            result = CGRect(origin: origin, size: rectSize)
+        ) else {
+            Logger.debug("AccessibilityBridge: AXPosition/AXSize skipped for \(bundleID)", category: Logger.accessibility)
+            return nil
         }
-
-        if !completed {
-            Logger.warning("AccessibilityBridge: getElementFrame timed out", category: Logger.accessibility)
-        }
-
-        return result
+        return call.value
     }
 
     /// Get element position in Quartz coordinates
     /// Returns the position (origin) of an AXUIElement, or nil if unavailable
-    /// NOTE: Uses timeout to prevent freezing on slow AX implementations
+    /// Uses the native AX messaging timeout and the shared per-process execution bound.
     static func getElementPosition(_ element: AXUIElement) -> CGPoint? {
-        var result: CGPoint?
+        let bundleID = AXClient.bundleIdentifier(for: element)
+        guard let call = AXClient.perform(
+            bundleID: bundleID,
+            attribute: "AXPosition",
+            operation: { () -> CGPoint? in
+                AXUIElementSetMessagingTimeout(element, 1.0)
+                var positionValue: CFTypeRef?
 
-        // 1.5s timeout gives buffer beyond native 1.0s timeout for overhead
-        let completed = executeWithTimeout(seconds: 1.5) {
-            var positionValue: CFTypeRef?
+                let positionResult = AXUIElementCopyAttributeValue(
+                    element,
+                    kAXPositionAttribute as CFString,
+                    &positionValue
+                )
 
-            let positionResult = AXUIElementCopyAttributeValue(
-                element,
-                kAXPositionAttribute as CFString,
-                &positionValue
-            )
+                guard positionResult == .success,
+                      let position = positionValue,
+                      let point = safeAXValueGetPoint(position)
+                else {
+                    return nil
+                }
 
-            guard positionResult == .success,
-                  let position = positionValue,
-                  let point = safeAXValueGetPoint(position)
-            else {
-                return
+                return point
             }
-
-            result = point
+        ) else {
+            Logger.debug("AccessibilityBridge: AXPosition skipped for \(bundleID)", category: Logger.accessibility)
+            return nil
         }
-
-        if !completed {
-            Logger.warning("AccessibilityBridge: getElementPosition timed out", category: Logger.accessibility)
-        }
-
-        return result
+        return call.value
     }
 
     /// Find the window element containing the given element
