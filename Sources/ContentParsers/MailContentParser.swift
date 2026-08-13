@@ -312,6 +312,17 @@ class MailContentParser: ContentParser {
         let utf16Range = convertToUTF16Range(range, in: element)
         Logger.debug("MailContentParser: selectTextForReplacement UTF-16 conversion: grapheme [\(range.location), \(range.length)] -> UTF-16 [\(utf16Range.location), \(utf16Range.length)]", category: Logger.accessibility)
 
+        return selectTextForReplacement(
+            utf16Range: CFRange(location: utf16Range.location, length: utf16Range.length),
+            in: element
+        )
+    }
+
+    /// Select text when the caller has already validated and converted the range.
+    static func selectTextForReplacement(
+        utf16Range: CFRange,
+        in element: AXUIElement
+    ) -> Bool {
         // Method 1: Use text markers (most reliable for WebKit)
         if let startMarker = createTextMarker(at: utf16Range.location, in: element),
            let endMarker = createTextMarker(at: utf16Range.location + utf16Range.length, in: element)
@@ -334,7 +345,7 @@ class MailContentParser: ContentParser {
 
         // Method 2: Standard CFRange-based selection (also using UTF-16 range)
         Logger.debug("MailContentParser: Trying CFRange selection", category: Logger.accessibility)
-        var cfRange = CFRange(location: utf16Range.location, length: utf16Range.length)
+        var cfRange = utf16Range
         guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else {
             return false
         }

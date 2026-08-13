@@ -108,6 +108,9 @@ class AnalysisCoordinator: ObservableObject {
     /// Currently displayed errors (internal visibility for extensions)
     @Published var currentErrors: [GrammarErrorModel] = []
 
+    /// Source text captured when each displayed grammar error became canonical.
+    var currentErrorSourceStore = GrammarErrorSourceStore()
+
     /// Current text segment being analyzed (internal visibility for extensions)
     @Published var currentSegment: TextSegment?
 
@@ -2582,6 +2585,7 @@ class AnalysisCoordinator: ObservableObject {
             return
         }
 
+        currentErrorSourceStore.replace(errors: filteredErrors, sourceText: sourceText)
         currentErrors = filteredErrors
 
         if let context = monitoredContext {
