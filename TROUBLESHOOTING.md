@@ -46,7 +46,7 @@ If permission remains stuck, remove TextWarden from the list, launch `/Applicati
 Check these in order:
 
 1. Confirm TextWarden is active in its menu bar menu.
-2. Open **Preferences → Applications** and make sure the current app is Active. Unknown apps are paused on first discovery.
+2. Open **Preferences → Applications** and check the current app. For an unrecognized app, choose **Try Safely** to use the indicator and copy-only fixes, or leave it paused.
 3. In a browser, open **Preferences → Websites** and make sure the current domain is not excluded.
 4. Type into an editable field, not rendered page text, a PDF, or a non-editable preview.
 5. Try a deliberate error such as `This are wrong.`

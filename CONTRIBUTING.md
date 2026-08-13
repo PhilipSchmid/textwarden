@@ -111,7 +111,7 @@ When adding an app:
 5. Add regression tests under `Tests/Unit/` and an application note under `docs/applications/`.
 6. Test typing, scrolling, focus changes, multiple windows, replacement, emoji, rich text, and external displays where relevant.
 
-Terminal apps are the only fixed paused-by-default set in `UserPreferences`. Other unknown apps are paused when first discovered and can be enabled by the user; there is no separate hidden-app registry.
+`AppRegistry` is the source of truth for built-in application policy. Terminal apps are paused by default, known non-writing apps are ignored, and other unknown apps require safe-trial consent before TextWarden reads their text. `UserPreferences` stores the user's choices and per-app overrides.
 
 ## Code Style
 
