@@ -16,10 +16,9 @@ final class RuntimeHealthTests: XCTestCase {
         )
     }
 
-    func testRuntimeHealthNeverIncludesWriting() {
+    func testIdleRuntimeHealthHasNoApplicationContext() {
         let snapshot = RuntimeHealthSnapshot.idle
 
-        XCTAssertEqual(snapshot.privacyMessage, "TextWarden works locally. Your writing is never sent anywhere.")
         XCTAssertNil(snapshot.applicationName)
         XCTAssertNil(snapshot.bundleIdentifier)
     }

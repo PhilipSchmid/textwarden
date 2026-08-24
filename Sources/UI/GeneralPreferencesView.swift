@@ -50,10 +50,6 @@ struct GeneralPreferencesView: View {
                             .foregroundColor(.secondary)
                     }
 
-                    Text(snapshot.privacyMessage)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
                     runtimeHealthAction(for: snapshot)
                 }
             } header: {
