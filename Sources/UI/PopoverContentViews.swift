@@ -323,6 +323,25 @@ struct SentenceContextView: View {
         return scalars.distance(from: scalarStart, to: scalarEnd)
     }
 
+    static func sentenceEnd(in sourceText: String, startingAt startIndex: String.Index) -> String.Index {
+        var searchIndex = startIndex
+        while searchIndex < sourceText.endIndex {
+            let char = sourceText[searchIndex]
+            if char == "." || char == "!" || char == "?" {
+                let nextIndex = sourceText.index(after: searchIndex)
+                if nextIndex == sourceText.endIndex || sourceText[nextIndex].isWhitespace {
+                    return nextIndex
+                }
+            }
+            if char.isNewline {
+                return searchIndex
+            }
+            searchIndex = sourceText.index(after: searchIndex)
+        }
+
+        return sourceText.endIndex
+    }
+
     /// Extract expected error text from error message (backticks) or suggestions
     private func extractExpectedText(from error: GrammarErrorModel) -> String? {
         // Try to extract from backticks in message (e.g., "Did you mean to spell `staand` this way?")
@@ -529,23 +548,7 @@ struct SentenceContextView: View {
             }
         }
 
-        // Find sentence end by searching forwards for . ! ? or newline (for list items)
-        var sentenceEnd = sourceText.endIndex
-        searchIndex = errorStartIndex
-        while searchIndex < sourceText.endIndex {
-            let char = sourceText[searchIndex]
-            if char == "." || char == "!" || char == "?" {
-                // Include the punctuation in the sentence
-                sentenceEnd = sourceText.index(after: searchIndex)
-                break
-            }
-            // Newline ends sentence for list items
-            if char.isNewline {
-                sentenceEnd = searchIndex
-                break
-            }
-            searchIndex = sourceText.index(after: searchIndex)
-        }
+        let sentenceEnd = Self.sentenceEnd(in: sourceText, startingAt: errorStartIndex)
 
         // sentenceStartOffset is in scalar indices (for arithmetic with error.start/end)
         let sentenceStartScalarOffset = stringIndexToScalarIndex(sentenceStart, in: sourceText)
