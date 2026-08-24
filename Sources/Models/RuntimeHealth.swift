@@ -256,10 +256,6 @@ struct RuntimeHealthSnapshot: Equatable {
         }
     }
 
-    var privacyMessage: String {
-        "TextWarden works locally. Your writing is never sent anywhere."
-    }
-
     /// The preference scope a resume action should change.
     /// The runtime reason determines the scope; unrelated pause settings stay untouched.
     var resumeScope: PauseScope? {
