@@ -69,13 +69,13 @@ Matching is case-insensitive. You can also enable **Import macOS learned words**
 
 ### Language detection
 
-Language detection is off by default. When enabled, select the languages TextWarden should ignore:
+Language detection is off by default. Enable **Ignore selected languages** to prevent English grammar checks in passages confidently detected as a selected language.
 
-Arabic, Dutch, French, German, Hindi, Italian, Japanese, Korean, Mandarin, Portuguese, Russian, Spanish, Swedish, Turkish, and Vietnamese.
+The searchable selector contains all 69 non-English languages supported by the bundled detector. Search by English name, native name, or ISO 639-3 code. Selected languages appear first when the search field is empty.
 
-TextWarden first checks whether more than 60% of a document's detected sentences use one of the selected languages. If so, it skips the full document. Otherwise it suppresses Harper errors within individual sentences detected as one of those languages. English sentences in a mixed-language document are still checked.
+TextWarden detects language once per semantic segment, such as a sentence, paragraph, or list item. If more than 60% of all substantive segments are reliably detected as any selected language, it skips Harper and English readability analysis for the document. Otherwise it suppresses Harper errors only inside reliably matched segments. English and unselected passages in mixed-language documents remain checked.
 
-This feature prevents false positives. It does not translate or proofread non-English text.
+Uncertain detections fail open: TextWarden keeps checking the passage. This is most likely with very short, ambiguous, or closely related language samples. The feature prevents false positives; it does not translate or proofread non-English text.
 
 ## Readability
 

@@ -104,7 +104,6 @@ protocol UserPreferencesProviding: AnyObject {
     func isEnabled(forURL url: URL) -> Bool
     func ignoreErrorText(_ text: String)
     func ignoreRule(_ ruleId: String)
-    static func languageCode(for displayName: String) -> String
 }
 
 /// Protocol for custom vocabulary access

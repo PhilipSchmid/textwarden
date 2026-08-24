@@ -109,7 +109,9 @@ The Rust dictionary combines Harper's curated dictionary with whichever bundled 
 - first names;
 - surnames.
 
-The merged dictionary is cached by that six-flag configuration. `whichlang` provides optional language detection so excluded-language documents can skip English-specific checks such as readability analysis.
+The merged dictionary is cached by that six-flag configuration. `whatlang` provides optional detection across its full 70-language catalog. Swift receives that catalog through the Rust FFI and persists selected non-English languages as ISO 639-3 codes rather than maintaining a second detector list.
+
+For each analysis, Rust detects the language of semantic segments once and records both UTF-8 byte ranges and Unicode-scalar ranges. The same summary drives the early Harper skip, readability decision, and post-analysis error filtering. Only reliable detections matching a selected language are ignored; unknown or unreliable segments fail open. Harper is skipped for the complete document only when selected languages cover more than 60% of all substantive segments.
 
 ### 4. Filter and enrich results
 

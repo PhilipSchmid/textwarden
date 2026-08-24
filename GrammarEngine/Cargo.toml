@@ -10,7 +10,7 @@ crate-type = ["staticlib"]
 harper-core = { git = "https://github.com/Automattic/harper", tag = "v2.8.0" }
 swift-bridge = "0.1.59"
 uuid = { version = "1.0", features = ["v4"] }
-whichlang = "0.1.0"
+whatlang = "0.18.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 sysinfo = { version = "0.39", default-features = false, features = ["system"] }

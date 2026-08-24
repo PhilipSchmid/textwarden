@@ -77,7 +77,7 @@ extension AnalysisCoordinator {
             enablePersonNames: userPreferences.enablePersonNames,
             enableLastNames: userPreferences.enableLastNames,
             enableLanguageDetection: userPreferences.enableLanguageDetection,
-            excludedLanguages: Array(userPreferences.excludedLanguages.map { UserPreferences.languageCode(for: $0) }),
+            excludedLanguages: Array(userPreferences.excludedLanguages),
             enforceOxfordComma: userPreferences.enforceOxfordComma,
             checkEllipsis: userPreferences.checkEllipsis,
             checkUnclosedQuotes: userPreferences.checkUnclosedQuotes,
@@ -195,7 +195,7 @@ extension AnalysisCoordinator {
         let enablePersonNames = userPreferences.enablePersonNames
         let enableLastNames = userPreferences.enableLastNames
         let enableLanguageDetection = userPreferences.enableLanguageDetection
-        let excludedLanguages = Array(userPreferences.excludedLanguages.map { UserPreferences.languageCode(for: $0) })
+        let excludedLanguages = Array(userPreferences.excludedLanguages)
         let enforceOxfordComma = userPreferences.enforceOxfordComma
         let checkEllipsis = userPreferences.checkEllipsis
         let checkUnclosedQuotes = userPreferences.checkUnclosedQuotes

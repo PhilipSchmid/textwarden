@@ -599,11 +599,11 @@ struct OnboardingView: View {
                         .font(.body)
                         .fontWeight(.semibold)
 
-                    Text("If you write in multiple languages, select them below. TextWarden detects when documents are primarily in another language and skips checking entirely, avoiding false positives on foreign text.")
+                    Text("Select languages that should not receive English grammar checks. TextWarden ignores only passages it detects confidently, so uncertain text remains checked.")
                         .font(.body)
                         .foregroundColor(.secondary)
 
-                    languageSelectionGrid
+                    languageSelector
                 }
 
                 Text("You can change these settings anytime in Settings → Grammar.")
@@ -639,38 +639,13 @@ struct OnboardingView: View {
         }
     }
 
-    @State private var selectedLanguages: Set<String> = []
+    @State private var selectedLanguages: Set<String> = UserPreferences.shared.excludedLanguages
 
-    private var languageSelectionGrid: some View {
-        // All supported languages from UserPreferences.availableLanguages (excluding English)
-        let supportedLanguages = UserPreferences.availableLanguages.filter { $0 != "English" }
-
-        return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-            ForEach(supportedLanguages, id: \.self) { language in
-                Button {
-                    if selectedLanguages.contains(language) {
-                        selectedLanguages.remove(language)
-                    } else {
-                        selectedLanguages.insert(language)
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: selectedLanguages.contains(language) ? "checkmark.circle.fill" : "circle")
-                            .foregroundColor(selectedLanguages.contains(language) ? .accentColor : .secondary)
-                            .font(.subheadline)
-                        Text(language)
-                            .font(.subheadline)
-                            .lineLimit(1)
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(selectedLanguages.contains(language) ? Color.accentColor.opacity(0.1) : Color.secondary.opacity(0.1))
-                    .cornerRadius(6)
-                }
-                .buttonStyle(.plain)
-            }
-        }
+    private var languageSelector: some View {
+        LanguageSelectorView(
+            selectedLanguageCodes: $selectedLanguages,
+            maxHeight: 210
+        )
     }
 
     @State private var websiteToExclude: String = ""
@@ -1065,14 +1040,9 @@ struct OnboardingView: View {
             UserPreferences.shared.selectedDialect = selectedDialect
             Logger.info("Onboarding: Selected dialect: \(selectedDialect)", category: Logger.general)
 
-            // Save language detection settings if any languages selected
-            // Store display names (e.g., "German") directly - conversion to lowercase codes
-            // happens in AnalysisCoordinator when passing to Rust
-            if !selectedLanguages.isEmpty {
-                UserPreferences.shared.enableLanguageDetection = true
-                UserPreferences.shared.excludedLanguages = selectedLanguages
-                Logger.info("Onboarding: Enabled language detection for: \(selectedLanguages)", category: Logger.general)
-            }
+            UserPreferences.shared.excludedLanguages = selectedLanguages
+            UserPreferences.shared.enableLanguageDetection = !selectedLanguages.isEmpty
+            Logger.info("Onboarding: Selected ignored language codes: \(selectedLanguages)", category: Logger.general)
             currentStep = .websiteExclusion
 
         case .websiteExclusion:
