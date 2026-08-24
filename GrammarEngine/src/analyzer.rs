@@ -7,6 +7,7 @@ use crate::slang_dict;
 use harper_core::spell::{MergedDictionary, MutableDictionary};
 use harper_core::{
     linting::{LintGroup, Linter},
+    parsers::MarkdownOptions,
     Dialect, Document,
 };
 use std::sync::{Arc, Mutex};
@@ -699,9 +700,11 @@ pub fn analyze_text(
     // --- PHASE 3: Document Parsing ---
     let parse_start = Instant::now();
 
-    // Parse the text into a Document using our merged dictionary
-    // This ensures abbreviations and slang are recognized during parsing
-    let document = Document::new_plain_english(text, dictionary.as_ref());
+    // Parse Markdown structurally so links and code are not treated as prose.
+    // Keep using the merged dictionary so configured vocabulary is recognized.
+    let mut markdown_options = MarkdownOptions::default();
+    markdown_options.ignore_link_title = true;
+    let document = Document::new_markdown(text, markdown_options, dictionary.as_ref());
     let document_parse_ms = parse_start.elapsed().as_millis() as u64;
 
     // --- PHASE 4: Harper Linting ---
@@ -1206,6 +1209,123 @@ mod tests {
         assert!(result.word_count > 0);
         // Note: Harper may or may not catch this specific error depending on version
         // The test mainly verifies the analyzer runs without crashing
+    }
+
+    #[test]
+    fn test_markdown_link_labels_are_not_linted() {
+        let text = "🙂 I definately decided to use [quickwit-oss/whichlang](https://github.com/quickwit-oss/whichlang) over [greyblake/whatlang-rs](https://github.com/greyblake/whatlang-rs).";
+        let result = analyze_text(
+            text,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+            true,
+            true,
+            true,
+            true,
+        );
+
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|error| error_text(text, error) == "definately"),
+            "errors outside Markdown links must remain"
+        );
+
+        let link_label_ranges = ["quickwit-oss/whichlang", "greyblake/whatlang-rs"].map(|label| {
+            let byte_start = text.find(label).expect("link label must exist");
+            let start = text[..byte_start].chars().count();
+            start..start + label.chars().count()
+        });
+        let errors_in_link_labels = result
+            .errors
+            .iter()
+            .filter(|error| {
+                link_label_ranges
+                    .iter()
+                    .any(|range| error.start < range.end && error.end > range.start)
+            })
+            .map(|error| error_text(text, error))
+            .collect::<Vec<_>>();
+
+        assert!(
+            errors_in_link_labels.is_empty(),
+            "Markdown link labels must not be linted: {errors_in_link_labels:?}"
+        );
+    }
+
+    #[test]
+    fn test_markdown_reference_link_labels_are_not_linted() {
+        let text = "See the [quikcwit project][repository] for details.\n\n[repository]: https://github.com/quickwit-oss/whichlang";
+        let result = analyze_text(
+            text,
+            "American",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+            true,
+            true,
+            true,
+            true,
+            true,
+        );
+
+        assert!(
+            result
+                .errors
+                .iter()
+                .all(|error| error_text(text, error) != "quikcwit"),
+            "reference-style Markdown link labels must not be linted"
+        );
+    }
+
+    #[test]
+    fn test_malformed_or_escaped_markdown_links_fail_open() {
+        let samples = [
+            r"This uses \[definately](not-a-link) in prose.",
+            "This uses [definately](https://example.com in prose.",
+        ];
+
+        for text in samples {
+            let result = analyze_text(
+                text,
+                "American",
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                vec![],
+                true,
+                true,
+                true,
+                true,
+                true,
+            );
+
+            assert!(
+                result
+                    .errors
+                    .iter()
+                    .any(|error| error_text(text, error) == "definately"),
+                "non-link text must remain lintable: {text}"
+            );
+        }
     }
 
     #[test]
