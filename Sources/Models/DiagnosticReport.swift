@@ -544,7 +544,9 @@ struct SettingsDump: Codable {
             selectedDialect: preferences.selectedDialect,
             enabledCategories: Array(preferences.enabledCategories).sorted(),
             enableLanguageDetection: preferences.enableLanguageDetection,
-            excludedLanguages: Array(preferences.excludedLanguages).sorted(),
+            excludedLanguages: preferences.excludedLanguages
+                .map(UserPreferences.languageDiagnosticLabel(for:))
+                .sorted(),
             enforceOxfordComma: preferences.enforceOxfordComma,
             checkEllipsis: preferences.checkEllipsis,
             checkUnclosedQuotes: preferences.checkUnclosedQuotes,

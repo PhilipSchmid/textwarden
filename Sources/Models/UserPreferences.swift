@@ -332,42 +332,50 @@ class UserPreferences: ObservableObject {
         }
     }
 
-    /// Languages to exclude from grammar checking (e.g., "spanish", "german")
+    /// ISO 639-3 language codes to exclude from English grammar checking.
     @Published var excludedLanguages: Set<String> {
         didSet {
             persist(excludedLanguages, forKey: Keys.excludedLanguages)
         }
     }
 
-    /// Available languages for detection (from whichlang library)
-    static let availableLanguages = [
-        "Arabic", "Dutch", "English", "French", "German",
-        "Hindi", "Italian", "Japanese", "Korean", "Mandarin",
-        "Portuguese", "Russian", "Spanish", "Swedish",
-        "Turkish", "Vietnamese",
-    ]
+    /// All non-English languages exposed by the Rust detector.
+    static let availableLanguages = GrammarEngine.supportedLanguages
+        .filter { $0.code != "eng" }
+        .sorted { $0.englishName.localizedCaseInsensitiveCompare($1.englishName) == .orderedAscending }
 
-    /// Map UI-friendly names to language codes for Rust
-    static func languageCode(for name: String) -> String {
-        switch name {
-        case "Arabic": "arabic"
-        case "Dutch": "dutch"
-        case "English": "english"
-        case "French": "french"
-        case "German": "german"
-        case "Hindi": "hindi"
-        case "Italian": "italian"
-        case "Japanese": "japanese"
-        case "Korean": "korean"
-        case "Mandarin": "mandarin"
-        case "Portuguese": "portuguese"
-        case "Russian": "russian"
-        case "Spanish": "spanish"
-        case "Swedish": "swedish"
-        case "Turkish": "turkish"
-        case "Vietnamese": "vietnamese"
-        default: name.lowercased()
+    /// Convert legacy display-name storage to detector-backed ISO codes.
+    static func migratedLanguageCodes(
+        from values: Set<String>,
+        catalog: [SupportedLanguage] = GrammarEngine.supportedLanguages
+    ) -> Set<String> {
+        let codeLookup = Dictionary(uniqueKeysWithValues: catalog.map { ($0.code.lowercased(), $0.code) })
+        var nameLookup: [String: String] = [:]
+
+        for language in catalog {
+            nameLookup[normalizedLanguageLookupKey(language.englishName)] = language.code
+            nameLookup[normalizedLanguageLookupKey(language.nativeName)] = language.code
         }
+
+        return Set(values.compactMap { value in
+            let normalizedCode = value.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            let code = codeLookup[normalizedCode] ?? nameLookup[normalizedLanguageLookupKey(value)]
+            return code == "eng" ? nil : code
+        })
+    }
+
+    static func languageDisplayName(for code: String) -> String {
+        availableLanguages.first { $0.code == code }?.englishName ?? code.uppercased()
+    }
+
+    static func languageDiagnosticLabel(for code: String) -> String {
+        "\(languageDisplayName(for: code)) (\(code))"
+    }
+
+    private static func normalizedLanguageLookupKey(_ value: String) -> String {
+        value
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: - Keyboard Shortcuts
@@ -871,7 +879,19 @@ class UserPreferences: ObservableObject {
         if let data = defaults.data(forKey: Keys.excludedLanguages),
            let set = try? decoder.decode(Set<String>.self, from: data)
         {
-            excludedLanguages = set
+            let migratedCodes = Self.migratedLanguageCodes(from: set)
+            excludedLanguages = migratedCodes
+            if migratedCodes != set {
+                do {
+                    let encoded = try encoder.encode(migratedCodes)
+                    defaults.set(encoded, forKey: Keys.excludedLanguages)
+                } catch {
+                    Logger.warning(
+                        "Failed to migrate excludedLanguages: \(error.localizedDescription)",
+                        category: Logger.general
+                    )
+                }
+            }
         }
 
         // Keyboard Shortcuts

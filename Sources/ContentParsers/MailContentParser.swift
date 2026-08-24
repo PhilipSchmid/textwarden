@@ -811,7 +811,7 @@ class MailContentParser: ContentParser {
     static func stripQuotedContent(from text: String) -> String {
         let lines = text.components(separatedBy: .newlines)
 
-        // Quote attribution patterns for languages supported by whichlang
+        // Quote attribution patterns for common languages handled by language filtering
         // (Arabic, Dutch, English, French, German, Hindi, Italian, Japanese, Korean,
         // Mandarin, Portuguese, Russian, Spanish, Swedish, Turkish, Vietnamese)
         // Format: "On [date], [name] wrote:" with language-specific variations

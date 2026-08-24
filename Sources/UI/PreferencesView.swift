@@ -506,54 +506,22 @@ private struct CustomVocabularyContent: View {
             // MARK: - Language Detection Section
 
             Section {
-                Toggle("Detect non-English text", isOn: $preferences.enableLanguageDetection)
-                    .help("Automatically detect and skip grammar checking for non-English text")
+                Toggle("Ignore selected languages", isOn: $preferences.enableLanguageDetection)
+                    .help("Skip English grammar checks in confidently detected passages")
 
-                Text("Skip grammar checking for documents and sentences in selected languages")
+                Text("Skip English grammar checks in documents and passages confidently detected as a selected language.")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
                 if preferences.enableLanguageDetection {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Languages to ignore:")
+                        Text("Languages to ignore")
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .padding(.top, 4)
 
-                        LazyVGrid(columns: [
-                            GridItem(.fixed(150), alignment: .leading),
-                            GridItem(.fixed(150), alignment: .leading),
-                            GridItem(.fixed(150), alignment: .leading),
-                            GridItem(.fixed(150), alignment: .leading),
-                        ], alignment: .leading, spacing: 6) {
-                            ForEach(UserPreferences.availableLanguages.filter { $0 != "English" }.sorted(), id: \.self) { language in
-                                Toggle(language, isOn: Binding(
-                                    get: { preferences.excludedLanguages.contains(language) },
-                                    set: { isSelected in
-                                        if isSelected {
-                                            preferences.excludedLanguages.insert(language)
-                                        } else {
-                                            preferences.excludedLanguages.remove(language)
-                                        }
-                                    }
-                                ))
-                                .toggleStyle(.checkbox)
-                                .font(.system(size: 11))
-                            }
-                        }
-                        .padding(.leading, 20)
-
-                        if !preferences.excludedLanguages.isEmpty {
-                            HStack(spacing: 4) {
-                                Image(systemName: "info.circle")
-                                    .foregroundColor(.blue)
-                                    .font(.caption2)
-                                Text("Words detected as \(preferences.excludedLanguages.sorted().joined(separator: ", ")) will not be marked as errors")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(.top, 4)
-                        }
+                        LanguageSelectorView(selectedLanguageCodes: $preferences.excludedLanguages)
+                            .padding(.leading, 20)
                     }
                 }
             } header: {
@@ -1154,55 +1122,22 @@ struct CustomVocabularyView: View {
             .padding(.bottom, 8)
 
             VStack(alignment: .leading, spacing: 8) {
-                Toggle("Detect non-English text", isOn: $preferences.enableLanguageDetection)
-                    .help("Automatically detect and skip grammar checking for non-English text")
+                Toggle("Ignore selected languages", isOn: $preferences.enableLanguageDetection)
+                    .help("Skip English grammar checks in confidently detected passages")
 
-                Text("Skip grammar checking for documents and sentences in selected languages")
+                Text("Skip English grammar checks in documents and passages confidently detected as a selected language.")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
                 if preferences.enableLanguageDetection {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Languages to ignore:")
+                        Text("Languages to ignore")
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .padding(.top, 8)
 
-                        // Language selection grid with fixed columns
-                        LazyVGrid(columns: [
-                            GridItem(.fixed(150), alignment: .leading),
-                            GridItem(.fixed(150), alignment: .leading),
-                            GridItem(.fixed(150), alignment: .leading),
-                            GridItem(.fixed(150), alignment: .leading),
-                        ], alignment: .leading, spacing: 6) {
-                            ForEach(UserPreferences.availableLanguages.filter { $0 != "English" }.sorted(), id: \.self) { language in
-                                Toggle(language, isOn: Binding(
-                                    get: { preferences.excludedLanguages.contains(language) },
-                                    set: { isSelected in
-                                        if isSelected {
-                                            preferences.excludedLanguages.insert(language)
-                                        } else {
-                                            preferences.excludedLanguages.remove(language)
-                                        }
-                                    }
-                                ))
-                                .toggleStyle(.checkbox)
-                                .font(.system(size: 11))
-                            }
-                        }
-                        .padding(.leading, 20)
-
-                        if !preferences.excludedLanguages.isEmpty {
-                            HStack(spacing: 4) {
-                                Image(systemName: "info.circle")
-                                    .foregroundColor(.blue)
-                                    .font(.caption2)
-                                Text("Words detected as \(preferences.excludedLanguages.sorted().joined(separator: ", ")) will not be marked as errors")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(.top, 8)
-                        }
+                        LanguageSelectorView(selectedLanguageCodes: $preferences.excludedLanguages)
+                            .padding(.leading, 20)
                     }
                 }
             }

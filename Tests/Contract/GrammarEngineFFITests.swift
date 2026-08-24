@@ -11,6 +11,17 @@ import XCTest
 final class GrammarEngineFFITests: XCTestCase {
     // MARK: - Basic FFI Contract Tests
 
+    func testSupportedLanguages_ExposesCompleteWhatlangCatalog() throws {
+        let languages = GrammarEngine.supportedLanguages
+
+        XCTAssertEqual(languages.count, 70)
+        XCTAssertEqual(Set(languages.map(\.code)).count, 70)
+
+        let latvian = try XCTUnwrap(languages.first { $0.code == "lav" })
+        XCTAssertEqual(latvian.englishName, "Latvian")
+        XCTAssertEqual(latvian.nativeName, "Latviešu")
+    }
+
     func testAnalyzeText_EmptyString_ReturnsEmptyResult() {
         // Given: Empty text input
         let emptyText = ""

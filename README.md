@@ -35,7 +35,7 @@ TextWarden is a free, open-source grammar checker and writing assistant for macO
 - One-click corrections and a **Fix All** command for clear-cut errors
 - American, British, Canadian, Australian, and Indian English dialects
 - Custom vocabulary, the macOS learned-word dictionary, and optional word lists for technical terms, names, brands, abbreviations, and slang
-- Optional detection of selected non-English languages to avoid false positives in multilingual documents
+- Optional detection of 69 selectable non-English languages to avoid false positives in multilingual documents
 - Readability scores and sentence-complexity underlines for text with at least 30 words
 - Per-app pause controls, per-app underline controls, and website exclusions
 - A built-in Sketch Pad for focused drafting and revision
@@ -73,7 +73,7 @@ See the [Configuration Guide](CONFIGURATION.md) for every setting and the [Troub
 
 ## How It Works
 
-After you grant permission, TextWarden reads the text field you are typing in and checks it locally with the bundled Harper grammar checker. Suggestions appear as underlines or in a small floating indicator beside the app.
+After you grant permission, TextWarden reads the text field you are typing in and checks it locally with the bundled Harper grammar checker. Suggestions appear as underlines or in a small floating indicator beside the app. If you enable **Ignore selected languages**, TextWarden uses local language detection to skip English grammar checks only in passages it identifies confidently as one of your selected languages.
 
 When Apple Intelligence features are enabled, TextWarden gives the current text or selection to Apple's on-device AI. TextWarden does not operate a grammar or AI server.
 
@@ -127,7 +127,7 @@ Logs can contain parts of your writing, especially with Debug or Trace logging e
 
 ## Known Limitations
 
-- Grammar checking is English-only. Language detection suppresses checks for selected non-English languages; it does not proofread those languages.
+- Grammar checking is English-only. Language detection can suppress checks for 69 selected non-English languages, but it does not proofread or translate them. Very short or ambiguous passages remain checked when detection is uncertain.
 - Some custom text editors do not give macOS enough information for accurate underlines or safe corrections.
 - A correction can remove formatting in apps that only let TextWarden replace the entire text field.
 - Apple Intelligence style and composition features are unavailable on Intel Macs and on macOS releases before 26.
@@ -145,7 +145,7 @@ Logs can contain parts of your writing, especially with Debug or Trace logging e
 
 ## Credits
 
-TextWarden uses [Harper](https://github.com/Automattic/harper), an open-source English grammar checker written in Rust. It also depends on [swift-bridge](https://github.com/chinedufn/swift-bridge), [whichlang](https://github.com/quickwit-oss/whichlang), [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts), [LaunchAtLogin-Modern](https://github.com/sindresorhus/LaunchAtLogin-Modern), [Sparkle](https://sparkle-project.org), [swift-markdown](https://github.com/apple/swift-markdown), [STTextView](https://github.com/krzyzanowskim/STTextView), and [ConfettiSwiftUI](https://github.com/simibac/ConfettiSwiftUI).
+TextWarden uses [Harper](https://github.com/Automattic/harper), an open-source English grammar checker written in Rust. It also depends on [swift-bridge](https://github.com/chinedufn/swift-bridge), [Whatlang](https://github.com/greyblake/whatlang-rs), [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts), [LaunchAtLogin-Modern](https://github.com/sindresorhus/LaunchAtLogin-Modern), [Sparkle](https://sparkle-project.org), [swift-markdown](https://github.com/apple/swift-markdown), [STTextView](https://github.com/krzyzanowskim/STTextView), and [ConfettiSwiftUI](https://github.com/simibac/ConfettiSwiftUI).
 
 The codebase was developed with substantial AI assistance and human review. The TextWarden logo was created with [Recraft](https://www.recraft.ai/).
 

@@ -569,7 +569,7 @@ fn capitalize_pronoun_i(s: &str) -> String {
 /// * `enable_genz_slang` - Enable Gen Z slang words (ghosting, sus, slay, etc.)
 /// * `enable_it_terminology` - Enable IT terminology (kubernetes, docker, localhost, etc.)
 /// * `enable_language_detection` - Enable detection and filtering of non-English words
-/// * `excluded_languages` - List of languages to exclude from error detection (e.g., ["spanish", "german"])
+/// * `excluded_languages` - ISO 639-3 codes to exclude from error detection (e.g., ["spa", "deu"])
 /// * `enable_sentence_start_capitalization` - Enable capitalization of suggestions at sentence starts
 ///
 /// # Returns
@@ -606,18 +606,19 @@ pub fn analyze_text(
     // Parse the dialect string
     let dialect = parse_dialect(dialect_str);
 
-    // --- PHASE 0: Early Language Check ---
-    // Quick check to skip expensive Harper analysis for non-English documents.
-    // This saves ~4.5s for documents primarily in excluded languages.
+    // --- PHASE 0: Language Detection ---
+    // Detect each semantic segment once. The summary is reused after Harper so
+    // language detection is never repeated for the same analysis.
     let early_lang_start = Instant::now();
-    let early_language_check = crate::language_filter::should_skip_harper_analysis(
-        text,
-        enable_language_detection,
-        &excluded_languages,
-    );
+    let language_filter = LanguageFilter::new(enable_language_detection, excluded_languages);
+    let excluded_langs_count = language_filter.excluded_language_count();
+    let language_summary = language_filter.analyze(text);
+    let early_language_check = language_summary
+        .as_ref()
+        .is_some_and(|summary| language_filter.should_skip_harper(summary));
     let early_language_check_ms = early_lang_start.elapsed().as_millis() as u64;
 
-    if let Some(true) = early_language_check {
+    if early_language_check {
         let word_count = text.split_whitespace().count();
         tracing::info!(
             "Early language bailout: {} words, {}ms - document primarily in excluded language",
@@ -958,15 +959,17 @@ pub fn analyze_text(
         );
     }
 
-    // Apply language detection filter to remove errors for non-English words
-    // This is the optimized approach: we only detect language for words that Harper flagged
-    let excluded_langs_count = excluded_languages.len();
-    let filter = LanguageFilter::new(enable_language_detection, excluded_languages);
+    // Apply the language summary calculated before Harper.
     let errors_before_filter = errors.len();
-    errors = filter.filter_errors(errors, text);
+    errors = match language_summary.as_ref() {
+        Some(summary) => language_filter.filter_errors_with_summary(errors, summary),
+        None => errors,
+    };
 
     // Check if document is primarily non-English (for readability skip)
-    let is_non_english_document = filter.is_document_primarily_non_english(text);
+    let is_non_english_document = language_summary
+        .as_ref()
+        .is_some_and(|summary| language_filter.should_skip_harper(summary));
 
     if enable_language_detection {
         tracing::info!(
@@ -1022,6 +1025,23 @@ mod tests {
                 std::println!($($arg)*);
             }
         }};
+    }
+
+    const ENGLISH_DETECTION_SENTENCE: &str = "This is a detailed English sentence with enough characteristic words for automatic language detection to produce a useful and dependable result.";
+    const GERMAN_DETECTION_SENTENCE: &str = "Dies ist ein ausführlicher deutscher Satz mit genügend charakteristischen Wörtern, damit die automatische Spracherkennung zuverlässig funktioniert.";
+    const SPANISH_DETECTION_SENTENCE: &str = "Esta es una oración española detallada con suficientes palabras características para que la detección automática del idioma funcione de manera fiable.";
+    const FRENCH_DETECTION_SENTENCE: &str = "Ceci est une phrase française détaillée qui contient suffisamment de mots caractéristiques pour que la détection automatique de la langue fonctionne correctement.";
+    const ITALIAN_DETECTION_SENTENCE: &str = "Questa è una frase italiana dettagliata con abbastanza parole caratteristiche perché il rilevamento automatico della lingua funzioni in modo affidabile.";
+    const PORTUGUESE_DETECTION_SENTENCE: &str = "Esta é uma frase portuguesa detalhada com palavras características suficientes para que a detecção automática do idioma funcione de forma confiável.";
+    const DUTCH_DETECTION_SENTENCE: &str = "Dit is een uitgebreide Nederlandse zin met voldoende kenmerkende woorden om de automatische taalherkenning betrouwbaar te laten werken.";
+    const SWEDISH_DETECTION_SENTENCE: &str = "Det här är en detaljerad svensk mening med tillräckligt många karakteristiska ord för att den automatiska språkidentifieringen ska fungera tillförlitligt.";
+    const TURKISH_DETECTION_SENTENCE: &str = "Bu, otomatik dil algılamanın güvenilir bir şekilde çalışması için yeterli karakteristik kelime içeren ayrıntılı bir Türkçe cümledir.";
+
+    fn error_text(text: &str, error: &GrammarError) -> String {
+        text.chars()
+            .skip(error.start)
+            .take(error.end.saturating_sub(error.start))
+            .collect()
     }
 
     #[test]
@@ -2597,9 +2617,9 @@ mod tests {
     fn test_language_detection_german_word_filtered() {
         // Enable language detection with German excluded
         // Use complete German sentence followed by English sentence
-        let text = "Hallo Welt, wie geht es dir? How are you doing today?";
+        let text = format!("{GERMAN_DETECTION_SENTENCE} {ENGLISH_DETECTION_SENTENCE}");
         let result = analyze_text(
-            text,
+            &text,
             "American",
             false,
             false,
@@ -2608,7 +2628,7 @@ mod tests {
             false,
             false,
             true, // Enable language detection
-            vec!["german".to_string()],
+            vec!["deu".to_string()],
             true,
             true, // enforce_oxford_comma
             true, // check_ellipsis
@@ -2629,8 +2649,12 @@ mod tests {
             );
         }
 
-        // Errors in the German sentence (0..30) should be filtered
-        let german_sentence_errors = result.errors.iter().filter(|e| e.start < 30).count();
+        let german_end = GERMAN_DETECTION_SENTENCE.chars().count();
+        let german_sentence_errors = result
+            .errors
+            .iter()
+            .filter(|error| error.start < german_end)
+            .count();
 
         assert_eq!(
             german_sentence_errors, 0,
@@ -2688,9 +2712,9 @@ mod tests {
     #[test]
     fn test_language_detection_spanish_words() {
         // Use complete Spanish sentence followed by English sentence
-        let text = "Hola amigos, como estas hoy? Let's continue in English.";
+        let text = format!("{SPANISH_DETECTION_SENTENCE} {ENGLISH_DETECTION_SENTENCE}");
         let result = analyze_text(
-            text,
+            &text,
             "American",
             false,
             false,
@@ -2699,7 +2723,7 @@ mod tests {
             false,
             false,
             true,
-            vec!["spanish".to_string()],
+            vec!["spa".to_string()],
             true,
             true, // enforce_oxford_comma
             true, // check_ellipsis
@@ -2720,8 +2744,12 @@ mod tests {
             );
         }
 
-        // Errors in Spanish sentence (0..29) should be filtered
-        let spanish_errors = result.errors.iter().filter(|e| e.start < 29).count();
+        let spanish_end = SPANISH_DETECTION_SENTENCE.chars().count();
+        let spanish_errors = result
+            .errors
+            .iter()
+            .filter(|error| error.start < spanish_end)
+            .count();
 
         assert_eq!(
             spanish_errors, 0,
@@ -2732,9 +2760,9 @@ mod tests {
     #[test]
     fn test_language_detection_french_greeting() {
         // Use complete French sentence followed by English sentence
-        let text = "Bonjour mes amis, comment allez-vous? I have a question.";
+        let text = format!("{FRENCH_DETECTION_SENTENCE} {ENGLISH_DETECTION_SENTENCE}");
         let result = analyze_text(
-            text,
+            &text,
             "American",
             false,
             false,
@@ -2743,7 +2771,7 @@ mod tests {
             false,
             false,
             true,
-            vec!["french".to_string()],
+            vec!["fra".to_string()],
             true,
             true, // enforce_oxford_comma
             true, // check_ellipsis
@@ -2764,8 +2792,12 @@ mod tests {
             );
         }
 
-        // Errors in French sentence (0..38) should be filtered
-        let french_errors = result.errors.iter().filter(|e| e.start < 38).count();
+        let french_end = FRENCH_DETECTION_SENTENCE.chars().count();
+        let french_errors = result
+            .errors
+            .iter()
+            .filter(|error| error.start < french_end)
+            .count();
 
         assert_eq!(
             french_errors, 0,
@@ -2775,10 +2807,12 @@ mod tests {
 
     #[test]
     fn test_language_detection_multiple_languages() {
-        // Use longer complete sentences in different languages so whichlang can detect them
-        let text = "Hola amigos, como estas hoy? Bonjour mes amis, comment allez-vous? Hallo Freunde, wie geht es euch? Welcome to the meeting.";
+        // Use longer complete sentences so the language detector has enough context.
+        let text = format!(
+            "{SPANISH_DETECTION_SENTENCE} {FRENCH_DETECTION_SENTENCE} {GERMAN_DETECTION_SENTENCE} {ENGLISH_DETECTION_SENTENCE}"
+        );
         let result = analyze_text(
-            text,
+            &text,
             "American",
             false,
             false,
@@ -2787,11 +2821,7 @@ mod tests {
             false,
             false,
             true,
-            vec![
-                "spanish".to_string(),
-                "french".to_string(),
-                "german".to_string(),
-            ],
+            vec!["spa".to_string(), "fra".to_string(), "deu".to_string()],
             true,
             true, // enforce_oxford_comma
             true, // check_ellipsis
@@ -2812,41 +2842,16 @@ mod tests {
             );
         }
 
-        // Errors in Spanish sentence (0..29) should be filtered
-        let spanish_errors = result.errors.iter().filter(|e| e.start < 29).count();
-        // Errors in French sentence (29..66) should be filtered
-        let french_errors = result
-            .errors
-            .iter()
-            .filter(|e| e.start >= 29 && e.start < 66)
-            .count();
-        // Errors in German sentence (66..99) should be filtered
-        let german_errors = result
-            .errors
-            .iter()
-            .filter(|e| e.start >= 66 && e.start < 99)
-            .count();
-
-        assert_eq!(
-            spanish_errors, 0,
-            "Spanish sentence errors should be filtered"
-        );
-        assert_eq!(
-            french_errors, 0,
-            "French sentence errors should be filtered"
-        );
-        assert_eq!(
-            german_errors, 0,
-            "German sentence errors should be filtered"
-        );
+        assert!(result.is_non_english_document);
+        assert!(result.errors.is_empty());
     }
 
     #[test]
     fn test_language_detection_exclude_one_language_only() {
         // Spanish sentence and German sentence, but only Spanish excluded
-        let text = "Hola amigos, como estas? Hallo Welt, wie geht es dir?";
+        let text = format!("{SPANISH_DETECTION_SENTENCE} {GERMAN_DETECTION_SENTENCE}");
         let result = analyze_text(
-            text,
+            &text,
             "American",
             false,
             false,
@@ -2855,7 +2860,7 @@ mod tests {
             false,
             false,
             true,
-            vec!["spanish".to_string()], // Only Spanish excluded
+            vec!["spa".to_string()], // Only Spanish excluded
             true,
             true, // enforce_oxford_comma
             true, // check_ellipsis
@@ -2876,8 +2881,12 @@ mod tests {
             );
         }
 
-        // Errors in Spanish sentence (0..25) should be filtered
-        let spanish_errors = result.errors.iter().filter(|e| e.start < 25).count();
+        let spanish_end = SPANISH_DETECTION_SENTENCE.chars().count();
+        let spanish_errors = result
+            .errors
+            .iter()
+            .filter(|error| error.start < spanish_end)
+            .count();
 
         // German sentence errors should NOT be filtered (German not excluded)
         // We just verify Spanish is filtered
@@ -2891,9 +2900,9 @@ mod tests {
     fn test_language_detection_with_slang_enabled() {
         // Test that language detection works alongside slang dictionaries
         // Spanish sentence followed by English with slang
-        let text = "Hola amigos, como estas? BTW, that's totally sus.";
+        let text = format!("{SPANISH_DETECTION_SENTENCE} BTW, that's totally sus.");
         let result = analyze_text(
-            text,
+            &text,
             "American",
             true,  // Internet abbreviations ON
             true,  // Gen Z slang ON
@@ -2902,7 +2911,7 @@ mod tests {
             false,
             false,
             true, // Language detection ON
-            vec!["spanish".to_string()],
+            vec!["spa".to_string()],
             true,
             true, // enforce_oxford_comma
             true, // check_ellipsis
@@ -2923,19 +2932,23 @@ mod tests {
             );
         }
 
-        // Errors in Spanish sentence (0..25) should be filtered
-        let spanish_errors = result.errors.iter().filter(|e| e.start < 25).count();
+        let spanish_end = SPANISH_DETECTION_SENTENCE.chars().count();
+        let spanish_errors = result
+            .errors
+            .iter()
+            .filter(|error| error.start < spanish_end)
+            .count();
 
         // "BTW" and "sus" in English sentence should NOT have SPELLING errors (slang dictionaries)
         // (Style suggestions are OK)
         let btw_spelling = result
             .errors
             .iter()
-            .any(|e| &text[e.start..e.end] == "BTW" && e.category == "Spelling");
+            .any(|error| error_text(&text, error) == "BTW" && error.category == "Spelling");
         let sus_spelling = result
             .errors
             .iter()
-            .any(|e| &text[e.start..e.end] == "sus" && e.category == "Spelling");
+            .any(|error| error_text(&text, error) == "sus" && error.category == "Spelling");
 
         assert_eq!(
             spanish_errors, 0,
@@ -2955,10 +2968,10 @@ mod tests {
     fn test_language_detection_preserves_real_errors() {
         // Ensure real English errors are still caught
         // German sentence followed by English sentence with typo
-        let text = "Hallo Welt, wie geht es dir? I recieve your message.";
+        let text = format!("{GERMAN_DETECTION_SENTENCE} I recieve your message.");
         // "Hallo..." = German sentence (filtered), "I recieve..." = English typo (should be caught)
         let result = analyze_text(
-            text,
+            &text,
             "American",
             false,
             false,
@@ -2967,7 +2980,7 @@ mod tests {
             false,
             false,
             true,
-            vec!["german".to_string()],
+            vec!["deu".to_string()],
             true,
             true, // enforce_oxford_comma
             true, // check_ellipsis
@@ -2988,8 +3001,12 @@ mod tests {
             );
         }
 
-        // Errors in German sentence (0..30) should be filtered
-        let german_errors = result.errors.iter().filter(|e| e.start < 30).count();
+        let german_end = GERMAN_DETECTION_SENTENCE.chars().count();
+        let german_errors = result
+            .errors
+            .iter()
+            .filter(|error| error.start < german_end)
+            .count();
         assert_eq!(
             german_errors, 0,
             "German sentence errors should be filtered"
@@ -3000,7 +3017,7 @@ mod tests {
         let has_recieve = result
             .errors
             .iter()
-            .any(|e| &text[e.start..e.end] == "recieve");
+            .any(|error| error_text(&text, error) == "recieve");
         if has_recieve {
             println!("✅ Real English error 'recieve' was preserved");
         }
@@ -3010,9 +3027,9 @@ mod tests {
     fn test_language_detection_code_switching() {
         // Test code-switching scenario (common in bilingual contexts)
         // Use Spanish sentence followed by English sentence
-        let text = "Fui al mercado ayer. I went shopping yesterday.";
+        let text = format!("{SPANISH_DETECTION_SENTENCE} {ENGLISH_DETECTION_SENTENCE}");
         let result = analyze_text(
-            text,
+            &text,
             "American",
             false,
             false,
@@ -3021,7 +3038,7 @@ mod tests {
             false,
             false,
             true,
-            vec!["spanish".to_string()],
+            vec!["spa".to_string()],
             true,
             true, // enforce_oxford_comma
             true, // check_ellipsis
@@ -3042,8 +3059,12 @@ mod tests {
             );
         }
 
-        // Errors in Spanish sentence (0..21) should be filtered
-        let spanish_errors = result.errors.iter().filter(|e| e.start < 21).count();
+        let spanish_end = SPANISH_DETECTION_SENTENCE.chars().count();
+        let spanish_errors = result
+            .errors
+            .iter()
+            .filter(|error| error.start < spanish_end)
+            .count();
         assert_eq!(
             spanish_errors, 0,
             "Spanish sentence errors should be filtered"
@@ -3121,14 +3142,88 @@ mod tests {
     }
 
     #[test]
+    fn test_latvian_issue_samples_filter_real_harper_errors_only_when_selected() {
+        let samples = [
+            "Šodien ir silta diena un es rakstu vēstuli.",
+            "Latviešu valoda ir skaista un bagāta valoda, kurā runā Latvijā.",
+        ];
+
+        for text in samples {
+            let baseline = analyze_text(
+                text,
+                "American",
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                vec![],
+                true,
+                true,
+                true,
+                true,
+                true,
+            );
+            assert!(
+                !baseline.errors.is_empty(),
+                "fixture must produce Harper errors without language filtering"
+            );
+
+            let unselected = analyze_text(
+                text,
+                "American",
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                true,
+                vec!["lit".to_string()],
+                true,
+                true,
+                true,
+                true,
+                true,
+            );
+            assert!(
+                !unselected.errors.is_empty(),
+                "Latvian errors must remain when only Lithuanian is selected"
+            );
+
+            let selected = analyze_text(
+                text,
+                "American",
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                true,
+                vec!["lav".to_string()],
+                true,
+                true,
+                true,
+                true,
+                true,
+            );
+            assert!(selected.errors.is_empty());
+            assert!(selected.is_non_english_document);
+        }
+    }
+
+    #[test]
     fn test_language_detection_all_dialects() {
         // Test that language detection works with all English dialects
         let dialects = vec!["American", "British", "Canadian", "Australian", "Indian"];
-        let text = "Hallo Welt, wie geht es dir? English sentence here.";
+        let text = format!("{GERMAN_DETECTION_SENTENCE} {ENGLISH_DETECTION_SENTENCE}");
 
         for dialect in dialects {
             let result = analyze_text(
-                text,
+                &text,
                 dialect,
                 false,
                 false,
@@ -3137,7 +3232,7 @@ mod tests {
                 false,
                 false,
                 true,
-                vec!["german".to_string()],
+                vec!["deu".to_string()],
                 true,
                 true, // enforce_oxford_comma
                 true, // check_ellipsis
@@ -3149,8 +3244,12 @@ mod tests {
             println!("Text: '{}'", text);
             println!("Errors: {}", result.errors.len());
 
-            // German sentence errors (0..30) should be filtered regardless of dialect
-            let german_errors = result.errors.iter().filter(|e| e.start < 30).count();
+            let german_end = GERMAN_DETECTION_SENTENCE.chars().count();
+            let german_errors = result
+                .errors
+                .iter()
+                .filter(|error| error.start < german_end)
+                .count();
             assert_eq!(
                 german_errors, 0,
                 "German sentence errors should be filtered for dialect {}",
@@ -3191,9 +3290,9 @@ mod tests {
     #[test]
     fn test_language_detection_italian() {
         // Test Italian language detection and filtering
-        let text = "Ciao amici, come stai oggi? Welcome to our Italian class.";
+        let text = format!("{ITALIAN_DETECTION_SENTENCE} {ENGLISH_DETECTION_SENTENCE}");
         let result = analyze_text(
-            text,
+            &text,
             "American",
             false,
             false,
@@ -3202,7 +3301,7 @@ mod tests {
             false,
             false,
             true,
-            vec!["italian".to_string()],
+            vec!["ita".to_string()],
             true,
             true, // enforce_oxford_comma
             true, // check_ellipsis
@@ -3223,8 +3322,12 @@ mod tests {
             );
         }
 
-        // Errors in Italian sentence (0..28) should be filtered
-        let italian_errors = result.errors.iter().filter(|e| e.start < 28).count();
+        let italian_end = ITALIAN_DETECTION_SENTENCE.chars().count();
+        let italian_errors = result
+            .errors
+            .iter()
+            .filter(|error| error.start < italian_end)
+            .count();
         assert_eq!(
             italian_errors, 0,
             "Italian sentence errors should be filtered"
@@ -3234,9 +3337,9 @@ mod tests {
     #[test]
     fn test_language_detection_portuguese() {
         // Test Portuguese language detection and filtering
-        let text = "Olá meus amigos, como você está? This is an English sentence.";
+        let text = format!("{PORTUGUESE_DETECTION_SENTENCE} {ENGLISH_DETECTION_SENTENCE}");
         let result = analyze_text(
-            text,
+            &text,
             "American",
             false,
             false,
@@ -3245,7 +3348,7 @@ mod tests {
             false,
             false,
             true,
-            vec!["portuguese".to_string()],
+            vec!["por".to_string()],
             true,
             true, // enforce_oxford_comma
             true, // check_ellipsis
@@ -3266,8 +3369,12 @@ mod tests {
             );
         }
 
-        // Errors in Portuguese sentence (0..33) should be filtered
-        let portuguese_errors = result.errors.iter().filter(|e| e.start < 33).count();
+        let portuguese_end = PORTUGUESE_DETECTION_SENTENCE.chars().count();
+        let portuguese_errors = result
+            .errors
+            .iter()
+            .filter(|error| error.start < portuguese_end)
+            .count();
         assert_eq!(
             portuguese_errors, 0,
             "Portuguese sentence errors should be filtered"
@@ -3277,9 +3384,9 @@ mod tests {
     #[test]
     fn test_language_detection_dutch() {
         // Test Dutch language detection and filtering
-        let text = "Hallo allemaal, hoe gaat het met jullie? Back to English now.";
+        let text = format!("{DUTCH_DETECTION_SENTENCE} {ENGLISH_DETECTION_SENTENCE}");
         let result = analyze_text(
-            text,
+            &text,
             "American",
             false,
             false,
@@ -3288,7 +3395,7 @@ mod tests {
             false,
             false,
             true,
-            vec!["dutch".to_string()],
+            vec!["nld".to_string()],
             true,
             true, // enforce_oxford_comma
             true, // check_ellipsis
@@ -3309,17 +3416,21 @@ mod tests {
             );
         }
 
-        // Errors in Dutch sentence (0..42) should be filtered
-        let dutch_errors = result.errors.iter().filter(|e| e.start < 42).count();
+        let dutch_end = DUTCH_DETECTION_SENTENCE.chars().count();
+        let dutch_errors = result
+            .errors
+            .iter()
+            .filter(|error| error.start < dutch_end)
+            .count();
         assert_eq!(dutch_errors, 0, "Dutch sentence errors should be filtered");
     }
 
     #[test]
     fn test_language_detection_swedish() {
         // Test Swedish language detection and filtering
-        let text = "Hej allihopa, hur mår ni idag? The meeting starts soon.";
+        let text = format!("{SWEDISH_DETECTION_SENTENCE} {ENGLISH_DETECTION_SENTENCE}");
         let result = analyze_text(
-            text,
+            &text,
             "American",
             false,
             false,
@@ -3328,7 +3439,7 @@ mod tests {
             false,
             false,
             true,
-            vec!["swedish".to_string()],
+            vec!["swe".to_string()],
             true,
             true, // enforce_oxford_comma
             true, // check_ellipsis
@@ -3349,8 +3460,12 @@ mod tests {
             );
         }
 
-        // Errors in Swedish sentence (0..31) should be filtered
-        let swedish_errors = result.errors.iter().filter(|e| e.start < 31).count();
+        let swedish_end = SWEDISH_DETECTION_SENTENCE.chars().count();
+        let swedish_errors = result
+            .errors
+            .iter()
+            .filter(|error| error.start < swedish_end)
+            .count();
         assert_eq!(
             swedish_errors, 0,
             "Swedish sentence errors should be filtered"
@@ -3360,9 +3475,9 @@ mod tests {
     #[test]
     fn test_language_detection_turkish() {
         // Test Turkish language detection and filtering
-        let text = "Merhaba arkadaşlar, nasılsınız bugün? Let's continue in English.";
+        let text = format!("{TURKISH_DETECTION_SENTENCE} {ENGLISH_DETECTION_SENTENCE}");
         let result = analyze_text(
-            text,
+            &text,
             "American",
             false,
             false,
@@ -3371,7 +3486,7 @@ mod tests {
             false,
             false,
             true,
-            vec!["turkish".to_string()],
+            vec!["tur".to_string()],
             true,
             true, // enforce_oxford_comma
             true, // check_ellipsis
@@ -3392,8 +3507,12 @@ mod tests {
             );
         }
 
-        // Errors in Turkish sentence (0..39) should be filtered
-        let turkish_errors = result.errors.iter().filter(|e| e.start < 39).count();
+        let turkish_end = TURKISH_DETECTION_SENTENCE.chars().count();
+        let turkish_errors = result
+            .errors
+            .iter()
+            .filter(|error| error.start < turkish_end)
+            .count();
         assert_eq!(
             turkish_errors, 0,
             "Turkish sentence errors should be filtered"
@@ -3404,9 +3523,9 @@ mod tests {
     fn test_language_detection_non_excluded_language_kept() {
         // Test that non-excluded languages are NOT filtered
         // Italian excluded, but German should still show errors
-        let text = "Ciao amici, come stai? Hallo Welt, wie geht es dir?";
+        let text = format!("{ITALIAN_DETECTION_SENTENCE} {GERMAN_DETECTION_SENTENCE}");
         let result = analyze_text(
-            text,
+            &text,
             "American",
             false,
             false,
@@ -3415,7 +3534,7 @@ mod tests {
             false,
             false,
             true,
-            vec!["italian".to_string()], // Only Italian excluded, not German
+            vec!["ita".to_string()], // Only Italian excluded, not German
             true,
             true, // enforce_oxford_comma
             true, // check_ellipsis
@@ -3436,8 +3555,12 @@ mod tests {
             );
         }
 
-        // Errors in Italian sentence (0..22) should be filtered
-        let italian_errors = result.errors.iter().filter(|e| e.start < 22).count();
+        let italian_end = ITALIAN_DETECTION_SENTENCE.chars().count();
+        let italian_errors = result
+            .errors
+            .iter()
+            .filter(|error| error.start < italian_end)
+            .count();
         assert_eq!(
             italian_errors, 0,
             "Italian sentence errors should be filtered"
@@ -3725,26 +3848,11 @@ mod tests {
         // Note: Release builds are ~3x faster (~180-200ms)
         use std::time::Instant;
 
-        let all_langs = vec![
-            "spanish",
-            "french",
-            "german",
-            "italian",
-            "portuguese",
-            "dutch",
-            "russian",
-            "mandarin",
-            "japanese",
-            "korean",
-            "arabic",
-            "hindi",
-            "turkish",
-            "swedish",
-            "vietnamese",
-        ]
-        .iter()
-        .map(|s| s.to_string())
-        .collect();
+        let all_langs = whatlang::Lang::all()
+            .iter()
+            .filter(|language| **language != whatlang::Lang::Eng)
+            .map(|language| language.code().to_string())
+            .collect();
 
         let text = "This is a test with multiple foreign words like Hallo Bonjour Gracias Ciao scattered throughout. \
                     The system should handle many excluded languages efficiently without degradation. \
@@ -3768,6 +3876,78 @@ mod tests {
             elapsed.as_millis() < 1500,
             "Analysis with all languages excluded too slow: {} ms (expected < 1500 ms)",
             elapsed.as_millis()
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn test_performance_language_detection_end_to_end_gate() {
+        use std::hint::black_box;
+        use std::time::{Duration, Instant};
+
+        let text = "This is a representative grammar analysis sample with a few foreign words such as Hallo and Danke. \
+                    Language detection should add little overhead while the English grammar engine processes the same document. \
+                    Additional sentences make this a realistic sample for measuring release performance on approximately two hundred words. \
+                    The detector evaluates each semantic segment once and preserves uncertain text for normal English checking. "
+            .repeat(4);
+
+        fn measure(text: &str, enabled: bool) -> Duration {
+            let start = Instant::now();
+            black_box(analyze_text(
+                black_box(text),
+                "American",
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                enabled,
+                if enabled {
+                    vec!["deu".to_string()]
+                } else {
+                    vec![]
+                },
+                true,
+                true,
+                true,
+                true,
+                true,
+            ));
+            start.elapsed()
+        }
+
+        // Warm caches before comparing identical analysis work.
+        black_box(measure(&text, false));
+        black_box(measure(&text, true));
+
+        let mut disabled_samples = Vec::new();
+        let mut enabled_samples = Vec::new();
+        for _ in 0..5 {
+            disabled_samples.push(measure(&text, false));
+            enabled_samples.push(measure(&text, true));
+        }
+        disabled_samples.sort();
+        enabled_samples.sort();
+
+        let disabled = disabled_samples[disabled_samples.len() / 2];
+        let enabled = enabled_samples[enabled_samples.len() / 2];
+        let overhead = enabled.as_secs_f64() / disabled.as_secs_f64() - 1.0;
+
+        println!("200-word detection disabled: {} ms", disabled.as_millis());
+        println!("200-word detection enabled: {} ms", enabled.as_millis());
+        println!("end-to-end detection overhead: {:.2}%", overhead * 100.0);
+
+        assert!(
+            enabled < Duration::from_millis(500),
+            "release analysis must remain under 500 ms; took {} ms",
+            enabled.as_millis()
+        );
+        assert!(
+            enabled.as_secs_f64() <= disabled.as_secs_f64() * 1.10,
+            "language detection overhead must remain within 10%; disabled={} ms enabled={} ms",
+            disabled.as_millis(),
+            enabled.as_millis()
         );
     }
 

@@ -2323,7 +2323,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
- "whichlang",
+ "whatlang",
 ]
 
 [[package]]
@@ -5484,10 +5484,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "whichlang"
-version = "0.1.1"
+name = "whatlang"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b9aa3ad29c3d08283ac6b769e3ec15ad1ddb88af7d2e9bc402c574973b937e7"
+checksum = "f5e8f38b596e2a359b755342473520a99421e43658548c79489ee221b728c107"
+dependencies = [
+ "hashbrown 0.15.5",
+]
 
 [[package]]
 name = "winapi"

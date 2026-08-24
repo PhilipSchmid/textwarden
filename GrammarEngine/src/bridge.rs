@@ -11,6 +11,7 @@ use std::sync::Once;
 use sysinfo::{Pid, ProcessesToUpdate, System};
 use tracing::Level;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use whatlang::Lang;
 
 static INIT_LOGGING: Once = Once::new();
 
@@ -54,6 +55,17 @@ mod ffi {
         fn document_parse_ms(&self) -> u64;
         fn harper_lint_ms(&self) -> u64;
         fn post_process_ms(&self) -> u64;
+    }
+
+    // Opaque type for the detector-backed language catalog.
+    extern "Rust" {
+        type LanguageInfo;
+
+        fn code(&self) -> String;
+        fn english_name(&self) -> String;
+        fn native_name(&self) -> String;
+
+        fn supported_languages() -> Vec<LanguageInfo>;
     }
 
     extern "Rust" {
@@ -134,6 +146,38 @@ impl GrammarError {
     fn suggestions(&self) -> Vec<String> {
         self.suggestions.clone()
     }
+}
+
+#[derive(Clone)]
+pub struct LanguageInfo {
+    code: String,
+    english_name: String,
+    native_name: String,
+}
+
+impl LanguageInfo {
+    fn code(&self) -> String {
+        self.code.clone()
+    }
+
+    fn english_name(&self) -> String {
+        self.english_name.clone()
+    }
+
+    fn native_name(&self) -> String {
+        self.native_name.clone()
+    }
+}
+
+fn supported_languages() -> Vec<LanguageInfo> {
+    Lang::all()
+        .iter()
+        .map(|language| LanguageInfo {
+            code: language.code().to_string(),
+            english_name: language.eng_name().to_string(),
+            native_name: language.name().to_string(),
+        })
+        .collect()
 }
 
 pub struct AnalysisResult {

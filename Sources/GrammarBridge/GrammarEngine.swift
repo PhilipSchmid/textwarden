@@ -25,7 +25,7 @@ import Foundation
     ///   - enablePersonNames: Enable recognition of person names (first names)
     ///   - enableLastNames: Enable recognition of surnames/last names
     ///   - enableLanguageDetection: Enable detection and filtering of non-English words
-    ///   - excludedLanguages: Array of language codes to exclude (e.g., ["spanish", "german"])
+    ///   - excludedLanguages: ISO 639-3 language codes to exclude (e.g., ["spa", "deu"])
     ///   - enforceOxfordComma: Enable Oxford comma checking
     ///   - checkEllipsis: Enable ellipsis formatting checking
     ///   - checkUnclosedQuotes: Enable unclosed quotes checking
@@ -96,7 +96,7 @@ import Foundation
     ///   - enablePersonNames: Enable recognition of person names (first names)
     ///   - enableLastNames: Enable recognition of surnames/last names
     ///   - enableLanguageDetection: Enable detection and filtering of non-English words
-    ///   - excludedLanguages: Array of language codes to exclude (e.g., ["spanish", "german"])
+    ///   - excludedLanguages: ISO 639-3 language codes to exclude (e.g., ["spa", "deu"])
     ///   - enforceOxfordComma: Enable Oxford comma checking
     ///   - checkEllipsis: Enable ellipsis formatting checking
     ///   - checkUnclosedQuotes: Enable unclosed quotes checking
