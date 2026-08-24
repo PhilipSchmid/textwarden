@@ -4,6 +4,10 @@
 import SwiftUI
 
 struct LanguageSelectorView: View {
+    private static let emptyStateHeight: CGFloat = 64
+    private static let estimatedRowHeight: CGFloat = 46
+    private static let selectedListMaximumRows: CGFloat = 3
+
     @Binding var selectedLanguageCodes: Set<String>
     let maxHeight: CGFloat
 
@@ -22,115 +26,226 @@ struct LanguageSelectorView: View {
         UserPreferences.availableLanguages.filter { !selectedLanguageCodes.contains($0.code) }
     }
 
-    private var matchingLanguages: [SupportedLanguage] {
-        UserPreferences.availableLanguages.filter { $0.matches(searchText) }
+    private var hasSearchQuery: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var displayedAvailableLanguages: [SupportedLanguage] {
+        guard hasSearchQuery else { return availableLanguages }
+        return availableLanguages.filter { $0.matches(searchText) }
+    }
+
+    private var selectedListMaximumHeight: CGFloat {
+        min(maxHeight, Self.estimatedRowHeight * Self.selectedListMaximumRows)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            languageList(
+                title: "Selected languages",
+                languages: selectedLanguages,
+                totalCount: selectedLanguages.count,
+                maximumHeight: selectedListMaximumHeight,
+                emptyTitle: "No languages selected yet",
+                emptyDescription: "Choose a language below to add it here.",
+                isSelectedList: true
+            )
+
+            SearchField(text: $searchText, placeholder: "Search available languages by name or code")
+                .frame(maxWidth: .infinity, minHeight: 22, maxHeight: 22)
+                .accessibilityLabel("Search available languages")
+
+            languageList(
+                title: "Available languages",
+                languages: displayedAvailableLanguages,
+                totalCount: availableLanguages.count,
+                maximumHeight: maxHeight,
+                emptyTitle: availableListEmptyTitle,
+                emptyDescription: availableListEmptyDescription,
+                isSelectedList: false
+            )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var availableListEmptyTitle: String {
+        if availableLanguages.isEmpty {
+            return "All languages are selected"
+        }
+        return "No languages found"
+    }
+
+    private var availableListEmptyDescription: String {
+        if availableLanguages.isEmpty {
+            return "Uncheck a language above to make it available again."
+        }
+        return "Try a different language name or code."
+    }
+
+    private func languageList(
+        title: String,
+        languages: [SupportedLanguage],
+        totalCount: Int,
+        maximumHeight: CGFloat,
+        emptyTitle: String,
+        emptyDescription: String,
+        isSelectedList: Bool
+    ) -> some View {
+        let listHeight = languageListHeight(for: languages, maximumHeight: maximumHeight)
+
+        return VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
+                Text(title)
+                    .font(.caption.weight(.semibold))
 
-                TextField("Search by language or code", text: $searchText)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityLabel("Search languages")
+                Spacer()
 
-                if !searchText.isEmpty {
-                    Button {
-                        searchText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Clear search")
-                    .accessibilityLabel("Clear language search")
+                Text(languageCountLabel(
+                    visibleCount: languages.count,
+                    totalCount: totalCount,
+                    isSelectedList: isSelectedList
+                ))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+
+                if languageListNeedsScrolling(languages, maximumHeight: maximumHeight) {
+                    Divider()
+                        .frame(height: 12)
+
+                    Label("Scroll to browse", systemImage: "arrow.up.arrow.down")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
-                Text("\(selectedLanguageCodes.count) selected")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .fixedSize()
-                    .accessibilityLabel("\(selectedLanguageCodes.count) languages selected")
+                if isSelectedList, totalCount > 0 {
+                    Divider()
+                        .frame(height: 12)
+
+                    Button("Clear") {
+                        selectedLanguageCodes.removeAll()
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.tint)
+                    .help("Deselect all languages")
+                }
             }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+
+            Divider()
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        if !selectedLanguages.isEmpty {
-                            languageSection("Selected", languages: selectedLanguages)
-
-                            Divider()
-                                .padding(.vertical, 6)
-                        }
-
-                        languageSection("Available", languages: availableLanguages)
-                    } else if matchingLanguages.isEmpty {
-                        Text("No languages found")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, minHeight: 72)
+                    if languages.isEmpty {
+                        emptyListState(
+                            title: emptyTitle,
+                            description: emptyDescription,
+                            height: listHeight
+                        )
                     } else {
-                        languageRows(matchingLanguages)
+                        languageRows(languages, isSelectedList: isSelectedList)
                     }
                 }
-                .padding(10)
             }
-            .frame(maxHeight: maxHeight)
-            .background {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor))
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
-            }
+            .frame(height: listHeight)
+            .scrollIndicators(.visible)
         }
+        .background {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.secondary.opacity(0.22), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .accessibilityElement(children: .contain)
     }
 
-    @ViewBuilder
-    private func languageSection(_ title: String, languages: [SupportedLanguage]) -> some View {
-        if !languages.isEmpty {
+    private func languageListHeight(
+        for languages: [SupportedLanguage],
+        maximumHeight: CGFloat
+    ) -> CGFloat {
+        guard !languages.isEmpty else { return Self.emptyStateHeight }
+        return min(maximumHeight, CGFloat(languages.count) * Self.estimatedRowHeight)
+    }
+
+    private func languageListNeedsScrolling(
+        _ languages: [SupportedLanguage],
+        maximumHeight: CGFloat
+    ) -> Bool {
+        CGFloat(languages.count) * Self.estimatedRowHeight > maximumHeight
+    }
+
+    private func languageCountLabel(
+        visibleCount: Int,
+        totalCount: Int,
+        isSelectedList: Bool
+    ) -> String {
+        if !isSelectedList, hasSearchQuery, visibleCount != totalCount {
+            return "\(visibleCount) of \(totalCount)"
+        }
+        return isSelectedList ? "\(totalCount) selected" : "\(totalCount) available"
+    }
+
+    private func emptyListState(
+        title: String,
+        description: String,
+        height: CGFloat
+    ) -> some View {
+        VStack(spacing: 2) {
             Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 2)
-                .padding(.bottom, 4)
+                .font(.callout.weight(.medium))
 
-            languageRows(languages)
+            Text(description)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, minHeight: height)
+    }
+
+    private func languageRows(
+        _ languages: [SupportedLanguage],
+        isSelectedList: Bool
+    ) -> some View {
+        ForEach(languages) { language in
+            languageToggle(language, isSelectedList: isSelectedList)
+
+            Divider()
+                .padding(.leading, 38)
         }
     }
 
-    private func languageRows(_ languages: [SupportedLanguage]) -> some View {
-        ForEach(languages) { language in
-            Toggle(isOn: selectionBinding(for: language.code)) {
-                HStack(spacing: 10) {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(language.englishName)
-                            .font(.body)
+    private func languageToggle(
+        _ language: SupportedLanguage,
+        isSelectedList: Bool
+    ) -> some View {
+        Toggle(isOn: selectionBinding(for: language.code)) {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(language.englishName)
+                        .font(.body)
 
-                        if let secondaryName = language.secondaryName {
-                            Text(secondaryName)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                    if let secondaryName = language.secondaryName {
+                        Text(secondaryName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-
-                    Spacer(minLength: 12)
-
-                    Text(language.code.uppercased())
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.tertiary)
                 }
-                .padding(.vertical, 4)
-                .contentShape(Rectangle())
+
+                Spacer(minLength: 12)
+
+                Text(language.code.uppercased())
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.tertiary)
             }
-            .toggleStyle(.checkbox)
-            .accessibilityLabel(accessibilityLabel(for: language))
-            .accessibilityHint("Skip English grammar checks in confidently detected passages")
+            .contentShape(Rectangle())
         }
+        .toggleStyle(.checkbox)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .accessibilityLabel(accessibilityLabel(for: language))
+        .accessibilityHint(isSelectedList ? "Move to available languages" : "Move to selected languages")
     }
 
     private func selectionBinding(for code: String) -> Binding<Bool> {

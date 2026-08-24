@@ -521,7 +521,6 @@ private struct CustomVocabularyContent: View {
                             .padding(.top, 4)
 
                         LanguageSelectorView(selectedLanguageCodes: $preferences.excludedLanguages)
-                            .padding(.leading, 20)
                     }
                 }
             } header: {
@@ -1137,7 +1136,6 @@ struct CustomVocabularyView: View {
                             .padding(.top, 8)
 
                         LanguageSelectorView(selectedLanguageCodes: $preferences.excludedLanguages)
-                            .padding(.leading, 20)
                     }
                 }
             }
