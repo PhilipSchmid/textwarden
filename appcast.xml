@@ -3,6 +3,36 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.3.3</title>
+            <pubDate>Mon, 24 Aug 2026 13:18:56 +0200</pubDate>
+            <sparkle:version>32</sparkle:version>
+            <sparkle:shortVersionString>0.3.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;fix: preserve URLs in popover context (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/4226e3e"&gt;&lt;code&gt;4226e3e&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: ignore Markdown link labels (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/96f592a"&gt;&lt;code&gt;96f592a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;chore: remove privacy note from status card (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/f46f832"&gt;&lt;code&gt;f46f832&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: split selected and available languages (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/af93838"&gt;&lt;code&gt;af93838&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: expand language filtering support (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/ab8d261"&gt;&lt;code&gt;ab8d261&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;deps(rust): Bump the rust-minor-patch group (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/feceaef"&gt;&lt;code&gt;feceaef&lt;/code&gt;&lt;/a&gt;) by @dependabot[bot]&lt;/li&gt;
+&lt;li&gt;chore(deps): bump Harper to 2.8.0 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/ab3de62"&gt;&lt;code&gt;ab3de62&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: validate text before applying corrections (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/0846aa8"&gt;&lt;code&gt;0846aa8&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;docs: explain safe trials for unknown apps (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/ef66fd2"&gt;&lt;code&gt;ef66fd2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: enforce runtime safety boundaries (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/8476c87"&gt;&lt;code&gt;8476c87&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: unify application policy handling (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/bf28752"&gt;&lt;code&gt;bf28752&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;build: support SDKs without Foundation Models (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/0aa5924"&gt;&lt;code&gt;0aa5924&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;ci: select Xcode 16.2 on macOS 14 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/5387624"&gt;&lt;code&gt;5387624&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;ci: tighten macOS release checks (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/492ffd9"&gt;&lt;code&gt;492ffd9&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;test: add accessibility regression coverage (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/c7eae2b"&gt;&lt;code&gt;c7eae2b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: make runtime checks safe and explainable (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/30c927e"&gt;&lt;code&gt;30c927e&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;docs: refresh project documentation (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/d74a4c3"&gt;&lt;code&gt;d74a4c3&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: reject stale grammar and invalid text indices (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/919548d"&gt;&lt;code&gt;919548d&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;chore: release v0.3.2 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/35c461e"&gt;&lt;code&gt;35c461e&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.3.3/TextWarden-0.3.3-Universal.dmg" length="22853025" type="application/octet-stream" sparkle:edSignature="bG3SmFR4bhZRdggSLO5/oYw28DL1jpyCE1UoiUTiwh7DRaCEQlU7g0zVOlaY8JSv7JlPTjhLWZgSC5K1NDcYAQ=="/>
+        </item>
+        <item>
             <title>0.3.2</title>
             <pubDate>Tue, 11 Aug 2026 21:26:11 +0200</pubDate>
             <sparkle:version>31</sparkle:version>
