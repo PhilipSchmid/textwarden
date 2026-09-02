@@ -3,6 +3,21 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.3.4</title>
+            <pubDate>Wed, 02 Sep 2026 10:41:46 +0200</pubDate>
+            <sparkle:version>33</sparkle:version>
+            <sparkle:shortVersionString>0.3.4</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;fix: ignore Print Center (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/8394b3d"&gt;&lt;code&gt;8394b3d&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;deps(rust): Bump harper-core from v2.8.0 to v2.9.0 in /GrammarEngine (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/3adf255"&gt;&lt;code&gt;3adf255&lt;/code&gt;&lt;/a&gt;) by @dependabot[bot]&lt;/li&gt;
+&lt;li&gt;deps(rust): Bump uuid in /GrammarEngine in the rust-minor-patch group (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/dcc7144"&gt;&lt;code&gt;dcc7144&lt;/code&gt;&lt;/a&gt;) by @dependabot[bot]&lt;/li&gt;
+&lt;li&gt;chore: release v0.3.3 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/1d25232"&gt;&lt;code&gt;1d25232&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.3.4/TextWarden-0.3.4-Universal.dmg" length="22922366" type="application/octet-stream" sparkle:edSignature="uHFHqzedEOxSTvR6/PPAHbs5VCZvkGHpY/KJoMj04t7NlVQBTdxz8KLoGECHesZPpT0mBiXhWy6bWdNFdo+eAQ=="/>
+        </item>
+        <item>
             <title>0.3.3</title>
             <pubDate>Mon, 24 Aug 2026 13:18:56 +0200</pubDate>
             <sparkle:version>32</sparkle:version>
