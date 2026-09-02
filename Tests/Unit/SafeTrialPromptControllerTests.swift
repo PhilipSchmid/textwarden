@@ -28,6 +28,7 @@ final class SafeTrialPromptControllerTests: XCTestCase {
             "com.apple.AppStore",
             "com.apple.finder",
             "com.apple.notificationcenterui",
+            "com.apple.printcenter",
             "com.apple.systempreferences",
             "com.apple.UserNotificationCenter",
             "com.knollsoft.Rectangle",

@@ -33,6 +33,7 @@ final class AppRegistry {
         "com.apple.AppStore": .ignored,
         "com.apple.finder": .ignored,
         "com.apple.notificationcenterui": .ignored,
+        "com.apple.printcenter": .ignored,
         "com.apple.systempreferences": .ignored,
         "com.apple.UserNotificationCenter": .ignored,
         "com.knollsoft.Rectangle": .ignored,
