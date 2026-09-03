@@ -115,6 +115,42 @@ final class ReplacementTextMatcherTests: XCTestCase {
         XCTAssertEqual(utf16Range.length, 4)
     }
 
+    func testSegmentReconciliationAppliesReplacementToUnchangedAnalysisText() {
+        XCTAssertEqual(
+            ReplacementTextMatcher.reconcileSegment(
+                currentText: "Testing wrong writting",
+                analyzedText: "Testing wrong writting",
+                replacing: 14 ..< 22,
+                with: "writing"
+            ),
+            .updated("Testing wrong writing")
+        )
+    }
+
+    func testSegmentReconciliationPreservesShorterTextAlreadyUpdatedByAX() {
+        XCTAssertEqual(
+            ReplacementTextMatcher.reconcileSegment(
+                currentText: "Testing wrong writing",
+                analyzedText: "Testing wrong writting",
+                replacing: 14 ..< 22,
+                with: "writing"
+            ),
+            .sourceChanged
+        )
+    }
+
+    func testSegmentReconciliationDoesNotDuplicateLongerReplacement() {
+        XCTAssertEqual(
+            ReplacementTextMatcher.reconcileSegment(
+                currentText: "This is better",
+                analyzedText: "This is bad",
+                replacing: 8 ..< 11,
+                with: "better"
+            ),
+            .sourceChanged
+        )
+    }
+
     func testErrorSourceStoreRejectsAnErrorFromAnOlderResultSet() {
         let oldError = capitalizationError(start: 0, end: 4)
         let newError = capitalizationError(start: 0, end: 4)

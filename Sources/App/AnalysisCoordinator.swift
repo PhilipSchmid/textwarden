@@ -3027,6 +3027,20 @@ extension AnalysisCoordinator {
 // MARK: - PositionRefreshDelegate
 
 extension AnalysisCoordinator: PositionRefreshDelegate {
+    /// Re-acquire the focused editor after a replacement-period click.
+    /// A position-only refresh can otherwise keep analyzing the former field.
+    func focusedElementRefreshRequested() {
+        guard !isInReplacementMode else {
+            Logger.debug("AnalysisCoordinator: Replacement still active - skipping focused-element refresh", category: Logger.analysis)
+            return
+        }
+        guard let context = monitoredContext else { return }
+
+        Logger.info("AnalysisCoordinator: Re-acquiring focused editor after replacement", category: Logger.analysis)
+        previousText = ""
+        startMonitoring(context: context)
+    }
+
     /// Called when positions should be recalculated (e.g., after click in Slack)
     func positionRefreshRequested() {
         // Performance profiling for position refresh operations

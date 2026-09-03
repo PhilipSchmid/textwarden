@@ -45,6 +45,9 @@ class ErrorOverlayWindow: NSPanel {
     /// Timer for periodic frame validation (detects resize/scroll during visibility)
     private var frameValidationTimer: Timer?
 
+    /// One-shot recovery for applications that declare transient AX geometry
+    private var geometryRetryTimer: Timer?
+
     /// Timestamp when frame last changed (for stabilization detection)
     private var frameLastChangedAt: Date?
 
@@ -416,10 +419,20 @@ class ErrorOverlayWindow: NSPanel {
     ///   - sourceText: The text that was analyzed (used to detect if text has changed)
     ///   - bypassTypingCheck: If true, skip the typing pause check (used after applying replacements)
     @discardableResult
-    func update(errors: [GrammarErrorModel], element: AXUIElement, context: ApplicationContext?, sourceText _: String? = nil, bypassTypingCheck: Bool = false) -> Int {
+    func update(
+        errors: [GrammarErrorModel],
+        element: AXUIElement,
+        context: ApplicationContext?,
+        sourceText: String? = nil,
+        bypassTypingCheck: Bool = false,
+        allowGeometryRetry: Bool = true
+    ) -> Int {
         // Performance profiling for overlay rebuild operations
         let (profilingState, profilingStartTime) = PerformanceProfiler.shared.beginInterval(.overlayRebuild, context: "errors:\(errors.count)")
         defer { PerformanceProfiler.shared.endInterval(.overlayRebuild, state: profilingState, startTime: profilingStartTime) }
+
+        geometryRetryTimer?.invalidate()
+        geometryRetryTimer = nil
 
         Logger.debug("ErrorOverlay: update() called with \(errors.count) errors", category: Logger.ui)
         self.errors = errors
@@ -428,6 +441,7 @@ class ErrorOverlayWindow: NSPanel {
         // Check if visual underlines are enabled for this app
         let bundleID = context?.bundleIdentifier ?? "unknown"
         currentBundleID = bundleID
+        let appBehavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
 
         // CRITICAL: Check watchdog BEFORE making any AX calls
         // If this app is blocklisted or watchdog is busy, skip ALL AX calls in this function
@@ -889,12 +903,51 @@ class ErrorOverlayWindow: NSPanel {
             }
         }
 
+        // Some editors can expose text before their AX range geometry is ready.
+        // Retry once only when every error failed positioning; other zero-result cases
+        // (preferences, visibility, watchdog, or partial success) must retain their behavior.
+        if allowGeometryRetry,
+           appBehavior.knownQuirks.contains(.transientAXGeometry),
+           !errors.isEmpty,
+           underlines.isEmpty,
+           skippedCount == errors.count,
+           skippedDueToVisibility == 0
+        {
+            let retryDelay = appBehavior.timingProfile.boundsStabilizationDelay
+            Logger.info("ErrorOverlay: Scheduling one AX geometry retry in \(retryDelay)s after \(skippedCount) positioning failures", category: Logger.ui)
+
+            geometryRetryTimer = Timer.scheduledTimer(withTimeInterval: retryDelay, repeats: false) { [weak self] _ in
+                guard let self else { return }
+                geometryRetryTimer = nil
+
+                guard monitoredElement == element,
+                      currentBundleID == bundleID
+                else {
+                    Logger.debug("ErrorOverlay: Skipping stale AX geometry retry", category: Logger.ui)
+                    return
+                }
+
+                Logger.info("ErrorOverlay: Retrying geometry after AX stabilization delay", category: Logger.ui)
+                update(
+                    errors: errors,
+                    element: element,
+                    context: context,
+                    sourceText: sourceText,
+                    bypassTypingCheck: bypassTypingCheck,
+                    allowGeometryRetry: false
+                )
+            }
+        }
+
         return underlines.count
     }
 
     /// Hide overlay
     /// - Parameter preserveLockedHighlight: If true, preserves the locked highlight for re-application after underlines are recreated
     func hide(preserveLockedHighlight: Bool = false) {
+        geometryRetryTimer?.invalidate()
+        geometryRetryTimer = nil
+
         // Performance profiling for overlay hide operations
         let (profilingState, profilingStartTime) = PerformanceProfiler.shared.beginInterval(.overlayHide, context: isCurrentlyVisible ? "visible" : "hidden")
         defer { PerformanceProfiler.shared.endInterval(.overlayHide, state: profilingState, startTime: profilingStartTime) }
@@ -1482,6 +1535,8 @@ class ErrorOverlayWindow: NSPanel {
 
     /// Clean up resources
     deinit {
+        geometryRetryTimer?.invalidate()
+        geometryRetryTimer = nil
         hoverTimer?.invalidate()
         hoverTimer = nil
         stopFrameValidationTimer()

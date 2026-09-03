@@ -213,6 +213,9 @@ enum AppQuirk: Hashable {
     /// App has focus bounce during paste operations
     case focusBouncesDuringPaste
 
+    /// App can expose editable text before its AX range geometry is ready
+    case transientAXGeometry
+
     /// App has text marker index offset (invisible characters)
     case textMarkerIndexOffset
 
