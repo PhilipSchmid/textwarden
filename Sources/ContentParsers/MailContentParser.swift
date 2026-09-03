@@ -13,6 +13,11 @@ import Foundation
 /// Content parser for Apple Mail
 /// Focuses only on email composition text, ignoring navigation UI
 class MailContentParser: ContentParser {
+    struct SelectionSnapshot {
+        let text: String
+        fileprivate let markerRange: CFTypeRef
+    }
+
     let bundleIdentifier: String = "com.apple.mail"
     let parserName: String = "Apple Mail"
 
@@ -193,6 +198,72 @@ class MailContentParser: ContentParser {
     }
 
     // MARK: - WebKit Text Operations (Bounds, Selection, Replacement)
+
+    /// Read the current selection from Mail's WebKit composition area.
+    /// Mail exposes selection through text markers even when the standard
+    /// AXSelectedTextRange and AXSelectedText attributes are unavailable.
+    static func selectedText(in element: AXUIElement) -> String? {
+        selectionSnapshot(in: element)?.text
+    }
+
+    /// Capture Mail's current WebKit selection so it can be restored after
+    /// TextWarden's AI Compose panel temporarily takes keyboard focus.
+    static func selectionSnapshot(in element: AXUIElement) -> SelectionSnapshot? {
+        var markerRangeRef: CFTypeRef?
+        let markerRangeResult = AXUIElementCopyAttributeValue(
+            element,
+            "AXSelectedTextMarkerRange" as CFString,
+            &markerRangeRef
+        )
+
+        guard markerRangeResult == .success, let markerRange = markerRangeRef else {
+            Logger.debug("MailContentParser: AXSelectedTextMarkerRange unavailable: \(markerRangeResult.rawValue)", category: Logger.accessibility)
+            return nil
+        }
+
+        var selectedTextRef: CFTypeRef?
+        let selectedTextResult = AXUIElementCopyParameterizedAttributeValue(
+            element,
+            "AXStringForTextMarkerRange" as CFString,
+            markerRange,
+            &selectedTextRef
+        )
+
+        guard selectedTextResult == .success,
+              let selectedText = selectedTextRef as? String,
+              !selectedText.isEmpty
+        else {
+            Logger.debug("MailContentParser: AXStringForTextMarkerRange returned no selection: \(selectedTextResult.rawValue)", category: Logger.accessibility)
+            return nil
+        }
+
+        Logger.debug("MailContentParser: Read WebKit selection (\(selectedText.count) chars)", category: Logger.accessibility)
+        return SelectionSnapshot(text: selectedText, markerRange: markerRange)
+    }
+
+    /// Restore and verify a previously captured WebKit selection.
+    /// Verification prevents generated text from being inserted at an
+    /// unrelated caret if Mail changed the document while AI Compose was open.
+    static func restoreSelection(_ snapshot: SelectionSnapshot, in element: AXUIElement) -> Bool {
+        let result = AXUIElementSetAttributeValue(
+            element,
+            "AXSelectedTextMarkerRange" as CFString,
+            snapshot.markerRange
+        )
+
+        guard result == .success else {
+            Logger.warning("MailContentParser: Could not restore WebKit selection: \(result.rawValue)", category: Logger.accessibility)
+            return false
+        }
+
+        guard selectedText(in: element) == snapshot.text else {
+            Logger.warning("MailContentParser: Restored WebKit selection did not match the captured text", category: Logger.accessibility)
+            return false
+        }
+
+        Logger.debug("MailContentParser: Restored and verified WebKit selection", category: Logger.accessibility)
+        return true
+    }
 
     /// Get bounds for a character range in Mail's WebKit composition.
     /// Handles coordinate conversion from layout to screen space when needed.

@@ -461,6 +461,15 @@ extension AnalysisCoordinator {
     private func selectedText() -> String? {
         guard let element = textMonitor.monitoredElement else { return nil }
 
+        if let context = monitoredContext {
+            let appConfig = appRegistry.effectiveConfiguration(for: context.bundleIdentifier)
+            if appConfig.features.usesWebKitMarkerSelection,
+               let selectedText = MailContentParser.selectedText(in: element)
+            {
+                return selectedText
+            }
+        }
+
         // First check if there's a selection range with non-zero length
         guard let range = AccessibilityBridge.getSelectedTextRange(element),
               range.length > 0
@@ -632,12 +641,30 @@ extension AnalysisCoordinator {
     /// Uses windowed extraction for large documents to keep context manageable
     func extractGenerationContext() -> GenerationContext {
         guard let element = textMonitor.monitoredElement else {
+            textGenerationInsertionTarget = nil
             Logger.debug("AnalysisCoordinator: extractGenerationContext - no monitored element", category: Logger.analysis)
             return .empty
         }
 
+        guard let context = monitoredContext ?? textMonitor.currentContext else {
+            textGenerationInsertionTarget = nil
+            Logger.debug("AnalysisCoordinator: extractGenerationContext - no application context", category: Logger.analysis)
+            return .empty
+        }
+
+        let appConfig = appRegistry.effectiveConfiguration(for: context.bundleIdentifier)
+        let mailSelection = appConfig.features.usesWebKitMarkerSelection
+            ? MailContentParser.selectionSnapshot(in: element)
+            : nil
+
+        textGenerationInsertionTarget = TextGenerationInsertionTarget(
+            element: element,
+            context: context,
+            mailSelection: mailSelection
+        )
+
         // Check for selected text first
-        let selection = selectedText()
+        let selection = mailSelection?.text ?? selectedText()
         if let selected = selection, !selected.isEmpty {
             Logger.debug("AnalysisCoordinator: extractGenerationContext - using selection (\(selected.count) chars)", category: Logger.analysis)
             return GenerationContext(

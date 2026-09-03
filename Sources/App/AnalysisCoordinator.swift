@@ -19,6 +19,12 @@ import AppKit
 import Combine
 import Foundation
 
+struct TextGenerationInsertionTarget {
+    let element: AXUIElement
+    let context: ApplicationContext
+    let mailSelection: MailContentParser.SelectionSnapshot?
+}
+
 /// Coordinates grammar analysis workflow: monitoring → analysis → UI
 ///
 /// # Testability
@@ -102,6 +108,10 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Previous text for incremental analysis
     var previousText: String = ""
+
+    /// Editor and exact Mail selection captured before AI Compose takes focus.
+    /// The live text monitor may temporarily clear its element while the panel is open.
+    var textGenerationInsertionTarget: TextGenerationInsertionTarget?
 
     // MARK: - Published State
 
@@ -560,14 +570,20 @@ class AnalysisCoordinator: ObservableObject {
 
         // Handle text insertion from AI Compose
         TextGenerationPopover.shared.onInsertText = { [weak self] text in
-            guard let self,
-                  let element = textMonitor.monitoredElement else { return }
+            guard let self else { return }
+
+            guard let target = textGenerationInsertionTarget else {
+                Logger.warning("AnalysisCoordinator: No captured target for generated text insertion", category: Logger.analysis)
+                return
+            }
+
+            textGenerationInsertionTarget = nil
 
             Logger.debug("AnalysisCoordinator: Inserting generated text (\(text.count) chars)", category: Logger.analysis)
 
             // Use app-specific text replacement strategies
             Task { @MainActor in
-                await self.insertGeneratedTextAsync(text, element: element)
+                await self.insertGeneratedTextAsync(text, target: target)
             }
         }
     }
@@ -575,13 +591,36 @@ class AnalysisCoordinator: ObservableObject {
     /// Insert generated text at cursor or replace selection using app-specific strategies
     /// This reuses the same infrastructure as grammar/style corrections
     @MainActor
-    private func insertGeneratedTextAsync(_ text: String, element: AXUIElement) async {
-        guard let context = monitoredContext else {
-            Logger.warning("AnalysisCoordinator: No context for text insertion", category: Logger.analysis)
+    private func insertGeneratedTextAsync(_ text: String, target: TextGenerationInsertionTarget) async {
+        let element = target.element
+        let context = target.context
+        let appConfig = appRegistry.configuration(for: context.bundleIdentifier)
+
+        if appConfig.features.usesWebKitMarkerSelection,
+           let mailSelection = target.mailSelection
+        {
+            guard MailContentParser.restoreSelection(mailSelection, in: element) else {
+                Logger.warning("AnalysisCoordinator: Generated text insertion aborted because Mail's selection changed", category: Logger.analysis)
+                return
+            }
+
+            lastReplacementTime = Date()
+
+            if let targetApp = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier).first {
+                targetApp.activate()
+            }
+
+            try? await Task.sleep(nanoseconds: UInt64(TimingConstants.shortDelay * 1_000_000_000))
+            typeTextDirectly(text)
+
+            let typingDelay = Double(text.count) * 0.01 + 0.1
+            try? await Task.sleep(nanoseconds: UInt64(typingDelay * 1_000_000_000))
+
+            replacementCompletedAt = Date()
+            scheduleDelayedReanalysis(startTime: Date())
+            Logger.debug("AnalysisCoordinator: Inserted generated text into Mail", category: Logger.analysis)
             return
         }
-
-        let appConfig = appRegistry.configuration(for: context.bundleIdentifier)
 
         // Check app type for strategy selection
         let isElectronApp = context.requiresKeyboardReplacement
