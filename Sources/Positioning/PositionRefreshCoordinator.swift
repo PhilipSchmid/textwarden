@@ -18,6 +18,9 @@ protocol PositionRefreshDelegate: AnyObject {
     /// Called when positions should be recalculated for the current element
     func positionRefreshRequested()
 
+    /// Called when the currently focused editable element must be re-acquired
+    func focusedElementRefreshRequested()
+
     /// Called when underlines should be hidden temporarily (e.g., during scroll)
     func hideUnderlinesRequested()
 }
@@ -41,6 +44,9 @@ class PositionRefreshCoordinator {
 
     /// Debounce work item for click-based refresh
     private var refreshWorkItem: DispatchWorkItem?
+
+    /// Coalesces focus refreshes requested during replacement grace periods
+    private var replacementFocusRefreshTimer: Timer?
 
     /// Debounce work item for scroll-based hide
     private var scrollHideWorkItem: DispatchWorkItem?
@@ -106,6 +112,8 @@ class PositionRefreshCoordinator {
         }
         refreshWorkItem?.cancel()
         refreshWorkItem = nil
+        replacementFocusRefreshTimer?.invalidate()
+        replacementFocusRefreshTimer = nil
         scrollHideWorkItem?.cancel()
         scrollHideWorkItem = nil
         monitoredBundleID = nil
@@ -304,6 +312,10 @@ class PositionRefreshCoordinator {
             // Clicking on a suggestion triggers this, but we don't want to refresh
             // until after the replacement completes and positions are adjusted
             if AnalysisCoordinator.shared.isInReplacementMode {
+                let behavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
+                if behavior.knownQuirks.contains(.focusBouncesDuringPaste) {
+                    scheduleFocusedElementRefreshAfterReplacement()
+                }
                 return
             }
 
@@ -324,6 +336,19 @@ class PositionRefreshCoordinator {
                 deadline: .now() + .milliseconds(Self.refreshDebounceMs(for: bundleID)),
                 execute: workItem
             )
+        }
+    }
+
+    /// Some editors do not emit another usable focus notification when the user changes
+    /// fields during replacement grace. Coalesce those clicks into one later refresh.
+    private func scheduleFocusedElementRefreshAfterReplacement() {
+        replacementFocusRefreshTimer?.invalidate()
+        let delay = TimingConstants.replacementGracePeriod + TimingConstants.mediumDelay
+        replacementFocusRefreshTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+            guard let self else { return }
+            replacementFocusRefreshTimer = nil
+            Logger.info("PositionRefreshCoordinator: Refreshing focused element after replacement-period click", category: Logger.ui)
+            delegate?.focusedElementRefreshRequested()
         }
     }
 }

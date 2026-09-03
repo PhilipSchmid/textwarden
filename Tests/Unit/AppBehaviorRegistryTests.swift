@@ -106,6 +106,14 @@ final class AppBehaviorRegistryTests: XCTestCase {
             behavior.knownQuirks.contains(.usesMailReplaceRangeAPI),
             "Mail should use WebKit's AXReplaceRangeWithText API"
         )
+        XCTAssertTrue(
+            behavior.knownQuirks.contains(.focusBouncesDuringPaste),
+            "Mail should refresh focus after replacement-period clicks"
+        )
+        XCTAssertTrue(
+            behavior.knownQuirks.contains(.transientAXGeometry),
+            "Mail should retry transient AX geometry failures"
+        )
     }
 
     func testMailUsesUTF16Indices() {

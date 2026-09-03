@@ -45,6 +45,19 @@ extension AnalysisCoordinator {
             Logger.debug("  [\(i)] \(err.start)-\(err.end): '\(err.message)'", category: Logger.analysis)
         }
 
+        // Capture the canonical source before removing the error. Mail can deliver its AX value
+        // change while keyboard replacement is still completing, so currentSegment may already
+        // contain the corrected text by the time this method runs.
+        let analyzedSourceText = currentErrors.lazy.compactMap { trackedError -> String? in
+            let isExactPositionMatch = trackedError.start == error.start && trackedError.end == error.end
+            let isContentMatch = trackedError.message == error.message
+                && trackedError.lintId == error.lintId
+                && trackedError.category == error.category
+                && (trackedError.end - trackedError.start) == (error.end - error.start)
+            guard isExactPositionMatch || isContentMatch else { return nil }
+            return self.currentErrorSourceStore.sourceText(for: trackedError, among: self.currentErrors)
+        }.first
+
         // Remove the error from currentErrors
         // Primary match on position, fallback on message+lintId+category for exact same error
         let beforeCount = currentErrors.count
@@ -77,20 +90,22 @@ extension AnalysisCoordinator {
         // This is CRITICAL: the underline positions are calculated from currentSegment.content
         // If we don't update it, subsequent errors will have incorrect underline positions
         if let segment = currentSegment {
-            var newContent = segment.content
-            // Use TextIndexConverter to convert Harper's Unicode scalar indices to Swift String.Index
-            // Harper uses Rust char indices (Unicode scalars), but Swift String uses grapheme clusters
-            // Example: "👨‍👩‍👧" is 1 grapheme cluster but 7 Unicode scalars
-            guard let startIdx = TextIndexConverter.scalarIndexToStringIndex(error.start, in: newContent),
-                  let endIdx = TextIndexConverter.scalarIndexToStringIndex(error.end, in: newContent),
-                  startIdx < endIdx
-            else {
-                Logger.warning("removeErrorAndUpdateUI: Invalid range for string replacement (error: \(error.start)-\(error.end), scalar count: \(newContent.unicodeScalars.count))", category: Logger.analysis)
-                return
+            switch ReplacementTextMatcher.reconcileSegment(
+                currentText: segment.content,
+                analyzedText: analyzedSourceText,
+                replacing: error.start ..< error.end,
+                with: suggestion
+            ) {
+            case let .updated(newContent):
+                currentSegment = segment.with(content: newContent)
+                Logger.debug("removeErrorAndUpdateUI: Updated currentSegment content (new length: \(newContent.count))", category: Logger.analysis)
+
+            case .sourceChanged:
+                Logger.debug("removeErrorAndUpdateUI: currentSegment already changed - skipping duplicate mutation", category: Logger.analysis)
+
+            case .invalidRange:
+                Logger.warning("removeErrorAndUpdateUI: Invalid cached range after successful replacement (error: \(error.start)-\(error.end), scalar count: \(segment.content.unicodeScalars.count)); continuing UI cleanup", category: Logger.analysis)
             }
-            newContent.replaceSubrange(startIdx ..< endIdx, with: suggestion)
-            currentSegment = segment.with(content: newContent)
-            Logger.debug("removeErrorAndUpdateUI: Updated currentSegment content (new length: \(newContent.count))", category: Logger.analysis)
         }
 
         // Adjust positions of remaining errors that come after the fixed error

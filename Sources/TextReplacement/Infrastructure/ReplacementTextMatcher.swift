@@ -14,6 +14,12 @@ enum ReplacementTextMatcher {
         case unavailable
     }
 
+    enum SegmentReconciliation: Equatable {
+        case updated(String)
+        case sourceChanged
+        case invalidRange
+    }
+
     /// Resolve the live source range without guessing between repeated nearby tokens.
     static func resolveRange(
         in sourceText: String,
@@ -67,6 +73,32 @@ enum ReplacementTextMatcher {
             return .ambiguous(matches)
         }
         return .notFound
+    }
+
+    /// Apply a replacement to cached analysis text only while it still matches the text
+    /// that produced the error. AX notifications may deliver the corrected text first.
+    static func reconcileSegment(
+        currentText: String,
+        analyzedText: String?,
+        replacing range: Range<Int>,
+        with replacement: String
+    ) -> SegmentReconciliation {
+        if let analyzedText, currentText != analyzedText {
+            return .sourceChanged
+        }
+
+        guard range.lowerBound >= 0,
+              range.lowerBound < range.upperBound,
+              range.upperBound <= currentText.unicodeScalars.count,
+              let start = TextIndexConverter.scalarIndexToStringIndex(range.lowerBound, in: currentText),
+              let end = TextIndexConverter.scalarIndexToStringIndex(range.upperBound, in: currentText)
+        else {
+            return .invalidRange
+        }
+
+        var updatedText = currentText
+        updatedText.replaceSubrange(start ..< end, with: replacement)
+        return .updated(updatedText)
     }
 
     private static func text(in range: Range<Int>, from sourceText: String) -> String? {

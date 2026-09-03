@@ -56,13 +56,14 @@ struct MailBehavior: AppBehavior {
 
     let timingProfile = TimingProfile(
         analysisDebounce: 0.5,
-        boundsStabilizationDelay: 0.15,
+        boundsStabilizationDelay: 0.25,
         windowChangeGracePeriod: 0.5,
         boundsValidationInterval: 0.3
     )
 
     let knownQuirks: Set<AppQuirk> = [
         .focusBouncesDuringPaste,
+        .transientAXGeometry,
         .requiresBrowserStyleReplacement,
         .requiresFullReanalysisAfterReplacement,
         .usesMailReplaceRangeAPI,
