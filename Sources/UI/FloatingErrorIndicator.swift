@@ -754,9 +754,9 @@ class FloatingErrorIndicator: NSPanel {
 
         Logger.debug("FloatingErrorIndicator: Window level: \(level.rawValue), isVisible: \(isVisible)", category: Logger.ui)
         if !isVisible {
-            Logger.debug("FloatingErrorIndicator: Calling order(.above)", category: Logger.ui)
-            order(.above, relativeTo: 0) // Show window without stealing focus
-            Logger.debug("FloatingErrorIndicator: After order(.above), isVisible: \(isVisible)", category: Logger.ui)
+            Logger.debug("FloatingErrorIndicator: Calling orderFrontRegardless()", category: Logger.ui)
+            orderFrontRegardless()
+            Logger.debug("FloatingErrorIndicator: After orderFrontRegardless(), isVisible: \(isVisible)", category: Logger.ui)
         } else {
             Logger.debug("FloatingErrorIndicator: Window already visible", category: Logger.ui)
         }
@@ -826,9 +826,9 @@ class FloatingErrorIndicator: NSPanel {
 
         Logger.debug("FloatingErrorIndicator: Window level: \(level.rawValue), isVisible: \(isVisible)", category: Logger.ui)
         if !isVisible {
-            Logger.debug("FloatingErrorIndicator: Calling order(.above)", category: Logger.ui)
-            order(.above, relativeTo: 0) // Show window without stealing focus
-            Logger.debug("FloatingErrorIndicator: After order(.above), isVisible: \(isVisible)", category: Logger.ui)
+            Logger.debug("FloatingErrorIndicator: Calling orderFrontRegardless()", category: Logger.ui)
+            orderFrontRegardless()
+            Logger.debug("FloatingErrorIndicator: After orderFrontRegardless(), isVisible: \(isVisible)", category: Logger.ui)
         } else {
             Logger.debug("FloatingErrorIndicator: Window already visible", category: Logger.ui)
         }
@@ -984,7 +984,7 @@ class FloatingErrorIndicator: NSPanel {
         positionIndicator(for: element)
 
         if !isVisible {
-            order(.above, relativeTo: 0)
+            orderFrontRegardless()
         }
     }
 

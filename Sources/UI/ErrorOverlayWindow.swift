@@ -854,8 +854,9 @@ class ErrorOverlayWindow: NSPanel {
                 // Reset alpha and mouse tracking state when showing
                 alphaValue = 1.0
                 isMouseInsideOverlay = true
-                // Use order(.above) instead of orderFrontRegardless() to avoid activating the app
-                order(.above, relativeTo: 0)
+                // TextWarden is inactive while the monitored app owns focus, so conditional
+                // ordering can leave the overlay behind that app's windows.
+                orderFrontRegardless()
                 isCurrentlyVisible = true
                 // Start periodic frame validation only for apps that need it (e.g., Outlook Copilot)
                 // This is expensive, so we don't enable it by default
@@ -1162,7 +1163,7 @@ class ErrorOverlayWindow: NSPanel {
         // Show overlay if it wasn't already visible and we have underlines to show
         if !readabilityUnderlines.isEmpty, !isCurrentlyVisible {
             Logger.info("ErrorOverlay: Showing overlay for readability underlines only", category: Logger.ui)
-            order(.above, relativeTo: 0)
+            orderFrontRegardless()
             isCurrentlyVisible = true
             // Start Slack popover detection (only applies to Slack app)
             startSlackPopoverDetection()
