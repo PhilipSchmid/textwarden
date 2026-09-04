@@ -121,7 +121,13 @@ class TeamsStrategy: GeometryProvider {
         }
 
         // STEP 2: Find TextPart(s) that contain the error range
-        guard let bounds = findBoundsForRange(originalRange, in: textParts, fullText: text, element: element) else {
+        guard let bounds = findBoundsForRange(
+            originalRange,
+            in: textParts,
+            fullText: text,
+            element: element,
+            parser: parser
+        ) else {
             Logger.debug("TeamsStrategy: Could not find TextPart for range \(originalRange) - returning unavailable", category: Logger.ui)
             return GeometryResult.unavailable(reason: "No TextPart overlapping error range")
         }
@@ -258,7 +264,13 @@ class TeamsStrategy: GeometryProvider {
 
     /// Find visual bounds for a character range using TextPart map
     /// For multi-TextPart errors, unions overlapping bounds
-    private func findBoundsForRange(_ targetRange: NSRange, in textParts: [TextPart], fullText _: String, element: AXUIElement) -> CGRect? {
+    private func findBoundsForRange(
+        _ targetRange: NSRange,
+        in textParts: [TextPart],
+        fullText _: String,
+        element: AXUIElement,
+        parser: ContentParser
+    ) -> CGRect? {
         let targetEnd = targetRange.location + targetRange.length
 
         // Find ALL TextParts that overlap with the error range
@@ -276,7 +288,12 @@ class TeamsStrategy: GeometryProvider {
         // If error is entirely within one TextPart, calculate sub-element position
         if overlappingParts.count == 1 {
             let part = overlappingParts[0]
-            return calculateSubElementBounds(targetRange: targetRange, in: part, element: element)
+            return calculateSubElementBounds(
+                targetRange: targetRange,
+                in: part,
+                element: element,
+                parser: parser
+            )
         }
 
         // Multiple overlapping parts: use shared utility for correct sub-element bounds calculation
@@ -293,7 +310,12 @@ class TeamsStrategy: GeometryProvider {
     /// Calculate bounds for error within a single TextPart
     /// Uses AXBoundsForRange on the child element for pixel-perfect positioning
     /// Returns nil if AX query fails - let FontMetricsStrategy handle fallback
-    private func calculateSubElementBounds(targetRange: NSRange, in part: TextPart, element _: AXUIElement) -> CGRect? {
+    private func calculateSubElementBounds(
+        targetRange: NSRange,
+        in part: TextPart,
+        element _: AXUIElement,
+        parser: ContentParser
+    ) -> CGRect? {
         let offsetInPart = targetRange.location - part.range.location
         let errorLength = min(targetRange.location + targetRange.length, part.range.location + part.range.length) - targetRange.location
 
@@ -307,9 +329,53 @@ class TeamsStrategy: GeometryProvider {
             }
         }
 
-        // AXBoundsForRange failed - return nil to let chain continue to FontMetricsStrategy
-        Logger.trace("TeamsStrategy: AXBoundsForRange on child failed - letting chain continue", category: Logger.ui)
-        return nil
+        let context = parser.detectUIContext(element: part.element)
+        let size = parser.estimatedFontSize(context: context)
+        let font = parser.fontFamily(context: context).flatMap { NSFont(name: $0, size: size) }
+            ?? NSFont.systemFont(ofSize: size)
+        let estimatedBounds = Self.estimateSingleLineBounds(
+            text: part.text,
+            targetRange: NSRange(location: offsetInPart, length: errorLength),
+            frame: part.frame,
+            font: font
+        )
+        Logger.trace("TeamsStrategy: AXBoundsForRange on child failed - single-line estimate \(estimatedBounds != nil ? "succeeded" : "unavailable")", category: Logger.ui)
+        return estimatedBounds
+    }
+
+    static func estimateSingleLineBounds(
+        text: String,
+        targetRange: NSRange,
+        frame: CGRect,
+        font: NSFont
+    ) -> CGRect? {
+        let renderedText = text.hasSuffix("\n") ? String(text.dropLast()) : text
+        guard !renderedText.contains("\n"),
+              frame.width > 0,
+              frame.height > 0,
+              let start = TextIndexConverter.scalarIndexToStringIndex(targetRange.location, in: renderedText),
+              let end = TextIndexConverter.scalarIndexToStringIndex(
+                  targetRange.location + targetRange.length,
+                  in: renderedText
+              ),
+              start < end
+        else {
+            return nil
+        }
+
+        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+        let measuredWidth = (renderedText as NSString).size(withAttributes: attributes).width
+        guard measuredWidth > 0 else { return nil }
+
+        let scale = frame.width / measuredWidth
+        let prefixWidth = (String(renderedText[..<start]) as NSString).size(withAttributes: attributes).width
+        let errorWidth = (String(renderedText[start ..< end]) as NSString).size(withAttributes: attributes).width
+        return CGRect(
+            x: frame.minX + prefixWidth * scale,
+            y: frame.minY,
+            width: errorWidth * scale,
+            height: frame.height
+        )
     }
 
     /// Get bounds for a range within a child element using AXBoundsForRange
