@@ -387,7 +387,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.title = "TextWarden Tutorial"
         window.styleMask = [.titled, .closable, .miniaturizable]
         window.isReleasedWhenClosed = false
-        window.setContentSize(NSSize(width: 640, height: 660))
+        window.setContentSize(NSSize(width: 640, height: 760))
         window.minSize = NSSize(width: 640, height: 660)
         window.center()
         tutorialWindow = window

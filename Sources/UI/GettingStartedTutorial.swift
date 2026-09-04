@@ -5,6 +5,7 @@
 //  Interactive tutorial showing how to use TextWarden's UI elements
 //
 
+import KeyboardShortcuts
 import SwiftUI
 
 // MARK: - Tutorial Step
@@ -23,7 +24,7 @@ enum TutorialStep: Int, CaseIterable {
         case .clickStyleSection:
             "Click the sparkle icon for style suggestions"
         case .clickComposeSection:
-            "Click the pen icon to compose with AI"
+            "Click the Compose icon to write with AI"
         case .rightClickIndicator:
             "Right-click the indicator for quick actions"
         case .complete:
@@ -34,15 +35,15 @@ enum TutorialStep: Int, CaseIterable {
     var hint: String {
         switch self {
         case .clickUnderline:
-            "TextWarden underlines grammar errors as you type. Click any underline to see suggestions."
+            "Red underlines mark spelling and grammar issues. Click one to review a correction, then apply it without leaving your editor."
         case .clickStyleSection:
-            "Apple Intelligence can rewrite your text for better clarity, tone, or style."
+            "Purple suggestions use Apple Intelligence to improve clarity, tone, or style. Review the rewrite, then choose Accept to apply it."
         case .clickComposeSection:
-            "Use AI to compose new text from your instructions - perfect for starting drafts."
+            "AI Compose can start a draft or rewrite selected text. Describe the change, choose a tone, select Generate, review the result, then Insert it."
         case .rightClickIndicator:
-            "Right-click for quick access to pause, settings, and app controls. Click anywhere on the menu to continue."
+            "Right-click the control for pause, settings, and app-specific options. Click anywhere on the menu to continue to positioning."
         case .complete:
-            "In real use, drag the indicator to reposition it along any window edge. Click Continue when you're ready."
+            "Drag the control to any window edge. It rotates on top and bottom edges and remembers its position. Click Continue when you're ready."
         }
     }
 }
@@ -127,7 +128,9 @@ struct GettingStartedTutorialView: View {
                             TutorialPointingArrow(direction: .up)
                             TutorialCallout(text: "Click underline")
                         }
-                        .offset(y: 75) // Position below the underline with more spacing
+                        .fixedSize()
+                        .frame(height: 0, alignment: .top)
+                        .offset(y: tutorialCalloutTargetGap)
                     }
                 }
 
@@ -168,189 +171,24 @@ struct GettingStartedTutorialView: View {
                     .foregroundColor(.accentColor)
                     .padding(.top, 8)
 
-                // Interactive demo area
-                ZStack(alignment: .top) {
-                    VStack(spacing: 0) {
-                        // Background text area at top
-                        if tutorialStep == .complete {
-                            // Complete step: Show window border demo with draggable indicator
-                            TutorialDragDemo()
-                        } else {
-                            HStack(alignment: .top) {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    // Dynamic text display with optional underline
-                                    textDisplay
-                                        .font(.system(size: 15))
-                                }
-                                .padding(20)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(Color(NSColor.textBackgroundColor))
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-                                )
+                VStack(spacing: 14) {
+                    if tutorialStep == .complete {
+                        TutorialDragDemo()
+                            .frame(maxHeight: .infinity)
+                    } else {
+                        textDemo
 
-                                // Indicator positioned to the right of text area
-                                TutorialIndicatorInteractive(
-                                    grammarCount: grammarCount,
-                                    onGrammarClick: {}, // Not used in this flow
-                                    onStyleClick: handleStyleClick,
-                                    onComposeClick: handleComposeClick,
-                                    onRightClick: handleIndicatorRightClick,
-                                    isStyleClickEnabled: tutorialStep == .clickStyleSection,
-                                    isComposeClickEnabled: tutorialStep == .clickComposeSection,
-                                    isRightClickEnabled: tutorialStep == .rightClickIndicator,
-                                    highlightedSection: highlightedSection
-                                )
-                                // Pointing arrows as overlay - don't affect layout
-                                .overlay(alignment: .leading) {
-                                    Group {
-                                        if tutorialStep == .clickStyleSection, !showStylePopover {
-                                            HStack(spacing: 4) {
-                                                TutorialCallout(text: "Click sparkle")
-                                                TutorialPointingArrow(direction: .right)
-                                            }
-                                            .offset(x: -130, y: 0) // Point at style section (middle)
-                                        }
-
-                                        if tutorialStep == .clickComposeSection, !showComposePopover {
-                                            HStack(spacing: 4) {
-                                                TutorialCallout(text: "Click pen")
-                                                TutorialPointingArrow(direction: .right)
-                                            }
-                                            .offset(x: -115, y: 36) // Point at compose section (bottom)
-                                        }
-
-                                        if tutorialStep == .rightClickIndicator, !showContextMenu {
-                                            HStack(spacing: 4) {
-                                                TutorialCallout(text: "Right-click")
-                                                TutorialPointingArrow(direction: .right)
-                                            }
-                                            .offset(x: -115, y: 0) // Point at center of capsule (right-click works anywhere)
-                                        }
-                                    }
-                                }
-                                .padding(.leading, 8)
-                            }
+                        HStack(spacing: 24) {
+                            activePopover
+                            tutorialIndicator
                         }
-
-                        Spacer()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
 
-                    // Grammar suggestion popover with external instruction
-                    if showSuggestionPopover {
-                        HStack(alignment: .center, spacing: 4) {
-                            Spacer()
-
-                            // External instruction with arrow (callout LEFT of arrow)
-                            HStack(spacing: 4) {
-                                TutorialCallout(text: "Click to apply")
-                                TutorialPointingArrow(direction: .right)
-                            }
-
-                            TutorialSuggestionPopover(
-                                suggestion: "receive",
-                                onApply: {
-                                    withAnimation {
-                                        showSuggestionPopover = false
-                                        grammarFixed = true
-                                        tutorialStep = .clickStyleSection
-                                    }
-                                }
-                            )
-                            .padding(.trailing, 50)
-                        }
-                        .offset(y: 75)
-                        .transition(.scale.combined(with: .opacity))
-                    }
-
-                    // Style suggestion popover with external instruction
-                    if showStylePopover {
-                        HStack(alignment: .center, spacing: 4) {
-                            Spacer()
-
-                            HStack(spacing: 4) {
-                                TutorialCallout(text: "Accept to apply")
-                                TutorialPointingArrow(direction: .right)
-                            }
-
-                            TutorialStylePopover(
-                                originalText: "I wanted to receive your feedback.",
-                                rewrittenText: "Thank you for your feedback.",
-                                onApply: {
-                                    withAnimation {
-                                        showStylePopover = false
-                                        styleApplied = true
-                                        tutorialStep = .clickComposeSection
-                                    }
-                                }
-                            )
-                            .padding(.trailing, 50)
-                        }
-                        .offset(y: 50)
-                        .transition(.scale.combined(with: .opacity))
-                    }
-
-                    // AI Compose popover with external instruction
-                    if showComposePopover {
-                        HStack(alignment: .center, spacing: 4) {
-                            Spacer()
-
-                            HStack(spacing: 4) {
-                                TutorialCallout(text: "Click Generate")
-                                TutorialPointingArrow(direction: .right)
-                            }
-
-                            TutorialComposePopover(
-                                onApply: {
-                                    withAnimation {
-                                        showComposePopover = false
-                                        composeApplied = true
-                                        tutorialStep = .rightClickIndicator
-                                    }
-                                }
-                            )
-                            .padding(.trailing, 50)
-                        }
-                        .offset(y: 50)
-                        .transition(.scale.combined(with: .opacity))
-                    }
-
-                    // Context menu
-                    if showContextMenu {
-                        HStack {
-                            Spacer()
-                            TutorialContextMenu(
-                                onDismiss: {
-                                    withAnimation {
-                                        showContextMenu = false
-                                        tutorialStep = .complete
-                                    }
-                                }
-                            )
-                            .padding(.trailing, 50)
-                        }
-                        .offset(y: 20)
-                        .transition(.scale.combined(with: .opacity))
-                    }
+                    tutorialTip
                 }
-                .frame(height: 300) // Increased to accommodate context menu
+                .frame(height: 540)
                 .padding(.horizontal)
-
-                // Hint text - positioned below demo area (hidden when context menu is open)
-                // Extra top padding when compose popover is shown since it's taller
-                if !showContextMenu {
-                    Text(tutorialStep.hint)
-                        .font(.body)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
-                        .padding(.top, showComposePopover ? 80 : 16)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
             }
             .padding(.top)
 
@@ -388,6 +226,132 @@ struct GettingStartedTutorialView: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
         }
+    }
+
+    private var textDemo: some View {
+        textDisplay
+            .font(.system(size: 15))
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(NSColor.textBackgroundColor))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+            )
+    }
+
+    private var tutorialIndicator: some View {
+        TutorialIndicatorInteractive(
+            grammarCount: grammarCount,
+            onGrammarClick: {},
+            onStyleClick: handleStyleClick,
+            onComposeClick: handleComposeClick,
+            onRightClick: handleIndicatorRightClick,
+            isStyleClickEnabled: tutorialStep == .clickStyleSection,
+            isComposeClickEnabled: tutorialStep == .clickComposeSection,
+            isRightClickEnabled: tutorialStep == .rightClickIndicator,
+            highlightedSection: highlightedSection
+        )
+        .overlay(alignment: .leading) {
+            Group {
+                if tutorialStep == .clickStyleSection, !showStylePopover {
+                    TutorialRightCallout(text: "Click Style")
+                }
+
+                if tutorialStep == .clickComposeSection, !showComposePopover {
+                    TutorialRightCallout(text: "Click Compose")
+                        .offset(y: UIConstants.capsuleSectionHeight)
+                }
+
+                if tutorialStep == .rightClickIndicator, !showContextMenu {
+                    TutorialRightCallout(text: "Right-click")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var activePopover: some View {
+        if showSuggestionPopover {
+            TutorialSuggestionPopover(
+                suggestion: "receive",
+                onApply: {
+                    withAnimation {
+                        showSuggestionPopover = false
+                        grammarFixed = true
+                        tutorialStep = .clickStyleSection
+                    }
+                },
+                onClose: {
+                    withAnimation { showSuggestionPopover = false }
+                }
+            )
+            .transition(.scale.combined(with: .opacity))
+        } else if showStylePopover {
+            TutorialStylePopover(
+                onApply: {
+                    withAnimation {
+                        showStylePopover = false
+                        styleApplied = true
+                        tutorialStep = .clickComposeSection
+                    }
+                },
+                onClose: {
+                    withAnimation { showStylePopover = false }
+                }
+            )
+            .transition(.scale.combined(with: .opacity))
+        } else if showComposePopover {
+            TutorialComposePopover(
+                onApply: {
+                    withAnimation {
+                        showComposePopover = false
+                        composeApplied = true
+                        tutorialStep = .rightClickIndicator
+                    }
+                },
+                onClose: {
+                    withAnimation { showComposePopover = false }
+                }
+            )
+            .transition(.scale.combined(with: .opacity))
+        } else if showContextMenu {
+            TutorialContextMenu(
+                onDismiss: {
+                    withAnimation {
+                        showContextMenu = false
+                        tutorialStep = .complete
+                    }
+                }
+            )
+            .transition(.scale.combined(with: .opacity))
+        }
+    }
+
+    private var tutorialTip: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "info.circle.fill")
+                .foregroundColor(.accentColor)
+
+            Text(tutorialStep.hint)
+                .foregroundColor(AppColors(for: colorScheme).textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(.system(size: 13))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: 520, minHeight: 62, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(AppColors(for: colorScheme).backgroundElevated.opacity(0.7))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(AppColors(for: colorScheme).border, lineWidth: 0.5)
+        )
     }
 
     /// Whether the back button should be shown
@@ -519,20 +483,24 @@ private struct TutorialIndicatorInteractive: View {
     }
 
     private var grammarColor: Color {
-        Color(red: 0.95, green: 0.35, blue: 0.25)
+        AppColors(for: colorScheme).error
     }
 
     private var styleColor: Color {
-        isDarkMode ? Color(red: 0.95, green: 0.3, blue: 0.75) : Color(red: 0.6, green: 0.2, blue: 0.85)
+        AppColors(for: colorScheme).style
     }
 
     private var textGenColor: Color {
-        isDarkMode ? Color(red: 0.3, green: 0.7, blue: 1.0) : Color(red: 0.15, green: 0.5, blue: 0.8)
+        AppColors(for: colorScheme).primary
     }
 
-    private let sectionHeight: CGFloat = 36
-    private let capsuleWidth: CGFloat = 36
-    private let cornerRadius: CGFloat = 18
+    private var successColor: Color {
+        Color(nsColor: .systemGreen)
+    }
+
+    private let sectionHeight = UIConstants.capsuleSectionHeight
+    private let capsuleWidth = UIConstants.capsuleWidth
+    private let cornerRadius = UIConstants.capsuleCornerRadius
     private let sectionCount: CGFloat = 3
 
     private var separatorColor: Color {
@@ -557,26 +525,36 @@ private struct TutorialIndicatorInteractive: View {
             // Clickable sections
             VStack(spacing: 0) {
                 // Grammar section (top - rounded top corners)
-                Button(action: {}) {
-                    Text("\(grammarCount)")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(grammarColor)
-                        .frame(width: capsuleWidth, height: sectionHeight)
-                        .background(
-                            UnevenRoundedRectangle(
-                                topLeadingRadius: cornerRadius,
-                                bottomLeadingRadius: 0,
-                                bottomTrailingRadius: 0,
-                                topTrailingRadius: cornerRadius
-                            )
-                            .fill(highlightedSection == .grammar ? grammarColor.opacity(0.15) : Color.clear)
+                Button(action: onGrammarClick) {
+                    Group {
+                        if grammarCount > 0 {
+                            Text("\(grammarCount)")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(grammarColor)
+                        } else {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(successColor)
+                        }
+                    }
+                    .frame(width: capsuleWidth, height: sectionHeight)
+                    .background(
+                        UnevenRoundedRectangle(
+                            topLeadingRadius: cornerRadius,
+                            bottomLeadingRadius: 0,
+                            bottomTrailingRadius: 0,
+                            topTrailingRadius: cornerRadius
                         )
+                        .fill(highlightedSection == .grammar ? grammarColor.opacity(0.15) : Color.clear)
+                    )
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Grammar issues")
 
                 // Style section - clickable (middle - no rounded corners)
                 Button(action: onStyleClick) {
-                    Image(systemName: "sparkles")
+                    Label("Style suggestions", systemImage: "sparkles")
+                        .labelStyle(.iconOnly)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(styleColor.opacity(0.85))
                         .frame(width: capsuleWidth, height: sectionHeight)
@@ -584,10 +562,12 @@ private struct TutorialIndicatorInteractive: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!isStyleClickEnabled)
+                .accessibilityLabel("Style suggestions")
 
                 // Compose section - clickable (bottom - rounded bottom corners)
                 Button(action: onComposeClick) {
-                    Image(systemName: "pencil.line")
+                    Label("Open AI Compose", systemImage: UIConstants.composeIconName)
+                        .labelStyle(.iconOnly)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(textGenColor)
                         .frame(width: capsuleWidth, height: sectionHeight)
@@ -603,6 +583,7 @@ private struct TutorialIndicatorInteractive: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!isComposeClickEnabled)
+                .accessibilityLabel("Open AI Compose")
             }
 
             // Separators - positioned at section boundaries (2 separators for 3 sections)
@@ -633,19 +614,13 @@ private struct TutorialIndicatorInteractive: View {
 // MARK: - Tutorial Style Popover
 
 private struct TutorialStylePopover: View {
-    let originalText: String
-    let rewrittenText: String
     let onApply: () -> Void
+    let onClose: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
-    @State private var isHovered = false
 
-    private var isDarkMode: Bool {
-        colorScheme == .dark
-    }
-
-    private var styleColor: Color {
-        Color.purple
+    private var colors: AppColors {
+        AppColors(for: colorScheme)
     }
 
     /// Build inline diff view showing removed (red strikethrough) and added (green) text
@@ -654,77 +629,80 @@ private struct TutorialStylePopover: View {
         // Suggested: "I would appreciate your feedback."
         // Diff: "I " + removed("wanted to receive") + added("would appreciate") + " your feedback."
         Text("I ")
-            .foregroundColor(.primary) +
+            .foregroundColor(colors.textPrimary) +
             Text("wanted to receive")
-            .foregroundColor(.red)
-            .strikethrough(true, color: .red) +
+            .foregroundColor(colors.error)
+            .strikethrough(true, color: colors.error) +
             Text(" ")
-            .foregroundColor(.primary) +
+            .foregroundColor(colors.textPrimary) +
             Text("would appreciate")
-            .foregroundColor(.green) +
+            .foregroundColor(colors.success) +
             Text(" your feedback.")
-            .foregroundColor(.primary)
+            .foregroundColor(colors.textPrimary)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(styleColor)
-                    .frame(width: 8, height: 8)
-                    .shadow(color: styleColor.opacity(0.4), radius: 3, x: 0, y: 0)
+            WritingAssistantHeader(
+                title: "Style suggestion",
+                accentColor: colors.style,
+                colors: colors,
+                textSize: 12,
+                closeAccessibilityLabel: "Close style suggestion",
+                onClose: onClose
+            )
 
-                Text("Style suggestion")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.primary.opacity(0.85))
-
-                Spacer()
-
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundColor(.secondary)
-            }
-            .padding(.horizontal, 12)
-            .padding(.top, 10)
-            .padding(.bottom, 8)
-
-            // Inline diff view
             inlineDiffText
                 .font(.system(size: 13))
-                .padding(.horizontal, 12)
-                .padding(.bottom, 8)
+                .padding(.horizontal, 14)
+                .padding(.bottom, 10)
 
-            // Accept button - matches real implementation style
-            Button(action: onApply) {
-                HStack(spacing: 4) {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text("Accept")
-                        .font(.system(size: 13, weight: .medium))
+            HStack(spacing: 10) {
+                Button(action: onApply) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("Accept")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundColor(colors.style)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(colors.style.opacity(0.12))
+                    )
                 }
-                .foregroundColor(isHovered ? .white : styleColor)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(isHovered ? styleColor : styleColor.opacity(0.12))
-                )
+                .buttonStyle(.plain)
+                .overlay(alignment: .leading) {
+                    TutorialRightCallout(text: "Accept to apply")
+                }
+
+                HStack(spacing: 4) {
+                    Image(systemName: "xmark")
+                    Text("Reject")
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 8, weight: .semibold))
+                }
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(colors.textSecondary)
+
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .medium))
+                    Text("Retry")
+                }
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(colors.textSecondary)
+
+                Spacer()
             }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 10)
-            .padding(.bottom, 10)
-            .onHover { isHovered = $0 }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(colors.backgroundElevated.opacity(0.5))
         }
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(isDarkMode ? Color(white: 0.16) : Color(white: 0.98))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
-        )
-        .frame(width: 280)
+        .frame(width: 300)
+        .writingAssistantSurface(colors: colors)
         .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
     }
 }
@@ -733,241 +711,120 @@ private struct TutorialStylePopover: View {
 
 private struct TutorialComposePopover: View {
     let onApply: () -> Void
+    let onClose: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
-    @State private var generateHovered = false
+    @State private var selectedStyle: WritingStyle = .formal
+    @State private var generatedText: String?
 
-    private var isDarkMode: Bool {
-        colorScheme == .dark
-    }
-
-    private var composeColor: Color {
-        Color.blue
-    }
-
-    private var successColor: Color {
-        Color.green
-    }
-
-    private var backgroundTop: Color {
-        isDarkMode ? Color(white: 0.18) : Color(white: 0.99)
-    }
-
-    private var backgroundBottom: Color {
-        isDarkMode ? Color(white: 0.14) : Color(white: 0.96)
-    }
-
-    private var elevatedBg: Color {
-        isDarkMode ? Color(white: 0.22) : Color(white: 0.94)
+    private var colors: AppColors {
+        AppColors(for: colorScheme)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(composeColor)
-                    .frame(width: 8, height: 8)
-                    .shadow(color: composeColor.opacity(0.4), radius: 3)
+        VStack(alignment: .leading, spacing: 0) {
+            WritingAssistantHeader(
+                title: "AI Compose",
+                accentColor: colors.primary,
+                colors: colors,
+                textSize: 12,
+                badge: "On-device",
+                closeAccessibilityLabel: "Close AI Compose",
+                onClose: onClose
+            )
 
-                Text("AI Compose")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.secondary)
-
-                Spacer()
-
-                Image(systemName: "trash")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.secondary.opacity(0.6))
-                    .frame(width: 18, height: 18)
-
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundColor(.secondary)
-                    .frame(width: 18, height: 18)
-            }
-
-            // Instruction section
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Instruction")
+            VStack(alignment: .leading, spacing: 12) {
+                Text("What should change?")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(colors.textSecondary)
 
                 Text("Make it more professional and grateful")
                     .font(.system(size: 13))
-                    .foregroundColor(.primary)
+                    .foregroundColor(colors.textPrimary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
+                    .frame(height: 56, alignment: .topLeading)
+                    .padding(9)
                     .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(elevatedBg)
+                        RoundedRectangle(cornerRadius: 7)
+                            .fill(colors.backgroundElevated)
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
+                        RoundedRectangle(cornerRadius: 7)
+                            .stroke(colors.border, lineWidth: 0.5)
                     )
-            }
 
-            // Style chips
-            VStack(alignment: .leading, spacing: 4) {
                 Text("Style")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(colors.textSecondary)
 
-                HStack(spacing: 4) {
-                    TutorialStyleChip(text: "Default", isSelected: false, color: composeColor)
-                    TutorialStyleChip(text: "Formal", isSelected: true, color: composeColor)
-                    TutorialStyleChip(text: "Casual", isSelected: false, color: composeColor)
-                    TutorialStyleChip(text: "Concise", isSelected: false, color: composeColor)
-                }
-            }
-
-            // Generate button
-            HStack {
-                Spacer()
-                Button(action: onApply) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 10))
-                        Text("Generate")
-                            .font(.system(size: 12, weight: .medium))
-                        Image(systemName: "return")
-                            .font(.system(size: 9))
-                            .opacity(0.7)
+                Picker("Style", selection: $selectedStyle) {
+                    ForEach(WritingStyle.allCases, id: \.self) { style in
+                        Text(style.displayName).tag(style)
                     }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .background(
-                        RoundedRectangle(cornerRadius: 5)
-                            .fill(generateHovered ? composeColor.opacity(0.8) : composeColor)
-                    )
                 }
-                .buttonStyle(.plain)
-                .onHover { generateHovered = $0 }
-            }
+                .labelsHidden()
+                .pickerStyle(.segmented)
 
-            // Result section (empty state)
-            VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text("Result")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.secondary)
-
                     Spacer()
-
-                    // Copy and Try Another icons (disabled state)
-                    Image(systemName: "doc.on.doc")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary.opacity(0.4))
-
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary.opacity(0.4))
+                    Button(action: {
+                        generatedText = "I would greatly appreciate your detailed feedback."
+                    }) {
+                        Image(systemName: "sparkles")
+                        Text("Generate")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(colors.primary)
+                    .overlay(alignment: .leading) {
+                        if generatedText == nil {
+                            TutorialRightCallout(text: "Click Generate")
+                        }
+                    }
                 }
 
-                Text("Generated text will appear here")
+                Text("Result")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(colors.textSecondary)
+
+                Text(generatedText ?? "Generated text will appear here")
                     .font(.system(size: 12))
-                    .foregroundColor(.secondary.opacity(0.6))
-                    .italic()
+                    .foregroundColor(generatedText == nil ? colors.textTertiary : colors.textPrimary)
+                    .italic(generatedText == nil)
                     .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 20)
+                    .frame(height: 62)
                     .background(
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(elevatedBg)
+                            .fill(colors.backgroundElevated)
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
+                            .stroke(colors.border, lineWidth: 0.5)
                     )
-            }
 
-            // Action buttons
-            HStack(spacing: 8) {
-                Button(action: {}) {
-                    Text("Cancel")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                }
-                .buttonStyle(.plain)
-                .background(
-                    RoundedRectangle(cornerRadius: 5)
-                        .fill(elevatedBg)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 5)
-                        .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
-                )
+                HStack(spacing: 8) {
+                    Button(action: onClose) {
+                        Text("Cancel")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
 
-                Button(action: {}) {
-                    Text("Insert")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.white.opacity(0.6))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
+                    Button(action: onApply) {
+                        Text("Insert")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(colors.primary)
+                    .controlSize(.large)
+                    .disabled(generatedText == nil)
                 }
-                .buttonStyle(.plain)
-                .background(
-                    RoundedRectangle(cornerRadius: 5)
-                        .fill(successColor.opacity(0.5))
-                )
-                .disabled(true)
             }
+            .padding(.horizontal, 14)
+            .padding(.bottom, 14)
         }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(
-                    LinearGradient(
-                        colors: [backgroundTop, backgroundBottom],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
-        )
-        .frame(width: 340)
+        .frame(width: 400)
+        .writingAssistantSurface(colors: colors)
         .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
-    }
-}
-
-// MARK: - Style Chip for Tutorial
-
-private struct TutorialStyleChip: View {
-    let text: String
-    let isSelected: Bool
-    let color: Color
-
-    @Environment(\.colorScheme) private var colorScheme
-
-    private var isDarkMode: Bool {
-        colorScheme == .dark
-    }
-
-    private var elevatedBg: Color {
-        isDarkMode ? Color(white: 0.22) : Color(white: 0.94)
-    }
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-            .foregroundColor(isSelected ? .white : .secondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(isSelected ? color : elevatedBg)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 5)
-                    .stroke(isSelected ? color : Color.primary.opacity(0.1), lineWidth: 0.5)
-            )
     }
 }
 
@@ -976,167 +833,73 @@ private struct TutorialStyleChip: View {
 private struct TutorialSuggestionPopover: View {
     let suggestion: String
     let onApply: () -> Void
+    let onClose: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject private var preferences = UserPreferences.shared
     @State private var isHovered = false
 
-    private var isDarkMode: Bool {
-        colorScheme == .dark
+    private var colors: AppColors {
+        AppColors(for: colorScheme)
+    }
+
+    private var shortcutDescription: String? {
+        guard preferences.keyboardShortcutsEnabled,
+              let shortcut = KeyboardShortcuts.getShortcut(for: .applySuggestion1)
+        else {
+            return nil
+        }
+        return shortcut.description
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header row with category and close button
-            HStack(alignment: .center, spacing: 8) {
-                // Red indicator dot
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 8, height: 8)
-                    .shadow(color: Color.red.opacity(0.4), radius: 3)
+            WritingAssistantHeader(
+                title: "Spelling mistake",
+                accentColor: colors.error,
+                colors: colors,
+                textSize: 12,
+                closeAccessibilityLabel: "Close spelling suggestion",
+                onClose: onClose
+            )
 
-                // Category label
-                Text("Spelling mistake")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.primary.opacity(0.85))
-
-                Spacer()
-
-                // Close button
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundColor(.secondary)
-                    .frame(width: 18, height: 18)
-            }
-            .padding(.horizontal, 12)
-            .padding(.top, 10)
-            .padding(.bottom, 6)
-
-            // Suggestion button - highlight extends to popover edges on hover
-            // contentShape ensures entire row is clickable, not just the text
             Button(action: onApply) {
-                Text(suggestion)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(isHovered ? .white : .primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .contentShape(Rectangle())
+                HStack {
+                    Text(suggestion)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(colors.link)
+                    Spacer()
+                    if let shortcutDescription {
+                        Text(shortcutDescription)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(colors.textTertiary)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .background(isHovered ? Color.accentColor : Color.clear)
+            .background(isHovered ? colors.primarySubtle : Color.clear)
             .contentShape(Rectangle())
-            .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    isHovered = hovering
-                }
+            .onHover { isHovered = $0 }
+            .overlay(alignment: .leading) {
+                TutorialRightCallout(text: "Click to apply")
             }
 
-            // Action bar
-            HStack(spacing: 6) {
-                // Ignore button
-                TutorialActionButton(icon: "eye.slash", tooltip: "Ignore")
-
-                // Ignore Rule button
-                TutorialActionButton(icon: "nosign", tooltip: "Ignore rule")
-
-                // Add to Dictionary
-                TutorialActionButton(icon: "text.badge.plus", tooltip: "Add to dictionary")
-
+            HStack {
+                Label("More", systemImage: "ellipsis.circle")
+                    .font(.system(size: 12))
+                    .foregroundColor(colors.textSecondary)
                 Spacer()
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 14)
             .padding(.vertical, 6)
-            .background(
-                UnevenRoundedRectangle(
-                    topLeadingRadius: 0,
-                    bottomLeadingRadius: 10,
-                    bottomTrailingRadius: 10,
-                    topTrailingRadius: 0
-                )
-                .fill(Color.primary.opacity(0.03))
-            )
+            .background(colors.backgroundElevated.opacity(0.5))
         }
-        .background(
-            ZStack {
-                // Gradient background
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(
-                        LinearGradient(
-                            colors: isDarkMode
-                                ? [Color(white: 0.18), Color(white: 0.14)]
-                                : [Color(white: 0.99), Color(white: 0.96)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                // Subtle border
-                RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [
-                                Color.primary.opacity(0.15),
-                                Color.primary.opacity(0.05),
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ),
-                        lineWidth: 0.5
-                    )
-            }
-        )
-        .frame(width: 200)
+        .frame(width: 240)
+        .writingAssistantSurface(colors: colors)
         .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
-    }
-}
-
-// MARK: - Tutorial Action Button with Tooltip
-
-private struct TutorialActionButton: View {
-    let icon: String
-    let tooltip: String
-
-    @State private var isHovered = false
-    @State private var showTooltip = false
-    @State private var hoverTask: Task<Void, Never>?
-
-    var body: some View {
-        Image(systemName: icon)
-            .font(.system(size: 12))
-            .foregroundColor(.secondary)
-            .frame(width: 22, height: 22)
-            .onHover { hovering in
-                isHovered = hovering
-                hoverTask?.cancel()
-
-                if hovering {
-                    hoverTask = Task {
-                        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s delay
-                        if !Task.isCancelled {
-                            await MainActor.run { showTooltip = true }
-                        }
-                    }
-                } else {
-                    showTooltip = false
-                }
-            }
-            .overlay(alignment: .top) {
-                if showTooltip {
-                    Text(tooltip)
-                        .font(.system(size: 11))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.black.opacity(0.85))
-                        )
-                        .offset(y: -28)
-                        .fixedSize()
-                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                        .zIndex(1000)
-                }
-            }
-            .animation(.easeInOut(duration: 0.15), value: showTooltip)
     }
 }
 
@@ -1257,35 +1020,15 @@ private struct TutorialContextMenu: View {
         .overlay(alignment: .leading) {
             VStack(alignment: .trailing, spacing: 0) {
                 // Points to "Grammar Checking" section
-                HStack(spacing: 4) {
-                    TutorialCallout(text: "Global pause")
-                    TutorialPointingArrow(direction: .right)
-                }
-                .offset(x: -140, y: 30)
+                TutorialRightCallout(text: "Global pause")
+                    .offset(y: 30)
 
                 Spacer()
 
                 // Points to "App XY" section
-                HStack(spacing: 4) {
-                    TutorialCallout(text: "Per-app pause")
-                    TutorialPointingArrow(direction: .right)
-                }
-                .offset(x: -140, y: -50)
+                TutorialRightCallout(text: "Per-app pause")
+                    .offset(y: -50)
             }
-        }
-        // "Click to continue" instruction at bottom - styled like TutorialCallout
-        .overlay(alignment: .bottom) {
-            Text("Click anywhere to continue")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.accentColor)
-                        .shadow(color: Color.accentColor.opacity(0.3), radius: 4, y: 2)
-                )
-                .offset(y: 40)
         }
         .onTapGesture {
             onDismiss()
@@ -1337,6 +1080,8 @@ private struct TutorialMenuItem: View {
 
 // MARK: - Tutorial Callout
 
+private let tutorialCalloutTargetGap: CGFloat = 8
+
 private struct TutorialCallout: View {
     let text: String
 
@@ -1358,6 +1103,20 @@ private struct TutorialCallout: View {
                     .shadow(color: Color.accentColor.opacity(0.3), radius: 4, y: 2)
             )
             .fixedSize()
+    }
+}
+
+private struct TutorialRightCallout: View {
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            TutorialCallout(text: text)
+            TutorialPointingArrow(direction: .right)
+        }
+        .fixedSize()
+        .frame(width: 0, alignment: .trailing)
+        .offset(x: -tutorialCalloutTargetGap)
     }
 }
 
@@ -1517,10 +1276,10 @@ private struct TutorialDragDemo: View {
         colorScheme == .dark
     }
 
-    private let indicatorLength: CGFloat = 144 // Length along the edge (4 sections × 36px)
-    private let indicatorThickness: CGFloat = 36 // Thickness perpendicular to edge
+    private let indicatorLength = UIConstants.capsuleSectionHeight * 3
+    private let indicatorThickness = UIConstants.capsuleWidth
     private let windowHeight: CGFloat = 200
-    private let borderGuideWidth: CGFloat = 40 // Wide gradient band like real implementation
+    private let borderGuideWidth = UIConstants.borderGuideWidth
     private let edgePadding: CGFloat = 4
 
     /// Border guide color - subtle gray matching real implementation
@@ -1764,21 +1523,17 @@ private struct TutorialIndicatorDraggable: View {
         colorScheme == .dark
     }
 
-    private var grammarColor: Color {
-        Color(red: 0.95, green: 0.35, blue: 0.25)
-    }
-
     private var styleColor: Color {
-        isDarkMode ? Color(red: 0.95, green: 0.3, blue: 0.75) : Color(red: 0.6, green: 0.2, blue: 0.85)
+        AppColors(for: colorScheme).style
     }
 
     private var textGenColor: Color {
-        isDarkMode ? Color(red: 0.3, green: 0.7, blue: 1.0) : Color(red: 0.15, green: 0.5, blue: 0.8)
+        AppColors(for: colorScheme).primary
     }
 
-    private let sectionSize: CGFloat = 36
+    private let sectionSize = UIConstants.capsuleSectionHeight
     private let sectionCount: CGFloat = 3
-    private let cornerRadius: CGFloat = 18
+    private let cornerRadius = UIConstants.capsuleCornerRadius
 
     private var separatorColor: Color {
         isDarkMode ? Color.white.opacity(0.15) : Color.black.opacity(0.1)
@@ -1814,7 +1569,7 @@ private struct TutorialIndicatorDraggable: View {
                 HStack(spacing: 0) {
                     Image(systemName: "checkmark")
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.green)
+                        .foregroundColor(Color(nsColor: .systemGreen))
                         .frame(width: sectionSize, height: sectionSize)
 
                     Image(systemName: "sparkles")
@@ -1822,7 +1577,7 @@ private struct TutorialIndicatorDraggable: View {
                         .foregroundColor(styleColor.opacity(0.85))
                         .frame(width: sectionSize, height: sectionSize)
 
-                    Image(systemName: "pencil.line")
+                    Image(systemName: UIConstants.composeIconName)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(textGenColor)
                         .frame(width: sectionSize, height: sectionSize)
@@ -1841,7 +1596,7 @@ private struct TutorialIndicatorDraggable: View {
                 VStack(spacing: 0) {
                     Image(systemName: "checkmark")
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.green)
+                        .foregroundColor(Color(nsColor: .systemGreen))
                         .frame(width: sectionSize, height: sectionSize)
 
                     Image(systemName: "sparkles")
@@ -1849,7 +1604,7 @@ private struct TutorialIndicatorDraggable: View {
                         .foregroundColor(styleColor.opacity(0.85))
                         .frame(width: sectionSize, height: sectionSize)
 
-                    Image(systemName: "pencil.line")
+                    Image(systemName: UIConstants.composeIconName)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(textGenColor)
                         .frame(width: sectionSize, height: sectionSize)
