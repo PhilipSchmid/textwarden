@@ -53,7 +53,31 @@ class TextMonitor: ObservableObject {
     private var observer: AXObserver?
 
     /// Current UI element being monitored
-    var monitoredElement: AXUIElement?
+    var monitoredElement: AXUIElement? {
+        didSet {
+            guard E2EStateReporter.isEnabled else { return }
+            guard let monitoredElement else {
+                monitoredElementRole = nil
+                return
+            }
+
+            var roleValue: CFTypeRef?
+            let result = AXUIElementCopyAttributeValue(
+                monitoredElement,
+                kAXRoleAttribute as CFString,
+                &roleValue
+            )
+            monitoredElementRole = result == .success ? roleValue as? String : nil
+        }
+    }
+
+    /// Cached only for the opt-in E2E snapshot to avoid repeated AX reads while polling.
+    private(set) var monitoredElementRole: String?
+
+    /// Most recent Accessibility notification received from the monitored application.
+    private(set) var lastAccessibilityEvent: String?
+    private(set) var lastAccessibilityEventAt: Date?
+    private(set) var lastAccessibilityEventElementRole: String?
 
     /// Debounce timer for text changes
     private var debounceTimer: Timer?
@@ -123,6 +147,21 @@ class TextMonitor: ObservableObject {
     private var focusSettlingStartTime: CFAbsoluteTime = 0
 
     // MARK: - Monitoring Control
+
+    fileprivate func recordAccessibilityEvent(_ event: String, element: AXUIElement) {
+        guard E2EStateReporter.isEnabled else { return }
+
+        lastAccessibilityEvent = event
+        lastAccessibilityEventAt = Date()
+
+        var roleValue: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(
+            element,
+            kAXRoleAttribute as CFString,
+            &roleValue
+        )
+        lastAccessibilityEventElementRole = result == .success ? roleValue as? String : nil
+    }
 
     /// Start monitoring an application
     func startMonitoring(processID: pid_t, bundleIdentifier: String, appName: String) {
@@ -1106,6 +1145,8 @@ private func axObserverCallback(
 
     // Dispatch to main actor since TextMonitor is @MainActor isolated
     Task { @MainActor in
+        monitor.recordAccessibilityEvent(notificationName, element: element)
+
         // CRITICAL: Check watchdog BEFORE doing ANYTHING with AX
         // If this app is blocklisted due to slow AX, skip all processing
         // Note: currentContext access must happen on MainActor

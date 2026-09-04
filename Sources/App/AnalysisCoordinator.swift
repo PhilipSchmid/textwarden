@@ -136,6 +136,9 @@ class AnalysisCoordinator: ObservableObject {
     /// Cancellables for Combine subscriptions
     private var cancellables = Set<AnyCancellable>()
 
+    /// Opt-in, text-free state publisher used by external macOS E2E drivers.
+    private var e2eStateReporter: E2EStateReporter?
+
     /// Track sentences with pending simplification requests (by range location)
     private var pendingSimplificationRequests = Set<Int>()
 
@@ -460,6 +463,9 @@ class AnalysisCoordinator: ObservableObject {
         setupTypingCallback()
         setupIndicatorCallbacks()
         setupOverlayStateMachine()
+        e2eStateReporter = E2EStateReporter.startIfEnabled { [weak self] in
+            self?.makeE2EState()
+        }
         // Window position monitoring will be started when we begin monitoring an app
     }
 
