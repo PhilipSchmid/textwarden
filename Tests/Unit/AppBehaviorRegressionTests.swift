@@ -350,6 +350,7 @@ final class AppBehaviorRegressionTests: XCTestCase {
     /// Slack MUST have these exact quirks - changing them will break text replacement
     func testSlackCriticalConfiguration() {
         let behavior = AppBehaviorRegistry.shared.behavior(for: "com.tinyspeck.slackmacgap")
+        let configuration = AppRegistry.shared.configuration(for: "com.tinyspeck.slackmacgap")
 
         // Required quirks
         XCTAssertTrue(behavior.knownQuirks.contains(.hasSlackFormatPreservingReplacement),
@@ -368,6 +369,8 @@ final class AppBehaviorRegressionTests: XCTestCase {
         // Scroll hide must be disabled
         XCTAssertFalse(behavior.scrollBehavior.hideOnScrollStart,
                        "Slack MUST NOT hide on scroll start")
+        XCTAssertTrue(configuration.features.delaysAXNotifications,
+                      "Slack MUST re-read text after keyboard activity settles")
     }
 
     /// Microsoft Word MUST have these exact quirks
@@ -392,11 +395,14 @@ final class AppBehaviorRegressionTests: XCTestCase {
     /// Microsoft PowerPoint MUST have these exact quirks
     func testPowerPointCriticalConfiguration() {
         let behavior = AppBehaviorRegistry.shared.behavior(for: "com.microsoft.Powerpoint")
+        let configuration = AppRegistry.shared.configuration(for: "com.microsoft.Powerpoint")
 
         XCTAssertTrue(behavior.knownQuirks.contains(.requiresFocusPasteReplacement),
                       "PowerPoint MUST have focus-paste replacement")
         XCTAssertFalse(behavior.usesUTF16TextIndices,
                        "PowerPoint MUST NOT use UTF-16 indices")
+        XCTAssertTrue(configuration.features.delaysAXNotifications,
+                      "PowerPoint MUST re-read notes after keyboard activity settles")
     }
 
     /// Microsoft Outlook MUST have these exact quirks

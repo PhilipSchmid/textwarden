@@ -216,7 +216,7 @@ extension AppConfiguration {
             requiresTypingPause: true,
             supportsFormattedText: true,
             childElementTraversal: true,
-            delaysAXNotifications: false, // Slack sends AX notifications immediately
+            delaysAXNotifications: true, // Re-read after typing because Slack notifications can be early or missing
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: true, // Electron byte offsets are fragile
             defersTextExtraction: false,
@@ -772,9 +772,9 @@ extension AppConfiguration {
             requiresTypingPause: false,
             supportsFormattedText: true,
             childElementTraversal: false,
-            delaysAXNotifications: false,
+            delaysAXNotifications: true, // Notes can change without an AXValueChanged notification
             focusBouncesDuringPaste: false,
-            requiresFullReanalysisAfterReplacement: false, // PowerPoint AXValue updates reliably
+            requiresFullReanalysisAfterReplacement: false,
             defersTextExtraction: false,
             requiresFrameValidation: false,
             hasTextMarkerIndexOffset: false
