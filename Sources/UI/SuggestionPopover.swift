@@ -1832,49 +1832,19 @@ struct StylePopoverContentView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let suggestion = popover.currentStyleSuggestion {
-                // Header row with category and close button (Tahoe style)
-                HStack(alignment: .center, spacing: 8) {
-                    // Indicator dot uses the suggestion's semantic category color.
-                    Circle()
-                        .fill(accentColor)
-                        .frame(width: 8, height: 8)
-                        .shadow(color: accentColor.opacity(0.4), radius: 3, x: 0, y: 0)
-                        .accessibilityHidden(true)
-
-                    // Header label
-                    Text(headerText)
-                        .font(.system(size: baseTextSize * 0.85, weight: .semibold))
-                        .foregroundColor(colors.textPrimary.opacity(0.85))
-                        .accessibilityAddTraits(.isHeader)
-
-                    Spacer()
-
-                    if suggestion.isReadabilitySuggestion {
-                        Text(suggestion.targetAudience.map { "\($0) audience" } ?? "Readability")
-                            .font(.system(size: baseTextSize * 0.75, weight: .medium))
-                            .foregroundColor(colors.textTertiary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(
-                                Capsule()
-                                    .fill(accentColor.opacity(0.15))
-                            )
-                    }
-
-                    // Close button
-                    Button(action: { popover.hide() }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(colors.textTertiary)
-                            .frame(width: 18, height: 18)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Close (⌥Esc)")
-                    .accessibilityLabel(suggestion.isReadabilitySuggestion ? "Close clarity suggestion" : "Close style suggestion")
-                }
-                .padding(.horizontal, 14)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
+                WritingAssistantHeader(
+                    title: headerText,
+                    accentColor: accentColor,
+                    colors: colors,
+                    textSize: baseTextSize * 0.85,
+                    badge: suggestion.isReadabilitySuggestion
+                        ? suggestion.targetAudience.map { "\($0) audience" } ?? "Readability"
+                        : nil,
+                    closeAccessibilityLabel: suggestion.isReadabilitySuggestion
+                        ? "Close clarity suggestion"
+                        : "Close style suggestion",
+                    onClose: { popover.hide() }
+                )
 
                 // Content area
                 VStack(alignment: .leading, spacing: 10) {
@@ -2190,33 +2160,7 @@ struct StylePopoverContentView: View {
                     .accessibilityLabel("No style suggestions to display")
             }
         }
-        // Tahoe-style background: subtle gradient with refined border
-        .background(
-            ZStack {
-                // Gradient background
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(
-                        LinearGradient(
-                            colors: [colors.backgroundGradientTop, colors.backgroundGradientBottom],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                // Subtle inner border for definition
-                RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [
-                                colors.border.opacity(0.5),
-                                colors.border.opacity(0.2),
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ),
-                        lineWidth: 0.5
-                    )
-            }
-        )
+        .writingAssistantSurface(colors: colors)
         // Fixed width, vertical sizing to content
         .frame(width: 400)
         .fixedSize(horizontal: false, vertical: true)
