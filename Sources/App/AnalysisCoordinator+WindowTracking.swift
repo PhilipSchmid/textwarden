@@ -751,12 +751,15 @@ extension AnalysisCoordinator {
         var pid: pid_t = 0
         guard AXUIElementGetPid(element, &pid) == .success else { return nil }
 
+        // Match the element's actual window. A process can keep another window on-screen
+        // after the monitored compose/editor window is minimized or closed.
+        let elementWindowFrame = AccessibilityBridge.getWindowFrame(element)
+
         let options = CGWindowListOption(arrayLiteral: .optionOnScreenOnly)
         guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
             return nil
         }
 
-        // Find the frontmost window for this PID
         for windowInfo in windowList {
             if let windowPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
                windowPID == pid,
@@ -766,7 +769,16 @@ extension AnalysisCoordinator {
                 let y = boundsDict["Y"] ?? 0
                 let width = boundsDict["Width"] ?? 0
                 let height = boundsDict["Height"] ?? 0
-                return CGRect(x: x, y: y, width: width, height: height)
+                let frame = CGRect(x: x, y: y, width: width, height: height)
+
+                if let elementWindowFrame {
+                    let tolerance: CGFloat = 50
+                    guard abs(frame.width - elementWindowFrame.width) < tolerance,
+                          abs(frame.height - elementWindowFrame.height) < tolerance
+                    else { continue }
+                }
+
+                return frame
             }
         }
 
