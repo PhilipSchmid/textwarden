@@ -114,6 +114,10 @@ final class AppBehaviorRegistryTests: XCTestCase {
             behavior.knownQuirks.contains(.transientAXGeometry),
             "Mail should retry transient AX geometry failures"
         )
+        XCTAssertTrue(
+            behavior.knownQuirks.contains(.hasFocusBounceProtection),
+            "Mail should recover its authoritative editor after transient focus events"
+        )
     }
 
     func testMailUsesUTF16Indices() {

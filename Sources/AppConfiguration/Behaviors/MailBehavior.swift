@@ -63,6 +63,7 @@ struct MailBehavior: AppBehavior {
 
     let knownQuirks: Set<AppQuirk> = [
         .focusBouncesDuringPaste,
+        .hasFocusBounceProtection,
         .transientAXGeometry,
         .requiresBrowserStyleReplacement,
         .requiresFullReanalysisAfterReplacement,
