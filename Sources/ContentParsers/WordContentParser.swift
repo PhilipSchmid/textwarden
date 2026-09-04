@@ -46,20 +46,50 @@ class WordContentParser: ContentParser {
 
         Logger.debug("WordContentParser: extractText called for element with role: \(role)", category: Logger.accessibility)
 
-        // Use AXValue to get the document text
-        // Note: AXValue is preferred for simple text extraction as it's faster than AXStringForRange.
-        // AXBoundsForRange and AXStringForRange work reliably on Word 16.104+ (tested Dec 2024).
+        // Word exposes one AXTextArea per page in multi-page documents. AXValue then contains
+        // only that page's visible slice, while AXStringForRange still returns the full document.
         var valueRef: CFTypeRef?
-        if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
-           let text = valueRef as? String,
-           !text.isEmpty
+        AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef)
+        let visibleText = valueRef as? String
+
+        var characterCountRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &characterCountRef) == .success,
+           let characterCount = characterCountRef as? Int,
+           Self.needsFullDocumentText(visibleText: visibleText, characterCount: characterCount)
         {
-            Logger.debug("WordContentParser: extractText - got AXValue (\(text.count) chars)", category: Logger.accessibility)
-            return text
+            var range = CFRange(location: 0, length: characterCount)
+            if let rangeValue = AXValueCreate(.cfRange, &range) {
+                var stringRef: CFTypeRef?
+                if AXUIElementCopyParameterizedAttributeValue(
+                    element,
+                    "AXStringForRange" as CFString,
+                    rangeValue,
+                    &stringRef
+                ) == .success,
+                    let text = stringRef as? String,
+                    !text.isEmpty
+                {
+                    Logger.debug("WordContentParser: extractText - got full document via AXStringForRange (\(text.count) chars)", category: Logger.accessibility)
+                    return text
+                }
+            }
+        }
+
+        if let visibleText, !visibleText.isEmpty {
+            Logger.debug("WordContentParser: extractText - got AXValue (\(visibleText.count) chars)", category: Logger.accessibility)
+            return visibleText
         }
 
         Logger.debug("WordContentParser: extractText - no text found via AXValue", category: Logger.accessibility)
         return nil
+    }
+
+    static func needsFullDocumentText(visibleText: String?, characterCount: Int) -> Bool {
+        characterCount > (visibleText?.utf16.count ?? 0)
+    }
+
+    func shouldMonitorElement(_ element: AXUIElement) -> Bool {
+        Self.isDocumentElement(element)
     }
 
     // MARK: - Element Filtering
