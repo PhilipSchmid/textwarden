@@ -2105,12 +2105,23 @@ class AnalysisCoordinator: ObservableObject {
         // clear overlays immediately instead of preserving stale state.
         let appBehavior = AppBehaviorRegistry.shared.behavior(for: appConfig)
         if appBehavior.knownQuirks.contains(.webBasedRendering), !currentErrors.isEmpty {
-            // Check if the last monitored element is still in the AX tree
-            // If not, this is a page navigation (e.g., Slack Huddles) and we should clear
-            if let lastElement = errorOverlay.lastMonitoredElement,
-               AccessibilityBridge.findWindowElement(lastElement) == nil
-            {
-                Logger.debug("AnalysisCoordinator: Web-based app - element no longer in AX tree, clearing overlays", category: Logger.analysis)
+            let lastElement = errorOverlay.lastMonitoredElement
+            let elementWindow = lastElement.flatMap(AccessibilityBridge.findWindowElement)
+            let focusedWindowMatches: Bool? = if let lastElement, let context = textMonitor.currentContext {
+                AccessibilityBridge.isElement(lastElement, inFocusedWindowOf: context)
+            } else {
+                nil
+            }
+            let focusedWebAreaMatches: Bool? = if let lastElement, let context = textMonitor.currentContext {
+                AccessibilityBridge.isElement(lastElement, inFocusedWebAreaOf: context)
+            } else {
+                nil
+            }
+
+            // A detached element, focused window change, or web-document change cannot safely
+            // retain old presentation. Nil stays fail-open for incomplete accessibility trees.
+            if elementWindow == nil || focusedWindowMatches == false || focusedWebAreaMatches == false {
+                Logger.debug("AnalysisCoordinator: Web-based app - previous editor is no longer active, clearing overlays", category: Logger.analysis)
                 // Fall through to hide overlays below
             } else {
                 Logger.debug("AnalysisCoordinator: Web-based app - preserving overlays while focus is away (errors: \(currentErrors.count))", category: Logger.analysis)

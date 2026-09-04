@@ -67,6 +67,7 @@ struct NotionBehavior: AppBehavior {
         .virtualizedText(visibilityPercentage: 50),
         .webBasedRendering,
         .batchedAXNotifications,
+        .hasFocusBounceProtection,
         .requiresBrowserStyleReplacement,
         .requiresFullReanalysisAfterReplacement,
     ]
