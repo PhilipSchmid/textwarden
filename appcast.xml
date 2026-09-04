@@ -3,6 +3,39 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.4.0</title>
+            <pubDate>Fri, 04 Sep 2026 21:25:16 +0200</pubDate>
+            <sparkle:version>34</sparkle:version>
+            <sparkle:shortVersionString>0.4.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;docs: document ChatGPT and Codex coverage (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/40c59fc"&gt;&lt;code&gt;40c59fc&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;test: add reusable AX geometry diagnostics (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/40097a4"&gt;&lt;code&gt;40097a4&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: support current ChatGPT desktop builds (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/741c11c"&gt;&lt;code&gt;741c11c&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix(teams): position single-line errors (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/d953061"&gt;&lt;code&gt;d953061&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix(replacement): handle browser and Catalyst editors (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/eca337a"&gt;&lt;code&gt;eca337a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix(accessibility): retain focus change events (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/2ebf016"&gt;&lt;code&gt;2ebf016&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;test(e2e): expand guarded macOS app controls (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/dd5f31f"&gt;&lt;code&gt;dd5f31f&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix(e2e): keep snapshots live during popovers (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/a7f3abd"&gt;&lt;code&gt;a7f3abd&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;test(e2e): expand native macOS driver (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/02d639b"&gt;&lt;code&gt;02d639b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: recheck Slack and PowerPoint edits (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/cdcfcdb"&gt;&lt;code&gt;cdcfcdb&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix(overlays): match the monitored window (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/61cbb0b"&gt;&lt;code&gt;61cbb0b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix(accessibility): track the active editor (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/7b95a65"&gt;&lt;code&gt;7b95a65&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;test(e2e): add native macOS input driver (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/27d9073"&gt;&lt;code&gt;27d9073&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix(word): preserve editor across focus bounces (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/7ffd464"&gt;&lt;code&gt;7ffd464&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix(word): read complete document content (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/7084477"&gt;&lt;code&gt;7084477&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;docs: add macOS live E2E canaries (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/4f664b5"&gt;&lt;code&gt;4f664b5&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;test: add macOS E2E state oracle (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/3d4520e"&gt;&lt;code&gt;3d4520e&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: stabilize Mail focus and popover state (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/82388eb"&gt;&lt;code&gt;82388eb&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix(mail): recover overlays after AX timing races (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/7104ba8"&gt;&lt;code&gt;7104ba8&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix(mail): support AI Compose selection and insert (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/b917791"&gt;&lt;code&gt;b917791&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix(ui): keep overlays above monitored apps (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/2086adb"&gt;&lt;code&gt;2086adb&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;chore: release v0.3.4 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/05d438f"&gt;&lt;code&gt;05d438f&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.4.0/TextWarden-0.4.0-Universal.dmg" length="23075772" type="application/octet-stream" sparkle:edSignature="StYHymlO3EY9r4ooKmdOEaXrPhWJQekTKLKIM+60N+Vzwk8hVyTDcc5KYqdZm2/4RdJogOxsDBNlcyKLV7bDDQ=="/>
+        </item>
+        <item>
             <title>0.3.4</title>
             <pubDate>Wed, 02 Sep 2026 10:41:46 +0200</pubDate>
             <sparkle:version>33</sparkle:version>
