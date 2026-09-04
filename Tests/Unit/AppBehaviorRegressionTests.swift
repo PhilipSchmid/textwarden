@@ -168,6 +168,29 @@ final class AppBehaviorRegressionTests: XCTestCase {
         }
     }
 
+    func testMessengerCatalystClassificationMatchesNativeImplementation() {
+        let messages = ApplicationContext.application(
+            bundleIdentifier: MessengerBehavior.messagesBundleID,
+            processID: 1,
+            name: "Messages"
+        )
+        let whatsApp = ApplicationContext.application(
+            bundleIdentifier: MessengerBehavior.whatsAppBundleID,
+            processID: 2,
+            name: "WhatsApp"
+        )
+        let telegram = ApplicationContext.application(
+            bundleIdentifier: MessengerBehavior.telegramBundleID,
+            processID: 3,
+            name: "Telegram"
+        )
+
+        XCTAssertTrue(messages.isMacCatalystApp)
+        XCTAssertTrue(whatsApp.isMacCatalystApp)
+        XCTAssertFalse(telegram.isMacCatalystApp)
+        XCTAssertFalse(telegram.requiresKeyboardReplacement)
+    }
+
     // MARK: - Timing Profile Validation Tests
 
     /// All timing values must be positive

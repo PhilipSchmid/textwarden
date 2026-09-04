@@ -1619,7 +1619,7 @@ extension AnalysisCoordinator {
         }
 
         // Electron apps with child element traversal (Slack, Teams, Notion, Claude, etc.)
-        if appConfig.features.childElementTraversal {
+        if appConfig.features.childElementTraversal, !context.isBrowser {
             Logger.trace("\(appName): Looking for text to select (\(targetText.count) chars)", category: Logger.analysis)
 
             // For single-character whitespace/punctuation errors, searching for just " " is ambiguous.
@@ -2540,6 +2540,33 @@ extension AnalysisCoordinator {
             return
         }
 
+        // Browser editors can stop exposing their focused element while TextWarden's
+        // non-activating popover handles the click. Restore host focus before selection.
+        if let targetApp = NSRunningApplication.runningApplications(
+            withBundleIdentifier: context.bundleIdentifier
+        ).first {
+            targetApp.activate()
+            _ = AXUIElementSetAttributeValue(
+                element,
+                kAXFocusedAttribute as CFString,
+                kCFBooleanTrue
+            )
+            let appElement = AXUIElementCreateApplication(context.processID)
+            for _ in 0 ..< 10 {
+                var focusedElement: CFTypeRef?
+                if AXUIElementCopyAttributeValue(
+                    appElement,
+                    kAXFocusedUIElementAttribute as CFString,
+                    &focusedElement
+                ) == .success, focusedElement != nil {
+                    break
+                }
+                try? await Task.sleep(
+                    nanoseconds: UInt64(TimingConstants.shortDelay * 1_000_000_000)
+                )
+            }
+        }
+
         let selectionResult = selectTextForReplacement(targetText: targetText, fallbackRange: fallbackRange, element: element, context: context)
 
         // Handle selection result
@@ -2864,24 +2891,18 @@ extension AnalysisCoordinator {
 
         try? await Task.sleep(nanoseconds: UInt64(TimingConstants.longDelay * 1_000_000_000))
 
-        // Mac Catalyst: use direct keyboard typing
-        if context.isMacCatalystApp {
-            await performCatalystDirectTyping(suggestion: suggestion, currentError: currentError, pasteboard: pasteboard, originalString: originalString)
-            return
-        }
-
         // Apps with position 0 paragraph creation bug: use direct typing to avoid it
         // Some Chromium contenteditable apps create new paragraphs when pasting at position 0
         let appBehavior = AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier)
         if appBehavior.knownQuirks.contains(.requiresDirectTypingAtPosition0), currentError.start == 0 {
             Logger.debug("Position 0: Using direct typing to avoid paragraph bug", category: Logger.analysis)
-            await performCatalystDirectTyping(suggestion: suggestion, currentError: currentError, pasteboard: pasteboard, originalString: originalString)
+            await performDirectTyping(suggestion: suggestion, currentError: currentError, pasteboard: pasteboard, originalString: originalString)
             return
         }
 
         // Try menu paste first (unless skipped for Catalyst/focus-paste apps)
         var pasteSucceeded = false
-        let skipMenuPaste = context.isMacCatalystApp || usesFocusPasteReplacement
+        let skipMenuPaste = context.isBrowser || context.isMacCatalystApp || usesFocusPasteReplacement
 
         if !skipMenuPaste, let app = targetApp {
             let appElement = AXUIElementCreateApplication(app.processIdentifier)
@@ -2943,10 +2964,10 @@ extension AnalysisCoordinator {
         Logger.debug("Browser text replacement complete", category: Logger.analysis)
     }
 
-    /// Handle Mac Catalyst apps using direct keyboard typing instead of clipboard paste
+    /// Handle apps that explicitly require direct keyboard typing instead of clipboard paste.
     @MainActor
-    private func performCatalystDirectTyping(suggestion: String, currentError: GrammarErrorModel, pasteboard: NSPasteboard, originalString: String?) async {
-        Logger.debug("Mac Catalyst: Using direct keyboard typing", category: Logger.analysis)
+    private func performDirectTyping(suggestion: String, currentError: GrammarErrorModel, pasteboard: NSPasteboard, originalString: String?) async {
+        Logger.debug("Using direct keyboard typing", category: Logger.analysis)
         typeTextDirectly(suggestion)
 
         if let original = originalString {
