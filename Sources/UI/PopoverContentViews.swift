@@ -8,6 +8,90 @@
 
 import SwiftUI
 
+// MARK: - Shared Writing Assistant Chrome
+
+struct WritingAssistantHeader: View {
+    let title: String
+    let accentColor: Color
+    let colors: AppColors
+    let textSize: CGFloat
+    var badge: String?
+    var resetAction: (() -> Void)?
+    var resetAccessibilityLabel = "Reset"
+    let closeAccessibilityLabel: String
+    let onClose: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(accentColor)
+                .frame(width: 8, height: 8)
+                .accessibilityHidden(true)
+
+            Text(title)
+                .font(.system(size: textSize, weight: .semibold))
+                .foregroundColor(colors.textPrimary.opacity(0.9))
+                .lineLimit(1)
+                .accessibilityAddTraits(.isHeader)
+
+            Spacer()
+
+            if let badge {
+                Text(badge)
+                    .font(.system(size: textSize * 0.88, weight: .medium))
+                    .foregroundColor(accentColor)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(accentColor.opacity(0.12)))
+            }
+
+            if let resetAction {
+                Button(action: resetAction) {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(colors.textTertiary)
+                        .frame(width: 24, height: 24)
+                }
+                .buttonStyle(.plain)
+                .help(resetAccessibilityLabel)
+                .accessibilityLabel(resetAccessibilityLabel)
+            }
+
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(colors.textTertiary)
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+            .help("Close (⌥Esc)")
+            .accessibilityLabel(closeAccessibilityLabel)
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+    }
+}
+
+extension View {
+    func writingAssistantSurface(colors: AppColors) -> some View {
+        background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(
+                    LinearGradient(
+                        colors: [colors.backgroundGradientTop, colors.backgroundGradientBottom],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(colors.border.opacity(0.55), lineWidth: 0.5)
+                )
+        )
+    }
+}
+
 // MARK: - Readability Tips Helper
 
 /// Static helper to generate improvement tips based on readability score
@@ -799,39 +883,14 @@ struct PopoverContentView: View {
                 // Note: AI enhancement for readability errors is disabled, so we don't show loading state
                 // Readability errors without suggestions just display the error message like any other error
 
-                // Header row with category and close button
-                HStack(alignment: .center, spacing: 8) {
-                    // Category indicator dot with subtle glow
-                    Circle()
-                        .fill(colors.categoryColor(for: error.category))
-                        .frame(width: 8, height: 8)
-                        .shadow(color: colors.categoryColor(for: error.category).opacity(0.4), radius: 3, x: 0, y: 0)
-
-                    // Category label
-                    Text(formatCategory(error.category))
-                        .font(.system(size: captionTextSize, weight: .semibold))
-                        .foregroundColor(colors.textPrimary.opacity(0.85))
-                        .lineLimit(1)
-
-                    Spacer()
-
-                    // Close button with hover effect
-                    Button(action: { popover.hide() }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(colors.textTertiary)
-                            .frame(width: 18, height: 18)
-                            .background(
-                                Circle()
-                                    .fill(colors.backgroundRaised.opacity(0.01))
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .keyboardShortcut(.escape, modifiers: .option)
-                }
-                .padding(.horizontal, 12)
-                .padding(.top, 10)
-                .padding(.bottom, 6)
+                WritingAssistantHeader(
+                    title: formatCategory(error.category),
+                    accentColor: colors.categoryColor(for: error.category),
+                    colors: colors,
+                    textSize: captionTextSize,
+                    closeAccessibilityLabel: "Close grammar suggestion",
+                    onClose: { popover.hide() }
+                )
 
                 // Status message (shown when action fails)
                 if let statusMessage = popover.statusMessage {
@@ -963,34 +1022,31 @@ struct PopoverContentView: View {
                         .padding(.vertical, 4)
 
                     } else if !validSuggestions.isEmpty {
-                        // Vertical list of clickable suggestions with Tahoe-style hover
-                        // Non-hovered state uses link color + underline to hint at interactivity
+                        // Vertical list of clickable suggestions
                         ForEach(Array(validSuggestions.prefix(5).enumerated()), id: \.offset) { index, suggestion in
                             Button(action: { popover.applySuggestion(suggestion) }) {
-                                Text(suggestion)
-                                    .font(.system(size: bodyTextSize, weight: .medium))
-                                    .foregroundColor(
-                                        hoveredSuggestion == suggestion
-                                            ? colors.link // Bright link color on hover
-                                            : colors.link // High-contrast link color
-                                    )
-                                    .underline(
-                                        hoveredSuggestion != suggestion, // Show underline when NOT hovered
-                                        pattern: .dot, // Dotted underline for subtle hint
-                                        color: colors.linkSubtle
-                                    )
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .fill(hoveredSuggestion == suggestion ? colors.link.opacity(0.15) : Color.clear)
-                                    )
+                                HStack(spacing: 8) {
+                                    Text(suggestion)
+                                        .font(.system(size: bodyTextSize, weight: .medium))
+                                        .foregroundColor(colors.link)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                                    Text("⌘\(index + 1)")
+                                        .font(.system(size: captionTextSize - 1, weight: .medium))
+                                        .foregroundColor(colors.textTertiary)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 7)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(hoveredSuggestion == suggestion ? colors.link.opacity(0.12) : Color.clear)
+                                )
                             }
                             .buttonStyle(.plain)
                             .disabled(popover.isProcessing)
                             .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
                             .help("Apply suggestion (⌘\(index + 1))")
+                            .accessibilityLabel("Replace with \(suggestion)")
                             .onHover { isHovered in
                                 withAnimation(.easeInOut(duration: 0.15)) {
                                     hoveredSuggestion = isHovered ? suggestion : nil
@@ -1008,39 +1064,28 @@ struct PopoverContentView: View {
                     }
                 }
 
-                // Action bar with icon buttons and navigation (subtle background)
+                // Action bar with secondary actions and navigation
                 HStack(spacing: 6) {
-                    // Ignore button
-                    Button(action: { popover.dismissError() }) {
-                        Image(systemName: "eye.slash")
-                            .font(.system(size: 12))
-                            .foregroundColor(colors.textSecondary)
-                            .frame(width: 22, height: 22)
-                    }
-                    .buttonStyle(.plain)
-                    .hoverTooltip("Ignore")
-
-                    // Ignore Rule button
-                    Button(action: { popover.ignoreRule() }) {
-                        Image(systemName: "nosign")
-                            .font(.system(size: 12))
-                            .foregroundColor(colors.textSecondary)
-                            .frame(width: 22, height: 22)
-                    }
-                    .buttonStyle(.plain)
-                    .hoverTooltip("Ignore rule")
-
-                    // Add to Dictionary (for spelling only)
-                    if error.category == "Spelling" {
-                        Button(action: { popover.addToDictionary() }) {
-                            Image(systemName: "text.badge.plus")
-                                .font(.system(size: 12))
-                                .foregroundColor(colors.textSecondary)
-                                .frame(width: 22, height: 22)
+                    Menu {
+                        Button("Ignore suggestion", systemImage: "eye.slash") {
+                            popover.dismissError()
                         }
-                        .buttonStyle(.plain)
-                        .hoverTooltip("Add to dictionary")
+                        Button("Ignore this rule", systemImage: "nosign") {
+                            popover.ignoreRule()
+                        }
+                        if error.category == "Spelling" {
+                            Button("Add to dictionary", systemImage: "text.badge.plus") {
+                                popover.addToDictionary()
+                            }
+                        }
+                    } label: {
+                        Label("More", systemImage: "ellipsis.circle")
+                            .font(.system(size: captionTextSize, weight: .medium))
+                            .foregroundColor(colors.textSecondary)
                     }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .accessibilityLabel("More suggestion actions")
 
                     Spacer()
 
@@ -1058,7 +1103,7 @@ struct PopoverContentView: View {
                                 Image(systemName: "chevron.left")
                                     .font(.system(size: 10, weight: .semibold))
                                     .foregroundColor(colors.textSecondary)
-                                    .frame(width: 18, height: 18)
+                                    .frame(width: 24, height: 24)
                             }
                             .buttonStyle(.plain)
                             .keyboardShortcut(.upArrow, modifiers: [])
@@ -1071,7 +1116,7 @@ struct PopoverContentView: View {
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 10, weight: .semibold))
                                     .foregroundColor(colors.textSecondary)
-                                    .frame(width: 18, height: 18)
+                                    .frame(width: 24, height: 24)
                             }
                             .buttonStyle(.plain)
                             .keyboardShortcut(.downArrow, modifiers: [])
@@ -1098,35 +1143,9 @@ struct PopoverContentView: View {
                     .accessibilityLabel("No grammar errors to display")
             }
         }
-        // Tahoe-style background: subtle gradient with refined border
-        .background(
-            ZStack {
-                // Gradient background
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(
-                        LinearGradient(
-                            colors: [colors.backgroundGradientTop, colors.backgroundGradientBottom],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                // Subtle inner border for definition
-                RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [
-                                colors.border.opacity(0.5),
-                                colors.border.opacity(0.2),
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ),
-                        lineWidth: 0.5
-                    )
-            }
-        )
+        .writingAssistantSurface(colors: colors)
         // Width: 400 for indicator with sentence context (match style popover), 300 for AI rephrase/copy fallback, 220 for inline
-        .frame(width: popover.openedFromIndicator && !popover.sourceText.isEmpty ? 400 : (isAIRephraseError || popover.showingCopyFallback ? 300 : 220))
+        .frame(width: popover.openedFromIndicator && !popover.sourceText.isEmpty ? 400 : (isAIRephraseError || popover.showingCopyFallback ? 300 : 240))
         .fixedSize(horizontal: false, vertical: true)
         .colorScheme(effectiveColorScheme)
         .accessibilityElement(children: .contain)

@@ -717,57 +717,32 @@ struct TextGenerationContentView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header
+        VStack(alignment: .leading, spacing: 0) {
             headerView
 
-            // Selected text context (if any)
-            if hasSelectedText {
-                selectedTextSection
+            VStack(alignment: .leading, spacing: 12) {
+                if hasSelectedText {
+                    selectedTextSection
+                    quickActionsSection
+                }
+
+                instructionSection
+                stylePicker
+                generateButton
+
+                if let error = popover.errorMessage {
+                    errorView(error)
+                }
+
+                resultSection
+                actionButtons
             }
-
-            // Quick actions (when text is selected)
-            if hasSelectedText {
-                quickActionsSection
-            }
-
-            // Instruction input
-            instructionSection
-
-            // Style selection chips
-            styleChips
-
-            // Generate button
-            generateButton
-
-            // Error message
-            if let error = popover.errorMessage {
-                errorView(error)
-            }
-
-            // Generated result section (always visible area)
-            resultSection
-
-            // Action buttons
-            actionButtons
+            .padding(.horizontal, 14)
+            .padding(.bottom, 14)
         }
-        .padding(14)
         .frame(width: 400)
         .fixedSize(horizontal: false, vertical: true)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(
-                    LinearGradient(
-                        colors: [colors.backgroundGradientTop, colors.backgroundGradientBottom],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(colors.border, lineWidth: 0.5)
-                )
-        )
+        .writingAssistantSurface(colors: colors)
         .colorScheme(effectiveColorScheme)
     }
 
@@ -780,40 +755,17 @@ struct TextGenerationContentView: View {
     }
 
     private var headerView: some View {
-        HStack(spacing: 6) {
-            // Blue indicator dot
-            Circle()
-                .fill(Color.blue)
-                .frame(width: 8, height: 8)
-                .shadow(color: Color.blue.opacity(0.4), radius: 3, x: 0, y: 0)
-
-            Text("AI Compose")
-                .font(.system(size: baseTextSize - 1, weight: .medium))
-                .foregroundColor(colors.textSecondary)
-
-            Spacer()
-
-            // Clear button - only show when there's content to clear
-            if hasClearableContent {
-                Button(action: { popover.clear() }) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(colors.textTertiary)
-                        .frame(width: 18, height: 18)
-                }
-                .buttonStyle(.plain)
-                .help("Clear instruction and results")
-            }
-
-            Button(action: { popover.cancel() }) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundColor(colors.textTertiary)
-                    .frame(width: 18, height: 18)
-            }
-            .buttonStyle(.plain)
-            .help("Close")
-        }
+        WritingAssistantHeader(
+            title: "AI Compose",
+            accentColor: colors.primary,
+            colors: colors,
+            textSize: baseTextSize * 0.85,
+            badge: "On-device",
+            resetAction: hasClearableContent ? { popover.clear() } : nil,
+            resetAccessibilityLabel: "Clear instruction and results",
+            closeAccessibilityLabel: "Close AI Compose",
+            onClose: { popover.cancel() }
+        )
     }
 
     private var selectedTextSection: some View {
@@ -843,15 +795,15 @@ struct TextGenerationContentView: View {
 
     private var quickActionsSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Quick actions")
+            Text("Start with")
                 .font(.system(size: baseTextSize - 2, weight: .medium))
                 .foregroundColor(colors.textSecondary)
 
             // Transformation actions only (style is controlled by style chips)
             HStack(spacing: 6) {
-                quickActionButton("Shorten", icon: "arrow.down.right.and.arrow.up.left", instruction: "Make this text shorter and more concise")
-                quickActionButton("Extend", icon: "arrow.up.left.and.arrow.down.right", instruction: "Expand this text with more detail")
-                quickActionButton("Simplify", icon: "text.alignleft", instruction: "Simplify this text to make it easier to understand")
+                quickActionButton("Shorter", icon: "arrow.down.right.and.arrow.up.left", instruction: "Make this text shorter and more concise")
+                quickActionButton("More detail", icon: "arrow.up.left.and.arrow.down.right", instruction: "Expand this text with more detail")
+                quickActionButton("Simpler", icon: "text.alignleft", instruction: "Simplify this text to make it easier to understand")
             }
         }
     }
@@ -868,90 +820,71 @@ struct TextGenerationContentView: View {
                     .font(.system(size: baseTextSize - 2, weight: .medium))
             }
             .foregroundColor(popover.isGenerating ? colors.textTertiary : colors.textSecondary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
             .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.plain)
-        .background(
-            RoundedRectangle(cornerRadius: 5)
-                .fill(colors.backgroundElevated)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 5)
-                .stroke(colors.border, lineWidth: 0.5)
-        )
+        .buttonStyle(.bordered)
+        .controlSize(.small)
         .disabled(popover.isGenerating)
+        .accessibilityLabel("\(title) selected text")
     }
 
     private var instructionSection: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Instruction")
+            Text("What should change?")
                 .font(.system(size: baseTextSize - 2, weight: .medium))
                 .foregroundColor(colors.textSecondary)
 
-            TextEditor(text: $popover.instruction)
-                .font(.system(size: baseTextSize))
-                .scrollContentBackground(.hidden)
-                .padding(8)
-                .frame(height: 90)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(colors.backgroundElevated)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(colors.border, lineWidth: 0.5)
-                )
-                .disabled(popover.isGenerating)
-                .onKeyPress(phases: .down) { press in
-                    if press.key == .return, !press.modifiers.contains(.shift) {
-                        popover.generate()
-                        return .handled // Enter triggers Generate
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $popover.instruction)
+                    .font(.system(size: baseTextSize))
+                    .scrollContentBackground(.hidden)
+                    .padding(8)
+                    .frame(height: 90)
+                    .disabled(popover.isGenerating)
+                    .onKeyPress(phases: .down) { press in
+                        if press.key == .return, !press.modifiers.contains(.shift) {
+                            popover.generate()
+                            return .handled // Enter triggers Generate
+                        }
+                        return .ignored // Let other keys through (including Shift+Enter)
                     }
-                    return .ignored // Let other keys through (including Shift+Enter)
+
+                if popover.instruction.isEmpty {
+                    Text(hasSelectedText ? "Describe how to rewrite the selection" : "Describe what you want to write")
+                        .font(.system(size: baseTextSize))
+                        .foregroundColor(colors.textTertiary)
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 11)
+                        .allowsHitTesting(false)
                 }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(colors.backgroundElevated)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 7)
+                    .stroke(colors.border, lineWidth: 0.5)
+            )
         }
     }
 
-    private var styleChips: some View {
+    private var stylePicker: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Style")
                 .font(.system(size: baseTextSize - 2, weight: .medium))
                 .foregroundColor(colors.textSecondary)
 
-            // Single-select style chips
-            HStack(spacing: 4) {
+            Picker("Style", selection: $popover.selectedStyle) {
                 ForEach(WritingStyle.allCases, id: \.self) { style in
-                    styleChip(style)
+                    Text(style.displayName).tag(style)
                 }
             }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .disabled(popover.isGenerating)
+            .accessibilityLabel("Writing style")
         }
-    }
-
-    private func styleChip(_ style: WritingStyle) -> some View {
-        let isSelected = popover.selectedStyle == style
-
-        return Button(action: {
-            popover.selectedStyle = style
-        }) {
-            Text(style.displayName)
-                .font(.system(size: baseTextSize - 2, weight: isSelected ? .semibold : .regular))
-                .foregroundColor(isSelected ? .white : colors.textSecondary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.plain)
-        .background(
-            RoundedRectangle(cornerRadius: 5)
-                .fill(isSelected ? colors.primary : colors.backgroundElevated)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 5)
-                .stroke(isSelected ? colors.primary : colors.border, lineWidth: 0.5)
-        )
-        .disabled(popover.isGenerating)
     }
 
     private var generateButton: some View {
@@ -976,18 +909,12 @@ struct TextGenerationContentView: View {
                             .opacity(0.7)
                     }
                 }
-                .foregroundColor(.white)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 5)
             }
-            .buttonStyle(.plain)
-            .background(
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(popover.isGenerating || popover.instruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        ? colors.primary.opacity(0.5)
-                        : colors.primary)
-            )
+            .buttonStyle(.borderedProminent)
+            .tint(colors.primary)
+            .controlSize(.regular)
             .disabled(popover.isGenerating || popover.instruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityHint("Press Return to generate")
         }
     }
 
@@ -1090,33 +1017,20 @@ struct TextGenerationContentView: View {
             Button(action: { popover.cancel() }) {
                 Text("Cancel")
                     .font(.system(size: baseTextSize - 1, weight: .medium))
-                    .foregroundColor(colors.textSecondary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
             }
-            .buttonStyle(.plain)
-            .background(
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(colors.backgroundElevated)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 5)
-                    .stroke(colors.border, lineWidth: 0.5)
-            )
+            .buttonStyle(.bordered)
+            .controlSize(.large)
 
             // Insert button
             Button(action: { popover.insertGeneratedText() }) {
                 Text("Insert")
                     .font(.system(size: baseTextSize - 1, weight: .medium))
-                    .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
             }
-            .buttonStyle(.plain)
-            .background(
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(popover.generatedResult != nil ? colors.success : colors.success.opacity(0.5))
-            )
+            .buttonStyle(.borderedProminent)
+            .tint(colors.primary)
+            .controlSize(.large)
             .disabled(popover.generatedResult == nil)
         }
     }
