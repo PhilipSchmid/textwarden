@@ -6,6 +6,7 @@
 //  Includes grammar error context, unified content, and popover layout views.
 //
 
+import KeyboardShortcuts
 import SwiftUI
 
 // MARK: - Shared Writing Assistant Chrome
@@ -875,6 +876,18 @@ struct PopoverContentView: View {
         }
     }
 
+    private func quickApplyShortcutDescription(at index: Int) -> String? {
+        guard preferences.keyboardShortcutsEnabled,
+              KeyboardShortcuts.Name.quickApplyShortcuts.indices.contains(index),
+              let shortcut = KeyboardShortcuts.getShortcut(
+                  for: KeyboardShortcuts.Name.quickApplyShortcuts[index]
+              )
+        else {
+            return nil
+        }
+        return shortcut.description
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let error = popover.currentError {
@@ -1001,6 +1014,7 @@ struct PopoverContentView: View {
                         // AI rephrase - show before/after
                         let originalText = validSuggestions[0]
                         let rephraseText = validSuggestions[1]
+                        let shortcutDescription = quickApplyShortcutDescription(at: 0)
 
                         VStack(alignment: .leading, spacing: 6) {
                             Text(originalText)
@@ -1010,13 +1024,23 @@ struct PopoverContentView: View {
                                 .lineLimit(2)
 
                             Button(action: { popover.applySuggestion(rephraseText) }) {
-                                Text(rephraseText)
-                                    .font(.system(size: bodyTextSize, weight: .medium))
-                                    .foregroundColor(colors.primary)
-                                    .lineLimit(3)
+                                HStack(spacing: 8) {
+                                    Text(rephraseText)
+                                        .font(.system(size: bodyTextSize, weight: .medium))
+                                        .foregroundColor(colors.primary)
+                                        .lineLimit(3)
+
+                                    Spacer()
+
+                                    if let shortcutDescription {
+                                        Text(shortcutDescription)
+                                            .font(.system(size: captionTextSize - 1, weight: .medium))
+                                            .foregroundColor(colors.textTertiary)
+                                    }
+                                }
                             }
                             .buttonStyle(.plain)
-                            .keyboardShortcut("1", modifiers: .command)
+                            .help(shortcutDescription.map { "Apply suggestion (\($0))" } ?? "Apply suggestion")
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
@@ -1024,6 +1048,8 @@ struct PopoverContentView: View {
                     } else if !validSuggestions.isEmpty {
                         // Vertical list of clickable suggestions
                         ForEach(Array(validSuggestions.prefix(5).enumerated()), id: \.offset) { index, suggestion in
+                            let shortcutDescription = quickApplyShortcutDescription(at: index)
+
                             Button(action: { popover.applySuggestion(suggestion) }) {
                                 HStack(spacing: 8) {
                                     Text(suggestion)
@@ -1031,9 +1057,11 @@ struct PopoverContentView: View {
                                         .foregroundColor(colors.link)
                                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                                    Text("⌘\(index + 1)")
-                                        .font(.system(size: captionTextSize - 1, weight: .medium))
-                                        .foregroundColor(colors.textTertiary)
+                                    if let shortcutDescription {
+                                        Text(shortcutDescription)
+                                            .font(.system(size: captionTextSize - 1, weight: .medium))
+                                            .foregroundColor(colors.textTertiary)
+                                    }
                                 }
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 7)
@@ -1044,8 +1072,7 @@ struct PopoverContentView: View {
                             }
                             .buttonStyle(.plain)
                             .disabled(popover.isProcessing)
-                            .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
-                            .help("Apply suggestion (⌘\(index + 1))")
+                            .help(shortcutDescription.map { "Apply suggestion (\($0))" } ?? "Apply suggestion")
                             .accessibilityLabel("Replace with \(suggestion)")
                             .onHover { isHovered in
                                 withAnimation(.easeInOut(duration: 0.15)) {
