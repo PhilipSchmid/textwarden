@@ -73,8 +73,9 @@ Poll for state convergence instead of sleeping for a fixed duration. Always comp
 | WhatsApp | Visually verified Message Yourself draft, New Chat search-to-composer focus recovery, correction, and no-send cleanup. |
 | Proton Mail | Recipientless rich-text body, structural-newline handling, correction, and draft cleanup. |
 | Claude Desktop | Temporarily activated from its preserved pause state, unsent-prompt analysis, correction, cleanup, and exact preference restoration. |
+| ChatGPT / Codex | Unsent-prompt analysis, one-line and wrapped geometry, emoji offsets, correction, focus changes, window movement and resizing, and minimize/restore. |
 
-Configured applications that were unavailable in this environment remain unvalidated: ChatGPT, Perplexity, Webex, Safari Technology Preview, Firefox, Edge, Opera, and Vivaldi. The installed `/Applications/ChatGPT.app` is Codex (`com.openai.codex`), not the configured ChatGPT application (`com.openai.chat`).
+Configured applications that were unavailable in this environment remain unvalidated: Perplexity, Webex, Safari Technology Preview, Firefox, Edge, Opera, and Vivaldi.
 
 ## Native macOS input driver
 
@@ -86,6 +87,7 @@ xcrun swift Scripts/macos-e2e-driver.swift editors BUNDLE_ID
 xcrun swift Scripts/macos-e2e-driver.swift focused-element-state BUNDLE_ID
 xcrun swift Scripts/macos-e2e-driver.swift check-editor BUNDLE_ID "exact value"
 xcrun swift Scripts/macos-e2e-driver.swift check-editor-trimmed BUNDLE_ID "rich-text value"
+xcrun swift Scripts/macos-e2e-driver.swift focused-geometry BUNDLE_ID LOCATION LENGTH
 xcrun swift Scripts/macos-e2e-driver.swift click-editor BUNDLE_ID X Y
 xcrun swift Scripts/macos-e2e-driver.swift paste-app BUNDLE_ID "draft only"
 xcrun swift Scripts/macos-e2e-driver.swift clear-editor BUNDLE_ID EXPECTED_UTF16_LENGTH

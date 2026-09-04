@@ -6,7 +6,7 @@ TextWarden is a private macOS grammar checker and writing assistant. These guide
 
 | Application | TextWarden integration |
 |-------------|------------------------|
-| [ChatGPT](CHATGPT.md) | Direct range positioning in the ChatGPT prompt editor |
+| [ChatGPT](CHATGPT.md) | ChatGPT and Codex prompt editors, with direct or child-frame positioning |
 | [Claude](CLAUDE.md) | Child-element positioning in Claude Desktop |
 | [Apple Mail](MAIL.md) | Subject and compose-body checking with WebKit-aware replacement |
 | [Apple Messages](MESSAGES.md) | Catalyst positioning and conversation-change handling |
