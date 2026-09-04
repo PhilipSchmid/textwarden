@@ -133,6 +133,7 @@ final class AppBehaviorRegistryTests: XCTestCase {
 
         XCTAssertTrue(behavior.knownQuirks.contains(.requiresBrowserStyleReplacement))
         XCTAssertTrue(behavior.knownQuirks.contains(.requiresFocusPasteReplacement))
+        XCTAssertTrue(behavior.knownQuirks.contains(.hasFocusBounceProtection))
         XCTAssertFalse(behavior.knownQuirks.contains(.webBasedRendering), "Word is native, not web-based")
     }
 
