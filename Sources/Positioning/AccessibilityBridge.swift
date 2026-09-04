@@ -1219,6 +1219,143 @@ enum AccessibilityBridge {
         return nil
     }
 
+    /// Returns nil when either window cannot be resolved. Callers can then preserve their
+    /// existing fail-open behavior for apps with incomplete accessibility trees.
+    static func isElement(_ element: AXUIElement, inFocusedWindowOf context: ApplicationContext) -> Bool? {
+        guard let call = AXClient.perform(
+            bundleID: context.bundleIdentifier,
+            attribute: "AXFocusedWindow",
+            operation: { () -> Bool? in
+                guard let elementWindow = findWindowElement(element) else { return nil }
+
+                let appElement = AXUIElementCreateApplication(context.processID)
+                var focusedWindowValue: CFTypeRef?
+                guard AXUIElementCopyAttributeValue(
+                    appElement,
+                    kAXFocusedWindowAttribute as CFString,
+                    &focusedWindowValue
+                ) == .success,
+                    let focusedWindowValue,
+                    CFGetTypeID(focusedWindowValue) == AXUIElementGetTypeID()
+                else {
+                    return nil
+                }
+
+                let focusedWindow = unsafeBitCast(focusedWindowValue, to: AXUIElement.self)
+                return CFEqual(elementWindow, focusedWindow)
+            }
+        ) else {
+            return nil
+        }
+
+        return call.value
+    }
+
+    /// Returns nil when the application's focused element cannot be resolved.
+    static func isFocusedElement(_ element: AXUIElement, in context: ApplicationContext) -> Bool? {
+        guard let call = AXClient.perform(
+            bundleID: context.bundleIdentifier,
+            attribute: "AXFocusedUIElement",
+            operation: { () -> Bool? in
+                let appElement = AXUIElementCreateApplication(context.processID)
+                var focusedElementValue: CFTypeRef?
+                guard AXUIElementCopyAttributeValue(
+                    appElement,
+                    kAXFocusedUIElementAttribute as CFString,
+                    &focusedElementValue
+                ) == .success,
+                    let focusedElementValue,
+                    CFGetTypeID(focusedElementValue) == AXUIElementGetTypeID()
+                else {
+                    return nil
+                }
+
+                let focusedElement = unsafeBitCast(focusedElementValue, to: AXUIElement.self)
+                return CFEqual(element, focusedElement)
+            }
+        ) else {
+            return nil
+        }
+
+        return call.value
+    }
+
+    /// Returns nil when the focused element or either web-area ancestor cannot be resolved.
+    static func isElement(_ element: AXUIElement, inFocusedWebAreaOf context: ApplicationContext) -> Bool? {
+        guard let call = AXClient.perform(
+            bundleID: context.bundleIdentifier,
+            attribute: "AXFocusedUIElement/AXParent/AXRole",
+            operation: { () -> Bool? in
+                guard let elementWebArea = findAncestor(element, withRole: "AXWebArea") else { return nil }
+
+                let appElement = AXUIElementCreateApplication(context.processID)
+                var focusedElementValue: CFTypeRef?
+                guard AXUIElementCopyAttributeValue(
+                    appElement,
+                    kAXFocusedUIElementAttribute as CFString,
+                    &focusedElementValue
+                ) == .success,
+                    let focusedElementValue,
+                    CFGetTypeID(focusedElementValue) == AXUIElementGetTypeID()
+                else {
+                    return nil
+                }
+
+                let focusedElement = unsafeBitCast(focusedElementValue, to: AXUIElement.self)
+                guard let focusedWebArea = findAncestor(focusedElement, withRole: "AXWebArea") else { return nil }
+                return CFEqual(elementWebArea, focusedWebArea)
+            }
+        ) else {
+            return nil
+        }
+        return call.value
+    }
+
+    /// Returns nil when either element has no web-area ancestor. Native editors and incomplete
+    /// accessibility trees keep their existing fail-open behavior.
+    static func isElement(_ element: AXUIElement, inSameWebAreaAs otherElement: AXUIElement) -> Bool? {
+        let bundleID = AXClient.bundleIdentifier(for: element)
+        guard let call = AXClient.perform(
+            bundleID: bundleID,
+            attribute: "AXParent/AXRole",
+            operation: { () -> Bool? in
+                guard let elementWebArea = findAncestor(element, withRole: "AXWebArea"),
+                      let otherWebArea = findAncestor(otherElement, withRole: "AXWebArea")
+                else {
+                    return nil
+                }
+                return CFEqual(elementWebArea, otherWebArea)
+            }
+        ) else {
+            return nil
+        }
+        return call.value
+    }
+
+    private static func findAncestor(_ element: AXUIElement, withRole expectedRole: String) -> AXUIElement? {
+        var currentElement: AXUIElement? = element
+        for _ in 0 ..< 20 {
+            guard let current = currentElement else { return nil }
+
+            var roleValue: CFTypeRef?
+            if AXUIElementCopyAttributeValue(current, kAXRoleAttribute as CFString, &roleValue) == .success,
+               roleValue as? String == expectedRole
+            {
+                return current
+            }
+
+            var parentValue: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parentValue) == .success,
+                  let parentValue,
+                  CFGetTypeID(parentValue) == AXUIElementGetTypeID()
+            else {
+                return nil
+            }
+            currentElement = unsafeBitCast(parentValue, to: AXUIElement.self)
+        }
+        return nil
+    }
+
     /// Get the frame of the window containing the given element
     /// Returns frame in Quartz coordinates (top-left origin)
     /// - Parameter element: The element whose window frame to get

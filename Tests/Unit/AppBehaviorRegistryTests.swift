@@ -89,6 +89,7 @@ final class AppBehaviorRegistryTests: XCTestCase {
 
         XCTAssertTrue(behavior.knownQuirks.contains(.chromiumEmojiWidthBug))
         XCTAssertTrue(behavior.knownQuirks.contains(.webBasedRendering))
+        XCTAssertTrue(behavior.knownQuirks.contains(.hasFocusBounceProtection))
         XCTAssertTrue(behavior.knownQuirks.contains(.requiresBrowserStyleReplacement))
     }
 

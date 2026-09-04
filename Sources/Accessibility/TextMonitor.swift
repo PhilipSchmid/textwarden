@@ -34,6 +34,18 @@ enum FocusedElementPolicy {
     ) -> Bool {
         hasFocusBounceProtection && disposition == .searchForAlternative
     }
+
+    static func shouldWaitForEditableWebFocus(
+        disposition: FocusedElementDisposition,
+        hasFocusBounceProtection: Bool,
+        hasWebBasedRendering: Bool
+    ) -> Bool {
+        disposition == .searchForAlternative && hasFocusBounceProtection && hasWebBasedRendering
+    }
+
+    static func shouldClearForConfirmedContextChange(matches: Bool?) -> Bool {
+        matches == false
+    }
 }
 
 /// Monitors text changes in applications via Accessibility API
@@ -370,6 +382,17 @@ class TextMonitor: ObservableObject {
             return
         }
 
+        let behavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
+        if FocusedElementPolicy.shouldWaitForEditableWebFocus(
+            disposition: disposition,
+            hasFocusBounceProtection: behavior.knownQuirks.contains(.hasFocusBounceProtection),
+            hasWebBasedRendering: behavior.knownQuirks.contains(.webBasedRendering)
+        ) {
+            Logger.debug("TextMonitor: Waiting for editable web focus instead of scanning the full window", category: Logger.accessibility)
+            clearMonitoringAndHideOverlays()
+            return
+        }
+
         // CRITICAL FIX: AXFocusedUIElement might return the wrong element (e.g., sidebar in Slack)
         // If the focused element is not editable, search for editable text fields
         let needsAlternativeElement = disposition == .searchForAlternative
@@ -532,6 +555,28 @@ class TextMonitor: ObservableObject {
         )
         let behavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
 
+        if disposition == .useFocusedElement,
+           behavior.knownQuirks.contains(.hasFocusBounceProtection),
+           let context = currentContext,
+           FocusedElementPolicy.shouldClearForConfirmedContextChange(
+               matches: AccessibilityBridge.isFocusedElement(element, in: context)
+           )
+        {
+            Logger.debug("TextMonitor: Focus notification is stale - refreshing authoritative focus", category: Logger.accessibility)
+            monitorFocusedElement(in: AXUIElementCreateApplication(context.processID))
+            return
+        }
+
+        if let existingElement = monitoredElement,
+           behavior.knownQuirks.contains(.webBasedRendering),
+           FocusedElementPolicy.shouldClearForConfirmedContextChange(
+               matches: AccessibilityBridge.isElement(existingElement, inSameWebAreaAs: element)
+           )
+        {
+            Logger.debug("TextMonitor: Focus moved to another web document - clearing previous editor", category: Logger.accessibility)
+            clearMonitoringAndHideOverlays()
+        }
+
         if FocusedElementPolicy.shouldRefreshFromAuthoritativeFocus(
             disposition: disposition,
             hasFocusBounceProtection: behavior.knownQuirks.contains(.hasFocusBounceProtection)
@@ -547,7 +592,11 @@ class TextMonitor: ObservableObject {
             if let existingElement = monitoredElement,
                isEditableElement(existingElement),
                isValidContentElement(existingElement, bundleID: bundleID),
-               hasValidAccessibleFrame(existingElement)
+               hasValidAccessibleFrame(existingElement),
+               let context = currentContext,
+               !FocusedElementPolicy.shouldClearForConfirmedContextChange(
+                   matches: AccessibilityBridge.isFocusedElement(existingElement, in: context)
+               )
             {
                 Logger.debug("TextMonitor: Preserving valid editor after transient focus event", category: Logger.accessibility)
                 return
@@ -612,6 +661,30 @@ class TextMonitor: ObservableObject {
             return
         }
 
+        if let context = currentContext,
+           let existingElement = monitoredElement,
+           FocusedElementPolicy.shouldClearForConfirmedContextChange(
+               matches: AccessibilityBridge.isElement(
+                   existingElement,
+                   inFocusedWindowOf: context
+               )
+           )
+        {
+            Logger.debug("TextMonitor: Focus moved to another window - clearing previous editor", category: Logger.accessibility)
+            clearMonitoringAndHideOverlays()
+        }
+
+        if let existingElement = monitoredElement,
+           let bundleID = currentContext?.bundleIdentifier,
+           AppBehaviorRegistry.shared.behavior(for: bundleID).knownQuirks.contains(.webBasedRendering),
+           FocusedElementPolicy.shouldClearForConfirmedContextChange(
+               matches: AccessibilityBridge.isElement(existingElement, inSameWebAreaAs: element)
+           )
+        {
+            Logger.debug("TextMonitor: Focus moved to another web document - clearing previous editor", category: Logger.accessibility)
+            clearMonitoringAndHideOverlays()
+        }
+
         // For browsers, skip UI elements like search fields, URL bars, find-in-page
         // These are not meaningful for grammar checking - we want actual web content
         if let bundleID = currentContext?.bundleIdentifier,
@@ -666,38 +739,6 @@ class TextMonitor: ObservableObject {
                     onTextChange?("", context)
                 }
                 return
-            }
-        }
-
-        // For PowerPoint, focus bounces rapidly between elements when clicking in the Notes area.
-        // PowerPoint only exposes the Notes section via accessibility API (slide text boxes are not accessible).
-        // If we already have a valid monitored Notes element (AXTextArea), preserve it when focus
-        // bounces to non-editable elements (AXGroup, AXUnknown, AXScrollArea, etc.).
-        if let bundleID = currentContext?.bundleIdentifier,
-           bundleID == "com.microsoft.Powerpoint",
-           let existingElement = monitoredElement
-        {
-            // Check if new element is the Notes AXTextArea
-            var newRoleRef: CFTypeRef?
-            AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &newRoleRef)
-            let newRole = newRoleRef as? String ?? ""
-
-            // Only AXTextArea is valid for Notes - PowerPoint doesn't expose slide text via accessibility
-            let newIsNotesTextArea = (newRole == kAXTextAreaRole as String)
-
-            if newIsNotesTextArea {
-                // New element is also a Notes text area - allow the switch
-                Logger.debug("TextMonitor: PowerPoint - new AXTextArea detected, allowing switch", category: Logger.accessibility)
-                // Continue with normal monitoring
-            } else {
-                // New element is NOT editable - this is focus bounce noise, preserve existing
-                var existingValueRef: CFTypeRef?
-                if AXUIElementCopyAttributeValue(existingElement, kAXValueAttribute as CFString, &existingValueRef) == .success,
-                   existingValueRef != nil
-                {
-                    Logger.debug("TextMonitor: PowerPoint focus bounce - preserving existing monitoring", category: Logger.accessibility)
-                    return // Keep monitoring existing element, ignore this focus change
-                }
             }
         }
 
@@ -1015,7 +1056,13 @@ class TextMonitor: ObservableObject {
             }
         }
 
-        if let text = extractedText, !text.isEmpty {
+        if let text = extractedText {
+            if text.isEmpty {
+                Logger.debug("TextMonitor: Extracted empty text - clearing analysis", category: Logger.accessibility)
+                handleTextChange("")
+                return
+            }
+
             // Skip analyzing huge text buffers (terminals, logs, etc.)
             if text.count > maxTextLength {
                 Logger.debug("TextMonitor: Text too long (\(text.count) chars) - skipping analysis", category: Logger.accessibility)
@@ -1045,7 +1092,7 @@ class TextMonitor: ObservableObject {
             Logger.debug("TextMonitor: Handling text change (\(processedText.count) chars after preprocessing)", category: Logger.accessibility)
             handleTextChange(processedText)
         } else {
-            Logger.debug("TextMonitor: No text extracted or text is empty", category: Logger.accessibility)
+            Logger.debug("TextMonitor: No text extracted", category: Logger.accessibility)
         }
     }
 
@@ -1689,10 +1736,6 @@ extension TextMonitor {
             return isCompose
         }
 
-        // Note: WebEx filtering is handled by ContentParser.shouldMonitorElement()
-        // which is called earlier in monitorElement()
-
-        // For other apps, assume the element is valid
-        return true
+        return ContentParserFactory.shared.parser(for: bundleID).shouldMonitorElement(element)
     }
 }

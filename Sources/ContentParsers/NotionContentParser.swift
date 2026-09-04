@@ -91,6 +91,18 @@ class NotionContentParser: ContentParser {
         self.bundleIdentifier = bundleIdentifier
     }
 
+    func shouldMonitorElement(_ element: AXUIElement) -> Bool {
+        var roleRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef) == .success else {
+            return false
+        }
+        return Self.isEditableContentRole(roleRef as? String)
+    }
+
+    static func isEditableContentRole(_ role: String?) -> Bool {
+        role != "AXWebArea"
+    }
+
     /// Offset to add when mapping preprocessed error positions to original text
     var textReplacementOffset: Int {
         uiElementOffset

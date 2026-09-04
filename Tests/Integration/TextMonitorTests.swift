@@ -55,4 +55,39 @@ final class TextMonitorTests: XCTestCase {
             )
         )
     }
+
+    func testFocusProtectedWebAppsWaitForEditableFocusInsteadOfScanning() {
+        XCTAssertTrue(
+            FocusedElementPolicy.shouldWaitForEditableWebFocus(
+                disposition: .searchForAlternative,
+                hasFocusBounceProtection: true,
+                hasWebBasedRendering: true
+            )
+        )
+        XCTAssertFalse(
+            FocusedElementPolicy.shouldWaitForEditableWebFocus(
+                disposition: .useFocusedElement,
+                hasFocusBounceProtection: true,
+                hasWebBasedRendering: true
+            )
+        )
+        XCTAssertFalse(
+            FocusedElementPolicy.shouldWaitForEditableWebFocus(
+                disposition: .searchForAlternative,
+                hasFocusBounceProtection: false,
+                hasWebBasedRendering: true
+            )
+        )
+    }
+
+    func testContextChangeClearsOnlyWhenAXConfirmsMismatch() {
+        XCTAssertTrue(FocusedElementPolicy.shouldClearForConfirmedContextChange(matches: false))
+        XCTAssertFalse(FocusedElementPolicy.shouldClearForConfirmedContextChange(matches: true))
+        XCTAssertFalse(FocusedElementPolicy.shouldClearForConfirmedContextChange(matches: nil))
+    }
+
+    func testNotionRejectsTransientRootWebArea() {
+        XCTAssertFalse(NotionContentParser.isEditableContentRole("AXWebArea"))
+        XCTAssertTrue(NotionContentParser.isEditableContentRole("AXTextArea"))
+    }
 }
