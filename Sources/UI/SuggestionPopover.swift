@@ -1805,22 +1805,15 @@ struct StylePopoverContentView: View {
     /// Accent color for the current suggestion type
     private var accentColor: Color {
         popover.currentStyleSuggestion?.isReadabilitySuggestion == true
-            ? Color(nsColor: .systemPurple) // Violet for readability
-            : Color.purple // Purple for style
+            ? colors.clarity
+            : colors.style
     }
 
     /// Header text for the current suggestion type
     private var headerText: String {
         guard let suggestion = popover.currentStyleSuggestion else { return "Style suggestion" }
         if suggestion.isReadabilitySuggestion {
-            // Info-only mode (no AI suggestion available)
-            if suggestion.suggestedText.isEmpty {
-                return "Complex Sentence"
-            }
-            if let audience = suggestion.targetAudience {
-                return "Simplify for \(audience)"
-            }
-            return "Readability suggestion"
+            return suggestion.suggestedText.isEmpty ? "Hard to read" : "Clarity suggestion"
         }
         return "Style suggestion"
     }
@@ -1841,7 +1834,7 @@ struct StylePopoverContentView: View {
             if let suggestion = popover.currentStyleSuggestion {
                 // Header row with category and close button (Tahoe style)
                 HStack(alignment: .center, spacing: 8) {
-                    // Indicator dot with subtle glow (violet for readability, purple for style)
+                    // Indicator dot uses the suggestion's semantic category color.
                     Circle()
                         .fill(accentColor)
                         .frame(width: 8, height: 8)
@@ -1854,9 +1847,10 @@ struct StylePopoverContentView: View {
                         .foregroundColor(colors.textPrimary.opacity(0.85))
                         .accessibilityAddTraits(.isHeader)
 
-                    // Show readability score badge for readability suggestions
-                    if suggestion.isReadabilitySuggestion, let score = suggestion.readabilityScore {
-                        Text("Score: \(score)")
+                    Spacer()
+
+                    if suggestion.isReadabilitySuggestion {
+                        Text(suggestion.targetAudience.map { "\($0) audience" } ?? "Readability")
                             .font(.system(size: baseTextSize * 0.75, weight: .medium))
                             .foregroundColor(colors.textTertiary)
                             .padding(.horizontal, 6)
@@ -1867,8 +1861,6 @@ struct StylePopoverContentView: View {
                             )
                     }
 
-                    Spacer()
-
                     // Close button
                     Button(action: { popover.hide() }) {
                         Image(systemName: "xmark")
@@ -1878,7 +1870,7 @@ struct StylePopoverContentView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Close (⌥Esc)")
-                    .accessibilityLabel("Close style suggestion")
+                    .accessibilityLabel(suggestion.isReadabilitySuggestion ? "Close clarity suggestion" : "Close style suggestion")
                 }
                 .padding(.horizontal, 14)
                 .padding(.top, 12)
@@ -1948,35 +1940,57 @@ struct StylePopoverContentView: View {
                         .accessibilityElement(children: .combine)
                         .accessibilityLabel("Complex sentence: \(suggestion.originalText). \(suggestion.explanation)")
                     } else {
-                        // Normal mode: show diff view
-                        ScrollView {
-                            if !suggestion.diff.isEmpty {
-                                StyleDiffView(diff: suggestion.diff, showInline: true)
+                        if suggestion.isReadabilitySuggestion {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Original")
+                                    .font(.system(size: baseTextSize * 0.75, weight: .semibold))
+                                    .foregroundColor(colors.textTertiary)
+                                Text(suggestion.originalText)
                                     .font(.system(size: baseTextSize))
-                                    .textSelection(.enabled)
-                            } else {
-                                // Fallback for suggestions without diff data
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(suggestion.originalText)
+                                    .foregroundColor(colors.textPrimary.opacity(0.75))
+
+                                Divider()
+
+                                Text("Simpler version")
+                                    .font(.system(size: baseTextSize * 0.75, weight: .semibold))
+                                    .foregroundColor(accentColor)
+                                Text(suggestion.suggestedText)
+                                    .font(.system(size: baseTextSize))
+                                    .foregroundColor(colors.textPrimary)
+                            }
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("Original: \(suggestion.originalText). Simpler version: \(suggestion.suggestedText)")
+                        } else {
+                            ScrollView {
+                                if !suggestion.diff.isEmpty {
+                                    StyleDiffView(diff: suggestion.diff, showInline: true)
                                         .font(.system(size: baseTextSize))
-                                        .foregroundColor(.red.opacity(0.85))
-                                        .strikethrough(true, color: .red)
-                                    Text(suggestion.suggestedText)
-                                        .font(.system(size: baseTextSize))
-                                        .foregroundColor(.green)
+                                        .textSelection(.enabled)
+                                } else {
+                                    // Fallback for suggestions without diff data
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(suggestion.originalText)
+                                            .font(.system(size: baseTextSize))
+                                            .foregroundColor(.red.opacity(0.85))
+                                            .strikethrough(true, color: .red)
+                                        Text(suggestion.suggestedText)
+                                            .font(.system(size: baseTextSize))
+                                            .foregroundColor(.green)
+                                    }
                                 }
                             }
+                            .frame(maxHeight: 150)
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("Change from: \(suggestion.originalText), to: \(suggestion.suggestedText)")
                         }
-                        .frame(maxHeight: 150)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityLabel("Change from: \(suggestion.originalText), to: \(suggestion.suggestedText)")
 
-                        // Explanation
-                        Text(suggestion.explanation)
-                            .font(.system(size: baseTextSize * 0.9))
-                            .foregroundColor(colors.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityLabel("Explanation: \(suggestion.explanation)")
+                        if !suggestion.isReadabilitySuggestion {
+                            Text(suggestion.explanation)
+                                .font(.system(size: baseTextSize * 0.9))
+                                .foregroundColor(colors.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityLabel("Explanation: \(suggestion.explanation)")
+                        }
 
                         // Expandable readability tips (only for readability suggestions with a score)
                         if suggestion.isReadabilitySuggestion, let score = suggestion.readabilityScore {
@@ -2056,7 +2070,7 @@ struct StylePopoverContentView: View {
                                 HStack(spacing: 4) {
                                     Image(systemName: "checkmark")
                                         .font(.system(size: 11, weight: .semibold))
-                                    Text("Accept")
+                                    Text(suggestion.isReadabilitySuggestion ? "Replace" : "Accept")
                                         .font(.system(size: baseTextSize * 0.9, weight: .medium))
                                 }
                                 .foregroundColor(accentColor)
@@ -2069,8 +2083,8 @@ struct StylePopoverContentView: View {
                             }
                             .buttonStyle(.plain)
                             .fixedSize()
-                            .help("Accept this suggestion")
-                            .accessibilityLabel("Accept suggestion")
+                            .help(suggestion.isReadabilitySuggestion ? "Replace with the simpler version" : "Accept this suggestion")
+                            .accessibilityLabel(suggestion.isReadabilitySuggestion ? "Replace with simpler version" : "Accept suggestion")
                         }
 
                         // Reject menu and Retry button - hidden in fallback mode since we have Skip
@@ -2085,7 +2099,7 @@ struct StylePopoverContentView: View {
                                 HStack(spacing: 4) {
                                     Image(systemName: "xmark")
                                         .font(.system(size: 11, weight: .medium))
-                                    Text("Reject")
+                                    Text(suggestion.isReadabilitySuggestion ? "Dismiss" : "Reject")
                                         .font(.system(size: baseTextSize * 0.9, weight: .medium))
                                     Image(systemName: "chevron.down")
                                         .font(.system(size: 8, weight: .semibold))
@@ -2094,7 +2108,7 @@ struct StylePopoverContentView: View {
                             }
                             .menuStyle(.borderlessButton)
                             .fixedSize()
-                            .accessibilityLabel("Reject suggestion")
+                            .accessibilityLabel(suggestion.isReadabilitySuggestion ? "Dismiss clarity suggestion" : "Reject suggestion")
 
                             // Try Another button - regenerate style suggestion
                             Button(action: { popover.regenerateStyleSuggestion() }) {
@@ -2107,7 +2121,7 @@ struct StylePopoverContentView: View {
                                         Image(systemName: "arrow.clockwise")
                                             .font(.system(size: 11, weight: .medium))
                                     }
-                                    Text("Retry")
+                                    Text(suggestion.isReadabilitySuggestion ? "Try another" : "Retry")
                                         .font(.system(size: baseTextSize * 0.9, weight: .medium))
                                 }
                                 .foregroundColor(colors.textSecondary)
@@ -2115,8 +2129,8 @@ struct StylePopoverContentView: View {
                             .buttonStyle(.plain)
                             .fixedSize()
                             .disabled(popover.isRegenerating)
-                            .help("Generate alternative suggestion")
-                            .accessibilityLabel("Retry suggestion")
+                            .help(suggestion.isReadabilitySuggestion ? "Generate another simpler version" : "Generate alternative suggestion")
+                            .accessibilityLabel(suggestion.isReadabilitySuggestion ? "Try another simpler version" : "Retry suggestion")
                         }
 
                         Spacer()

@@ -3,7 +3,7 @@
 //  TextWarden
 //
 //  SwiftUI Canvas overlay for custom underline rendering
-//  Renders grammar (solid red), style (dotted purple), and readability (dashed purple) underlines
+//  Renders grammar (solid red), style (dotted purple), and readability (dashed blue) underlines
 //
 
 import SwiftUI
@@ -12,14 +12,16 @@ import SwiftUI
 enum SketchUnderlineCategory {
     case grammar // Red solid line
     case style // Purple dotted line
-    case readability // Purple dashed line
+    case readability // Blue dashed line
 
     var color: Color {
         switch self {
         case .grammar:
             .red
-        case .style, .readability:
+        case .style:
             .purple
+        case .readability:
+            .blue
         }
     }
 
@@ -27,8 +29,10 @@ enum SketchUnderlineCategory {
         switch self {
         case .grammar:
             .systemRed
-        case .style, .readability:
+        case .style:
             .systemPurple
+        case .readability:
+            .systemBlue
         }
     }
 }

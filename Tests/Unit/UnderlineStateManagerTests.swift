@@ -41,6 +41,26 @@ final class UnderlineStateManagerTests: XCTestCase {
         XCTAssertFalse(manager.currentState.hasContent)
     }
 
+    func testReadabilityUnderlineHitAreaIncludesPaintedLineOnlyAtVisibleSegments() {
+        let sentenceResult = SentenceReadabilityResult(
+            sentence: "A complex sentence",
+            range: NSRange(location: 0, length: 18),
+            score: 20,
+            wordCount: 3,
+            isComplex: true,
+            targetAudience: .general
+        )
+        let underline = ReadabilityUnderline(
+            bounds: CGRect(x: 10, y: 10, width: 180, height: 14),
+            firstSegmentBounds: [CGRect(x: 10, y: 10, width: 40, height: 14)],
+            lastSegmentBounds: [CGRect(x: 150, y: 10, width: 40, height: 14)],
+            sentenceResult: sentenceResult
+        )
+
+        XCTAssertTrue(underline.containsPointInVisibleArea(CGPoint(x: 30, y: 27)))
+        XCTAssertFalse(underline.containsPointInVisibleArea(CGPoint(x: 100, y: 17)))
+    }
+
     // MARK: - Atomic Update Tests
 
     func testUpdateAllSetsAllUnderlines() {

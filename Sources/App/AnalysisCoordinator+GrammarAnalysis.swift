@@ -321,7 +321,6 @@ extension AnalysisCoordinator {
         element: AXUIElement?
     ) {
         let errorsWithCachedAI = enhanceErrorsWithCachedAI(result.errors, sourceText: text)
-        applyFilters(to: errorsWithCachedAI, sourceText: text, element: element)
 
         // Record statistics
         let wordCount = text.split(separator: " ").count
@@ -374,6 +373,8 @@ extension AnalysisCoordinator {
             // Clear all readability suggestions since readability is disabled
             cleanupStaleReadabilitySuggestions(currentComplexRanges: [])
         }
+
+        applyFilters(to: errorsWithCachedAI, sourceText: text, element: element)
 
         Logger.debug("AnalysisCoordinator: Grammar analysis complete, UI updated", category: Logger.analysis)
 
