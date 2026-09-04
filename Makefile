@@ -101,6 +101,7 @@ test-swift: ## Run Swift tests (unit tests only, excludes performance benchmarks
 
 test-e2e-tools: ## Run E2E developer-tool tests
 	@python3 Scripts/e2e-state.py self-test
+	@swift Scripts/macos-e2e-driver.swift self-test
 
 ##@ Installation
 
