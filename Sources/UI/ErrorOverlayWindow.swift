@@ -233,10 +233,8 @@ class ErrorOverlayWindow: NSPanel {
 
             guard isInsideFrame else {
                 // Mouse left the window - clear hover state and fade underlines
-                if hoveredUnderline != nil {
-                    hoveredUnderline = nil
-                    stateManager.clearHoverState()
-                    onHoverEnd?()
+                if currentHoverTarget != nil || hoveredUnderline != nil {
+                    clearAllHoverStates()
                 }
 
                 // For web-based apps (Slack, Notion, Teams, etc.), DON'T fade underlines when mouse
@@ -324,7 +322,7 @@ class ErrorOverlayWindow: NSPanel {
                 )
             } else {
                 // No matches - clear all hover states
-                clearAllHoverStates(underlineView: underlineView, mouseLocation: mouseLocation)
+                clearAllHoverStates()
             }
         }
 
@@ -955,6 +953,8 @@ class ErrorOverlayWindow: NSPanel {
         // Cancel any pending hover timer
         hoverTimer?.invalidate()
         hoverTimer = nil
+        hoverSwitchDebounceTimer?.invalidate()
+        hoverSwitchDebounceTimer = nil
 
         // Stop Slack popover detection
         stopSlackPopoverDetection()
@@ -970,6 +970,8 @@ class ErrorOverlayWindow: NSPanel {
 
         // Clear local tracking variables
         hoveredUnderline = nil
+        currentHoverTarget = nil
+        isPopoverHovered = false
 
         // Clear locked highlight unless caller wants to preserve it
         // (e.g., during replacement mode to re-apply after underlines are recreated)
@@ -2136,7 +2138,7 @@ class ErrorOverlayWindow: NSPanel {
     }
 
     /// Clear all hover states when mouse leaves underline areas
-    private func clearAllHoverStates(underlineView _: UnderlineView, mouseLocation _: CGPoint) {
+    private func clearAllHoverStates() {
         // Cancel any pending debounce timer
         hoverSwitchDebounceTimer?.invalidate()
         hoverSwitchDebounceTimer = nil

@@ -863,7 +863,9 @@ class AnalysisCoordinator: ObservableObject {
 
         // Handle popover hidden - clear locked highlight
         suggestionPopover.onPopoverHidden = { [weak self] in
-            self?.errorOverlay.setLockedHighlight(for: nil)
+            guard let self else { return }
+            errorOverlay.setLockedHighlight(for: nil)
+            errorOverlay.notifyPopoverExited()
         }
 
         // Handle current error changed - update locked highlight
@@ -883,7 +885,7 @@ class AnalysisCoordinator: ObservableObject {
             suggestionPopover.cancelHide()
 
             // Check if popover is currently showing
-            let isPopoverShowing = suggestionPopover.currentError != nil
+            let isPopoverShowing = suggestionPopover.isVisible
 
             if !isPopoverShowing {
                 // No popover showing - show immediately (first hover)

@@ -34,4 +34,25 @@ final class TextMonitorTests: XCTestCase {
 
         XCTAssertEqual(disposition, .searchForAlternative)
     }
+
+    func testOnlyProtectedAppsRefreshTransientNonEditableFocusEvents() {
+        XCTAssertTrue(
+            FocusedElementPolicy.shouldRefreshFromAuthoritativeFocus(
+                disposition: .searchForAlternative,
+                hasFocusBounceProtection: true
+            )
+        )
+        XCTAssertFalse(
+            FocusedElementPolicy.shouldRefreshFromAuthoritativeFocus(
+                disposition: .stopForProtectedField,
+                hasFocusBounceProtection: true
+            )
+        )
+        XCTAssertFalse(
+            FocusedElementPolicy.shouldRefreshFromAuthoritativeFocus(
+                disposition: .searchForAlternative,
+                hasFocusBounceProtection: false
+            )
+        )
+    }
 }

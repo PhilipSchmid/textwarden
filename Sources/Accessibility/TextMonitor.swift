@@ -27,6 +27,13 @@ enum FocusedElementPolicy {
         }
         return isEditable && isValidContent ? .useFocusedElement : .searchForAlternative
     }
+
+    static func shouldRefreshFromAuthoritativeFocus(
+        disposition: FocusedElementDisposition,
+        hasFocusBounceProtection: Bool
+    ) -> Bool {
+        hasFocusBounceProtection && disposition == .searchForAlternative
+    }
 }
 
 /// Monitors text changes in applications via Accessibility API
@@ -468,7 +475,43 @@ class TextMonitor: ObservableObject {
         focusSettlingWorkItem = nil
         coalescedFocusCount = 0
 
-        // Now process the focus change
+        // Some apps report a transient child or container in the focus notification even
+        // though AXFocusedUIElement has already settled on the actual editor. Re-read the
+        // authoritative focus only for apps that declare this behavior.
+        let bundleID = currentContext?.bundleIdentifier ?? "unknown"
+        let isProtected = isProtectedTextElement(element)
+        let isEditable = isProtected ? false : isEditableElement(element)
+        let isValidContent = if isEditable {
+            isValidContentElement(element, bundleID: bundleID)
+        } else {
+            false
+        }
+        let disposition = FocusedElementPolicy.disposition(
+            isProtected: isProtected,
+            isEditable: isEditable,
+            isValidContent: isValidContent
+        )
+        let behavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
+
+        if FocusedElementPolicy.shouldRefreshFromAuthoritativeFocus(
+            disposition: disposition,
+            hasFocusBounceProtection: behavior.knownQuirks.contains(.hasFocusBounceProtection)
+        ) {
+            if let existingElement = monitoredElement,
+               let refreshedElement = findNewEditableElement(replacing: existingElement)
+            {
+                Logger.debug("TextMonitor: Recovered editor after transient focus event", category: Logger.accessibility)
+                monitorElement(refreshedElement)
+                return
+            }
+
+            if monitoredElement == nil, let context = currentContext {
+                Logger.debug("TextMonitor: Refreshing authoritative focus after transient focus event", category: Logger.accessibility)
+                monitorFocusedElement(in: AXUIElementCreateApplication(context.processID))
+                return
+            }
+        }
+
         monitorElement(element)
     }
 
