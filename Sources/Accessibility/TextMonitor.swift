@@ -544,6 +544,15 @@ class TextMonitor: ObservableObject {
                 return
             }
 
+            if let existingElement = monitoredElement,
+               isEditableElement(existingElement),
+               isValidContentElement(existingElement, bundleID: bundleID),
+               hasValidAccessibleFrame(existingElement)
+            {
+                Logger.debug("TextMonitor: Preserving valid editor after transient focus event", category: Logger.accessibility)
+                return
+            }
+
             if monitoredElement == nil, let context = currentContext {
                 Logger.debug("TextMonitor: Refreshing authoritative focus after transient focus event", category: Logger.accessibility)
                 monitorFocusedElement(in: AXUIElementCreateApplication(context.processID))
@@ -1246,6 +1255,7 @@ extension TextMonitor {
 
             // Check if this focused element is editable and different from existing
             if isEditableElement(focusedElement),
+               isValidContentElement(focusedElement, bundleID: bundleID),
                !CFEqual(focusedElement, existingElement)
             {
                 Logger.debug("TextMonitor: Found new editable element via AXFocusedUIElement", category: Logger.accessibility)

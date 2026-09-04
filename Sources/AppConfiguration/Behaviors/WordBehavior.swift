@@ -65,6 +65,7 @@ struct WordBehavior: AppBehavior {
         .requiresBrowserStyleReplacement,
         .requiresFocusPasteReplacement,
         .hasCustomElementFinder,
+        .hasFocusBounceProtection,
     ]
 
     let usesUTF16TextIndices = false
