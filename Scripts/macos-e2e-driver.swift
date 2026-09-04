@@ -384,6 +384,32 @@ func processIDAt(_ point: CGPoint) -> pid_t? {
     return AXUIElementGetPid(element, &processID) == .success ? processID : nil
 }
 
+func windowProcessIDAt(_ point: CGPoint) -> pid_t? {
+    let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+    let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
+    for window in windows {
+        guard let processID = window[kCGWindowOwnerPID as String] as? pid_t,
+              let layer = window[kCGWindowLayer as String] as? Int,
+              layer == 0,
+              let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
+              let x = bounds["X"],
+              let y = bounds["Y"],
+              let width = bounds["Width"],
+              let height = bounds["Height"],
+              CGRect(x: x, y: y, width: width, height: height).contains(point)
+        else {
+            continue
+        }
+        return processID
+    }
+    return nil
+}
+
+func isPointOwnedBy(_ application: NSRunningApplication, at point: CGPoint) -> Bool {
+    processIDAt(point) == application.processIdentifier
+        || windowProcessIDAt(point) == application.processIdentifier
+}
+
 func supportsAction(_ element: AXUIElement, _ action: CFString) -> Bool {
     var names: CFArray?
     guard AXUIElementCopyActionNames(element, &names) == .success,
@@ -884,12 +910,14 @@ func usage() -> Never {
       macos-e2e-driver.swift press-menu BUNDLE_ID LABEL
       macos-e2e-driver.swift tab-app BUNDLE_ID
       macos-e2e-driver.swift escape-app BUNDLE_ID
-      macos-e2e-driver.swift shortcut-app BUNDLE_ID command-0|command-n
+      macos-e2e-driver.swift shortcut-app BUNDLE_ID command-a|command-0|command-1|command-n|option-1|option-control-w
       macos-e2e-driver.swift type-app BUNDLE_ID TEXT
       macos-e2e-driver.swift paste-app BUNDLE_ID TEXT
       macos-e2e-driver.swift backspace-app BUNDLE_ID
       macos-e2e-driver.swift clear-editor BUNDLE_ID EXPECTED_UTF16_LENGTH
       macos-e2e-driver.swift click-textwarden X Y
+      macos-e2e-driver.swift right-click-textwarden X Y
+      macos-e2e-driver.swift drag-textwarden START_X START_Y END_X END_Y
       macos-e2e-driver.swift press-textwarden LABEL
       macos-e2e-driver.swift scroll DELTA_Y [DELTA_X]
       macos-e2e-driver.swift point-state X Y
@@ -1168,13 +1196,30 @@ func run(_ arguments: [String]) throws {
     case "shortcut-app":
         guard arguments.count == 3 else { usage() }
         let keyCode: CGKeyCode
+        let flags: CGEventFlags
         switch arguments[2] {
-        case "command-0": keyCode = 29
-        case "command-n": keyCode = 45
+        case "command-a":
+            keyCode = 0
+            flags = .maskCommand
+        case "command-0":
+            keyCode = 29
+            flags = .maskCommand
+        case "command-1":
+            keyCode = 18
+            flags = .maskCommand
+        case "command-n":
+            keyCode = 45
+            flags = .maskCommand
+        case "option-1":
+            keyCode = 18
+            flags = .maskAlternate
+        case "option-control-w":
+            keyCode = 13
+            flags = [.maskAlternate, .maskControl]
         default: usage()
         }
         _ = try activate(arguments[1])
-        try postKey(keyCode, flags: .maskCommand)
+        try postKey(keyCode, flags: flags)
 
     case "clear-editor":
         guard arguments.count == 3, let expectedLength = Int(arguments[2]), expectedLength >= 0 else { usage() }
@@ -1205,7 +1250,7 @@ func run(_ arguments: [String]) throws {
             y: try number(arguments[2], name: "y")
         )
         let textWarden = try runningApplication("io.textwarden.TextWarden")
-        guard processIDAt(point) == textWarden.processIdentifier else {
+        guard isPointOwnedBy(textWarden, at: point) else {
             throw DriverError.failure("refusing click outside a TextWarden window")
         }
         try postMouse(.mouseMoved, at: point)
@@ -1213,6 +1258,50 @@ func run(_ arguments: [String]) throws {
         try postMouse(.leftMouseDown, at: point)
         usleep(100_000)
         try postMouse(.leftMouseUp, at: point)
+
+    case "right-click-textwarden":
+        guard arguments.count == 3 else { usage() }
+        let point = CGPoint(
+            x: try number(arguments[1], name: "x"),
+            y: try number(arguments[2], name: "y")
+        )
+        let textWarden = try runningApplication("io.textwarden.TextWarden")
+        guard isPointOwnedBy(textWarden, at: point) else {
+            throw DriverError.failure("refusing right-click outside a TextWarden window")
+        }
+        try postMouse(.mouseMoved, at: point)
+        usleep(80_000)
+        try postMouse(.rightMouseDown, at: point)
+        usleep(100_000)
+        try postMouse(.rightMouseUp, at: point)
+
+    case "drag-textwarden":
+        guard arguments.count == 5 else { usage() }
+        let start = CGPoint(
+            x: try number(arguments[1], name: "start x"),
+            y: try number(arguments[2], name: "start y")
+        )
+        let end = CGPoint(
+            x: try number(arguments[3], name: "end x"),
+            y: try number(arguments[4], name: "end y")
+        )
+        let textWarden = try runningApplication("io.textwarden.TextWarden")
+        guard isPointOwnedBy(textWarden, at: start) else {
+            throw DriverError.failure("refusing drag without a TextWarden start point")
+        }
+        try postMouse(.mouseMoved, at: start)
+        usleep(80_000)
+        try postMouse(.leftMouseDown, at: start)
+        for step in 1 ... 12 {
+            let progress = CGFloat(step) / 12
+            let point = CGPoint(
+                x: start.x + (end.x - start.x) * progress,
+                y: start.y + (end.y - start.y) * progress
+            )
+            try postMouse(.leftMouseDragged, at: point)
+            usleep(20_000)
+        }
+        try postMouse(.leftMouseUp, at: end)
 
     case "press-textwarden":
         guard arguments.count == 2 else { usage() }
