@@ -43,6 +43,8 @@ Typing into the selection lets Mail inherit the surrounding rich-text formatting
 - If an underline is offset after an emoji, capture Accessibility logs for `MailStrategy`; its conversion should be based on `AXStringForRange` and UTF-16 units.
 - A correction needs Accessibility permission because TextWarden selects and types into Mail on your behalf.
 
+For repeatable live regression coverage, see [Apple Mail live E2E canaries](../testing/MAIL-E2E-CANARIES.md).
+
 ## Implementation
 
 - `Sources/AppConfiguration/AppRegistry.swift`

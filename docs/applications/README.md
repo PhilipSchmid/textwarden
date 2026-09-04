@@ -24,6 +24,8 @@ TextWarden is a private macOS grammar checker and writing assistant. These guide
 
 TextWarden also supports apps that work through shared native or browser configurations. The main [README](../../README.md#supported-apps) has the full support table.
 
+For repeatable host-application checks, driver preflights, cleanup rules, and the prioritized test sequence, see [macOS live end-to-end testing](../testing/README.md).
+
 ## Adding an integration guide
 
 Document behavior that is backed by `AppRegistry`, an `AppBehavior`, a content parser, or a positioning strategy. Include the bundle identifier, monitored editing surface, correction method, known limits, and implementation files. Avoid version guarantees unless the application enforces them at runtime.

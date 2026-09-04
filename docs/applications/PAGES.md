@@ -45,3 +45,5 @@ The clipboard is checked immediately before paste, and the previous clipboard st
 - `Sources/AppConfiguration/Behaviors/PagesBehavior.swift`
 - `Sources/Positioning/Strategies/RangeBoundsStrategy.swift`
 - `Sources/App/AnalysisCoordinator+TextReplacement.swift`
+
+The repeatable live scenarios and current validation record are in [Apple Pages live E2E canaries](../testing/PAGES-E2E-CANARIES.md).
