@@ -423,11 +423,40 @@ class FloatingErrorIndicator: NSPanel {
         }
     }
 
-    /// Handle drag movement - orientation is determined at drag end, not during drag
-    /// This avoids visual glitches from orientation/size mismatches during movement
-    private func handleDragMove(at _: CGPoint) {
-        // Intentionally empty - orientation change happens at drag end in handleDragEnd
-        // This callback exists for future use if needed (e.g., edge proximity feedback)
+    /// Rotate the capsule as it moves between side and top/bottom window edges.
+    private func handleDragMove(at currentPosition: CGPoint) {
+        guard currentShape == .capsule,
+              let view = capsuleIndicatorView,
+              let element = monitoredElement,
+              let windowFrame = getVisibleWindowFrame(for: element)
+        else {
+            return
+        }
+
+        let centerX = currentPosition.x + frame.width / 2
+        let centerY = currentPosition.y + frame.height / 2
+        let percentagePosition = IndicatorPositionStore.PercentagePosition(
+            xPercent: (centerX - windowFrame.minX) / windowFrame.width,
+            yPercent: (centerY - windowFrame.minY) / windowFrame.height
+        )
+        let orientation = CapsuleStateManager.orientationFromPercentagePosition(percentagePosition)
+        guard orientation != view.orientation else { return }
+
+        let sectionCount = CGFloat(max(capsuleStateManager.visibleSections.count, 1))
+        let expansion: CGFloat = 5
+        let size = switch orientation {
+        case .vertical:
+            NSSize(
+                width: UIConstants.capsuleWidth + expansion,
+                height: sectionCount * UIConstants.capsuleSectionHeight + expansion
+            )
+        case .horizontal:
+            NSSize(
+                width: sectionCount * UIConstants.capsuleSectionHeight + expansion,
+                height: UIConstants.capsuleSectionHeight + expansion
+            )
+        }
+        view.updateOrientationDuringDrag(orientation, frameSize: size)
     }
 
     /// Handle drag end (shared between circular and capsule)
@@ -3067,6 +3096,31 @@ private class CapsuleIndicatorView: NSView {
 
         // Notify about position during drag for dynamic orientation updates
         onDragMove?(newOrigin)
+    }
+
+    func updateOrientationDuringDrag(_ newOrientation: CapsuleOrientation, frameSize: NSSize) {
+        guard isDragging, orientation != newOrientation, let window else { return }
+
+        let xFraction = bounds.width > 0 ? dragStartPoint.x / bounds.width : 0.5
+        let yFraction = bounds.height > 0 ? dragStartPoint.y / bounds.height : 0.5
+        let newDragPoint = CGPoint(
+            x: frameSize.width * min(max(xFraction, 0), 1),
+            y: frameSize.height * min(max(yFraction, 0), 1)
+        )
+        let mouseLocation = NSEvent.mouseLocation
+
+        orientation = newOrientation
+        dragStartPoint = newDragPoint
+        window.setFrame(
+            NSRect(
+                x: mouseLocation.x - newDragPoint.x,
+                y: mouseLocation.y - newDragPoint.y,
+                width: frameSize.width,
+                height: frameSize.height
+            ),
+            display: true,
+            animate: true
+        )
     }
 
     override func mouseUp(with event: NSEvent) {
