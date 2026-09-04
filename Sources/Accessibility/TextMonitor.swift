@@ -83,6 +83,9 @@ class TextMonitor: ObservableObject {
         }
     }
 
+    /// Whether the current application observer is subscribed to focus changes.
+    private var observesFocusChanges = false
+
     /// Cached only for the opt-in E2E snapshot to avoid repeated AX reads while polling.
     private(set) var monitoredElementRole: String?
 
@@ -240,18 +243,9 @@ class TextMonitor: ObservableObject {
 
         Logger.debug("TextMonitor: Added observer to run loop", category: Logger.accessibility)
 
-        // Try to monitor focused element
+        // Registration can fail briefly while Chromium apps finish launching. Retry it with
+        // the existing focused-element attempts so a later click is not missed.
         monitorFocusedElement(in: appElement)
-
-        let contextPtr = Unmanaged.passUnretained(self).toOpaque()
-        let focusResult = AXObserverAddNotification(
-            observer,
-            appElement,
-            kAXFocusedUIElementChangedNotification as CFString,
-            contextPtr
-        )
-
-        Logger.debug("TextMonitor: Added focus change notification (result: \(focusResult.rawValue))", category: Logger.accessibility)
     }
 
     /// Stop monitoring
@@ -269,6 +263,7 @@ class TextMonitor: ObservableObject {
         }
 
         observer = nil
+        observesFocusChanges = false
         monitoredElement = nil
         currentContext = nil
         debounceTimer?.invalidate()
@@ -312,6 +307,7 @@ class TextMonitor: ObservableObject {
 
         // CRITICAL: Check watchdog before AX calls
         let bundleID = currentContext?.bundleIdentifier ?? "unknown"
+        registerFocusChangeNotificationIfNeeded(for: appElement)
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
             Logger.debug("TextMonitor: Skipping getFocusedElement - watchdog active for \(bundleID)", category: Logger.accessibility)
             return
@@ -453,6 +449,19 @@ class TextMonitor: ObservableObject {
         monitorElement(axElement, retryAttempt: retryAttempt)
     }
 
+    private func registerFocusChangeNotificationIfNeeded(for appElement: AXUIElement) {
+        guard !observesFocusChanges, let observer else { return }
+
+        let result = AXObserverAddNotification(
+            observer,
+            appElement,
+            kAXFocusedUIElementChangedNotification as CFString,
+            Unmanaged.passUnretained(self).toOpaque()
+        )
+        observesFocusChanges = result == .success || result == .notificationAlreadyRegistered
+        Logger.debug("TextMonitor: Added focus change notification (result: \(result.rawValue))", category: Logger.accessibility)
+    }
+
     /// Schedule a retry using RetryScheduler configuration
     private func scheduleRetry(attempt: Int, action: @escaping () -> Void) {
         // Cancel any existing retry (both the scheduler and our tracked work item)
@@ -556,7 +565,7 @@ class TextMonitor: ObservableObject {
         let behavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
 
         if disposition == .useFocusedElement,
-           behavior.knownQuirks.contains(.hasFocusBounceProtection),
+           behavior.knownQuirks.contains(.webBasedRendering),
            let context = currentContext,
            FocusedElementPolicy.shouldClearForConfirmedContextChange(
                matches: AccessibilityBridge.isFocusedElement(element, in: context)
@@ -1207,6 +1216,15 @@ private func axObserverCallback(
         // If this app is blocklisted due to slow AX, skip all processing
         // Note: currentContext access must happen on MainActor
         let bundleID = monitor.currentContext?.bundleIdentifier ?? "unknown"
+
+        // Focus events are cheap to queue and must not be dropped just because another AX read
+        // is briefly in flight. The settling handler performs the guarded AX work later.
+        if notificationName == kAXFocusedUIElementChangedNotification as String {
+            Logger.trace("axObserverCallback: Focus changed - scheduling element monitoring", category: Logger.accessibility)
+            monitor.scheduleFocusHandling(element)
+            return
+        }
+
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
             Logger.debug("axObserverCallback: Skipping - watchdog active for \(bundleID)", category: Logger.accessibility)
             return
@@ -1256,9 +1274,6 @@ private func axObserverCallback(
                 ClaudeStrategy.notifyTextChange()
                 monitor.extractText(from: element)
             }
-        } else if notificationName == kAXFocusedUIElementChangedNotification as String {
-            Logger.trace("axObserverCallback: Focus changed - scheduling element monitoring", category: Logger.accessibility)
-            monitor.scheduleFocusHandling(element)
         } else {
             Logger.debug("axObserverCallback: Unknown notification: \(notificationName)", category: Logger.accessibility)
         }
