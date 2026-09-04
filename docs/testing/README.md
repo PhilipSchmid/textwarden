@@ -27,7 +27,7 @@ python3 Scripts/e2e-state.py wait \
   --expect state.presentation.indicatorGrammarErrorCount=4
 ```
 
-The snapshot contains bundle identifiers, AX role and identity, UTF-16 lengths and ranges, counts, visibility, geometry strategy, replacement timestamps, runtime health, and recent event names. It excludes captured text, messages, suggestions, lint identifiers, clipboard contents, and account data. `check` rejects unexpected permissions, ownership, schema, or text-bearing keys.
+The snapshot contains bundle identifiers, AX role and identity, UTF-16 lengths and ranges, counts, visibility, overlay and indicator frames in Quartz coordinates, geometry strategy, replacement timestamps, runtime health, and recent event names. It excludes captured text, messages, suggestions, lint identifiers, clipboard contents, and account data. `check` rejects unexpected permissions, ownership, schema, or text-bearing keys.
 
 Poll for state convergence instead of sleeping for a fixed duration. Always compare the oracle with the current host AX value. An application-only screenshot cannot prove TextWarden's separate overlay windows; use the oracle or a full-display capture when visual confirmation is required.
 
@@ -46,32 +46,37 @@ Poll for state convergence instead of sleeping for a fixed duration. Always comp
 - Quit the opt-in TextWarden instance, remove the state file, and relaunch normally.
 - Trace logs can contain test text. Restore the previous log settings and remove only logs created for the run.
 
-## Coverage sequence
+## Live coverage
 
-| Order | Application | Why it is next |
-|---|---|---|
-| Baseline | TextEdit | Simplest native `AXTextArea`; isolates the harness from app-specific behavior. |
-| Completed | Apple Mail | WebKit compose body, subject/body focus bounces, native spelling UI, and send-sensitive cleanup. |
-| Completed | Apple Pages | Native rich text, direct range bounds, focus-and-paste correction, zoom, multi-page scrolling, and header/body focus. |
-| **Next** | Microsoft Word | Local unsaved document; exercises Office document ranges, focus-and-paste replacement, formatting preservation, zoom, scroll, and window geometry. |
-| Then | Chrome with a local `contenteditable` fixture | Browser category behavior and indicator-only presentation without transmitting text. |
-| Then | Notion | Electron block editors and intentionally partial underline coverage. Use a dedicated test page because edits may sync. |
-| Then | Slack | Electron rich text, formatting exclusions, native popovers, and draft recovery. Use a dedicated workspace/channel and never send. |
-| Then | Outlook and PowerPoint | Office/WebKit compose behavior and speaker-notes-only coverage after the Word driver is stable. |
-| Later | Messages, Teams, Telegram, WhatsApp, Webex, Proton Mail | Communication-specific focus and stale-content cases require dedicated accounts and stronger no-send guards. |
+| Application | Validated behavior |
+|---|---|
+| TextEdit | Native `AXTextArea` baseline, analysis, underlines, correction, and window lifecycle. |
+| Apple Mail | WebKit body, subject/body focus changes, native spelling UI, correction, and no-send cleanup. |
+| Apple Pages | Native rich text, range geometry, correction, zoom, scrolling, and header/body focus. |
+| Microsoft Word | Office document ranges, correction, formatting preservation, zoom, scrolling, and window geometry. |
+| Chrome | Local `contenteditable` analysis, indicator-only presentation, focus changes, and window lifecycle. |
+| Notion | Block editing, sidebar hide/show, navigation, correction, scrolling, and window lifecycle. |
+| Slack | Draft analysis, workspace switcher and sidebar changes, navigation, native popovers, correction, and no-send cleanup. |
+| Microsoft Outlook | Subject/body focus, Editor pane resize, correction, move/resize, minimize/restore, and no-send cleanup. |
+| Microsoft PowerPoint | Speaker Notes analysis, missing AX notification fallback, Notes hide/show, slide-canvas exclusion, correction, and minimize/restore. Slide text remains inaccessible through AX. |
 
-## Next pull request: deterministic macOS input
+Communication apps not yet covered by this live matrix include Messages, Teams, Telegram, WhatsApp, Webex, and Proton Mail.
 
-Add one small test-only native driver, compiled on demand, rather than app-specific automation in production code. It should:
+## Native macOS input driver
 
-- activate an exact bundle identifier and verify its PID;
-- emit global move, click, and wheel events;
-- read, move, resize, minimize, and restore the focused AX window;
-- capture the original frame and restore it even after a failed assertion;
-- accept oracle-provided Quartz points instead of hard-coded screen offsets;
-- refuse send controls and require a disposable document marker for destructive editor actions.
+`Scripts/macos-e2e-driver.swift` provides the small native-input layer needed when an app-targeted AX action is not equivalent to user input:
 
-Use the driver first against the existing TextEdit, Mail, and Pages canaries. Do not add a scenario DSL, screenshot service, or app plug-in layer unless repeated tests show that the direct commands are insufficient.
+```bash
+xcrun swift Scripts/macos-e2e-driver.swift self-test
+xcrun swift Scripts/macos-e2e-driver.swift click-editor BUNDLE_ID X Y
+xcrun swift Scripts/macos-e2e-driver.swift type-app BUNDLE_ID "draft only"
+xcrun swift Scripts/macos-e2e-driver.swift window-state BUNDLE_ID
+xcrun swift Scripts/macos-e2e-driver.swift window-set BUNDLE_ID X Y WIDTH HEIGHT
+xcrun swift Scripts/macos-e2e-driver.swift window-minimize BUNDLE_ID
+xcrun swift Scripts/macos-e2e-driver.swift window-restore BUNDLE_ID
+```
+
+The driver activates and verifies the target process, refuses text containing line breaks, rejects clicks outside editable fields or on send-like controls, and consumes oracle-provided Quartz coordinates. Keep host-app orchestration in Computer Use and assertions in `Scripts/e2e-state.py`; add a scenario layer only if repeated tests prove these direct commands insufficient.
 
 ## Application canaries
 

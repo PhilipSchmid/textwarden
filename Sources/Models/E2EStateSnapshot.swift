@@ -71,6 +71,7 @@ struct E2EStateSnapshot: Codable, Equatable {
         let styleUnderlineCount: Int
         let readabilityUnderlineCount: Int
         let indicatorVisible: Bool
+        let indicatorFrame: Frame
         let indicatorGrammarErrorCount: Int
         let indicatorStyleSuggestionCount: Int
         let suggestionPopoverVisible: Bool
@@ -281,6 +282,7 @@ extension AnalysisCoordinator {
                 styleUnderlineCount: errorOverlay.styleUnderlineCount,
                 readabilityUnderlineCount: errorOverlay.readabilityUnderlineCount,
                 indicatorVisible: floatingIndicator.isVisible,
+                indicatorFrame: .init(CoordinateMapper.toQuartzCoordinates(floatingIndicator.frame)),
                 indicatorGrammarErrorCount: floatingIndicator.diagnosticGrammarErrorCount,
                 indicatorStyleSuggestionCount: floatingIndicator.diagnosticStyleSuggestionCount,
                 suggestionPopoverVisible: suggestionPopover.isVisible,
