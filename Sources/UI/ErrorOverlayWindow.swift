@@ -274,38 +274,24 @@ class ErrorOverlayWindow: NSPanel {
             Logger.trace("ErrorOverlay: Mouse tracking - at \(mouseLocation), overlay: \(frame), effective: \(effectiveFrame), inside: \(isInsideFrame)", category: Logger.ui)
 
             guard isInsideFrame else {
-                // Mouse left the window - clear hover state and fade underlines
                 if currentHoverTarget != nil || hoveredUnderline != nil {
                     clearAllHoverStates()
                 }
 
-                // For web-based apps (Slack, Notion, Teams, etc.), DON'T fade underlines when mouse
-                // moves elsewhere. These apps typically have separate scrollable message lists
-                // above a fixed compose area - mouse leaving the overlay is normal usage, not
-                // an indication the user wants to interact with the app's popovers.
-                // App-specific popover detection (like Slack's ReactModal) handles fading when needed.
-                let isWebBasedApp = currentBundleID.flatMap { bundleID in
-                    AppBehaviorRegistry.shared.behavior(for: bundleID).knownQuirks.contains(.webBasedRendering)
+                // Readability bookends stay visible: pointer movement alone must not make the
+                // recommendation appear or disappear. Preserve the quieter legacy behavior for
+                // grammar-only overlays in native apps.
+                let hasReadabilityCue = !stateManager.currentState.readabilityUnderlines.isEmpty
+                let isWebBasedApp = currentBundleID.map {
+                    AppBehaviorRegistry.shared.behavior(for: $0).knownQuirks.contains(.webBasedRendering)
                 } ?? false
-
-                if isWebBasedApp {
-                    // For web-based apps, only update mouse tracking state, don't fade
-                    if isMouseInsideOverlay {
-                        isMouseInsideOverlay = false
-                        Logger.trace("ErrorOverlay: Mouse left overlay bounds (web-based app) - keeping full opacity", category: Logger.ui)
-                    }
-                } else {
-                    // For native apps, fade underlines when mouse leaves
-                    // to avoid obscuring app-native popovers
-                    if isMouseInsideOverlay {
-                        isMouseInsideOverlay = false
-                        Logger.info("ErrorOverlay: Mouse LEFT overlay bounds - fading underlines to 25%", category: Logger.ui)
-                        NSAnimationContext.runAnimationGroup { context in
-                            context.duration = 0.15
-                            self.animator().alphaValue = 0.25
-                        }
+                if !hasReadabilityCue, !isWebBasedApp, isMouseInsideOverlay {
+                    NSAnimationContext.runAnimationGroup { context in
+                        context.duration = 0.15
+                        self.animator().alphaValue = 0.25
                     }
                 }
+                isMouseInsideOverlay = false
                 return
             }
 
@@ -1221,9 +1207,16 @@ class ErrorOverlayWindow: NSPanel {
                 actualBundleID: bundleID
             )
 
-            // We need at least the first segment to show something
-            guard firstResult.isUsable, !firstResult.isUnavailable else {
-                Logger.debug("ErrorOverlay: First segment position not usable", category: Logger.ui)
+            // Sentence-level cues span more text than grammar errors, so rough estimates are
+            // especially noticeable. Keep the indicator and omit the inline cue unless both
+            // endpoints have reliable AX-backed geometry.
+            guard firstResult.isUsable, firstResult.isHighConfidence, !firstResult.isUnavailable,
+                  lastResult.isUsable, lastResult.isHighConfidence, !lastResult.isUnavailable
+            else {
+                Logger.debug(
+                    "ErrorOverlay: Skipping readability underline - endpoint geometry is not high confidence",
+                    category: Logger.ui
+                )
                 continue
             }
 
@@ -1246,18 +1239,16 @@ class ErrorOverlayWindow: NSPanel {
                 continue
             }
 
-            // Convert last segment bounds (may be empty if resolution failed)
+            // Convert last segment bounds
             var lastLocalBounds: [CGRect] = []
-            if lastResult.isUsable, !lastResult.isUnavailable {
-                for screenBounds in lastResult.allLineBounds {
-                    if elementFrame.intersects(screenBounds) {
-                        let localBounds = convertToLocal(screenBounds, from: elementFrame)
-                        let maxValidHeight: CGFloat = UIConstants.maximumTextLineHeight
-                        if localBounds.origin.y >= -10, localBounds.height <= maxValidHeight,
-                           localBounds.origin.y <= elementFrame.height, localBounds.maxY >= 0
-                        {
-                            lastLocalBounds.append(localBounds)
-                        }
+            for screenBounds in lastResult.allLineBounds {
+                if elementFrame.intersects(screenBounds) {
+                    let localBounds = convertToLocal(screenBounds, from: elementFrame)
+                    let maxValidHeight: CGFloat = UIConstants.maximumTextLineHeight
+                    if localBounds.origin.y >= -10, localBounds.height <= maxValidHeight,
+                       localBounds.origin.y <= elementFrame.height, localBounds.maxY >= 0
+                    {
+                        lastLocalBounds.append(localBounds)
                     }
                 }
             }
@@ -2426,20 +2417,24 @@ struct ReadabilityUnderline {
 }
 
 extension ReadabilityUnderline {
-    static let color = NSColor.systemPurple // Violet/purple for readability issues
+    static let color = NSColor.systemBlue
 
     /// Check if a point is within the visible underline areas
     /// For segmented underlines, only checks the first and last segment bounds
     /// For non-segmented, checks all drawing bounds
     func containsPointInVisibleArea(_ point: CGPoint) -> Bool {
+        let containsPoint = { (bounds: CGRect) in
+            bounds.insetBy(dx: -2, dy: -4).contains(point)
+        }
+
         if isSegmented {
             // Only check the visible segments (first + last words)
-            let firstContains = firstSegmentBounds?.contains { $0.contains(point) } ?? false
-            let lastContains = lastSegmentBounds?.contains { $0.contains(point) } ?? false
+            let firstContains = firstSegmentBounds?.contains(where: containsPoint) ?? false
+            let lastContains = lastSegmentBounds?.contains(where: containsPoint) ?? false
             return firstContains || lastContains
         } else {
             // Check all drawing bounds
-            return allDrawingBounds.contains { $0.contains(point) }
+            return allDrawingBounds.contains(where: containsPoint)
         }
     }
 }
@@ -2549,56 +2544,28 @@ class UnderlineView: NSView {
         // 2. Style underlines (middle) - currently unused
         // 3. Grammar underlines (top) - spelling/grammar errors, most actionable
 
-        // Draw each readability underline (dashed violet line for complex sentences)
+        // Draw each readability underline as two stable blue bookends.
         Logger.trace("UnderlineView: Drawing \(readabilityUnderlines.count) readability underlines", category: Logger.ui)
         for readabilityUnderline in readabilityUnderlines {
             Logger.trace("UnderlineView: Readability underline - isSegmented=\(readabilityUnderline.isSegmented), firstBounds=\(String(describing: readabilityUnderline.firstSegmentBounds)), lastBounds=\(String(describing: readabilityUnderline.lastSegmentBounds)), allDrawingBounds.count=\(readabilityUnderline.allDrawingBounds.count)", category: Logger.ui)
+            let isHovered = hoveredReadabilityUnderline?.sentenceResult.range == readabilityUnderline.sentenceResult.range
+            let cueColor = isHovered ? ReadabilityUnderline.color : ReadabilityUnderline.color.withAlphaComponent(0.68)
             if readabilityUnderline.isSegmented,
                let firstBounds = readabilityUnderline.firstSegmentBounds,
                let lastBounds = readabilityUnderline.lastSegmentBounds
             {
-                // Draw segmented underline: first words ... last words
-                // Shorten the underlines slightly so dots blend seamlessly
+                // Endpoint bounds are reliable; the unmeasured space between them is intentionally clear.
                 Logger.debug("UnderlineView: Drawing segmented underline - first: \(firstBounds), last: \(lastBounds)", category: Logger.ui)
 
-                // Draw first segment (shortened on right side for fade-out)
-                for (index, lineBounds) in firstBounds.enumerated() {
-                    var adjustedBounds = lineBounds
-                    // Only shorten the last line of the first segment
-                    if index == firstBounds.count - 1 {
-                        adjustedBounds.size.width = max(10, lineBounds.width - 8)
-                    }
-                    drawDashedUnderline(in: context, bounds: adjustedBounds, color: ReadabilityUnderline.color)
-                }
-
-                // Draw connecting dots between segments
-                if let firstEnd = firstBounds.last, let lastStart = lastBounds.first {
-                    drawConnectingDots(in: context, from: firstEnd, to: lastStart, color: ReadabilityUnderline.color)
-                }
-
-                // Draw last segment (shortened on left side for fade-in on multi-line)
-                let onSameLine = firstBounds.last.map { firstEnd in
-                    lastBounds.first.map { lastStart in
-                        abs(firstEnd.maxY - lastStart.maxY) < 10
-                    } ?? true
-                } ?? true
-
-                for (index, lineBounds) in lastBounds.enumerated() {
-                    var adjustedBounds = lineBounds
-                    // Only shorten the first line of the last segment if on different lines
-                    if index == 0, !onSameLine {
-                        let shortenAmount: CGFloat = 8.0
-                        adjustedBounds.origin.x += shortenAmount
-                        adjustedBounds.size.width = max(10, lineBounds.width - shortenAmount)
-                    }
-                    drawDashedUnderline(in: context, bounds: adjustedBounds, color: ReadabilityUnderline.color)
+                for lineBounds in firstBounds + lastBounds {
+                    drawDashedUnderline(in: context, bounds: lineBounds, color: cueColor)
                 }
             } else {
                 // Draw regular continuous underline
                 Logger.debug("UnderlineView: Drawing non-segmented readability underline with \(readabilityUnderline.allDrawingBounds.count) lines", category: Logger.ui)
                 for lineBounds in readabilityUnderline.allDrawingBounds {
                     Logger.debug("UnderlineView: Drawing readability line at bounds: \(lineBounds)", category: Logger.ui)
-                    drawDashedUnderline(in: context, bounds: lineBounds, color: ReadabilityUnderline.color)
+                    drawDashedUnderline(in: context, bounds: lineBounds, color: cueColor)
                 }
             }
         }
@@ -2729,7 +2696,7 @@ class UnderlineView: NSView {
         context.setLineDash(phase: 0, lengths: [])
     }
 
-    /// Draw dashed underline for complex sentences (violet)
+    /// Draw dashed underline for complex sentences (clarity blue)
     /// Uses longer dashes than dotted to distinguish from style suggestions
     private func drawDashedUnderline(in context: CGContext, bounds: CGRect, color: NSColor) {
         context.setStrokeColor(color.cgColor)
@@ -2752,96 +2719,6 @@ class UnderlineView: NSView {
         context.strokePath()
 
         // Reset line dash to solid for other drawing
-        context.setLineDash(phase: 0, lengths: [])
-    }
-
-    /// Draw smooth fade-out transition between first and last segment underlines
-    /// Uses tapering mini-dashes that shrink into dots for a gradient effect
-    /// Note: firstEnd and lastStart are the ORIGINAL bounds - we account for the 8px shortening
-    private func drawConnectingDots(in context: CGContext, from firstEnd: CGRect, to lastStart: CGRect, color: NSColor) {
-        let thickness = CGFloat(UserPreferences.shared.underlineThickness)
-        let offset = thickness / 2.0
-
-        let firstY = firstEnd.maxY + offset
-        let shortenAmount: CGFloat = 8.0
-        let startX = firstEnd.maxX - shortenAmount
-
-        // Check if segments are on the same line or different lines
-        let onSameLine = abs(firstEnd.maxY - lastStart.maxY) < 10
-
-        if onSameLine {
-            let endX = lastStart.minX + shortenAmount
-            drawFadeGradient(in: context, from: startX, to: endX, y: firstY, color: color, fadeOut: true)
-        } else {
-            // Different lines: fade out at end of first segment, fade in at start of last segment
-            let fadeOutEndX = startX + 30
-            drawFadeGradient(in: context, from: startX, to: fadeOutEndX, y: firstY, color: color, fadeOut: true)
-
-            // Draw fade-in on the last segment's line (different Y coordinate)
-            let lastY = lastStart.maxY + offset
-            let fadeInStartX = lastStart.minX
-            let fadeInEndX = fadeInStartX + shortenAmount
-            drawFadeGradient(in: context, from: fadeInStartX, to: fadeInEndX, y: lastY, color: color, fadeOut: false)
-        }
-    }
-
-    /// Draw a smooth fade gradient using tapering strokes that transition to dots
-    private func drawFadeGradient(in context: CGContext, from startX: CGFloat, to endX: CGFloat, y: CGFloat, color: NSColor, fadeOut: Bool) {
-        let thickness = CGFloat(UserPreferences.shared.underlineThickness)
-        let availableSpace = endX - startX
-        guard availableSpace > 5 else { return }
-
-        // Phase 1: Draw mini-dashes that get progressively shorter (first 60% of space)
-        let dashPhaseEnd = startX + availableSpace * 0.6
-        var currentX = startX
-
-        var dashIndex = 0
-        while currentX < dashPhaseEnd {
-            let progress = (currentX - startX) / (dashPhaseEnd - startX)
-            let t = fadeOut ? progress : (1.0 - progress)
-
-            // Dash length shrinks from 4px to 1px
-            let dashLength = max(1.0, 4.0 * (1.0 - t))
-            // Gap grows from 2px to 3px
-            let gapLength = 2.0 + t
-            // Opacity fades from 100% to 40%
-            let alpha = 1.0 - t * 0.6
-            // Thickness tapers slightly
-            let strokeWidth = thickness * (1.0 - t * 0.3)
-
-            context.setStrokeColor(color.withAlphaComponent(alpha).cgColor)
-            context.setLineWidth(strokeWidth)
-            context.setLineDash(phase: 0, lengths: [])
-
-            let endDashX = min(currentX + dashLength, dashPhaseEnd)
-            context.move(to: CGPoint(x: currentX, y: y))
-            context.addLine(to: CGPoint(x: endDashX, y: y))
-            context.strokePath()
-
-            currentX += dashLength + gapLength
-            dashIndex += 1
-        }
-
-        // Phase 2: Transition to dots (remaining 40% of space)
-        let dotPhaseStart = dashPhaseEnd
-        let dotCount = max(3, Int((endX - dotPhaseStart) / 4))
-        let dotSpacing = (endX - dotPhaseStart) / CGFloat(dotCount + 1)
-
-        for i in 0 ..< dotCount {
-            let dotProgress = CGFloat(i) / CGFloat(max(1, dotCount - 1))
-            let t = fadeOut ? dotProgress : (1.0 - dotProgress)
-
-            // Start with small dots, shrink to tiny
-            let size = max(0.5, 1.2 * (1.0 - t * 0.7))
-            // Continue fading opacity
-            let alpha = 0.4 * (1.0 - t * 0.6)
-
-            let x = dotPhaseStart + CGFloat(i + 1) * dotSpacing
-            context.setFillColor(color.withAlphaComponent(alpha).cgColor)
-            context.fillEllipse(in: CGRect(x: x - size / 2, y: y - size / 2, width: size, height: size))
-        }
-
-        // Reset line dash
         context.setLineDash(phase: 0, lengths: [])
     }
 

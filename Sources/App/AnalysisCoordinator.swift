@@ -2099,8 +2099,7 @@ class AnalysisCoordinator: ObservableObject {
 
         // For web-based apps (Slack, Teams, etc.), don't immediately hide overlays when focus moves away.
         // Focus often moves briefly to non-editable elements (message list, old messages) and returns.
-        // The mouse-leave fade (25%) provides visual feedback, and full hide happens only when
-        // text actually changes or focus moves to a different editable element.
+        // Full hide happens only when text changes or focus moves to a different editable element.
         // EXCEPTION: If the element is no longer in the AX tree (page navigation like Huddles),
         // clear overlays immediately instead of preserving stale state.
         let appBehavior = AppBehaviorRegistry.shared.behavior(for: appConfig)
@@ -2126,7 +2125,7 @@ class AnalysisCoordinator: ObservableObject {
             } else {
                 Logger.debug("AnalysisCoordinator: Web-based app - preserving overlays while focus is away (errors: \(currentErrors.count))", category: Logger.analysis)
                 // Don't clear previousText - we want to detect when we return to the same text
-                // Don't hide errorOverlay - the mouse-leave handler already fades it
+                // Don't hide errorOverlay; its cues should remain stable while focus is temporarily away.
                 // Just hide the popover to avoid it obscuring the UI
                 suggestionPopover.hide()
                 return true
