@@ -67,6 +67,10 @@ class ErrorOverlayWindow: NSPanel {
     /// Global event monitor for mouse movement
     private var mouseMonitor: Any?
 
+    /// Most recent global pointer event, populated only for opt-in E2E diagnostics.
+    private(set) var lastPointerEvent: String?
+    private(set) var lastPointerEventAt: Date?
+
     /// Timer for hover delay before showing popover
     private var hoverTimer: Timer?
 
@@ -120,6 +124,39 @@ class ErrorOverlayWindow: NSPanel {
     /// Unified state manager for all underline types
     /// Ensures consistency between grammar, style, and readability underlines
     private let stateManager = UnderlineStateManager()
+
+    /// Last positioning summary for the opt-in E2E state snapshot.
+    private(set) var lastGeometryStrategy: String?
+    private(set) var lastGeometryConfidence: Double?
+    private(set) var lastGeometryFailureReason: String?
+
+    var diagnosticIsVisible: Bool {
+        isCurrentlyVisible
+    }
+
+    var grammarUnderlineCount: Int {
+        stateManager.currentState.grammarUnderlines.count
+    }
+
+    var styleUnderlineCount: Int {
+        stateManager.currentState.styleUnderlines.count
+    }
+
+    var readabilityUnderlineCount: Int {
+        stateManager.currentState.readabilityUnderlines.count
+    }
+
+    var diagnosticGrammarUnderlineHitPoints: [CGPoint] {
+        guard E2EStateReporter.isEnabled else { return [] }
+
+        return stateManager.currentState.grammarUnderlines.map { underline in
+            let cocoaPoint = CGPoint(
+                x: frame.minX + underline.bounds.midX,
+                y: frame.maxY - underline.bounds.midY
+            )
+            return ScreenPosition(point: cocoaPoint, system: .cocoa).toQuartz().point
+        }
+    }
 
     // MARK: - Initialization
 
@@ -196,6 +233,11 @@ class ErrorOverlayWindow: NSPanel {
         // Monitor mouse moved events globally
         mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
             guard let self else { return }
+
+            if E2EStateReporter.isEnabled {
+                lastPointerEvent = "mouseMoved"
+                lastPointerEventAt = Date()
+            }
 
             // Only process if window is visible (no logging here - too high frequency)
             guard isCurrentlyVisible else { return }
@@ -334,6 +376,11 @@ class ErrorOverlayWindow: NSPanel {
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in
             guard let self else { return }
 
+            if E2EStateReporter.isEnabled {
+                lastPointerEvent = "leftMouseDown"
+                lastPointerEventAt = Date()
+            }
+
             // Only process if window is visible
             guard isCurrentlyVisible else { return }
 
@@ -435,6 +482,9 @@ class ErrorOverlayWindow: NSPanel {
         Logger.debug("ErrorOverlay: update() called with \(errors.count) errors", category: Logger.ui)
         self.errors = errors
         monitoredElement = element
+        lastGeometryStrategy = nil
+        lastGeometryConfidence = nil
+        lastGeometryFailureReason = "Positioning not reached"
 
         // Check if visual underlines are enabled for this app
         let bundleID = context?.bundleIdentifier ?? "unknown"
@@ -445,6 +495,7 @@ class ErrorOverlayWindow: NSPanel {
         // If this app is blocklisted or watchdog is busy, skip ALL AX calls in this function
         // This prevents freezing on apps with slow/hanging AX implementations (like Microsoft Office)
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            lastGeometryFailureReason = "AX watchdog active"
             Logger.debug("ErrorOverlay: Skipping update - watchdog protection active for \(bundleID)", category: Logger.ui)
             hide()
             return 0
@@ -459,6 +510,7 @@ class ErrorOverlayWindow: NSPanel {
         // This prevents hiding underlines and clearing lockedHighlightError while navigating errors
         let isInReplacementMode = AnalysisCoordinator.shared.isInReplacementMode
         if appConfig.features.requiresTypingPause, TypingDetector.shared.isCurrentlyTyping, !bypassTypingCheck, !isInReplacementMode {
+            lastGeometryFailureReason = "Waiting for typing pause"
             Logger.debug("ErrorOverlay: Hiding underlines during typing (\(appConfig.displayName))", category: Logger.ui)
             hide()
             // Return 0 underlines but errors will still be counted by the indicator
@@ -467,6 +519,7 @@ class ErrorOverlayWindow: NSPanel {
 
         // Check global underlines toggle first
         if !UserPreferences.shared.showUnderlines {
+            lastGeometryFailureReason = "Underlines disabled globally"
             Logger.info("ErrorOverlay: Underlines globally disabled in preferences - skipping", category: Logger.ui)
             hide()
             return 0
@@ -475,6 +528,7 @@ class ErrorOverlayWindow: NSPanel {
         // Check error count threshold - hide underlines when there are too many errors
         let maxErrors = UserPreferences.shared.maxErrorsForUnderlines
         if errors.count > maxErrors {
+            lastGeometryFailureReason = "Error count exceeds underline threshold"
             Logger.info("ErrorOverlay: Error count (\(errors.count)) exceeds threshold (\(maxErrors)) - hiding underlines", category: Logger.ui)
             hide()
             return 0
@@ -482,6 +536,7 @@ class ErrorOverlayWindow: NSPanel {
 
         // Check user's per-app underlines preference (user can override the default)
         if !UserPreferences.shared.areUnderlinesEnabled(for: bundleID) {
+            lastGeometryFailureReason = "Underlines disabled for application"
             Logger.info("ErrorOverlay: Underlines disabled by user for '\(bundleID)' - skipping", category: Logger.ui)
             hide()
             return 0
@@ -492,6 +547,7 @@ class ErrorOverlayWindow: NSPanel {
         Logger.info("ErrorOverlay: Using parser '\(parser.parserName)' for bundleID '\(bundleID)', underlinesDisabled=\(underlinesDisabled)", category: Logger.ui)
 
         if underlinesDisabled {
+            lastGeometryFailureReason = "Application does not support visual underlines"
             Logger.info("ErrorOverlay: Visual underlines disabled for '\(appConfig.displayName)' - skipping", category: Logger.ui)
             hide()
             return 0
@@ -507,6 +563,7 @@ class ErrorOverlayWindow: NSPanel {
 
         // Abort immediately if watchdog detected slow call
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            lastGeometryFailureReason = "AX watchdog triggered during frame query"
             Logger.warning("ErrorOverlay: Aborting - watchdog triggered during frame query", category: Logger.ui)
             hide()
             return 0
@@ -603,18 +660,21 @@ class ErrorOverlayWindow: NSPanel {
                 return (error: error, text: textValue as? String)
             }
         ) else {
+            lastGeometryFailureReason = "Text extraction reservation unavailable"
             hide()
             return 0
         }
 
         // Abort immediately if watchdog detected slow call
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            lastGeometryFailureReason = "AX watchdog triggered during text extraction"
             Logger.warning("ErrorOverlay: Aborting - watchdog triggered during text extraction", category: Logger.ui)
             hide()
             return 0
         }
 
         guard textCall.value.error == .success, let extractedText = textCall.value.text else {
+            lastGeometryFailureReason = "Text extraction failed"
             Logger.debug("ErrorOverlay: Could not extract text from element for positioning", category: Logger.ui)
             hide()
             return 0
@@ -629,6 +689,7 @@ class ErrorOverlayWindow: NSPanel {
 
         // Abort immediately if watchdog detected slow call (prevents cascading timeouts)
         if AXWatchdog.shared.shouldSkipCalls(for: bundleID) {
+            lastGeometryFailureReason = "AX watchdog triggered during visible range query"
             Logger.warning("ErrorOverlay: Aborting - watchdog triggered during visible range query", category: Logger.ui)
             hide()
             return 0
@@ -652,6 +713,9 @@ class ErrorOverlayWindow: NSPanel {
         // Calculate underline positions for each error using new positioning system
         var skippedCount = 0
         var skippedDueToVisibility = 0
+        var geometryStrategies = Set<String>()
+        var minimumGeometryConfidence: Double?
+        var geometryFailureReasons = Set<String>()
 
         // Detect internal text padding using TextMarker API (most accurate)
         // TextMarker returns actual visual bounds while LineIndex uses element frame
@@ -723,6 +787,7 @@ class ErrorOverlayWindow: NSPanel {
             // Handle unavailable results (graceful degradation)
             // Unavailable results mean we should NOT show an underline rather than show it wrong
             if geometryResult.isUnavailable {
+                geometryFailureReasons.insert(geometryResult.metadata["reason"] as? String ?? "Position unavailable")
                 Logger.debug("ErrorOverlay: Position unavailable for error at \(error.start)-\(error.end) (graceful degradation: \(geometryResult.metadata["reason"] ?? "unknown"))", category: Logger.ui)
                 skippedCount += 1
                 return nil
@@ -730,9 +795,16 @@ class ErrorOverlayWindow: NSPanel {
 
             // Check if result is usable
             guard geometryResult.isUsable else {
+                geometryFailureReasons.insert("Position confidence below threshold")
                 Logger.debug("ErrorOverlay: Position result not usable (confidence: \(geometryResult.confidence))", category: Logger.ui)
                 return nil
             }
+
+            geometryStrategies.insert(geometryResult.strategy)
+            minimumGeometryConfidence = min(
+                minimumGeometryConfidence ?? geometryResult.confidence,
+                geometryResult.confidence
+            )
 
             // getElementFrameInCocoaCoords() returns Cocoa coordinates (bottom-left origin)
             // NSPanel.setFrame() uses Cocoa coordinates for positioning
@@ -842,6 +914,18 @@ class ErrorOverlayWindow: NSPanel {
         ChromiumStrategy.restoreCursorPosition()
 
         Logger.info("ErrorOverlay: Created \(underlines.count) underlines from \(errors.count) errors (skipped \(skippedCount) positioning, \(skippedDueToVisibility) not visible)", category: Logger.ui)
+
+        let geometryStrategySummary = geometryStrategies.sorted().joined(separator: ",")
+        let geometryFailureSummary = geometryFailureReasons.sorted().joined(separator: "; ")
+        let geometryFailure = geometryFailureSummary.isEmpty ? nil : geometryFailureSummary
+        lastGeometryStrategy = geometryStrategySummary.isEmpty ? nil : geometryStrategySummary
+        lastGeometryConfidence = minimumGeometryConfidence
+        if underlines.isEmpty {
+            lastGeometryFailureReason = geometryFailure
+                ?? (skippedDueToVisibility > 0 ? "Errors outside visible range" : "No drawable bounds")
+        } else {
+            lastGeometryFailureReason = geometryFailure
+        }
 
         // Extra debug for Notion
         if bundleID.contains("notion") {

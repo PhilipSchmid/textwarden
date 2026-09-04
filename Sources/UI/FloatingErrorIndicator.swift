@@ -29,8 +29,16 @@ class FloatingErrorIndicator: NSPanel {
     /// Current errors being displayed
     private var errors: [GrammarErrorModel] = []
 
+    var diagnosticGrammarErrorCount: Int {
+        errors.count
+    }
+
     /// Current style suggestions being displayed
     private var styleSuggestions: [StyleSuggestionModel] = []
+
+    var diagnosticStyleSuggestionCount: Int {
+        styleSuggestions.count
+    }
 
     /// Current readability result (nil if text too short or feature disabled)
     private var readabilityResult: ReadabilityResult?

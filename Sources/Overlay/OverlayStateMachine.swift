@@ -152,6 +152,10 @@ final class OverlayStateMachine {
     /// Current state (read-only externally)
     private(set) var currentState: State = .idle
 
+    /// Last handled event, including events that intentionally leave the state unchanged.
+    private(set) var lastEvent: String?
+    private(set) var lastEventAt: Date?
+
     /// Current app behavior
     private var currentBehavior: AppBehavior?
 
@@ -176,6 +180,9 @@ final class OverlayStateMachine {
 
     /// Handle an event and transition to appropriate state
     func handle(_ event: Event) {
+        lastEvent = event.description
+        lastEventAt = Date()
+
         let previousState = currentState
         let newState = nextState(for: event)
 
@@ -346,6 +353,8 @@ final class OverlayStateMachine {
         reshowTimer?.invalidate()
         reshowTimer = nil
         currentState = .idle
+        lastEvent = "reset"
+        lastEventAt = Date()
     }
 }
 

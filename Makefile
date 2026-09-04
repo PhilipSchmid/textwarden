@@ -3,7 +3,7 @@
 
 .PHONY: help build build-rust build-swift \
         run run-only install uninstall \
-        test test-rust clean clean-all clean-derived \
+        test test-rust test-swift test-e2e-tools clean clean-all clean-derived \
         ci-check fmt fmt-rust fmt-swift lint lint-rust lint-swift \
         logs kill status reset reset-onboarding xcode version \
         release release-alpha release-beta release-rc release-upload \
@@ -84,7 +84,7 @@ logs: ## Watch app logs
 
 ##@ Testing
 
-test: test-rust test-swift ## Run all tests
+test: test-rust test-swift test-e2e-tools ## Run all tests
 
 test-rust: ## Run Rust tests
 	@echo "$(BLUE)🦀 Running Rust tests...$(NC)"
@@ -98,6 +98,9 @@ test-swift: ## Run Swift tests (unit tests only, excludes performance benchmarks
 		-skip-testing:TextWardenTests/LargeDocumentPerformanceTests \
 		2>&1 | grep -E '(failed|error:|TEST SUCCEEDED|TEST FAILED)'
 	@echo "$(GREEN)✅ Swift tests passed$(NC)"
+
+test-e2e-tools: ## Run E2E developer-tool tests
+	@python3 Scripts/e2e-state.py self-test
 
 ##@ Installation
 

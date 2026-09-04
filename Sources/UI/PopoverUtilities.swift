@@ -145,7 +145,8 @@ enum ModalDialogDetector {
             // unlike modal dialogs which only appear during user interaction
             // - BetterDisplay: transparent overlay across virtual displays
             // - Wispr Flow: voice dictation overlay in top portion of screen
-            if ownerName == "BetterDisplay" || ownerName == "Wispr Flow" { continue }
+            // - ChatGPT Computer Use: cursor visualization that follows automated pointer input
+            if ownerName == "BetterDisplay" || ownerName == "Wispr Flow" || ownerName == "ChatGPT Computer Use" { continue }
 
             // Convert CGWindow bounds (top-left origin) to Cocoa coords (bottom-left origin)
             // Use PRIMARY screen height (frame.origin == .zero), not NSScreen.screens.first
