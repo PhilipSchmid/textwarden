@@ -34,8 +34,11 @@ enum UIConstants {
     /// Width of the capsule indicator (matches circular indicator size)
     static let capsuleWidth: CGFloat = 36
 
-    /// Corner radius for capsule indicator (half of capsuleWidth for rounded ends)
-    static let capsuleCornerRadius: CGFloat = 18
+    /// Corner radius for the floating control rail
+    static let capsuleCornerRadius: CGFloat = 12
+
+    /// Symbol used to open AI Compose from the floating control rail
+    static let composeIconName = "square.and.pencil"
 
     /// Spacing between sections in the capsule (seamless for unified look)
     static let capsuleSectionSpacing: CGFloat = 0

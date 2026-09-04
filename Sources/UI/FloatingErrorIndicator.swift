@@ -2698,6 +2698,16 @@ private class CapsuleIndicatorView: NSView {
 
         NSGraphicsContext.restoreGraphicsState()
 
+        if let hoveredIndex = sections.firstIndex(where: \.isHovered) {
+            let section = sections[hoveredIndex]
+            let hoverRect = sectionFrame(at: hoveredIndex)
+            NSGraphicsContext.saveGraphicsState()
+            capsulePath.addClip()
+            section.ringColor.withAlphaComponent(isDarkMode ? 0.18 : 0.12).setFill()
+            NSBezierPath.fill(hoverRect)
+            NSGraphicsContext.restoreGraphicsState()
+        }
+
         // Draw subtle separator lines between sections
         if sections.count > 1 {
             let separatorColor = isDarkMode
@@ -2705,24 +2715,20 @@ private class CapsuleIndicatorView: NSView {
                 : NSColor.black.withAlphaComponent(0.1)
             separatorColor.setStroke()
 
-            let sectionSize = UIConstants.capsuleSectionHeight
-            let spacing = UIConstants.capsuleSectionSpacing
-
             // Draw a separator after each section except the last
             for i in 0 ..< (sections.count - 1) {
                 let separatorPath = NSBezierPath()
+                let sectionRect = sectionFrame(at: i)
 
                 switch orientation {
                 case .vertical:
                     // Horizontal separator line between sections
-                    // Sections are drawn from top to bottom, so separator is below each section
-                    let yFromTop = CGFloat(i + 1) * (sectionSize + spacing) - spacing / 2
-                    let separatorY = capsuleRect.maxY - yFromTop
+                    let separatorY = sectionRect.minY
                     separatorPath.move(to: CGPoint(x: capsuleRect.minX + 6, y: separatorY))
                     separatorPath.line(to: CGPoint(x: capsuleRect.maxX - 6, y: separatorY))
                 case .horizontal:
                     // Vertical separator line between sections
-                    let separatorX = capsuleRect.minX + CGFloat(i + 1) * (sectionSize + spacing) - spacing / 2
+                    let separatorX = sectionRect.maxX
                     separatorPath.move(to: CGPoint(x: separatorX, y: capsuleRect.minY + 6))
                     separatorPath.line(to: CGPoint(x: separatorX, y: capsuleRect.maxY - 6))
                 }
@@ -2733,12 +2739,11 @@ private class CapsuleIndicatorView: NSView {
         }
 
         // Draw subtle neutral border
-        let hasHover = sections.contains { $0.isHovered }
         let borderColor = isDarkMode
-            ? NSColor.white.withAlphaComponent(hasHover ? 0.3 : 0.2)
-            : NSColor.black.withAlphaComponent(hasHover ? 0.2 : 0.12)
+            ? NSColor.white.withAlphaComponent(0.2)
+            : NSColor.black.withAlphaComponent(0.12)
         borderColor.setStroke()
-        capsulePath.lineWidth = hasHover ? 1.5 : 1.0
+        capsulePath.lineWidth = 1.0
         capsulePath.stroke()
 
         // Draw content for each section
@@ -2877,56 +2882,28 @@ private class CapsuleIndicatorView: NSView {
 
     // MARK: - Content Drawing
 
-    /// Distinct color palette for clear visual differentiation
-    private var grammarIconColor: NSColor {
-        // Warm red-orange for grammar errors - clearly different from purple/blue
-        NSColor(red: 0.95, green: 0.35, blue: 0.25, alpha: 1.0)
-    }
-
-    private func styleIconColor(isDarkMode: Bool) -> NSColor {
-        if isDarkMode {
-            // Vibrant magenta for dark mode - high contrast
-            NSColor(red: 0.95, green: 0.3, blue: 0.75, alpha: 1.0)
-        } else {
-            // Deep violet for light mode - distinct from red and blue
-            NSColor(red: 0.6, green: 0.2, blue: 0.85, alpha: 1.0)
-        }
-    }
-
-    private func textGenIconColor(isDarkMode: Bool) -> NSColor {
-        if isDarkMode {
-            // Bright cyan-blue for dark mode - clearly different from magenta
-            NSColor(red: 0.3, green: 0.7, blue: 1.0, alpha: 1.0)
-        } else {
-            // Deep teal-blue for light mode - distinct from violet
-            NSColor(red: 0.15, green: 0.5, blue: 0.8, alpha: 1.0)
-        }
-    }
-
     private var successColor: NSColor {
-        // Soft teal - for success checkmarks
-        NSColor(red: 0.35, green: 0.65, blue: 0.6, alpha: 1.0)
+        .systemGreen
     }
 
     private func drawSectionContent(_ section: CapsuleSectionState, in rect: CGRect, isDarkMode: Bool) {
         switch section.displayState {
         case let .grammarCount(count):
-            drawCount(count, in: rect, isDarkMode: isDarkMode, color: grammarIconColor)
+            drawCount(count, in: rect, isDarkMode: isDarkMode, color: section.ringColor)
         case .grammarSuccess:
             drawCheckmark(in: rect, color: successColor)
         case .styleClarityIdle:
-            drawSparkle(in: rect, color: styleIconColor(isDarkMode: isDarkMode).withAlphaComponent(0.85)) // Ready state, slightly dimmed
+            drawSparkle(in: rect, color: section.ringColor.withAlphaComponent(0.85))
         case .styleClarityLoading:
-            drawLoadingSpinner(in: rect, color: styleIconColor(isDarkMode: isDarkMode))
+            drawLoadingSpinner(in: rect, color: section.ringColor)
         case let .styleClarityCount(count, _):
-            // Draw count, readability score badge handled separately
-            drawCount(count, in: rect, isDarkMode: isDarkMode, color: styleIconColor(isDarkMode: isDarkMode))
+            drawCount(count, in: rect, isDarkMode: isDarkMode, color: section.ringColor)
         case .styleClaritySuccess:
             drawCheckmark(in: rect, color: successColor)
         case .textGenIdle:
-            drawPenIcon(in: rect)
+            drawComposeIcon(in: rect, color: section.ringColor)
         case .textGenActive:
-            drawPenIcon(in: rect)
+            drawComposeIcon(in: rect, color: section.ringColor)
         case .hidden:
             break
         }
@@ -3015,16 +2992,14 @@ private class CapsuleIndicatorView: NSView {
                          from: .zero, operation: .sourceOver, fraction: 1.0)
     }
 
-    private func drawPenIcon(in rect: CGRect) {
+    private func drawComposeIcon(in rect: CGRect, color: NSColor) {
         let symbolConfig = NSImage.SymbolConfiguration(pointSize: 11, weight: .medium)
-        guard let penImage = NSImage(systemSymbolName: "pencil.line", accessibilityDescription: "Generate")?
+        guard let penImage = NSImage(systemSymbolName: UIConstants.composeIconName, accessibilityDescription: "Open AI Compose")?
             .withSymbolConfiguration(symbolConfig) else { return }
 
-        let isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        let iconColor = textGenIconColor(isDarkMode: isDarkMode)
         let tintedImage = NSImage(size: penImage.size, flipped: false) { drawRect in
             penImage.draw(in: drawRect)
-            iconColor.set()
+            color.set()
             drawRect.fill(using: .sourceAtop)
             return true
         }
