@@ -688,11 +688,9 @@ extension AppDelegate: NSWindowDelegate {
                 guard SuggestionPopover.shared.isVisible else { return }
 
                 // Handle grammar errors
-                if let error = SuggestionPopover.shared.currentError,
-                   let firstSuggestion = error.suggestions.first
-                {
-                    Logger.debug("Keyboard shortcut: Accept grammar suggestion - \(firstSuggestion)", category: Logger.ui)
-                    SuggestionPopover.shared.applySuggestion(firstSuggestion)
+                if SuggestionPopover.shared.currentError != nil {
+                    Logger.debug("Keyboard shortcut: Accept grammar suggestion", category: Logger.ui)
+                    SuggestionPopover.shared.applySuggestion(at: 0)
                     return
                 }
 
@@ -745,19 +743,14 @@ extension AppDelegate: NSWindowDelegate {
             }
         }
 
-        // Quick apply shortcuts (Option+1, Option+2, Option+3)
+        // Quick apply shortcuts (configurable in Settings)
         KeyboardShortcuts.onKeyUp(for: .applySuggestion1) {
             Task { @MainActor in
                 let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
                 guard SuggestionPopover.shared.isVisible else { return }
-                guard let error = SuggestionPopover.shared.currentError else { return }
-                // Use .first for safe array access
-                guard let suggestion = error.suggestions.first else { return }
-
-                Logger.debug("Keyboard shortcut: Apply suggestion 1 - \(suggestion)", category: Logger.ui)
-
-                SuggestionPopover.shared.applySuggestion(suggestion)
+                Logger.debug("Keyboard shortcut: Apply suggestion 1", category: Logger.ui)
+                SuggestionPopover.shared.applySuggestion(at: 0)
             }
         }
 
@@ -766,14 +759,8 @@ extension AppDelegate: NSWindowDelegate {
                 let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
                 guard SuggestionPopover.shared.isVisible else { return }
-                guard let error = SuggestionPopover.shared.currentError else { return }
-                // Bounds-checked access for index 1
-                guard error.suggestions.indices.contains(1) else { return }
-                let suggestion = error.suggestions[1]
-
-                Logger.debug("Keyboard shortcut: Apply suggestion 2 - \(suggestion)", category: Logger.ui)
-
-                SuggestionPopover.shared.applySuggestion(suggestion)
+                Logger.debug("Keyboard shortcut: Apply suggestion 2", category: Logger.ui)
+                SuggestionPopover.shared.applySuggestion(at: 1)
             }
         }
 
@@ -782,14 +769,8 @@ extension AppDelegate: NSWindowDelegate {
                 let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
                 guard SuggestionPopover.shared.isVisible else { return }
-                guard let error = SuggestionPopover.shared.currentError else { return }
-                // Bounds-checked access for index 2
-                guard error.suggestions.indices.contains(2) else { return }
-                let suggestion = error.suggestions[2]
-
-                Logger.debug("Keyboard shortcut: Apply suggestion 3 - \(suggestion)", category: Logger.ui)
-
-                SuggestionPopover.shared.applySuggestion(suggestion)
+                Logger.debug("Keyboard shortcut: Apply suggestion 3", category: Logger.ui)
+                SuggestionPopover.shared.applySuggestion(at: 2)
             }
         }
     }

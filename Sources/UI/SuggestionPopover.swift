@@ -975,6 +975,21 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     // MARK: - Grammar Error Actions
 
+    /// Apply the suggestion shown at a numbered quick-action position.
+    func applySuggestion(at index: Int) {
+        guard let error = currentError else { return }
+        let validSuggestions = error.suggestions.filter {
+            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        let displayedSuggestions = if error.category == "Readability", validSuggestions.count == 2 {
+            [validSuggestions[1]]
+        } else {
+            validSuggestions
+        }
+        guard displayedSuggestions.indices.contains(index) else { return }
+        applySuggestion(displayedSuggestions[index])
+    }
+
     /// Apply suggestion
     func applySuggestion(_ suggestion: String) {
         Logger.debug("Popover: applySuggestion called", category: Logger.ui)

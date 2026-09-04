@@ -65,6 +65,12 @@ extension KeyboardShortcuts.Name {
     /// Apply third suggestion (⌥3)
     static let applySuggestion3 = Self("applySuggestion3", default: .init(.three, modifiers: .option))
 
+    static let quickApplyShortcuts: [KeyboardShortcuts.Name] = [
+        .applySuggestion1,
+        .applySuggestion2,
+        .applySuggestion3,
+    ]
+
     // MARK: - Popover Shortcuts Management
 
     /// All shortcuts that should only be active when the popover is visible
@@ -74,10 +80,7 @@ extension KeyboardShortcuts.Name {
         .dismissSuggestion,
         .previousSuggestion,
         .nextSuggestion,
-        .applySuggestion1,
-        .applySuggestion2,
-        .applySuggestion3,
-    ]
+    ] + quickApplyShortcuts
 
     /// Enable all popover-specific shortcuts
     static func enablePopoverShortcuts() {
