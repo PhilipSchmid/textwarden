@@ -159,7 +159,7 @@ final class E2EStateReporter: NSObject {
 
     private let fileURL: URL
     private let stateProvider: @MainActor () -> E2EStateSnapshot.State?
-    private var timer: Timer?
+    private var timer: DispatchSourceTimer?
     private var lastState: E2EStateSnapshot.State?
     private var didLogWriteFailure = false
 
@@ -185,21 +185,15 @@ final class E2EStateReporter: NSObject {
     private func start() {
         publishIfChanged()
 
-        let timer = Timer(
-            timeInterval: 0.1,
-            target: self,
-            selector: #selector(handleTimer),
-            userInfo: nil,
-            repeats: true
-        )
-        RunLoop.main.add(timer, forMode: .common)
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + .milliseconds(100), repeating: .milliseconds(100))
+        timer.setEventHandler { [weak self] in
+            self?.publishIfChanged()
+        }
+        timer.resume()
         self.timer = timer
 
         Logger.info("E2E state reporting enabled at \(fileURL.path)", category: Logger.lifecycle)
-    }
-
-    @objc private func handleTimer() {
-        publishIfChanged()
     }
 
     private func publishIfChanged() {
@@ -238,7 +232,7 @@ final class E2EStateReporter: NSObject {
     }
 
     deinit {
-        timer?.invalidate()
+        timer?.cancel()
     }
 }
 
