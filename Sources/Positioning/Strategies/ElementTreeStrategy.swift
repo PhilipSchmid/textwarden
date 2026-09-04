@@ -89,6 +89,8 @@ class ElementTreeStrategy: GeometryProvider {
         // Note: Teams is NOT included here - its child elements have broken frame data
         // (child element frames don't match their visual position)
         let targetApps: Set = [
+            "com.openai.chat",
+            "com.openai.codex",
             "notion.id",
             "com.notion.id",
             "com.google.Chrome",
@@ -117,17 +119,17 @@ class ElementTreeStrategy: GeometryProvider {
         Logger.debug("ElementTreeStrategy: Applying offset \(offset): filtered \(errorRange.location) -> original \(originalStart)", category: Logger.ui)
 
         // Extract the error text using original coordinates
-        let errorStart = min(originalStart, text.count)
-        let errorEnd = min(originalEnd, text.count)
+        let scalarCount = text.unicodeScalars.count
+        let errorStart = min(originalStart, scalarCount)
+        let errorEnd = min(originalEnd, scalarCount)
 
         guard errorStart < errorEnd else {
             Logger.debug("ElementTreeStrategy: Invalid range after offset adjustment", category: Logger.accessibility)
             return nil
         }
 
-        // Safe string slicing to handle UTF-16/character count mismatches
-        guard let startIndex = text.index(text.startIndex, offsetBy: errorStart, limitedBy: text.endIndex),
-              let endIndex = text.index(text.startIndex, offsetBy: errorEnd, limitedBy: text.endIndex),
+        guard let startIndex = TextIndexConverter.scalarIndexToStringIndex(errorStart, in: text),
+              let endIndex = TextIndexConverter.scalarIndexToStringIndex(errorEnd, in: text),
               startIndex <= endIndex
         else {
             Logger.debug("ElementTreeStrategy: String index out of bounds for error text", category: Logger.accessibility)
@@ -166,13 +168,20 @@ class ElementTreeStrategy: GeometryProvider {
             return createResultFromFrame(elementFrame, errorText: errorText, parser: parser)
         }
 
-        let offsetInElement = elementText.distance(from: elementText.startIndex, to: range.lowerBound)
-        let textBeforeError = String(elementText.prefix(offsetInElement))
+        guard let scalarStart = range.lowerBound.samePosition(in: elementText.unicodeScalars) else {
+            return nil
+        }
+        let offsetInElement = elementText.unicodeScalars.distance(
+            from: elementText.unicodeScalars.startIndex,
+            to: scalarStart
+        )
+        let textBeforeError = String(elementText[..<range.lowerBound])
 
         Logger.debug("ElementTreeStrategy: Error at offset \(offsetInElement) in element", category: Logger.ui)
 
         // Try AXBoundsForRange on the child element itself
-        let childErrorRange = NSRange(location: offsetInElement, length: errorText.count)
+        let scalarRange = NSRange(location: offsetInElement, length: errorText.unicodeScalars.count)
+        let childErrorRange = TextIndexConverter.scalarToUTF16Range(scalarRange, in: elementText)
         if let childBounds = getBoundsForRange(childErrorRange, in: targetElement) {
             Logger.debug("ElementTreeStrategy: Got bounds from child element's AXBoundsForRange: \(childBounds)", category: Logger.ui)
 
@@ -216,6 +225,33 @@ class ElementTreeStrategy: GeometryProvider {
                         "api": "element-tree-range-bounds",
                         "element_role": role,
                         "child_range": "\(childErrorRange)",
+                    ]
+                )
+            }
+        }
+
+        if role == "AXStaticText" {
+            let context = parser.detectUIContext(element: targetElement)
+            let size = parser.estimatedFontSize(context: context)
+            let font = parser.fontFamily(context: context).flatMap { NSFont(name: $0, size: size) }
+                ?? NSFont.systemFont(ofSize: size)
+            if let lineBounds = TextPartBoundsCalculator.estimateLineBounds(
+                text: elementText,
+                targetRange: scalarRange,
+                frame: elementFrame,
+                font: font
+            ) {
+                let cocoaLineBounds = lineBounds.map(CoordinateMapper.toCocoaCoordinates)
+                guard let first = cocoaLineBounds.first else { return nil }
+                let combined = cocoaLineBounds.dropFirst().reduce(first) { $0.union($1) }
+                return GeometryResult(
+                    bounds: combined,
+                    lineBounds: cocoaLineBounds,
+                    confidence: GeometryConstants.reliableConfidence,
+                    strategy: strategyName,
+                    metadata: [
+                        "api": "element-tree-frame-layout",
+                        "element_role": role,
                     ]
                 )
             }

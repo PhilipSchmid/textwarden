@@ -6,7 +6,7 @@
 //
 //  ChatGPT-specific characteristics:
 //  - Electron/Chromium-based
-//  - RangeBounds strategy works well
+//  - Uses direct range bounds or child text frames, depending on the app build
 //  - Batches AX notifications (needs keyboard detection)
 //
 
@@ -14,7 +14,7 @@ import Foundation
 
 /// Complete behavior specification for ChatGPT Desktop
 struct ChatGPTBehavior: AppBehavior {
-    let bundleIdentifier = "com.openai.chat"
+    let bundleIdentifier: String
     let displayName = "ChatGPT"
 
     let underlineVisibility = UnderlineVisibilityBehavior(

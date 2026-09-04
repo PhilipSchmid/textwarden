@@ -366,7 +366,7 @@ class AnalysisCoordinator: ObservableObject {
         {
             capabilities.insert(.inlinePositioning)
         }
-        if configuration.features.textReplacementMethod == .standard {
+        if AppRegistry.shared.hasConfiguration(for: context.bundleIdentifier) {
             capabilities.insert(.safeReplacement)
         }
         return capabilities

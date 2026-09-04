@@ -50,7 +50,9 @@ final class AppBehaviorRegistry {
         register(SlackBehavior())
         register(NotionBehavior())
         register(ClaudeBehavior())
-        register(ChatGPTBehavior())
+        for bundleID in AppConfiguration.chatgpt.bundleIDs {
+            register(ChatGPTBehavior(bundleIdentifier: bundleID))
+        }
         register(PerplexityBehavior())
         register(TeamsBehavior())
         register(ProtonMailBehavior())
