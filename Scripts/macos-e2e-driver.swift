@@ -653,6 +653,110 @@ func printFocusedElementState(_ application: NSRunningApplication) throws {
     print(String(decoding: data, as: UTF8.self))
 }
 
+func rangeBounds(_ element: AXUIElement, location: Int, length: Int) -> (AXError, CGRect?) {
+    var range = CFRange(location: location, length: length)
+    guard let rangeValue = AXValueCreate(.cfRange, &range) else { return (.failure, nil) }
+    var value: CFTypeRef?
+    let result = AXUIElementCopyParameterizedAttributeValue(
+        element,
+        kAXBoundsForRangeParameterizedAttribute as CFString,
+        rangeValue,
+        &value
+    )
+    guard result == .success,
+          let boundsValue = axValue(value),
+          AXValueGetType(boundsValue) == .cgRect
+    else {
+        return (result, nil)
+    }
+    var bounds = CGRect.zero
+    return AXValueGetValue(boundsValue, .cgRect, &bounds) ? (result, bounds) : (.failure, nil)
+}
+
+func attributedSize(_ element: AXUIElement, location: Int, length: Int) -> CGSize? {
+    var range = CFRange(location: location, length: length)
+    guard let rangeValue = AXValueCreate(.cfRange, &range) else { return nil }
+    var value: CFTypeRef?
+    guard AXUIElementCopyParameterizedAttributeValue(
+        element,
+        kAXAttributedStringForRangeParameterizedAttribute as CFString,
+        rangeValue,
+        &value
+    ) == .success,
+        let attributed = value as? NSAttributedString
+    else {
+        return nil
+    }
+    return attributed.size()
+}
+
+func collectGeometryState(
+    _ element: AXUIElement,
+    location: Int,
+    length: Int,
+    depth: Int,
+    remaining: inout Int,
+    into states: inout [[String: Any]]
+) {
+    guard remaining > 0, depth <= 12 else { return }
+    remaining -= 1
+
+    let children = copyAttribute(element, kAXChildrenAttribute as CFString) as? [AXUIElement] ?? []
+    let requested = rangeBounds(element, location: location, length: length)
+    let utf16Length = textLength(element)
+    var state: [String: Any] = [
+        "children": children.count,
+        "depth": depth,
+        "identity": String(CFHash(element), radix: 16),
+        "rangeBoundsError": requested.0.rawValue,
+        "role": stringAttribute(element, kAXRoleAttribute as CFString) ?? "unknown",
+        "utf16Length": utf16Length.map { $0 as Any } ?? NSNull(),
+    ]
+    if let frame = elementFrame(element) {
+        state["frame"] = ["height": frame.height, "width": frame.width, "x": frame.origin.x, "y": frame.origin.y]
+    }
+    if let bounds = requested.1 {
+        state["rangeBounds"] = ["height": bounds.height, "width": bounds.width, "x": bounds.origin.x, "y": bounds.origin.y]
+    }
+    if let size = attributedSize(element, location: location, length: length) {
+        state["attributedSize"] = ["height": size.height, "width": size.width]
+    }
+    if let utf16Length, utf16Length > 0 {
+        let full = rangeBounds(element, location: 0, length: utf16Length)
+        state["fullBoundsError"] = full.0.rawValue
+        if let bounds = full.1 {
+            state["fullBounds"] = ["height": bounds.height, "width": bounds.width, "x": bounds.origin.x, "y": bounds.origin.y]
+        }
+        if let size = attributedSize(element, location: 0, length: utf16Length) {
+            state["fullAttributedSize"] = ["height": size.height, "width": size.width]
+        }
+    }
+    states.append(state)
+
+    for child in children {
+        collectGeometryState(
+            child,
+            location: location,
+            length: length,
+            depth: depth + 1,
+            remaining: &remaining,
+            into: &states
+        )
+    }
+}
+
+func printFocusedGeometry(_ application: NSRunningApplication, location: Int, length: Int) throws {
+    let appElement = AXUIElementCreateApplication(application.processIdentifier)
+    guard let focused = axElement(copyAttribute(appElement, kAXFocusedUIElementAttribute as CFString)) else {
+        throw DriverError.failure("application has no focused accessibility element")
+    }
+    var remaining = 500
+    var states: [[String: Any]] = []
+    collectGeometryState(focused, location: location, length: length, depth: 0, remaining: &remaining, into: &states)
+    let data = try JSONSerialization.data(withJSONObject: states, options: [.sortedKeys])
+    print(String(decoding: data, as: UTF8.self))
+}
+
 let textWardenBundleIdentifier = "io.textwarden.TextWarden"
 let appPauseDurationsKey = "appPauseDurations"
 let appPausedUntilKey = "appPausedUntil"
@@ -770,6 +874,7 @@ func usage() -> Never {
       macos-e2e-driver.swift check-editor BUNDLE_ID EXPECTED_TEXT
       macos-e2e-driver.swift check-editor-trimmed BUNDLE_ID EXPECTED_TEXT
       macos-e2e-driver.swift focused-element-state BUNDLE_ID
+      macos-e2e-driver.swift focused-geometry BUNDLE_ID LOCATION LENGTH
       macos-e2e-driver.swift app-pause-state BUNDLE_ID
       macos-e2e-driver.swift app-pause-set BUNDLE_ID unset|active|indefinite
       macos-e2e-driver.swift app-pause-set BUNDLE_ID one-hour|twenty-four-hours UNIX_SECONDS
@@ -877,6 +982,17 @@ func run(_ arguments: [String]) throws {
     case "focused-element-state":
         guard arguments.count == 2 else { usage() }
         try printFocusedElementState(try runningApplication(arguments[1]))
+
+    case "focused-geometry":
+        guard arguments.count == 4,
+              let location = Int(arguments[2]), location >= 0,
+              let length = Int(arguments[3]), length > 0
+        else { usage() }
+        try printFocusedGeometry(
+            try activate(arguments[1]),
+            location: location,
+            length: length
+        )
 
     case "app-pause-state":
         guard arguments.count == 2 else { usage() }
