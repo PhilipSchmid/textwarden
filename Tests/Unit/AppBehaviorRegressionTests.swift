@@ -512,6 +512,7 @@ final class AppBehaviorRegressionTests: XCTestCase {
             ["com.microsoft.edgemac", "com.microsoft.edgemac.Dev"],
             ["com.operasoftware.Opera", "com.operasoftware.OperaGX"],
             ["com.brave.Browser", "com.brave.Browser.beta"],
+            ["com.openai.chat", "com.openai.codex"],
         ]
 
         var displayNames: [String: [String]] = [:] // displayName -> [bundleIDs]
@@ -577,6 +578,7 @@ final class AppBehaviorRegressionTests: XCTestCase {
             "com.apple.iWork.Pages",
             "com.anthropic.claudefordesktop",
             "com.openai.chat",
+            "com.openai.codex",
             "ai.perplexity.mac",
             "com.apple.Notes",
             "com.apple.TextEdit",

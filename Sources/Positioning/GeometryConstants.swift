@@ -6,8 +6,10 @@
 //  These values are used to filter out invalid or suspicious AX API results.
 //
 
+import AppKit
 import ApplicationServices
 import CoreGraphics
+import CoreText
 import Foundation
 
 // MARK: - BoundedTextPart Protocol
@@ -29,6 +31,106 @@ protocol BoundedTextPart {
 
 /// Utility for calculating correct bounds when text spans multiple TextParts
 enum TextPartBoundsCalculator {
+    /// Estimate one or more visual line bounds inside a tightly fitted AXStaticText frame.
+    /// Chromium can expose the rendered frame while returning empty per-range bounds.
+    static func estimateLineBounds(
+        text: String,
+        targetRange: NSRange,
+        frame: CGRect,
+        font: NSFont
+    ) -> [CGRect]? {
+        let renderedText = text.hasSuffix("\n") ? String(text.dropLast()) : text
+        guard frame.width > 0,
+              frame.height > 0,
+              targetRange.length > 0,
+              targetRange.location >= 0,
+              targetRange.location + targetRange.length <= renderedText.unicodeScalars.count
+        else {
+            return nil
+        }
+
+        let utf16Range = TextIndexConverter.scalarToUTF16Range(targetRange, in: renderedText)
+        let attributed = NSAttributedString(string: renderedText, attributes: [.font: font])
+        let typesetter = CTTypesetterCreateWithAttributedString(attributed)
+        let glyphHeight = min(frame.height, ceil(font.pointSize + 2))
+        var lineRanges: [CFRange] = []
+        if frame.height <= glyphHeight + 2 {
+            lineRanges = [CFRange(location: 0, length: attributed.length)]
+        } else {
+            var location = 0
+            while location < attributed.length {
+                let length = CTTypesetterSuggestLineBreak(typesetter, location, Double(frame.width))
+                guard length > 0 else { return nil }
+                lineRanges.append(CFRange(location: location, length: length))
+                location += length
+            }
+        }
+
+        let lineAdvance = lineRanges.count > 1
+            ? (frame.height - glyphHeight) / CGFloat(lineRanges.count - 1)
+            : 0
+        var bounds: [CGRect] = []
+        for (lineIndex, lineRange) in lineRanges.enumerated() {
+            let overlapStart = max(utf16Range.location, lineRange.location)
+            let overlapEnd = min(
+                utf16Range.location + utf16Range.length,
+                lineRange.location + lineRange.length
+            )
+            guard overlapStart < overlapEnd else { continue }
+
+            let line = CTTypesetterCreateLine(typesetter, lineRange)
+            let startX = CTLineGetOffsetForStringIndex(line, overlapStart, nil)
+            let endX = CTLineGetOffsetForStringIndex(line, overlapEnd, nil)
+            bounds.append(CGRect(
+                x: frame.minX + startX,
+                y: frame.minY + CGFloat(lineIndex) * lineAdvance,
+                width: max(1, endX - startX),
+                height: glyphHeight
+            ))
+        }
+
+        guard !bounds.isEmpty else { return nil }
+        if lineRanges.count == 1 {
+            let measuredWidth = CGFloat(CTLineGetTypographicBounds(
+                CTTypesetterCreateLine(typesetter, lineRanges[0]),
+                nil,
+                nil,
+                nil
+            ))
+            guard measuredWidth > 0 else { return nil }
+            let scale = frame.width / measuredWidth
+            return bounds.map { rect in
+                CGRect(
+                    x: frame.minX + (rect.minX - frame.minX) * scale,
+                    y: rect.minY,
+                    width: rect.width * scale,
+                    height: rect.height
+                )
+            }
+        }
+        return bounds
+    }
+
+    /// Estimate a range inside a tightly fitted single-line AX text frame.
+    /// Chromium can expose the rendered line frame while returning empty range bounds.
+    static func estimateSingleLineBounds(
+        text: String,
+        targetRange: NSRange,
+        frame: CGRect,
+        font: NSFont
+    ) -> CGRect? {
+        guard !text.dropLast(text.hasSuffix("\n") ? 1 : 0).contains("\n"),
+              let bounds = estimateLineBounds(
+                  text: text,
+                  targetRange: targetRange,
+                  frame: frame,
+                  font: font
+              ),
+              bounds.count == 1
+        else { return nil }
+        return bounds[0]
+    }
+
     /// Calculate union bounds for a target range that spans multiple TextParts.
     /// For each overlapping part, calculates sub-element bounds for just the portion within the target range,
     /// rather than using the entire TextPart frame (which could extend into adjacent text).

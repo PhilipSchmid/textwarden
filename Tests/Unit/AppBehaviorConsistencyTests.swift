@@ -63,6 +63,7 @@ final class AppBehaviorConsistencyTests: XCTestCase {
             "com.apple.iWork.Pages",
             "com.anthropic.claudefordesktop",
             "com.openai.chat",
+            "com.openai.codex",
             "ai.perplexity.mac",
         ]
 
@@ -84,6 +85,7 @@ final class AppBehaviorConsistencyTests: XCTestCase {
             "com.microsoft.teams2",
             "com.anthropic.claudefordesktop",
             "com.openai.chat",
+            "com.openai.codex",
             "ai.perplexity.mac",
             "com.microsoft.Word",
             "com.microsoft.Powerpoint",
@@ -107,6 +109,7 @@ final class AppBehaviorConsistencyTests: XCTestCase {
             "com.microsoft.teams2",
             "com.anthropic.claudefordesktop",
             "com.openai.chat",
+            "com.openai.codex",
             "ai.perplexity.mac",
         ]
 
@@ -168,6 +171,7 @@ final class AppBehaviorConsistencyTests: XCTestCase {
             "com.microsoft.teams2",
             "com.anthropic.claudefordesktop",
             "com.openai.chat",
+            "com.openai.codex",
             "ai.perplexity.mac",
         ]
 

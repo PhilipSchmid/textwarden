@@ -333,7 +333,7 @@ class TeamsStrategy: GeometryProvider {
         let size = parser.estimatedFontSize(context: context)
         let font = parser.fontFamily(context: context).flatMap { NSFont(name: $0, size: size) }
             ?? NSFont.systemFont(ofSize: size)
-        let estimatedBounds = Self.estimateSingleLineBounds(
+        let estimatedBounds = TextPartBoundsCalculator.estimateSingleLineBounds(
             text: part.text,
             targetRange: NSRange(location: offsetInPart, length: errorLength),
             frame: part.frame,
@@ -341,41 +341,6 @@ class TeamsStrategy: GeometryProvider {
         )
         Logger.trace("TeamsStrategy: AXBoundsForRange on child failed - single-line estimate \(estimatedBounds != nil ? "succeeded" : "unavailable")", category: Logger.ui)
         return estimatedBounds
-    }
-
-    static func estimateSingleLineBounds(
-        text: String,
-        targetRange: NSRange,
-        frame: CGRect,
-        font: NSFont
-    ) -> CGRect? {
-        let renderedText = text.hasSuffix("\n") ? String(text.dropLast()) : text
-        guard !renderedText.contains("\n"),
-              frame.width > 0,
-              frame.height > 0,
-              let start = TextIndexConverter.scalarIndexToStringIndex(targetRange.location, in: renderedText),
-              let end = TextIndexConverter.scalarIndexToStringIndex(
-                  targetRange.location + targetRange.length,
-                  in: renderedText
-              ),
-              start < end
-        else {
-            return nil
-        }
-
-        let attributes: [NSAttributedString.Key: Any] = [.font: font]
-        let measuredWidth = (renderedText as NSString).size(withAttributes: attributes).width
-        guard measuredWidth > 0 else { return nil }
-
-        let scale = frame.width / measuredWidth
-        let prefixWidth = (String(renderedText[..<start]) as NSString).size(withAttributes: attributes).width
-        let errorWidth = (String(renderedText[start ..< end]) as NSString).size(withAttributes: attributes).width
-        return CGRect(
-            x: frame.minX + prefixWidth * scale,
-            y: frame.minY,
-            width: errorWidth * scale,
-            height: frame.height
-        )
     }
 
     /// Get bounds for a range within a child element using AXBoundsForRange

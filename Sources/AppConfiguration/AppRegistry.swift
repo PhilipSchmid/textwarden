@@ -262,11 +262,11 @@ extension AppConfiguration {
     static let chatgpt = AppConfiguration(
         identifier: "chatgpt",
         displayName: "ChatGPT",
-        bundleIDs: ["com.openai.chat"],
+        bundleIDs: ["com.openai.chat", "com.openai.codex"],
         category: .electron,
-        parserType: .generic, // RangeBoundsStrategy works well
+        parserType: .generic,
         fontConfig: FontConfig(
-            defaultSize: 16,
+            defaultSize: 14,
             fontFamily: nil,
             spacingMultiplier: 1.0
         ),
@@ -275,7 +275,7 @@ extension AppConfiguration {
         features: AppFeatures(
             visualUnderlinesEnabled: true,
             textReplacementMethod: .browserStyle,
-            requiresTypingPause: false, // Uses rangeBounds (direct AX API), no cursor manipulation needed
+            requiresTypingPause: false, // Direct AX/frame geometry does not manipulate the selection
             supportsFormattedText: false,
             childElementTraversal: true,
             delaysAXNotifications: true, // ChatGPT batches AX notifications, needs keyboard detection

@@ -35,6 +35,16 @@ final class AppBehaviorRegistryTests: XCTestCase {
         XCTAssertNotNil(behavior, "registeredBehavior should return value for known apps")
     }
 
+    func testChatGPTBundleVariantsUseChatGPTBehavior() throws {
+        for bundleID in AppConfiguration.chatgpt.bundleIDs {
+            let behavior = try XCTUnwrap(AppBehaviorRegistry.shared.registeredBehavior(for: bundleID))
+            XCTAssertEqual(behavior.bundleIdentifier, bundleID)
+            XCTAssertEqual(behavior.displayName, "ChatGPT")
+            XCTAssertTrue(behavior.knownQuirks.contains(.webBasedRendering))
+            XCTAssertTrue(behavior.knownQuirks.contains(.requiresBrowserStyleReplacement))
+        }
+    }
+
     func testHasRegisteredBehavior() {
         XCTAssertTrue(AppBehaviorRegistry.shared.hasRegisteredBehavior(for: "com.tinyspeck.slackmacgap"))
         XCTAssertFalse(AppBehaviorRegistry.shared.hasRegisteredBehavior(for: "com.unknown.app"))
