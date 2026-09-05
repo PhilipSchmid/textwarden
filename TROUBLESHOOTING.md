@@ -46,10 +46,11 @@ If permission remains stuck, remove TextWarden from the list, launch `/Applicati
 Check these in order:
 
 1. Confirm TextWarden is active in its menu bar menu.
-2. Open **Preferences → Applications** and check the current app. For an unrecognized app, choose **Try Safely** to use the indicator and copy-only fixes, or leave it paused.
-3. In a browser, open **Preferences → Websites** and make sure the current domain is not excluded.
-4. Type into an editable field, not rendered page text, a PDF, or a non-editable preview.
-5. Try a deliberate error such as `This are wrong.`
+2. Open **Preferences → Diagnostics** and check **Runtime Health** for the current app and any suggested recovery action.
+3. Open **Preferences → Applications** and check the current app. For an unrecognized app, choose **Try Safely** to use the indicator and copy-only fixes, or leave it paused.
+4. In a browser, open **Preferences → Websites** and make sure the current domain is not excluded.
+5. Type into an editable field, not rendered page text, a PDF, or a non-editable preview.
+6. Try a deliberate error such as `This are wrong.`
 
 Some editors expose their text incompletely through macOS Accessibility APIs. The [supported-app matrix](README.md#supported-apps) and [application notes](docs/applications/README.md) describe known exceptions.
 
@@ -131,6 +132,8 @@ Harper grammar and spelling, language detection, and Flesch readability scoring 
 ## Reset Settings or Onboarding
 
 From **Preferences → Diagnostics**, you can reset all settings, clear the custom dictionary, clear ignored rules or error text, and reset milestone prompts. Statistics have a separate reset control under **Preferences → Statistics**. **Reset All Settings** relaunches the app and shows onboarding.
+
+To review onboarding without resetting anything, choose **Preferences → About → Replay Tutorial**.
 
 Developers can reset onboarding only:
 

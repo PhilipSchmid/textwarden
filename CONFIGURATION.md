@@ -216,6 +216,10 @@ When a suggestion popover is open:
 
 ## Diagnostics and Logging
 
+### Runtime health
+
+Open **Preferences → Diagnostics** to see TextWarden's current state for the active application. The runtime-health card shows whether checking is active, limited, recovering, or paused, along with the last successful check and detected support capabilities. When TextWarden can recover automatically or needs an action from you, the relevant control appears in the same card.
+
 ### Log levels
 
 TextWarden writes to macOS Unified Logging at these levels: Trace, Debug, Info, Warning, Error, and Critical. Info is the default.
@@ -248,6 +252,7 @@ The Diagnostics tab can reset all settings, clear the custom dictionary, clear i
 
 ## Getting Help
 
+- Choose **Preferences → About → Replay Tutorial** to review the floating control, suggestions, and quick actions.
 - Read [Troubleshooting](TROUBLESHOOTING.md).
 - [Open a bug report](https://github.com/PhilipSchmid/textwarden/issues/new/choose).
 - Use [GitHub Discussions](https://github.com/PhilipSchmid/textwarden/discussions) for feature requests and questions.
