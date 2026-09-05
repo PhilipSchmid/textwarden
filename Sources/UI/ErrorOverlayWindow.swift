@@ -2417,7 +2417,7 @@ struct ReadabilityUnderline {
 }
 
 extension ReadabilityUnderline {
-    static let color = NSColor.systemBlue
+    static let color = StyleUnderline.color
 
     /// Check if a point is within the visible underline areas
     /// For segmented underlines, only checks the first and last segment bounds
@@ -2544,7 +2544,7 @@ class UnderlineView: NSView {
         // 2. Style underlines (middle) - currently unused
         // 3. Grammar underlines (top) - spelling/grammar errors, most actionable
 
-        // Draw each readability underline as two stable blue bookends.
+        // Draw each readability underline as two stable violet bookends.
         Logger.trace("UnderlineView: Drawing \(readabilityUnderlines.count) readability underlines", category: Logger.ui)
         for readabilityUnderline in readabilityUnderlines {
             Logger.trace("UnderlineView: Readability underline - isSegmented=\(readabilityUnderline.isSegmented), firstBounds=\(String(describing: readabilityUnderline.firstSegmentBounds)), lastBounds=\(String(describing: readabilityUnderline.lastSegmentBounds)), allDrawingBounds.count=\(readabilityUnderline.allDrawingBounds.count)", category: Logger.ui)

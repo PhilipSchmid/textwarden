@@ -35,7 +35,7 @@ enum TutorialStep: Int, CaseIterable {
     var hint: String {
         switch self {
         case .clickUnderline:
-            "Red underlines mark spelling and grammar issues. Click one to review a correction, then apply it without leaving your editor."
+            "The TextWarden control stays nearby to support you while you write, with quick access to corrections, style suggestions, and AI Compose. Red underlines mark writing issues; click one to review a correction."
         case .clickStyleSection:
             "Purple suggestions use Apple Intelligence to improve clarity, tone, or style. Review the rewrite, then choose Accept to apply it."
         case .clickComposeSection:
@@ -86,6 +86,10 @@ struct GettingStartedTutorialView: View {
 
     private var grammarCount: Int {
         grammarFixed ? 0 : 1
+    }
+
+    private var stageHasLeadingCallout: Bool {
+        tutorialStep != .complete && !showComposePopover
     }
 
     /// Which section to highlight in the indicator
@@ -166,7 +170,7 @@ struct GettingStartedTutorialView: View {
                 }
 
                 // Instruction
-                Text(tutorialStep.instruction)
+                Text(showContextMenu ? "Click anywhere in the menu to continue" : tutorialStep.instruction)
                     .font(.headline)
                     .foregroundColor(.accentColor)
                     .padding(.top, 8)
@@ -183,6 +187,7 @@ struct GettingStartedTutorialView: View {
                             tutorialIndicator
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .offset(x: stageHasLeadingCallout ? 70 : 0)
                     }
 
                     tutorialTip
@@ -257,6 +262,10 @@ struct GettingStartedTutorialView: View {
         )
         .overlay(alignment: .leading) {
             Group {
+                if tutorialStep == .clickUnderline, !showSuggestionPopover {
+                    TutorialRightCallout(text: "TextWarden control")
+                }
+
                 if tutorialStep == .clickStyleSection, !showStylePopover {
                     TutorialRightCallout(text: "Click Style")
                 }
