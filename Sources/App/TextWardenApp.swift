@@ -483,12 +483,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.delegate = self
         window.level = .normal
 
-        // Add toolbar for modern macOS 26 "Toolbar window" style (26pt corner radius)
-        let toolbar = NSToolbar(identifier: "SettingsToolbar")
-        toolbar.displayMode = .iconOnly
-        toolbar.showsBaselineSeparator = false
-        window.toolbar = toolbar
-        window.toolbarStyle = .unified
+        // Keep the native titled-window shape; an empty toolbar opts into the larger toolbar radius.
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
 
