@@ -3,6 +3,28 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.4.1</title>
+            <pubDate>Sat, 05 Sep 2026 12:54:47 +0200</pubDate>
+            <sparkle:version>35</sparkle:version>
+            <sparkle:shortVersionString>0.4.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;fix: use native settings window radius (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/1486b87"&gt;&lt;code&gt;1486b87&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: reorganize settings help and status (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/a97412f"&gt;&lt;code&gt;a97412f&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: align tutorial layout and suggestion colors (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/c1b65ae"&gt;&lt;code&gt;c1b65ae&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;test: expand macOS interaction controls (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/c665b94"&gt;&lt;code&gt;c665b94&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: honor configured suggestion shortcuts (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/10c00e3"&gt;&lt;code&gt;10c00e3&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: align onboarding with writing UI (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/b48df66"&gt;&lt;code&gt;b48df66&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: rotate writing control while dragging (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/e68f666"&gt;&lt;code&gt;e68f666&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: refine floating writing control (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/66d74ac"&gt;&lt;code&gt;66d74ac&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: unify writing popovers (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/8a79fb9"&gt;&lt;code&gt;8a79fb9&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: refine readability suggestions (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/84ccbd2"&gt;&lt;code&gt;84ccbd2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;chore: release v0.4.0 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/becdcca"&gt;&lt;code&gt;becdcca&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.4.1/TextWarden-0.4.1-Universal.dmg" length="23059269" type="application/octet-stream" sparkle:edSignature="eEwbL0c0R2dnJlJWbS4BYjxeMc2a/Ijw2jxiDBQ8QUkQbZEDyQcuYgzu7pqqbnvhijbaIdu6YTHp2X1/bdo1Dg=="/>
+        </item>
+        <item>
             <title>0.4.0</title>
             <pubDate>Fri, 04 Sep 2026 21:25:16 +0200</pubDate>
             <sparkle:version>34</sparkle:version>
