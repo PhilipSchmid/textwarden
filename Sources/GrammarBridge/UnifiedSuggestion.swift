@@ -9,11 +9,11 @@ import Foundation
 // MARK: - Suggestion Category
 
 /// Category of suggestion, determines visual presentation and available actions.
-/// Maps to the three-section indicator: Correctness (red), Style+Clarity (purple/blue).
+/// Maps to the three-section indicator: Correctness (red), Style+Clarity (purple).
 public enum SuggestionCategory: String, CaseIterable, Sendable {
     /// Red - Spelling, grammar, punctuation errors (Harper engine)
     case correctness
-    /// Blue - Readability, sentence complexity simplification (Apple Intelligence)
+    /// Purple - Readability, sentence complexity simplification (Apple Intelligence)
     case clarity
     /// Purple - Tone, formality, word choice improvements (Apple Intelligence)
     case style
@@ -30,7 +30,7 @@ public enum SuggestionCategory: String, CaseIterable, Sendable {
     public var colorName: String {
         switch self {
         case .correctness: "errorRed"
-        case .clarity: "clarityBlue"
+        case .clarity: "stylePurple"
         case .style: "stylePurple"
         }
     }

@@ -197,11 +197,9 @@ struct AppColors {
 
     // MARK: - Unified Suggestion Category Colors
 
-    /// Clarity color (blue) - for readability suggestions
+    /// Clarity shares the Apple Intelligence suggestion color.
     var clarity: Color {
-        colorScheme == .dark
-            ? Color(hue: 210 / 360, saturation: 0.70, brightness: 0.65) // Softer blue for dark mode
-            : Color(hue: 210 / 360, saturation: 0.65, brightness: 0.50) // Rich blue for light mode
+        style
     }
 
     /// Style color (purple) - for style suggestions
@@ -217,7 +215,7 @@ struct AppColors {
         case .correctness:
             error // Red for spelling, grammar, punctuation
         case .clarity:
-            clarity // Blue for readability simplifications
+            clarity // Purple for readability simplifications
         case .style:
             style // Purple for style improvements
         }
