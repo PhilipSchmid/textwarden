@@ -12,7 +12,7 @@ import UniformTypeIdentifiers
 
 struct DiagnosticsView: View {
     @ObservedObject var preferences: UserPreferences
-    @ObservedObject private var applicationTracker = ApplicationTracker.shared
+    @ObservedObject private var permissionManager = PermissionManager.shared
     @ObservedObject private var runtimeHealth = RuntimeHealthStore.shared
     @State private var isExporting: Bool = false
     @State private var showingExportSuccess: Bool = false
@@ -25,117 +25,79 @@ struct DiagnosticsView: View {
         Form {
             Section {
                 let snapshot = runtimeHealth.snapshot
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text(snapshot.applicationName ?? "No active application")
-                            .font(.headline)
-                        Spacer()
-                        Text(snapshot.state.displayName)
-                            .foregroundColor(.secondary)
-                    }
-                    Text(snapshot.title)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    if snapshot.capabilities.rawValue != 0 {
-                        Text("Capabilities: \(snapshot.capabilities.supportLabel)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    if let bundleID = snapshot.bundleIdentifier {
-                        Text(bundleID)
-                            .font(.caption2)
-                            .textSelection(.enabled)
-                    }
-                }
-            } header: {
-                Text("Runtime Health")
-                    .font(.headline)
-            }
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: statusIcon(for: snapshot.state))
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(statusColor(for: snapshot.state))
+                        .frame(width: 32, height: 32)
+                        .background(
+                            Circle()
+                                .fill(statusColor(for: snapshot.state).opacity(0.12))
+                        )
 
-            // MARK: - Active Application Monitoring
-
-            Section {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Image(systemName: "eye.fill")
-                            .font(.title2)
-                            .foregroundColor(.blue)
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Currently Monitoring")
+                    VStack(alignment: .leading, spacing: 7) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(snapshot.applicationName ?? "TextWarden")
                                 .font(.headline)
-                            if let app = applicationTracker.activeApplication {
-                                Text(app.applicationName)
-                                    .font(.subheadline)
-                                    .foregroundColor(.blue)
-                            } else {
-                                Text("No application")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
+
+                            Spacer()
+
+                            Text(snapshot.state.displayName)
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(statusColor(for: snapshot.state))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(
+                                    Capsule()
+                                        .fill(statusColor(for: snapshot.state).opacity(0.12))
+                                )
                         }
 
-                        Spacer()
+                        Text(snapshot.title)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
 
-                        // Live indicator
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(Color.green)
-                                .frame(width: 8, height: 8)
-                                .opacity(applicationTracker.activeApplication != nil ? 1.0 : 0.3)
-                            Text("Live")
+                        if let lastCheck = snapshot.lastSuccessfulCheck {
+                            Label(
+                                "Last checked \(lastCheck.formatted(date: .omitted, time: .shortened))",
+                                systemImage: "clock"
+                            )
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        }
+
+                        if snapshot.capabilities.rawValue != 0 {
+                            Text("Capabilities: \(snapshot.capabilities.supportLabel)")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
-                    }
 
-                    if let app = applicationTracker.activeApplication {
-                        Divider()
-
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("Application:")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text(app.applicationName)
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                            }
-
-                            HStack {
-                                Text("Bundle ID:")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text(app.bundleIdentifier)
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                                    .textSelection(.enabled)
-                            }
-
-                            HStack {
-                                Text("Checking:")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text(app.shouldCheck() ? "Enabled" : "Disabled")
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(app.shouldCheck() ? .green : .orange)
-                            }
+                        if let bundleID = snapshot.bundleIdentifier {
+                            Text(bundleID)
+                                .font(.caption2.monospaced())
+                                .foregroundColor(.secondary)
+                                .textSelection(.enabled)
                         }
+
+                        runtimeHealthAction(for: snapshot)
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.regular)
+                            .padding(.top, 2)
                     }
                 }
+                .padding(.vertical, 6)
             } header: {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 8) {
-                        Image(systemName: "app.badge")
+                        Image(systemName: "waveform.path.ecg")
                             .font(.title2)
                             .foregroundColor(.accentColor)
-                        Text("Active Application Monitoring")
+                        Text("Runtime Health")
                             .font(.title3)
                             .fontWeight(.semibold)
                     }
 
-                    Text("Real-time information about the currently active application")
+                    Text("Current TextWarden status and available recovery actions")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -490,6 +452,55 @@ struct DiagnosticsView: View {
                 },
                 secondaryButton: .cancel()
             )
+        }
+    }
+
+    @ViewBuilder
+    private func runtimeHealthAction(for snapshot: RuntimeHealthSnapshot) -> some View {
+        switch snapshot.action {
+        case .grantPermission:
+            Button("Open Accessibility Settings") {
+                permissionManager.openSystemSettings()
+            }
+        case .resume:
+            let title = snapshot.resumeScope.flatMap { scope -> String? in
+                guard case .application = scope else { return nil }
+                return snapshot.applicationName.map { "Resume TextWarden in \($0)" }
+            } ?? "Resume TextWarden"
+            Button(title) {
+                if let scope = snapshot.resumeScope {
+                    preferences.resume(scope)
+                }
+            }
+        case .trySafely:
+            Button("Try Safely") {
+                if let bundleID = snapshot.bundleIdentifier {
+                    AnalysisCoordinator.shared.startSafeTrial(for: bundleID)
+                }
+            }
+        case .retry:
+            Button("Retry Now") {
+                AnalysisCoordinator.shared.retryCurrentCheck()
+            }
+        case .none, .enable, .resetIndicatorPosition, .openSettings, .copyDiagnostics, .reportCompatibility, .keepPaused:
+            EmptyView()
+        }
+    }
+
+    private func statusIcon(for state: CheckingState) -> String {
+        switch state {
+        case .active: "checkmark.circle.fill"
+        case .limited: "exclamationmark.circle.fill"
+        case .recovering: "arrow.triangle.2.circlepath.circle.fill"
+        case .inactive: "pause.circle.fill"
+        }
+    }
+
+    private func statusColor(for state: CheckingState) -> Color {
+        switch state {
+        case .active: .green
+        case .limited, .recovering: .orange
+        case .inactive: .secondary
         }
     }
 

@@ -40,48 +40,26 @@ struct AboutView: View {
 
     var body: some View {
         Form {
-            // MARK: - About TextWarden (main group header with app info)
+            // MARK: - About TextWarden
 
             Section {
-                // App identity row with larger logo
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(spacing: 20) {
-                        Image("TextWardenLogo")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 128, height: 128)
+                HStack(spacing: 16) {
+                    Image("TextWardenLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 88, height: 88)
 
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("TextWarden")
-                                .font(.system(size: 28, weight: .bold))
-                            Text("Grammar and Style Checking for macOS")
-                                .font(.title3)
-                                .foregroundColor(.secondary)
-                        }
-
-                        Spacer()
-                    }
-                }
-                .padding(.vertical, 8)
-            } header: {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "info.circle.fill")
-                            .font(.title2)
-                            .foregroundColor(.accentColor)
-                        Text("About TextWarden")
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("TextWarden")
+                            .font(.system(size: 26, weight: .bold))
+                        Text("Grammar and Style Checking for macOS")
                             .font(.title3)
-                            .fontWeight(.semibold)
+                            .foregroundColor(.secondary)
                     }
 
-                    Text("Application information and version details")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Text("Application")
-                        .font(.headline)
-                        .padding(.top, 8)
+                    Spacer()
                 }
+                .padding(.vertical, 2)
             }
 
             // Version & Updates subsection
@@ -162,13 +140,42 @@ struct AboutView: View {
                     }
                 }
             } header: {
-                Text("Version")
+                Text("Updates")
                     .font(.headline)
             }
 
-            // MARK: - Resources (new main group)
+            // MARK: - Help and Resources
 
             Section {
+                Button {
+                    NSApp.sendAction(#selector(AppDelegate.openTutorialWindow), to: nil, from: nil)
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "play.rectangle.fill")
+                            .font(.title3)
+                            .foregroundColor(.accentColor)
+                            .frame(width: 28)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Replay Tutorial")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            Text("Review the writing control, suggestions, and quick actions")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                    .padding(.vertical, 4)
+                }
+                .buttonStyle(.plain)
+
                 Link(destination: AppURLs.github) {
                     HStack {
                         Label("View on GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
@@ -199,30 +206,18 @@ struct AboutView: View {
                     }
                 }
             } header: {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "link")
-                            .font(.title2)
-                            .foregroundColor(.accentColor)
-                        Text("Resources")
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                    }
-
-                    Text("Source code, documentation, and support")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Text("Links")
+                HStack(spacing: 8) {
+                    Image(systemName: "questionmark.circle.fill")
+                        .foregroundColor(.accentColor)
+                    Text("Help & Resources")
                         .font(.headline)
-                        .padding(.top, 8)
                 }
             }
 
             // Support subsection
             Section {
-                VStack(spacing: 12) {
-                    Text("TextWarden is a side project built during evenings and weekends. If you find it useful, you can support its development.")
+                HStack(spacing: 16) {
+                    Text("TextWarden is free and open source. Your support helps its development.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -231,11 +226,9 @@ struct AboutView: View {
                         Image("BuyMeACoffeeButton")
                             .resizable()
                             .scaledToFit()
-                            .frame(height: 36)
+                            .frame(height: 32)
                     }
-                    .frame(maxWidth: .infinity, alignment: .center)
                 }
-                .padding(.vertical, 4)
             } header: {
                 Text("Support")
                     .font(.headline)
