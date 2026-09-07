@@ -2362,8 +2362,8 @@ dependencies = [
 
 [[package]]
 name = "harper-brill"
-version = "2.9.0"
-source = "git+https://github.com/Automattic/harper?tag=v2.9.0#253c5f791db325a84cd58d7519d98b1c04fae105"
+version = "2.9.1"
+source = "git+https://github.com/Automattic/harper?tag=v2.9.1#1a4b5db72a941119f37f92097d71a51d1a3e739c"
 dependencies = [
  "harper-pos-utils",
  "serde_json",
@@ -2371,8 +2371,8 @@ dependencies = [
 
 [[package]]
 name = "harper-core"
-version = "2.9.0"
-source = "git+https://github.com/Automattic/harper?tag=v2.9.0#253c5f791db325a84cd58d7519d98b1c04fae105"
+version = "2.9.1"
+source = "git+https://github.com/Automattic/harper?tag=v2.9.1#1a4b5db72a941119f37f92097d71a51d1a3e739c"
 dependencies = [
  "ammonia",
  "bitflags",
@@ -2407,8 +2407,8 @@ dependencies = [
 
 [[package]]
 name = "harper-pos-utils"
-version = "2.9.0"
-source = "git+https://github.com/Automattic/harper?tag=v2.9.0#253c5f791db325a84cd58d7519d98b1c04fae105"
+version = "2.9.1"
+source = "git+https://github.com/Automattic/harper?tag=v2.9.1#1a4b5db72a941119f37f92097d71a51d1a3e739c"
 dependencies = [
  "burn",
  "burn-ndarray",
@@ -2424,8 +2424,8 @@ dependencies = [
 
 [[package]]
 name = "harper-thesaurus"
-version = "2.9.0"
-source = "git+https://github.com/Automattic/harper?tag=v2.9.0#253c5f791db325a84cd58d7519d98b1c04fae105"
+version = "2.9.1"
+source = "git+https://github.com/Automattic/harper?tag=v2.9.1#1a4b5db72a941119f37f92097d71a51d1a3e739c"
 dependencies = [
  "hashbrown 0.16.1",
  "indexmap",
