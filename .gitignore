@@ -30,6 +30,7 @@ DerivedData/
 *.ipa
 *.dSYM.zip
 *.dSYM
+*.trace
 
 # Swift Package Manager
 .build/

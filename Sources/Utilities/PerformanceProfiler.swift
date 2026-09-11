@@ -39,6 +39,14 @@ enum ProfiledOperation: String, CaseIterable {
     // Low-level operations
     case accessibilityQuery = "ax-query"
     case positionRefresh = "position-refresh"
+    case windowPositionCheck = "window-position-check"
+    case windowEnumeration = "window-enumeration"
+    case textValidation = "text-validation"
+}
+
+enum ProfiledEvent: String {
+    case windowMonitorStarted = "window-monitor-started"
+    case windowMonitorStopped = "window-monitor-stopped"
 }
 
 // MARK: - Metrics Snapshot
@@ -53,6 +61,10 @@ struct OperationMetricsSnapshot: Codable {
     let p90: Double
     let p95: Double
     let p99: Double
+    /// Lifetime elapsed time, not CPU time; nested intervals can overlap.
+    var totalDurationMs: Double = 0
+    var observationSeconds: Double = 0
+    var callsPerSecond: Double = 0
 }
 
 // MARK: - Operation Metrics
@@ -63,11 +75,15 @@ final class OperationMetrics {
     private var samples: [Double] = []
     private var totalCount: Int = 0
     private var totalSum: Double = 0
+    private var nextSample = 0
+    private var startedAt = ProcessInfo.processInfo.systemUptime
 
     func record(_ durationMs: Double) {
-        samples.append(durationMs)
-        if samples.count > maxSamples {
-            samples.removeFirst()
+        if samples.count < maxSamples {
+            samples.append(durationMs)
+        } else {
+            samples[nextSample] = durationMs
+            nextSample = (nextSample + 1) % maxSamples
         }
         totalCount += 1
         totalSum += durationMs
@@ -82,6 +98,7 @@ final class OperationMetrics {
         }
 
         let sorted = samples.sorted()
+        let elapsed = max(0, ProcessInfo.processInfo.systemUptime - startedAt)
         return OperationMetricsSnapshot(
             count: totalCount,
             mean: totalSum / Double(totalCount),
@@ -90,7 +107,10 @@ final class OperationMetrics {
             p50: percentile(sorted, 0.50),
             p90: percentile(sorted, 0.90),
             p95: percentile(sorted, 0.95),
-            p99: percentile(sorted, 0.99)
+            p99: percentile(sorted, 0.99),
+            totalDurationMs: totalSum,
+            observationSeconds: elapsed,
+            callsPerSecond: elapsed > 0 ? Double(totalCount) / elapsed : 0
         )
     }
 
@@ -104,6 +124,8 @@ final class OperationMetrics {
         samples.removeAll()
         totalCount = 0
         totalSum = 0
+        nextSample = 0
+        startedAt = ProcessInfo.processInfo.systemUptime
     }
 }
 
@@ -116,6 +138,7 @@ final class PerformanceProfiler: @unchecked Sendable {
     private let signposter: OSSignposter
     private let metricsLock = NSLock()
     private var operationMetrics: [ProfiledOperation: OperationMetrics] = [:]
+    private var eventCounts: [String: Int] = [:]
 
     private init() {
         signposter = OSSignposter(
@@ -135,14 +158,14 @@ final class PerformanceProfiler: @unchecked Sendable {
         let id = signposter.makeSignpostID()
         // Use a static name "Operation" with dynamic operation/context in the message
         let state = signposter.beginInterval("Operation", id: id, "\(operation.rawValue) \(context)")
-        return (state, CFAbsoluteTimeGetCurrent())
+        return (state, ProcessInfo.processInfo.systemUptime)
     }
 
     /// End a profiled interval and record metrics
     func endInterval(_ operation: ProfiledOperation, state: OSSignpostIntervalState, startTime: CFAbsoluteTime) {
         signposter.endInterval("Operation", state)
 
-        let duration = (CFAbsoluteTimeGetCurrent() - startTime) * 1000 // Convert to ms
+        let duration = (ProcessInfo.processInfo.systemUptime - startTime) * 1000 // Monotonic elapsed ms
         recordMetric(operation, durationMs: duration)
     }
 
@@ -163,6 +186,19 @@ final class PerformanceProfiler: @unchecked Sendable {
     }
 
     // MARK: - Metrics Collection
+
+    func recordEvent(_ event: ProfiledEvent) {
+        signposter.emitEvent("Monitoring lifecycle", "\(event.rawValue)")
+        metricsLock.lock()
+        defer { metricsLock.unlock() }
+        eventCounts[event.rawValue, default: 0] += 1
+    }
+
+    func getEventCounts() -> [String: Int] {
+        metricsLock.lock()
+        defer { metricsLock.unlock() }
+        return eventCounts
+    }
 
     private func recordMetric(_ operation: ProfiledOperation, durationMs: Double) {
         metricsLock.lock()
@@ -189,5 +225,6 @@ final class PerformanceProfiler: @unchecked Sendable {
         for operation in ProfiledOperation.allCases {
             operationMetrics[operation] = OperationMetrics()
         }
+        eventCounts.removeAll()
     }
 }

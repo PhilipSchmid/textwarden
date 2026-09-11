@@ -651,6 +651,7 @@ struct StrategyProfileDiagnostics: Codable {
 /// Diagnostics for OSSignposter-based performance profiling
 struct PerformanceProfilingDiagnostics: Codable {
     let operationMetrics: [String: OperationMetricsSnapshot]
+    let eventCounts: [String: Int]
     let recentSignposts: [SignpostEntry]
     let exportTimestamp: Date
 
@@ -661,6 +662,7 @@ struct PerformanceProfilingDiagnostics: Codable {
         // Signposts can still be viewed in Instruments for detailed analysis.
         PerformanceProfilingDiagnostics(
             operationMetrics: PerformanceProfiler.shared.getMetricsSnapshot(),
+            eventCounts: PerformanceProfiler.shared.getEventCounts(),
             recentSignposts: [],
             exportTimestamp: Date()
         )

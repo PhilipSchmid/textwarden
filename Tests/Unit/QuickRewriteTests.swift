@@ -239,9 +239,14 @@ final class QuickRewriteTests: XCTestCase {
     }
 
     @MainActor
-    private func assertReviewContentFits(_ panel: NSPanel, original: String, proposed: String, status: QuickRewriteStatus,
-                                         file: StaticString = #filePath, line: UInt = #line)
-    {
+    private func assertReviewContentFits(
+        _ panel: NSPanel,
+        original: String,
+        proposed: String,
+        status: QuickRewriteStatus,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
         let screenHeight = panel.screen?.visibleFrame.height ?? 800
         // Unlike the broken unconstrained fittingSize check, this reference always
         // measures the complete contents at the actual window's wrapping width.
