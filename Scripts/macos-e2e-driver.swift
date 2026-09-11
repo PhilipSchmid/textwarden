@@ -910,7 +910,7 @@ func usage() -> Never {
       macos-e2e-driver.swift press-menu BUNDLE_ID LABEL
       macos-e2e-driver.swift tab-app BUNDLE_ID
       macos-e2e-driver.swift escape-app BUNDLE_ID
-      macos-e2e-driver.swift shortcut-app BUNDLE_ID command-a|command-0|command-1|command-n|option-1|option-control-w|option-shift-r
+      macos-e2e-driver.swift shortcut-app BUNDLE_ID command-a|command-0|command-1|command-n|option-1|option-control-w
       macos-e2e-driver.swift type-app BUNDLE_ID TEXT
       macos-e2e-driver.swift paste-app BUNDLE_ID TEXT
       macos-e2e-driver.swift backspace-app BUNDLE_ID
@@ -1216,9 +1216,6 @@ func run(_ arguments: [String]) throws {
         case "option-control-w":
             keyCode = 13
             flags = [.maskAlternate, .maskControl]
-        case "option-shift-r":
-            keyCode = 15
-            flags = [.maskAlternate, .maskShift]
         default: usage()
         }
         _ = try activate(arguments[1])
