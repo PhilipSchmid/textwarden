@@ -95,15 +95,93 @@ xcrun swift Scripts/macos-e2e-driver.swift press-self-chat BUNDLE_ID
 xcrun swift Scripts/macos-e2e-driver.swift press-app BUNDLE_ID LABEL
 xcrun swift Scripts/macos-e2e-driver.swift press-menu BUNDLE_ID LABEL
 xcrun swift Scripts/macos-e2e-driver.swift shortcut-app BUNDLE_ID command-0
+xcrun swift Scripts/macos-e2e-driver.swift shortcut-app com.apple.TextEdit option-control-w
+xcrun swift Scripts/macos-e2e-driver.swift shortcut-app com.apple.TextEdit option-shift-r
 xcrun swift Scripts/macos-e2e-driver.swift window-state BUNDLE_ID
 xcrun swift Scripts/macos-e2e-driver.swift window-set BUNDLE_ID X Y WIDTH HEIGHT
 xcrun swift Scripts/macos-e2e-driver.swift window-minimize BUNDLE_ID
 xcrun swift Scripts/macos-e2e-driver.swift window-restore BUNDLE_ID
 ```
 
-The driver activates and verifies the target process, refuses text containing line breaks, preserves and restores the clipboard around paste input, checks exact UTF-16 lengths before clearing, rejects clicks outside the target application or on send-like controls, and consumes oracle-provided Quartz coordinates. `press-self-chat` accepts only explicit self markers such as `(You)`, `Saved Messages`, and `Message yourself`; if an app omits those AX labels, require a tightly cropped visual confirmation before a guarded coordinate click. Navigation shortcuts are deliberately whitelisted (`command-0` and `command-n`). Keep host-app orchestration in Computer Use and assertions in `Scripts/e2e-state.py`; add a scenario layer only if repeated tests prove these direct commands insufficient.
+The driver activates and verifies the target process, refuses text containing line breaks, preserves and restores the clipboard around paste input, checks exact UTF-16 lengths before clearing, rejects clicks outside the target application or on send-like controls, and consumes oracle-provided Quartz coordinates. `press-self-chat` accepts only explicit self markers such as `(You)`, `Saved Messages`, and `Message yourself`; if an app omits those AX labels, require a tightly cropped visual confirmation before a guarded coordinate click. Shortcuts are deliberately whitelisted; the usage output lists supported combinations, including the default Compose and Quick Rewrite shortcuts above. Verify configured bindings and that shortcuts are enabled before relying on them. Keep host-app orchestration in Computer Use and assertions in `Scripts/e2e-state.py`; add a scenario layer only if repeated tests prove these direct commands insufficient.
+
+If Computer Use reports a capture failure for TextWarden's overlay-only state, do not infer that the pill is absent. Verify its current frame in the oracle or logs, use the guarded `click-textwarden` helper where native input is authorized, then capture the opened Compose or suggestion panel. During September 2026 checks, app-targeted shortcut events inserted characters into TextEdit instead of invoking TextWarden's global shortcut; the native helper exercised the intended event path. Restore the exact fixture after any such mismatch. Do not count successful helper execution alone as a pass: verify the resulting UI and editor value.
 
 ## Application canaries
+
+### Feature-specific AI quality
+
+`AIInteractionTests` separates draft generation, selected-text editing, simplification, and style suggestions. These opt-in tests use independent synthetic text and the installed on-device model, not a hosted provider. Each quality call retains its input, output, and repetition in XCTest attachments. Ordinary `make test` runs the deterministic prompt/lifecycle checks without requiring Apple Intelligence.
+
+```bash
+TEST_RUNNER_TEXTWARDEN_TEST_AI=1 TEST_RUNNER_TEXTWARDEN_TEST_AI_FEATURE_QUALITY=1 \
+  xcodebuild test -scheme TextWarden -destination 'platform=macOS' \
+  -parallel-testing-enabled NO \
+  -only-testing:TextWardenTests/AIInteractionTests \
+  -resultBundlePath /private/tmp/textwarden-feature-quality-new.xcresult
+xcrun xcresulttool export attachments \
+  --path /private/tmp/textwarden-feature-quality-new.xcresult \
+  --output-path /private/tmp/textwarden-feature-quality-new-attachments
+```
+
+Use a new result path for each run. Preserve failures rather than weakening assertions to match the output. Review the retained text for meaning, naturalness, and instruction following; lexical assertions alone cannot establish those properties. Report each feature separately. English has priority, with German/French editing probes; these small probes are not a claim of complete language coverage.
+
+After changing Compose, use the existing native driver and Computer Use in a disposable TextEdit document:
+
+1. With no selection and deliberately incorrect surrounding text, draft a sentence using different facts. Verify the draft follows only the instruction, then Cancel and check the source is unchanged.
+2. Repeat and Insert at the cursor; verify the existing text was not replaced.
+3. Select a sentence between untouched prefix/suffix text. Fix its grammar, retry, review, and Insert; verify numbers, negation, timing, and the exact replacement boundary.
+4. Change the instruction/style, Clear, and close during generation. No stale result may appear on reopening. A failed retry must retain the last reviewed result and must not permit insertion while pending.
+5. Restore temporary shortcuts and the synthetic document. Keep API quality evidence separate from these editor-interaction checks.
+
+### Quick Rewrite
+
+The opt-in multilingual regression covers sentences and phrases in English, German,
+French, Spanish, Italian, Portuguese, Dutch, and Japanese, plus ambiguous fragments,
+numbers, and emoji. It retains synthetic source/result attachments and distinguishes
+proposals from safe language-related declines. A matching detector label alone does
+not establish semantic fidelity; inspect the retained text as well.
+
+```bash
+TEST_RUNNER_TEXTWARDEN_TEST_REWRITE_LANGUAGES=1 xcodebuild test \
+  -scheme TextWarden -destination 'platform=macOS' -parallel-testing-enabled NO \
+  -only-testing:TextWardenTests/QuickRewriteTests/testLiveRewritePreservesSentenceAndPhraseLanguages
+```
+
+On 2026-09-11, the unguarded baseline changed a Portuguese sentence toward Spanish
+and rewrote the ambiguous word `Gift` as Swedish `Gifta sig`, in both Default and
+Concise styles. After the language guard, the expanded 48-case run (24 selections,
+two styles, Consistent sampling) returned 38 same-language or unchanged results and
+declined 10 uncertain inputs. The phrase `se estará presente` is shared by Portuguese
+and Spanish: its capitalization-only result remains valid Portuguese despite the
+detector's Spanish label. TextEdit also preserved the French language and emoji-bearing
+boundary markers after Apply, and left the Portuguese regression unchanged when declined.
+These are bounded regression checks, not a guarantee for all languages or model versions.
+
+Use the [visual regression checks](QUICK-REWRITE-UI.md) for review-panel sizing,
+keyboard actions, timeout behavior, and synthetic screenshots across text lengths,
+font sizes, and appearances. These run independently of model quality.
+
+Run the opt-in local Foundation Models check with:
+
+```bash
+TEST_RUNNER_TEXTWARDEN_TEST_AI=1 xcodebuild test -scheme TextWarden \
+  -destination 'platform=macOS' -parallel-testing-enabled NO \
+  -only-testing:TextWardenTests/QuickRewriteTests
+```
+
+For live interaction checks, create a disposable TextEdit document and a recipientless Mail draft. Select a sentence containing deliberate mistakes, invoke **Quick Rewrite Selected Text**, and verify that only that selection changes. Repeat in Mail's subject and body, with emoji before the selection, repeated identical phrases, and multiple paragraphs. Verify the configured writing style and editor Undo. Repeat with the pill hidden, no selection, and a custom shortcut; disable keyboard shortcuts and confirm the action does not run. Remap conflicting shortcuts before testing so another application cannot intercept the selection.
+
+During generation, move the caret, select a different phrase, edit the text, switch fields/windows/apps, and invoke the shortcut again. Each case must leave the original text intact. Check that the progress status does not take focus, errors remain readable, and clipboard contents survive paste-based replacements. Passing the model check alone does not establish host-app compatibility.
+
+Every changed Quick Rewrite now requires review. For the ordinary path, use `Before. We are currently in the process of reviewing 17 reports. After.` and select only the middle sentence. For the transformation warning, use `Before. The children's, coats are hanging by the stairs. After.` instead. Model outcomes can change: verify that the **Original / Rewrite** review actually opens, inspect any warning and proposed text, and confirm that the editor is unchanged before approval. Never approve a button blindly or count unchanged output as a tested preview.
+
+1. Apply the reviewed correction with Return, then repeat using the Apply button. Assert the complete document, including both sentinels, with `check-editor`; verify editor Undo restores the source.
+2. Reset the fixture, obtain a fresh review, then select `Before.`. Verify cancellation and the unchanged complete document. Re-selecting the old sentence must not revive the request.
+3. Obtain another fresh review, press Escape, and verify cancellation without replacement.
+4. Restore the original fixture, style, creativity, and shortcut settings. Record which review reason and actions were actually exercised.
+
+Debug logs distinguish shortcut requests, activation rejection, generation, unchanged results, review decisions, and replacement failures. These are fixed diagnostic labels, not source or response text. Read them alongside the native editor and panel state; a model-availability line or stale E2E snapshot is not an outcome.
 
 - [Apple Mail](MAIL-E2E-CANARIES.md)
 - [Apple Pages](PAGES-E2E-CANARIES.md)
