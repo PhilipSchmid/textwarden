@@ -73,6 +73,8 @@ Supported writing styles are Default, Concise, Formal, Casual, and Business. In 
 
 Manual style checks pass the selected preset. The automatic style path currently calls `analyzeStyle` without a preset argument, so it uses the default Balanced preset.
 
+Sampling controls variation, not correctness. Greedy output can still miss corrections or change meaning; even a repeatable result needs review. Model and operating-system updates can also change the output.
+
 ### Automatic checks
 
 Enabling AI Style Suggestions enables automatic checks. `AnalysisCoordinator` applies these guards before a request:
@@ -99,16 +101,15 @@ Cached results still pass sensitivity, overlap, and suggestion-history filters b
 
 ## AI Compose
 
-`generateText(instruction:context:style:variationSeed:)` gives the user instruction priority and can include selected or nearby text as optional reference.
+`generateText(instruction:context:style:variationSeed:)` has two explicit contracts: without a selection it drafts from the instruction alone; with a selection it edits the entire selected passage according to the instruction. Both use the chosen writing style. The panel labels drafting separately and tells users to select text for rewriting.
 
-Context is limited to 4,500 Swift characters. The source is recorded as one of:
+Selected text is limited to 4,000 UTF-8 bytes and rejected if it exceeds that limit; it is never silently shortened. Nearby document text is not sent to the model for drafting, preventing unrelated facts or grammatical errors from contaminating the new draft. Context extraction still records the editor source for insertion and request identity. Sketch Pad's explicit document-edit actions supply their chosen text as the editing source.
 
-- Selected text
-- A window around the cursor
-- The beginning of a short document
-- No context
+The first request uses temperature `0.3`. Retry uses a counter bounded to 31 bits (the installed runtime rejects larger seeds), with random top-40 sampling. Selected-text retries also use `0.3` to favor fidelity; instruction-only draft retries retain `0.8`. The returned `FMTextGenerationResult.generatedText` is shown for insertion or copying. These settings do not guarantee different wording or correct output.
 
-The first request uses temperature `0.3`. Retry generates a new seed from the current time and retry counter, then uses random top-40 sampling with temperature `0.8`. The returned `FMTextGenerationResult.generatedText` is shown for insertion or copying.
+Retries use fresh model sessions. A failed retry preserves the reviewed result; insertion is disabled while a request is pending. Context exhaustion can involve generated output as well as input, so the error does not claim that a short user request is necessarily too long. No response-token cap is imposed: Apple's documented cap can terminate text without an error, which risks offering incomplete text for insertion.
+
+Results belong to the current instruction, style, and source context. Changing any of these, clearing, or closing Compose cancels generation and discards its results. Request identity also rejects late responses from a model call that has already been cancelled. Reopening retains the instruction and style, not a previous editor's generated text. Retry history exists only within the current request.
 
 ## Sentence Simplification
 
@@ -142,6 +143,7 @@ All operations throw `FoundationModelsError`:
 | `notAvailable(StyleEngineStatus)` | The system model cannot run in its current state |
 | `generationFailed(String)` | `LanguageModelSession.GenerationError` |
 | `analysisError(String)` | Another request or conversion failure |
+| `selectionTooLong` | The selected passage exceeds the input budget; no truncation or replacement occurs |
 
 Callers log the failure and keep Harper grammar results available. Foundation Models failures do not disable local grammar checking.
 
@@ -149,7 +151,7 @@ Callers log the failure and keep Harper grammar results available. Foundation Mo
 
 Requests go to Apple's on-device system model. TextWarden does not send them to a TextWarden service and does not require an API key.
 
-Info-level Foundation Models logs use lengths, counts, timing, styles, status, and sampling metadata. Some Debug or Trace messages currently include generated alternatives, tips, or source fragments during validation. Users are warned that verbose logging may contain analyzed text, and diagnostic exports should be reviewed before sharing.
+Foundation Models request errors use fixed messages rather than framework debug descriptions, which may contain source text. Engine and guided-result validation logs use metadata instead of source fragments, alternatives, or generated tips. This is not a guarantee for every diagnostic path in the app: users should still review verbose diagnostic exports before sharing.
 
 ## Verification Checklist
 

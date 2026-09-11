@@ -199,12 +199,12 @@ final class FoundationModelsEngine: ObservableObject {
 
         } catch let error as LanguageModelSession.GenerationError {
             let elapsed = CFAbsoluteTimeGetCurrent() - startTime
-            Logger.error("Apple Intelligence: [Style] Generation error after \(String(format: "%.2f", elapsed))s - \(error.localizedDescription)", category: Logger.llm)
-            throw FoundationModelsError.generationFailed(error.localizedDescription)
+            Logger.error("Apple Intelligence: [Style] Generation error after \(String(format: "%.2f", elapsed))s - \(FoundationModelsError.safeMessage(for: error))", category: Logger.llm)
+            throw FoundationModelsError.generationFailed(FoundationModelsError.safeMessage(for: error))
         } catch {
             let elapsed = CFAbsoluteTimeGetCurrent() - startTime
-            Logger.error("Apple Intelligence: [Style] Failed after \(String(format: "%.2f", elapsed))s - \(error.localizedDescription)", category: Logger.llm)
-            throw FoundationModelsError.analysisError(error.localizedDescription)
+            Logger.error("Apple Intelligence: [Style] Failed after \(String(format: "%.2f", elapsed))s - \(FoundationModelsError.safeMessage(for: error))", category: Logger.llm)
+            throw FoundationModelsError.analysisError(FoundationModelsError.safeMessage(for: error))
         }
     }
 
@@ -277,11 +277,11 @@ final class FoundationModelsEngine: ObservableObject {
             return suggestions.first { $0.suggestedText != previousSuggestion.suggestedText }
 
         } catch let error as LanguageModelSession.GenerationError {
-            Logger.error("Apple Intelligence: Regeneration generation error - \(error.localizedDescription)", category: Logger.llm)
-            throw FoundationModelsError.generationFailed(error.localizedDescription)
+            Logger.error("Apple Intelligence: Regeneration generation error - \(FoundationModelsError.safeMessage(for: error))", category: Logger.llm)
+            throw FoundationModelsError.generationFailed(FoundationModelsError.safeMessage(for: error))
         } catch {
-            Logger.error("Apple Intelligence: Regeneration failed - \(error.localizedDescription)", category: Logger.llm)
-            throw FoundationModelsError.analysisError(error.localizedDescription)
+            Logger.error("Apple Intelligence: Regeneration failed - \(FoundationModelsError.safeMessage(for: error))", category: Logger.llm)
+            throw FoundationModelsError.analysisError(FoundationModelsError.safeMessage(for: error))
         }
     }
 
@@ -303,6 +303,7 @@ final class FoundationModelsEngine: ObservableObject {
         style: WritingStyle,
         variationSeed: UInt64? = nil
     ) async throws -> String {
+        try GenerationContext.validateSelection(context.selectedText)
         guard status == .available else {
             Logger.warning("Apple Intelligence: Cannot generate text, not available", category: Logger.llm)
             throw FoundationModelsError.notAvailable(status)
@@ -313,68 +314,26 @@ final class FoundationModelsEngine: ObservableObject {
 
         let startTime = CFAbsoluteTimeGetCurrent()
 
-        // Build the prompt - user instruction is primary, context is optional reference
-        var promptParts: [String] = []
-
-        promptParts.append("User instruction: \(instruction)")
-        promptParts.append("\nWriting style: \(style.displayName)")
-
-        // Only include context if user might want to reference it
-        // Context is purely informational - the user's instruction takes absolute priority
-        //
-        // Context budget: Apple Foundation Models has 4096 token limit (input + output combined)
-        // At ~3-4 chars/token, we allocate ~1500 tokens (~4500 chars) for context
-        // This leaves room for: instructions (~400 tokens) + output (~1000+ tokens)
-        let maxContextChars = 4500
-
-        if let selected = context.selectedText, !selected.isEmpty {
-            let truncated = selected.prefix(maxContextChars)
-            promptParts.append("\n[Optional reference - selected text in document]:\n\"\"\"\n\(truncated)\n\"\"\"")
-        } else if let surrounding = context.surroundingText, !surrounding.isEmpty {
-            let truncated = surrounding.prefix(maxContextChars)
-            switch context.source {
-            case .cursorWindow:
-                promptParts.append("\n[Optional reference - nearby text for context only]:\n\"\"\"\n\(truncated)\n\"\"\"")
-            case .documentStart, .selection:
-                promptParts.append("\n[Optional reference - document context]:\n\"\"\"\n\(truncated)\n\"\"\"")
-            case .none:
-                break
-            }
-        }
-
-        let prompt = promptParts.joined(separator: "\n")
-
-        // Build instructions - emphasize user instruction priority
-        let instructions = """
-        You are a text generation assistant. Your ONLY job is to follow the user's instruction exactly.
-
-        Critical rules:
-        - The user's instruction is ABSOLUTE - follow it precisely
-        - If the user asks for "unrelated" or "random" text, generate completely NEW content
-        - Do NOT copy, paraphrase, or base your output on any provided context unless explicitly asked
-        - Context is ONLY provided as optional reference - ignore it unless the instruction specifically refers to it
-        - Output ONLY the generated text - no explanations, labels, or meta-commentary
-        - Match the specified writing style
-        """
+        let prompt = context.composePrompt(instruction: instruction)
+        let instructions = StyleInstructions.compose(for: style, hasSelection: context.hasSelection)
 
         let session = LanguageModelSession(instructions: instructions)
 
-        // Configure generation options based on whether we want variation
-        // For regeneration (variationSeed != nil), use random sampling with higher temperature
-        // This ensures different outputs for each attempt while maintaining quality
+        // A fresh session avoids accumulating retry history in the model's context.
+        // Sampling encourages alternatives; it cannot guarantee variety or quality.
+        // Selected edits favor fidelity; drafting retains the wider creative sampling range.
+        let retryTemperature = context.hasSelection ? TemperatureValues.low : 0.8
         let options = if let seed = variationSeed {
-            // Random top-k sampling with seed for varied but reproducible outputs
-            // Higher temperature (0.8) encourages more creative alternatives
             GenerationOptions(
                 sampling: .random(top: 40, seed: seed),
-                temperature: 0.8
+                temperature: retryTemperature
             )
         } else {
             // Default: balanced temperature for first generation
             GenerationOptions(temperature: TemperatureValues.low)
         }
 
-        let samplingInfo = variationSeed.map { "random(seed:\($0), temp:0.8)" } ?? "temp:\(TemperatureValues.low)"
+        let samplingInfo = variationSeed.map { "random(seed:\($0), temp:\(retryTemperature))" } ?? "temp:\(TemperatureValues.low)"
         Logger.debug("Apple Intelligence: Generating text for instruction (\(instruction.count) chars), style=\(style.displayName), \(samplingInfo)", category: Logger.llm)
 
         do {
@@ -390,11 +349,11 @@ final class FoundationModelsEngine: ObservableObject {
             return response.content.generatedText
 
         } catch let error as LanguageModelSession.GenerationError {
-            Logger.error("Apple Intelligence: Text generation error - \(error.localizedDescription)", category: Logger.llm)
-            throw FoundationModelsError.generationFailed(error.localizedDescription)
+            Logger.error("Apple Intelligence: Text generation error - \(FoundationModelsError.safeMessage(for: error))", category: Logger.llm)
+            throw FoundationModelsError.generationFailed(FoundationModelsError.safeMessage(for: error))
         } catch {
-            Logger.error("Apple Intelligence: Text generation failed - \(error.localizedDescription)", category: Logger.llm)
-            throw FoundationModelsError.analysisError(error.localizedDescription)
+            Logger.error("Apple Intelligence: Text generation failed - \(FoundationModelsError.safeMessage(for: error))", category: Logger.llm)
+            throw FoundationModelsError.analysisError(FoundationModelsError.safeMessage(for: error))
         }
     }
 
@@ -493,12 +452,12 @@ final class FoundationModelsEngine: ObservableObject {
                 }
                 // Exclude original
                 if trimmed == originalTrimmed {
-                    Logger.debug("Apple Intelligence: Filtered out (same as original): \(trimmed.prefix(50))...", category: Logger.llm)
+                    Logger.debug("Apple Intelligence: Filtered out alternative identical to source", category: Logger.llm)
                     return false
                 }
                 // Exclude previous suggestion (for regeneration)
                 if let prevTrimmed = previousTrimmed, trimmed == prevTrimmed {
-                    Logger.debug("Apple Intelligence: Filtered out (same as previous): \(trimmed.prefix(50))...", category: Logger.llm)
+                    Logger.debug("Apple Intelligence: Filtered out alternative identical to previous suggestion", category: Logger.llm)
                     return false
                 }
                 return true
@@ -509,11 +468,11 @@ final class FoundationModelsEngine: ObservableObject {
             return validAlternatives
 
         } catch let error as LanguageModelSession.GenerationError {
-            Logger.error("Apple Intelligence: Simplification generation error - \(error.localizedDescription)", category: Logger.llm)
-            throw FoundationModelsError.generationFailed(error.localizedDescription)
+            Logger.error("Apple Intelligence: Simplification generation error - \(FoundationModelsError.safeMessage(for: error))", category: Logger.llm)
+            throw FoundationModelsError.generationFailed(FoundationModelsError.safeMessage(for: error))
         } catch {
-            Logger.error("Apple Intelligence: Simplification failed - \(error.localizedDescription)", category: Logger.llm)
-            throw FoundationModelsError.analysisError(error.localizedDescription)
+            Logger.error("Apple Intelligence: Simplification failed - \(FoundationModelsError.safeMessage(for: error))", category: Logger.llm)
+            throw FoundationModelsError.analysisError(FoundationModelsError.safeMessage(for: error))
         }
     }
 
@@ -605,20 +564,17 @@ final class FoundationModelsEngine: ObservableObject {
             let validTips = response.content.tips.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
             Logger.info("Apple Intelligence: [Readability] Complete - \(validTips.count) tip(s) in \(String(format: "%.2f", elapsed))s", category: Logger.llm)
-            if !validTips.isEmpty {
-                Logger.trace("Apple Intelligence: [Readability] Tips: \(validTips.joined(separator: " | "))", category: Logger.llm)
-            }
 
             return validTips
 
         } catch let error as LanguageModelSession.GenerationError {
             let elapsed = CFAbsoluteTimeGetCurrent() - startTime
-            Logger.error("Apple Intelligence: [Readability] Generation error after \(String(format: "%.2f", elapsed))s - \(error.localizedDescription)", category: Logger.llm)
-            throw FoundationModelsError.generationFailed(error.localizedDescription)
+            Logger.error("Apple Intelligence: [Readability] Generation error after \(String(format: "%.2f", elapsed))s - \(FoundationModelsError.safeMessage(for: error))", category: Logger.llm)
+            throw FoundationModelsError.generationFailed(FoundationModelsError.safeMessage(for: error))
         } catch {
             let elapsed = CFAbsoluteTimeGetCurrent() - startTime
-            Logger.error("Apple Intelligence: [Readability] Failed after \(String(format: "%.2f", elapsed))s - \(error.localizedDescription)", category: Logger.llm)
-            throw FoundationModelsError.analysisError(error.localizedDescription)
+            Logger.error("Apple Intelligence: [Readability] Failed after \(String(format: "%.2f", elapsed))s - \(FoundationModelsError.safeMessage(for: error))", category: Logger.llm)
+            throw FoundationModelsError.analysisError(FoundationModelsError.safeMessage(for: error))
         }
     }
 }
@@ -632,6 +588,7 @@ enum FoundationModelsError: LocalizedError {
     case notAvailable(StyleEngineStatus)
     case generationFailed(String)
     case analysisError(String)
+    case selectionTooLong
 
     var errorDescription: String? {
         switch self {
@@ -641,44 +598,45 @@ enum FoundationModelsError: LocalizedError {
             "Generation failed: \(message)"
         case let .analysisError(message):
             "Analysis error: \(message)"
+        case .selectionTooLong:
+            "Select a shorter passage. The selection was not shortened or changed."
         }
+    }
+}
+
+extension FoundationModelsError {
+    /// Shared by all AI features; framework descriptions can include private prompts or outputs.
+    static func safeMessage(for error: Error) -> String {
+        if error is CancellationError { return "Request cancelled" }
+        if let error = error as? FoundationModelsError { return error.localizedDescription }
+        #if canImport(FoundationModels)
+            if #available(macOS 26.0, *), let error = error as? LanguageModelSession.GenerationError {
+                switch error {
+                case .guardrailViolation, .refusal: return "Apple Intelligence could not process this request."
+                case .exceededContextWindowSize: return "The model ran out of space while processing the text or generating its response. Try again, or use a shorter passage or instruction."
+                case .unsupportedLanguageOrLocale: return "Apple Intelligence does not support this language."
+                case .assetsUnavailable: return "Apple Intelligence is unavailable. Please try again later."
+                case .rateLimited, .concurrentRequests: return "Apple Intelligence is busy. Please try again."
+                default: break
+                }
+            }
+        #endif
+        return "Apple Intelligence could not complete this request. Please try again."
     }
 }
 
 // MARK: - Temperature Configuration
 
-/// Temperature values optimized for grammar and style checking tasks.
-///
-/// Based on research from WWDC25 and LLM best practices:
-/// - Grammar/style checking requires **accuracy over creativity**
-/// - Higher temperatures increase hallucination probability
-/// - For factual tasks, lower temperatures (0.0-0.3) are recommended
-///
-/// References:
-/// - Apple WWDC25: "Deep dive into the Foundation Models framework"
-/// - Research: "Temperature settings at or below 1.50 yield consistent performance"
-/// - Best practice: "Use lower temperatures and greedy sampling for factual tasks"
+/// Sampling controls variation, not correctness. Greedy output can still change meaning.
 private enum TemperatureValues {
-    /// Greedy sampling (temperature 0) - most deterministic, no randomness.
-    /// Best for reproducible, accurate suggestions with zero hallucination risk.
     static let greedy: Double = 0.0
-
-    /// Low temperature for reliable, predictable suggestions.
-    /// Minimal variance while still allowing some flexibility.
     static let low: Double = 0.3
-
-    /// Moderate temperature for balanced suggestions.
-    /// Provides variety while maintaining accuracy for grammar tasks.
     static let moderate: Double = 0.5
 }
 
 // MARK: - Temperature Preset
 
-/// Temperature presets for Foundation Models generation.
-///
-/// These presets are tuned for **grammar and style checking** tasks,
-/// which prioritize accuracy over creativity. All values are intentionally
-/// kept low to minimize hallucinations and incorrect suggestions.
+/// Low-variation presets for Foundation Models generation; none guarantees fidelity.
 enum StyleTemperaturePreset: String, CaseIterable, Identifiable {
     case consistent
     case balanced
@@ -689,11 +647,6 @@ enum StyleTemperaturePreset: String, CaseIterable, Identifiable {
     }
 
     /// The temperature value for Foundation Models generation.
-    ///
-    /// Values are kept low for grammar/style tasks:
-    /// - `consistent`: Uses greedy sampling (0.0) for deterministic output
-    /// - `balanced`: Low temperature (0.3) for reliable suggestions
-    /// - `creative`: Moderate temperature (0.5) for some variety
     var temperature: Double {
         switch self {
         case .consistent: TemperatureValues.greedy
@@ -720,11 +673,11 @@ enum StyleTemperaturePreset: String, CaseIterable, Identifiable {
     var description: String {
         switch self {
         case .consistent:
-            "Deterministic, most accurate"
+            "Minimal variation"
         case .balanced:
-            "Reliable with slight variation"
+            "Some variation"
         case .creative:
-            "More variety, still accurate"
+            "More variation"
         }
     }
 
