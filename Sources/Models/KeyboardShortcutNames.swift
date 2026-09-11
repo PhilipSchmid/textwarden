@@ -37,6 +37,9 @@ extension KeyboardShortcuts.Name {
     /// Trigger style check on current text - "S" for Style check
     static let runStyleCheck = Self("runStyleCheck", default: .init(.s, modifiers: [.option, .control]))
 
+    /// Rewrite the current selection in place using the configured writing style.
+    static let quickRewrite = Self("quickRewrite", default: .init(.r, modifiers: [.option, .shift]))
+
     // MARK: - Legacy Alias (for backwards compatibility with saved shortcuts)
 
     /// @available(*, deprecated, renamed: "showGrammarSuggestions")

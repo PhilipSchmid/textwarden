@@ -94,6 +94,7 @@ test-rust: ## Run Rust tests
 test-swift: ## Run Swift tests (unit tests only, excludes performance benchmarks)
 	@echo "$(BLUE)🍎 Running Swift tests...$(NC)"
 	@set -o pipefail; xcodebuild test -scheme TextWarden -destination 'platform=macOS' \
+		-parallel-testing-enabled NO \
 		-skip-testing:TextWardenTests/GrammarAnalysisPerformanceTests \
 		-skip-testing:TextWardenTests/LargeDocumentPerformanceTests \
 		2>&1 | grep -E '(failed|error:|TEST SUCCEEDED|TEST FAILED)'
@@ -161,6 +162,7 @@ ci-check: ## Run CI checks locally (use before pushing)
 	@echo ""
 	@echo "$(YELLOW)[6/7] Running Swift tests...$(NC)"
 	@set -o pipefail; xcodebuild test -scheme TextWarden -destination 'platform=macOS' \
+		-parallel-testing-enabled NO \
 		-skip-testing:TextWardenTests/GrammarAnalysisPerformanceTests \
 		-skip-testing:TextWardenTests/LargeDocumentPerformanceTests \
 		2>&1 | grep -E '(failed|error:|TEST SUCCEEDED|TEST FAILED)'

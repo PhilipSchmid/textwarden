@@ -16,6 +16,10 @@ class MailContentParser: ContentParser {
     struct SelectionSnapshot {
         let text: String
         fileprivate let markerRange: CFTypeRef
+
+        func matches(_ other: SelectionSnapshot) -> Bool {
+            text == other.text && CFEqual(markerRange, other.markerRange)
+        }
     }
 
     let bundleIdentifier: String = "com.apple.mail"

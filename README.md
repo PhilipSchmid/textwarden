@@ -27,6 +27,7 @@ TextWarden is a free, open-source grammar checker and writing assistant for macO
 - **Your writing stays on your Mac:** Grammar checks run locally with [Harper](https://github.com/Automattic/harper), and optional AI features use Apple Intelligence on your Mac. TextWarden never uploads your text or prompts.
 - **Works in many Mac apps:** Check writing in Apple apps, browsers, chat apps, web-based editors, and Microsoft Office.
 - **Fast feedback:** TextWarden underlines errors when an app provides the location of each word. Otherwise, a small floating indicator shows the suggestions.
+- **A rewrite without leaving your app:** Improve selected text using your preferred writing style, then review the changes before applying them.
 - **No account or subscription:** Download the app and grant Accessibility permission. Your usage statistics and custom dictionary stay on your Mac.
 
 ## Features
@@ -46,11 +47,18 @@ TextWarden is a free, open-source grammar checker and writing assistant for macO
 On macOS 26 or later, a compatible Mac with an Apple M-series chip can use Apple's built-in, on-device AI for:
 
 - Style suggestions for clear, concise, formal, casual, or business writing
-- AI Compose, which generates text from an instruction and optional document context
+- Quick Rewrite, which proposes improvements to selected text using your configured writing style
+- AI Compose, which drafts from your instructions or rewrites selected text with a specific instruction
 - Sentence simplification and readability tips
 - Quick actions in Sketch Pad for professional, friendly, concise, or refined rewrites
 
 These features are off by default. Grammar checking, spell checking, custom dictionaries, language detection, and readability scoring do not require Apple Intelligence.
+
+### Quick Rewrite
+
+Quick Rewrite uses Apple Intelligence to suggest changes to selected text in supported apps, following your writing style from **Preferences → Style**. Compare the original and rewritten text before applying; nothing changes without your approval. AI can change meaning, so review the result carefully.
+
+See [Quick Rewrite configuration](CONFIGURATION.md#quick-rewrite) for setup, shortcuts, and limits.
 
 ## Requirements
 

@@ -113,6 +113,8 @@ class AnalysisCoordinator: ObservableObject {
     /// The live text monitor may temporarily clear its element while the panel is open.
     var textGenerationInsertionTarget: TextGenerationInsertionTarget?
 
+    var quickRewriteTask: Task<Void, Never>?
+
     // MARK: - Published State
 
     /// Currently displayed errors (internal visibility for extensions)

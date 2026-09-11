@@ -283,7 +283,7 @@ struct GeneralPreferencesView: View {
                 Toggle("Enable keyboard shortcuts", isOn: $preferences.keyboardShortcutsEnabled)
                     .help("Enable or disable all keyboard shortcuts")
 
-                Text("When disabled, keyboard shortcuts will not trigger any actions")
+                Text("Click a shortcut to change it, especially if another app uses the same keys. Disabling shortcuts turns off all actions below.")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .padding(.top, 4)
@@ -327,8 +327,9 @@ struct GeneralPreferencesView: View {
                 KeyboardShortcuts.Recorder("Show AI Compose:", name: .showAICompose)
                 KeyboardShortcuts.Recorder("Show Readability:", name: .showReadability)
                 KeyboardShortcuts.Recorder("Run Style Check:", name: .runStyleCheck)
+                KeyboardShortcuts.Recorder("Quick Rewrite Selected Text:", name: .quickRewrite)
 
-                Text("Quick access to grammar, style, readability, and AI writing features")
+                Text("Open writing tools for your current text. Quick Rewrite uses your style from Style settings; review the result, then press Return to apply or Escape to cancel.")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .padding(.top, 4)

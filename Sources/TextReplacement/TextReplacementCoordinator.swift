@@ -116,6 +116,30 @@ final class TextReplacementCoordinator: TextReplacementCoordinating {
 
     // MARK: - Convenience
 
+    /// Replace an already selected passage without moving focus or selecting a different range.
+    /// The caller revalidates its captured selection immediately before the write.
+    static func replaceCurrentSelection(_ text: String, element: AXUIElement, appConfig: AppConfiguration, validate: () -> Bool) -> ReplacementResult {
+        guard validate() else { return .failed(.selectionFailed(axError: -1)) }
+        if appConfig.features.textReplacementMethod == .standard,
+           AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, text as CFString) == .success
+        {
+            return .success
+        }
+        guard let source = CGEventSource(stateID: .hidSystemState),
+              let down = CGEvent(keyboardEventSource: source, virtualKey: VirtualKeyCode.v, keyDown: true),
+              let up = CGEvent(keyboardEventSource: source, virtualKey: VirtualKeyCode.v, keyDown: false),
+              validate()
+        else { return .failed(.selectionFailed(axError: -1)) }
+        let saved = ClipboardManager.save()
+        let replacement = ClipboardManager.setForReplacement(text, savedState: saved)
+        down.flags = .maskCommand
+        up.flags = .maskCommand
+        down.post(tap: .cghidEventTap)
+        up.post(tap: .cghidEventTap)
+        ClipboardManager.restoreAfterDelay(replacement, delay: TimingConstants.clipboardRestoreDelay)
+        return .unverified
+    }
+
     /// Get the length delta for position adjustment after replacement
     static func lengthDelta(for error: GrammarErrorModel, suggestion: String) -> Int {
         suggestion.count - (error.end - error.start)

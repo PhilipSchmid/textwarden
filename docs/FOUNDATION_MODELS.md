@@ -111,6 +111,18 @@ Retries use fresh model sessions. A failed retry preserves the reviewed result; 
 
 Results belong to the current instruction, style, and source context. Changing any of these, clearing, or closing Compose cancels generation and discards its results. Request identity also rejects late responses from a model call that has already been cancelled. Reopening retains the instruction and style, not a previous editor's generated text. Retry history exists only within the current request.
 
+## Quick Rewrite review
+
+`rewriteSelection` returns a proposal, not permission to replace text. Every changed result requires an Original / Proposed rewrite preview and explicit **Apply** approval (Return); Cancel or Escape leaves the text unchanged. Unchanged and empty results do not open a review. Existing grammar correction actions do not use this AI review path.
+
+Quick Rewrite requires an Apple Natural Language hypothesis score of at least 0.95 for the selection, explicitly requests that language, and rejects changed output without a matching confident detection. This conservative heuristic can decline valid short passages; it is not a calibrated accuracy guarantee or a verifier for mixed-language text. A writing-style preference must not act as a target language. The low-level `rewriteText` helper remains available to opt-in model experiments; the user-facing action uses the guarded `rewriteSelection` path.
+
+The default system model runs first. A typed refusal or guardrail failure permits one retry using Apple's `permissiveContentTransformations` mode, labelled in the review. An exact quotation extraction adds a context-loss warning without another model call. The check covers bare quoted content and quoted content with only the original prefix or suffix retained. It does not detect paraphrased omissions or establish semantic fidelity. Whole-quotation selections and ordinary edits also require review. Compose continues to require users to review and insert its output.
+
+The captured editor, window, selected text, and selection range or markers are revalidated before replacement. The preview may hold keyboard focus, but cannot retarget another editor. Closing the preview or changing the source selection cancels the operation.
+
+This mode does not guarantee correctness: it can return a refusal as text. It is not enabled for open-ended Compose, style suggestions, or readability features; Apple's guided-generation checks also remain in effect. See [Apple's transformation-mode contract](https://developer.apple.com/documentation/foundationmodels/systemlanguagemodel/guardrails/permissivecontenttransformations).
+
 ## Sentence Simplification
 
 `simplifySentence(_:targetAudience:writingStyle:previousSuggestion:)` asks for one simpler version that preserves meaning and matches the selected audience and writing style.
