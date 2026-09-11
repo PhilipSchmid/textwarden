@@ -622,8 +622,7 @@ class AnalysisCoordinator: ObservableObject {
             let typingDelay = Double(text.count) * 0.01 + 0.1
             try? await Task.sleep(nanoseconds: UInt64(typingDelay * 1_000_000_000))
 
-            replacementCompletedAt = Date()
-            scheduleDelayedReanalysis(startTime: Date())
+            refreshAfterGeneratedInsertion(in: context, element: element)
             Logger.debug("AnalysisCoordinator: Inserted generated text into Mail", category: Logger.analysis)
             return
         }
@@ -643,6 +642,7 @@ class AnalysisCoordinator: ObservableObject {
             )
 
             if result == .success {
+                refreshAfterGeneratedInsertion(in: context, element: element)
                 Logger.debug("AnalysisCoordinator: Inserted text via AX API", category: Logger.analysis)
                 return
             }
@@ -652,6 +652,35 @@ class AnalysisCoordinator: ObservableObject {
         // For Electron apps, browsers, Catalyst apps, and apps requiring browser-style replacement:
         // Use clipboard paste with proper activation
         await insertViaClipboardAsync(text, context: context, isMacCatalyst: isMacCatalyst)
+        refreshAfterGeneratedInsertion(in: context, element: element)
+    }
+
+    /// Generated passages invalidate all old ranges, unlike a single adjusted grammar correction.
+    func refreshAfterGeneratedInsertion(in context: ApplicationContext, element: AXUIElement) {
+        guard monitoredContext == context else { return }
+        if let monitoredElement = textMonitor.monitoredElement, !CFEqual(monitoredElement, element) {
+            return
+        }
+
+        // Do not discard the fresh grammar result under the single-correction grace period.
+        lastReplacementTime = nil
+        replacementCompletedAt = Date()
+        clearCache()
+        hideAllOverlays()
+        suggestionPopover.hide()
+        floatingIndicator.hide()
+        currentSegment = nil
+        lastAnalyzedText = ""
+        currentErrorSourceStore = GrammarErrorSourceStore()
+        currentReadabilityResult = nil
+        currentReadabilityAnalysis = nil
+
+        Logger.debug("AnalysisCoordinator: Refreshing analysis after generated insertion", category: Logger.analysis)
+        if textMonitor.monitoredElement != nil {
+            triggerReanalysis()
+        } else {
+            scheduleDelayedReanalysis(startTime: Date())
+        }
     }
 
     /// Insert text via clipboard paste with proper app activation (async version)
