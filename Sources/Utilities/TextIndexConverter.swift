@@ -19,6 +19,20 @@ import Foundation
 enum TextIndexConverter {
     // MARK: - Unicode Scalar ↔ String.Index (Grapheme Cluster)
 
+    /// Build once for batches of Harper ranges instead of rescanning the document per endpoint.
+    /// Only Character boundaries are included, matching scalarIndexToStringIndex's semantics.
+    /// Indices must only be used with the unchanged source string.
+    static func stringIndicesByScalarOffset(in string: String) -> [Int: String.Index] {
+        var indices: [Int: String.Index] = [:]
+        var offset = 0
+        for index in string.indices {
+            indices[offset] = index
+            offset += string[index].unicodeScalars.count
+        }
+        indices[offset] = string.endIndex
+        return indices
+    }
+
     /// Convert Unicode scalar index to String.Index (grapheme cluster based).
     /// Harper uses Rust's char indices (Unicode scalar values), but Swift uses grapheme clusters.
     /// - Parameters:

@@ -8,6 +8,15 @@ import Foundation
 import XCTest
 
 final class TextIndexConverterTests: XCTestCase {
+    func testBatchScalarIndicesMatchIndividualConversions() {
+        for text in ["", "Hello", "A😊é👨‍👩‍👧Z", "a\r\nb\n❗️"] {
+            let indices = TextIndexConverter.stringIndicesByScalarOffset(in: text)
+            for offset in -1 ... text.unicodeScalars.count + 1 {
+                XCTAssertEqual(indices[offset], TextIndexConverter.scalarIndexToStringIndex(offset, in: text))
+            }
+        }
+    }
+
     func testASCIIIndicesUseTheSameOffsets() {
         let text = "Hello"
         guard let index = TextIndexConverter.scalarIndexToStringIndex(2, in: text) else {

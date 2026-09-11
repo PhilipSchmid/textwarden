@@ -149,6 +149,7 @@ class AnalysisCoordinator: ObservableObject {
     /// Window position and size tracking
     var lastWindowFrame: CGRect?
     var windowPositionTimer: Timer?
+    var windowMonitoringGeneration: UInt64 = 0
     var windowMovementDebounceTimer: Timer?
     var overlaysHiddenDueToMovement = false
     var overlaysHiddenDueToWindowOffScreen = false
@@ -1398,6 +1399,7 @@ class AnalysisCoordinator: ObservableObject {
                 Logger.trace("AnalysisCoordinator: Stopping monitoring for previous app", category: Logger.analysis)
                 invalidateGrammarAnalysis()
                 textMonitor.stopMonitoring()
+                stopWindowPositionMonitoring()
                 // CRITICAL: Clear all cached analysis when switching apps to prevent
                 // showing stale errors/readability from the previous application
                 currentErrors = []

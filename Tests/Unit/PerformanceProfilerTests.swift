@@ -127,7 +127,7 @@ final class PerformanceProfilerTests: XCTestCase {
 
     func testProfilerResetMetrics() {
         // Record some metrics
-        _ = PerformanceProfiler.shared.measure(.menuBarDisplay) {
+        PerformanceProfiler.shared.measure(.menuBarDisplay) {
             Thread.sleep(forTimeInterval: 0.001)
         }
 
@@ -189,6 +189,70 @@ final class PerformanceProfilerTests: XCTestCase {
     }
 
     // MARK: - Async Tests
+
+    @MainActor
+    func testRestartStopsEveryPreviousWindowTimer() throws {
+        let coordinator = AnalysisCoordinator.shared
+        coordinator.stopWindowPositionMonitoring()
+        defer { coordinator.stopWindowPositionMonitoring() }
+        PerformanceProfiler.shared.resetMetrics()
+        var timers: [Timer] = []
+        for _ in 0 ..< 20 {
+            coordinator.startWindowPositionMonitoring()
+            try timers.append(XCTUnwrap(coordinator.windowPositionTimer))
+            XCTAssertEqual(timers.filter(\.isValid).count, 1)
+        }
+        coordinator.stopWindowPositionMonitoring()
+        coordinator.stopWindowPositionMonitoring()
+        XCTAssertTrue(timers.allSatisfy { !$0.isValid })
+        XCTAssertNil(coordinator.textValidationTimer)
+        let events = PerformanceProfiler.shared.getEventCounts()
+        XCTAssertEqual(events["window-monitor-started"], 20)
+        XCTAssertEqual(events["window-monitor-stopped"], 20)
+    }
+
+    func testCircularBufferWrapsMultipleTimesAndKeepsLifetimeTotals() {
+        let metrics = OperationMetrics()
+        for i in 1 ... 3500 {
+            metrics.record(Double(i))
+        }
+        let snapshot = metrics.snapshot()
+        XCTAssertEqual(snapshot.min, 2501)
+        XCTAssertEqual(snapshot.max, 3500)
+        XCTAssertEqual(snapshot.totalDurationMs, Double(3500 * 3501 / 2))
+        XCTAssertEqual(snapshot.mean, 1750.5)
+        XCTAssertGreaterThan(snapshot.observationSeconds, 0)
+        XCTAssertGreaterThan(snapshot.callsPerSecond, 0)
+        metrics.reset()
+        metrics.record(7)
+        XCTAssertEqual(metrics.snapshot().min, 7)
+        XCTAssertEqual(metrics.snapshot().totalDurationMs, 7)
+    }
+
+    @MainActor
+    func testStoppedTimersDropAlreadyQueuedCallbacks() async throws {
+        let coordinator = AnalysisCoordinator.shared
+        coordinator.startWindowPositionMonitoring()
+        defer { coordinator.stopWindowPositionMonitoring() }
+        let timer = try XCTUnwrap(coordinator.windowPositionTimer)
+        let validation = try XCTUnwrap(coordinator.textValidationTimer)
+        timer.fire()
+        validation.fire()
+        coordinator.stopWindowPositionMonitoring()
+        PerformanceProfiler.shared.resetMetrics()
+        for _ in 0 ..< 10 {
+            await Task.yield()
+        }
+        let metrics = PerformanceProfiler.shared.getMetricsSnapshot()
+        XCTAssertEqual(metrics["window-position-check"]?.count, 0)
+        XCTAssertEqual(metrics["text-validation"]?.count, 0)
+    }
+
+    func testThrowingWorkStillClosesItsInterval() {
+        enum Failure: Error { case expected }
+        XCTAssertThrowsError(try PerformanceProfiler.shared.measure(.windowEnumeration) { throw Failure.expected })
+        XCTAssertEqual(PerformanceProfiler.shared.getMetricsSnapshot()["window-enumeration"]?.count, 1)
+    }
 
     func testProfilerMeasureAsync() async {
         let result = await PerformanceProfiler.shared.measureAsync(.textAnalysis, context: "async-test") {

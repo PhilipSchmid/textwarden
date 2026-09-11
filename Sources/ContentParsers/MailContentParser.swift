@@ -891,6 +891,8 @@ class MailContentParser: ContentParser {
         // Mandarin, Portuguese, Russian, Spanish, Swedish, Turkish, Vietnamese)
         // Format: "On [date], [name] wrote:" with language-specific variations
         // Sources: GitHub email parsing libraries, Apple Mail/Gmail/Outlook localization
+        // Anchor leading wildcards: each input is already one line, so an
+        // unanchored .+ only retries the same suffix search at every character.
         let quotePatterns: [NSRegularExpression] = {
             let patterns = [
                 // === ENGLISH ===
@@ -927,23 +929,23 @@ class MailContentParser: ContentParser {
 
                 // === RUSSIAN (Русский) ===
                 // "14 декабря 2025 г. John написал:"
-                #".+\s+написал[аов]?\s*:"#,
+                #"^.+\s+написал[аов]?\s*:"#,
 
                 // === TURKISH (Türkçe) ===
                 // "14 Aralık 2025 tarihinde John yazdı:"
-                #".+\s+tarihinde\s+.+\s+yazd[ıi]\s*:"#,
+                #"^.+\s+tarihinde\s+.+\s+yazd[ıi]\s*:"#,
 
                 // === CHINESE (中文) ===
                 // "在 2025年12月14日, John 写道："
-                #".+写道[：:]"#,
+                #"^.+写道[：:]"#,
 
                 // === JAPANESE (日本語) ===
                 // "[Date] [name] のメッセージ:"
-                #".+のメッセージ\s*:"#,
+                #"^.+のメッセージ\s*:"#,
 
                 // === KOREAN (한국어) ===
                 // "[Date] [name]님이 작성:"
-                #".+님이\s+(작성|썼습니다)\s*.*:"#,
+                #"^.+님이\s+(작성|썼습니다)\s*.*:"#,
 
                 // === ARABIC (العربية) ===
                 // RTL: "كتب [name] في [date]:"
@@ -955,7 +957,7 @@ class MailContentParser: ContentParser {
 
                 // === HINDI (हिन्दी) ===
                 // "[Date] को [name] ने लिखा:"
-                #".+\s+ने लिखा\s*:"#,
+                #"^.+\s+ने लिखा\s*:"#,
 
                 // === GENERIC QUOTE MARKERS ===
                 // Traditional quote prefix ">" (all email clients)

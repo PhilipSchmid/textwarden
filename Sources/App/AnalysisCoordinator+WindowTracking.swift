@@ -16,16 +16,23 @@ extension AnalysisCoordinator {
 
     /// Start monitoring window position to detect movement
     func startWindowPositionMonitoring() {
+        // RunLoop retains repeating timers. Replacing the reference alone leaks a
+        // polling loop on every app switch or focused-element recovery.
+        stopWindowPositionMonitoring()
+        let generation = windowMonitoringGeneration
         Logger.debug("Window monitoring: Starting position monitoring", category: Logger.analysis)
         // Poll window position frequently to catch window movement quickly
         windowPositionTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.shortDelay, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.checkWindowPosition()
+                // A callback queued before stop/restart must not inspect the next app.
+                guard let self, windowMonitoringGeneration == generation, windowPositionTimer != nil else { return }
+                checkWindowPosition()
             }
         }
         if let timer = windowPositionTimer {
             RunLoop.main.add(timer, forMode: .common)
         }
+        PerformanceProfiler.shared.recordEvent(.windowMonitorStarted)
         Logger.debug("Window monitoring: Timer scheduled on main RunLoop", category: Logger.analysis)
 
         // Also start text validation timer for Mac Catalyst apps
@@ -34,6 +41,10 @@ extension AnalysisCoordinator {
 
     /// Stop monitoring window position
     func stopWindowPositionMonitoring() {
+        windowMonitoringGeneration &+= 1
+        if windowPositionTimer != nil {
+            PerformanceProfiler.shared.recordEvent(.windowMonitorStopped)
+        }
         windowPositionTimer?.invalidate()
         windowPositionTimer = nil
         windowMovementDebounceTimer?.invalidate()
@@ -58,11 +69,13 @@ extension AnalysisCoordinator {
     /// aren't always reported via accessibility notifications.
     func startTextValidationTimer() {
         guard textValidationTimer == nil else { return }
+        let generation = windowMonitoringGeneration
 
         // Run frequently enough to catch sent messages, but not too expensive
         textValidationTimer = Timer.scheduledTimer(withTimeInterval: TimingConstants.textValidationInterval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.validateCurrentText()
+                guard let self, windowMonitoringGeneration == generation, textValidationTimer != nil else { return }
+                validateCurrentText()
             }
         }
         if let timer = textValidationTimer {
@@ -76,6 +89,8 @@ extension AnalysisCoordinator {
     ///
     /// Uses async text extraction to avoid blocking the main thread during slow AX calls.
     func validateCurrentText() {
+        let (state, startTime) = PerformanceProfiler.shared.beginInterval(.textValidation)
+        defer { PerformanceProfiler.shared.endInterval(.textValidation, state: state, startTime: startTime) }
         // Only validate if we have active errors or indicators showing
         guard !currentErrors.isEmpty || floatingIndicator.isVisible else { return }
 
@@ -318,6 +333,8 @@ extension AnalysisCoordinator {
 
     /// Check if window has moved, resized, or content has scrolled
     func checkWindowPosition() {
+        let (state, startTime) = PerformanceProfiler.shared.beginInterval(.windowPositionCheck)
+        defer { PerformanceProfiler.shared.endInterval(.windowPositionCheck, state: state, startTime: startTime) }
         guard let element = textMonitor.monitoredElement else {
             lastWindowFrame = nil
             lastElementFrame = nil
@@ -756,7 +773,9 @@ extension AnalysisCoordinator {
         let elementWindowFrame = AccessibilityBridge.getWindowFrame(element)
 
         let options = CGWindowListOption(arrayLiteral: .optionOnScreenOnly)
-        guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+        guard let windowList = PerformanceProfiler.shared.measure(.windowEnumeration, block: {
+            CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]]
+        }) else {
             return nil
         }
 

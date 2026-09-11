@@ -88,6 +88,9 @@ Useful commands:
 | `make fmt` | Format Rust and Swift sources |
 | `make lint` | Run Clippy and SwiftLint |
 
+For performance investigations, see [CPU profiling](docs/CPU_PROFILING.md): native
+counter captures, Instruments flame graphs, and repeatable Mail comparisons.
+
 ## Accessibility Permission
 
 TextWarden needs Accessibility permission to inspect and update text in other apps. Enable the exact build you are testing under **System Settings → Privacy & Security → Accessibility**. A build at a different path or with a different signature may need permission again.

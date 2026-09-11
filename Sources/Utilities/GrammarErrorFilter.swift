@@ -75,9 +75,10 @@ enum GrammarErrorFilter {
 
         // 5. Filter by custom vocabulary and macOS system dictionary
         // Note: error.start/end are Unicode scalar indices from Harper
-        let sourceScalarCount = sourceText.unicodeScalars.count
+        guard !filteredErrors.isEmpty else { return [] }
+        let indices = TextIndexConverter.stringIndicesByScalarOffset(in: sourceText)
         filteredErrors = filteredErrors.filter { error in
-            guard let errorText = extractErrorText(error: error, sourceText: sourceText, scalarCount: sourceScalarCount) else {
+            guard let errorText = extractErrorText(error: error, sourceText: sourceText, indices: indices) else {
                 return true // Keep error if indices are invalid
             }
 
@@ -97,7 +98,7 @@ enum GrammarErrorFilter {
 
         // 6. Filter by globally ignored error texts
         filteredErrors = filteredErrors.filter { error in
-            guard let errorText = extractErrorText(error: error, sourceText: sourceText, scalarCount: sourceScalarCount) else {
+            guard let errorText = extractErrorText(error: error, sourceText: sourceText, indices: indices) else {
                 return true // Keep error if indices are invalid
             }
             return !config.ignoredErrorTexts.contains(errorText)
@@ -115,19 +116,19 @@ enum GrammarErrorFilter {
             guard isWhitespaceError else { return true }
 
             // Check if this error occurs at the start of a line (markdown indentation)
-            return !isAtStartOfLine(position: error.start, in: sourceText)
+            return !isAtStartOfLine(position: error.start, in: sourceText, indices: indices)
         }
 
         return filteredErrors
     }
 
     /// Check if a position is at the start of a line (after a newline or at position 0)
-    private static func isAtStartOfLine(position: Int, in text: String) -> Bool {
+    private static func isAtStartOfLine(position: Int, in text: String, indices: [Int: String.Index]) -> Bool {
         // Position 0 is always start of line
         if position == 0 { return true }
 
         // Get the character before the position
-        guard let stringIndex = TextIndexConverter.scalarIndexToStringIndex(position, in: text) else {
+        guard let stringIndex = indices[position] else {
             return false
         }
 
@@ -145,10 +146,10 @@ enum GrammarErrorFilter {
     // MARK: - Private Helpers
 
     /// Extract error text from source using scalar indices
-    private static func extractErrorText(error: GrammarErrorModel, sourceText: String, scalarCount: Int) -> String? {
-        guard error.start < scalarCount, error.end <= scalarCount, error.start < error.end,
-              let startIndex = TextIndexConverter.scalarIndexToStringIndex(error.start, in: sourceText),
-              let endIndex = TextIndexConverter.scalarIndexToStringIndex(error.end, in: sourceText)
+    private static func extractErrorText(error: GrammarErrorModel, sourceText: String, indices: [Int: String.Index]) -> String? {
+        guard error.start < error.end,
+              let startIndex = indices[error.start],
+              let endIndex = indices[error.end]
         else {
             return nil
         }
