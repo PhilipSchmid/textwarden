@@ -89,6 +89,7 @@ jobs:
             -project TextWarden.xcodeproj \
             -scheme TextWarden \
             -destination 'platform=macOS,arch=arm64' \
+            -parallel-testing-enabled NO \
             -skip-testing:TextWardenTests/GrammarAnalysisPerformanceTests \
             -skip-testing:TextWardenTests/LargeDocumentPerformanceTests \
             CODE_SIGNING_ALLOWED=NO \
@@ -136,6 +137,7 @@ jobs:
             -project TextWarden.xcodeproj \
             -scheme TextWarden \
             -destination 'platform=macOS,arch=x86_64' \
+            -parallel-testing-enabled NO \
             -skip-testing:TextWardenTests/GrammarAnalysisPerformanceTests \
             -skip-testing:TextWardenTests/LargeDocumentPerformanceTests \
             CODE_SIGNING_ALLOWED=NO \

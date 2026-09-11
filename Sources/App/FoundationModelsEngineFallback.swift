@@ -48,6 +48,21 @@ import Foundation
             throw FoundationModelsError.notAvailable(status)
         }
 
+        func rewriteText(
+            _: String,
+            style _: WritingStyle,
+            preset _: StyleTemperaturePreset,
+            customVocabulary _: [String],
+            seed _: UInt64? = nil,
+            sourceLanguage _: String? = nil
+        ) async throws -> String {
+            throw FoundationModelsError.notAvailable(status)
+        }
+
+        func rewriteSelection(_: String, style _: WritingStyle, preset _: StyleTemperaturePreset, customVocabulary _: [String]) async throws -> SelectionRewriteResult {
+            throw FoundationModelsError.notAvailable(status)
+        }
+
         func simplifySentence(
             _: String,
             targetAudience _: TargetAudience,

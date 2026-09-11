@@ -3,6 +3,7 @@
 
 import Combine
 import Foundation
+import NaturalLanguage
 import os.log
 
 #if canImport(FoundationModels)
@@ -286,6 +287,52 @@ final class FoundationModelsEngine: ObservableObject {
     }
 
     // MARK: - Text Generation
+
+    /// Only a blocked selected-text rewrite may use transformation mode, and its result must be previewed.
+    func rewriteSelection(_ text: String, style: WritingStyle, preset: StyleTemperaturePreset, customVocabulary: [String]) async throws -> SelectionRewriteResult {
+        try GenerationContext.validateSelection(text)
+        guard let language = SelectionRewriteResult.confidentLanguage(for: text),
+              let languageName = Locale(identifier: "en").localizedString(forLanguageCode: language.rawValue)
+        else { throw FoundationModelsError.uncertainRewriteLanguage }
+        let result = try await SelectionRewriteResult.generate(source: text) { transformation in
+            try await self.rewriteText(text, style: style, preset: preset, customVocabulary: customVocabulary,
+                                       sourceLanguage: languageName,
+                                       model: transformation ? SystemLanguageModel(guardrails: .permissiveContentTransformations) : .default)
+        }
+        guard !result.hasChanges(comparedTo: text) || SelectionRewriteResult.confidentLanguage(for: result.text) == language else {
+            throw FoundationModelsError.rewriteLanguageChanged
+        }
+        return result
+    }
+
+    func rewriteText(_ text: String, style: WritingStyle, preset: StyleTemperaturePreset, customVocabulary: [String], seed: UInt64? = nil, sourceLanguage: String? = nil) async throws -> String {
+        try await rewriteText(text, style: style, preset: preset, customVocabulary: customVocabulary, seed: seed, sourceLanguage: sourceLanguage, model: .default)
+    }
+
+    private func rewriteText(_ text: String, style: WritingStyle, preset: StyleTemperaturePreset, customVocabulary: [String], seed: UInt64? = nil, sourceLanguage: String? = nil, model: SystemLanguageModel) async throws -> String {
+        try GenerationContext.validateSelection(text)
+        guard status.isAvailable else { throw FoundationModelsError.notAvailable(status) }
+        let session = LanguageModelSession(model: model, instructions: StyleInstructions.rewrite(for: style, customVocabulary: customVocabulary))
+        let options = GenerationOptions(
+            sampling: preset.usesGreedySampling ? .greedy : seed.map { .random(probabilityThreshold: 0.95, seed: $0) },
+            temperature: preset.temperature
+        )
+        // Make the editing task and language explicit; a bare selection can be treated as a request to answer.
+        let language = sourceLanguage ?? NLLanguageRecognizer.dominantLanguage(for: text)
+            .flatMap { Locale(identifier: "en").localizedString(forLanguageCode: $0.rawValue) } ?? "the original language"
+        // Never truncate a selection that will be replaced in full.
+        let prompt = """
+        Rewrite this \(language) text in the \(style.displayName) style. Fix mistakes and unnecessary wording, but keep all its information.
+
+        <text_to_edit>
+        \(text)
+        </text_to_edit>
+
+        Return only the edited text in \(language), without the text_to_edit tags.
+        """
+        let response = try await session.respond(to: prompt, options: options)
+        return response.content
+    }
 
     /// Generate text based on user instruction and context
     ///
@@ -589,6 +636,8 @@ enum FoundationModelsError: LocalizedError {
     case generationFailed(String)
     case analysisError(String)
     case selectionTooLong
+    case uncertainRewriteLanguage
+    case rewriteLanguageChanged
 
     var errorDescription: String? {
         switch self {
@@ -600,11 +649,99 @@ enum FoundationModelsError: LocalizedError {
             "Analysis error: \(message)"
         case .selectionTooLong:
             "Select a shorter passage. The selection was not shortened or changed."
+        case .uncertainRewriteLanguage:
+            "Language unclear · select more text"
+        case .rewriteLanguageChanged:
+            "Language changed · text unchanged"
         }
     }
 }
 
+/// Generated text is a proposal, never permission to replace the user's selection.
+struct SelectionRewriteResult: Equatable {
+    enum PreviewReason {
+        case standard, transformation, quotationExtraction
+    }
+
+    let text: String
+    let reason: PreviewReason
+
+    static func confidentLanguage(for text: String) -> NLLanguage? {
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(text)
+        // ponytail: conservative detector threshold, not a language guarantee.
+        // Ambiguous passages are declined rather than steered into a guessed language.
+        guard let language = recognizer.dominantLanguage,
+              recognizer.languageHypotheses(withMaximum: 1)[language, default: 0] >= 0.95
+        else { return nil }
+        return language
+    }
+
+    func hasChanges(comparedTo source: String) -> Bool {
+        // A selection often includes the separator after a sentence. Trimming it
+        // is not a rewrite; keep internal spacing and punctuation significant.
+        text.trimmingCharacters(in: .whitespacesAndNewlines) != source.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    @MainActor
+    static func generate(source: String, request: (_ transformation: Bool) async throws -> String) async throws -> Self {
+        try Task.checkCancellation()
+        do {
+            let text = try await request(false)
+            try Task.checkCancellation()
+            return Self(text: text, reason: extractsQuotation(text, from: source) ? .quotationExtraction : .standard)
+        } catch {
+            try Task.checkCancellation()
+            guard FoundationModelsError.isBlocked(error) else { throw error }
+            let text = try await request(true)
+            try Task.checkCancellation()
+            return Self(text: text, reason: .transformation)
+        }
+    }
+
+    /// Detect exact quotation extractions, including a retained prefix or suffix.
+    static func extractsQuotation(_ proposed: String, from source: String) -> Bool {
+        let quotes = [("\"", "\""), ("“", "”"), ("„", "“"), ("«", "»"), ("'", "'"), ("‘", "’"), ("「", "」"), ("『", "』"), ("`", "`")]
+        var body = proposed.trimmingCharacters(in: .whitespacesAndNewlines)
+        for (open, close) in quotes where body.count >= 2 && body.hasPrefix(open) && body.hasSuffix(close) {
+            body = String(body.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+            break
+        }
+        guard !body.isEmpty else { return false }
+        // ponytail: exact quoted content only; paraphrased omissions still need semantic review.
+        for (open, close) in quotes {
+            var start = source.startIndex
+            while let opening = source.range(of: open, range: start ..< source.endIndex),
+                  let closing = source.range(of: close, range: opening.upperBound ..< source.endIndex)
+            {
+                start = closing.upperBound
+                let quoted = String(source[opening.upperBound ..< closing.lowerBound])
+                let prefix = String(source[..<opening.lowerBound])
+                let suffix = String(source[closing.upperBound...])
+                let prefixHasWords = prefix.rangeOfCharacter(from: .alphanumerics) != nil
+                let suffixHasWords = suffix.rangeOfCharacter(from: .alphanumerics) != nil
+                if body == quoted.trimmingCharacters(in: .whitespacesAndNewlines), prefixHasWords || suffixHasWords { return true }
+                if body == (quoted + suffix).trimmingCharacters(in: .whitespacesAndNewlines), prefixHasWords { return true }
+                if body == (prefix + quoted).trimmingCharacters(in: .whitespacesAndNewlines), suffixHasWords { return true }
+            }
+        }
+        return false
+    }
+}
+
 extension FoundationModelsError {
+    static func isBlocked(_ error: Error) -> Bool {
+        #if canImport(FoundationModels)
+            if #available(macOS 26.0, *), let error = error as? LanguageModelSession.GenerationError {
+                switch error {
+                case .guardrailViolation, .refusal: return true
+                default: return false
+                }
+            }
+        #endif
+        return false
+    }
+
     /// Shared by all AI features; framework descriptions can include private prompts or outputs.
     static func safeMessage(for error: Error) -> String {
         if error is CancellationError { return "Request cancelled" }

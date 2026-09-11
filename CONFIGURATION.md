@@ -123,6 +123,18 @@ These presets control variation, not correctness. Even Consistent can miss error
 
 TextWarden filters model output before showing it. Suggestions must point to exact source text, change that text, avoid overlapping ranges, and pass app-level safety checks before replacement.
 
+### Quick Rewrite
+
+Select a passage in a supported application and press `⌥⇧R` to rewrite it in place with Apple Intelligence. TextWarden uses your writing style and creativity preset from **Preferences → Style** and asks the on-device model to preserve the original language and meaning. Style checking must be enabled, and TextWarden must be active for the application.
+
+Quick Rewrite is not a translation command. It declines selections whose language is uncertain and discards changed results whose detected language does not confidently match the source. If asked, select a longer passage. Detection can still be wrong, especially for short phrases shared by multiple languages or mixed-language text, so review the result before applying it. Your writing style does not select a different output language.
+
+Every changed AI result appears in a compact **Original / Rewrite** comparison at the bottom of the screen. Your selection stays unchanged until you choose **Apply** or press **Return**; **Cancel** or **Escape** leaves it untouched. The review cancels automatically after 45 seconds, with the countdown inside **Cancel**. Hover anywhere over the review to pause the countdown; a pause mark appears beside the remaining seconds. Press **Space** to remove the time limit. VoiceOver reviews have no time limit. An unchanged result simply reports that no rewrite was suggested. Review the meaning before applying: AI can miss corrections or change facts, and formatting is not guaranteed. Existing grammar correction actions remain separate from AI rewriting.
+
+If Apple Intelligence blocks the first attempt, TextWarden can try Apple's text-transformation mode once and label that alternative in the review. Exact quotation extractions also receive a context-loss warning; this warning does not detect every omission. Press the shortcut again to cancel; changing focus or selection while it is working or awaiting review also cancels the rewrite. With no selection, TextWarden asks you to select text; it never reads clipboard text as input. Selections over 4,000 UTF-8 bytes are rejected rather than truncated. Use your editor's Undo command to undo a replacement where the editor supports it.
+
+Change **Quick Rewrite Selected Text** under **Preferences → General → Keyboard Shortcuts** if another app, such as Raycast, already uses `⌥⇧R`.
+
 ### AI Compose
 
 AI Compose generates text from an instruction. Open it from the writing section of the floating indicator or press `⌥⌃W`. With text selected, describe how to rewrite that selection. Without a selection, describe a new draft; nearby document text is not used. Choose a writing style, generate, review the result, then insert it. To change existing text, select it before opening Compose.
@@ -202,6 +214,7 @@ All shortcuts can be changed under **Preferences → General**. They can also be
 | Show grammar suggestions | `⌥⌃G` |
 | Show style suggestions | `⌥⌃Y` |
 | Show AI Compose | `⌥⌃W` |
+| Quick Rewrite Selected Text | `⌥⇧R` |
 | Show readability | `⌥⌃R` |
 | Run style check | `⌥⌃S` |
 | Open or close Sketch Pad | `⌥⌃N` |

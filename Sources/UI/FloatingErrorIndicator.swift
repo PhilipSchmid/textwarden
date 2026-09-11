@@ -1524,6 +1524,12 @@ class FloatingErrorIndicator: NSPanel {
     }
 
     /// Show AI Compose popover from keyboard shortcut
+    func updateQuickRewrite(isGenerating: Bool) {
+        capsuleStateManager.updateTextGeneration(isGenerating: isGenerating)
+        capsuleIndicatorView?.sections = capsuleStateManager.visibleSections
+        capsuleIndicatorView?.needsDisplay = true
+    }
+
     @discardableResult
     func showAIComposeFromKeyboard() -> Bool {
         guard isVisible else {

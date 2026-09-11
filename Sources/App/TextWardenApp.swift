@@ -630,6 +630,14 @@ extension AppDelegate: NSWindowDelegate {
             }
         }
 
+        // Rewrite selection directly, independently of indicator visibility.
+        KeyboardShortcuts.onKeyUp(for: .quickRewrite) {
+            Task { @MainActor in
+                guard UserPreferences.shared.keyboardShortcutsEnabled else { return }
+                AnalysisCoordinator.shared.quickRewriteSelection()
+            }
+        }
+
         // Show AI Compose popover (Option+Control+W by default)
         KeyboardShortcuts.onKeyUp(for: .showAICompose) {
             Task { @MainActor in
