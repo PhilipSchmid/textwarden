@@ -272,4 +272,40 @@ final class AIInteractionTests: XCTestCase {
             }
         }
     }
+
+    @MainActor
+    func testGeneratedInsertionInvalidatesOldErrorsAndEndsReplacementSuppression() {
+        let coordinator = AnalysisCoordinator.shared
+        coordinator.textMonitor.stopMonitoring()
+        defer {
+            coordinator.clearCache()
+            coordinator.monitoredContext = nil
+        }
+        let context = ApplicationContext(bundleIdentifier: "com.apple.TextEdit", processID: 42, applicationName: "TextEdit")
+        let source = "We will send the summary tomorroww."
+        let errors = GrammarEngine.shared.analyzeText(source, dialect: "American").errors
+        XCTAssertFalse(errors.isEmpty)
+        coordinator.monitoredContext = context
+        coordinator.currentSegment = TextSegment(content: source, startIndex: 0, endIndex: source.count, context: context)
+        coordinator.previousText = source
+        coordinator.lastAnalyzedText = source
+        coordinator.currentErrors = errors
+        coordinator.lastReplacementTime = Date()
+        let generation = coordinator.grammarAnalysisGeneration
+        XCTAssertTrue(coordinator.isInReplacementMode)
+
+        let other = ApplicationContext(bundleIdentifier: "com.example.other", processID: 43, applicationName: "Other")
+        coordinator.refreshAfterGeneratedInsertion(in: other, element: AXUIElementCreateSystemWide())
+        XCTAssertEqual(coordinator.currentErrors.count, errors.count, "An old insertion must not reset a different app")
+        XCTAssertTrue(coordinator.isInReplacementMode)
+
+        coordinator.refreshAfterGeneratedInsertion(in: context, element: AXUIElementCreateSystemWide())
+        XCTAssertFalse(coordinator.isInReplacementMode, "Fresh results must not be dropped during correction grace")
+        XCTAssertFalse(AnalysisCoordinator.isInReplacementModeThreadSafe)
+        XCTAssertTrue(coordinator.currentErrors.isEmpty)
+        XCTAssertNil(coordinator.currentSegment)
+        XCTAssertEqual(coordinator.previousText, "")
+        XCTAssertEqual(coordinator.lastAnalyzedText, "")
+        XCTAssertGreaterThan(coordinator.grammarAnalysisGeneration, generation, "Old in-flight grammar results must be invalidated")
+    }
 }
