@@ -1,6 +1,7 @@
 // Developer-only CPU measurements. No document content, AX access, or uploads.
 // swift Scripts/profile-cpu.swift counters|trace PID [seconds]
 import AppKit
+import CryptoKit
 import Darwin
 import Foundation
 
@@ -44,6 +45,7 @@ struct Sample: Codable {
     let cpuPercentOfOneCore: Double
     let interruptWakeupsPerSecond: Double
     let foregroundBundleID: String?
+    let thermalState: Int
 }
 
 func cpuRate(userDelta: UInt64, systemDelta: UInt64, seconds: Double, timebase: mach_timebase_info_data_t) -> Double {
@@ -57,9 +59,17 @@ struct Capture: Codable {
     let osVersion: String
     let logicalCPUCount: Int
     let samples: [Sample]
+    let executableSHA256: String
 }
 
 func counters(pid: Int32, seconds: Int) throws {
+    // PROC_PIDPATHINFO_MAXSIZE is a C macro that Swift does not import.
+    var path = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+    guard proc_pidpath(pid, &path, UInt32(path.count)) > 0 else {
+        throw CaptureError.failed("Cannot identify process executable")
+    }
+    let executable = try Data(contentsOf: URL(fileURLWithPath: String(cString: path)), options: .mappedIfSafe)
+    let executableSHA256 = SHA256.hash(data: executable).map { String(format: "%02x", $0) }.joined()
     var timebase = mach_timebase_info_data_t()
     guard mach_timebase_info(&timebase) == KERN_SUCCESS, timebase.denom != 0 else {
         throw CaptureError.failed("Cannot read Mach clock timebase")
@@ -81,12 +91,13 @@ func counters(pid: Int32, seconds: Int) throws {
         samples.append(Sample(elapsedSeconds: interval, cpuMillisecondsPerSecond: rate,
                               cpuPercentOfOneCore: rate / 10,
                               interruptWakeupsPerSecond: Double(current.wakeups - previous.wakeups) / interval,
-                              foregroundBundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier))
+                              foregroundBundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
+                              thermalState: ProcessInfo.processInfo.thermalState.rawValue))
         previous = current
         previousTime = now
     }
     let capture = Capture(pid: pid, startedAt: startedAt, osVersion: ProcessInfo.processInfo.operatingSystemVersionString,
-                          logicalCPUCount: ProcessInfo.processInfo.processorCount, samples: samples)
+                          logicalCPUCount: ProcessInfo.processInfo.processorCount, samples: samples, executableSHA256: executableSHA256)
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     encoder.dateEncodingStrategy = .iso8601

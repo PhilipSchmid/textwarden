@@ -99,6 +99,7 @@ Branch naming: `<type>/<short-description>` (e.g., `feat/outlook-support`, `fix/
 
 - Only commit after user validates and explicitly requests it
 - **Always run `make ci-check` and fix all findings before committing**
+- For app/runtime or dependency changes, also run the local CPU smoke gate before committing; see [CPU profiling](docs/CPU_PROFILING.md#local-regression-gate). Use the full suite for analysis, AX, timers, overlays, or performance changes. Docs-only changes are exempt. Record the baseline/candidate revisions and results; missing permissions, stale state, or noisy measurements are inconclusive, not passes. Never replace a baseline just to make the gate pass.
 - Always sign-off git commits (`-s`)
 - **All commits must be cryptographically signed (`-S`).** Never use `--no-gpg-sign` or skip signing.
 - When committing: `git commit -s -S -m "message"`
