@@ -119,11 +119,13 @@ The **Creativity** control has three presets:
 
 The selected preset is used for manual style checks. Automatic style checks currently use Balanced.
 
+These presets control variation, not correctness. Even Consistent can miss errors or change meaning, and output can change after model or operating-system updates.
+
 TextWarden filters model output before showing it. Suggestions must point to exact source text, change that text, avoid overlapping ranges, and pass app-level safety checks before replacement.
 
 ### AI Compose
 
-AI Compose generates text from an instruction. Open it from the writing section of the floating indicator or press `⌥⌃W`. If text is selected, it can be included as context; otherwise TextWarden may include nearby document text. The instruction remains the primary input.
+AI Compose generates text from an instruction. Open it from the writing section of the floating indicator or press `⌥⌃W`. With text selected, describe how to rewrite that selection. Without a selection, describe a new draft; nearby document text is not used. Choose a writing style, generate, review the result, then insert it. To change existing text, select it before opening Compose.
 
 Generated text can be inserted into the active field or copied. Retry uses a different sampling seed and a higher temperature to produce another version.
 

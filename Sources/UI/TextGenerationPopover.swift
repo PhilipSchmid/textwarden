@@ -84,16 +84,6 @@ class TextInputPanel: NSPanel {
     }
 }
 
-// MARK: - Generation Cache Entry
-
-/// Cached generation result
-struct GenerationCacheEntry {
-    let instruction: String
-    let style: WritingStyle
-    let results: [String] // Multiple results for "try another"
-    let timestamp: Date
-}
-
 // MARK: - Text Generation Popover Manager
 
 /// Manages the text generation popover window
@@ -115,16 +105,22 @@ class TextGenerationPopover: NSObject, ObservableObject {
     private var clickOutsideMonitor: Any?
 
     /// Current instruction input
-    @Published var instruction: String = ""
+    @Published var instruction: String = "" {
+        didSet { if instruction != oldValue { discardGeneration() } }
+    }
 
     /// Selected writing style
-    @Published var selectedStyle: WritingStyle = .default
+    @Published var selectedStyle: WritingStyle = .default {
+        didSet { if selectedStyle != oldValue { discardGeneration() } }
+    }
 
     /// Whether generation is in progress
     @Published var isGenerating: Bool = false
 
     /// Context from the document
-    @Published var context: GenerationContext = .empty
+    @Published var context: GenerationContext = .empty {
+        didSet { if context != oldValue { discardGeneration() } }
+    }
 
     /// Error message to display (if any)
     @Published var errorMessage: String?
@@ -141,27 +137,13 @@ class TextGenerationPopover: NSObject, ObservableObject {
         return generatedResults[currentResultIndex]
     }
 
-    // MARK: - Cache
-
-    /// Cache for generated results - maps instruction+style to results
-    private var generationCache: [String: GenerationCacheEntry] = [:]
-
-    /// Cache expiration time (10 minutes)
-    private let cacheExpirationTime: TimeInterval = 600
-
-    /// Maximum cache entries
-    private let maxCacheEntries: Int = 20
+    private var generationTask: Task<Void, Never>?
+    private var generationID = UUID()
 
     // MARK: - Session Persistence
 
     /// Last used instruction (persisted across popover open/close)
     private var lastInstruction: String = ""
-
-    /// Last generated results (persisted across popover open/close)
-    private var lastResults: [String] = []
-
-    /// Last result index
-    private var lastResultIndex: Int = 0
 
     /// Last used style
     private var lastStyle: WritingStyle = .default
@@ -214,26 +196,24 @@ class TextGenerationPopover: NSObject, ObservableObject {
         SuggestionPopover.shared.hide()
         ReadabilityPopover.shared.hide()
 
-        // Restore last session state instead of resetting to empty
+        // Keep the instruction, never a result from a previous editor/session.
+        discardGeneration()
         instruction = lastInstruction
         self.context = context
         isGenerating = false
         errorMessage = nil
-        generatedResults = lastResults
-        currentResultIndex = lastResultIndex
 
         // Store open direction and indicator flag
         openDirection = direction
         openedFromIndicator = fromIndicator
 
-        // Style handling: use cached style if there's cached content, otherwise use preference
-        // This preserves user's style choice during a session, while Clear resets to preference
-        if lastInstruction.isEmpty, lastResults.isEmpty {
+        // Retain the last instruction's style; Clear resets to the configured preference.
+        if lastInstruction.isEmpty {
             // Fresh session: use preference
             let styleName = UserPreferences.shared.selectedWritingStyle
             selectedStyle = WritingStyle.allCases.first { $0.displayName == styleName } ?? .default
         } else {
-            // Cached content: preserve user's style choice
+            // Preserve the style paired with the retained instruction.
             selectedStyle = lastStyle
         }
 
@@ -278,9 +258,8 @@ class TextGenerationPopover: NSObject, ObservableObject {
 
         // Save current state for next session
         lastInstruction = instruction
-        lastResults = generatedResults
-        lastResultIndex = currentResultIndex
         lastStyle = selectedStyle
+        discardGeneration()
 
         hideTimer?.invalidate()
         hideTimer = nil
@@ -289,7 +268,7 @@ class TextGenerationPopover: NSObject, ObservableObject {
         panel?.orderOut(nil)
     }
 
-    /// Clear all cached content (instruction, results, session state)
+    /// Clear the instruction, results, and retained session state.
     /// Also resets the style to the user's configured preference
     func clear() {
         Logger.debug("TextGenerationPopover: clear", category: Logger.ui)
@@ -302,16 +281,13 @@ class TextGenerationPopover: NSObject, ObservableObject {
 
         // Clear persisted session state
         lastInstruction = ""
-        lastResults = []
-        lastResultIndex = 0
 
         // Reset style to user's preference
         let styleName = UserPreferences.shared.selectedWritingStyle
         selectedStyle = WritingStyle.allCases.first { $0.displayName == styleName } ?? .default
         lastStyle = selectedStyle
 
-        // Clear cache
-        generationCache.removeAll()
+        discardGeneration()
 
         // Rebuild the view to reflect the cleared state
         rebuildContentView()
@@ -434,159 +410,78 @@ class TextGenerationPopover: NSObject, ObservableObject {
         }
     }
 
-    // MARK: - Cache
-
-    /// Generate cache key from instruction and style
-    private func cacheKey(instruction: String, style: WritingStyle) -> String {
-        "\(instruction.lowercased().trimmingCharacters(in: .whitespacesAndNewlines))_\(style.rawValue)"
-    }
-
-    /// Get cached results if available
-    private func getCachedResults(instruction: String, style: WritingStyle) -> [String]? {
-        let key = cacheKey(instruction: instruction, style: style)
-        guard let entry = generationCache[key] else { return nil }
-
-        // Check if cache is expired
-        if Date().timeIntervalSince(entry.timestamp) > cacheExpirationTime {
-            generationCache.removeValue(forKey: key)
-            return nil
-        }
-
-        return entry.results
-    }
-
-    /// Store results in cache
-    private func cacheResults(_ results: [String], instruction: String, style: WritingStyle) {
-        let key = cacheKey(instruction: instruction, style: style)
-
-        // Evict old entries if cache is full
-        if generationCache.count >= maxCacheEntries {
-            // Remove oldest entry
-            if let oldestKey = generationCache.min(by: { $0.value.timestamp < $1.value.timestamp })?.key {
-                generationCache.removeValue(forKey: oldestKey)
-            }
-        }
-
-        generationCache[key] = GenerationCacheEntry(
-            instruction: instruction,
-            style: style,
-            results: results,
-            timestamp: Date()
-        )
-    }
-
-    /// Add a new result to the cache
-    private func addResultToCache(_ result: String, instruction: String, style: WritingStyle) {
-        let key = cacheKey(instruction: instruction, style: style)
-
-        if let entry = generationCache[key] {
-            var results = entry.results
-            if !results.contains(result) {
-                results.append(result)
-            }
-            generationCache[key] = GenerationCacheEntry(
-                instruction: instruction,
-                style: style,
-                results: results,
-                timestamp: Date()
-            )
-        } else {
-            cacheResults([result], instruction: instruction, style: style)
-        }
-    }
-
     // MARK: - Actions
 
-    /// Counter for generating unique seeds for retry attempts
     private var retryAttemptCounter: UInt64 = 0
 
-    /// Generate text based on current instruction
-    func generate() {
-        let trimmedInstruction = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedInstruction.isEmpty else {
-            errorMessage = "Please enter an instruction"
-            return
-        }
-
-        guard let onGenerate else {
-            Logger.warning("TextGenerationPopover: onGenerate callback not set", category: Logger.ui)
-            return
-        }
-
-        // Check cache first
-        if let cached = getCachedResults(instruction: trimmedInstruction, style: selectedStyle) {
-            Logger.debug("TextGenerationPopover: Using cached results (\(cached.count))", category: Logger.ui)
-            generatedResults = cached
-            currentResultIndex = 0
-            return
-        }
-
-        isGenerating = true
+    /// Results belong to the exact request and must not survive edited inputs or a closed panel.
+    private func discardGeneration() {
+        generationTask?.cancel()
+        generationTask = nil
+        generationID = UUID()
+        isGenerating = false
+        generatedResults = []
+        currentResultIndex = 0
         errorMessage = nil
-
-        Task { @MainActor in
-            do {
-                // First generation: no variation seed (default sampling)
-                let result = try await onGenerate(trimmedInstruction, selectedStyle, context, nil)
-                self.generatedResults = [result]
-                self.currentResultIndex = 0
-                self.isGenerating = false
-
-                // Cache the result
-                self.addResultToCache(result, instruction: trimmedInstruction, style: self.selectedStyle)
-            } catch {
-                Logger.error("TextGenerationPopover: Generation failed - \(error.localizedDescription)", category: Logger.ui)
-                self.errorMessage = error.localizedDescription
-                self.isGenerating = false
-            }
-        }
     }
 
-    /// Try another version - generate a new alternative
-    func tryAnother() {
-        let trimmedInstruction = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedInstruction.isEmpty else { return }
+    func generate() {
+        startGeneration(variationSeed: nil)
+    }
 
-        // If we have more cached results, cycle through them
+    func tryAnother() {
+        guard !isGenerating else { return }
         if currentResultIndex < generatedResults.count - 1 {
             currentResultIndex += 1
             return
         }
+        retryAttemptCounter &+= 1
+        // The installed Foundation Models runtime rejects large seeds despite the UInt64 API.
+        startGeneration(variationSeed: retryAttemptCounter & 0x7FFF_FFFF)
+    }
 
+    private func startGeneration(variationSeed: UInt64?) {
+        guard !isGenerating else { return }
+        let requestInstruction = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !requestInstruction.isEmpty else {
+            errorMessage = "Please enter an instruction"
+            return
+        }
+        do { try GenerationContext.validateSelection(context.selectedText) } catch {
+            errorMessage = FoundationModelsError.safeMessage(for: error)
+            return
+        }
         guard let onGenerate else { return }
-
+        let requestStyle = selectedStyle
+        let requestContext = context
+        let id = UUID()
+        generationID = id
+        if variationSeed == nil {
+            generatedResults = []
+            currentResultIndex = 0
+        }
         isGenerating = true
         errorMessage = nil
-
-        // Generate a unique seed for this retry attempt
-        // Combine timestamp with counter for guaranteed uniqueness
-        retryAttemptCounter += 1
-        let seed = UInt64(Date().timeIntervalSince1970 * 1000) ^ retryAttemptCounter
-
-        Task { @MainActor in
-            do {
-                // Retry: pass variation seed for random sampling with higher temperature
-                let result = try await onGenerate(trimmedInstruction, selectedStyle, context, seed)
-
-                // Only add if it's different from existing results
-                if !self.generatedResults.contains(result) {
-                    self.generatedResults.append(result)
-                    self.currentResultIndex = self.generatedResults.count - 1
-
-                    // Cache the new result
-                    self.addResultToCache(result, instruction: trimmedInstruction, style: self.selectedStyle)
-                } else {
-                    // Same result, try to show it if not already showing
-                    if let existingIndex = self.generatedResults.firstIndex(of: result) {
-                        self.currentResultIndex = existingIndex
-                    }
+        generationTask = Task { @MainActor in
+            defer {
+                if generationID == id {
+                    isGenerating = false
+                    generationTask = nil
                 }
-
-                self.isGenerating = false
+            }
+            do {
+                let result = try await onGenerate(requestInstruction, requestStyle, requestContext, variationSeed)
+                guard !Task.isCancelled, generationID == id else { return }
+                guard !result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    errorMessage = "No text returned. Please try again."
+                    return
+                }
+                if !generatedResults.contains(result) { generatedResults.append(result) }
+                currentResultIndex = generatedResults.firstIndex(of: result) ?? 0
             } catch {
-                Logger.error("TextGenerationPopover: Try another failed - \(error.localizedDescription)", category: Logger.ui)
-                self.errorMessage = error.localizedDescription
-                self.isGenerating = false
+                guard !Task.isCancelled, generationID == id else { return }
+                Logger.error("TextGenerationPopover: Generation failed", category: Logger.ui)
+                errorMessage = FoundationModelsError.safeMessage(for: error)
             }
         }
     }
@@ -601,7 +496,7 @@ class TextGenerationPopover: NSObject, ObservableObject {
 
     /// Insert the generated text
     func insertGeneratedText() {
-        guard let result = generatedResult else { return }
+        guard !isGenerating, let result = generatedResult else { return }
         onInsertText?(result)
         hide()
     }
@@ -830,9 +725,16 @@ struct TextGenerationContentView: View {
 
     private var instructionSection: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("What should change?")
+            Text(hasSelectedText ? "What should change?" : "What would you like to write?")
                 .font(.system(size: baseTextSize - 2, weight: .medium))
                 .foregroundColor(colors.textSecondary)
+
+            if !hasSelectedText {
+                Text("Draft from your instructions, or select text in your app to rewrite it.")
+                    .font(.system(size: baseTextSize - 2))
+                    .foregroundColor(colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             ZStack(alignment: .topLeading) {
                 TextEditor(text: $popover.instruction)
@@ -1031,7 +933,7 @@ struct TextGenerationContentView: View {
             .buttonStyle(.borderedProminent)
             .tint(colors.primary)
             .controlSize(.large)
-            .disabled(popover.generatedResult == nil)
+            .disabled(popover.isGenerating || popover.generatedResult == nil)
         }
     }
 }
