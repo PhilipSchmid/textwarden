@@ -3,6 +3,27 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.5.0</title>
+            <pubDate>Fri, 11 Sep 2026 23:34:29 +0200</pubDate>
+            <sparkle:version>36</sparkle:version>
+            <sparkle:shortVersionString>0.5.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;test: Add local CPU regression gates (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/d82cf24"&gt;&lt;code&gt;d82cf24&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;perf: Reduce repeated CPU work and add profiling (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/a37f6c5"&gt;&lt;code&gt;a37f6c5&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Preserve Unicode boundaries in Rust logs (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/c812601"&gt;&lt;code&gt;c812601&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;test: Add rewrite evaluation and capture checks (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/776c5b5"&gt;&lt;code&gt;776c5b5&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;test: Separate rewrite evaluations from feature (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/adecb39"&gt;&lt;code&gt;adecb39&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add Quick Rewrite for selected text (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/0d340e2"&gt;&lt;code&gt;0d340e2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Refresh overlays after generated insertions (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/090d3d1"&gt;&lt;code&gt;090d3d1&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Isolate AI Compose requests and results (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/dea626f"&gt;&lt;code&gt;dea626f&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;deps(rust): Bump harper-core from v2.9.0 to v2.9.1 in /GrammarEngine (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/d5d3e4b"&gt;&lt;code&gt;d5d3e4b&lt;/code&gt;&lt;/a&gt;) by @dependabot[bot]&lt;/li&gt;
+&lt;li&gt;chore: release v0.4.1 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/8a6edf2"&gt;&lt;code&gt;8a6edf2&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.5.0/TextWarden-0.5.0-Universal.dmg" length="23179779" type="application/octet-stream" sparkle:edSignature="GU9rv9khI6KNECGdAxwe86eu6xVwW0+nyflTdl+jg5jJUu9ie77hbEx7mglUHX6Pu7be+0gD38epiDNLf41CBA=="/>
+        </item>
+        <item>
             <title>0.4.1</title>
             <pubDate>Sat, 05 Sep 2026 12:54:47 +0200</pubDate>
             <sparkle:version>35</sparkle:version>
