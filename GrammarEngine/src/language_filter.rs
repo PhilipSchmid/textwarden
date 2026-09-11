@@ -486,6 +486,63 @@ mod tests {
     // MARK: - Sentence Splitting Tests
 
     #[test]
+    fn test_segment_byte_and_scalar_ranges_agree_for_unicode_boundaries() {
+        for (text, expected) in [
+            (
+                "Café.\u{2003}Next 👩🏽‍💻 sentence!",
+                vec!["Café.", "Next 👩🏽‍💻 sentence!"],
+            ),
+            (
+                "Hello\0world.\r\nNext sentence?",
+                vec!["Hello\0world.", "Next sentence?"],
+            ),
+            (
+                "日本語!\u{00a0}Next e\u{0301} sentence.",
+                vec!["日本語!", "Next e\u{0301} sentence."],
+            ),
+            (
+                "مرحبا بالعالم!\nNext sentence.",
+                vec!["مرحبا بالعالم!", "Next sentence."],
+            ),
+        ] {
+            let segments = split_into_segments(text);
+            assert_eq!(segments.len(), expected.len());
+            let scalars: Vec<char> = text.chars().collect();
+            for (segment, expected) in segments.iter().zip(expected) {
+                assert_eq!(
+                    text.get(segment.byte_start..segment.byte_end),
+                    Some(expected)
+                );
+                assert_eq!(
+                    scalars[segment.scalar_start..segment.scalar_end]
+                        .iter()
+                        .collect::<String>(),
+                    expected
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_unmapped_errors_are_preserved_without_range_conversion() {
+        let filter = LanguageFilter::new(true, vec!["deu".into()]);
+        let summary = synthetic_summary(&[(Some(Lang::Eng), true)]);
+        let mut error = create_error(usize::MAX - 1, usize::MAX, "Unmapped error");
+        error.suggestions = vec!["replacement".into(), String::new()];
+        let result = filter.filter_errors_with_summary(vec![error], &summary);
+        assert_eq!(result.len(), 1);
+        assert_eq!(
+            (result[0].start, result[0].end),
+            (usize::MAX - 1, usize::MAX)
+        );
+        assert_eq!(result[0].message, "Unmapped error");
+        assert_eq!(result[0].lint_id, "test");
+        assert_eq!(result[0].category, "Spelling");
+        assert!(matches!(result[0].severity, ErrorSeverity::Error));
+        assert_eq!(result[0].suggestions, ["replacement", ""]);
+    }
+
+    #[test]
     fn test_split_single_sentence() {
         let text = "This is a single sentence.";
         let sentences = split_into_sentences(text);

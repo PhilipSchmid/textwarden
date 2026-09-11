@@ -62,7 +62,10 @@ impl SwiftLoggerLayer {
 
         // Convert to C string - truncate if needed to avoid allocation issues
         let truncated = if message.len() > 4096 {
-            format!("{}... [truncated]", &message[..4000])
+            format!(
+                "{}... [truncated]",
+                &message[..message.floor_char_boundary(4000)]
+            )
         } else {
             message.to_string()
         };
@@ -171,6 +174,87 @@ impl<'a> tracing::field::Visit for MessageVisitor<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_callback_receives_bounded_unicode_messages() {
+        // Registration lasts for the process lifetime. A child keeps this callback
+        // isolated from other tests without changing the production registration API.
+        const CHILD: &str = "TEXTWARDEN_TEST_LOG_CALLBACK_CHILD";
+        if std::env::var_os(CHILD).is_none() {
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "swift_logger::tests::test_callback_receives_bounded_unicode_messages",
+                    "--nocapture",
+                ])
+                .env(CHILD, "1")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            return;
+        }
+
+        static RECEIVED: std::sync::Mutex<Vec<(i32, Vec<u8>)>> = std::sync::Mutex::new(Vec::new());
+        extern "C" fn receive(level: i32, message: *const std::ffi::c_char) {
+            // send_to_swift keeps its CString alive throughout the callback.
+            let bytes = unsafe { std::ffi::CStr::from_ptr(message) }
+                .to_bytes()
+                .to_vec();
+            if let Ok(mut received) = RECEIVED.lock() {
+                received.push((level, bytes));
+            }
+        }
+
+        assert!(!has_swift_callback());
+        register_swift_callback(receive);
+        register_swift_callback(receive);
+        assert!(has_swift_callback());
+
+        let mut cases = vec![
+            (String::new(), String::new()),
+            (
+                "Hello 日本語 مرحبا 👩🏽‍💻".into(),
+                "Hello 日本語 مرحبا 👩🏽‍💻".into(),
+            ),
+            ("a".repeat(4096), "a".repeat(4096)),
+            (
+                "a".repeat(4097),
+                format!("{}... [truncated]", "a".repeat(4000)),
+            ),
+            ("😀".repeat(1024), "😀".repeat(1024)),
+            (
+                "😀".repeat(1025),
+                format!("{}... [truncated]", "😀".repeat(1000)),
+            ),
+        ];
+        for (prefix_length, suffix) in
+            [(3999, "😀"), (3998, "界"), (3999, "\u{0301}"), (3999, "👩🏽‍💻")]
+        {
+            let prefix = "a".repeat(prefix_length);
+            cases.push((
+                format!("{prefix}{}", suffix.repeat(100)),
+                format!("{prefix}... [truncated]"),
+            ));
+        }
+        for (index, (input, _)) in cases.iter().enumerate() {
+            SwiftLoggerLayer::send_to_swift((index % 5) as i32, input);
+        }
+        // Interior NULs cannot cross the C-string boundary; retain the existing drop behavior.
+        SwiftLoggerLayer::send_to_swift(2, "before\0after");
+
+        let received = RECEIVED.lock().unwrap();
+        assert_eq!(received.len(), cases.len());
+        for (index, ((level, bytes), (_, expected))) in received.iter().zip(&cases).enumerate() {
+            assert_eq!(*level, (index % 5) as i32);
+            assert_eq!(std::str::from_utf8(bytes).unwrap(), expected);
+            assert!(bytes.len() <= 4096);
+        }
+    }
 
     #[test]
     fn test_level_to_int() {
