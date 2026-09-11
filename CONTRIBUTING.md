@@ -74,7 +74,9 @@ Never commit directly to `main`.
 2. Make one focused change at a time.
 3. Run `make run` after a code change so you test the installed app, not a stale build.
 4. Test the affected host apps manually when Accessibility behavior changes.
-5. Run `make ci-check` before committing.
+5. Run `make ci-check` before committing. App/runtime and dependency changes also
+   require the [local CPU gate](docs/CPU_PROFILING.md#local-regression-gate); use its
+   full suite for analysis, AX, timers, overlays, and performance changes.
 6. Create a pull request targeting `main`.
 
 Useful commands:

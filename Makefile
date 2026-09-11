@@ -7,7 +7,7 @@
         ci-check fmt fmt-rust fmt-swift lint lint-rust lint-swift \
         logs kill status reset reset-onboarding xcode version \
         release release-alpha release-beta release-rc release-upload \
-        help-book
+        help-book cpu-benchmark cpu-check
 
 # Default target
 .DEFAULT_GOAL := help
@@ -104,6 +104,17 @@ test-e2e-tools: ## Run E2E developer-tool tests
 	@python3 Scripts/e2e-state.py self-test
 	@swift Scripts/macos-e2e-driver.swift self-test
 	@swift Scripts/profile-cpu.swift self-test
+	@python3 -B Scripts/test_cpu_check.py
+
+CPU_SUITE ?= smoke
+
+cpu-benchmark: ## Record local Release CPU benchmarks (CPU_OUTPUT=new-directory)
+	@test -n "$(CPU_OUTPUT)" || (echo "Set CPU_OUTPUT to a new evidence directory"; exit 2)
+	@python3 -B Scripts/cpu-check.py benchmark "$(CPU_OUTPUT)"
+
+cpu-check: ## Compare local CPU evidence (CPU_BASELINE=dir CPU_CANDIDATE=dir CPU_SUITE=benchmark|smoke|full)
+	@test -n "$(CPU_BASELINE)" -a -n "$(CPU_CANDIDATE)" || (echo "Set CPU_BASELINE and CPU_CANDIDATE"; exit 2)
+	@python3 -B Scripts/cpu-check.py compare "$(CPU_BASELINE)" "$(CPU_CANDIDATE)" --suite "$(CPU_SUITE)"
 
 ##@ Installation
 
@@ -155,6 +166,7 @@ ci-check: ## Run CI checks locally (use before pushing)
 	@echo ""
 	@echo "$(YELLOW)[4/7] Running SwiftLint...$(NC)"
 	@swiftlint lint --quiet Sources Tests
+	@python3 -B Scripts/test_cpu_check.py
 	@echo "$(GREEN)✅ OK$(NC)"
 	@echo ""
 	@echo "$(YELLOW)[5/7] Running Rust tests...$(NC)"
