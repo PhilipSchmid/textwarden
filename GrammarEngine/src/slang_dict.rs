@@ -137,6 +137,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_wordlist_unicode_whitespace_and_case_mapping() {
+        for (input, expected) in [
+            ("", vec![]),
+            ("\u{2003}# comment\r\n\t\n", vec![]),
+            (
+                "\tBTW\r\n\u{2003}CAFÉ\u{00a0}\nİ\nE\u{0301}",
+                vec!["btw", "café", "i\u{0307}", "e\u{0301}"],
+            ),
+        ] {
+            let words: Vec<String> = load_words_lowercase_only(input)
+                .iter()
+                .map(|(chars, _)| chars.iter().collect())
+                .collect();
+            assert_eq!(words, expected);
+        }
+    }
+
+    #[test]
     fn test_load_internet_abbreviations() {
         let abbrevs = WordlistCategory::InternetAbbreviations.load_words();
 

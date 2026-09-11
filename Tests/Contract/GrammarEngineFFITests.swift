@@ -9,6 +9,28 @@
 import XCTest
 
 final class GrammarEngineFFITests: XCTestCase {
+    func testUnicodeRangesAndSuggestionsSurviveBridge() throws {
+        for prefix in ["👩🏽‍💻 ", "Cafe\u{0301} ", "日本語 ", "مرحبا ", "\0 "] {
+            let text = "\(prefix)This is a sentnce."
+            let result = GrammarEngine.shared.analyzeText(
+                text, dialect: "American",
+                enableInternetAbbrev: false, enableGenZSlang: false,
+                enableITTerminology: false, enableBrandNames: false,
+                enablePersonNames: false, enableLastNames: false
+            )
+            let start = prefix.unicodeScalars.count + "This is a ".unicodeScalars.count
+            let error = try XCTUnwrap(result.errors.first { $0.start == start && $0.end == start + 7 })
+            XCTAssertEqual(error.category, "Spelling")
+            XCTAssertFalse(error.message.isEmpty)
+            XCTAssertFalse(error.lintId.isEmpty)
+            XCTAssertTrue(error.suggestions.contains("sentence"))
+            let scalarRange = NSRange(location: error.start, length: error.end - error.start)
+            let utf16Range = TextIndexConverter.scalarToUTF16Range(scalarRange, in: text)
+            XCTAssertEqual((text as NSString).substring(with: utf16Range), "sentnce")
+            XCTAssertEqual((text as NSString).replacingCharacters(in: utf16Range, with: "sentence"), "\(prefix)This is a sentence.")
+        }
+    }
+
     // MARK: - Basic FFI Contract Tests
 
     func testSupportedLanguages_ExposesCompleteWhatlangCatalog() throws {

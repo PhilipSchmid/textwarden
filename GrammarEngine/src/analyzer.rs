@@ -1020,6 +1020,148 @@ mod tests {
     use super::*;
     use harper_core::DictWordMetadata;
 
+    #[test]
+    fn test_unicode_prefixes_preserve_spelling_ranges_and_replacements() {
+        for prefix in ["", "👩🏽‍💻 ", "Café ", "E\u{0301} ", "日本語 ", "مرحبا ", "\0 "]
+        {
+            let text = format!("{prefix}This is a sentnce.");
+            let result = analyze_text(
+                &text,
+                "American",
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                vec![],
+                true,
+                true,
+                true,
+                true,
+                true,
+            );
+            let scalars: Vec<char> = text.chars().collect();
+            for error in &result.errors {
+                assert!(
+                    error.start <= error.end && error.end <= scalars.len(),
+                    "{error:?}"
+                );
+            }
+            let start = prefix.chars().count() + "This is a ".chars().count();
+            let error = result
+                .errors
+                .iter()
+                .find(|error| error.start == start && error.end == start + 7)
+                .expect("the misspelling must retain its exact scalar range");
+            assert!(
+                error
+                    .suggestions
+                    .iter()
+                    .any(|suggestion| suggestion == "sentence"),
+                "prefix={prefix:?}, error={error:?}"
+            );
+            let replaced = format!(
+                "{}sentence{}",
+                scalars[..error.start].iter().collect::<String>(),
+                scalars[error.end..].iter().collect::<String>()
+            );
+            assert_eq!(replaced, format!("{prefix}This is a sentence."));
+        }
+    }
+
+    #[test]
+    fn test_punctuation_toggles_suppress_only_the_requested_rule() {
+        for (text, message, disabled) in [
+            (
+                "I like apples, bananas and oranges.",
+                "An Oxford comma is necessary here.",
+                (false, true, true),
+            ),
+            (
+                "Wait.....",
+                "Horizontal ellipsis must have 3 dots.",
+                (true, false, true),
+            ),
+            (
+                "He said \"hello",
+                "This quote has no termination.",
+                (true, true, false),
+            ),
+        ] {
+            let analyze = |(oxford, ellipsis, quotes)| {
+                analyze_text(
+                    text,
+                    "American",
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    vec![],
+                    true,
+                    oxford,
+                    ellipsis,
+                    quotes,
+                    true,
+                )
+            };
+            let enabled = analyze((true, true, true));
+            assert!(
+                enabled.errors.iter().any(|error| error.message == message),
+                "Fixture must trigger {message}"
+            );
+            let disabled_result = analyze(disabled);
+            assert!(!disabled_result
+                .errors
+                .iter()
+                .any(|error| error.message == message));
+            let remaining: Vec<_> = enabled
+                .errors
+                .iter()
+                .filter(|error| error.message != message)
+                .map(|error| (error.start, error.end, &error.message, &error.suggestions))
+                .collect();
+            let actual: Vec<_> = disabled_result
+                .errors
+                .iter()
+                .map(|error| (error.start, error.end, &error.message, &error.suggestions))
+                .collect();
+            assert_eq!(actual, remaining);
+        }
+    }
+
+    #[test]
+    fn test_concurrent_dictionary_configurations_keep_their_own_vocabulary() {
+        use harper_core::spell::Dictionary;
+        let (baseline, _) = get_or_build_dictionary(false, false, false, false, false, false);
+        let word = slang_dict::WordlistCategory::InternetAbbreviations
+            .load_words()
+            .into_iter()
+            .map(|(word, _)| word)
+            .find(|word| !baseline.contains_word(word))
+            .expect("fixture needs a word exclusive to the optional dictionary");
+        let barrier = std::sync::Barrier::new(2);
+        std::thread::scope(|scope| {
+            for enabled in [false, true] {
+                let word = &word;
+                let barrier = &barrier;
+                scope.spawn(move || {
+                    barrier.wait();
+                    for _ in 0..8 {
+                        let (dictionary, _) =
+                            get_or_build_dictionary(enabled, false, false, false, false, false);
+                        assert_eq!(dictionary.contains_word(word), enabled);
+                    }
+                });
+            }
+        });
+        assert!(!baseline.contains_word(&word));
+    }
+
     // Silence noisy test output unless explicitly requested
     #[allow(unused_macros)]
     macro_rules! println {
