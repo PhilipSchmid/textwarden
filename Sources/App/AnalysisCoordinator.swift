@@ -1540,9 +1540,9 @@ class AnalysisCoordinator: ObservableObject {
         }
 
         // Monitor text changes
-        textMonitor.onTextChange = { [weak self] text, context in
+        textMonitor.onTextChange = { [weak self] text, context, inactiveReason in
             guard let self else { return }
-            handleTextChange(text, in: context)
+            handleTextChange(text, in: context, inactiveReason: inactiveReason)
         }
 
         // Monitor IMMEDIATE text changes (before debounce)
@@ -1978,13 +1978,24 @@ class AnalysisCoordinator: ObservableObject {
     // MARK: - Text Analysis
 
     /// Handle text change and trigger analysis
-    func handleTextChange(_ text: String, in context: ApplicationContext) {
+    func handleTextChange(_ text: String, in context: ApplicationContext, inactiveReason: InactiveReason? = nil) {
         Logger.debug("AnalysisCoordinator: Text changed in \(context.applicationName) (\(text.count) chars)", category: Logger.analysis)
 
         // Invalidate in-flight work before any early return. Results for the old text or app
         // must not appear while analysis is paused, focus is settling, or monitoring is cleared.
         if currentSegment?.content != text || currentSegment?.context != context {
             invalidateGrammarAnalysis()
+        }
+
+        // An explicit monitoring stop must clear presentation; only transient focus changes
+        // without an inactive reason may preserve a web editor's previous state.
+        if inactiveReason != nil {
+            hideAllOverlays()
+            floatingIndicator.hide()
+            suggestionPopover.hide()
+            currentSegment = nil
+            previousText = ""
+            return
         }
 
         // Check if app is paused - skip all analysis if so
