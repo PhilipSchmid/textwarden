@@ -605,26 +605,10 @@ class AnalysisCoordinator: ObservableObject {
         let context = target.context
         let appConfig = appRegistry.configuration(for: context.bundleIdentifier)
 
-        if appConfig.features.usesWebKitMarkerSelection,
-           let mailSelection = target.mailSelection
-        {
-            guard MailContentParser.restoreSelection(mailSelection, in: element) else {
-                Logger.warning("AnalysisCoordinator: Generated text insertion aborted because Mail's selection changed", category: Logger.analysis)
-                return
-            }
-
-            lastReplacementTime = Date()
-
-            if let targetApp = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier).first {
-                targetApp.activate()
-            }
-
-            try? await Task.sleep(nanoseconds: UInt64(TimingConstants.shortDelay * 1_000_000_000))
-            typeTextDirectly(text)
-
-            let typingDelay = Double(text.count) * 0.01 + 0.1
-            try? await Task.sleep(nanoseconds: UInt64(typingDelay * 1_000_000_000))
-
+        if appConfig.features.usesWebKitMarkerSelection, target.mailSelection != nil {
+            // Mail can ignore a generated passage sent as one Unicode keyboard event.
+            // Reuse native paste, restoring the captured marker selection after activation.
+            guard await insertViaClipboardAsync(text, target: target, isMacCatalyst: false) else { return }
             refreshAfterGeneratedInsertion(in: context, element: element)
             Logger.debug("AnalysisCoordinator: Inserted generated text into Mail", category: Logger.analysis)
             return
@@ -654,7 +638,7 @@ class AnalysisCoordinator: ObservableObject {
 
         // For Electron apps, browsers, Catalyst apps, and apps requiring browser-style replacement:
         // Use clipboard paste with proper activation
-        await insertViaClipboardAsync(text, context: context, isMacCatalyst: isMacCatalyst)
+        guard await insertViaClipboardAsync(text, target: target, isMacCatalyst: isMacCatalyst) else { return }
         refreshAfterGeneratedInsertion(in: context, element: element)
     }
 
@@ -688,60 +672,70 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Insert text via clipboard paste with proper app activation (async version)
     @MainActor
-    private func insertViaClipboardAsync(_ text: String, context: ApplicationContext, isMacCatalyst: Bool) async {
+    private func insertViaClipboardAsync(_ text: String, target: TextGenerationInsertionTarget, isMacCatalyst: Bool) async -> Bool {
+        let context = target.context
         Logger.debug("AnalysisCoordinator: Inserting via clipboard for \(context.applicationName)", category: Logger.analysis)
 
-        // Preserve every clipboard representation and restore it only when the user has not
-        // changed the clipboard while TextWarden was pasting.
-        let savedClipboard = ClipboardManager.save()
-        let replacementClipboard = ClipboardManager.setForReplacement(text, savedState: savedClipboard)
-
-        // Activate target app so paste goes to the right window
-        if let targetApp = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier).first {
-            targetApp.activate()
+        guard let targetApp = NSRunningApplication(processIdentifier: context.processID),
+              targetApp.bundleIdentifier == context.bundleIdentifier
+        else {
+            Logger.warning("AnalysisCoordinator: Insertion target is no longer running", category: Logger.analysis)
+            return false
         }
-
-        // Wait for activation
+        targetApp.activate()
         try? await Task.sleep(nanoseconds: UInt64(TimingConstants.longDelay * 1_000_000_000))
 
-        // Mac Catalyst: use direct keyboard typing (clipboard paste is unreliable)
+        guard !Task.isCancelled,
+              NSWorkspace.shared.frontmostApplication?.processIdentifier == context.processID,
+              AccessibilityBridge.isFocusedElement(target.element, in: context) == true
+        else {
+            Logger.warning("AnalysisCoordinator: Insertion aborted because target focus changed", category: Logger.analysis)
+            return false
+        }
+        if let selection = target.mailSelection,
+           !MailContentParser.restoreSelection(selection, in: target.element)
+        {
+            Logger.warning("AnalysisCoordinator: Insertion aborted because Mail's selection changed", category: Logger.analysis)
+            return false
+        }
+
+        let savedClipboard = ClipboardManager.save()
+        let replacementClipboard = ClipboardManager.setForReplacement(text, savedState: savedClipboard)
+        defer { ClipboardManager.restore(replacementClipboard) }
+
         if isMacCatalyst {
-            Logger.debug("AnalysisCoordinator: Using direct typing for Mac Catalyst", category: Logger.analysis)
             typeTextDirectly(text)
-
-            ClipboardManager.restore(replacementClipboard)
-
             let typingDelay = Double(text.count) * 0.01 + 0.1
             try? await Task.sleep(nanoseconds: UInt64(typingDelay * 1_000_000_000))
-            return
+            return true
         }
 
-        // Try menu paste first (more reliable for some apps)
         var pasteSucceeded = false
-        if let frontmostApp = NSWorkspace.shared.frontmostApplication {
-            let appElement = AXUIElementCreateApplication(frontmostApp.processIdentifier)
-            if let pasteMenuItem = findPasteMenuItem(in: appElement) {
-                if AXUIElementPerformAction(pasteMenuItem, kAXPressAction as CFString) == .success {
-                    pasteSucceeded = true
-                    Logger.debug("AnalysisCoordinator: Pasted via menu action", category: Logger.analysis)
-                }
-            }
+        let appElement = AXUIElementCreateApplication(context.processID)
+        if let pasteMenuItem = findPasteMenuItem(in: appElement),
+           AXUIElementPerformAction(pasteMenuItem, kAXPressAction as CFString) == .success
+        {
+            pasteSucceeded = true
+            Logger.debug("AnalysisCoordinator: Pasted via menu action", category: Logger.analysis)
         }
 
-        // Keyboard fallback if menu failed
         if !pasteSucceeded {
             let delay = context.keyboardOperationDelay
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard !Task.isCancelled,
+                  NSWorkspace.shared.frontmostApplication?.processIdentifier == context.processID,
+                  AccessibilityBridge.isFocusedElement(target.element, in: context) == true
+            else {
+                Logger.warning("AnalysisCoordinator: Keyboard paste aborted because target focus changed", category: Logger.analysis)
+                return false
+            }
             pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
             Logger.debug("AnalysisCoordinator: Pasted via Cmd+V", category: Logger.analysis)
         }
 
-        // Wait for paste to complete
-        try? await Task.sleep(nanoseconds: 150_000_000) // 150ms
-
-        ClipboardManager.restore(replacementClipboard)
-
+        try? await Task.sleep(nanoseconds: 150_000_000)
         Logger.debug("AnalysisCoordinator: Text insertion complete", category: Logger.analysis)
+        return true
     }
 
     /// Clean up resources (timers, event monitors)
