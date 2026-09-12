@@ -77,36 +77,8 @@ class MailContentParser: ContentParser {
             extractedText = text
         }
 
-        // CRITICAL: Use AXStringForRange to get the EXACT text including newlines.
-        // Mail's AXStaticText children do NOT include newline characters, but Mail's
-        // AXBoundsForRange uses indices that count newlines. Using AXStringForRange
-        // ensures our character indices match Mail's accessibility API exactly.
         if extractedText == nil {
-            var charCountRef: CFTypeRef?
-            var mailCharCount = 0
-            if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &charCountRef) == .success,
-               let count = charCountRef as? Int
-            {
-                mailCharCount = count
-            } else {
-                Logger.debug("MailContentParser: AXNumberOfCharacters failed, trying with large range", category: Logger.accessibility)
-                mailCharCount = 100_000 // Try with a large range
-            }
-
-            if mailCharCount > 0 {
-                var range = CFRange(location: 0, length: mailCharCount)
-                if let rangeValue = AXValueCreate(.cfRange, &range) {
-                    var stringRef: CFTypeRef?
-                    let axResult = AXUIElementCopyParameterizedAttributeValue(element, "AXStringForRange" as CFString, rangeValue, &stringRef)
-                    if axResult == .success,
-                       let text = stringRef as? String,
-                       !text.isEmpty
-                    {
-                        Logger.debug("MailContentParser: AXStringForRange succeeded (\(text.count) chars)", category: Logger.accessibility)
-                        extractedText = text
-                    }
-                }
-            }
+            extractedText = MailContentParser.exactText(from: element)
         }
 
         // Fallback: traverse children to find AXStaticText elements
@@ -500,6 +472,41 @@ class MailContentParser: ContentParser {
         return nil
     }
 
+    /// Numeric ranges can take longer than the AX watchdog allows on large Mail drafts.
+    /// Text markers preserve the same newlines and UTF-16 offsets without that traversal.
+    static func exactText(from element: AXUIElement) -> String? {
+        var startRef: CFTypeRef?
+        var endRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, "AXStartTextMarker" as CFString, &startRef) == .success,
+           AXUIElementCopyAttributeValue(element, "AXEndTextMarker" as CFString, &endRef) == .success,
+           let start = startRef, let end = endRef,
+           let markerRange = createTextMarkerRange(start: start, end: end, in: element)
+        {
+            var textRef: CFTypeRef?
+            if AXUIElementCopyParameterizedAttributeValue(element, "AXStringForTextMarkerRange" as CFString, markerRange, &textRef) == .success,
+               let text = textRef as? String, !text.isEmpty
+            {
+                return text
+            }
+        }
+
+        // Retain numeric-range extraction for Mail versions without text-marker support.
+        var countRef: CFTypeRef?
+        let countResult = AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &countRef)
+        let count = countResult == .success ? (countRef as? Int ?? 100_000) : 100_000
+        guard count > 0 else { return nil }
+        var range = CFRange(location: 0, length: count)
+        guard let rangeValue = AXValueCreate(.cfRange, &range) else { return nil }
+        var textRef: CFTypeRef?
+        guard AXUIElementCopyParameterizedAttributeValue(element, "AXStringForRange" as CFString, rangeValue, &textRef) == .success,
+              let text = textRef as? String, !text.isEmpty
+        else {
+            Logger.debug("MailContentParser: Exact text extraction unavailable", category: Logger.accessibility)
+            return nil
+        }
+        return text
+    }
+
     // MARK: - UTF-16 Index Conversion
 
     /// Convert grapheme cluster indices to UTF-16 code unit indices for Mail's accessibility API.
@@ -507,36 +514,8 @@ class MailContentParser: ContentParser {
     /// while Harper provides error positions in grapheme clusters (Swift String indices).
     /// This matters for text containing emojis: 👋 = 1 grapheme but 2 UTF-16 code units.
     private static func convertToUTF16Range(_ range: NSRange, in element: AXUIElement) -> NSRange {
-        // Fetch the actual text from the element using AXStringForRange
-        // This ensures we're converting based on the same text that Mail's AX APIs use
-        var charCountRef: CFTypeRef?
-        var textLength = 0
-        if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &charCountRef) == .success,
-           let count = charCountRef as? Int
-        {
-            textLength = count
-        } else {
-            // Fallback: use a large range
-            textLength = 100_000
-        }
-
-        // Fetch text using AXStringForRange (matches what Mail's AX APIs expect)
-        var cfRange = CFRange(location: 0, length: textLength)
-        guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else {
-            Logger.debug("MailContentParser: Failed to create range value for text fetch", category: Logger.accessibility)
-            return range
-        }
-
-        var stringRef: CFTypeRef?
-        let result = AXUIElementCopyParameterizedAttributeValue(
-            element,
-            "AXStringForRange" as CFString,
-            rangeValue,
-            &stringRef
-        )
-
-        guard result == .success, let text = stringRef as? String, !text.isEmpty else {
-            Logger.debug("MailContentParser: AXStringForRange failed, using original range", category: Logger.accessibility)
+        guard let text = exactText(from: element), !text.isEmpty else {
+            Logger.debug("MailContentParser: Exact text unavailable, using original range", category: Logger.accessibility)
             return range
         }
 
