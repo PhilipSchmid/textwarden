@@ -504,25 +504,37 @@ final class FoundationModelsEngine: ObservableObject {
         let temperature = previousSuggestion != nil ? 0.9 : TemperatureValues.low
         let options = GenerationOptions(temperature: temperature)
 
-        Logger.debug("Apple Intelligence: Simplifying sentence (\(sentence.count) chars) for \(targetAudience.displayName) audience\(previousSuggestion != nil ? " (regeneration, temp=0.9)" : "")", category: Logger.llm)
+        Logger.debug("Apple Intelligence: Simplifying sentence (\(sentence.count) chars) for \(targetAudience.displayName) audience\(previousSuggestion != nil ? " (regeneration)" : "")", category: Logger.llm)
 
         do {
-            let response = try await session.respond(
-                to: "Simplify this sentence:\n\n\"\(sentence)\"",
-                generating: FMSentenceSimplificationResult.self,
-                options: options
-            )
+            let alternatives: [String]
+            if #available(macOS 27.0, *) {
+                // Reuse the source-preserving editing contract; OS 27's simplification schema
+                // can produce malformed conditionals and change relationships while paraphrasing.
+                var instruction = "Simplify this text to make it easier to understand for \(targetAudience.displayName) readers (\(targetAudience.audienceDescription), \(targetAudience.gradeLevel) reading level). Prefer removing redundant wording to paraphrasing. Keep prepositions and clauses expressing conditions, obligations, and decisions verbatim. If no safe simplification is possible, keep it unchanged."
+                if let previousSuggestion, !previousSuggestion.isEmpty {
+                    instruction += "\nProvide a different alternative from this previous suggestion: \(previousSuggestion)"
+                }
+                let context = GenerationContext(selectedText: sentence, surroundingText: nil, fullTextLength: sentence.count, cursorPosition: nil, source: .selection)
+                alternatives = try await [generateText(instruction: instruction, context: context, style: writingStyle, variationSeed: previousSuggestion == nil ? nil : 1)]
+            } else {
+                alternatives = try await session.respond(
+                    to: "Simplify this sentence:\n\n\"\(sentence)\"",
+                    generating: FMSentenceSimplificationResult.self,
+                    options: options
+                ).content.alternatives
+            }
 
             let elapsed = CFAbsoluteTimeGetCurrent() - startTime
 
             // Log what was returned before filtering
-            Logger.debug("Apple Intelligence: Raw alternatives: \(response.content.alternatives.count)", category: Logger.llm)
+            Logger.debug("Apple Intelligence: Raw alternatives: \(alternatives.count)", category: Logger.llm)
 
             // Filter out any alternatives that are identical to the original or previous suggestion
             let originalTrimmed = sentence.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
             let previousTrimmed = previousSuggestion?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
 
-            let validAlternatives = response.content.alternatives.filter { alt in
+            let validAlternatives = alternatives.filter { alt in
                 let trimmed = alt.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
                 // Exclude empty alternatives
                 if trimmed.isEmpty {
@@ -596,7 +608,7 @@ final class FoundationModelsEngine: ObservableObject {
         // Determine if tips are expected based on score
         let needsTips = score < 60 // Scores below 60 indicate readability issues
 
-        let instructions = """
+        var instructions = """
         You are a readability analyst. Analyze the text and provide helpful, actionable tips.
 
         Text statistics: \(wordCount) words, readability score \(score)/100 (Flesch Reading Ease)
@@ -622,6 +634,9 @@ final class FoundationModelsEngine: ObservableObject {
         - "Some formal words could be simplified for clarity."
         - "Try using active voice more often."
         """
+        if #available(macOS 27.0, *) {
+            instructions += "\nRecommend changes only for problems actually present in the text. Do not recommend fixing passive voice in text that already uses active voice. Fewer relevant tips are better than invented issues."
+        }
 
         let session = LanguageModelSession(instructions: instructions)
         let options = GenerationOptions(temperature: TemperatureValues.low)
