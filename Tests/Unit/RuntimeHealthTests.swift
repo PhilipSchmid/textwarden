@@ -7,6 +7,22 @@
 import XCTest
 
 final class RuntimeHealthTests: XCTestCase {
+    @MainActor
+    func testStoppedMonitoringClearsCachedBrowserPresentation() {
+        let coordinator = AnalysisCoordinator.shared
+        let context = ApplicationContext(bundleIdentifier: "com.brave.Browser", processID: 0, applicationName: "Brave Browser")
+        for reason in [InactiveReason.secureField, .noEditableField] {
+            coordinator.currentSegment = TextSegment(content: "sentnce", startIndex: 0, endIndex: 7, context: context)
+            coordinator.currentErrors = [GrammarErrorModel(start: 0, end: 7, message: "Spelling", severity: .warning, category: "Spelling", lintId: "Spelling")]
+            coordinator.textMonitor.monitoredElement = nil
+            coordinator.textMonitor.onTextChange?("", context, reason)
+            XCTAssertNil(coordinator.currentSegment)
+            XCTAssertTrue(coordinator.currentErrors.isEmpty)
+            XCTAssertFalse(coordinator.floatingIndicator.isVisible)
+            XCTAssertFalse(SuggestionPopover.shared.isVisible)
+        }
+    }
+
     func testCapabilityLabelsDescribeTheAvailableInteraction() {
         XCTAssertEqual(CapabilitySet.full.supportLabel, "Full support")
         XCTAssertEqual(CapabilitySet.indicatorOnly.supportLabel, "Indicator only")

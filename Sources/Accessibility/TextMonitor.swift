@@ -135,7 +135,7 @@ class TextMonitor: ObservableObject {
     // MARK: - Callbacks
 
     /// Callback for text changes (after debounce)
-    var onTextChange: ((String, ApplicationContext) -> Void)?
+    var onTextChange: ((String, ApplicationContext, InactiveReason?) -> Void)?
 
     /// Callback for immediate text changes (before debounce) - used to hide overlays immediately
     var onImmediateTextChange: ((String, ApplicationContext) -> Void)?
@@ -283,9 +283,9 @@ class TextMonitor: ObservableObject {
         monitoredElement = nil
         currentText = ""
 
-        // Notify with empty text to hide overlays
+        // Preserve the reason so protected fields bypass temporary focus-bounce behavior.
         if let context = currentContext {
-            onTextChange?("", context)
+            onTextChange?("", context, reason)
             RuntimeHealthStore.shared.update(
                 state: .inactive,
                 reason: reason,
@@ -709,7 +709,7 @@ class TextMonitor: ObservableObject {
                 currentText = ""
                 // Notify that we've stopped monitoring (this will trigger overlay hiding)
                 if let context = currentContext {
-                    onTextChange?("", context)
+                    onTextChange?("", context, nil)
                 }
                 return
             }
@@ -745,7 +745,7 @@ class TextMonitor: ObservableObject {
                 currentText = ""
                 // Notify that we've stopped monitoring (this will trigger overlay hiding)
                 if let context = currentContext {
-                    onTextChange?("", context)
+                    onTextChange?("", context, nil)
                 }
                 return
             }
@@ -899,7 +899,7 @@ class TextMonitor: ObservableObject {
                 currentText = ""
                 // Notify that we've stopped monitoring (this will trigger overlay hiding)
                 if let context = currentContext {
-                    onTextChange?("", context)
+                    onTextChange?("", context, nil)
                 }
             }
             return
@@ -1135,7 +1135,7 @@ class TextMonitor: ObservableObject {
                 }
 
                 currentText = text
-                onTextChange?(text, context)
+                onTextChange?(text, context, nil)
             }
         }
     }
