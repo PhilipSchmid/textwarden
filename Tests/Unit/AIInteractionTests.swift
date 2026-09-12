@@ -1,3 +1,4 @@
+import AppKit
 import ApplicationServices
 import Foundation
 @testable import TextWarden
@@ -12,6 +13,26 @@ final class AIInteractionTests: XCTestCase {
         .init(selectedText: text, surroundingText: nil, fullTextLength: text.count, cursorPosition: nil, source: .selection)
     }
 
+    func testStyleDecodingKeepsOnlyCompleteSourceAnchoredSuggestions() throws {
+        #if canImport(FoundationModels)
+            guard #available(macOS 26.0, *) else { throw XCTSkip("Requires macOS 26") }
+            let content = try GeneratedContent(json: """
+            {"suggestions":[
+              {"original":"We are currently reviewing 17 reports.","suggested":"We are reviewing 17 reports.","explanation":"Removes redundancy"},
+              {"original":"Respond using the following JSON format"},
+              {"original":"Response format","suggested":"Format","explanation":"Shorter wording"}
+            ]}
+            """)
+            let result = try FMStyleAnalysisResult(validatingEntriesIn: content)
+            let suggestions = result.toStyleSuggestionModels(in: "We are currently reviewing 17 reports.", style: .default)
+            XCTAssertEqual(suggestions.count, 1)
+            XCTAssertEqual(suggestions.first?.suggestedText, "We are reviewing 17 reports.")
+            XCTAssertThrowsError(try FMStyleAnalysisResult(validatingEntriesIn: GeneratedContent(json: "{}")))
+        #else
+            throw XCTSkip("Requires the Foundation Models SDK")
+        #endif
+    }
+
     func testComposeDraftExcludesUnselectedDocumentAndKeepsEntireSelection() {
         let instruction = "Write a confirmation about 17 reports."
         for source in [ContextSource.documentStart, .cursorWindow, .none] {
@@ -24,6 +45,59 @@ final class AIInteractionTests: XCTestCase {
         XCTAssertTrue(context(selection).hasSelection)
         XCTAssertFalse(context("").hasSelection)
         XCTAssertNotEqual(StyleInstructions.compose(for: .formal, hasSelection: true), StyleInstructions.compose(for: .default, hasSelection: true))
+        guard #available(macOS 27.0, *) else { return }
+        let frenchPrompt = context("Nous avons examinés 17 rapports. Nous les enverrons demain.").composePrompt(instruction: "Fix grammar")
+        XCTAssertTrue(frenchPrompt.contains("Selected text in French"))
+        XCTAssertTrue(context("Nous avons examiné 17 rapports.").composePrompt(instruction: "Translate to English").contains("unless translation is requested"))
+    }
+
+    @MainActor
+    func testComposeStylePickerFitsPanelInsets() async throws {
+        let popover = TextGenerationPopover.shared
+        let preferences = UserPreferences.shared
+        let originalSize = preferences.suggestionTextSize
+        let originalTheme = preferences.overlayTheme
+        defer {
+            popover.clear()
+            popover.hide()
+            preferences.suggestionTextSize = originalSize
+            preferences.overlayTheme = originalTheme
+        }
+        func segmentedControls(in view: NSView) -> [NSSegmentedControl] {
+            (view as? NSSegmentedControl).map { [$0] } ?? view.subviews.flatMap { segmentedControls(in: $0) }
+        }
+        for theme in ["Light", "Dark"] {
+            preferences.overlayTheme = theme
+            for size in [10.0, 13.0, 20.0] {
+                preferences.suggestionTextSize = size
+                for selected in [false, true] {
+                    popover.show(at: CGPoint(x: 200, y: 200), context: selected ? context("We reviewed 17 reports.") : .empty, fromIndicator: true)
+                    try await Task.sleep(for: .milliseconds(150))
+                    let panel = try XCTUnwrap(popover.panel)
+                    let content = try XCTUnwrap(panel.contentView)
+                    content.layoutSubtreeIfNeeded()
+                    let controls = segmentedControls(in: content)
+                    XCTAssertEqual(controls.count, 1, "The production style picker must be measured")
+                    for control in controls {
+                        let frame = control.convert(control.bounds, to: content)
+                        XCTAssertGreaterThanOrEqual(frame.minX, 13, "Style picker lost the left inset: \(frame)")
+                        XCTAssertLessThanOrEqual(frame.maxX, content.bounds.width - 13, "Style picker overflows the right inset: \(frame)")
+                    }
+                    if let path = ProcessInfo.processInfo.environment["TEXTWARDEN_COMPOSE_SCREENSHOTS"] {
+                        let directory = URL(fileURLWithPath: path, isDirectory: true)
+                        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                        let bitmap = try XCTUnwrap(content.bitmapImageRepForCachingDisplay(in: content.bounds))
+                        content.cacheDisplay(in: content.bounds, to: bitmap)
+                        let url = directory.appendingPathComponent("\(theme)-\(size)-\(selected ? "selection" : "draft").png")
+                        try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: url)
+                        let attachment = XCTAttachment(contentsOfFile: url)
+                        attachment.lifetime = .keepAlways
+                        add(attachment)
+                    }
+                    popover.hide()
+                }
+            }
+        }
     }
 
     @MainActor
@@ -87,12 +161,46 @@ final class AIInteractionTests: XCTestCase {
             await Task.yield()
         }
         XCTAssertEqual(calls, 3)
+        XCTAssertEqual(popover.generatedResults.count, 1, "Repeated output must not create a duplicate variation")
+        XCTAssertEqual(popover.generatedResult, "Simplify: The second sample contains 23 invoices.")
+        XCTAssertEqual(popover.errorMessage, "No new variation. Try another instruction or style.")
         popover.instruction = "Make formal"
         XCTAssertNil(popover.generatedResult)
+        XCTAssertNil(popover.errorMessage)
         popover.context = context(String(repeating: "x", count: 4001))
         popover.generate()
         XCTAssertEqual(calls, 3, "Oversized selections must not reach the model")
         XCTAssertNotNil(popover.errorMessage)
+    }
+
+    @MainActor
+    func testComposeUnchangedSelectionCannotBeInserted() async {
+        let popover = TextGenerationPopover.shared
+        let callback = popover.onGenerate
+        let insertion = popover.onInsertText
+        defer { popover.clear(); popover.onGenerate = callback; popover.onInsertText = insertion }
+        popover.clear()
+        popover.context = context("We reviewed 17 reports.")
+        popover.instruction = GenerationContext.expansionInstruction
+        popover.onGenerate = { _, _, context, _ in context.selectedText ?? "" }
+        var didInsert = false
+        popover.onInsertText = { _ in didInsert = true }
+        popover.generate()
+        for _ in 0 ..< 20 {
+            await Task.yield()
+        }
+        XCTAssertFalse(popover.isGenerating)
+        XCTAssertNil(popover.generatedResult)
+        XCTAssertTrue(popover.errorMessage?.contains("No changes suggested") == true)
+        popover.insertGeneratedText()
+        XCTAssertFalse(didInsert)
+        // Whitespace-only changes may be an intentional formatting request.
+        popover.onGenerate = { _, _, context, _ in (context.selectedText ?? "") + "\n" }
+        popover.generate()
+        for _ in 0 ..< 20 {
+            await Task.yield()
+        }
+        XCTAssertEqual(popover.generatedResult, "We reviewed 17 reports.\n")
     }
 
     @MainActor
@@ -230,6 +338,25 @@ final class AIInteractionTests: XCTestCase {
     }
 
     @MainActor
+    func testLiveComposeDoesNotLeakSelectionDelimiters() async throws {
+        guard #available(macOS 26.0, *) else { throw XCTSkip("Requires macOS 26") }
+        let engine = try qualityEngine()
+        let source = "This is a sentnce with a spelling mistke. We are reviewing the report tomorrow. We are reviewing the report tomorrow. We are reviewing the report tomorrow."
+        for repetition in 0 ..< 3 {
+            let result = try await engine.generateText(
+                instruction: "Fix spelling only. Preserve every sentence, including repetitions.",
+                context: context(source),
+                style: .default,
+                variationSeed: repetition == 0 ? nil : UInt64(repetition)
+            )
+            recordQualityOutput(result, feature: "compose-selection-delimiter-leak", input: source, repetition: repetition)
+            XCTAssertFalse(result.contains("<selection>"), "Compose leaked a prompt delimiter into the proposal")
+            XCTAssertFalse(result.contains("</selection>"), "Compose leaked a prompt delimiter into the proposal")
+            XCTAssertEqual(result, source.replacingOccurrences(of: "sentnce", with: "sentence").replacingOccurrences(of: "mistke", with: "mistake"), "Spelling-only Compose changed the repeated sentences")
+        }
+    }
+
+    @MainActor
     func testLiveShorterDoesNotExtractQuotedInstruction() async throws {
         guard #available(macOS 26.0, *) else { throw XCTSkip("Requires macOS 26") }
         let engine = try qualityEngine()
@@ -254,7 +381,8 @@ final class AIInteractionTests: XCTestCase {
             XCTAssertFalse(alternatives.isEmpty)
             for result in alternatives {
                 XCTAssertTrue(result.contains("17"))
-                XCTAssertTrue(result.lowercased().contains("before"), "Simplification lost the prerequisite")
+                // “Must read all reports to decide” retains the prerequisite without using “before”.
+                XCTAssertTrue(result.lowercased().contains("before") || result.lowercased().contains("must read all 17 reports to decide"), "Simplification lost the prerequisite")
                 XCTAssertLessThan(result.count, source.count, "Simplification did not shorten the wordy fixture")
             }
         }
@@ -275,6 +403,129 @@ final class AIInteractionTests: XCTestCase {
                 if suggestion.originalText.contains("17") { XCTAssertTrue(suggestion.suggestedText.contains("17")) }
             }
         }
+    }
+
+    @MainActor
+    func testLiveStyleRegenerationQuality() async throws {
+        guard #available(macOS 26.0, *) else { throw XCTSkip("Requires macOS 26") }
+        let engine = try qualityEngine()
+        let source = "At this point in time, we are currently in the process of reviewing 17 reports for TextWarden before deciding whether to proceed."
+        for style in WritingStyle.allCases {
+            for preset in StyleTemperaturePreset.allCases {
+                do {
+                    let suggestions = try await engine.analyzeStyle(source, style: style, temperaturePreset: preset, customVocabulary: ["TextWarden"])
+                    recordQualityOutput(suggestions.map { "\($0.originalText) => \($0.suggestedText)" }.joined(separator: "\n"), feature: "style-\(style.rawValue)-\(preset.rawValue)", input: source, repetition: 0)
+                    XCTAssertLessThanOrEqual(suggestions.count, 5)
+                    for suggestion in suggestions {
+                        XCTAssertTrue(source.contains(suggestion.originalText))
+                        if suggestion.originalText.contains("17") { XCTAssertTrue(suggestion.suggestedText.contains("17")) }
+                        if suggestion.originalText.contains("TextWarden") { XCTAssertTrue(suggestion.suggestedText.contains("TextWarden")) }
+                        XCTAssertNil(suggestion.suggestedText.range(of: #"\bI\b"#, options: .regularExpression), "Changed the plural actor to one person")
+                        XCTAssertFalse(suggestion.suggestedText.contains("deciding to"), "Changed an open decision into a commitment")
+                        XCTAssertFalse(suggestion.suggestedText.lowercased().contains("if to "), "Style produced an ungrammatical conditional")
+                        XCTAssertFalse(suggestion.suggestedText.contains("from TextWarden"), "Style changed the reports' attribution")
+                    }
+                    if preset == .balanced, let previous = suggestions.first {
+                        let alternative = try await engine.regenerateStyleSuggestion(originalText: source, previousSuggestion: previous, style: style, customVocabulary: ["TextWarden"])
+                        recordQualityOutput(alternative.map { "\($0.originalText) => \($0.suggestedText)" } ?? "[no alternative]", feature: "style-retry-\(style.rawValue)", input: source, repetition: 1)
+                        if let alternative {
+                            XCTAssertTrue(source.contains(alternative.originalText))
+                            XCTAssertNotEqual(alternative.suggestedText, previous.suggestedText)
+                            XCTAssertNil(alternative.suggestedText.range(of: #"\bI\b"#, options: .regularExpression), "Retry changed the plural actor")
+                            XCTAssertFalse(alternative.suggestedText.contains("deciding to"), "Retry changed the open decision")
+                        }
+                    }
+                } catch {
+                    XCTFail("Style \(style.rawValue)/\(preset.rawValue): \(error)")
+                }
+            }
+        }
+    }
+
+    @MainActor
+    func testLiveAudienceQuality() async throws {
+        guard #available(macOS 26.0, *) else { throw XCTSkip("Requires macOS 26") }
+        let engine = try qualityEngine()
+        let source = "At this point in time, we are currently in the process of reviewing 17 reports for TextWarden before deciding whether to proceed."
+        for audience in TargetAudience.allCases {
+            let alternatives = try await engine.simplifySentence(source, targetAudience: audience, writingStyle: .default)
+            recordQualityOutput(alternatives.joined(separator: "\n"), feature: "simplify-\(audience.rawValue)", input: source, repetition: 0)
+            XCTAssertLessThanOrEqual(alternatives.count, 1)
+            for alternative in alternatives {
+                XCTAssertTrue(alternative.contains("17"))
+                XCTAssertTrue(alternative.contains("TextWarden"))
+                XCTAssertFalse(alternative.lowercased().contains("if to "), "Simplification produced an ungrammatical conditional")
+                XCTAssertFalse(alternative.contains("from TextWarden"), "Simplification changed the reports' attribution")
+                let retries = try await engine.simplifySentence(source, targetAudience: audience, writingStyle: .default, previousSuggestion: alternative)
+                recordQualityOutput(retries.joined(separator: "\n"), feature: "simplify-retry-\(audience.rawValue)", input: source, repetition: 1)
+                XCTAssertFalse(retries.contains(alternative))
+                for retry in retries {
+                    XCTAssertTrue(retry.contains("17")); XCTAssertTrue(retry.contains("TextWarden"))
+                    XCTAssertFalse(retry.lowercased().contains("if to "), "Retry produced an ungrammatical conditional")
+                    XCTAssertFalse(retry.contains("from TextWarden"), "Retry changed the reports' attribution")
+                }
+            }
+            let tips = try await engine.generateReadabilityTips(for: source, score: 25, targetAudience: audience)
+            recordQualityOutput(tips.joined(separator: "\n"), feature: "tips-\(audience.rawValue)", input: source, repetition: 0)
+            XCTAssertFalse(tips.isEmpty)
+            XCTAssertLessThanOrEqual(tips.count, 3)
+            for tip in tips {
+                XCTAssertLessThan(tip.split(whereSeparator: \.isWhitespace).count, 15)
+                XCTAssertFalse(tip.lowercased().contains("passive"), "Invented passive voice in an active-voice fixture")
+            }
+        }
+        let easy = "We read the report. It was clear. We will meet tomorrow to talk about it."
+        let easyTips = try await engine.generateReadabilityTips(for: easy, score: 85, targetAudience: .general)
+        recordQualityOutput(easyTips.joined(separator: "\n"), feature: "tips-easy", input: easy, repetition: 0)
+        XCTAssertTrue(easyTips.isEmpty)
+        let shortTips = try await engine.generateReadabilityTips(for: "A short phrase", score: 25, targetAudience: .general)
+        XCTAssertTrue(shortTips.isEmpty)
+    }
+
+    @MainActor
+    func testLiveComposeQuickActions() async throws {
+        guard #available(macOS 26.0, *) else { throw XCTSkip("Requires macOS 26") }
+        let engine = try qualityEngine()
+        let source = "At this point in time, we are currently in the process of reviewing 17 reports for TextWarden. We have not approved the proposal."
+        let actions = [
+            ("shorter", "Make this text shorter and more concise"),
+            ("more-detail", GenerationContext.expansionInstruction),
+            ("simpler", "Simplify this text to make it easier to understand"),
+        ]
+        for (action, instruction) in actions {
+            for style in WritingStyle.allCases {
+                for repetition in 0 ..< 3 {
+                    do {
+                        let output = try await engine.generateText(instruction: instruction, context: context(source), style: style, variationSeed: repetition == 0 ? nil : UInt64(repetition))
+                        recordQualityOutput(output, feature: "compose-\(action)-\(style.rawValue)", input: source, repetition: repetition)
+                        XCTAssertTrue(output.contains("17"))
+                        XCTAssertTrue(output.contains("TextWarden"))
+                        let normalized = output.lowercased().replacingOccurrences(of: "’", with: "'")
+                        XCTAssertTrue(normalized.contains("not") || normalized.contains("n't") || normalized.contains("no approval"), "Lost the lack of approval")
+                        if action == "shorter" { XCTAssertLessThan(output.count, source.count) }
+                        if action == "more-detail" {
+                            for inventedDetail in ["compliance", "security", "stakeholder", "technical specification", "scalability", "data handling", "requirements", "standards"] {
+                                XCTAssertFalse(normalized.contains(inventedDetail), "Invented an unstated review activity: \(inventedDetail)")
+                            }
+                        }
+                    } catch {
+                        XCTFail("Compose \(action)/\(style.rawValue)/\(repetition): \(error)")
+                    }
+                }
+            }
+        }
+    }
+
+    @MainActor
+    func testLiveComposeExplicitTranslation() async throws {
+        guard #available(macOS 26.0, *) else { throw XCTSkip("Requires macOS 26") }
+        let engine = try qualityEngine()
+        let source = "Nous avons examiné 17 rapports. Nous les enverrons demain."
+        let output = try await engine.generateText(instruction: "Translate to English. Preserve every fact.", context: context(source), style: .default)
+        recordQualityOutput(output, feature: "compose-translation", input: source, repetition: 0)
+        XCTAssertTrue(output.contains("17"))
+        XCTAssertTrue(output.lowercased().contains("tomorrow"))
+        XCTAssertTrue(output.lowercased().contains("reports"))
     }
 
     @MainActor
