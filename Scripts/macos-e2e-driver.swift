@@ -214,10 +214,21 @@ struct ClipboardSnapshot {
     let items: [[NSPasteboard.PasteboardType: Data]]
 }
 
-func pasteText(_ text: String) throws {
+func pasteText(_ text: String, application: NSRunningApplication) throws {
     // Paste large fixtures atomically; WebKit can change spaces at chunk boundaries.
     guard text.utf16.count <= 100_000, !text.contains("\n"), !text.contains("\r") else {
         throw DriverError.failure("refusing unsafe text input")
+    }
+    var mailPasteItem: AXUIElement?
+    if application.bundleIdentifier == "com.apple.mail" {
+        let appElement = AXUIElementCreateApplication(application.processIdentifier)
+        guard let menuBar = axElement(copyAttribute(appElement, kAXMenuBarAttribute as CFString)) else {
+            throw DriverError.failure("Mail does not expose its menu bar")
+        }
+        var occurrence = 0
+        var remaining = 2000
+        mailPasteItem = findPressableElement(menuBar, label: "Paste", allowShortcutSuffix: true, occurrence: &occurrence, remaining: &remaining)
+        guard mailPasteItem != nil else { throw DriverError.failure("Mail does not expose Paste") }
     }
     let pasteboard = NSPasteboard.general
     let snapshot = ClipboardSnapshot(items: (pasteboard.pasteboardItems ?? []).map { item in
@@ -226,26 +237,34 @@ func pasteText(_ text: String) throws {
         })
     })
     pasteboard.clearContents()
-    guard pasteboard.setString(text, forType: .string) else {
-        throw DriverError.failure("could not set temporary clipboard text")
-    }
+    let didSetText = pasteboard.setString(text, forType: .string)
     let replacementChangeCount = pasteboard.changeCount
-    try postKey(9, flags: .maskCommand)
-    usleep(300_000)
-
-    guard pasteboard.changeCount == replacementChangeCount else { return }
-    pasteboard.clearContents()
-    let restoredItems = snapshot.items.compactMap { representations -> NSPasteboardItem? in
-        guard !representations.isEmpty else { return nil }
-        let item = NSPasteboardItem()
-        for (type, data) in representations {
-            item.setData(data, forType: type)
+    defer {
+        if pasteboard.changeCount == replacementChangeCount {
+            pasteboard.clearContents()
+            let restoredItems = snapshot.items.compactMap { representations -> NSPasteboardItem? in
+                guard !representations.isEmpty else { return nil }
+                let item = NSPasteboardItem()
+                for (type, data) in representations {
+                    item.setData(data, forType: type)
+                }
+                return item
+            }
+            if !restoredItems.isEmpty {
+                pasteboard.writeObjects(restoredItems)
+            }
         }
-        return item
     }
-    if !restoredItems.isEmpty {
-        pasteboard.writeObjects(restoredItems)
+    guard didSetText else { throw DriverError.failure("could not set temporary clipboard text") }
+    if let mailPasteItem {
+        // A queued key can be delayed by a large document and read the restored clipboard.
+        guard AXUIElementPerformAction(mailPasteItem, kAXPressAction as CFString) == .success else {
+            throw DriverError.failure("Mail Paste action failed")
+        }
+    } else {
+        try postKey(9, flags: .maskCommand)
     }
+    usleep(300_000)
 }
 
 func editorAt(_ point: CGPoint) -> AXUIElement? {
@@ -1263,7 +1282,7 @@ func run(_ arguments: [String]) throws {
         guard arguments.count == 3 else { usage() }
         let application = try activate(arguments[1])
         _ = try focusedEditor(application)
-        try pasteText(arguments[2])
+        try pasteText(arguments[2], application: application)
 
     case "click-textwarden":
         guard arguments.count == 3 else { usage() }
