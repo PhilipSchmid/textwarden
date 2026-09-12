@@ -86,6 +86,15 @@ final class TextMonitorTests: XCTestCase {
         XCTAssertFalse(FocusedElementPolicy.shouldClearForConfirmedContextChange(matches: nil))
     }
 
+    func testStaleWebFocusRefreshRequiresConfirmedMismatchAndUnprotectedField() {
+        XCTAssertTrue(FocusedElementPolicy.shouldRefreshStaleWebFocus(isProtected: false, matches: false))
+        XCTAssertFalse(FocusedElementPolicy.shouldRefreshStaleWebFocus(isProtected: false, matches: true))
+        XCTAssertFalse(FocusedElementPolicy.shouldRefreshStaleWebFocus(isProtected: false, matches: nil))
+        for matches: Bool? in [true, false, nil] {
+            XCTAssertFalse(FocusedElementPolicy.shouldRefreshStaleWebFocus(isProtected: true, matches: matches))
+        }
+    }
+
     func testNotionRejectsTransientRootWebArea() {
         XCTAssertFalse(NotionContentParser.isEditableContentRole("AXWebArea"))
         XCTAssertTrue(NotionContentParser.isEditableContentRole("AXTextArea"))

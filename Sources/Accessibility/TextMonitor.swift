@@ -46,6 +46,10 @@ enum FocusedElementPolicy {
     static func shouldClearForConfirmedContextChange(matches: Bool?) -> Bool {
         matches == false
     }
+
+    static func shouldRefreshStaleWebFocus(isProtected: Bool, matches: Bool?) -> Bool {
+        !isProtected && matches == false
+    }
 }
 
 /// Monitors text changes in applications via Accessibility API
@@ -569,20 +573,22 @@ class TextMonitor: ObservableObject {
         )
         let behavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
 
-        if isReadOnlyBrowserElement(element) {
-            clearMonitoringAndHideOverlays()
-            return
-        }
-
-        if disposition == .useFocusedElement,
-           behavior.knownQuirks.contains(.webBasedRendering),
+        // Gecko can report the read-only page container after focusing a rich editor.
+        // Resolve stale notifications before applying the read-only guard to their target.
+        if behavior.knownQuirks.contains(.webBasedRendering),
            let context = currentContext,
-           FocusedElementPolicy.shouldClearForConfirmedContextChange(
+           FocusedElementPolicy.shouldRefreshStaleWebFocus(
+               isProtected: isProtected,
                matches: AccessibilityBridge.isFocusedElement(element, in: context)
            )
         {
             Logger.debug("TextMonitor: Focus notification is stale - refreshing authoritative focus", category: Logger.accessibility)
             monitorFocusedElement(in: AXUIElementCreateApplication(context.processID))
+            return
+        }
+
+        if isReadOnlyBrowserElement(element) {
+            clearMonitoringAndHideOverlays()
             return
         }
 
@@ -716,16 +722,7 @@ class TextMonitor: ObservableObject {
         {
             if BrowserContentParser.isBrowserUIElement(element) {
                 Logger.debug("TextMonitor: Skipping browser UI element (not web content)", category: Logger.accessibility)
-                // Clear any existing monitoring and notify to hide overlays
-                if let previousElement = monitoredElement {
-                    AXObserverRemoveNotification(observer, previousElement, kAXValueChangedNotification as CFString)
-                }
-                monitoredElement = nil
-                currentText = ""
-                // Notify that we've stopped monitoring (this will trigger overlay hiding)
-                if let context = currentContext {
-                    onTextChange?("", context, nil)
-                }
+                clearMonitoringAndHideOverlays()
                 return
             }
         }
