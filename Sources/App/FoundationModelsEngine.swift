@@ -344,7 +344,7 @@ final class FoundationModelsEngine: ObservableObject {
         let language = sourceLanguage ?? NLLanguageRecognizer.dominantLanguage(for: text)
             .flatMap { Locale(identifier: "en").localizedString(forLanguageCode: $0.rawValue) } ?? "the original language"
         // Never truncate a selection that will be replaced in full.
-        let prompt = """
+        var prompt = """
         Rewrite this \(language) text in the \(style.displayName) style. Fix mistakes and unnecessary wording, but keep all its information.
 
         <text_to_edit>
@@ -353,6 +353,9 @@ final class FoundationModelsEngine: ObservableObject {
 
         Return only the edited text in \(language), without the text_to_edit tags.
         """
+        if #available(macOS 27.0, *) {
+            prompt += "\nPreserve sentence types: statements remain statements, questions remain questions. Copy quoted examples exactly, including their punctuation."
+        }
         let response = try await session.respond(to: prompt, options: options)
         return response.content
     }
