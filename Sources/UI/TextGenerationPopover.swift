@@ -476,7 +476,15 @@ class TextGenerationPopover: NSObject, ObservableObject {
                     errorMessage = "No text returned. Please try again."
                     return
                 }
-                if !generatedResults.contains(result) { generatedResults.append(result) }
+                if result == requestContext.selectedText {
+                    errorMessage = "No changes suggested. Try another instruction or add the details you want included."
+                    return
+                }
+                if generatedResults.contains(result) {
+                    errorMessage = "No new variation. Try another instruction or style."
+                } else {
+                    generatedResults.append(result)
+                }
                 currentResultIndex = generatedResults.firstIndex(of: result) ?? 0
             } catch {
                 guard !Task.isCancelled, generationID == id else { return }
