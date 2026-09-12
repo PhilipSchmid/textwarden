@@ -704,7 +704,7 @@ struct TextGenerationContentView: View {
             // Transformation actions only (style is controlled by style chips)
             HStack(spacing: 6) {
                 quickActionButton("Shorter", icon: "arrow.down.right.and.arrow.up.left", instruction: "Make this text shorter and more concise")
-                quickActionButton("More detail", icon: "arrow.up.left.and.arrow.down.right", instruction: "Expand this text with more detail")
+                quickActionButton("More detail", icon: "arrow.up.left.and.arrow.down.right", instruction: GenerationContext.expansionInstruction)
                 quickActionButton("Simpler", icon: "text.alignleft", instruction: "Simplify this text to make it easier to understand")
             }
         }
