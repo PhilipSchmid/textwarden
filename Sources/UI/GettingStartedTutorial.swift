@@ -737,7 +737,6 @@ private struct TutorialComposePopover: View {
                 accentColor: colors.primary,
                 colors: colors,
                 textSize: 12,
-                badge: "On-device",
                 closeAccessibilityLabel: "Close AI Compose",
                 onClose: onClose
             )
@@ -773,6 +772,7 @@ private struct TutorialComposePopover: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.segmented)
+                .controlSize(.small)
 
                 HStack {
                     Spacer()

@@ -655,7 +655,6 @@ struct TextGenerationContentView: View {
             accentColor: colors.primary,
             colors: colors,
             textSize: baseTextSize * 0.85,
-            badge: "On-device",
             resetAction: hasClearableContent ? { popover.clear() } : nil,
             resetAccessibilityLabel: "Clear instruction and results",
             closeAccessibilityLabel: "Close AI Compose",
@@ -784,6 +783,7 @@ struct TextGenerationContentView: View {
             }
             .labelsHidden()
             .pickerStyle(.segmented)
+            .controlSize(.small)
             .disabled(popover.isGenerating)
             .accessibilityLabel("Writing style")
         }
