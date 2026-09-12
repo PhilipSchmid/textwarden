@@ -44,38 +44,14 @@ Poll for state convergence instead of sleeping for a fixed duration. Always comp
 
 - Prefer a new local document. In communication apps, use only an explicitly verified self-chat or a recipientless/self-addressed draft. Never open another person or group conversation, and never invoke Send.
 - Record and restore any preference changed for the run.
-- Clear fixture text before closing. If an app cannot discard reversibly, save the cleared document under a unique path in `/private/tmp`, close it, then remove that exact path.
+- Clean up only fixtures created for the current run, after verifying their identity. Prefer discarding a disposable local document; never clear or overwrite an existing user document.
 - Quit the opt-in TextWarden instance, remove the state file, and relaunch normally.
 - Trace logs can contain test text. Restore the previous log settings and remove only logs created for the run.
 
-## Live coverage
-
-| Application | Validated behavior |
-|---|---|
-| TextEdit | Native `AXTextArea` baseline, analysis, underlines, correction, and window lifecycle. |
-| Apple Mail | WebKit body, subject/body focus changes, native spelling UI, correction, and no-send cleanup. |
-| Apple Messages | New-message recipient/body focus, self-addressed draft, correction, and no-send cleanup. |
-| Apple Notes | Local note editing, analysis, underlines, correction, and cleanup. |
-| Apple Reminders | Disposable reminder title, correction, and removal. |
-| Apple Calendar | Disposable event title, correction, and removal. |
-| Apple Pages | Native rich text, range geometry, correction, zoom, scrolling, and header/body focus. |
-| Microsoft Word | Office document ranges, correction, formatting preservation, zoom, scrolling, and window geometry. |
-| Chrome | Local `contenteditable` analysis, indicator presentation, correction, focus changes, and window lifecycle. |
-| Safari | Local `contenteditable` analysis, underlines, correction, and cleanup. |
-| Brave | Isolated local `contenteditable` analysis and cleanup. |
-| Comet | Isolated-profile local `contenteditable` analysis and cleanup. |
-| Notion | Block editing, sidebar hide/show, navigation, correction, scrolling, and window lifecycle. |
-| Slack | Draft analysis, workspace switcher and sidebar changes, navigation, native popovers, correction, and no-send cleanup. |
-| Microsoft Teams | Self-chat draft analysis, calibrated single-line positioning, correction, and no-send cleanup. |
-| Microsoft Outlook | Subject/body focus, Editor pane resize, correction, move/resize, minimize/restore, and no-send cleanup. |
-| Microsoft PowerPoint | Speaker Notes analysis, missing AX notification fallback, Notes hide/show, slide-canvas exclusion, correction, and minimize/restore. Slide text remains inaccessible through AX. |
-| Telegram | Saved Messages navigation, native `AXTextArea` analysis, correction, and no-send cleanup. |
-| WhatsApp | Visually verified Message Yourself draft, New Chat search-to-composer focus recovery, correction, and no-send cleanup. |
-| Proton Mail | Recipientless rich-text body, structural-newline handling, correction, and draft cleanup. |
-| Claude Desktop | Temporarily activated from its preserved pause state, unsent-prompt analysis, correction, cleanup, and exact preference restoration. |
-| ChatGPT / Codex | Unsent-prompt analysis, one-line and wrapped geometry, emoji offsets, correction, focus changes, window movement and resizing, and minimize/restore. |
-
-Configured applications that were unavailable in this environment remain unvalidated: Perplexity, Webex, Safari Technology Preview, Firefox, Edge, Opera, and Vivaldi.
+Keep run-specific reports, raw model outputs, screenshots, traces, machine identifiers,
+and absolute home-directory paths in ignored local evidence. Review artifacts before
+sharing them. Checked-in documentation should contain reusable procedures and synthetic
+examples, not account details or claims that an older test run validates the current OS.
 
 ## Native macOS input driver
 
@@ -105,7 +81,7 @@ xcrun swift Scripts/macos-e2e-driver.swift window-restore BUNDLE_ID
 
 The driver activates and verifies the target process, refuses text containing line breaks, preserves and restores the clipboard around paste input, checks exact UTF-16 lengths before clearing, rejects clicks outside the target application or on send-like controls, and consumes oracle-provided Quartz coordinates. `press-self-chat` accepts only explicit self markers such as `(You)`, `Saved Messages`, and `Message yourself`; if an app omits those AX labels, require a tightly cropped visual confirmation before a guarded coordinate click. Shortcuts are deliberately whitelisted; the usage output lists supported combinations, including the default Compose and Quick Rewrite shortcuts above. Verify configured bindings and that shortcuts are enabled before relying on them. Keep host-app orchestration in Computer Use and assertions in `Scripts/e2e-state.py`; add a scenario layer only if repeated tests prove these direct commands insufficient.
 
-If Computer Use reports a capture failure for TextWarden's overlay-only state, do not infer that the pill is absent. Verify its current frame in the oracle or logs, use the guarded `click-textwarden` helper where native input is authorized, then capture the opened Compose or suggestion panel. During September 2026 checks, app-targeted shortcut events inserted characters into TextEdit instead of invoking TextWarden's global shortcut; the native helper exercised the intended event path. Restore the exact fixture after any such mismatch. Do not count successful helper execution alone as a pass: verify the resulting UI and editor value.
+If Computer Use reports a capture failure for TextWarden's overlay-only state, do not infer that the pill is absent. Verify its current frame in the oracle or logs, use the guarded `click-textwarden` helper where native input is authorized, then capture the opened Compose or suggestion panel. App-targeted shortcut events may insert characters instead of invoking global shortcuts; verify the native event path. Restore the exact fixture after any such mismatch. Do not count successful helper execution alone as a pass: verify the resulting UI and editor value.
 
 ## Application canaries
 
@@ -147,16 +123,6 @@ TEST_RUNNER_TEXTWARDEN_TEST_REWRITE_LANGUAGES=1 xcodebuild test \
   -scheme TextWarden -destination 'platform=macOS' -parallel-testing-enabled NO \
   -only-testing:TextWardenTests/QuickRewriteTests/testLiveRewritePreservesSentenceAndPhraseLanguages
 ```
-
-On 2026-09-11, the unguarded baseline changed a Portuguese sentence toward Spanish
-and rewrote the ambiguous word `Gift` as Swedish `Gifta sig`, in both Default and
-Concise styles. After the language guard, the expanded 48-case run (24 selections,
-two styles, Consistent sampling) returned 38 same-language or unchanged results and
-declined 10 uncertain inputs. The phrase `se estará presente` is shared by Portuguese
-and Spanish: its capitalization-only result remains valid Portuguese despite the
-detector's Spanish label. TextEdit also preserved the French language and emoji-bearing
-boundary markers after Apply, and left the Portuguese regression unchanged when declined.
-These are bounded regression checks, not a guarantee for all languages or model versions.
 
 Use the [visual regression checks](QUICK-REWRITE-UI.md) for review-panel sizing,
 keyboard actions, timeout behavior, and synthetic screenshots across text lengths,

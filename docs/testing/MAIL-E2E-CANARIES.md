@@ -68,9 +68,6 @@ Use a disposable document and verify that TextWarden reports `Full support`, an 
 3. Append and remove ` badspelll` ten times; after every edit, poll until the segment length and all three counts agree.
 4. Alternate activation between TextEdit and the recipient-free Mail draft five times; require the app, monitored role, segment length, findings, underlines, and indicator to converge after every switch.
 5. Clear the document and require zero findings, zero underlines, and a hidden indicator before closing it without retaining test text.
-
-The live baseline on 2026-09-04 converged in about 0.5–0.6 seconds per TextEdit edit and 0.3–0.5 seconds after each Mail field or application transition. Treat those as observations, not hard-coded timing assertions; poll the state oracle with a bounded timeout.
-
 ## Pass criteria
 
 A scenario passes only when all three observation channels agree. Screenshot appearance alone is not sufficient.
