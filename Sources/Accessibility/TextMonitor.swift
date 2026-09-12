@@ -378,6 +378,11 @@ class TextMonitor: ObservableObject {
             return
         }
 
+        if isReadOnlyBrowserElement(axElement) {
+            clearMonitoringAndHideOverlays()
+            return
+        }
+
         let behavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
         if FocusedElementPolicy.shouldWaitForEditableWebFocus(
             disposition: disposition,
@@ -564,6 +569,11 @@ class TextMonitor: ObservableObject {
         )
         let behavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
 
+        if isReadOnlyBrowserElement(element) {
+            clearMonitoringAndHideOverlays()
+            return
+        }
+
         if disposition == .useFocusedElement,
            behavior.knownQuirks.contains(.webBasedRendering),
            let context = currentContext,
@@ -667,6 +677,11 @@ class TextMonitor: ObservableObject {
         if isProtectedTextElement(element) {
             Logger.info("TextMonitor: Ignoring protected text field", category: Logger.accessibility)
             clearMonitoringAndHideOverlays(reason: .secureField)
+            return
+        }
+
+        if isReadOnlyBrowserElement(element) {
+            clearMonitoringAndHideOverlays()
             return
         }
 
@@ -1570,12 +1585,32 @@ extension TextMonitor {
         return true
     }
 
+    /// Browser text fields expose read-only state through AXValue writability, while remaining
+    /// enabled and selectable. Other apps can edit through indirect APIs, so keep this browser-only.
+    private func isReadOnlyBrowserElement(_ element: AXUIElement) -> Bool {
+        guard let bundleID = currentContext?.bundleIdentifier,
+              AppRegistry.shared.configuration(for: bundleID).parserType == .browser
+        else { return false }
+
+        var role: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role) == .success,
+              let role = role as? String,
+              [kAXTextAreaRole as String, kAXTextFieldRole as String, "AXWebArea"].contains(role)
+        else { return false }
+
+        var settable = DarwinBoolean(false)
+        return AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &settable) == .success
+            && !settable.boolValue
+    }
+
     /// Check if element is an editable text field (not read-only content)
     func isEditableElement(_ element: AXUIElement) -> Bool {
         guard !isProtectedTextElement(element) else {
             Logger.trace("TextMonitor: Protected text field - skipping", category: Logger.accessibility)
             return false
         }
+
+        guard !isReadOnlyBrowserElement(element) else { return false }
 
         // Check role
         var role: CFTypeRef?
@@ -1584,6 +1619,17 @@ extension TextMonitor {
         guard let roleString = role as? String else {
             Logger.trace("TextMonitor: Could not get role for element", category: Logger.accessibility)
             return false
+        }
+
+        // Chromium designMode documents expose their editable body as AXGroup.
+        // Require explicit writability; ordinary groups remain read-only.
+        if roleString == "AXGroup",
+           let bundleID = currentContext?.bundleIdentifier,
+           AppRegistry.shared.configuration(for: bundleID).parserType == .browser
+        {
+            var settable = DarwinBoolean(false)
+            return AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &settable) == .success
+                && settable.boolValue
         }
 
         // Check if it's a static text element (read-only)
