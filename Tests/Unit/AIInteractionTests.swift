@@ -80,8 +80,12 @@ final class AIInteractionTests: XCTestCase {
                     XCTAssertEqual(controls.count, 1, "The production style picker must be measured")
                     for control in controls {
                         let frame = control.convert(control.bounds, to: content)
-                        XCTAssertGreaterThanOrEqual(frame.minX, 13, "Style picker lost the left inset: \(frame)")
-                        XCTAssertLessThanOrEqual(frame.maxX, content.bounds.width - 13, "Style picker overflows the right inset: \(frame)")
+                        // Older AppKit controls include decoration outside their layout rectangle.
+                        let alignment = control.convert(control.alignmentRect(forFrame: control.bounds), to: content)
+                        XCTAssertGreaterThanOrEqual(alignment.minX, 13, "Style picker lost the left inset: \(alignment)")
+                        XCTAssertLessThanOrEqual(alignment.maxX, content.bounds.width - 13, "Style picker overflows the right inset: \(alignment)")
+                        XCTAssertGreaterThanOrEqual(frame.minX, 0, "Style picker is clipped: \(frame)")
+                        XCTAssertLessThanOrEqual(frame.maxX, content.bounds.width, "Style picker is clipped: \(frame)")
                     }
                     if let path = ProcessInfo.processInfo.environment["TEXTWARDEN_COMPOSE_SCREENSHOTS"] {
                         let directory = URL(fileURLWithPath: path, isDirectory: true)
