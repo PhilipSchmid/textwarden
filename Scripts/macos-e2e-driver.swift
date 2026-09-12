@@ -215,7 +215,8 @@ struct ClipboardSnapshot {
 }
 
 func pasteText(_ text: String) throws {
-    guard isSafeTextInput(text) else {
+    // Paste large fixtures atomically; WebKit can change spaces at chunk boundaries.
+    guard text.utf16.count <= 100_000, !text.contains("\n"), !text.contains("\r") else {
         throw DriverError.failure("refusing unsafe text input")
     }
     let pasteboard = NSPasteboard.general
@@ -330,10 +331,24 @@ func directTextValue(_ element: AXUIElement) -> String? {
     let value = (attribute as? String) ?? (attribute as? NSAttributedString)?.string
     // A WebKit composer's empty AXValue is not proof that its document is empty.
     // Preserve real AXValue text from older WebKit versions for exact-text guards.
-    if value?.isEmpty == true, stringAttribute(element, kAXRoleAttribute as CFString) == "AXWebArea" {
+    guard stringAttribute(element, kAXRoleAttribute as CFString) == "AXWebArea",
+          value?.isEmpty != false
+    else { return value }
+
+    // Mail on macOS 27 can omit both character counts and AXStringForRange.
+    // Its document marker range still provides the complete composer text.
+    var range: CFTypeRef?
+    var text: CFTypeRef?
+    guard AXUIElementCopyParameterizedAttributeValue(
+        element, "AXTextMarkerRangeForUIElement" as CFString, element, &range
+    ) == .success, let range,
+        AXUIElementCopyParameterizedAttributeValue(
+            element, "AXStringForTextMarkerRange" as CFString, range, &text
+        ) == .success
+    else {
         return nil
     }
-    return value
+    return (text as? String) ?? (text as? NSAttributedString)?.string
 }
 
 func textValue(_ element: AXUIElement) -> String? {
@@ -1039,7 +1054,7 @@ func run(_ arguments: [String]) throws {
         )
 
     case "check-editor", "check-editor-trimmed":
-        guard arguments.count == 3, isSafeTextInput(arguments[2]) else { usage() }
+        guard arguments.count == 3, arguments[2].utf16.count <= 100_000 else { usage() }
         let editor = try focusedEditor(try activate(arguments[1]))
         guard let actual = textValue(editor) else {
             throw DriverError.failure("focused editor text is unavailable")
