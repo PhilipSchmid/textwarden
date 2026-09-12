@@ -52,6 +52,7 @@ struct StyleCheckingSettingsView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .help(audienceDescription(for: audience))
+                                .accessibilityAddTraits(preferences.selectedTargetAudience == audience ? .isSelected : [])
                             }
                         }
                         .background(Color(.separatorColor).opacity(0.2))
@@ -102,9 +103,11 @@ struct StyleCheckingSettingsView: View {
                         Text(fmStatus.isAvailable ? "Ready" : "Not Available")
                             .font(.system(size: 12, weight: .medium))
 
-                        Text(fmStatus.userMessage)
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+                        if !fmStatus.isAvailable {
+                            Text(fmStatus.userMessage)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
                     }
 
                     Spacer()
@@ -182,6 +185,7 @@ struct StyleCheckingSettingsView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .help(styleDescription(for: style))
+                                .accessibilityAddTraits(preferences.selectedWritingStyle == style ? .isSelected : [])
                             }
                         }
                         .background(Color(.separatorColor).opacity(0.2))
@@ -206,6 +210,7 @@ struct StyleCheckingSettingsView: View {
                                         Text(preset.label)
                                         Image(systemName: preset.symbolName)
                                             .font(.system(size: 10))
+                                            .accessibilityHidden(true)
                                     }
                                     .font(.system(size: 12, weight: selectedTemperaturePreset == preset ? .semibold : .regular))
                                     .foregroundColor(selectedTemperaturePreset == preset ? .white : .primary)
@@ -219,6 +224,7 @@ struct StyleCheckingSettingsView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .help(preset.description)
+                                .accessibilityAddTraits(selectedTemperaturePreset == preset ? .isSelected : [])
                             }
                         }
                         .background(Color(.separatorColor).opacity(0.2))
