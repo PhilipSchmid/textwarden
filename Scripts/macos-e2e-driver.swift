@@ -164,6 +164,7 @@ func postMouse(_ type: CGEventType, at point: CGPoint) throws {
     ) else {
         throw DriverError.failure("could not create mouse event")
     }
+    event.flags = []
     event.post(tap: .cghidEventTap)
 }
 
@@ -175,7 +176,8 @@ func postKey(_ keyCode: CGKeyCode, flags: CGEventFlags = []) throws {
         throw DriverError.failure("could not create keyboard event")
     }
     keyDown.flags = flags
-    keyUp.flags = flags
+    // End synthetic modifiers with the shortcut; otherwise later clicks become Control-clicks.
+    keyUp.flags = []
     keyDown.post(tap: .cghidEventTap)
     usleep(50_000)
     keyUp.post(tap: .cghidEventTap)
@@ -197,6 +199,8 @@ func postText(_ text: String) throws {
         else {
             throw DriverError.failure("could not create text event")
         }
+        keyDown.flags = []
+        keyUp.flags = []
         let utf16 = Array(String(character).utf16)
         utf16.withUnsafeBufferPointer { buffer in
             keyDown.keyboardSetUnicodeString(
