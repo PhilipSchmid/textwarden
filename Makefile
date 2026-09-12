@@ -45,11 +45,8 @@ build-rust: ## Build Rust library
 
 build-swift: ## Build Swift app
 	@echo "$(BLUE)🍎 Building Swift app...$(NC)"
-	@xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration $(CONFIGURATION) build 2>&1 | \
-		grep -E "(error:|warning:|BUILD SUCCEEDED|BUILD FAILED)" || true
-	@xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration $(CONFIGURATION) build 2>&1 | \
-		grep -q "BUILD SUCCEEDED" && echo "$(GREEN)✅ Swift build complete$(NC)" || \
-		(echo "$(RED)❌ Swift build failed$(NC)" && exit 1)
+	@xcodebuild -quiet -project $(PROJECT) -scheme $(SCHEME) -configuration $(CONFIGURATION) build
+	@echo "$(GREEN)✅ Swift build complete$(NC)"
 
 ##@ Running
 
