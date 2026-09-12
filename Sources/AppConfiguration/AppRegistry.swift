@@ -364,14 +364,7 @@ extension AppConfiguration {
             "com.apple.SafariTechnologyPreview",
             "org.mozilla.firefox",
             "org.mozilla.firefoxdeveloperedition",
-            "com.microsoft.edgemac",
-            "com.microsoft.edgemac.Dev",
-            "com.operasoftware.Opera",
-            "com.operasoftware.OperaGX",
-            "company.thebrowser.Browser", // Arc
-            "com.brave.Browser",
-            "com.brave.Browser.beta",
-            "com.vivaldi.Vivaldi",
+            "app.zen-browser.zen",
             "ai.perplexity.comet", // Perplexity Comet browser
         ],
         category: .browser,

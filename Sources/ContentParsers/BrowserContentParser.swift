@@ -10,7 +10,6 @@ import AppKit
 import Foundation
 
 /// Content parser for web browsers
-/// Handles Chrome, Safari, Firefox, Edge, and other browsers
 class BrowserContentParser: ContentParser {
     let bundleIdentifier: String
     let parserName: String
@@ -25,14 +24,8 @@ class BrowserContentParser: ContentParser {
             parserName = "Safari"
         } else if bundleIdentifier.contains("firefox") {
             parserName = "Firefox"
-        } else if bundleIdentifier.contains("edgemac") {
-            parserName = "Edge"
-        } else if bundleIdentifier.contains("Opera") {
-            parserName = "Opera"
-        } else if bundleIdentifier.contains("thebrowser") {
-            parserName = "Arc"
-        } else if bundleIdentifier.contains("Brave") {
-            parserName = "Brave"
+        } else if bundleIdentifier == "app.zen-browser.zen" {
+            parserName = "Zen"
         } else if bundleIdentifier.contains("comet") || bundleIdentifier.contains("perplexity") {
             parserName = "Comet"
         } else {
@@ -209,7 +202,7 @@ class BrowserContentParser: ContentParser {
         guard trimmed.count >= 4 else { return false }
 
         // Check for common URL schemes
-        let urlSchemes = ["http://", "https://", "file://", "ftp://", "about:", "chrome://", "edge://"]
+        let urlSchemes = ["http://", "https://", "file://", "ftp://", "about:", "chrome://"]
         for scheme in urlSchemes {
             if trimmed.lowercased().hasPrefix(scheme) {
                 return true

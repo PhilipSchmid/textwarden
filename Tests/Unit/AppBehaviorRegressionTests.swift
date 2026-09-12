@@ -509,9 +509,6 @@ final class AppBehaviorRegressionTests: XCTestCase {
             ["com.google.Chrome", "com.google.Chrome.canary"],
             ["com.apple.Safari", "com.apple.SafariTechnologyPreview"],
             ["org.mozilla.firefox", "org.mozilla.firefoxdeveloperedition"],
-            ["com.microsoft.edgemac", "com.microsoft.edgemac.Dev"],
-            ["com.operasoftware.Opera", "com.operasoftware.OperaGX"],
-            ["com.brave.Browser", "com.brave.Browser.beta"],
             ["com.openai.chat", "com.openai.codex"],
         ]
 
