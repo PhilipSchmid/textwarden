@@ -604,34 +604,11 @@ extension AnalysisCoordinator {
         }
 
         // Get current text - method depends on app quirks
-        // WebKit-based apps (Mail) need AXStringForRange, others use kAXValueAttribute
+        // Mail needs exact WebKit text; other apps expose AXValue.
         var currentText: String?
 
         if usesWebKitTextAPI {
-            // WebKit apps: use AXStringForRange (kAXValueAttribute doesn't work)
-            var charCountRef: CFTypeRef?
-            var charCount = 0
-            if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &charCountRef) == .success,
-               let count = charCountRef as? Int
-            {
-                charCount = count
-            } else {
-                Logger.debug("Style replacement: AXNumberOfCharacters failed, trying large range", category: Logger.analysis)
-                charCount = 100_000
-            }
-
-            if charCount > 0 {
-                var range = CFRange(location: 0, length: charCount)
-                if let rangeValue = AXValueCreate(.cfRange, &range) {
-                    var stringRef: CFTypeRef?
-                    if AXUIElementCopyParameterizedAttributeValue(element, "AXStringForRange" as CFString, rangeValue, &stringRef) == .success,
-                       let text = stringRef as? String
-                    {
-                        Logger.debug("Style replacement: AXStringForRange succeeded (\(text.count) chars)", category: Logger.analysis)
-                        currentText = text
-                    }
-                }
-            }
+            currentText = MailContentParser.exactText(from: element)
         } else {
             // Standard apps: use kAXValueAttribute
             var currentTextRef: CFTypeRef?

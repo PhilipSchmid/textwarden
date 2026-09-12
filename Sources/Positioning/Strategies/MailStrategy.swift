@@ -183,36 +183,8 @@ class MailStrategy: GeometryProvider {
     /// while Harper provides error positions in grapheme clusters (Swift String indices).
     /// This matters for text containing emojis: 👋 = 1 grapheme but 2 UTF-16 code units.
     private func convertToUTF16Range(_ range: NSRange, in element: AXUIElement) -> NSRange {
-        // Fetch the actual text from the element using AXStringForRange
-        // This ensures we're converting based on the same text that Mail's AX APIs use
-        var charCountRef: CFTypeRef?
-        var textLength = 0
-        if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &charCountRef) == .success,
-           let count = charCountRef as? Int
-        {
-            textLength = count
-        } else {
-            // Fallback: use a large range
-            textLength = 100_000
-        }
-
-        // Fetch text using AXStringForRange (matches what Mail's AX APIs expect)
-        var cfRange = CFRange(location: 0, length: textLength)
-        guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else {
-            Logger.debug("MailStrategy: Failed to create range value for text fetch", category: Logger.ui)
-            return range
-        }
-
-        var stringRef: CFTypeRef?
-        let fetchResult = AXUIElementCopyParameterizedAttributeValue(
-            element,
-            "AXStringForRange" as CFString,
-            rangeValue,
-            &stringRef
-        )
-
-        guard fetchResult == .success, let text = stringRef as? String, !text.isEmpty else {
-            Logger.debug("MailStrategy: AXStringForRange failed, using original range", category: Logger.ui)
+        guard let text = MailContentParser.exactText(from: element), !text.isEmpty else {
+            Logger.debug("MailStrategy: Exact text unavailable, using original range", category: Logger.ui)
             return range
         }
 

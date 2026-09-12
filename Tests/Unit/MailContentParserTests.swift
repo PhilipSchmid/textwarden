@@ -1,7 +1,33 @@
+import AppKit
 @testable import TextWarden
 import XCTest
 
 final class MailContentParserTests: XCTestCase {
+    @MainActor
+    func testLiveLargeDraftExtractionStaysBelowWatchdogLimit() throws {
+        guard ProcessInfo.processInfo.environment["TEXTWARDEN_TEST_MAIL_LARGE_DRAFT"] == "1" else {
+            throw XCTSkip("Prepare the recipient-free CPU large-errors Mail fixture and opt in")
+        }
+        let app = try XCTUnwrap(NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.mail").first)
+        let root = AXUIElementCreateApplication(app.processIdentifier)
+        var focused: CFTypeRef?
+        XCTAssertEqual(AXUIElementCopyAttributeValue(root, kAXFocusedUIElementAttribute as CFString, &focused), .success)
+        let raw = try XCTUnwrap(focused)
+        guard CFGetTypeID(raw) == AXUIElementGetTypeID() else {
+            return XCTFail("Mail has no focused accessibility element")
+        }
+        let element = unsafeBitCast(raw, to: AXUIElement.self)
+        let expected = String(repeating: "This is a sentnce with a spelling mistke. ", count: 1300).trimmingCharacters(in: .whitespaces)
+        let parser = MailContentParser()
+        for _ in 0 ..< 3 {
+            let start = ProcessInfo.processInfo.systemUptime
+            let text = parser.extractText(from: element)
+            let elapsed = ProcessInfo.processInfo.systemUptime - start
+            XCTAssertEqual(text, expected)
+            XCTAssertLessThan(elapsed, 0.5, "Extraction needs headroom below the 0.8s AX watchdog")
+        }
+    }
+
     func testLocalizedQuoteAttributionsKeepOnlyTheNewMessage() {
         let attributions = [
             "On Dec 14, 2025, John wrote:",

@@ -169,7 +169,7 @@ class RangeBoundsStrategy: GeometryProvider {
         // For custom parser apps like Mail, we need to convert grapheme cluster indices
         // to UTF-16 code units. But we must use the ACTUAL text from the AX element,
         // not the filtered `text` parameter which may be different.
-        // Mail's AXBoundsForRange uses UTF-16 code units matching AXStringForRange.
+        // Mail's AXBoundsForRange uses UTF-16 code units from its exact text.
         let utf16Range = convertToUTF16RangeUsingElement(adjustedRange, in: element)
 
         // Get start character bounds
@@ -234,38 +234,10 @@ class RangeBoundsStrategy: GeometryProvider {
     /// Convert grapheme cluster indices to UTF-16 code unit indices by fetching text from the AX element.
     /// This is used for custom parser apps like Mail where the passed `text` parameter might not match
     /// the accessibility API's text (due to filtering/processing).
-    /// Uses AXStringForRange to get the actual text that matches Mail's AXBoundsForRange indices.
+    /// Uses exact text from Mail to preserve its AXBoundsForRange indices.
     private func convertToUTF16RangeUsingElement(_ range: NSRange, in element: AXUIElement) -> NSRange {
-        // Fetch the actual text from the element using AXStringForRange
-        // This ensures we're converting based on the same text that AXBoundsForRange uses
-        var charCountRef: CFTypeRef?
-        var textLength = 0
-        if AXUIElementCopyAttributeValue(element, "AXNumberOfCharacters" as CFString, &charCountRef) == .success,
-           let count = charCountRef as? Int
-        {
-            textLength = count
-        } else {
-            // Fallback: use a large range
-            textLength = 100_000
-        }
-
-        // Fetch text using AXStringForRange (matches what AXBoundsForRange expects)
-        var cfRange = CFRange(location: 0, length: textLength)
-        guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else {
-            Logger.debug("RangeBoundsStrategy: Failed to create range value for text fetch", category: Logger.ui)
-            return range
-        }
-
-        var stringRef: CFTypeRef?
-        let result = AXUIElementCopyParameterizedAttributeValue(
-            element,
-            "AXStringForRange" as CFString,
-            rangeValue,
-            &stringRef
-        )
-
-        guard result == .success, let text = stringRef as? String, !text.isEmpty else {
-            Logger.debug("RangeBoundsStrategy: AXStringForRange failed, using original range", category: Logger.ui)
+        guard let text = MailContentParser.exactText(from: element), !text.isEmpty else {
+            Logger.debug("RangeBoundsStrategy: Exact text unavailable, using original range", category: Logger.ui)
             return range
         }
 
