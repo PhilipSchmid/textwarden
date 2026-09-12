@@ -69,47 +69,10 @@ equivalence. `testRewriteKeepsRealEditsSignificant` prevents over-filtering word
 numbers, negation, case, punctuation, internal spacing, paragraph breaks, accents,
 or emoji changes. These are change-detection checks, not quality endorsements.
 
-Live regression verified on 11 September: selecting `It is important to note that
-we will send the summary tomorrow. ` (including the trailing space) produced the
-text-free diagnostic `Ignored boundary-whitespace-only result` and the compact
-**No rewrite suggested** status, with no review. The complete 130-UTF-16-unit
-sentinel document remained unchanged. The historical focused suite passed 13
-tests; seven opt-in model/benchmark tests were skipped. Experimental collectors
-are now kept separately; these counts describe the original combined suite.
-
 The original flexible-width implementation passed a fitting-size-only assertion
 while captured text and buttons were visibly clipped. The regression assertion now
 compares against an independent render at the actual window width. Retain both
 that constraint check and visual inspection; either alone is insufficient.
 
-## Validation record — 11 September 2026
-
-The focused run passed 10 tests, with seven opt-in model/benchmark tests skipped.
-One parallel run was interrupted by a test-host process exiting with code 0 before
-completion; the subsequent serial run passed. The exit's cause was not established.
-All 48 layout combinations passed the fixed-width height assertion. Visual review
-covered light/dark appearance at 10, 13, and 20 points, including emoji clusters,
-combining accents, mixed left-to-right/right-to-left scripts, bullets, blank lines,
-long URLs, and overflow. The scroll-end captures retain the decision buttons.
-
-Live TextEdit checks used synthetic text only:
-
-- Loading, opening, settled review, hover pause, resumed countdown, and completion
-  feedback were captured as native windows. The wrapped review measured 440 × 179
-  points, including during opening; it no longer squeezes into a shorter frame.
-- Pointer hover held the timer at 33 seconds; leaving resumed it. Space kept a
-  review open. Escape cancelled without changing the selected text.
-- Both Apply and Return replaced only the selected passage. Prefix/suffix markers
-  survived, and native Undo restored the source.
-- An unattended live review counted down to cancellation, showed the neutral X
-  feedback, and left the complete document unchanged. A preceding attempt was
-  interrupted by source focus/selection changing and is not counted as expiry
-  evidence. The isolated one-second timeout test also returned false.
-- A separate model-quality issue remains: one Concise response removed an emoji
-  and normalized an apostrophe without making the sentence more concise. That
-  proposal was cancelled. Rendering an emoji correctly is not proof that the model
-  preserves it; this UI fix does not change model prompts or rewrite acceptance.
-
 Native-view snapshots do not establish behavior on every display arrangement,
-with VoiceOver, or with Reduce Motion enabled. Those remain manual environment
-checks; do not infer them from the layout matrix.
+with VoiceOver, or with Reduce Motion enabled. Verify those separately.

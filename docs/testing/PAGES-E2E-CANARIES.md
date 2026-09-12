@@ -23,19 +23,4 @@ For scrolling, append enough correct filler lines to create more than one page. 
 | PAGES-05 | Change zoom from 125% to 100% and back. | Bounds and hit points are recomputed at both scales and underlines remain attached to their ranges. |
 | PAGES-06 | In a multi-page fixture, scroll the first-line findings off screen and return. | Off-screen underline count becomes zero while indicator count stays four; returning to page one restores four underlines. A native global wheel event must pass the driver preflight. |
 | PAGES-07 | Activate another app, then return to the Pages body three times. | Every return reacquires the same body, segment, four findings, four underlines, and indicator count `4`. |
-| PAGES-08 | Move and resize the Pages window, minimize it, then restore it. | Overlay frame follows the editor, presentation clears while unavailable, and all visible state recovers without stale geometry. Run after the deterministic window driver lands. |
-
-## Live validation record
-
-On 2026-09-04, a local Pages document passed PAGES-01 through PAGES-07:
-
-- the single-line fixture produced four spelling findings with four `RangeBounds` underlines at confidence `0.9`;
-- ten append/remove cycles converged without losing the body;
-- Header-to-Body focus recovery restored the original findings;
-- `definitly` was replaced with `definitely` exactly once and the finding count changed from four to three;
-- global Quartz hit points opened the matching suggestion without coordinate offsets;
-- 100% and 125% zoom both preserved positioning;
-- a 6,129-unit, multi-page fixture changed visible underlines `4 → 0 → 4` as a native wheel event scrolled away and back, while the indicator stayed at four;
-- three real Mail-to-Pages activation cycles recovered the same 6,129-unit body and all four findings.
-
-Computer Use's app-targeted scroll did move the Pages viewport, but it did not reach TextWarden's global event monitor. That is a harness limitation, not a reason to add a Pages production workaround.
+| PAGES-08 | Move and resize the Pages window, minimize it, then restore it. | Overlay frame follows the editor, presentation clears while unavailable, and all visible state recovers without stale geometry. |
