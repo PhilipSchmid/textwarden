@@ -23,7 +23,6 @@ NC := \033[0m # No Color
 PROJECT := TextWarden.xcodeproj
 SCHEME := TextWarden
 CONFIGURATION := Release
-BUILD_DIR := $(HOME)/Library/Developer/Xcode/DerivedData/TextWarden-*/Build/Products/$(CONFIGURATION)
 APP_NAME := TextWarden.app
 RUST_DIR := GrammarEngine
 
@@ -117,8 +116,9 @@ cpu-check: ## Compare local CPU evidence (CPU_BASELINE=dir CPU_CANDIDATE=dir CPU
 
 install: ## Install to /Applications (requires build first)
 	@echo "$(BLUE)📦 Installing...$(NC)"
-	@APP=$$(ls -d $(BUILD_DIR)/$(APP_NAME) 2>/dev/null | head -1); \
-	if [ -z "$$APP" ]; then \
+	@set -e; APP=$$(xcodebuild -project "$(PROJECT)" -scheme "$(SCHEME)" -configuration "$(CONFIGURATION)" -showBuildSettings -json | \
+		python3 -c 'import json, os, sys; settings = next(item["buildSettings"] for item in json.load(sys.stdin) if item["target"] == "$(SCHEME)"); print(os.path.join(settings["TARGET_BUILD_DIR"], settings["FULL_PRODUCT_NAME"]))'); \
+	if [ ! -d "$$APP" ]; then \
 		echo "$(RED)❌ Build first: make build$(NC)"; \
 		exit 1; \
 	fi; \
