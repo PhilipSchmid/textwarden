@@ -94,8 +94,6 @@ class ElementTreeStrategy: GeometryProvider {
             "notion.id",
             "com.notion.id",
             "com.google.Chrome",
-            "com.brave.Browser",
-            "com.microsoft.edgemac",
             "org.chromium.Chromium",
         ]
         return targetApps.contains(bundleID)

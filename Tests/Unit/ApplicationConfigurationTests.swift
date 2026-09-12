@@ -41,6 +41,40 @@ final class ApplicationConfigurationTests: XCTestCase {
         XCTAssertEqual(delay, 0.12, "Firefox should have 120ms delay")
     }
 
+    func testGeckoBrowsersUseSupportedBrowserPaths() {
+        for bundleID in ["org.mozilla.firefox", "org.mozilla.firefoxdeveloperedition", "app.zen-browser.zen"] {
+            let configuration = AppRegistry.shared.configuration(for: bundleID)
+            let behavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
+            let context = ApplicationContext(bundleIdentifier: bundleID, processID: 0, applicationName: "Browser")
+
+            XCTAssertEqual(AppRegistry.shared.policy(for: bundleID), .supported)
+            XCTAssertEqual(configuration.category, .browser)
+            XCTAssertEqual(configuration.parserType, .browser)
+            XCTAssertEqual(configuration.features.textReplacementMethod, .browserStyle)
+            XCTAssertTrue(behavior.usesUTF16TextIndices)
+            XCTAssertTrue(behavior.knownQuirks.contains(.webBasedRendering))
+            XCTAssertTrue(context.isBrowser)
+            XCTAssertFalse(context.isChromiumBased)
+            XCTAssertEqual(context.keyboardOperationDelay, 0.12)
+        }
+        XCTAssertEqual(BrowserContentParser(bundleIdentifier: "app.zen-browser.zen").parserName, "Zen")
+    }
+
+    func testUnverifiedBrowsersRequireSafeTrialConsent() {
+        for bundleID in [
+            "com.microsoft.edgemac", "com.microsoft.edgemac.Dev", "com.microsoft.edgemac.Beta", "com.microsoft.edgemac.Canary",
+            "com.operasoftware.Opera", "com.operasoftware.OperaGX",
+            "company.thebrowser.Browser", "company.thebrowser.Browser.beta",
+            "com.brave.Browser", "com.brave.Browser.beta",
+            "com.vivaldi.Vivaldi", "org.chromium.Chromium",
+        ] {
+            XCTAssertFalse(AppRegistry.shared.hasConfiguration(for: bundleID))
+            XCTAssertEqual(AppRegistry.shared.policy(for: bundleID), .safeTrial)
+            XCTAssertTrue(AppRegistry.shared.requiresSafeTrialConsent(for: bundleID))
+            XCTAssertNil(AppBehaviorRegistry.shared.registeredBehavior(for: bundleID))
+        }
+    }
+
     func testKeyboardDelayForNativeApp() {
         let delay = ApplicationConfiguration.keyboardOperationDelay(for: "com.apple.TextEdit")
         XCTAssertEqual(delay, 0.05, "Native apps should have 50ms delay")
@@ -154,11 +188,13 @@ final class ApplicationConfigurationTests: XCTestCase {
             "com.google.Chrome",
             "com.apple.Safari",
             "org.mozilla.firefox",
-            "com.operasoftware.Opera",
-            "com.brave.Browser",
+            "app.zen-browser.zen",
+            "ai.perplexity.comet",
         ]
 
         for bundleID in browsers {
+            XCTAssertEqual(AppRegistry.shared.policy(for: bundleID), .supported)
+            XCTAssertNotNil(AppBehaviorRegistry.shared.registeredBehavior(for: bundleID))
             let delay = ApplicationConfiguration.keyboardOperationDelay(for: bundleID)
             XCTAssertGreaterThanOrEqual(delay, 0.05, "\(bundleID) should have reasonable delay")
             XCTAssertLessThanOrEqual(delay, 0.15, "\(bundleID) delay should not be excessive")

@@ -222,8 +222,7 @@ extension ApplicationTracker {
             "com.apple.Safari",
             "com.google.Chrome",
             "org.mozilla.firefox",
-            "com.microsoft.edgemac",
-            "com.brave.Browser",
+            "app.zen-browser.zen",
         ]
 
         return browsers.contains(bundleID)

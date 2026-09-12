@@ -26,14 +26,7 @@ enum BrowserBehaviorFactory {
         "com.apple.SafariTechnologyPreview",
         "org.mozilla.firefox",
         "org.mozilla.firefoxdeveloperedition",
-        "com.microsoft.edgemac",
-        "com.microsoft.edgemac.Dev",
-        "com.operasoftware.Opera",
-        "com.operasoftware.OperaGX",
-        "company.thebrowser.Browser", // Arc
-        "com.brave.Browser",
-        "com.brave.Browser.beta",
-        "com.vivaldi.Vivaldi",
+        "app.zen-browser.zen",
         "ai.perplexity.comet", // Perplexity Comet browser
     ]
 
@@ -51,11 +44,7 @@ struct GenericBrowserBehavior: AppBehavior {
         case "com.google.Chrome", "com.google.Chrome.canary": "Google Chrome"
         case "com.apple.Safari", "com.apple.SafariTechnologyPreview": "Safari"
         case "org.mozilla.firefox", "org.mozilla.firefoxdeveloperedition": "Firefox"
-        case "com.microsoft.edgemac", "com.microsoft.edgemac.Dev": "Microsoft Edge"
-        case "com.operasoftware.Opera", "com.operasoftware.OperaGX": "Opera"
-        case "company.thebrowser.Browser": "Arc"
-        case "com.brave.Browser", "com.brave.Browser.beta": "Brave"
-        case "com.vivaldi.Vivaldi": "Vivaldi"
+        case "app.zen-browser.zen": "Zen"
         case "ai.perplexity.comet": "Perplexity Comet"
         default: "Web Browser"
         }

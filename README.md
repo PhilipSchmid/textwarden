@@ -97,6 +97,7 @@ TextWarden is tuned for the apps below. Some apps give macOS less information ab
 | Perplexity | Full | Full |
 | Safari | Full | Indicator only[^browsers] |
 | Chrome and Comet | Full | Indicator only[^browsers] |
+| Firefox and Zen | Editable fields[^gecko] | Indicator only[^browsers] |
 | Apple Mail | Full | Full |
 | Apple Notes | Full | Full |
 | Apple Messages | Full | Full |
@@ -118,8 +119,9 @@ TextWarden is tuned for the apps below. Some apps give macOS less information ab
 [^notion]: Notion does not make every text block available to macOS at once, so some errors appear in the indicator without an underline. See [Notion support notes](docs/applications/NOTION.md).
 [^powerpoint]: PowerPoint lets TextWarden read speaker notes, but not text boxes on slides. See [PowerPoint support notes](docs/applications/POWERPOINT.md).
 [^browsers]: Browser editors can be checked and corrected, but TextWarden currently disables visual underlines for the browser app category.
+[^gecko]: Firefox and Zen can also show suggestions in read-only fields because of a [browser accessibility bug](https://bugzilla.mozilla.org/show_bug.cgi?id=1995330).
 
-TextWarden recognizes Safari, Chrome, Firefox, Microsoft Edge, Opera, Arc, Brave, Vivaldi, and Comet. Website editors vary, especially editors with formatting controls. Before TextWarden reads text in an unrecognized app, it asks whether you want to try it safely or keep it paused. A safe trial uses the floating indicator and copy-only fixes; underlines and direct edits stay off. You can change this choice later in **Preferences → Applications**.
+Website editors vary, especially editors with formatting controls. Before TextWarden reads text in an unrecognized app, it asks whether you want to try it safely or keep it paused. A safe trial uses the floating indicator and copy-only fixes; underlines and direct edits stay off. You can change this choice later in **Preferences → Applications**.
 
 Terminal apps are paused by default because command output and source code produce poor grammar-checking results.
 

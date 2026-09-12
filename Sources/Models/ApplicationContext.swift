@@ -144,13 +144,8 @@ extension ApplicationContext {
     private static let chromiumApps: Set<String> = [
         "com.google.Chrome",
         "com.google.Chrome.beta",
-        "com.microsoft.edgemac",
-        "com.brave.Browser",
-        "com.vivaldi.Vivaldi",
         "org.chromium.Chromium",
         "ai.perplexity.comet",
-        "company.thebrowser.Browser", // Arc browser
-        "company.thebrowser.Browser.beta", // Arc browser beta
         "notion.id", // Notion (Electron/Chromium-based)
     ]
 
@@ -160,7 +155,7 @@ extension ApplicationContext {
         "com.apple.Safari",
         "org.mozilla.firefox",
         "org.mozilla.firefoxdeveloperedition",
-        "com.operasoftware.Opera",
+        "app.zen-browser.zen",
     ]
 
     /// Check if this is an Electron-based application

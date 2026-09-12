@@ -29,10 +29,6 @@ class BrowserURLExtractor {
             return extractChromiumURL(from: appElement)
         } else if bundleIdentifier.contains("firefox") {
             return extractFirefoxURL(from: appElement)
-        } else if bundleIdentifier.contains("thebrowser") { // Arc
-            return extractArcURL(from: appElement)
-        } else if bundleIdentifier.contains("Opera") {
-            return extractChromiumURL(from: appElement) // Opera uses Chromium
         }
 
         // Fallback: try generic URL bar extraction
@@ -44,9 +40,6 @@ class BrowserURLExtractor {
         let chromiumBrowsers = [
             "com.google.Chrome",
             "com.google.Chrome.beta",
-            "com.microsoft.edgemac",
-            "com.brave.Browser",
-            "com.vivaldi.Vivaldi",
             "org.chromium.Chromium",
             "ai.perplexity.comet",
         ]
@@ -85,7 +78,7 @@ class BrowserURLExtractor {
         return nil
     }
 
-    // MARK: - Chromium URL Extraction (Chrome, Edge, Brave, Vivaldi)
+    // MARK: - Chromium URL Extraction
 
     private func extractChromiumURL(from appElement: AXUIElement) -> URL? {
         // Chromium browsers have an "omnibox" (address bar)
@@ -353,21 +346,6 @@ class BrowserURLExtractor {
         if let urlString = findURLInToolbar(from: appElement) {
             if let url = parseURL(from: urlString) {
                 Logger.debug("BrowserURLExtractor: Firefox URL from toolbar: \(url)", category: Logger.accessibility)
-                return url
-            }
-        }
-
-        return nil
-    }
-
-    // MARK: - Arc Browser URL Extraction
-
-    private func extractArcURL(from appElement: AXUIElement) -> URL? {
-        // Arc has a "unified field" for URL/search
-
-        if let urlString = findURLBarValue(in: appElement, identifiers: ["unified", "address", "url"]) {
-            if let url = parseURL(from: urlString) {
-                Logger.debug("BrowserURLExtractor: Arc URL: \(url)", category: Logger.accessibility)
                 return url
             }
         }

@@ -10,7 +10,7 @@ final class RuntimeHealthTests: XCTestCase {
     @MainActor
     func testStoppedMonitoringClearsCachedBrowserPresentation() {
         let coordinator = AnalysisCoordinator.shared
-        let context = ApplicationContext(bundleIdentifier: "com.brave.Browser", processID: 0, applicationName: "Brave Browser")
+        let context = ApplicationContext(bundleIdentifier: "com.google.Chrome", processID: 0, applicationName: "Google Chrome")
         for reason in [InactiveReason.secureField, .noEditableField] {
             coordinator.currentSegment = TextSegment(content: "sentnce", startIndex: 0, endIndex: 7, context: context)
             coordinator.currentErrors = [GrammarErrorModel(start: 0, end: 7, message: "Spelling", severity: .warning, category: "Spelling", lintId: "Spelling")]

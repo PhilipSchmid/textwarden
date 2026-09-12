@@ -1328,7 +1328,6 @@ class UserStatistics: ObservableObject {
             "com.microsoft.onenote.mac": "OneNote",
             "com.microsoft.teams2": "Teams",
             "com.microsoft.VSCode": "VS Code",
-            "com.microsoft.edgemac": "Edge",
 
             // Google Apps
             "com.google.Chrome": "Chrome",
@@ -1351,9 +1350,6 @@ class UserStatistics: ObservableObject {
             "com.readdle.smartemail-Mac": "Spark",
             "com.postbox-inc.postbox": "Postbox",
             "org.mozilla.firefox": "Firefox",
-            "company.thebrowser.Browser": "Arc",
-            "com.operasoftware.Opera": "Opera",
-            "com.brave.Browser": "Brave",
             "com.sublimetext.4": "Sublime Text",
             "com.jetbrains.intellij": "IntelliJ",
             "com.jetbrains.pycharm": "PyCharm",

@@ -25,7 +25,7 @@ class ApplicationConfiguration {
         case "com.hnc.Discord":
             // Discord is also React-based
             return 0.15
-        case "org.mozilla.firefox", "org.mozilla.firefoxdeveloperedition":
+        case "org.mozilla.firefox", "org.mozilla.firefoxdeveloperedition", "app.zen-browser.zen":
             // Firefox has known issues, use longer delay
             return 0.12
         default:
