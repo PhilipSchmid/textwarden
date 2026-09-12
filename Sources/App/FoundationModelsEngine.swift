@@ -388,7 +388,13 @@ final class FoundationModelsEngine: ObservableObject {
         let startTime = CFAbsoluteTimeGetCurrent()
 
         let prompt = context.composePrompt(instruction: instruction)
-        let instructions = StyleInstructions.compose(for: style, hasSelection: context.hasSelection)
+        var instructions = StyleInstructions.compose(for: style, hasSelection: context.hasSelection)
+        if #available(macOS 27.0, *), let selection = context.selectedText,
+           let language = SelectionRewriteResult.confidentLanguage(for: selection)
+               .flatMap({ Locale(identifier: "en").localizedString(forLanguageCode: $0.rawValue) })
+        {
+            instructions += "\nThe source language is \(language). Write in \(language) by default; follow an explicit translation request from the user."
+        }
 
         let session = LanguageModelSession(instructions: instructions)
 
@@ -410,16 +416,16 @@ final class FoundationModelsEngine: ObservableObject {
         Logger.debug("Apple Intelligence: Generating text for instruction (\(instruction.count) chars), style=\(style.displayName), \(samplingInfo)", category: Logger.llm)
 
         do {
-            let response = try await session.respond(
-                to: prompt,
-                generating: FMTextGenerationResult.self,
-                options: options
-            )
+            let generatedText: String = if #available(macOS 27.0, *) {
+                try await session.respond(to: prompt, options: options).content
+            } else {
+                try await session.respond(to: prompt, generating: FMTextGenerationResult.self, options: options).content.generatedText
+            }
 
             let elapsed = CFAbsoluteTimeGetCurrent() - startTime
             Logger.debug("Apple Intelligence: Text generation complete in \(String(format: "%.2f", elapsed))s", category: Logger.llm)
 
-            return response.content.generatedText
+            return generatedText
 
         } catch let error as LanguageModelSession.GenerationError {
             Logger.error("Apple Intelligence: Text generation error - \(FoundationModelsError.safeMessage(for: error))", category: Logger.llm)
