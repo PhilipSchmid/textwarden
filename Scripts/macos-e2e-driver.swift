@@ -257,11 +257,7 @@ func editorAt(_ point: CGPoint) -> AXUIElement? {
     var candidate = element
     for _ in 0 ..< 10 {
         guard let current = candidate else { return nil }
-        let role = stringAttribute(current, kAXRoleAttribute as CFString)
-        if boolAttribute(current, "AXEditable" as CFString)
-            || role == kAXTextAreaRole as String
-            || role == kAXTextFieldRole as String
-        {
+        if isEditable(current) {
             return current
         }
         candidate = axElement(copyAttribute(current, kAXParentAttribute as CFString))
@@ -271,9 +267,13 @@ func editorAt(_ point: CGPoint) -> AXUIElement? {
 
 func isEditable(_ element: AXUIElement) -> Bool {
     let role = stringAttribute(element, kAXRoleAttribute as CFString)
+    // Mail on macOS 27 exposes an editable web area without AXEditable.
+    var valueSettable = DarwinBoolean(false)
+    let canSetValue = AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &valueSettable) == .success
     return boolAttribute(element, "AXEditable" as CFString)
         || role == kAXTextAreaRole as String
         || role == kAXTextFieldRole as String
+        || (role == "AXWebArea" && canSetValue && valueSettable.boolValue)
 }
 
 func elementFrame(_ element: AXUIElement) -> CGRect? {
@@ -326,10 +326,14 @@ func textLength(_ element: AXUIElement) -> Int? {
 }
 
 func directTextValue(_ element: AXUIElement) -> String? {
-    if let value = copyAttribute(element, kAXValueAttribute as CFString) as? String {
-        return value
+    let attribute = copyAttribute(element, kAXValueAttribute as CFString)
+    let value = (attribute as? String) ?? (attribute as? NSAttributedString)?.string
+    // A WebKit composer's empty AXValue is not proof that its document is empty.
+    // Preserve real AXValue text from older WebKit versions for exact-text guards.
+    if value?.isEmpty == true, stringAttribute(element, kAXRoleAttribute as CFString) == "AXWebArea" {
+        return nil
     }
-    return (copyAttribute(element, kAXValueAttribute as CFString) as? NSAttributedString)?.string
+    return value
 }
 
 func textValue(_ element: AXUIElement) -> String? {
