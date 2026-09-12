@@ -43,6 +43,9 @@ enum StyleInstructions {
     static func build(for style: WritingStyle, customVocabulary: [String] = []) -> String {
         var instructions = baseInstructions
         instructions += "\n\n" + styleSpecificInstructions(for: style)
+        if #available(macOS 27.0, *) {
+            instructions += "\nPreserve who performs each action, including singular or plural participants. Preserve all conditions and uncertainty. Return each original passage only once; do not repeat suggestions."
+        }
 
         if !customVocabulary.isEmpty {
             instructions += "\n\n" + vocabularyContext(customVocabulary)
@@ -124,7 +127,12 @@ enum StyleInstructions {
     }
 
     private static var informalStyleInstructions: String {
-        """
+        let personInstruction = if #available(macOS 27.0, *) {
+            "Keep the original pronouns: never change we/our to I/my, or I/my to we/our."
+        } else {
+            "First person is fine and often preferred"
+        }
+        return """
         STYLE: Informal/Conversational
 
         Optimize for friendly, approachable communication:
@@ -132,7 +140,7 @@ enum StyleInstructions {
         - Contractions are preferred (do not → don't, will not → won't)
         - Shorter sentences are better
         - Active voice is strongly preferred
-        - First person is fine and often preferred
+        - \(personInstruction)
         - Can use colloquial expressions appropriately
         - Avoid overly formal or stiff language
 
@@ -166,7 +174,12 @@ enum StyleInstructions {
     }
 
     private static var conciseStyleInstructions: String {
-        """
+        let qualifierInstruction = if #available(macOS 27.0, *) {
+            "Remove empty filler, but retain uncertainty and conditions such as whether, might, and only if"
+        } else {
+            "Remove weak qualifiers"
+        }
+        return """
         STYLE: Concise/Minimalist
 
         Optimize for brevity and efficiency:
@@ -175,7 +188,7 @@ enum StyleInstructions {
         - One idea per sentence
         - Cut filler phrases (basically, actually, really, very, just)
         - Eliminate redundancy and repetition
-        - Remove weak qualifiers
+        - \(qualifierInstruction)
         - Convert nominalizations back to verbs
 
         Examples of improvements:

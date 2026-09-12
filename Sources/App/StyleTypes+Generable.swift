@@ -403,6 +403,20 @@ struct GenerationContext: Equatable {
 
     @available(macOS 26.0, *)
     extension FMStyleAnalysisResult {
+        /// OS 27 can append a malformed entry after valid suggestions. Decode entries separately;
+        /// source anchoring and overlap checks still run before any suggestion is presented.
+        init(validatingEntriesIn content: GeneratedContent) throws {
+            let entries = try content.value([GeneratedContent].self, forProperty: "suggestions")
+            suggestions = entries.compactMap { entry in
+                do {
+                    return try FMStyleSuggestion(entry)
+                } catch {
+                    Logger.warning("Apple Intelligence: Discarding malformed style suggestion", category: Logger.llm)
+                    return nil
+                }
+            }
+        }
+
         /// Convert all suggestions to StyleSuggestionModel array
         /// - Parameters:
         ///   - text: The original text that was analyzed

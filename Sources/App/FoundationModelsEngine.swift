@@ -169,22 +169,36 @@ final class FoundationModelsEngine: ObservableObject {
         // Create session with instructions
         let session = LanguageModelSession(instructions: instructions)
 
+        // Bound unexpectedly verbose structured responses; incomplete results fail without being applied.
         // Configure generation options based on preset
         // Use greedy sampling for consistent mode (deterministic), otherwise use temperature
-        let options = if temperaturePreset.usesGreedySampling {
+        var options = if temperaturePreset.usesGreedySampling {
             GenerationOptions(sampling: .greedy)
         } else {
             GenerationOptions(temperature: temperaturePreset.temperature)
         }
+        if #available(macOS 27.0, *) {
+            // OS 27's default/greedy structured sampling can repeat until context exhaustion.
+            // Use the same bounded sampling as Compose; a fixed seed favors minimal variation.
+            options = GenerationOptions(
+                sampling: .random(top: 40, seed: temperaturePreset.usesGreedySampling ? 0 : nil),
+                temperature: temperaturePreset.usesGreedySampling ? TemperatureValues.low : temperaturePreset.temperature
+            )
+            options.maximumResponseTokens = 1024
+        }
 
-        let samplingInfo = temperaturePreset.usesGreedySampling ? "greedy" : "temp=\(temperaturePreset.temperature)"
+        let samplingInfo: String = if #available(macOS 27.0, *), temperaturePreset.usesGreedySampling {
+            "seeded-consistent"
+        } else {
+            temperaturePreset.usesGreedySampling ? "greedy" : "temp=\(temperaturePreset.temperature)"
+        }
         Logger.info("Apple Intelligence: [Style] Starting analysis - chars=\(text.count), style=\(style.displayName), \(samplingInfo)", category: Logger.llm)
         Logger.trace("Apple Intelligence: [Style] Calling session.respond()", category: Logger.llm)
 
         do {
-            let response = try await session.respond(
-                to: "Analyze this text for style improvements:\n\n\(text)",
-                generating: FMStyleAnalysisResult.self,
+            let response = try await styleResponse(
+                session: session,
+                prompt: "Analyze this text for style improvements:\n\n\(text)",
                 options: options
             )
 
@@ -192,7 +206,7 @@ final class FoundationModelsEngine: ObservableObject {
             Logger.trace("Apple Intelligence: [Style] Response received in \(String(format: "%.2f", elapsed))s", category: Logger.llm)
 
             // Convert and validate results
-            let suggestions = response.content.toStyleSuggestionModels(in: text, style: style)
+            let suggestions = response.toStyleSuggestionModels(in: text, style: style)
 
             Logger.info("Apple Intelligence: [Style] Complete - \(suggestions.count) suggestion(s) in \(String(format: "%.2f", elapsed))s", category: Logger.llm)
 
@@ -256,21 +270,22 @@ final class FoundationModelsEngine: ObservableObject {
         let session = LanguageModelSession(instructions: exclusionInstructions)
 
         // Use moderate temperature for variety in regeneration
-        let options = GenerationOptions(temperature: TemperatureValues.moderate)
+        var options = GenerationOptions(temperature: TemperatureValues.moderate)
+        if #available(macOS 27.0, *) { options.maximumResponseTokens = 1024 }
 
         Logger.debug("Apple Intelligence: Regenerating suggestion for text (\(previousSuggestion.originalText.count) chars), style=\(style.displayName)", category: Logger.llm)
 
         do {
-            let response = try await session.respond(
-                to: "Provide an alternative style improvement for this text:\n\n\(originalText)",
-                generating: FMStyleAnalysisResult.self,
+            let response = try await styleResponse(
+                session: session,
+                prompt: "Provide an alternative style improvement for this text:\n\n\(originalText)",
                 options: options
             )
 
             let elapsed = CFAbsoluteTimeGetCurrent() - startTime
 
             // Convert results
-            let suggestions = response.content.toStyleSuggestionModels(in: originalText, style: style)
+            let suggestions = response.toStyleSuggestionModels(in: originalText, style: style)
 
             Logger.debug("Apple Intelligence: Regeneration complete, \(suggestions.count) suggestion(s) in \(String(format: "%.2f", elapsed))s", category: Logger.llm)
 
@@ -284,6 +299,14 @@ final class FoundationModelsEngine: ObservableObject {
             Logger.error("Apple Intelligence: Regeneration failed - \(FoundationModelsError.safeMessage(for: error))", category: Logger.llm)
             throw FoundationModelsError.analysisError(FoundationModelsError.safeMessage(for: error))
         }
+    }
+
+    private func styleResponse(session: LanguageModelSession, prompt: String, options: GenerationOptions) async throws -> FMStyleAnalysisResult {
+        if #available(macOS 27.0, *) {
+            let response = try await session.respond(to: prompt, schema: FMStyleAnalysisResult.generationSchema, options: options)
+            return try FMStyleAnalysisResult(validatingEntriesIn: response.content)
+        }
+        return try await session.respond(to: prompt, generating: FMStyleAnalysisResult.self, options: options).content
     }
 
     // MARK: - Text Generation
