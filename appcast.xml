@@ -3,6 +3,40 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.5.1</title>
+            <pubDate>Sun, 13 Sep 2026 12:51:03 +0200</pubDate>
+            <sparkle:version>37</sparkle:version>
+            <sparkle:shortVersionString>0.5.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;fix: Install the current checkout build (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/b090a90"&gt;&lt;code&gt;b090a90&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Avoid slow full-text reads in Mail (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/43b4c75"&gt;&lt;code&gt;43b4c75&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Align browser integrations with support policy (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/4fbcd06"&gt;&lt;code&gt;4fbcd06&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Clear stale browser focus and overlays (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/21723c0"&gt;&lt;code&gt;21723c0&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Release modifiers in native test input (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/fddb7ed"&gt;&lt;code&gt;fddb7ed&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;test: Dispatch Mail paste before clipboard restore (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/0614c2f"&gt;&lt;code&gt;0614c2f&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;test: Measure native control alignment rectangles (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/1494d3b"&gt;&lt;code&gt;1494d3b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;test: Support complete Mail CPU fixtures (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/a051050"&gt;&lt;code&gt;a051050&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;docs: Keep reusable testing guidance (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/76cf825"&gt;&lt;code&gt;76cf825&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;test: Expand native AI regression coverage (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/a84c92c"&gt;&lt;code&gt;a84c92c&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Prefer conservative readability edits (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/3d1dddd"&gt;&lt;code&gt;3d1dddd&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Preserve Compose language and source facts (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/170683c"&gt;&lt;code&gt;170683c&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Preserve questions and quoted rewrite text (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/75701d7"&gt;&lt;code&gt;75701d7&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Bound and decode macOS 27 style responses (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/8a414da"&gt;&lt;code&gt;8a414da&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Expose selected AI settings accessibly (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/42b8cfd"&gt;&lt;code&gt;42b8cfd&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Explain unchanged Compose results (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/c082aef"&gt;&lt;code&gt;c082aef&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Keep Compose controls within panel insets (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/694663b"&gt;&lt;code&gt;694663b&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;test: Handle macOS 27 WebKit editor values (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/7dedd12"&gt;&lt;code&gt;7dedd12&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Paste generated text into Mail safely (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/0011203"&gt;&lt;code&gt;0011203&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Respect browser document editability (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/33f355e"&gt;&lt;code&gt;33f355e&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Clear overlays when monitoring stops (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/df0a4dc"&gt;&lt;code&gt;df0a4dc&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Build Swift once and preserve failures (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/a8779d5"&gt;&lt;code&gt;a8779d5&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;chore: release v0.5.0 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/b299891"&gt;&lt;code&gt;b299891&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.5.1/TextWarden-0.5.1-Universal.dmg" length="23209228" type="application/octet-stream" sparkle:edSignature="Fxkc8tUgV8qGWx19XSHipa5STMkhqa4bYmnktbJeABP6lCorA4UCVflpH22azIWUyVlZJRPyix59Emiy68y2Aw=="/>
+        </item>
+        <item>
             <title>0.5.0</title>
             <pubDate>Fri, 11 Sep 2026 23:34:29 +0200</pubDate>
             <sparkle:version>36</sparkle:version>
