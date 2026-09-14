@@ -2362,8 +2362,8 @@ dependencies = [
 
 [[package]]
 name = "harper-brill"
-version = "2.9.1"
-source = "git+https://github.com/Automattic/harper?tag=v2.9.1#1a4b5db72a941119f37f92097d71a51d1a3e739c"
+version = "2.10.0"
+source = "git+https://github.com/Automattic/harper?tag=v2.10.0#e2773c6c8b55f028c24574819d266ca03f45c701"
 dependencies = [
  "harper-pos-utils",
  "serde_json",
@@ -2371,8 +2371,8 @@ dependencies = [
 
 [[package]]
 name = "harper-core"
-version = "2.9.1"
-source = "git+https://github.com/Automattic/harper?tag=v2.9.1#1a4b5db72a941119f37f92097d71a51d1a3e739c"
+version = "2.10.0"
+source = "git+https://github.com/Automattic/harper?tag=v2.10.0#e2773c6c8b55f028c24574819d266ca03f45c701"
 dependencies = [
  "ammonia",
  "bitflags",
@@ -2385,7 +2385,7 @@ dependencies = [
  "harper-thesaurus",
  "hashbrown 0.16.1",
  "is-macro",
- "itertools 0.14.0",
+ "itertools 0.15.0",
  "levenshtein_automata",
  "lru",
  "ordered-float 5.3.0",
@@ -2407,8 +2407,8 @@ dependencies = [
 
 [[package]]
 name = "harper-pos-utils"
-version = "2.9.1"
-source = "git+https://github.com/Automattic/harper?tag=v2.9.1#1a4b5db72a941119f37f92097d71a51d1a3e739c"
+version = "2.10.0"
+source = "git+https://github.com/Automattic/harper?tag=v2.10.0#e2773c6c8b55f028c24574819d266ca03f45c701"
 dependencies = [
  "burn",
  "burn-ndarray",
@@ -2424,12 +2424,12 @@ dependencies = [
 
 [[package]]
 name = "harper-thesaurus"
-version = "2.9.1"
-source = "git+https://github.com/Automattic/harper?tag=v2.9.1#1a4b5db72a941119f37f92097d71a51d1a3e739c"
+version = "2.10.0"
+source = "git+https://github.com/Automattic/harper?tag=v2.10.0#e2773c6c8b55f028c24574819d266ca03f45c701"
 dependencies = [
  "hashbrown 0.16.1",
  "indexmap",
- "itertools 0.14.0",
+ "itertools 0.15.0",
  "ruzstd",
  "zstd",
 ]
@@ -2772,6 +2772,15 @@ name = "itertools"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b4baf93f58d4425749ca49a51c50ebab072c5df6994d08fed93541c331481dc"
 dependencies = [
  "either",
 ]
