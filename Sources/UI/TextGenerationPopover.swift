@@ -45,19 +45,19 @@ class TextInputPanel: NSPanel {
             }
         case "c":
             // Copy
-            if let responder = firstResponder {
+            if let responder = firstResponder, responder.responds(to: #selector(NSText.copy(_:))) {
                 responder.perform(#selector(NSText.copy(_:)), with: nil)
                 return true
             }
         case "v":
             // Paste
-            if let responder = firstResponder {
+            if let responder = firstResponder, responder.responds(to: #selector(NSText.paste(_:))) {
                 responder.perform(#selector(NSText.paste(_:)), with: nil)
                 return true
             }
         case "x":
             // Cut
-            if let responder = firstResponder {
+            if let responder = firstResponder, responder.responds(to: #selector(NSText.cut(_:))) {
                 responder.perform(#selector(NSText.cut(_:)), with: nil)
                 return true
             }
