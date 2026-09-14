@@ -3,6 +3,24 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.5.2</title>
+            <pubDate>Mon, 14 Sep 2026 11:55:54 +0200</pubDate>
+            <sparkle:version>38</sparkle:version>
+            <sparkle:shortVersionString>0.5.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;fix: Guard unsupported AI panel edit commands (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/0e34c6a"&gt;&lt;code&gt;0e34c6a&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Restore access without repeating onboarding (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/9d0d06d"&gt;&lt;code&gt;9d0d06d&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;fix: Keep onboarding navigation visible (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/072e969"&gt;&lt;code&gt;072e969&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;test: Allow abbreviation expansion suggestions (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/023ba83"&gt;&lt;code&gt;023ba83&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;deps(rust): Bump harper-core from v2.9.1 to v2.10.0 in /GrammarEngine (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/cf9d01c"&gt;&lt;code&gt;cf9d01c&lt;/code&gt;&lt;/a&gt;) by @dependabot[bot]&lt;/li&gt;
+&lt;li&gt;deps(rust): Bump uuid in /GrammarEngine in the rust-minor-patch group (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/5ed5d8b"&gt;&lt;code&gt;5ed5d8b&lt;/code&gt;&lt;/a&gt;) by @dependabot[bot]&lt;/li&gt;
+&lt;li&gt;chore: release v0.5.1 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/c19a0da"&gt;&lt;code&gt;c19a0da&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.5.2/TextWarden-0.5.2-Universal.dmg" length="23289759" type="application/octet-stream" sparkle:edSignature="TfKrRl75xmzztDgUJSeP3+ayEVXOYy2Kq+nD/kmPYf7bEplvo/4jrGP6TSO9Ggkrqoj/gg3ZywwY1kYy0lmRDw=="/>
+        </item>
+        <item>
             <title>0.5.1</title>
             <pubDate>Sun, 13 Sep 2026 12:51:03 +0200</pubDate>
             <sparkle:version>37</sparkle:version>
