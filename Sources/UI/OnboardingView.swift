@@ -1130,6 +1130,67 @@ struct OnboardingView: View {
     }
 }
 
+/// Permission repair for users who have already completed setup.
+struct AccessibilityRecoveryView: View {
+    let onClose: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "accessibility")
+                            .font(.system(size: 36))
+                            .foregroundStyle(Color.accentColor)
+                            .accessibilityHidden(true)
+
+                        Text("Restore Accessibility access")
+                            .font(.title2.bold())
+                            .accessibilityAddTraits(.isHeader)
+                    }
+
+                    Text("Your settings are saved. Restore access so TextWarden can check text in other apps again.")
+                        .foregroundStyle(.secondary)
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        StepRow(number: 1, text: "Open System Settings → Privacy & Security → Accessibility.")
+                        StepRow(number: 2, text: "Enable TextWarden in the list.")
+                    }
+
+                    DisclosureGroup("TextWarden is already enabled") {
+                        Text("Turn TextWarden off and on again. If access still isn't restored, remove its entry and add TextWarden again from Applications.")
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 8)
+                    }
+
+                    Text("This window closes automatically when access is restored.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Divider()
+
+            HStack {
+                Button("Not Now", action: onClose)
+                    .keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("Open System Settings") {
+                    PermissionManager.shared.openSystemSettings()
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
+        }
+        .frame(width: 520)
+        .frame(maxHeight: .infinity)
+    }
+}
+
 // MARK: - Supporting Views
 
 private struct FeatureRow: View {
