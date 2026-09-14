@@ -2456,11 +2456,11 @@ mod tests {
             println!("\nTesting {}: '{}'", description, text);
             println!("  Errors: {}", result.errors.len());
 
-            // Check if the abbreviation itself was flagged
-            let abbrev_flagged = result
-                .errors
-                .iter()
-                .any(|e| text[e.start..e.end].to_lowercase() == abbrev.to_lowercase());
+            // Recognized abbreviations must avoid spelling errors; expansion suggestions
+            // remain intentional, as covered by test_user_screenshot_scenario.
+            let abbrev_flagged = result.errors.iter().any(|e| {
+                e.category == "Spelling" && text[e.start..e.end].eq_ignore_ascii_case(abbrev)
+            });
 
             if abbrev_flagged {
                 println!("  ❌ REGRESSION: {} was flagged!", abbrev);
@@ -2473,7 +2473,7 @@ mod tests {
 
             assert!(
                 !abbrev_flagged,
-                "REGRESSION: {} should NOT be flagged when internet abbreviations are enabled",
+                "REGRESSION: {} should NOT have spelling errors when internet abbreviations are enabled",
                 abbrev
             );
         }
