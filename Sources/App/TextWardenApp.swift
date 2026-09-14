@@ -11,6 +11,18 @@ import KeyboardShortcuts
 import os.log
 import SwiftUI
 
+enum StartupSetup: Equatable {
+    case onboarding
+    case restoreAccessibility
+
+    static func required(hasCompletedOnboarding: Bool, hasPermission: Bool) -> StartupSetup? {
+        if !hasCompletedOnboarding {
+            return .onboarding
+        }
+        return hasPermission ? nil : .restoreAccessibility
+    }
+}
+
 @main
 struct TextWardenApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
@@ -239,15 +251,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         Logger.info("Accessibility permission check: \(hasPermission ? "Granted" : "Not granted")", category: Logger.permissions)
         Logger.info("Onboarding completed: \(hasCompletedOnboarding)", category: Logger.lifecycle)
 
-        // Show onboarding if not completed yet, regardless of permission status
-        let shouldShowOnboarding = !hasCompletedOnboarding || !hasPermission
+        let setup = StartupSetup.required(hasCompletedOnboarding: hasCompletedOnboarding, hasPermission: hasPermission)
 
-        if shouldShowOnboarding {
+        if let setup {
             // Show onboarding (either first launch or permission not granted)
             if !hasCompletedOnboarding {
                 Logger.info("First launch or reset - showing onboarding", category: Logger.lifecycle)
             } else {
-                Logger.warning("Accessibility permission not granted - showing onboarding", category: Logger.permissions)
+                Logger.warning("Accessibility permission not granted - showing access recovery", category: Logger.permissions)
             }
 
             // If permission already granted, start analysis coordinator immediately
@@ -261,9 +272,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         Logger.error("onPermissionGranted callback: self (AppDelegate) is nil! Cannot initialize AnalysisCoordinator.", category: Logger.permissions)
                         return
                     }
-                    Logger.info("onPermissionGranted callback EXECUTED - initializing AnalysisCoordinator", category: Logger.permissions)
-                    analysisCoordinator = AnalysisCoordinator.shared
-                    Logger.info("Analysis coordinator initialized successfully", category: Logger.lifecycle)
+                    handlePermissionGranted(for: setup)
+                }
+                if setup == .restoreAccessibility {
+                    // Keep watching even if the user dismisses recovery and grants access later.
+                    permissionManager.startPolling()
                 }
                 Logger.debug("onPermissionGranted callback is now set (callback != nil: \(permissionManager.onPermissionGranted != nil))", category: Logger.permissions)
             }
@@ -314,17 +327,42 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarController?.showMilestone(milestone)
     }
 
+    @MainActor
+    func handlePermissionGranted(for setup: StartupSetup) {
+        analysisCoordinator = AnalysisCoordinator.shared
+        if setup == .restoreAccessibility {
+            closeOnboardingWindow()
+        }
+        Logger.info("Analysis coordinator initialized after Accessibility access was granted", category: Logger.lifecycle)
+    }
+
+    @MainActor
     @objc func openOnboardingWindow() {
-        Logger.info("Creating onboarding window", category: Logger.ui)
+        guard let setup = StartupSetup.required(
+            hasCompletedOnboarding: UserPreferences.shared.hasCompletedOnboarding,
+            hasPermission: PermissionManager.shared.isPermissionGranted
+        ) else { return }
 
-        let onboardingView = OnboardingView()
-        let hostingController = NSHostingController(rootView: onboardingView)
+        if let onboardingWindow {
+            onboardingWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
 
-        let window = NSWindow(contentViewController: hostingController)
-        window.title = "Welcome to TextWarden"
+        Logger.info("Creating setup window: \(setup)", category: Logger.ui)
+        let content = Group {
+            switch setup {
+            case .onboarding:
+                OnboardingView()
+            case .restoreAccessibility:
+                AccessibilityRecoveryView(onClose: { [weak self] in self?.closeOnboardingWindow() })
+            }
+        }
+        let window = NSWindow(contentViewController: NSHostingController(rootView: content))
+        window.title = setup == .onboarding ? "Welcome to TextWarden" : "Restore Accessibility Access"
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false // We manage the lifecycle manually
-        window.setContentSize(NSSize(width: 640, height: 760))
+        window.setContentSize(setup == .onboarding ? NSSize(width: 640, height: 760) : NSSize(width: 520, height: 420))
         window.center()
 
         // Store strong reference to prevent premature deallocation
@@ -339,7 +377,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Delay cleanup to let window animations complete (macOS 26 fix)
             DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.windowCleanupDelay) {
                 self?.onboardingWindow = nil
-                Logger.debug("Onboarding window reference cleared", category: Logger.ui)
+                if self?.settingsWindow?.isVisible != true,
+                   self?.tutorialWindow?.isVisible != true,
+                   !SketchPadWindowController.shared.isVisible
+                {
+                    NSApp.setActivationPolicy(.accessory)
+                }
+                Logger.debug("Setup window closed", category: Logger.ui)
             }
         }
 
@@ -358,12 +402,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Close the window (triggers willCloseNotification which cleans up the reference)
         onboardingWindow?.close()
-
-        // Return to accessory mode after window closes
-        DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.accessoryModeReturnDelay) {
-            NSApp.setActivationPolicy(.accessory)
-            Logger.info("Returned to menu bar only mode", category: Logger.lifecycle)
-        }
     }
 
     /// Opens the existing interactive tutorial without changing onboarding completion state.
