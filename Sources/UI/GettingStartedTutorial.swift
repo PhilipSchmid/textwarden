@@ -153,51 +153,53 @@ struct GettingStartedTutorialView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Main content area
-            VStack(spacing: 16) {
-                // Header
-                Text("Try It Out")
-                    .font(.title2)
-                    .fontWeight(.semibold)
+            // Keep the interactive stage scrollable when the window is short.
+            ScrollView {
+                VStack(spacing: 16) {
+                    // Header
+                    Text("Try It Out")
+                        .font(.title2)
+                        .fontWeight(.semibold)
 
-                // Progress indicator - 5 steps now
-                HStack(spacing: 6) {
-                    ForEach(0 ..< 5) { index in
-                        Circle()
-                            .fill(index <= tutorialStep.rawValue ? Color.accentColor : Color.secondary.opacity(0.3))
-                            .frame(width: 8, height: 8)
-                    }
-                }
-
-                // Instruction
-                Text(showContextMenu ? "Click anywhere in the menu to continue" : tutorialStep.instruction)
-                    .font(.headline)
-                    .foregroundColor(.accentColor)
-                    .padding(.top, 8)
-
-                VStack(spacing: 14) {
-                    if tutorialStep == .complete {
-                        TutorialDragDemo()
-                            .frame(maxHeight: .infinity)
-                    } else {
-                        textDemo
-
-                        HStack(spacing: 24) {
-                            activePopover
-                            tutorialIndicator
+                    // Progress indicator - 5 steps now
+                    HStack(spacing: 6) {
+                        ForEach(0 ..< 5) { index in
+                            Circle()
+                                .fill(index <= tutorialStep.rawValue ? Color.accentColor : Color.secondary.opacity(0.3))
+                                .frame(width: 8, height: 8)
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .offset(x: stageHasLeadingCallout ? 70 : 0)
                     }
 
-                    tutorialTip
-                }
-                .frame(height: 540)
-                .padding(.horizontal)
-            }
-            .padding(.top)
+                    // Instruction
+                    Text(showContextMenu ? "Click anywhere in the menu to continue" : tutorialStep.instruction)
+                        .font(.headline)
+                        .foregroundColor(.accentColor)
+                        .padding(.top, 8)
 
-            Spacer(minLength: 0)
+                    VStack(spacing: 14) {
+                        if tutorialStep == .complete {
+                            TutorialDragDemo()
+                                .frame(maxHeight: .infinity)
+                        } else {
+                            textDemo
+
+                            HStack(spacing: 24) {
+                                activePopover
+                                tutorialIndicator
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .offset(x: stageHasLeadingCallout ? 70 : 0)
+                        }
+
+                        tutorialTip
+                    }
+                    .frame(height: 540)
+                    .padding(.horizontal)
+                }
+                .padding(.top)
+                .padding(.bottom, 16)
+                .frame(maxWidth: .infinity)
+            }
 
             // Footer matching OnboardingView style exactly
             Divider()

@@ -55,35 +55,9 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Getting Started tutorial fills entire space with its own layout
             if currentStep == .gettingStarted {
-                // Compact header for tutorial
-                VStack(spacing: 8) {
-                    Image("TextWardenLogo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 80, height: 80)
-                        .accessibilityHidden(true)
-
-                    Text("Welcome to TextWarden")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .accessibilityAddTraits(.isHeader)
-
-                    Text("Your Privacy-First Grammar Checker")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.top, 8)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Welcome to TextWarden, Your Privacy-First Grammar Checker")
-
-                Divider()
-                    .padding(.top, 16)
-
-                // Tutorial content fills remaining space
+                // Use the same full-window layout as the replay tutorial.
                 gettingStartedStep
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 // Scrollable content area for all other steps
                 ScrollView {
@@ -172,7 +146,8 @@ struct OnboardingView: View {
                 .padding(.vertical, 16)
             }
         }
-        .frame(width: 640, height: 760)
+        .frame(width: 640)
+        .frame(maxHeight: .infinity)
         .onAppear {
             checkPermissionAndUpdateStep()
         }
