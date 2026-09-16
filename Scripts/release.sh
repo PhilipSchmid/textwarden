@@ -645,6 +645,8 @@ create_github_release() {
     local dmg_path="$2"
     local release_notes="$3"
     local is_prerelease="$4"
+    local extension_zip="$5"
+    local firefox_zip="$6"
 
     echo -e "${BLUE}Creating GitHub release...${NC}"
 
@@ -658,7 +660,7 @@ create_github_release() {
         --title "v$version" \
         --notes "$release_notes" \
         $prerelease_flag \
-        "$dmg_path"
+        "$dmg_path" "$extension_zip" "$firefox_zip"
 
     echo -e "${GREEN}GitHub release created: v$version${NC}"
 }
@@ -747,6 +749,7 @@ do_release() {
     local new_build=$((current_build + 1))
     set_build "$new_build"
     echo -e "Build number: $new_build"
+    python3 "$PROJECT_ROOT/Scripts/browser-extension.py" prepare "$PROJECT_ROOT/Info.plist" "$PROJECT_ROOT/BrowserExtension"
 
     # Build
     local archive_path=$(build_archive)
@@ -754,6 +757,9 @@ do_release() {
     # Export
     local app_path
     app_path=$(export_app "$archive_path")
+
+    python3 "$PROJECT_ROOT/Scripts/browser-extension.py" package "$app_path" "$RELEASE_DIR/TextWarden-Browser-Extension-$version.zip"
+    python3 "$PROJECT_ROOT/Scripts/browser-extension.py" package "$app_path" "$RELEASE_DIR/TextWarden-Browser-Extension-Firefox-$version-unsigned.zip" --browser firefox
 
     # Create DMG
     local dmg_path=$(create_dmg "$app_path" "$version")
@@ -769,7 +775,7 @@ do_release() {
 
     # Commit version changes
     echo -e "${BLUE}Committing version changes...${NC}"
-    git add "$PROJECT_ROOT/Info.plist" "$PROJECT_ROOT/appcast.xml"
+    git add "$PROJECT_ROOT/Info.plist" "$PROJECT_ROOT/appcast.xml" "$PROJECT_ROOT/BrowserExtension/manifest.json"
     git commit -s -S -m "chore: release v$version"
 
     # Create git tag
@@ -818,7 +824,13 @@ do_upload() {
         is_prerelease="true"
     fi
 
-    create_github_release "$version" "$dmg_path" "$release_notes" "$is_prerelease"
+    local extension_zip="$RELEASE_DIR/TextWarden-Browser-Extension-$version.zip"
+    local firefox_zip="$RELEASE_DIR/TextWarden-Browser-Extension-Firefox-$version-unsigned.zip"
+    local extension_numeric
+    extension_numeric=$(git show "v$version:BrowserExtension/manifest.json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')
+    python3 "$PROJECT_ROOT/Scripts/browser-extension.py" verify "$extension_zip" "$version" "$extension_numeric"
+    python3 "$PROJECT_ROOT/Scripts/browser-extension.py" verify "$firefox_zip" "$version" "$extension_numeric" --browser firefox
+    create_github_release "$version" "$dmg_path" "$release_notes" "$is_prerelease" "$extension_zip" "$firefox_zip"
 
     echo ""
     echo -e "${GREEN}Release uploaded!${NC}"
