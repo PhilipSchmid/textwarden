@@ -77,6 +77,17 @@ TextWarden validates the source text, focused app, Accessibility element, and an
 
 Do not apply a correction when the suggestion's quoted source no longer matches the field.
 
+## Browser Extension (Preview)
+
+- **No extension or Browser settings:** Use a TextWarden build that includes the preview. Installation steps are under **Preferences → Browser → Install Extension**; it is not in extension stores yet.
+- **No underlines:** Click the feather on the current page, leave **Check this page** and **Show underlines** enabled, then focus a supported editor. Repeat after navigating to another website or port. Without the extension, browser checking uses the floating indicator.
+- **Disconnected:** Open TextWarden and choose **Open TextWarden & reconnect** in the toolbar menu. If needed, use **Try Again** in Browser settings. Writing actions are disabled while disconnected; reopen the menu after reconnection.
+- **Paused:** Check the page/site controls, **Preferences → Websites**, and global/per-app pauses. A wildcard website rule must be changed in Website settings.
+- **After an update or restart:** Reload Chrome/Brave’s unpacked extension and affected pages. Reload Firefox/Zen’s temporary add-on after every browser restart. Safari’s extension updates with the app.
+- **Still unavailable:** Browser settings pages, private windows, sensitive fields, Google Docs, and complex editors are excluded from the preview.
+
+See the [browser extension guide](https://github.com/PhilipSchmid/textwarden/blob/main/BrowserExtension/README.md) for installation and scope.
+
 ## Visual Underlines Are Missing or Misaligned
 
 Underlines depend on character bounds exposed by the host app. Grammar checking and the floating indicator can work even when precise bounds do not.

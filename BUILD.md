@@ -9,7 +9,7 @@ TextWarden combines a Swift macOS app with a Rust static library. The standard b
 - The `x86_64-apple-darwin` and `aarch64-apple-darwin` Rust targets
 - [Pandoc](https://pandoc.org/) for the Help Book
 
-The app's deployment target is macOS 14. Apple Intelligence code uses the macOS 26 SDK behind availability checks. Running the complete Swift test suite requires macOS 26 because the test target is set to macOS 26.
+The app's deployment target is macOS 14. Apple Intelligence code uses the macOS 26 SDK behind availability checks. Checks also run on macOS 14; newer APIs and their checks are availability-gated.
 
 Install the tools and targets:
 
@@ -70,6 +70,12 @@ Other useful targets:
 | `make kill` | Stop TextWarden |
 | `make status` | Show whether TextWarden is running |
 | `make xcode` | Open `TextWarden.xcodeproj` |
+
+## Browser Extension Preview
+
+The app build includes the shared extension files, native messaging helper, and Safari app extension. Run `make run`, then use **Preferences → Browser → Install Extension** to load the preview manually. Chrome/Brave use Developer mode; Firefox/Zen use temporary add-ons. Safari development builds require an appropriate signing identity; unsigned builds additionally require Safari’s development setting for unsigned extensions. See the [extension guide](BrowserExtension/README.md).
+
+`make test-browser` checks the browser runtime and packaging with Node.js and Python 3.
 
 ## Build in Xcode
 
