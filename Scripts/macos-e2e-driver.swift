@@ -179,7 +179,7 @@ func postKey(_ keyCode: CGKeyCode, flags: CGEventFlags = []) throws {
     // End synthetic modifiers with the shortcut; otherwise later clicks become Control-clicks.
     keyUp.flags = []
     keyDown.post(tap: .cghidEventTap)
-    usleep(50_000)
+    usleep(50000)
     keyUp.post(tap: .cghidEventTap)
 }
 
@@ -209,7 +209,7 @@ func postText(_ text: String) throws {
             )
         }
         keyDown.post(tap: .cghidEventTap)
-        usleep(20_000)
+        usleep(20000)
         keyUp.post(tap: .cghidEventTap)
     }
 }
@@ -336,7 +336,7 @@ func collectEditors(_ root: AXUIElement, remaining: inout Int, into editors: ino
 
 func editors(in application: NSRunningApplication) -> [AXUIElement] {
     let appElement = AXUIElementCreateApplication(application.processIdentifier)
-    var remaining = 10_000
+    var remaining = 10000
     var editors: [AXUIElement] = []
     collectEditors(appElement, remaining: &remaining, into: &editors)
     return editors
@@ -365,9 +365,9 @@ func directTextValue(_ element: AXUIElement) -> String? {
     guard AXUIElementCopyParameterizedAttributeValue(
         element, "AXTextMarkerRangeForUIElement" as CFString, element, &range
     ) == .success, let range,
-        AXUIElementCopyParameterizedAttributeValue(
-            element, "AXStringForTextMarkerRange" as CFString, range, &text
-        ) == .success
+                       AXUIElementCopyParameterizedAttributeValue(
+                           element, "AXStringForTextMarkerRange" as CFString, range, &text
+                       ) == .success
     else {
         return nil
     }
@@ -509,7 +509,7 @@ func findPressableElement(
         candidate == normalizedLabel
             || (allowShortcutSuffix && candidate.hasPrefix(normalizedLabel))
     }
-    if (!requiresPressAction || supportsAction(root, kAXPressAction as CFString)),
+    if !requiresPressAction || supportsAction(root, kAXPressAction as CFString),
        hasMatchingLabel
     {
         if occurrence == 0 {
@@ -555,8 +555,8 @@ func findSelfChatElement(
         stringAttribute(root, kAXDescriptionAttribute as CFString),
         stringAttribute(root, kAXValueAttribute as CFString),
     ]
-    if (!requiresPressAction || supportsAction(root, kAXPressAction as CFString)),
-       labels.compactMap({ $0 }).contains(where: isSelfChatLabel)
+    if !requiresPressAction || supportsAction(root, kAXPressAction as CFString),
+       labels.compactMap(\.self).contains(where: isSelfChatLabel)
     {
         return root
     }
@@ -829,6 +829,15 @@ func printFocusedGeometry(_ application: NSRunningApplication, location: Int, le
     var remaining = 500
     var states: [[String: Any]] = []
     collectGeometryState(focused, location: location, length: length, depth: 0, remaining: &remaining, into: &states)
+    var ancestor = axElement(copyAttribute(focused, kAXParentAttribute as CFString))
+    for _ in 0 ..< 20 {
+        guard let element = ancestor else { break }
+        let role = stringAttribute(element, kAXRoleAttribute as CFString) ?? "unknown"
+        if ["AXWebArea", "AXScrollArea", "AXWindow"].contains(role), let frame = elementFrame(element) {
+            states.append(["ancestorRole": role, "frame": ["x": frame.minX, "y": frame.minY, "width": frame.width, "height": frame.height]])
+        }
+        ancestor = axElement(copyAttribute(element, kAXParentAttribute as CFString))
+    }
     let data = try JSONSerialization.data(withJSONObject: states, options: [.sortedKeys])
     print(String(decoding: data, as: UTF8.self))
 }
@@ -861,7 +870,7 @@ func decodedPreference<Value: Decodable>(
 
 func persistPreference(_ value: some Encodable, key: String, defaults: UserDefaults) throws {
     do {
-        defaults.set(try JSONEncoder().encode(value), forKey: key)
+        try defaults.set(JSONEncoder().encode(value), forKey: key)
         guard defaults.synchronize() else {
             throw DriverError.failure("could not persist TextWarden preference: \(key)")
         }
@@ -943,9 +952,15 @@ func usage() -> Never {
     fputs("""
     Usage:
       macos-e2e-driver.swift activate BUNDLE_ID
+      macos-e2e-driver.swift capture-overlay BUNDLE_ID OUTPUT_PNG
+      macos-e2e-driver.swift capture-region BUNDLE_ID X Y WIDTH HEIGHT OUTPUT_PNG
       macos-e2e-driver.swift move X Y
       macos-e2e-driver.swift click-editor BUNDLE_ID X Y
       macos-e2e-driver.swift click-app BUNDLE_ID X Y
+      macos-e2e-driver.swift right-click-app BUNDLE_ID X Y
+      macos-e2e-driver.swift drag-app BUNDLE_ID START_X START_Y END_X END_Y [HOLD_SECONDS]
+      macos-e2e-driver.swift select-range BUNDLE_ID LOCATION LENGTH
+      macos-e2e-driver.swift watch-overlays BUNDLE_ID SECONDS [ACTION_LABEL]
       macos-e2e-driver.swift editors BUNDLE_ID
       macos-e2e-driver.swift check-editor BUNDLE_ID EXPECTED_TEXT
       macos-e2e-driver.swift check-editor-trimmed BUNDLE_ID EXPECTED_TEXT
@@ -957,10 +972,11 @@ func usage() -> Never {
       macos-e2e-driver.swift focus-editor BUNDLE_ID INDEX
       macos-e2e-driver.swift press-app BUNDLE_ID LABEL [OCCURRENCE]
       macos-e2e-driver.swift press-self-chat BUNDLE_ID
+      macos-e2e-driver.swift action-frame BUNDLE_ID LABEL [OCCURRENCE]
       macos-e2e-driver.swift press-menu BUNDLE_ID LABEL
       macos-e2e-driver.swift tab-app BUNDLE_ID
       macos-e2e-driver.swift escape-app BUNDLE_ID
-      macos-e2e-driver.swift shortcut-app BUNDLE_ID command-a|command-0|command-1|command-n|option-1|option-control-w|option-shift-r
+      macos-e2e-driver.swift shortcut-app BUNDLE_ID tab|return|escape|command-z|command-l|command-t|command-a|command-0|command-1|command-n|option-1|option-control-g|option-control-w|option-shift-r
       macos-e2e-driver.swift type-app BUNDLE_ID TEXT
       macos-e2e-driver.swift paste-app BUNDLE_ID TEXT
       macos-e2e-driver.swift backspace-app BUNDLE_ID
@@ -993,32 +1009,32 @@ func run(_ arguments: [String]) throws {
     case "move":
         guard arguments.count == 3 else { usage() }
         try postMouse(.mouseMoved, at: CGPoint(
-            x: try number(arguments[1], name: "x"),
-            y: try number(arguments[2], name: "y")
+            x: number(arguments[1], name: "x"),
+            y: number(arguments[2], name: "y")
         ))
 
     case "click-editor":
         guard arguments.count == 4 else { usage() }
         _ = try activate(arguments[1])
-        let point = CGPoint(
-            x: try number(arguments[2], name: "x"),
-            y: try number(arguments[3], name: "y")
+        let point = try CGPoint(
+            x: number(arguments[2], name: "x"),
+            y: number(arguments[3], name: "y")
         )
         guard editorAt(point) != nil else {
             throw DriverError.failure("refusing click outside an editable text element")
         }
         try postMouse(.mouseMoved, at: point)
-        usleep(80_000)
+        usleep(80000)
         try postMouse(.leftMouseDown, at: point)
         usleep(100_000)
         try postMouse(.leftMouseUp, at: point)
 
-    case "click-app":
+    case "click-app", "right-click-app":
         guard arguments.count == 4 else { usage() }
         let application = try activate(arguments[1])
-        let point = CGPoint(
-            x: try number(arguments[2], name: "x"),
-            y: try number(arguments[3], name: "y")
+        let point = try CGPoint(
+            x: number(arguments[2], name: "x"),
+            y: number(arguments[3], name: "y")
         )
         guard let element = elementAt(point, in: application)
         else {
@@ -1028,10 +1044,10 @@ func run(_ arguments: [String]) throws {
             throw DriverError.failure("refusing click on a send-like control")
         }
         try postMouse(.mouseMoved, at: point)
-        usleep(80_000)
-        try postMouse(.leftMouseDown, at: point)
+        usleep(80000)
+        try postMouse(arguments[0] == "right-click-app" ? .rightMouseDown : .leftMouseDown, at: point)
         usleep(100_000)
-        try postMouse(.leftMouseUp, at: point)
+        try postMouse(arguments[0] == "right-click-app" ? .rightMouseUp : .leftMouseUp, at: point)
 
     case "editors":
         guard arguments.count == 2 else { usage() }
@@ -1058,7 +1074,15 @@ func run(_ arguments: [String]) throws {
 
     case "focused-element-state":
         guard arguments.count == 2 else { usage() }
-        try printFocusedElementState(try runningApplication(arguments[1]))
+        try printFocusedElementState(runningApplication(arguments[1]))
+
+    case "select-range":
+        guard arguments.count == 4, let location = Int(arguments[2]), let length = Int(arguments[3]), location >= 0, length >= 0 else { usage() }
+        let editor = try focusedEditor(activate(arguments[1]))
+        guard let count = textLength(editor), location <= count, length <= count - location else { throw DriverError.failure("range exceeds editor text") }
+        var range = CFRange(location: location, length: length)
+        guard let value = AXValueCreate(.cfRange, &range),
+              AXUIElementSetAttributeValue(editor, kAXSelectedTextRangeAttribute as CFString, value) == .success else { throw DriverError.failure("could not select editor range") }
 
     case "focused-geometry":
         guard arguments.count == 4,
@@ -1066,7 +1090,7 @@ func run(_ arguments: [String]) throws {
               let length = Int(arguments[3]), length > 0
         else { usage() }
         try printFocusedGeometry(
-            try activate(arguments[1]),
+            activate(arguments[1]),
             location: location,
             length: length
         )
@@ -1085,7 +1109,7 @@ func run(_ arguments: [String]) throws {
 
     case "check-editor", "check-editor-trimmed":
         guard arguments.count == 3, arguments[2].utf16.count <= 100_000 else { usage() }
-        let editor = try focusedEditor(try activate(arguments[1]))
+        let editor = try focusedEditor(activate(arguments[1]))
         guard let actual = textValue(editor) else {
             throw DriverError.failure("focused editor text is unavailable")
         }
@@ -1111,18 +1135,18 @@ func run(_ arguments: [String]) throws {
             throw DriverError.failure("editable element center is not exposed by the target application")
         }
         try postMouse(.mouseMoved, at: point)
-        usleep(80_000)
+        usleep(80000)
         try postMouse(.leftMouseDown, at: point)
         usleep(100_000)
         try postMouse(.leftMouseUp, at: point)
 
-    case "press-app":
+    case "press-app", "action-frame":
         guard arguments.count == 3 || arguments.count == 4 else { usage() }
         var occurrence = arguments.count == 4 ? Int(arguments[3]) ?? -1 : 0
         guard occurrence >= 0 else { usage() }
         let application = try activate(arguments[1])
         let appElement = AXUIElementCreateApplication(application.processIdentifier)
-        var remaining = 10_000
+        var remaining = 10000
         let requestedOccurrence = occurrence
         var element = findPressableElement(
             appElement,
@@ -1132,7 +1156,7 @@ func run(_ arguments: [String]) throws {
         )
         if element.flatMap(elementFrame) == nil {
             occurrence = requestedOccurrence
-            remaining = 10_000
+            remaining = 10000
             element = findPressableElement(
                 appElement,
                 label: arguments[2],
@@ -1143,7 +1167,7 @@ func run(_ arguments: [String]) throws {
         }
         if element.flatMap(elementFrame) == nil {
             occurrence = requestedOccurrence
-            remaining = 10_000
+            remaining = 10000
             element = findPressableElement(
                 appElement,
                 label: arguments[2],
@@ -1158,12 +1182,22 @@ func run(_ arguments: [String]) throws {
         else {
             throw DriverError.failure("could not safely press application action: \(arguments[2])")
         }
+        if arguments[0] == "action-frame" {
+            let data = try JSONSerialization.data(withJSONObject: ["x": frame.minX, "y": frame.minY, "width": frame.width, "height": frame.height], options: [.sortedKeys])
+            print(String(decoding: data, as: UTF8.self))
+            break
+        }
+        if supportsAction(element, kAXPressAction as CFString),
+           AXUIElementPerformAction(element, kAXPressAction as CFString) == .success
+        {
+            break
+        }
         let point = CGPoint(x: frame.midX, y: frame.midY)
         guard let hit = elementAt(point, in: application), !isRiskyControl(hit) else {
             throw DriverError.failure("application action is not exposed at its accessibility frame")
         }
         try postMouse(.mouseMoved, at: point)
-        usleep(80_000)
+        usleep(80000)
         try postMouse(.leftMouseDown, at: point)
         usleep(100_000)
         try postMouse(.leftMouseUp, at: point)
@@ -1176,7 +1210,7 @@ func run(_ arguments: [String]) throws {
             throw DriverError.failure("application does not expose a menu bar")
         }
         var occurrence = 0
-        var remaining = 2_000
+        var remaining = 2000
         guard let item = findPressableElement(
             menuBar,
             label: arguments[2],
@@ -1184,8 +1218,8 @@ func run(_ arguments: [String]) throws {
             occurrence: &occurrence,
             remaining: &remaining
         ),
-              !isRiskyControl(item),
-              AXUIElementPerformAction(item, kAXPressAction as CFString) == .success
+            !isRiskyControl(item),
+            AXUIElementPerformAction(item, kAXPressAction as CFString) == .success
         else {
             throw DriverError.failure("could not safely press application menu item: \(arguments[2])")
         }
@@ -1194,14 +1228,14 @@ func run(_ arguments: [String]) throws {
         guard arguments.count == 2 else { usage() }
         let application = try activate(arguments[1])
         let appElement = AXUIElementCreateApplication(application.processIdentifier)
-        var remaining = 10_000
+        var remaining = 10000
         var element = findSelfChatElement(
             appElement,
             requiresPressAction: true,
             remaining: &remaining
         )
         if element.flatMap(elementFrame) == nil {
-            remaining = 10_000
+            remaining = 10000
             element = findSelfChatElement(
                 appElement,
                 requiresPressAction: false,
@@ -1219,7 +1253,7 @@ func run(_ arguments: [String]) throws {
             throw DriverError.failure("self-chat action is not exposed at its accessibility frame")
         }
         try postMouse(.mouseMoved, at: point)
-        usleep(80_000)
+        usleep(80000)
         try postMouse(.leftMouseDown, at: point)
         usleep(100_000)
         try postMouse(.leftMouseUp, at: point)
@@ -1247,6 +1281,24 @@ func run(_ arguments: [String]) throws {
         let keyCode: CGKeyCode
         let flags: CGEventFlags
         switch arguments[2] {
+        case "escape":
+            keyCode = 53
+            flags = []
+        case "command-z":
+            keyCode = 6
+            flags = .maskCommand
+        case "tab":
+            keyCode = 48
+            flags = []
+        case "return":
+            keyCode = 36
+            flags = []
+        case "command-l":
+            keyCode = 37
+            flags = .maskCommand
+        case "command-t":
+            keyCode = 17
+            flags = .maskCommand
         case "command-a":
             keyCode = 0
             flags = .maskCommand
@@ -1264,6 +1316,9 @@ func run(_ arguments: [String]) throws {
             flags = .maskAlternate
         case "option-control-w":
             keyCode = 13
+            flags = [.maskAlternate, .maskControl]
+        case "option-control-g":
+            keyCode = 5
             flags = [.maskAlternate, .maskControl]
         case "option-shift-r":
             keyCode = 15
@@ -1297,52 +1352,55 @@ func run(_ arguments: [String]) throws {
 
     case "click-textwarden":
         guard arguments.count == 3 else { usage() }
-        let point = CGPoint(
-            x: try number(arguments[1], name: "x"),
-            y: try number(arguments[2], name: "y")
+        let point = try CGPoint(
+            x: number(arguments[1], name: "x"),
+            y: number(arguments[2], name: "y")
         )
         let textWarden = try runningApplication("io.textwarden.TextWarden")
         guard isPointOwnedBy(textWarden, at: point) else {
             throw DriverError.failure("refusing click outside a TextWarden window")
         }
+        // Coordinate tests must exercise mouse handling; use press-textwarden for AX actions.
         try postMouse(.mouseMoved, at: point)
-        usleep(80_000)
+        usleep(80000)
         try postMouse(.leftMouseDown, at: point)
         usleep(100_000)
         try postMouse(.leftMouseUp, at: point)
 
     case "right-click-textwarden":
         guard arguments.count == 3 else { usage() }
-        let point = CGPoint(
-            x: try number(arguments[1], name: "x"),
-            y: try number(arguments[2], name: "y")
+        let point = try CGPoint(
+            x: number(arguments[1], name: "x"),
+            y: number(arguments[2], name: "y")
         )
         let textWarden = try runningApplication("io.textwarden.TextWarden")
         guard isPointOwnedBy(textWarden, at: point) else {
             throw DriverError.failure("refusing right-click outside a TextWarden window")
         }
         try postMouse(.mouseMoved, at: point)
-        usleep(80_000)
+        usleep(80000)
         try postMouse(.rightMouseDown, at: point)
         usleep(100_000)
         try postMouse(.rightMouseUp, at: point)
 
-    case "drag-textwarden":
-        guard arguments.count == 5 else { usage() }
-        let start = CGPoint(
-            x: try number(arguments[1], name: "start x"),
-            y: try number(arguments[2], name: "start y")
+    case "drag-textwarden", "drag-app":
+        let generic = arguments[0] == "drag-app"
+        let offset = generic ? 1 : 0
+        guard arguments.count == 5 + offset || (generic && arguments.count == 7) else { usage() }
+        let start = try CGPoint(
+            x: number(arguments[1 + offset], name: "start x"),
+            y: number(arguments[2 + offset], name: "start y")
         )
-        let end = CGPoint(
-            x: try number(arguments[3], name: "end x"),
-            y: try number(arguments[4], name: "end y")
+        let end = try CGPoint(
+            x: number(arguments[3 + offset], name: "end x"),
+            y: number(arguments[4 + offset], name: "end y")
         )
-        let textWarden = try runningApplication("io.textwarden.TextWarden")
+        let textWarden = try runningApplication(generic ? arguments[1] : "io.textwarden.TextWarden")
         guard isPointOwnedBy(textWarden, at: start) else {
             throw DriverError.failure("refusing drag without a TextWarden start point")
         }
         try postMouse(.mouseMoved, at: start)
-        usleep(80_000)
+        usleep(80000)
         try postMouse(.leftMouseDown, at: start)
         for step in 1 ... 12 {
             let progress = CGFloat(step) / 12
@@ -1351,8 +1409,9 @@ func run(_ arguments: [String]) throws {
                 y: start.y + (end.y - start.y) * progress
             )
             try postMouse(.leftMouseDragged, at: point)
-            usleep(20_000)
+            usleep(20000)
         }
+        if generic, arguments.count == 7 { try Thread.sleep(forTimeInterval: min(10, max(0, number(arguments[6], name: "hold seconds")))) }
         try postMouse(.leftMouseUp, at: end)
 
     case "press-textwarden":
@@ -1360,22 +1419,22 @@ func run(_ arguments: [String]) throws {
         let textWarden = try runningApplication("io.textwarden.TextWarden")
         let appElement = AXUIElementCreateApplication(textWarden.processIdentifier)
         var occurrence = 0
-        var remaining = 10_000
+        var remaining = 10000
         guard let element = findPressableElement(
             appElement,
             label: arguments[1],
             occurrence: &occurrence,
             remaining: &remaining
         ),
-              AXUIElementPerformAction(element, kAXPressAction as CFString) == .success
+            AXUIElementPerformAction(element, kAXPressAction as CFString) == .success
         else {
             throw DriverError.failure("could not press TextWarden action: \(arguments[1])")
         }
 
     case "scroll":
         guard arguments.count == 2 || arguments.count == 3 else { usage() }
-        let deltaY = Int32(try number(arguments[1], name: "deltaY"))
-        let deltaX = arguments.count == 3 ? Int32(try number(arguments[2], name: "deltaX")) : 0
+        let deltaY = try Int32(number(arguments[1], name: "deltaY"))
+        let deltaX = try arguments.count == 3 ? Int32(number(arguments[2], name: "deltaX")) : 0
         guard let event = CGEvent(
             scrollWheelEvent2Source: CGEventSource(stateID: .hidSystemState),
             units: .pixel,
@@ -1391,9 +1450,85 @@ func run(_ arguments: [String]) throws {
     case "point-state":
         guard arguments.count == 3 else { usage() }
         try printPointState(CGPoint(
-            x: try number(arguments[1], name: "x"),
-            y: try number(arguments[2], name: "y")
+            x: number(arguments[1], name: "x"),
+            y: number(arguments[2], name: "y")
         ))
+
+    case "watch-overlays":
+        guard arguments.count == 3 || arguments.count == 4 else { usage() }
+        let application = try runningApplication(arguments[1])
+        let duration = try min(10, max(0.1, number(arguments[2], name: "seconds")))
+        let deadline = Date().addingTimeInterval(duration)
+        var samples = [[Int]]()
+        repeat {
+            let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+            let ids = windows.compactMap { window -> Int? in
+                guard window[kCGWindowOwnerPID as String] as? pid_t == application.processIdentifier,
+                      let layer = window[kCGWindowLayer as String] as? Int, layer >= 100,
+                      let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
+                      (bounds["Width"] ?? 0) > 100 else { return nil }
+                return window[kCGWindowNumber as String] as? Int
+            }.sorted()
+            samples.append(ids)
+            if samples.count == 5, arguments.count == 4 {
+                let appElement = AXUIElementCreateApplication(application.processIdentifier)
+                var occurrence = 0
+                var remaining = 10000
+                guard let element = findPressableElement(appElement, label: arguments[3], occurrence: &occurrence, remaining: &remaining),
+                      !isRiskyControl(element),
+                      AXUIElementPerformAction(element, kAXPressAction as CFString) == .success
+                else {
+                    throw DriverError.failure("could not press observed action")
+                }
+            }
+            Thread.sleep(forTimeInterval: 0.02)
+        } while Date() < deadline
+        let result: [String: Any] = ["samples": samples.count, "minimumCount": samples.map(\.count).min() ?? 0,
+                                     "maximumCount": samples.map(\.count).max() ?? 0,
+                                     "windowIDs": Array(Set(samples.flatMap(\.self))).sorted()]
+        let data = try JSONSerialization.data(withJSONObject: result, options: [.sortedKeys])
+        print(String(decoding: data, as: UTF8.self))
+
+    case "capture-region":
+        guard arguments.count == 7 else { usage() }
+        let application = try runningApplication(arguments[1])
+        let rect = try CGRect(x: number(arguments[2], name: "x"), y: number(arguments[3], name: "y"),
+                              width: number(arguments[4], name: "width"), height: number(arguments[5], name: "height"))
+        guard rect.width > 0, rect.height > 0,
+              [CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.maxX - 1, y: rect.minY),
+               CGPoint(x: rect.minX, y: rect.maxY - 1), CGPoint(x: rect.maxX - 1, y: rect.maxY - 1)]
+              .allSatisfy({ processIDAt($0) == application.processIdentifier })
+        else { throw DriverError.failure("capture region must be inside the requested app") }
+        let capture = Process()
+        capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+        capture.arguments = ["-x", "-R", "\(rect.minX),\(rect.minY),\(rect.width),\(rect.height)", arguments[6]]
+        try capture.run()
+        capture.waitUntilExit()
+        guard capture.terminationStatus == 0 else { throw DriverError.failure("region capture failed") }
+
+    case "capture-overlay":
+        guard arguments.count == 3 else { usage() }
+        let application = try runningApplication(arguments[1])
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+        guard let window = windows.first(where: { window in
+            guard window[kCGWindowOwnerPID as String] as? pid_t == application.processIdentifier,
+                  let layer = window[kCGWindowLayer as String] as? Int, layer >= 3,
+                  let bounds = window[kCGWindowBounds as String] as? [String: CGFloat]
+            else { return false }
+            return (bounds["Width"] ?? 0) > 100 && (bounds["Height"] ?? 0) > 10
+        }), let id = window[kCGWindowNumber as String] as? Int else {
+            throw DriverError.failure("no visible overlay owned by the requested app")
+        }
+        let capture = Process()
+        capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+        capture.arguments = ["-x", "-l", String(id), arguments[2]]
+        try capture.run()
+        capture.waitUntilExit()
+        guard capture.terminationStatus == 0 else { throw DriverError.failure("overlay capture failed") }
+        if let bounds = window[kCGWindowBounds as String] as? [String: CGFloat] {
+            let data = try JSONSerialization.data(withJSONObject: bounds, options: [.sortedKeys])
+            print(String(decoding: data, as: UTF8.self))
+        }
 
     case "windows":
         guard arguments.count == 2 else { usage() }
@@ -1412,13 +1547,13 @@ func run(_ arguments: [String]) throws {
         guard arguments.count == 6 else { usage() }
         let application = try activate(arguments[1])
         let window = try focusedWindow(application)
-        let expectedPosition = CGPoint(
-            x: try number(arguments[2], name: "x"),
-            y: try number(arguments[3], name: "y")
+        let expectedPosition = try CGPoint(
+            x: number(arguments[2], name: "x"),
+            y: number(arguments[3], name: "y")
         )
-        let expectedSize = CGSize(
-            width: try number(arguments[4], name: "width"),
-            height: try number(arguments[5], name: "height")
+        let expectedSize = try CGSize(
+            width: number(arguments[4], name: "width"),
+            height: number(arguments[5], name: "height")
         )
         let deadline = Date().addingTimeInterval(1)
         while Date() < deadline {
