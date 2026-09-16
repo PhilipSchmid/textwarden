@@ -591,7 +591,7 @@ final class ReadabilityCalculator: Sendable {
             }
 
             guard let score = fleschReadingEaseForSentence(sentence) else {
-                Logger.trace("ReadabilityCalculator: skipping sentence (no score) - '\(sentence.prefix(50))...'", category: Logger.analysis)
+                Logger.trace("ReadabilityCalculator: skipping sentence (no score)", category: Logger.analysis)
                 continue
             }
 
@@ -599,7 +599,7 @@ final class ReadabilityCalculator: Sendable {
 
             // Skip short sentences - they're rarely problematic even if technically "complex"
             guard words >= TargetAudience.minimumWordsForComplexityCheck else {
-                Logger.trace("ReadabilityCalculator: skipping short sentence (\(words) words) - '\(sentence.prefix(30))...'", category: Logger.analysis)
+                Logger.trace("ReadabilityCalculator: skipping short sentence (\(words) words)", category: Logger.analysis)
                 continue
             }
 
@@ -607,7 +607,7 @@ final class ReadabilityCalculator: Sendable {
             // This reduces noise from sentences that are just barely below the threshold
             let effectiveThreshold = targetAudience.minimumFleschScore - TargetAudience.complexityMargin
             let isComplex = score < effectiveThreshold
-            Logger.debug("ReadabilityCalculator: sentence score=\(Int(score)), words=\(words), threshold=\(Int(effectiveThreshold)), isComplex=\(isComplex) - '\(sentence.prefix(50))...'", category: Logger.analysis)
+            Logger.debug("ReadabilityCalculator: sentence score=\(Int(score)), words=\(words), threshold=\(Int(effectiveThreshold)), isComplex=\(isComplex)", category: Logger.analysis)
 
             let result = SentenceReadabilityResult(
                 sentence: sentence,
