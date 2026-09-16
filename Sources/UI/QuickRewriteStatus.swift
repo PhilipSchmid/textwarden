@@ -14,7 +14,7 @@ final class QuickRewriteStatus: ObservableObject {
     }
 
     static let shared = QuickRewriteStatus()
-    private var panel: NSPanel?
+    private(set) var panel: NSPanel?
     private var dismissal: Task<Void, Never>?
     private(set) var previewPanel: TextInputPanel?
     private var previewDecision: ((Bool) -> Void)?
@@ -167,33 +167,36 @@ final class QuickRewriteStatus: ObservableObject {
             self.panel = panel
         }
         guard let panel, let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main else { return }
-        let content = HStack(spacing: 6) {
+        let font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        let textWidth = ceil((message as NSString).size(withAttributes: [.font: font]).width)
+        let width = min(textWidth + 48, min(360, screen.visibleFrame.width - 32))
+        let content = HStack(spacing: 8) {
             ZStack {
                 if busy {
                     ProgressView().controlSize(.small)
                 } else if let completion {
                     Image(systemName: completion == .applied ? "checkmark.circle.fill" : "xmark.circle")
                         .foregroundStyle(completion == .applied ? Color.green : Color.secondary)
+                } else {
+                    Image("FeatherLogo")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundStyle(.secondary)
                 }
             }
             .frame(width: 16, height: 16)
             .accessibilityHidden(true)
             Text(message)
                 .font(.system(size: 12, weight: .medium))
-                .multilineTextAlignment(.center)
+                .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
-            Image("FeatherLogo")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 16, height: 16)
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .frame(maxWidth: min(280, screen.visibleFrame.width - 32))
-        .fixedSize(horizontal: true, vertical: true)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        // Resolve wrapping before measuring the panel, as in the rewrite preview.
+        .frame(width: width)
+        .fixedSize(horizontal: false, vertical: true)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
         let hosting = NSHostingView(rootView: content)
         let size = hosting.fittingSize
