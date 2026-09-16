@@ -292,10 +292,20 @@ export_app() {
 
     # Re-sign with Developer ID and entitlements for distribution
     echo -e "${BLUE}Signing app with Developer ID...${NC}" >&2
+    # Nested code keeps its own permissions; --deep with the app's entitlement file
+    # would remove Safari's sandbox and apply app permissions to every helper.
     codesign --force --deep --timestamp --options=runtime \
+        --sign "$DEVELOPER_ID" --preserve-metadata=entitlements \
+        "$export_path/$APP_NAME.app" || return 1
+    # Use release entitlements explicitly to strip Xcode's development-only grants.
+    codesign --force --timestamp --options=runtime \
+        --sign "$DEVELOPER_ID" \
+        --entitlements "$PROJECT_ROOT/SafariExtension/TextWardenBrowserExtension.entitlements" \
+        "$export_path/$APP_NAME.app/Contents/PlugIns/TextWardenBrowserExtension.appex" || return 1
+    codesign --force --timestamp --options=runtime \
         --sign "$DEVELOPER_ID" \
         --entitlements "$PROJECT_ROOT/$ENTITLEMENTS" \
-        "$export_path/$APP_NAME.app"
+        "$export_path/$APP_NAME.app" || return 1
 
     # Verify signature
     if ! codesign --verify --deep --strict "$export_path/$APP_NAME.app" 2>/dev/null; then
@@ -742,7 +752,8 @@ do_release() {
     local archive_path=$(build_archive)
 
     # Export
-    local app_path=$(export_app "$archive_path")
+    local app_path
+    app_path=$(export_app "$archive_path")
 
     # Create DMG
     local dmg_path=$(create_dmg "$app_path" "$version")

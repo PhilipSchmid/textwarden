@@ -890,7 +890,7 @@ class ErrorOverlayWindow: NSPanel {
                 bounds: expandedBounds,
                 drawingBounds: primaryDrawingBounds,
                 allDrawingBounds: allLocalBounds,
-                color: underlineColor(for: error.category),
+                color: Self.underlineColor(for: error.category),
                 error: error
             )
         }
@@ -2051,7 +2051,7 @@ class ErrorOverlayWindow: NSPanel {
     // MARK: - Color Mapping
 
     /// Get underline color for category (high-level categorization)
-    private func underlineColor(for category: String) -> NSColor {
+    static func underlineColor(for category: String) -> NSColor {
         // Group categories into high-level color categories
         switch category {
         // Spelling and typos: Red (critical, obvious errors)
@@ -2726,11 +2726,14 @@ class UnderlineView: NSView {
     private func drawHighlight(in context: CGContext, bounds: CGRect, color: NSColor) {
         // Draw a more intense background highlight with better dark/light mode contrast
         // Use higher opacity for better visibility
-        let highlightOpacity: CGFloat
+        context.setFillColor(color.withAlphaComponent(Self.highlightOpacity).cgColor)
+        context.fill(bounds)
+    }
 
-            // Check if we're in dark mode for better contrast
-            = if let appearance = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]),
-            appearance == .darkAqua
+    static var highlightOpacity: CGFloat {
+        // Check if we're in dark mode for better contrast
+        if let appearance = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]),
+           appearance == .darkAqua
         {
             // Dark mode: use lighter/brighter highlight with higher opacity
             0.35
@@ -2738,8 +2741,5 @@ class UnderlineView: NSView {
             // Light mode: use more saturated highlight with good opacity
             0.30
         }
-
-        context.setFillColor(color.withAlphaComponent(highlightOpacity).cgColor)
-        context.fill(bounds)
     }
 }

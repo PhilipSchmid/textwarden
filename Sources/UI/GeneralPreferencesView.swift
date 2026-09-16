@@ -219,7 +219,7 @@ struct GeneralPreferencesView: View {
                     .padding(.top, 4)
                 }
 
-                Text("Underlines are only shown in applications with proper accessibility API support (e.g., native macOS apps, Slack, Notion). Some apps like Microsoft Teams and web browsers don't provide accurate text positioning, so only the floating error indicator is used. When the error count exceeds the threshold above, underlines are hidden to reduce visual clutter.")
+                Text("Underlines appear where TextWarden can locate text accurately. The browser extension preview adds underlines to supported web editors; set it up in Browser settings. Other browser fields and apps such as Microsoft Teams use the floating error indicator. When the error count exceeds the threshold above, underlines are hidden to reduce visual clutter.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             } header: {

@@ -69,6 +69,9 @@ jobs:
       - name: Test CPU gate logic (no timing measurements)
         run: python3 -B Scripts/test_cpu_check.py
 
+      - name: Test browser extension
+        run: make test-browser
+
       - name: Build Rust library (arm64 only, without LLM)
         working-directory: GrammarEngine
         run: |

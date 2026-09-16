@@ -39,6 +39,7 @@ class BrowserURLExtractor {
     private func isChromiumBased(_ bundleIdentifier: String) -> Bool {
         let chromiumBrowsers = [
             "com.google.Chrome",
+            "com.brave.Browser",
             "com.google.Chrome.beta",
             "org.chromium.Chromium",
             "ai.perplexity.comet",

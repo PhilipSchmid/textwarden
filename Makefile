@@ -3,7 +3,7 @@
 
 .PHONY: help build build-rust build-swift \
         run run-only install uninstall \
-        test test-rust test-swift test-e2e-tools clean clean-all clean-derived \
+        test test-rust test-swift test-e2e-tools test-browser clean clean-all clean-derived \
         ci-check fmt fmt-rust fmt-swift lint lint-rust lint-swift \
         logs kill status reset reset-onboarding xcode version \
         release release-alpha release-beta release-rc release-upload \
@@ -80,7 +80,13 @@ logs: ## Watch app logs
 
 ##@ Testing
 
-test: test-rust test-swift test-e2e-tools ## Run all tests
+test: test-rust test-swift test-e2e-tools test-browser ## Run all tests
+
+test-browser: ## Run browser extension checks (requires Node.js)
+	@node --check BrowserExtension/content.js
+	@node --check BrowserExtension/background.js
+	@node --test BrowserExtension/tests/*.test.cjs
+	@python3 -m unittest discover -s BrowserExtension/tests -p 'test_*.py'
 
 test-rust: ## Run Rust tests
 	@echo "$(BLUE)🦀 Running Rust tests...$(NC)"
@@ -122,6 +128,11 @@ install: ## Install to /Applications (requires build first)
 		echo "$(RED)❌ Build first: make build$(NC)"; \
 		exit 1; \
 	fi; \
+	for BUILT_APP in "$$(dirname "$$(dirname "$$APP")")"/*/"$(APP_NAME)"; do \
+		if [ -d "$$BUILT_APP/Contents/PlugIns/TextWardenBrowserExtension.appex" ]; then \
+			/System/Library/Frameworks/CoreServices.framework/Versions/Current/Frameworks/LaunchServices.framework/Versions/Current/Support/lsregister -u "$$BUILT_APP" >/dev/null 2>&1 || true; \
+		fi; \
+	done; \
 	rm -rf "/Applications/$(APP_NAME)" 2>/dev/null || true; \
 	cp -R "$$APP" /Applications/; \
 	echo "$(GREEN)✅ Installed$(NC)"

@@ -361,7 +361,7 @@ private struct ApplicationRow: View {
     }
 
     private var statusDescription: String? {
-        if preferences.safeTrialApplications.contains(app.bundleIdentifier) {
+        if app.policy.requiresSafeTrialConsent, preferences.safeTrialApplications.contains(app.bundleIdentifier) {
             return "Safe trial · indicator and copy-only fixes"
         }
         if needsSafeTrialConsent,
