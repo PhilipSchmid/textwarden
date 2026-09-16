@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "TextWarden Browser Extension (Preview)",
+  "version": "0.5.2.38",
+  "description": "Check the current editor locally with the TextWarden Mac app. Use the toolbar menu to check the current page.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "nativeMessaging"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "action": {
+    "default_title": "TextWarden",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "toolbar.png",
+      "32": "toolbar.png"
+    }
+  },
+  "icons": {
+    "128": "icon.png"
+  },
+  "minimum_chrome_version": "127",
+  "version_name": "0.5.2",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAk0mThK4lQai2i277G7lfiGPUZGRWKR/YFGYvBmDYBox3SMVY+97ehjAzSGpiLpV4S7rZ346e4CaI9ER0Ovjkzkb5g4Oc2rIe5ANDn4L/Sw+QDQIRqAst2aInOKv7/2WjND5eGUhdC7vLOq3sufo1MPazwGkTXOWy2Lp56zbWogQ5CKHeisTtM5fWlz92uwSK3vhASzKxc1w5CUU07eBE5JcKm12IwENT/76nouuaZtpmVKQ/OxXEf814VeVENzv5ecNH4gtxE5LTTdyeaFVWU2cTfiMGhN2RVAyTUVVhu14OiWLsPdW4BiWzry0m+uzmx+K4nuuZHeyphPO8iN+3uQIDAQAB",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "browser@textwarden.io",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": [
+          "websiteContent",
+          "websiteActivity",
+          "browsingActivity",
+          "personalCommunications"
+        ]
+      }
+    }
+  }
+}
