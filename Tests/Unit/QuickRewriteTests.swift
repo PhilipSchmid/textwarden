@@ -11,6 +11,25 @@ import XCTest
 #endif
 
 final class QuickRewriteTests: XCTestCase {
+    @MainActor
+    func testStatusFitsWrappedMessages() throws {
+        let status = QuickRewriteStatus()
+        status.show("Text rewritten", completion: .applied)
+        let panel = try XCTUnwrap(status.panel)
+        defer { panel.orderOut(nil) }
+        let shortHeight = panel.frame.height
+        XCTAssertGreaterThanOrEqual(shortHeight, 36)
+        for message in [
+            "Enable TextWarden and Style checking in this app to rewrite",
+            "Apple Intelligence could not process this selection · text left unchanged",
+        ] {
+            status.show(message)
+            XCTAssertLessThanOrEqual(panel.frame.width, 360)
+            XCTAssertGreaterThan(panel.frame.height, shortHeight + 10, message)
+            XCTAssertEqual(panel.contentView?.fittingSize.height ?? 0, panel.frame.height, accuracy: 1)
+        }
+    }
+
     func testRewriteLanguageDetectionDeclinesUncertainInputs() {
         for text in ["Gift", "17 / 23", "👩🏽‍💻 👍🏽", "Solicito a gentileza de informar se estará presente."] {
             XCTAssertNil(SelectionRewriteResult.confidentLanguage(for: text), text)
@@ -329,13 +348,13 @@ final class QuickRewriteTests: XCTestCase {
         try captureReviewView(XCTUnwrap(panel.contentView), name: "status-loading", directory: directory)
         XCTAssertNotNil(NSImage(named: "FeatherLogo"))
         let compactHeight = panel.frame.height
-        XCTAssertLessThanOrEqual(compactHeight, 30)
+        XCTAssertEqual(compactHeight, 36, accuracy: 1, "The icon and feedback need ten points of vertical padding on each side")
         XCTAssertLessThan(panel.frame.width, 240, "Short feedback should fit its content, not fill a fixed-width box")
         for (index, message) in ["No rewrite suggested", "Apple Intelligence could not process this selection · text left unchanged"].enumerated() {
             status.show(message)
             try await Task.sleep(for: .milliseconds(200))
             try captureReviewView(XCTUnwrap(panel.contentView), name: "status-message-\(index)", directory: directory)
-            XCTAssertLessThanOrEqual(panel.frame.width, min(280, screen.visibleFrame.width - 32))
+            XCTAssertLessThanOrEqual(panel.frame.width, min(360, screen.visibleFrame.width - 32))
             XCTAssertEqual(panel.frame.midX, screen.visibleFrame.midX, accuracy: 0.5)
             XCTAssertEqual(panel.frame.minY, screen.visibleFrame.minY + 24, accuracy: 0.5)
             XCTAssertGreaterThanOrEqual(panel.frame.height, compactHeight)
@@ -350,7 +369,7 @@ final class QuickRewriteTests: XCTestCase {
         status.show("Rewrite cancelled", completion: .cancelled)
         try await Task.sleep(for: .milliseconds(200))
         try captureReviewView(XCTUnwrap(panel.contentView), name: "status-cancelled", directory: directory)
-        XCTAssertLessThanOrEqual(panel.frame.height, 30)
+        XCTAssertEqual(panel.frame.height, compactHeight, accuracy: 1)
         XCTAssertLessThan(panel.frame.width, 240)
         status.show("Text rewritten", completion: .applied)
         try await Task.sleep(for: .milliseconds(200))
