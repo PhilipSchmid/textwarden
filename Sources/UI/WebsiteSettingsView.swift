@@ -119,7 +119,7 @@ struct WebsiteSettingsView: View {
                                 Spacer()
 
                                 // Status indicator
-                                Text("Disabled")
+                                Text(preferences.websitePausedUntil[website].map { "Until " + $0.formatted(date: .abbreviated, time: .shortened) } ?? "Disabled")
                                     .font(.caption)
                                     .foregroundColor(.orange)
                                     .padding(.horizontal, 8)
@@ -203,7 +203,7 @@ private struct AddWebsiteSheet: View {
                 TextField("e.g., github.com or *.google.com", text: $newWebsite)
                     .textFieldStyle(.roundedBorder)
                     .focused($isTextFieldFocused)
-                Text("Use * as wildcard for subdomains (e.g., *.example.com)")
+                Text("Use a domain, host:port, or full page URL. *.example.com includes subdomains.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

@@ -27,7 +27,7 @@ enum PauseScope: Equatable {
 class UserPreferences: ObservableObject {
     static let shared = UserPreferences()
 
-    private let defaults = UserDefaults.standard
+    private let defaults: UserDefaults
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
     private var resumeTimer: Timer?
@@ -143,6 +143,10 @@ class UserPreferences: ObservableObject {
         didSet {
             persist(disabledWebsites, forKey: Keys.disabledWebsites)
         }
+    }
+
+    @Published var websitePausedUntil: [String: Date] {
+        didSet { persist(websitePausedUntil, forKey: Keys.websitePausedUntil) }
     }
 
     /// Custom words to ignore
@@ -700,7 +704,8 @@ class UserPreferences: ObservableObject {
         "Business",
     ]
 
-    private init() {
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         // Initialize with default values first
         pauseDuration = .active
         pausedUntil = nil
@@ -710,6 +715,7 @@ class UserPreferences: ObservableObject {
         declinedTrialApplications = []
         appUnderlinesDisabled = []
         disabledWebsites = []
+        websitePausedUntil = [:]
         appPauseDurations = [:]
         appPausedUntil = [:]
         customDictionary = []
@@ -818,6 +824,12 @@ class UserPreferences: ObservableObject {
            let set = try? decoder.decode(Set<String>.self, from: data)
         {
             disabledWebsites = set
+        }
+
+        if let data = defaults.data(forKey: Keys.websitePausedUntil),
+           let dates = try? decoder.decode([String: Date].self, from: data)
+        {
+            websitePausedUntil = dates
         }
 
         if let data = defaults.data(forKey: Keys.appPauseDurations),
@@ -1043,6 +1055,10 @@ class UserPreferences: ObservableObject {
     /// Called automatically by a timer every 60 seconds. Updates menu bar if any changes are made.
     private func cleanupExpiredAppPauses() {
         var needsUpdate = false
+        for (rule, until) in websitePausedUntil where Date() >= until {
+            disabledWebsites.remove(rule)
+            websitePausedUntil.removeValue(forKey: rule)
+        }
 
         for (bundleID, duration) in appPauseDurations {
             if duration == .oneHour || duration == .twentyFourHours {
@@ -1124,49 +1140,72 @@ class UserPreferences: ObservableObject {
 
     // MARK: - Website Management
 
-    /// Check if grammar checking is enabled for a specific URL
-    /// Returns false if the URL's domain is in the disabled websites list
-    func isEnabled(forURL url: URL) -> Bool {
-        guard let host = url.host?.lowercased() else { return true }
+    nonisolated static func pageKey(_ url: URL) -> String? {
+        guard var parts = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let scheme = parts.scheme?.lowercased(), ["http", "https"].contains(scheme),
+              let host = parts.host?.lowercased(), parts.user == nil, parts.password == nil else { return nil }
+        parts.scheme = scheme; parts.host = host
+        if (scheme == "http" && parts.port == 80) || (scheme == "https" && parts.port == 443) { parts.port = nil }
+        parts.query = nil; parts.fragment = nil
+        if parts.path.isEmpty { parts.path = "/" }
+        return parts.string
+    }
 
-        for domain in disabledWebsites {
-            let pattern = domain.lowercased()
+    static func siteKey(_ url: URL) -> String? {
+        guard let page = pageKey(url), var parts = URLComponents(string: page) else { return nil }
+        parts.path = ""
+        return parts.string
+    }
 
-            if pattern.hasPrefix("*.") {
-                // Wildcard pattern: *.example.com matches sub.example.com and example.com
-                let baseDomain = String(pattern.dropFirst(2))
-                if host == baseDomain || host.hasSuffix(".\(baseDomain)") {
-                    return false
-                }
-            } else {
-                // Exact match
-                if host == pattern {
-                    return false
-                }
-            }
+    static func websiteRuleMatches(_ rule: String, url: URL) -> Bool {
+        guard let host = url.host?.lowercased() else { return false }
+        if rule.contains("://") {
+            // Origin rules have no slash after the authority; page rules include their exact path.
+            guard let parts = URLComponents(string: rule) else { return false }
+            return parts.path.isEmpty ? siteKey(url) == rule : pageKey(url) == rule
         }
-
-        return true
+        let pattern = rule.lowercased()
+        if pattern.hasPrefix("*.") {
+            let base = String(pattern.dropFirst(2))
+            return host == base || host.hasSuffix(".\(base)")
+        }
+        if pattern.contains(":"), let candidate = URL(string: "http://" + pattern), let port = candidate.port {
+            return candidate.host?.lowercased() == host && port == (url.port ?? (url.scheme == "https" ? 443 : 80))
+        }
+        return host == pattern
     }
 
-    /// Add a website to the disabled list
-    /// - Parameter domain: Domain to disable (e.g., "github.com" or "*.google.com")
-    func disableWebsite(_ domain: String) {
-        let normalizedDomain = domain.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedDomain.isEmpty else { return }
-        disabledWebsites.insert(normalizedDomain)
+    func isEnabled(forURL url: URL) -> Bool {
+        !disabledWebsites.contains { isWebsiteDisabled($0) && Self.websiteRuleMatches($0, url: url) }
     }
 
-    /// Remove a website from the disabled list
-    func enableWebsite(_ domain: String) {
-        let normalizedDomain = domain.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        disabledWebsites.remove(normalizedDomain)
+    private static func normalizedWebsiteRule(_ rule: String) -> String? {
+        let trimmed = rule.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.contains("://") {
+            guard let url = URL(string: trimmed) else { return nil }
+            return URLComponents(string: trimmed)?.path.isEmpty == true ? siteKey(url) : pageKey(url)
+        }
+        return trimmed.lowercased()
     }
 
-    /// Check if a specific domain is disabled
-    func isWebsiteDisabled(_ domain: String) -> Bool {
-        let normalizedDomain = domain.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        return disabledWebsites.contains(normalizedDomain)
+    func disableWebsite(_ rule: String, duration: PauseDuration = .indefinite, now: Date = Date()) {
+        guard let normalized = Self.normalizedWebsiteRule(rule) else { return }
+        if duration == .active { enableWebsite(rule); return }
+        let seconds: TimeInterval? = duration == .oneHour ? 3600 : duration == .twentyFourHours ? 86400 : nil
+        websitePausedUntil[normalized] = seconds.map { now.addingTimeInterval($0) }
+        disabledWebsites.insert(normalized)
+    }
+
+    func enableWebsite(_ rule: String) {
+        guard let normalized = Self.normalizedWebsiteRule(rule) else { return }
+        disabledWebsites.remove(normalized)
+        websitePausedUntil.removeValue(forKey: normalized)
+    }
+
+    func isWebsiteDisabled(_ rule: String) -> Bool {
+        guard let normalized = Self.normalizedWebsiteRule(rule) else { return false }
+        return disabledWebsites.contains(normalized) && (websitePausedUntil[normalized].map { $0 > Date() } ?? true)
     }
 
     /// Add a word to the custom dictionary
@@ -1315,6 +1354,7 @@ class UserPreferences: ObservableObject {
         declinedTrialApplications = []
         appUnderlinesDisabled = []
         disabledWebsites = []
+        websitePausedUntil = [:]
         // Note: We intentionally don't reset discoveredApplications
         // as it's useful to remember which apps have been used
         customDictionary = []
@@ -1356,6 +1396,7 @@ class UserPreferences: ObservableObject {
         static let declinedTrialApplications = "declinedTrialApplications"
         static let appUnderlinesDisabled = "appUnderlinesDisabled"
         static let disabledWebsites = "disabledWebsites"
+        static let websitePausedUntil = "websitePausedUntil"
         static let appPauseDurations = "appPauseDurations"
         static let appPausedUntil = "appPausedUntil"
         static let customDictionary = "customDictionary"
