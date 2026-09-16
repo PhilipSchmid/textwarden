@@ -1678,6 +1678,10 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Start monitoring a specific application
     func startMonitoring(context: ApplicationContext) {
+        if BrowserWire.supportedBrowsers.contains(context.bundleIdentifier), BrowserIntegration.shared.hasActiveEditor {
+            stopMonitoring()
+            return
+        }
         Logger.debug("AnalysisCoordinator: startMonitoring called for \(context.applicationName)", category: Logger.analysis)
 
         let healthDecision = runtimeHealthDecision(for: context)
@@ -1811,6 +1815,18 @@ class AnalysisCoordinator: ObservableObject {
         {
             monitoredContext = context // Set BEFORE startMonitoring
             startMonitoring(context: context)
+        }
+    }
+
+    /// The extension owns its focused editor; AX remains the fallback for other fields and tabs.
+    func browserFocusChanged() {
+        guard let browser = applicationTracker.activeApplication?.bundleIdentifier,
+              BrowserWire.supportedBrowsers.contains(browser) else { return }
+        if BrowserIntegration.shared.hasActiveEditor {
+            stopMonitoring()
+            floatingIndicator.hide()
+        } else {
+            resumeMonitoring()
         }
     }
 

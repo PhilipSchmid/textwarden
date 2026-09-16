@@ -20,6 +20,8 @@ class BrowserContentParser: ContentParser {
         // Derive parser name from bundle ID for display purposes
         if bundleIdentifier.contains("Chrome") {
             parserName = "Chrome"
+        } else if bundleIdentifier == "com.brave.Browser" {
+            parserName = "Brave"
         } else if bundleIdentifier.contains("Safari") {
             parserName = "Safari"
         } else if bundleIdentifier.contains("firefox") {

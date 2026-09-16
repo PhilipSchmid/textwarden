@@ -21,6 +21,7 @@ enum BrowserBehaviorFactory {
     /// Browser bundle IDs
     static let browserBundleIDs: [String] = [
         "com.google.Chrome",
+        "com.brave.Browser",
         "com.google.Chrome.canary",
         "com.apple.Safari",
         "com.apple.SafariTechnologyPreview",
@@ -45,6 +46,7 @@ struct GenericBrowserBehavior: AppBehavior {
         case "com.apple.Safari", "com.apple.SafariTechnologyPreview": "Safari"
         case "org.mozilla.firefox", "org.mozilla.firefoxdeveloperedition": "Firefox"
         case "app.zen-browser.zen": "Zen"
+        case "com.brave.Browser": "Brave"
         case "ai.perplexity.comet": "Perplexity Comet"
         default: "Web Browser"
         }

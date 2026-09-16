@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>TextWarden browser compatibility</title>
+<style>
+  :root { color-scheme: light dark; font: 17px/1.6 system-ui; }
+  body { max-width: 760px; margin: 40px auto; padding: 0 24px; }
+  textarea, input, [contenteditable] { box-sizing: border-box; width: 100%; font: inherit; padding: 16px; border: 1px solid #8888; border-radius: 8px; }
+  textarea { height: 150px; }
+  section { margin: 32px 0; }
+  .scroller { height: 190px; overflow: auto; border: 1px solid #8888; padding: 20px; }
+  .spacer { height: 120px; }
+  output { display: block; margin-top: 12px; }
+</style>
+<h1>Browser compatibility</h1>
+<p>Local fixtures only. Open TextWarden’s toolbar menu, then click an editor. Checking starts unless this page or site is paused.</p>
+<p><button onclick="history.pushState({}, '', '/other.html')">Switch to other page without reload</button> <button onclick="history.pushState({}, '', '/editors.html')">Return to editor page without reload</button></p>
+<section>
+  <label for="plain">Plain textarea — correct, then undo</label>
+  <textarea id="plain">We has reviewed the report. This is a mispelled word.</textarea>
+</section>
+<section>
+  <label for="unicode">Emoji, combining characters, and repeated words</label>
+  <textarea id="unicode">😀 Café 👨‍👩‍👧‍👦 We has reviewed 17 reports. We has reviewed 18 reports.</textarea>
+</section>
+<section>
+  <label for="input">Single-line text field</label>
+  <input id="input" type="text" spellcheck="true" value="This is a mispelled word.">
+</section>
+<section>
+  <label id="rich-label">Basic rich text — retain the bold text and link</label>
+  <div contenteditable="true" role="textbox" aria-labelledby="rich-label" id="rich"><p><b>Before.</b> We has reviewed the report.</p><p>This is a <a href="https://example.com">reference</a>. After.</p></div>
+</section>
+<section class="scroller">
+  <label for="scroll">Nested scrolling and wrapping</label>
+  <div class="spacer"></div>
+  <textarea id="scroll">We has reviewed this deliberately long report, which wraps over several lines so we can verify underline placement while scrolling inside the editor and its parent container.</textarea>
+  <div class="spacer"></div>
+</section>
+<section>
+  <label for="readonly">Read-only: must remain untouched</label>
+  <textarea id="readonly" readonly>We has reviewed the report.</textarea>
+  <label for="password">Password: must not be inspected</label>
+  <input id="password" type="password" value="fixture-only">
+</section>
+<section>
+  <label for="empty-plain">Empty textarea — compose a new draft, then undo</label>
+  <textarea id="empty-plain"></textarea>
+</section>
+<section>
+  <label id="empty-rich-label">Empty rich text — Chrome placeholder line break</label>
+  <div contenteditable="true" role="textbox" aria-labelledby="empty-rich-label" id="empty-rich"><br></div>
+</section>
+<section>
+  <label for="blocked-edit">Editor that rejects replacement — show a failure without forcing an edit</label>
+  <textarea id="blocked-edit">We has reviewed the report.</textarea>
+  <output id="blocked-result" role="status">Apply a correction here to check cancellation.</output>
+</section>
+<script>
+  document.querySelector('#blocked-edit').addEventListener('beforeinput', event => {
+    if (event.inputType !== 'insertText') return;
+    event.preventDefault();
+    const editor = event.currentTarget, original = editor.value;
+    setTimeout(() => {
+      const passed = editor.value === original;
+      console.assert(passed, 'Canceled replacement changed the editor');
+      document.querySelector('#blocked-result').textContent = passed ? 'PASS: canceled edit preserved the text.' : 'FAIL: canceled edit changed the text.';
+    }, 0);
+  });
+  document.querySelector('#blocked-edit').addEventListener('input', event => {
+    if (event.inputType !== 'insertText') return;
+    console.assert(false, 'The editor received input despite canceling insertions');
+    document.querySelector('#blocked-result').textContent = 'FAIL: insertion bypassed beforeinput cancellation.';
+  });
+</script>
+</html>

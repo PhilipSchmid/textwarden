@@ -1332,6 +1332,69 @@ enum AccessibilityBridge {
         return call.value
     }
 
+    /// Browser viewport in Quartz coordinates, independent of page zoom and scroll position.
+    static func focusedWebAreaFrame(processID: pid_t, pageURL: String) -> CGRect? {
+        let app = AXUIElementCreateApplication(processID)
+        guard let call = AXClient.perform(
+            bundleID: AXClient.bundleIdentifier(for: app),
+            attribute: "AXFocusedUIElement/AXParent/AXRole",
+            operation: { () -> (AXUIElement, AXUIElement?)? in
+                var value: CFTypeRef?
+                if AXUIElementCopyAttributeValue(app, kAXFocusedUIElementAttribute as CFString, &value) == .success,
+                   let value, CFGetTypeID(value) == AXUIElementGetTypeID(),
+                   let webArea = findAncestor(unsafeBitCast(value, to: AXUIElement.self), withRole: "AXWebArea"),
+                   webAreaMatchesPage(webArea, pageURL: pageURL)
+                {
+                    return (webArea, findAncestor(webArea, withRole: "AXScrollArea"))
+                }
+                // Safari can leave focus on its toolbar after an extension popup closes.
+                // Search only the focused window, matching the authenticated page instead of the popup.
+                guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value) == .success,
+                      let value, CFGetTypeID(value) == AXUIElementGetTypeID()
+                else { return nil }
+                var remaining = 128
+                guard let webArea = findPageWebArea(unsafeBitCast(value, to: AXUIElement.self), pageURL: pageURL,
+                                                    depth: 0, remaining: &remaining) else { return nil }
+                return (webArea, findAncestor(webArea, withRole: "AXScrollArea"))
+            }
+        ), let (webArea, scrollArea) = call.value,
+        let documentFrame = getElementFrame(webArea), let windowFrame = getWindowFrame(webArea)
+        else { return nil }
+        return browserViewportFrame(webArea: documentFrame, scrollArea: scrollArea.flatMap(getElementFrame), window: windowFrame)
+    }
+
+    private static func webAreaMatchesPage(_ element: AXUIElement, pageURL: String) -> Bool {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXURLAttribute as CFString, &value) == .success,
+              let url = (value as? URL) ?? (value as? String).flatMap(URL.init(string:))
+        else { return false }
+        return UserPreferences.pageKey(url) == pageURL
+    }
+
+    private static func findPageWebArea(_ element: AXUIElement, pageURL: String, depth: Int, remaining: inout Int) -> AXUIElement? {
+        guard depth < 15, remaining > 0 else { return nil }
+        remaining -= 1
+        var value: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &value) == .success,
+           value as? String == "AXWebArea"
+        {
+            return webAreaMatchesPage(element, pageURL: pageURL) ? element : nil
+        }
+        guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value) == .success,
+              let children = value as? [AXUIElement] else { return nil }
+        for child in children {
+            if let webArea = findPageWebArea(child, pageURL: pageURL, depth: depth + 1, remaining: &remaining) { return webArea }
+            if remaining == 0 { break }
+        }
+        return nil
+    }
+
+    static func browserViewportFrame(webArea: CGRect, scrollArea: CGRect?, window: CGRect) -> CGRect? {
+        // Safari exposes the full, scroll-offset document as AXWebArea, not the viewport.
+        let viewport = (scrollArea ?? webArea).intersection(window)
+        return viewport.isNull || viewport.isEmpty ? nil : viewport
+    }
+
     private static func findAncestor(_ element: AXUIElement, withRole expectedRole: String) -> AXUIElement? {
         var currentElement: AXUIElement? = element
         for _ in 0 ..< 20 {

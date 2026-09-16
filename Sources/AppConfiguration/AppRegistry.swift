@@ -359,6 +359,7 @@ extension AppConfiguration {
         displayName: "Web Browsers",
         bundleIDs: [
             "com.google.Chrome",
+            "com.brave.Browser",
             "com.google.Chrome.canary",
             "com.apple.Safari",
             "com.apple.SafariTechnologyPreview",

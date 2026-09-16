@@ -65,7 +65,7 @@ final class ApplicationConfigurationTests: XCTestCase {
             "com.microsoft.edgemac", "com.microsoft.edgemac.Dev", "com.microsoft.edgemac.Beta", "com.microsoft.edgemac.Canary",
             "com.operasoftware.Opera", "com.operasoftware.OperaGX",
             "company.thebrowser.Browser", "company.thebrowser.Browser.beta",
-            "com.brave.Browser", "com.brave.Browser.beta",
+            "com.brave.Browser.beta",
             "com.vivaldi.Vivaldi", "org.chromium.Chromium",
         ] {
             XCTAssertFalse(AppRegistry.shared.hasConfiguration(for: bundleID))
@@ -186,6 +186,7 @@ final class ApplicationConfigurationTests: XCTestCase {
         // Test various browser identifiers
         let browsers = [
             "com.google.Chrome",
+            "com.brave.Browser",
             "com.apple.Safari",
             "org.mozilla.firefox",
             "app.zen-browser.zen",

@@ -156,6 +156,7 @@ class TextGenerationPopover: NSObject, ObservableObject {
 
     /// Called when user wants to insert generated text
     var onInsertText: ((String) -> Void)?
+    var onHide: (() -> Void)?
 
     // MARK: - Visibility
 
@@ -165,7 +166,7 @@ class TextGenerationPopover: NSObject, ObservableObject {
 
     // MARK: - Initialization
 
-    override private init() {
+    override init() {
         super.init()
     }
 
@@ -266,6 +267,7 @@ class TextGenerationPopover: NSObject, ObservableObject {
         openedFromIndicator = false
         removeClickOutsideMonitor()
         panel?.orderOut(nil)
+        onHide?()
     }
 
     /// Clear the instruction, results, and retained session state.

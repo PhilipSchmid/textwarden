@@ -46,6 +46,11 @@ struct PreferencesView: View {
                 .tag(SettingsTab.applications.rawValue)
                 .accessibilityLabel("Application settings tab")
 
+            BrowserSettingsView()
+                .tabItem { Label("Browser", systemImage: "network") }
+                .tag(SettingsTab.browser.rawValue)
+                .accessibilityLabel("Browser integration settings tab")
+
             WebsiteSettingsView(preferences: preferences)
                 .tabItem {
                     Label("Websites", systemImage: "globe")

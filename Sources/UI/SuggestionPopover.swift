@@ -49,6 +49,10 @@ class SuggestionPopover: NSObject, ObservableObject {
     // MARK: - Singleton
 
     static let shared = SuggestionPopover()
+    private weak static var activePopover: SuggestionPopover?
+    static var keyboardTarget: SuggestionPopover {
+        activePopover ?? shared
+    }
 
     // MARK: - Properties
 
@@ -193,7 +197,7 @@ class SuggestionPopover: NSObject, ObservableObject {
 
     // MARK: - Initialization
 
-    override private init() {
+    override init() {
         super.init()
     }
 
@@ -330,6 +334,7 @@ class SuggestionPopover: NSObject, ObservableObject {
             Logger.info("SuggestionPopover: Not showing - modal dialog is open", category: Logger.ui)
             return
         }
+        if let active = Self.activePopover, active !== self { active.hide() }
 
         // Close other popovers first
         TextGenerationPopover.shared.hide()
@@ -349,6 +354,7 @@ class SuggestionPopover: NSObject, ObservableObject {
 
         // Use order(.above) instead of orderFrontRegardless() to prevent focus stealing
         panel?.order(.above, relativeTo: 0)
+        Self.activePopover = self
 
         // DEBUG: Log activation policy AFTER showing
         Logger.debug("SuggestionPopover.showPanelAtPosition() - AFTER order(.above) - ActivationPolicy: \(NSApp.activationPolicy().rawValue), isActive: \(NSApp.isActive)", category: Logger.ui)
@@ -398,7 +404,10 @@ class SuggestionPopover: NSObject, ObservableObject {
     private func performHide() {
         // Disable popover keyboard shortcuts so they don't intercept keypresses globally
         // (Tab should work normally in other apps when popover is hidden)
-        KeyboardShortcuts.Name.disablePopoverShortcuts()
+        if Self.activePopover === self || Self.activePopover == nil {
+            Self.activePopover = nil
+            KeyboardShortcuts.Name.disablePopoverShortcuts()
+        }
 
         if let monitor = clickOutsideMonitor {
             NSEvent.removeMonitor(monitor)

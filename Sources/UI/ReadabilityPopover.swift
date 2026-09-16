@@ -37,6 +37,7 @@ class ReadabilityPopover: NSObject, ObservableObject {
 
     /// Callback when mouse exits popover
     var onMouseExited: (() -> Void)?
+    var onHide: (() -> Void)?
 
     /// Current readability result
     @Published var result: ReadabilityResult?
@@ -58,7 +59,7 @@ class ReadabilityPopover: NSObject, ObservableObject {
 
     // MARK: - Initialization
 
-    override private init() {
+    override init() {
         super.init()
     }
 
@@ -128,6 +129,7 @@ class ReadabilityPopover: NSObject, ObservableObject {
         openedFromIndicator = false
         removeClickOutsideMonitor()
         panel?.orderOut(nil)
+        onHide?()
     }
 
     /// Schedule hiding after delay

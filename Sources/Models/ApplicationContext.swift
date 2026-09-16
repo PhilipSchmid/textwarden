@@ -143,6 +143,7 @@ extension ApplicationContext {
     /// Known Chromium-based apps (includes Electron apps since Electron uses Chromium)
     private static let chromiumApps: Set<String> = [
         "com.google.Chrome",
+        "com.brave.Browser",
         "com.google.Chrome.beta",
         "org.chromium.Chromium",
         "ai.perplexity.comet",

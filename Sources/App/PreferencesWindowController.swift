@@ -20,6 +20,7 @@ enum SettingsTab: Int, CaseIterable {
     case statistics = 5
     case diagnostics = 6
     case about = 7
+    case browser = 8
 }
 
 @MainActor

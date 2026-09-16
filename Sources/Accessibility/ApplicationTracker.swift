@@ -221,6 +221,7 @@ extension ApplicationTracker {
         let browsers = [
             "com.apple.Safari",
             "com.google.Chrome",
+            "com.brave.Browser",
             "org.mozilla.firefox",
             "app.zen-browser.zen",
         ]

@@ -189,6 +189,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Initialize unified logging (Rust → Swift bridge)
         Logger.registerRustLogCallback()
 
+        BrowserIntegration.shared.start()
+
         // Initialize Rust logging (with Swift callback now registered)
         let logLevel = Logger.minimumLogLevel
         initialize_logging(logLevel.rawValue)
@@ -454,6 +456,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_: Notification) {
+        BrowserIntegration.shared.stop()
         Logger.info("Application will terminate - cleaning up", category: Logger.lifecycle)
 
         // Save Sketch Pad document synchronously before termination
@@ -639,6 +642,7 @@ extension AppDelegate: NSWindowDelegate {
             Task { @MainActor in
                 let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
+                if BrowserIntegration.shared.requestTool("grammar") { return }
 
                 // Toggle: hide if visible, show if hidden
                 if SuggestionPopover.shared.isVisible {
@@ -656,6 +660,7 @@ extension AppDelegate: NSWindowDelegate {
             Task { @MainActor in
                 let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
+                if BrowserIntegration.shared.requestTool("style") { return }
 
                 // Toggle: hide if visible, show if hidden
                 if SuggestionPopover.shared.isVisible {
@@ -672,6 +677,7 @@ extension AppDelegate: NSWindowDelegate {
         KeyboardShortcuts.onKeyUp(for: .quickRewrite) {
             Task { @MainActor in
                 guard UserPreferences.shared.keyboardShortcutsEnabled else { return }
+                if BrowserIntegration.shared.requestTool("rewrite") { return }
                 AnalysisCoordinator.shared.quickRewriteSelection()
             }
         }
@@ -681,6 +687,7 @@ extension AppDelegate: NSWindowDelegate {
             Task { @MainActor in
                 let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
+                if BrowserIntegration.shared.requestTool("compose") { return }
 
                 // Toggle: hide if visible, show if hidden
                 if TextGenerationPopover.shared.isVisible {
@@ -698,6 +705,7 @@ extension AppDelegate: NSWindowDelegate {
             Task { @MainActor in
                 let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
+                if BrowserIntegration.shared.requestTool("readability") { return }
 
                 // Toggle: hide if visible, show if hidden
                 if ReadabilityPopover.shared.isVisible {
@@ -726,18 +734,18 @@ extension AppDelegate: NSWindowDelegate {
             Task { @MainActor in
                 let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
-                guard SuggestionPopover.shared.isVisible else { return }
+                guard SuggestionPopover.keyboardTarget.isVisible else { return }
 
                 // Handle grammar errors
-                if SuggestionPopover.shared.currentError != nil {
+                if SuggestionPopover.keyboardTarget.currentError != nil {
                     Logger.debug("Keyboard shortcut: Accept grammar suggestion", category: Logger.ui)
-                    SuggestionPopover.shared.applySuggestion(at: 0)
+                    SuggestionPopover.keyboardTarget.applySuggestion(at: 0)
                     return
                 }
 
                 // Handle style suggestions
-                if SuggestionPopover.shared.currentStyleSuggestion != nil {
-                    SuggestionPopover.shared.acceptStyleSuggestion()
+                if SuggestionPopover.keyboardTarget.currentStyleSuggestion != nil {
+                    SuggestionPopover.keyboardTarget.acceptStyleSuggestion()
                     return
                 }
             }
@@ -748,11 +756,11 @@ extension AppDelegate: NSWindowDelegate {
             Task { @MainActor in
                 let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
-                guard SuggestionPopover.shared.isVisible else { return }
+                guard SuggestionPopover.keyboardTarget.isVisible else { return }
 
                 Logger.debug("Keyboard shortcut: Dismiss suggestion", category: Logger.ui)
 
-                SuggestionPopover.shared.hide()
+                SuggestionPopover.keyboardTarget.hide()
             }
         }
 
@@ -761,12 +769,12 @@ extension AppDelegate: NSWindowDelegate {
             Task { @MainActor in
                 let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
-                guard SuggestionPopover.shared.isVisible else { return }
+                guard SuggestionPopover.keyboardTarget.isVisible else { return }
 
                 Logger.debug("Keyboard shortcut: Previous suggestion", category: Logger.ui)
 
                 // Use unified navigation to cycle through both grammar errors and style suggestions
-                SuggestionPopover.shared.previousUnifiedItem()
+                SuggestionPopover.keyboardTarget.previousUnifiedItem()
             }
         }
 
@@ -775,12 +783,12 @@ extension AppDelegate: NSWindowDelegate {
             Task { @MainActor in
                 let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
-                guard SuggestionPopover.shared.isVisible else { return }
+                guard SuggestionPopover.keyboardTarget.isVisible else { return }
 
                 Logger.debug("Keyboard shortcut: Next suggestion", category: Logger.ui)
 
                 // Use unified navigation to cycle through both grammar errors and style suggestions
-                SuggestionPopover.shared.nextUnifiedItem()
+                SuggestionPopover.keyboardTarget.nextUnifiedItem()
             }
         }
 
@@ -789,9 +797,9 @@ extension AppDelegate: NSWindowDelegate {
             Task { @MainActor in
                 let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
-                guard SuggestionPopover.shared.isVisible else { return }
+                guard SuggestionPopover.keyboardTarget.isVisible else { return }
                 Logger.debug("Keyboard shortcut: Apply suggestion 1", category: Logger.ui)
-                SuggestionPopover.shared.applySuggestion(at: 0)
+                SuggestionPopover.keyboardTarget.applySuggestion(at: 0)
             }
         }
 
@@ -799,9 +807,9 @@ extension AppDelegate: NSWindowDelegate {
             Task { @MainActor in
                 let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
-                guard SuggestionPopover.shared.isVisible else { return }
+                guard SuggestionPopover.keyboardTarget.isVisible else { return }
                 Logger.debug("Keyboard shortcut: Apply suggestion 2", category: Logger.ui)
-                SuggestionPopover.shared.applySuggestion(at: 1)
+                SuggestionPopover.keyboardTarget.applySuggestion(at: 1)
             }
         }
 
@@ -809,9 +817,9 @@ extension AppDelegate: NSWindowDelegate {
             Task { @MainActor in
                 let preferences = UserPreferences.shared
                 guard preferences.keyboardShortcutsEnabled else { return }
-                guard SuggestionPopover.shared.isVisible else { return }
+                guard SuggestionPopover.keyboardTarget.isVisible else { return }
                 Logger.debug("Keyboard shortcut: Apply suggestion 3", category: Logger.ui)
-                SuggestionPopover.shared.applySuggestion(at: 2)
+                SuggestionPopover.keyboardTarget.applySuggestion(at: 2)
             }
         }
     }
