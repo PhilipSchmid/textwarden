@@ -38,6 +38,7 @@ TextWarden is a free, open-source grammar checker and writing assistant for macO
 - Custom vocabulary, the macOS learned-word dictionary, and optional word lists for technical terms, names, brands, abbreviations, and slang
 - Optional detection of 69 selectable non-English languages to avoid false positives in multilingual documents
 - Readability scores and sentence-complexity underlines for text with at least 30 words
+- [Browser extension preview](#browser-extension-preview) with precise underlines and native writing tools
 - Per-app pause controls, per-app underline controls, and website exclusions
 - A built-in Sketch Pad for focused drafting and revision
 - Optional automatic updates, with a separate channel for experimental releases
@@ -79,6 +80,18 @@ The download works on both Intel and Apple Silicon Macs. To avoid overlapping su
 
 See the [Configuration Guide](CONFIGURATION.md) for every setting and the [Troubleshooting Guide](TROUBLESHOOTING.md) if the app, indicator, or underlines do not behave as expected.
 
+## Browser Extension (Preview)
+
+The **TextWarden Browser Extension (Preview)** brings precise underlines, corrections, and native writing tools to **Chrome, Brave, Firefox, Zen, and Safari**. It supports standard text fields and basic rich text; Google Docs and complex editors are not supported yet. Your writing stays on your Mac.
+
+Use a preview-enabled TextWarden build and open **Preferences → Browser → Install Extension**. Installation is manual:
+
+- **Chrome / Brave:** Enable **Developer mode**, then **Load unpacked** using the revealed extension folder.
+- **Firefox / Zen:** Choose **Load Temporary Add-on** in `about:debugging` and select `manifest.json`. Repeat after restarting the browser.
+- **Safari:** Enable the bundled extension in **Safari → Settings → Extensions**. Signed, notarized app builds do not require Developer mode.
+
+Click the extension’s feather on a web page to start checking. The preview is not listed in extension stores. See the [setup guide](BrowserExtension/README.md) for details and development-build requirements.
+
 ## How It Works
 
 After you grant permission, TextWarden reads the text field you are typing in and checks it locally with the bundled Harper grammar checker. Suggestions appear as underlines or in a small floating indicator beside the app. If you enable **Ignore selected languages**, TextWarden uses local language detection to skip English grammar checks only in passages it identifies confidently as one of your selected languages.
@@ -95,9 +108,9 @@ TextWarden is tuned for the apps below. Some apps give macOS less information ab
 | Claude | Full | Full |
 | ChatGPT | Full | Full |
 | Perplexity | Full | Full |
-| Safari | Full | Indicator only[^browsers] |
-| Chrome and Comet | Full | Indicator only[^browsers] |
-| Firefox and Zen | Editable fields[^gecko] | Indicator only[^browsers] |
+| Safari, Chrome, and Brave | Standard fields and basic rich text | Extension preview[^extension] |
+| Firefox and Zen | Editable fields[^gecko] | Extension preview[^extension] |
+| Comet | Full | Indicator only[^browsers] |
 | Apple Mail | Full | Full |
 | Apple Notes | Full | Full |
 | Apple Messages | Full | Full |
@@ -118,8 +131,9 @@ TextWarden is tuned for the apps below. Some apps give macOS less information ab
 
 [^notion]: Notion does not make every text block available to macOS at once, so some errors appear in the indicator without an underline. See [Notion support notes](docs/applications/NOTION.md).
 [^powerpoint]: PowerPoint lets TextWarden read speaker notes, but not text boxes on slides. See [PowerPoint support notes](docs/applications/POWERPOINT.md).
-[^browsers]: Browser editors can be checked and corrected, but TextWarden currently disables visual underlines for the browser app category.
-[^gecko]: Firefox and Zen can also show suggestions in read-only fields because of a [browser accessibility bug](https://bugzilla.mozilla.org/show_bug.cgi?id=1995330).
+[^browsers]: Without an extension, browser checking uses macOS Accessibility and shows the floating indicator instead of precise underlines. Comet has no extension preview.
+[^extension]: Requires the [manually installed preview](#browser-extension-preview). Underlines are available in supported editors on pages activated through the extension toolbar.
+[^gecko]: Without the extension, Firefox and Zen can also show suggestions in read-only fields because of a [browser accessibility bug](https://bugzilla.mozilla.org/show_bug.cgi?id=1995330).
 
 Website editors vary, especially editors with formatting controls. Before TextWarden reads text in an unrecognized app, it asks whether you want to try it safely or keep it paused. A safe trial uses the floating indicator and copy-only fixes; underlines and direct edits stay off. You can change this choice later in **Preferences → Applications**.
 
@@ -145,6 +159,7 @@ Logs can contain parts of your writing, especially with Debug or Trace logging e
 
 ## Project Documentation
 
+- [Browser extension preview](BrowserExtension/README.md)
 - [Configuration](CONFIGURATION.md)
 - [Troubleshooting](TROUBLESHOOTING.md)
 - [Building from source](BUILD.md)

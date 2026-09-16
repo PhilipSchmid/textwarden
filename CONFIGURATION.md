@@ -179,6 +179,20 @@ The default position can be Top Left, Top Right, Center Left, Center Right, Bott
 
 **Always show indicator** keeps a green checkmark visible when there are no issues. **Hover delay** ranges from 0 to 1,000 ms in 50 ms steps and defaults to instant.
 
+## Browser Extension (Preview)
+
+Open **Preferences → Browser** for Chrome, Brave, Firefox, Zen, or Safari. Expand **Install Extension** for the folder and setup controls. The connection to TextWarden is configured automatically.
+
+- **Chrome / Brave:** Open the browser’s Extensions page, enable **Developer mode**, choose **Load unpacked**, and select the revealed folder.
+- **Firefox / Zen:** Open `about:debugging`, choose **Load Temporary Add-on**, and select `manifest.json` in the revealed folder. Temporary installations end when the browser restarts.
+- **Safari:** Enable **TextWarden Browser Extension (Preview)** in Safari’s Extensions settings. The extension is bundled with the Mac app; signed, notarized builds need no Developer mode.
+
+Keep TextWarden running and click the feather on the web page to grant temporary access. Repeat on another website or port. The preview supports standard fields and basic rich text, not Google Docs or complex editors. Sensitive fields and private windows are excluded.
+
+The toolbar menu provides **Suggestions**, **AI Compose**, and **Rewrite**. **Check this page** remembers a pause for its exact address and path; **Pause site** offers one hour, 24 hours, or until resumed. Scheme and port are preserved, while queries and fragments are ignored. **Show underlines** applies to the current document. Global and per-browser pauses still apply.
+
+After an app update, reload unpacked extensions and affected web pages. Firefox and Zen previews must be loaded again after a browser restart; Safari updates with the app. Full setup and development-build notes are in the [browser extension guide](https://github.com/PhilipSchmid/textwarden/blob/main/BrowserExtension/README.md).
+
 ## Application and Website Controls
 
 ### Supported applications
@@ -201,7 +215,7 @@ Each discovered app can be Active, paused for one hour, paused for 24 hours, or 
 
 ### Website exclusions
 
-Under **Preferences → Websites**, add a domain to disable TextWarden in browser text fields on that site. Exact domains such as `github.com` and wildcard patterns such as `*.google.com` are supported.
+Under **Preferences → Websites**, add a domain to disable TextWarden in browser text fields on that site. Exact domains such as `github.com` and wildcard patterns such as `*.google.com` cover all ports and schemes. Rules created by the extension can pause a specific page or site, including its port, and expire automatically. Remove a rule here to resume checking.
 
 ## Keyboard Shortcuts
 
