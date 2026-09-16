@@ -412,8 +412,16 @@ func focusedEditor(_ application: NSRunningApplication) throws -> AXUIElement {
     return element
 }
 
-func elementAt(_ point: CGPoint) -> AXUIElement? {
-    let system = AXUIElementCreateSystemWide()
+func elementAt(_ point: CGPoint, in application: NSRunningApplication? = nil) -> AXUIElement? {
+    let system: AXUIElement
+    if let application {
+        // System-wide hit-testing can return a window underneath Safari on macOS 27.
+        // Independently verify window ownership before restricting the AX lookup.
+        guard windowProcessIDAt(point) == application.processIdentifier else { return nil }
+        system = AXUIElementCreateApplication(application.processIdentifier)
+    } else {
+        system = AXUIElementCreateSystemWide()
+    }
     var element: AXUIElement?
     guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &element) == .success else { return nil }
     return element
@@ -1012,8 +1020,7 @@ func run(_ arguments: [String]) throws {
             x: try number(arguments[2], name: "x"),
             y: try number(arguments[3], name: "y")
         )
-        guard processIDAt(point) == application.processIdentifier,
-              let element = elementAt(point)
+        guard let element = elementAt(point, in: application)
         else {
             throw DriverError.failure("refusing click outside the target application")
         }
@@ -1152,7 +1159,7 @@ func run(_ arguments: [String]) throws {
             throw DriverError.failure("could not safely press application action: \(arguments[2])")
         }
         let point = CGPoint(x: frame.midX, y: frame.midY)
-        guard processIDAt(point) == application.processIdentifier else {
+        guard let hit = elementAt(point, in: application), !isRiskyControl(hit) else {
             throw DriverError.failure("application action is not exposed at its accessibility frame")
         }
         try postMouse(.mouseMoved, at: point)
