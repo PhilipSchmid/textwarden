@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TextWarden</title><link rel="stylesheet" href="popup.css"></head>
+<body>
+<header><img src="icon.png" width="44" height="44" alt=""><div><strong>TextWarden</strong><span id="connection" role="status" data-state="connecting">Connecting to Mac app…</span></div><span id="version" class="badge"></span></header>
+<main><button id="reconnect" class="link" hidden>Open TextWarden &amp; reconnect</button>
+  <div class="page-address"><span class="page-symbol"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c5 5 5 13 0 18-5-5-5-13 0-18Z"/></svg></span><div><h1 id="site">This page</h1><small id="pagePath" hidden></small></div></div>
+  <section aria-label="Page controls">
+    <label class="row"><span><strong>Check this page</strong><small>Saved for this path, including its port.</small></span><input id="enabled" type="checkbox" role="switch" disabled></label>
+    <label class="row"><span>Show underlines<small>For this page, when enabled in TextWarden.</small></span><input id="underlines" type="checkbox" role="switch" checked disabled></label>
+  </section>
+  <p id="status" role="status">Checking page availability…</p>
+  <div class="tools" aria-label="Writing tools">
+    <button data-tool="grammar" disabled><span class="symbol grammar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></span>Suggestions</button>
+    <button data-tool="compose" disabled><span class="symbol compose"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5H5v14h14v-7M12 12l1-4 7-7 3 3-7 7-4 1ZM18 3l3 3"/></svg></span>AI Compose</button>
+    <button data-tool="rewrite" disabled><span class="symbol rewrite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5ZM20 2v4M18 4h4"/></svg></span>Rewrite</button>
+  </div>
+  <section aria-label="Website settings">
+    <div class="row"><span>Website checking<small id="siteScope">All pages on this site</small></span><button id="website" aria-expanded="false" aria-controls="sitePauseMenu" class="site-action" disabled>Pause site</button></div>
+    <div id="sitePauseMenu" class="pause-options" role="group" aria-label="Pause website checking" hidden><button data-pause="Paused for 1 Hour">1 hour</button><button data-pause="Paused for 24 Hours">24 hours</button><button data-pause="Paused Until Resumed">Until resumed</button></div>
+    <button id="websiteRules" class="link" hidden>Manage the rule that pauses this website…</button>
+  </section>
+  <div id="pauseNotice" class="notice" hidden><p id="pauseText"></p><button id="resume" class="link">Resume in browser</button></div>
+  <p id="error" role="alert" hidden></p>
+</main>
+<footer><button id="settings" class="link" aria-label="TextWarden browser settings" title="TextWarden browser settings" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 4-.5 2-2 .9-1.9-.6-2 3.4L5 11v2l-1.4 1.3 2 3.4 1.9-.6 2 .9.5 2h4l.5-2 2-.9 1.9.6 2-3.4L19 13v-2l1.4-1.3-2-3.4-1.9.6-2-.9-.5-2Z"/><circle cx="12" cy="12" r="3"/></svg></button><span>On-device only</span></footer>
+<script src="popup.js"></script>
+</body></html>
