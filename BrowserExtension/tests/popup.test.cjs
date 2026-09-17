@@ -13,7 +13,7 @@ async function harness({ noReceiver = false, url = "https://example.com/editor",
     if (!elements.has(id)) elements.set(id, { dataset: {}, hidden: false, disabled: false, textContent: "", setAttribute(name, value) { this[name] = value; }, listeners: {}, addEventListener(name, fn) { this.listeners[name] = fn; } });
     return elements.get(id);
   };
-  const tools = ["grammar", "compose", "rewrite"].map(tool => { const e = element(tool); e.dataset.tool = tool; return e; });
+  const tools = ["rewrite"].map(tool => { const e = element(tool); e.dataset.tool = tool; return e; });
   const pauses = ["Paused for 1 Hour", "Paused for 24 Hours", "Paused Until Resumed"].map(pause => { const e = element(pause); e.dataset.pause = pause; return e; });
   const port = { onMessage: event(), onDisconnect: event(), postMessage(message) { sent.push(message); } };
   const chrome = {
@@ -30,7 +30,7 @@ async function harness({ noReceiver = false, url = "https://example.com/editor",
   return { element, timers, sent, port, reply, chrome, tools };
 }
 function assertUnavailable(h) {
-  for (const id of ["enabled", "underlines", "website", "settings", "grammar", "compose", "rewrite"]) assert.equal(h.element(id).disabled, true, id);
+  for (const id of ["enabled", "underlines", "website", "settings", "rewrite"]) assert.equal(h.element(id).disabled, true, id);
 }
 
 test("popup disables stale controls on connection loss and recovers only after app configuration", async () => {
@@ -49,7 +49,7 @@ test("popup disables stale controls on connection loss and recovers only after a
   h.port.onMessage.emit({ version: 1, kind: "connection", status: "connected" });
   assertUnavailable(h);
   h.reply();
-  assert.equal(h.element("grammar").disabled, false);
+  assert.equal(h.element("rewrite").disabled, false);
   assert.equal(h.element("reconnect").hidden, true);
   assert.equal(h.timers.size, 0);
 });
@@ -91,7 +91,7 @@ test("website pause choices send the selected duration and expose a resume actio
   assert.equal(h.sent.at(-1).pause, "Paused for 1 Hour");
   assert.equal(h.element("sitePauseMenu").hidden, true);
   h.reply({ siteEnabled: false, pageEnabled: false, sitePausedUntil: Date.now() / 1000 + 3600 });
-  assert.match(h.element("siteScope").textContent, /^Resumes /);
+  assert.match(h.element("siteScope").textContent, /^Paused until /);
   assert.equal(h.element("enabled").disabled, true);
   h.element("website").listeners.click();
   assert.equal(h.sent.at(-1).action, "resumeSite");
@@ -103,9 +103,10 @@ test("a page without a content-script receiver still connects and fails closed u
   assert.equal(h.sent.at(-1).action, "connect");
   h.reply();
   assert.equal(h.element("connection").textContent, "Connected to Mac app");
-  assert.equal(h.element("grammar").disabled, true);
+  assert.equal(h.element("rewrite").disabled, true);
   assert.equal(h.element("underlines").disabled, false);
-  assert.match(h.element("status").textContent, /Click a supported text field/);
+  assert.equal(h.element("status").hidden, true);
+  assert.equal(h.element("rewrite").hidden, true);
 });
 
 test("Firefox release versions match the app build without version_name", async () => {
@@ -135,5 +136,36 @@ test("address hover labels preserve host, port and path without query or fragmen
   h.reply();
   assert.equal(h.element("site").title, "example.com:8443");
   assert.equal(h.element("pagePath").title, path);
-  assert.equal(h.element("siteScope").title, "All pages · example.com:8443");
+  assert.equal(h.element("siteScope").title, "All pages on example.com:8443");
+});
+
+
+test("rewrite appears only for a selection in an enabled editor; healthy status stays quiet", async () => {
+  const h = await harness(); h.reply();
+  assert.equal(h.element("status").hidden, true);
+  assert.equal(h.element("rewrite").hidden, false);
+  const sender = { id: "extension", tab: { id: 1 }, frameId: 0 };
+  h.chrome.runtime.onMessage.emit({ target: "textwarden-popup", page: { enabled: true, hasEditor: true, hasSelection: false } }, sender);
+  assert.equal(h.element("rewrite").hidden, true);
+  h.chrome.runtime.onMessage.emit({ target: "textwarden-popup", page: { enabled: true, hasEditor: true, hasSelection: true } }, sender);
+  assert.equal(h.element("rewrite").hidden, false);
+  h.reply({ siteEnabled: false, pageEnabled: false });
+  assert.equal(h.element("rewrite").hidden, true);
+  assert.equal(h.element("websiteLabel").textContent, "Resume website");
+  assert.equal(h.element("website").dataset.paused, "true");
+  assert.equal(h.element("siteScope").textContent, "Paused until resumed");
+  assert.equal(h.element("status").hidden, false);
+});
+
+
+test("contextual rewrite retains the existing editor command and reports failed handoff", async () => {
+  const h = await harness(); h.reply();
+  let command;
+  h.chrome.tabs.sendMessage = async (tabID, message) => { command = { tabID, ...message }; return { queued: true }; };
+  await h.element("rewrite").listeners.click();
+  assert.deepEqual(JSON.parse(JSON.stringify(command)), { tabID: 1, target: "textwarden-page", action: "tool", tool: "rewrite" });
+  h.chrome.tabs.sendMessage = async () => ({ queued: false });
+  await h.element("rewrite").listeners.click();
+  assert.equal(h.element("error").hidden, false);
+  assert.match(h.element("error").textContent, /Return to the text field/);
 });
