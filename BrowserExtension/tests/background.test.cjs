@@ -9,13 +9,13 @@ function event() {
 }
 
 function harness() {
-  const sent = [], delivered = [], timers = []; let connections = 0;
+  const sent = [], delivered = [], timers = [], icons = [], titles = []; let connections = 0;
   const native = { onMessage: event(), onDisconnect: event(), postMessage(message) { sent.push(message); }, disconnect() {} };
   const chrome = {
-    action: { onClicked: event(), async setBadgeText() {} },
+    action: { onClicked: event(), async setBadgeText() {}, async setIcon(value) { icons.push(value); }, async setTitle(value) { titles.push(value); } },
     scripting: { async executeScript() {} },
     runtime: { id: "test-extension", getURL(path) { return `chrome-extension://test-extension/${path}`; }, onMessage: event(), onConnect: event(), connectNative() { connections++; return native; } },
-    tabs: { onUpdated: event(), async get(id) { return { id, active: true, windowId: 1, url: "https://example.com/editor?private-query" }; } },
+    tabs: { onRemoved: event(), onUpdated: event(), async get(id) { return { id, active: true, windowId: 1, url: "https://example.com/editor?private-query" }; } },
     windows: { async get() { return { focused: true }; } },
   };
   vm.runInNewContext(readFileSync(require.resolve("../background.js"), "utf8"), { chrome, URL, crypto: { randomUUID: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }, setTimeout(fn) { timers.push(fn); return fn; }, clearTimeout(fn) { const index = timers.indexOf(fn); if (index !== -1) timers.splice(index, 1); } });
@@ -23,7 +23,7 @@ function harness() {
     return { name: "textwarden-editor", sender: { id: "test-extension", frameId: 0, tab: { id: tabID, incognito }, url }, onMessage: event(), onDisconnect: event(), disconnected: false,
       postMessage(message) { delivered.push({ tabID, message }); }, disconnect() { this.disconnected = true; } };
   }
-  return { chrome, native, sent, delivered, port, timers, connections: () => connections, async ready() { await native.onMessage.emit({ version: 1, kind: "configuration", session: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }); sent.length = 0; delivered.length = 0; } };
+  return { chrome, native, sent, delivered, port, timers, icons, titles, connections: () => connections, async ready() { await native.onMessage.emit({ version: 1, kind: "configuration", session: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }); sent.length = 0; delivered.length = 0; } };
 }
 
 test("native routing derives origin from Chrome and rejects cross-tab session reuse", async () => {
@@ -257,4 +257,81 @@ test("editor health reveals only whether the sender owns its current session", a
   assert.equal(replies.at(-1).known, false);
   await h.chrome.runtime.onMessage.emit(message, h.port(1, "https://example.com", true).sender, response => replies.push(response));
   assert.equal(replies.length, 2, "private tabs must not query session state");
+});
+
+test("toolbar pause feedback follows confirmed page, site, browser and global policy per tab", async () => {
+  const h = harness(), p = h.port(1);
+  const session = "12345678-1234-4234-8234-123456789012";
+  await h.chrome.runtime.onConnect.emit(p);
+  await p.onMessage.emit({ version: 1, kind: "pageStatus", session });
+  await h.ready();
+  const configuration = { version: 1, kind: "configuration", session, pageURL: "https://example.com/editor", pageEnabled: true, siteEnabled: true };
+  for (const [policy, title] of [
+    [{ siteEnabled: false }, "Paused on this website"],
+    [{ pageEnabled: false }, "Paused on this page"],
+    [{ appPaused: true }, "Paused in this browser"],
+    [{ globalPaused: true }, "Paused everywhere"],
+    [{}, "Checking enabled"],
+  ]) {
+    await h.native.onMessage.emit({ ...configuration, ...policy });
+    await new Promise(setImmediate);
+    assert.equal(h.icons.at(-1).tabId, 1);
+    assert.equal(h.icons.at(-1).path[32], title.startsWith("Paused") ? "toolbar-paused.png" : "toolbar.png");
+    assert.equal(h.titles.at(-1).title, `TextWarden (${title})`);
+  }
+  const count = h.icons.length;
+  await h.native.onMessage.emit(configuration);
+  await new Promise(setImmediate);
+  assert.equal(h.icons.length, count, "Unchanged policy must not redraw the toolbar");
+  h.chrome.runtime.getURL = path => `safari-web-extension://test/${path}`;
+  await h.native.onMessage.emit({ ...configuration, siteEnabled: false });
+  await new Promise(setImmediate);
+  assert.equal(h.icons.at(-1).path[32], "toolbar-paused-dark.png");
+  await h.native.onDisconnect.emit();
+  assert.equal(h.titles.at(-1).title, "TextWarden (Mac app unavailable)");
+  assert.ok(h.icons.every(icon => icon.tabId === 1), "Never set another tab's or the global icon");
+});
+
+test("navigation clears the pause mark and rejects an in-flight old-page reply", async () => {
+  const h = harness(), p = h.port(1);
+  const session = "12345678-1234-4234-8234-123456789012";
+  await h.chrome.runtime.onConnect.emit(p);
+  await p.onMessage.emit({ version: 1, kind: "pageStatus", session });
+  await h.ready();
+  await h.chrome.tabs.onUpdated.emit(1, { status: "loading" });
+  let resolveTab;
+  h.chrome.tabs.get = () => new Promise(resolve => { resolveTab = resolve; });
+  await h.native.onMessage.emit({ version: 1, kind: "configuration", session, pageURL: "https://example.com/editor", pageEnabled: false });
+  await h.chrome.tabs.onUpdated.emit(1, { status: "loading" });
+  resolveTab({ id: 1, active: true, url: "https://example.com/editor" });
+  await new Promise(setImmediate);
+  assert.equal(h.icons.at(-1).path[32], "toolbar.png");
+  assert.equal(h.titles.at(-1).title, "TextWarden (Open to check this page)");
+  h.chrome.tabs.get = async () => ({ id: 1, active: true, url: "https://example.com/another-page" });
+  const count = h.icons.length;
+  await h.native.onMessage.emit({ version: 1, kind: "configuration", session, pageURL: "https://example.com/editor", pageEnabled: false });
+  await new Promise(setImmediate);
+  assert.equal(h.icons.length, count);
+  await h.chrome.tabs.onRemoved.emit(1);
+});
+
+
+test("newer toolbar policy wins when tab lookups finish out of order", async () => {
+  const h = harness(), p = h.port(1);
+  const session = "12345678-1234-4234-8234-123456789012";
+  await h.chrome.runtime.onConnect.emit(p);
+  await p.onMessage.emit({ version: 1, kind: "pageStatus", session });
+  await h.ready();
+  const lookups = [];
+  h.chrome.tabs.get = () => new Promise(resolve => lookups.push(resolve));
+  const configuration = { version: 1, kind: "configuration", session, pageURL: "https://example.com/editor", pageEnabled: true };
+  await h.native.onMessage.emit({ ...configuration, pageEnabled: false });
+  await h.native.onMessage.emit(configuration);
+  const tab = { id: 1, active: true, url: configuration.pageURL };
+  lookups[1](tab);
+  await new Promise(setImmediate);
+  lookups[0](tab);
+  await new Promise(setImmediate);
+  assert.equal(h.titles.at(-1).title, "TextWarden (Checking enabled)");
+  assert.equal(h.icons.length, 1);
 });

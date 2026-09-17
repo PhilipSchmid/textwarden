@@ -5,6 +5,7 @@ import json
 import plistlib
 import os
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -45,12 +46,17 @@ class PackageTests(unittest.TestCase):
             chromium = json.loads((destination / 'manifest.json').read_text())
             self.assertEqual(chromium['background'], {'service_worker': 'background.js'})
             self.assertNotIn('browser_specific_settings', chromium)
+            self.assertNotIn('theme_icons', chromium['action'])
             firefox_destination = destination.with_name('BrowserExtension-Firefox')
             extension.prepare(plist, firefox_destination, 'firefox')
             firefox = json.loads((firefox_destination / 'manifest.json').read_text())
             self.assertEqual(firefox['background'], {'scripts': ['background.js']})
             self.assertNotIn('key', firefox)
             self.assertEqual(firefox['browser_specific_settings']['gecko']['id'], 'browser@textwarden.io')
+            for manifest, folder in [(chromium, destination), (firefox, firefox_destination)]:
+                for size, file in manifest['action']['default_icon'].items():
+                    self.assertEqual(struct.unpack('>II', (folder / file).read_bytes()[16:24]), (int(size), int(size)))
+            self.assertEqual(firefox['action']['default_icon'], chromium['action']['default_icon'])
             (destination / 'private-test.txt').write_text('Excluded fixture')
             archive = root / 'extension.zip'
             extension.package(app, archive)
@@ -138,6 +144,8 @@ class PackageTests(unittest.TestCase):
             self.assertNotIn('key', manifest)
             self.assertNotIn('browser_specific_settings', manifest)
             self.assertEqual(manifest['background'], {'scripts': ['background.js'], 'persistent': False})
+            self.assertNotIn('theme_icons', manifest['action'])
+            self.assertEqual(manifest['action']['default_icon'], {'16': 'toolbar-dark-16.png', '32': 'toolbar-dark.png'})
 
 
 if __name__ == '__main__': unittest.main()
