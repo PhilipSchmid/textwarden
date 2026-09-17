@@ -88,34 +88,29 @@ struct ApplicationSettingsView: View {
                         DisclosureGroup(
                             isExpanded: $isOtherSectionExpanded,
                             content: {
-                                // Request support hint at the top
-                                if !otherApps.isEmpty {
-                                    HStack(spacing: 12) {
-                                        Image(systemName: "sparkles")
-                                            .font(.title2)
-                                            .foregroundColor(.accentColor)
-
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text("Want better support for an app?")
-                                                .font(.subheadline)
-                                                .fontWeight(.medium)
-                                            Text("Let us know which apps you'd like TextWarden to fully support.")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                        }
-
-                                        Spacer()
-
-                                        Link(destination: URL(string: "https://github.com/philipschmid/textwarden/discussions/new?category=ideas&title=App%20Support%20Request")!) {
-                                            Text("Request")
-                                                .font(.caption)
-                                                .fontWeight(.medium)
-                                        }
-                                        .buttonStyle(.borderedProminent)
-                                        .controlSize(.small)
+                                HStack(spacing: 16) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Missing app support?")
+                                            .font(.callout.weight(.medium))
+                                        Text("Suggest an app on GitHub.")
+                                            .font(.callout)
+                                            .foregroundStyle(.secondary)
                                     }
-                                    .padding(.bottom, 4)
+                                    .fixedSize(horizontal: false, vertical: true)
+
+                                    Spacer(minLength: 8)
+
+                                    if let url = URL(string: "https://github.com/philipschmid/textwarden/discussions/new?category=ideas&title=App%20Support%20Request") {
+                                        Link("Request App Support…", destination: url)
+                                            .buttonStyle(.bordered)
+                                            .fixedSize()
+                                            .help("Open a new app support discussion on GitHub")
+                                    }
                                 }
+                                .padding(12)
+                                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                                .padding(.vertical, 8)
+                                .listRowSeparator(.hidden)
                                 ForEach(filteredOtherApps, id: \.bundleIdentifier) { app in
                                     ApplicationRow(
                                         app: app,
@@ -315,8 +310,10 @@ struct ApplicationSettingsView: View {
     /// Get application info from bundle ID
     private func getApplicationInfo(for bundleID: String) -> ApplicationInfo? {
         let workspace = NSWorkspace.shared
-        guard let appURL = workspace.urlForApplication(withBundleIdentifier: bundleID) else {
-            // App not installed - skip it
+        guard let appURL = workspace.urlForApplication(withBundleIdentifier: bundleID),
+              FileManager.default.fileExists(atPath: appURL.path)
+        else {
+            // Launch Services can retain a registration after the app has been removed.
             return nil
         }
 
@@ -380,7 +377,7 @@ private struct ApplicationRow: View {
                 Spacer()
 
                 if app.policy == .ignored {
-                    Label("Always Excluded", systemImage: "shield.slash")
+                    Text("Always Excluded")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 } else if needsSafeTrialConsent {
@@ -460,6 +457,8 @@ private struct ApplicationRow: View {
             }
         }
         .padding(.vertical, 4)
+        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+        .alignmentGuide(.listRowSeparatorTrailing) { dimensions in dimensions.width }
     }
 
     private var needsSafeTrialConsent: Bool {
