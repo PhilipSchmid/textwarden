@@ -10,42 +10,9 @@ import Foundation
 
 // MARK: - App Registry
 
-enum ApplicationPolicy: Equatable {
-    case supported
-    case safeTrial
-    case pausedByDefault
-    case ignored
-
-    var requiresSafeTrialConsent: Bool {
-        self == .safeTrial || self == .pausedByDefault
-    }
-}
-
 /// Central registry for all app configurations
 final class AppRegistry {
     static let shared = AppRegistry()
-
-    /// Explicit policy overrides for apps that should not inherit the normal supported or
-    /// safe-trial behavior. This is the single source of truth for built-in app defaults.
-    private static let policyOverrides: [String: ApplicationPolicy] = [
-        "io.textwarden.TextWarden": .ignored,
-        "com.apple.ActivityMonitor": .ignored,
-        "com.apple.AppStore": .ignored,
-        "com.apple.finder": .ignored,
-        "com.apple.notificationcenterui": .ignored,
-        "com.apple.printcenter": .ignored,
-        "com.apple.systempreferences": .ignored,
-        "com.apple.UserNotificationCenter": .ignored,
-        "com.knollsoft.Rectangle": .ignored,
-        "com.apple.Terminal": .pausedByDefault,
-        "com.googlecode.iterm2": .pausedByDefault,
-        "co.zeit.hyper": .pausedByDefault,
-        "dev.warp.Warp-Stable": .pausedByDefault,
-        "org.alacritty": .pausedByDefault,
-        "net.kovidgoyal.kitty": .pausedByDefault,
-        "com.github.wez.wezterm": .pausedByDefault,
-        "com.mitchellh.ghostty": .pausedByDefault,
-    ]
 
     /// Bundle ID -> Configuration mapping
     private var configurations: [String: AppConfiguration] = [:]
@@ -88,7 +55,7 @@ final class AppRegistry {
     /// The default product policy for an application. User pause choices remain in
     /// `UserPreferences`; this policy only supplies the built-in default.
     func policy(for bundleID: String) -> ApplicationPolicy {
-        if let override = Self.policyOverrides[bundleID] {
+        if let override = ApplicationPolicy.defaults[bundleID] {
             return override
         }
         return hasConfiguration(for: bundleID) ? .supported : .safeTrial
@@ -99,7 +66,7 @@ final class AppRegistry {
     }
 
     var defaultPausedBundleIDs: Set<String> {
-        Set(Self.policyOverrides.compactMap { bundleID, policy in
+        Set(ApplicationPolicy.defaults.compactMap { bundleID, policy in
             policy == .pausedByDefault ? bundleID : nil
         })
     }

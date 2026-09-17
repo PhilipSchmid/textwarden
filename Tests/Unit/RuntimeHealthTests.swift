@@ -3,10 +3,28 @@
 //  TextWardenTests
 //
 
+import ApplicationServices
 @testable import TextWarden
 import XCTest
 
 final class RuntimeHealthTests: XCTestCase {
+    @MainActor
+    func testExcludedMonitoringAttemptClearsPreviousEditorAndReportsPolicy() {
+        let coordinator = AnalysisCoordinator.shared
+        let context = ApplicationContext(bundleIdentifier: "com.apple.helpviewer", processID: 0, applicationName: "Tips")
+        coordinator.textMonitor.monitoredElement = AXUIElementCreateApplication(getpid())
+        coordinator.currentErrors = [GrammarErrorModel(start: 0, end: 7, message: "Spelling", severity: .warning, category: "Spelling", lintId: "Spelling")]
+
+        coordinator.startMonitoring(context: context)
+
+        XCTAssertNil(coordinator.textMonitor.monitoredElement)
+        XCTAssertTrue(coordinator.currentErrors.isEmpty)
+        XCTAssertFalse(coordinator.floatingIndicator.isVisible)
+        XCTAssertEqual(RuntimeHealthStore.shared.snapshot.reason, .unsupportedApplication)
+        XCTAssertEqual(RuntimeHealthStore.shared.snapshot.bundleIdentifier, context.bundleIdentifier)
+        XCTAssertNil(RuntimeHealthStore.shared.snapshot.action)
+    }
+
     @MainActor
     func testStoppedMonitoringClearsCachedBrowserPresentation() {
         let coordinator = AnalysisCoordinator.shared

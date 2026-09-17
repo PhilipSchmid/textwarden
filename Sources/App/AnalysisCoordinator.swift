@@ -1657,20 +1657,11 @@ class AnalysisCoordinator: ObservableObject {
             }
             .store(in: &cancellables)
 
-        // CRITICAL FIX: Check if there's already an active application
+        // Resolve policy even when the initial app is paused or excluded, so startup
+        // reports the same state as switching to that app later.
         if let currentApp = applicationTracker.activeApplication {
-            Logger.debug("AnalysisCoordinator: Found existing active application: \(currentApp.applicationName) (\(currentApp.bundleIdentifier))", category: Logger.analysis)
-            Logger.debug("AnalysisCoordinator: Should check? \(currentApp.shouldCheck())", category: Logger.analysis)
-            Logger.debug("AnalysisCoordinator: Context isEnabled: \(currentApp.isEnabled)", category: Logger.analysis)
-            Logger.debug("AnalysisCoordinator: Global isEnabled: \(userPreferences.isEnabled)", category: Logger.analysis)
-            Logger.debug("AnalysisCoordinator: Is in disabled apps? \(userPreferences.disabledApplications.contains(currentApp.bundleIdentifier))", category: Logger.analysis)
-            if currentApp.shouldCheck() {
-                Logger.debug("AnalysisCoordinator: Starting monitoring for existing app", category: Logger.analysis)
-                monitoredContext = currentApp // Set BEFORE startMonitoring
-                startMonitoring(context: currentApp)
-            } else {
-                Logger.debug("AnalysisCoordinator: Existing app not in check list", category: Logger.analysis)
-            }
+            monitoredContext = currentApp
+            startMonitoring(context: currentApp)
         } else {
             Logger.debug("AnalysisCoordinator: No active application detected yet", category: Logger.analysis)
         }
@@ -1686,6 +1677,7 @@ class AnalysisCoordinator: ObservableObject {
 
         let healthDecision = runtimeHealthDecision(for: context)
         guard healthDecision.allowsMonitoring else {
+            stopMonitoring()
             RuntimeHealthStore.shared.update(healthDecision, context: context)
             if healthDecision.reason == .consentRequired {
                 MenuBarController.shared?.showSafeTrialPrompt(for: context)
@@ -1810,9 +1802,7 @@ class AnalysisCoordinator: ObservableObject {
 
     /// Resume monitoring after permission grant
     private func resumeMonitoring() {
-        if let context = applicationTracker.activeApplication,
-           context.shouldCheck()
-        {
+        if let context = applicationTracker.activeApplication {
             monitoredContext = context // Set BEFORE startMonitoring
             startMonitoring(context: context)
         }
