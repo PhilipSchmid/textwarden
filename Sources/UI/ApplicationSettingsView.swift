@@ -7,6 +7,7 @@
 
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - Application Settings
 
@@ -15,7 +16,10 @@ struct ApplicationSettingsView: View {
     @State private var searchText = ""
     @State private var supportedApps: [ApplicationInfo] = []
     @State private var otherApps: [ApplicationInfo] = []
+    @State private var excludedApps: [ApplicationInfo] = []
     @State private var isOtherSectionExpanded = false
+    @State private var isExcludedSectionExpanded = false
+    @State private var applicationError: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -38,36 +42,48 @@ struct ApplicationSettingsView: View {
             .cornerRadius(6)
             .padding()
 
+            HStack {
+                Text("To exclude an app, choose Paused Until Resumed.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Pause Another App…", action: chooseApplicationToPause)
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+
             // Application list
             List {
                 // MARK: - Supported Applications Section
 
-                Section {
-                    ForEach(filteredSupportedApps, id: \.bundleIdentifier) { app in
-                        ApplicationRow(
-                            app: app,
-                            preferences: preferences
-                        )
-                    }
-                } header: {
-                    HStack {
-                        Text("Supported Applications")
-                            .font(.headline)
-                        Spacer()
-                        Text("\(supportedApps.count) apps")
+                if !filteredSupportedApps.isEmpty {
+                    Section {
+                        ForEach(filteredSupportedApps, id: \.bundleIdentifier) { app in
+                            ApplicationRow(
+                                app: app,
+                                preferences: preferences
+                            )
+                        }
+                    } header: {
+                        HStack {
+                            Text("Supported Applications")
+                                .font(.headline)
+                            Spacer()
+                            Text(filteredSupportedApps.count == 1 ? "1 app" : "\(filteredSupportedApps.count) apps")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    } footer: {
+                        Text("TextWarden has been tested and optimized for these applications.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
-                } footer: {
-                    Text("TextWarden has been tested and optimized for these applications.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    .headerProminence(.increased)
                 }
-                .headerProminence(.increased)
 
                 // MARK: - Other Applications Section
 
-                if !otherApps.isEmpty || !searchText.isEmpty {
+                if !filteredOtherApps.isEmpty {
                     Section {
                         DisclosureGroup(
                             isExpanded: $isOtherSectionExpanded,
@@ -112,7 +128,7 @@ struct ApplicationSettingsView: View {
                                     Text("Other Applications")
                                         .font(.headline)
                                     Spacer()
-                                    Text("\(otherApps.count) apps")
+                                    Text(filteredOtherApps.count == 1 ? "1 app" : "\(filteredOtherApps.count) apps")
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
@@ -127,11 +143,32 @@ struct ApplicationSettingsView: View {
                     }
                     .headerProminence(.increased)
                 }
+
+                if !filteredExcludedApps.isEmpty {
+                    Section {
+                        DisclosureGroup(isExpanded: $isExcludedSectionExpanded) {
+                            ForEach(filteredExcludedApps, id: \.bundleIdentifier) { app in
+                                ApplicationRow(app: app, preferences: preferences)
+                            }
+                        } label: {
+                            Text("Excluded by TextWarden")
+                                .font(.headline)
+                        }
+                    } footer: {
+                        Text("System utilities and sensitive apps are never checked. These exclusions cannot be resumed.")
+                            .font(.caption)
+                    }
+                }
+
+                if filteredSupportedApps.isEmpty, filteredOtherApps.isEmpty, filteredExcludedApps.isEmpty {
+                    Text("No matching applications. Use Pause Another App… to select one.")
+                        .foregroundStyle(.secondary)
+                }
             }
             .listStyle(.inset)
 
             // Info text
-            Text("Supported apps use their verified capabilities. Other apps start with copy-only fixes after you approve them.")
+            Text("Use an app’s More menu to suggest a default exclusion. This opens a GitHub report for you to review.")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -145,6 +182,20 @@ struct ApplicationSettingsView: View {
         }
         .onChange(of: preferences.discoveredApplications) {
             loadApplications()
+        }
+        .onChange(of: searchText) {
+            if !searchText.isEmpty {
+                isOtherSectionExpanded = true
+                isExcludedSectionExpanded = true
+            }
+        }
+        .alert("Couldn’t Pause Application", isPresented: Binding(
+            get: { applicationError != nil },
+            set: { if !$0 { applicationError = nil } }
+        )) {
+            Button("OK") { applicationError = nil }
+        } message: {
+            Text(applicationError ?? "")
         }
     }
 
@@ -169,6 +220,35 @@ struct ApplicationSettingsView: View {
         return otherApps.filter { app in
             app.name.localizedCaseInsensitiveContains(searchText) ||
                 app.bundleIdentifier.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+
+    private var filteredExcludedApps: [ApplicationInfo] {
+        excludedApps.filter {
+            searchText.isEmpty || $0.name.localizedCaseInsensitiveContains(searchText)
+                || $0.bundleIdentifier.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+
+    private func chooseApplicationToPause() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.application]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
+        panel.prompt = "Pause Application"
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            guard let bundleID = Bundle(url: url)?.bundleIdentifier, !bundleID.isEmpty else {
+                applicationError = "The selected app has no bundle identifier. Choose a macOS application."
+                return
+            }
+            preferences.discoveredApplications.insert(bundleID)
+            if !AppRegistry.shared.isIntentionallyDisabled(bundleID) {
+                preferences.setPauseDuration(for: bundleID, duration: .indefinite)
+            }
+            searchText = bundleID
+            loadApplications()
         }
     }
 
@@ -205,12 +285,13 @@ struct ApplicationSettingsView: View {
             allBundleIDs.insert(bundleID)
         }
 
-        // 5. Include installed apps with a registry-owned paused-by-default policy.
-        allBundleIDs.formUnion(AppRegistry.shared.defaultPausedBundleIDs)
+        // Include installed built-in exclusions, even before their first activation.
+        allBundleIDs.formUnion(ApplicationPolicy.defaults.keys)
 
         // Convert to ApplicationInfo and split by support status
         var supported: [ApplicationInfo] = []
         var other: [ApplicationInfo] = []
+        var excluded: [ApplicationInfo] = []
 
         for bundleID in allBundleIDs {
             if let app = getApplicationInfo(for: bundleID) {
@@ -220,7 +301,7 @@ struct ApplicationSettingsView: View {
                 case .safeTrial, .pausedByDefault:
                     other.append(app)
                 case .ignored:
-                    break
+                    excluded.append(app)
                 }
             }
         }
@@ -228,6 +309,7 @@ struct ApplicationSettingsView: View {
         // Sort alphabetically
         supportedApps = supported.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         otherApps = other.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        excludedApps = excluded.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     /// Get application info from bundle ID
@@ -297,7 +379,16 @@ private struct ApplicationRow: View {
 
                 Spacer()
 
-                if needsSafeTrialConsent {
+                if app.policy == .ignored {
+                    Label("Always Excluded", systemImage: "shield.slash")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else if needsSafeTrialConsent {
+                    if preferences.getPauseDuration(for: app.bundleIdentifier) == .indefinite {
+                        Text("Paused Until Resumed")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
                     Button("Try Safely") {
                         preferences.allowSafeTrial(for: app.bundleIdentifier)
                         preferences.setPauseDuration(for: app.bundleIdentifier, duration: .active)
@@ -322,19 +413,35 @@ private struct ApplicationRow: View {
                     .pickerStyle(.menu)
                     .frame(width: 200)
                     .help("Set pause duration for \(app.name)")
+                }
 
-                    if app.policy == .supported {
-                        Button {
-                            let currentlyEnabled = preferences.areUnderlinesEnabled(for: app.bundleIdentifier)
-                            preferences.setUnderlinesEnabled(!currentlyEnabled, for: app.bundleIdentifier)
-                        } label: {
-                            Image(systemName: "underline")
-                                .foregroundColor(preferences.areUnderlinesEnabled(for: app.bundleIdentifier) ? .accentColor : .secondary)
+                if app.policy != .ignored {
+                    Menu {
+                        if app.policy == .supported {
+                            Toggle("Show Underlines", isOn: Binding(
+                                get: { preferences.areUnderlinesEnabled(for: app.bundleIdentifier) },
+                                set: { preferences.setUnderlinesEnabled($0, for: app.bundleIdentifier) }
+                            ))
+                            Divider()
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .help(preferences.areUnderlinesEnabled(for: app.bundleIdentifier) ? "Disable underlines for \(app.name)" : "Enable underlines for \(app.name)")
+                        if needsSafeTrialConsent {
+                            Button("Pause Until Resumed") {
+                                preferences.setPauseDuration(for: app.bundleIdentifier, duration: .indefinite)
+                            }
+                            Divider()
+                        }
+                        if let url = app.exclusionReportURL {
+                            Link("Suggest Default Exclusion…", destination: url)
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
                     }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .frame(width: 24, height: 24)
+                    .fixedSize()
+                    .help("More options for \(app.name)")
+                    .accessibilityLabel("More options for \(app.name)")
                 }
             }
 
@@ -396,4 +503,15 @@ private struct ApplicationInfo {
     let bundleIdentifier: String
     let icon: NSImage?
     let policy: ApplicationPolicy
+
+    var exclusionReportURL: URL? {
+        var components = URLComponents(string: "https://github.com/PhilipSchmid/textwarden/issues/new")
+        components?.queryItems = [
+            URLQueryItem(name: "template", value: "application_exclusion.yml"),
+            URLQueryItem(name: "title", value: "Default exclusion: \(name)"),
+            URLQueryItem(name: "app", value: name),
+            URLQueryItem(name: "bundle-id", value: bundleIdentifier),
+        ]
+        return components?.url
+    }
 }
