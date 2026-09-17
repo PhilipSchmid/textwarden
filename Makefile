@@ -35,7 +35,7 @@ help: ## Show this help message
 
 ##@ Building
 
-build: build-rust help-book build-swift ## Build the project
+build: build-rust build-swift ## Build the project
 
 build-rust: ## Build Rust library
 	@echo "$(BLUE)🦀 Building Rust grammar engine...$(NC)"
