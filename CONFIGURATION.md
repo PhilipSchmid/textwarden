@@ -211,7 +211,13 @@ Terminal, iTerm2, Hyper, Warp, Alacritty, Kitty, WezTerm, and Ghostty are paused
 
 ### Per-app controls
 
-Each discovered app can be Active, paused for one hour, paused for 24 hours, or paused until resumed. The underline button disables visual underlines for that app without turning off grammar checking.
+Each discovered app can be Active, paused for one hour, paused for 24 hours, or paused until resumed. For supported apps, **More → Show Underlines** is checked when underlines are enabled for that app. Turn it off to hide underlines without turning off grammar checking; global underline settings still apply.
+
+To exclude an app, open **Preferences → Applications** and choose **Paused Until Resumed**. **Pause Another App…** lets you select an installed app without opening it first. For an app awaiting approval, its **More** menu also offers **Pause Until Resumed**. This choice stays saved across restarts; **Try Safely** lets you opt in later.
+
+**Excluded by TextWarden** lists installed utilities and sensitive apps that are never checked, including Finder, System Settings, Passwords, and Tips. These built-in exclusions cannot be resumed. Search by app name or bundle identifier to find one.
+
+If another utility should be excluded for everyone, choose **More → Suggest Default Exclusion…** beside it. TextWarden opens a GitHub draft with only the app name and bundle identifier; explain its purpose and submit it yourself. See the [default exclusion policy and macOS audit](docs/APPLICATION_EXCLUSIONS.md).
 
 ### Website exclusions
 

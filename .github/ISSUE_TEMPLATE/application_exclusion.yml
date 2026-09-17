@@ -1,0 +1,36 @@
+name: Suggest a default app exclusion
+description: Report a utility or sensitive app where TextWarden should stay inactive.
+title: "Default exclusion: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        To pause an app now, open TextWarden Settings → Applications and choose Paused Until Resumed, or use Pause Another App….
+        Share only the app's identity and purpose. Do not include passwords, account details, or private text.
+  - type: input
+    id: app
+    attributes:
+      label: Application
+      placeholder: App name and version
+    validations:
+      required: true
+  - type: input
+    id: bundle-id
+    attributes:
+      label: Bundle identifier
+      description: Copy the identifier below the app's name in TextWarden Settings → Applications.
+      placeholder: com.vendor.application
+    validations:
+      required: true
+  - type: textarea
+    id: reason
+    attributes:
+      label: Why should this app be excluded for everyone?
+      description: What does it do? Does it have notes, messages, comments, or another place to write prose?
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: e.g. macOS 26.6 or macOS 27 beta
