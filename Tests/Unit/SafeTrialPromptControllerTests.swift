@@ -32,6 +32,14 @@ final class SafeTrialPromptControllerTests: XCTestCase {
             "com.apple.systempreferences",
             "com.apple.UserNotificationCenter",
             "com.knollsoft.Rectangle",
+            "com.apple.Passwords",
+            "com.apple.Passwords.MenuBarExtra",
+            "com.apple.keychainaccess",
+            "com.apple.helpviewer",
+            "com.apple.tips",
+            "com.apple.DiskUtility",
+            "com.apple.Console",
+            "com.apple.tcc.AuthorizationPromptService",
         ]
 
         for bundleID in bundleIDs {
@@ -39,6 +47,54 @@ final class SafeTrialPromptControllerTests: XCTestCase {
             XCTAssertTrue(registry.isIntentionallyDisabled(bundleID))
             XCTAssertFalse(registry.requiresSafeTrialConsent(for: bundleID))
             XCTAssertFalse(UserPreferences.shared.isEnabled(for: bundleID))
+        }
+    }
+
+    func testEveryBuiltInExclusionWinsOverSavedConsentAndActiveOverrides() throws {
+        let suite = "ApplicationExclusionsTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let preferences = UserPreferences(defaults: defaults)
+        preferences.pauseDuration = .active
+
+        for (bundleID, policy) in ApplicationPolicy.defaults where policy == .ignored {
+            preferences.allowSafeTrial(for: bundleID)
+            preferences.setPauseDuration(for: bundleID, duration: .active)
+            XCTAssertFalse(preferences.isEnabled(for: bundleID), bundleID)
+            XCTAssertFalse(AppRegistry.shared.requiresSafeTrialConsent(for: bundleID), bundleID)
+
+            let decision = RuntimeHealthPolicy.evaluate(RuntimeHealthConditions(
+                applicationSupported: !AppRegistry.shared.isIntentionallyDisabled(bundleID),
+                permissionGranted: false,
+                globalPaused: false,
+                applicationPaused: false,
+                applicationDisabled: false,
+                consentGranted: true,
+                availableCapabilities: .full,
+                availableAction: .reportCompatibility
+            ))
+            XCTAssertFalse(decision.allowsMonitoring, bundleID)
+            XCTAssertEqual(decision.reason, .unsupportedApplication, bundleID)
+            XCTAssertNil(decision.action, bundleID)
+        }
+        preferences.resetToDefaults()
+        XCTAssertFalse(preferences.isEnabled(for: "com.apple.helpviewer"))
+    }
+
+    func testExclusionsMatchWholeIdentifiersAndPreserveWritingApps() {
+        let registry = AppRegistry.shared
+        for bundleID in [
+            "com.apple.Preview", "com.apple.iBooksX", "com.apple.Photos",
+            "com.apple.Stickies", "com.apple.freeform", "com.apple.journal",
+            "com.apple.shortcuts", "com.apple.ScriptEditor2", "com.apple.Automator",
+            "com.apple.appleseed.FeedbackAssistant", "com.apple.ProblemReporter",
+            "com.apple.accessibility.LiveSpeech", "com.apple.LinkedNotesUIService",
+            "com.apple.helpviewer.editor", "com.apple.PasswordsHelper", "com.example.Passwords",
+        ] {
+            XCTAssertFalse(registry.isIntentionallyDisabled(bundleID), bundleID)
+        }
+        for bundleID in ["com.apple.TextEdit", "com.apple.mail", "com.apple.Notes", "com.apple.Safari"] {
+            XCTAssertEqual(registry.policy(for: bundleID), .supported, bundleID)
         }
     }
 

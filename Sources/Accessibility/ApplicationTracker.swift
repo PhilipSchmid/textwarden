@@ -127,7 +127,7 @@ class ApplicationTracker: ObservableObject {
         // Unknown apps remain untouched until AnalysisCoordinator asks the user whether to
         // try them safely. This tracker must not change a user's app pause settings merely
         // because an app has not been registered yet.
-        if isNewApp, !AppRegistry.shared.hasConfiguration(for: bundleIdentifier) {
+        if isNewApp, AppRegistry.shared.requiresSafeTrialConsent(for: bundleIdentifier) {
             Logger.info("Discovered unknown app awaiting safe-trial consent: \(bundleIdentifier)", category: Logger.general)
         }
 
