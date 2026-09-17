@@ -47,10 +47,12 @@ Check these in order:
 
 1. Confirm TextWarden is active in its menu bar menu.
 2. Open **Preferences → Diagnostics** and check **Runtime Health** for the current app and any suggested recovery action.
-3. Open **Preferences → Applications** and check the current app. For an unrecognized app, choose **Try Safely** to use the indicator and copy-only fixes, or leave it paused.
+3. Open **Preferences → Applications** and check the current app. **Always Excluded** means checking is intentionally unavailable and cannot be enabled. For other unrecognized apps, choose **Try Safely** to use the indicator and copy-only fixes, or leave them paused.
 4. In a browser, open **Preferences → Websites** and make sure the current domain is not excluded.
 5. Type into an editable field, not rendered page text, a PDF, or a non-editable preview.
 6. Try a deliberate error such as `This are wrong.`
+
+The application lists show only apps found on this Mac. Apps marked Paused by default can be enabled; built-in exclusions cannot.
 
 Some editors expose their text incompletely through macOS Accessibility APIs. The [supported-app matrix](README.md#supported-apps) and [application notes](docs/applications/README.md) describe known exceptions.
 

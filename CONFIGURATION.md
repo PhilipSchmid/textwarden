@@ -203,21 +203,23 @@ See the [supported-app matrix](README.md#supported-apps) and [application notes]
 
 ### Other applications
 
-Before TextWarden reads text in an app without a dedicated configuration, it asks whether to **Try Safely** or **Keep Paused**. A safe trial uses the floating indicator and copy-only fixes; underlines and direct edits stay off. You can change this choice under **Preferences → Applications**. TextWarden can profile the app's Accessibility capabilities locally and cache a strategy recommendation for seven days, but results still depend on the editor.
+For an eligible app without a dedicated configuration, TextWarden asks whether to **Try Safely** or **Keep Paused**. A safe trial uses the floating indicator and copy-only fixes; underlines and direct edits stay off. You can change this choice under **Preferences → Applications**. TextWarden can profile the app's Accessibility capabilities locally and cache a strategy recommendation for seven days, but results still depend on the editor.
 
-### Terminal applications
+### Apps paused by default
 
-Terminal, iTerm2, Hyper, Warp, Alacritty, Kitty, WezTerm, and Ghostty are paused until resumed by default. You can enable one manually, though command output and code tend to produce noisy suggestions.
+Terminal, iTerm2, Hyper, Warp, Alacritty, Kitty, WezTerm, Ghostty, and Terax are paused until resumed by default. Choose **Try Safely** to opt in. Existing explicit per-app choices are preserved; command output and code can produce noisy suggestions.
 
 ### Per-app controls
 
-Each discovered app can be Active, paused for one hour, paused for 24 hours, or paused until resumed. For supported apps, **More → Show Underlines** is checked when underlines are enabled for that app. Turn it off to hide underlines without turning off grammar checking; global underline settings still apply.
+All three application lists show only apps found on this Mac. Uninstalled apps are hidden, even when TextWarden has a built-in rule or saved preference for them.
+
+Eligible apps can be Active, paused for one hour, paused for 24 hours, or paused until resumed. For supported apps, **More → Show Underlines** is checked when underlines are enabled for that app. Turn it off to hide underlines without turning off grammar checking; global underline settings still apply.
 
 To exclude an app, open **Preferences → Applications** and choose **Paused Until Resumed**. **Pause Another App…** lets you select an installed app without opening it first. For an app awaiting approval, its **More** menu also offers **Pause Until Resumed**. This choice stays saved across restarts; **Try Safely** lets you opt in later.
 
-**Excluded by TextWarden** lists installed utilities and sensitive apps that are never checked, including Finder, System Settings, Passwords, and Tips. These built-in exclusions cannot be resumed. Search by app name or bundle identifier to find one.
+**Excluded by TextWarden** lists apps that are never checked. This includes system and credential utilities, plus selected media, viewer, and reporting apps such as 1Password, Photos, Preview, and PDF Expert. **Always Excluded** is read-only: these apps cannot be resumed, even if they were previously enabled. Search by app name or bundle identifier to find one.
 
-If another utility should be excluded for everyone, choose **More → Suggest Default Exclusion…** beside it. TextWarden opens a GitHub draft with only the app name and bundle identifier; explain its purpose and submit it yourself. See the [default exclusion policy and macOS audit](docs/APPLICATION_EXCLUSIONS.md).
+If another utility should be excluded for everyone, choose **More → Suggest Default Exclusion…** beside it. TextWarden opens a GitHub draft with only the app name and bundle identifier; explain its purpose and submit it yourself. See the [default exclusion policy](https://github.com/PhilipSchmid/textwarden/blob/main/docs/APPLICATION_EXCLUSIONS.md).
 
 ### Website exclusions
 

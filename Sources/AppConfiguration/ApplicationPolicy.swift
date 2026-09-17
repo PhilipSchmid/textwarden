@@ -1,4 +1,4 @@
-// Exact bundle IDs only. Review criteria and the macOS audit: docs/APPLICATION_EXCLUSIONS.md.
+// Exact bundle IDs only. Policy and maintenance: docs/APPLICATION_EXCLUSIONS.md.
 // Do not add name, path, vendor-prefix, or wildcard matching here.
 
 enum ApplicationPolicy: Equatable {
@@ -16,7 +16,6 @@ enum ApplicationPolicy: Equatable {
         // Utilities: configuration, diagnostics, search, or viewing without a prose editor.
         "com.apple.ActivityMonitor": .ignored, // Activity Monitor
         "com.apple.airport.airportutility": .ignored, // AirPort Utility
-        "com.apple.AppStore": .ignored, // App Store
         "com.apple.audio.AudioMIDISetup": .ignored, // Audio MIDI Setup
         "com.apple.backup.launcher": .ignored, // Time Machine
         "com.apple.BluetoothFileExchange": .ignored, // Bluetooth File Exchange
@@ -180,11 +179,75 @@ enum ApplicationPolicy: Equatable {
         "com.apple.windowmanager.StageManagerOnboarding": .ignored, // StageManagerOnboarding
         "com.apple.WorkoutAlert-Mac": .ignored, // WorkoutAlert-Mac
 
+        // Credential vaults and installed utility apps without a general writing surface.
+        "com.1password.1password": .ignored, // 1Password; vault contents stay outside the monitoring pipeline
+        "2BUA8C4S2C.com.1password.browser-helper": .ignored, // 1Password Browser Helper
+        "com.1password.1password-launcher": .ignored, // 1Password Launcher
+        "com.1password.OP-Updater": .ignored, // 1Password Updater
+        "com.1password.1password.helper": .ignored, // 1Password Helper
+        "com.1password.1password.helper.GPU": .ignored, // 1Password GPU Helper
+        "com.1password.1password.helper.Renderer": .ignored, // 1Password Renderer Helper
+        "com.1password.1password.helper.Plugin": .ignored, // 1Password Plugin Helper
+        "org.sparkle-project.Sparkle.Autoupdate": .ignored, // Sparkle updater
+        "pro.betterdisplay.BetterDisplay": .ignored, // BetterDisplay
+        "com.steipete.codexbar": .ignored, // CodexBar
+        "com.adobe.acc.AdobeCreativeCloud": .ignored, // Creative Cloud app manager
+        "com.adobe.acc.anc.AdobeCreativeCloud": .ignored, // Creative Cloud notification client
+        "com.adobe.Creative-Cloud-Desktop-App": .ignored, // Creative Cloud Desktop App
+        "Qisda.DDPM": .ignored, // Dell Display and Peripheral Manager
+        "com.apple.IconComposer": .ignored, // Icon Composer
+        "com.intego.commonservices.integomenu": .ignored, // Intego menu
+        "com.intego.virusbarrier.alert": .ignored, // VirusBarrier Alert
+        "com.intego.virusbarrier.application": .ignored, // VirusBarrier
+        "com.intego.NetUpdate": .ignored, // Intego NetUpdate
+        "com.logi.optionsplus": .ignored, // Logi Options+
+        "com.logi.cp-dev-mgr": .ignored, // Logi Options+ agent
+        "com.fabriceleyne.menubarstats": .ignored, // MenuBar Stats
+        "com.fabriceleyne.menubarstatshelper": .ignored, // MenuBar Stats helper
+        "com.microsoft.autoupdate2": .ignored, // Microsoft AutoUpdate
+        "com.microsoft.autoupdate.fba": .ignored, // Microsoft Update Assistant
+        "com.microsoft.OneDrive": .ignored, // OneDrive sync client; documents open in their editors
+        "wang.jianing.app.OpenInTerminal": .ignored, // OpenInTerminal
+        "wang.jianing.app.OpenInTerminalHelper": .ignored, // OpenInTerminal helper
+        "com.techsmith.snagit.capturehelper": .ignored, // Snagit capture helper
+        "com.TechSmith.SupportSnagit": .ignored, // Snagit diagnostic utility
+        "io.tailscale.ipn.macos": .ignored, // Tailscale
+        "com.tresorit.mac": .ignored, // Tresorit sync client; documents open in their editors
+        "com.stonerl.Thaw": .ignored, // Thaw menu bar manager
+        "com.apple.universalcontrol": .ignored, // Universal Control
+        "com.apple.accessibility.universalAccessAuthWarn": .ignored, // Accessibility authorization warning
+        "com.electron.wispr-flow.accessibility-mac-app": .ignored, // Wispr Flow accessibility helper; retain the notes app
+
+        // Product exclusions: keep specialized apps quiet even if they have occasional prose fields.
+        "com.apple.AppStore": .ignored, // App reviews
+        "com.apple.podcasts": .ignored, // Podcast reviews
+        "com.adobe.lightroomCC": .ignored, // Photo captions
+        "com.TechSmith.Snagit": .ignored, // Text annotations
+        "com.valvesoftware.steam": .ignored, // Chat and reviews
+        "com.valvesoftware.steam.helper": .ignored, // Steam web UI can host chat
+        "com.docker.docker": .ignored, // Container tooling with AI prompts
+        "com.electron.dockerdesktop": .ignored, // Docker Desktop UI
+        "app.omlx": .ignored, // Model management with chat access
+
+        "com.openai.sky.CUAService": .ignored, // Codex Computer Use; not the main Codex app
+        "com.microsoft.errorreporting": .ignored, // Microsoft Error Reporting
+        "com.apple.Music": .ignored, // Music
+        "com.readdle.PDFExpert-Mac": .ignored, // PDF Expert
+        "com.apple.Photos": .ignored, // Photos
+        "com.apple.Preview": .ignored, // Preview
+        "com.apple.ProblemReporter": .ignored, // Problem Reporter
+        "com.apple.appleseed.FeedbackAssistant": .ignored, // Feedback Assistant
+
+        // These two apps have general writing editors: retain an explicit opt-in.
+        "com.raycast.macos": .pausedByDefault, // Notes and AI chat
+        "com.electron.wispr-flow": .pausedByDefault, // Dictation with editable notes and transcripts
+
         // Self-monitoring and the existing window-management exclusion.
         "io.textwarden.TextWarden": .ignored,
         "com.knollsoft.Rectangle": .ignored,
 
         // Terminals can contain prose: keep an explicit opt-in instead of a hard exclusion.
+        "app.crynta.terax": .pausedByDefault, // Terax terminal and editor
         "com.apple.Terminal": .pausedByDefault,
         "com.googlecode.iterm2": .pausedByDefault,
         "co.zeit.hyper": .pausedByDefault,
