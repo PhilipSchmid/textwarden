@@ -11,15 +11,17 @@ function render() {
   $("enabled").checked = pageEnabled;
   $("underlines").disabled = !supported || !connected || !pageEnabled;
   $("underlines").checked = page.pageUnderlines;
-  $("website").textContent = configuration?.siteEnabled === false ? "Resume site" : "Pause site";
+  $("websiteLabel").textContent = configuration?.siteEnabled === false ? "Resume website" : "Pause this website…";
+  $("website").dataset.paused = String(configuration?.siteEnabled === false);
   $("website").disabled = !supported || !connected || configuration.siteInherited;
   if (!connected || configuration?.siteEnabled === false) {
     $("sitePauseMenu").hidden = true;
     $("website").setAttribute("aria-expanded", "false");
   }
   $("siteScope").textContent = configuration?.siteEnabled === false && configuration.sitePausedUntil
-    ? `Resumes ${new Date(configuration.sitePausedUntil * 1000).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}`
-    : origin ? `All pages · ${new URL(origin).host}` : "All pages on this site";
+    ? `Paused until ${new Date(configuration.sitePausedUntil * 1000).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}`
+    : configuration?.siteEnabled === false ? "Paused until resumed"
+    : origin ? `All pages on ${new URL(origin).host}` : "All pages on this website";
   $("siteScope").title = $("siteScope").textContent;
   $("websiteRules").hidden = !configuration?.siteInherited;
   $("settings").disabled = !connected;
@@ -34,15 +36,12 @@ function render() {
   $("status").textContent = !connected ? connectionDetail
     : !supported ? "This page does not allow TextWarden. Open a regular web page to use writing tools."
     : !configuration.siteEnabled ? "Checking is paused for this website."
-    : paused ? "Resume checking to use writing tools."
+    : paused ? ""
     : !pageEnabled ? "Checking is paused for this page."
-    : page.hasEditor ? page.status : "Click a supported text field on the page to start writing.";
-  for (const button of document.querySelectorAll("[data-tool]")) {
-    button.disabled = !pageEnabled || !page.hasEditor || !connected || paused || !configuration.siteEnabled
-      || (button.dataset.tool === "grammar" && !page.issueCount)
-      || (button.dataset.tool === "rewrite" && !page.hasSelection);
-    button.title = button.dataset.tool === "rewrite" && !page.hasSelection ? "Select text in the editor to rewrite it" : "Opens TextWarden’s native window";
-  }
+    : "";
+  $("status").hidden = !$("status").textContent;
+  $("rewrite").disabled = !pageEnabled || !page.hasEditor || !page.hasSelection || !connected || paused || !configuration.siteEnabled;
+  $("rewrite").hidden = $("rewrite").disabled;
   document.documentElement.dataset.theme = configuration?.theme ?? "System";
 }
 
@@ -91,9 +90,9 @@ for (const button of document.querySelectorAll("[data-pause]")) button.addEventL
 $("websiteRules").addEventListener("click", () => configure("websites"));
 $("resume").addEventListener("click", () => configure(configuration?.globalPaused ? "settings" : "resumeBrowser"));
 $("settings").addEventListener("click", () => configure("settings"));
-for (const button of document.querySelectorAll("[data-tool]")) button.addEventListener("click", async () => {
+$("rewrite").addEventListener("click", async () => {
   try {
-    const result = await pageCommand("tool", { tool: button.dataset.tool });
+    const result = await pageCommand("tool", { tool: "rewrite" });
     if (!result?.queued) throw new Error();
     window.close();
   } catch { fail("Return to the text field and select text, then try again."); }
@@ -110,7 +109,7 @@ for (const button of document.querySelectorAll("[data-tool]")) button.addEventLi
   $("pagePath").textContent = origin ? new URL(tab.url).pathname : "";
   $("site").title = $("site").textContent;
   $("pagePath").title = $("pagePath").textContent;
-  $("siteScope").textContent = origin ? `All pages · ${new URL(origin).host}` : "All pages on this site";
+  $("siteScope").textContent = origin ? `All pages on ${new URL(origin).host}` : "All pages on this website";
   if (origin) page = (await pageCommand("status").catch(() => null)) ?? page;
   render();
   native = extensionAPI.runtime.connect({ name: "textwarden-popup" });
