@@ -271,6 +271,7 @@
 		};
 		D4HELP0012F0000000000001 /* Copy Help Book */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
@@ -287,7 +288,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Copy Help Book to app bundle\ncp -R \"${PROJECT_DIR}/Resources/TextWarden.help\" \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/\"\n";
+			shellScript = "set -e\nexport PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"\n# Generate and copy together so incremental builds and archives include current manuals.\nmake -C \"${PROJECT_DIR}\" help-book\ncp -R \"${PROJECT_DIR}/Resources/TextWarden.help\" \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/\"\n";
 		};
 		E8AC086E2EC12139008E37E6 /* Build Rust Grammar Engine */ = {
 			isa = PBXShellScriptBuildPhase;
