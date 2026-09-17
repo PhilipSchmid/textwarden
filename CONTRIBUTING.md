@@ -118,7 +118,7 @@ When adding an app:
 
 `AppRegistry` resolves application policy from the exact bundle IDs in [`ApplicationPolicy.defaults`](Sources/AppConfiguration/ApplicationPolicy.swift). Edit that single list to add a default exclusion. Terminal apps remain resumable; ignored utilities cannot be enabled by user overrides. Other unknown apps require safe-trial consent before TextWarden reads their text. `UserPreferences` stores the user's choices.
 
-Before excluding an app, check the [criteria and macOS audit](docs/APPLICATION_EXCLUSIONS.md). Preserve apps with meaningful writing features, even if writing is not their main purpose. Users can suggest additions from **Preferences → Applications → More → Suggest Default Exclusion…** or the [exclusion report form](https://github.com/PhilipSchmid/textwarden/issues/new?template=application_exclusion.yml).
+Before excluding an app, check the [exclusion policy](docs/APPLICATION_EXCLUSIONS.md). Review writing features before excluding an entire app; use a default pause when users should retain the option to enable it. Users can suggest additions from **Preferences → Applications → More → Suggest Default Exclusion…** or the [exclusion report form](https://github.com/PhilipSchmid/textwarden/issues/new?template=application_exclusion.yml).
 
 ## Code Style
 

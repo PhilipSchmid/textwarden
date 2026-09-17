@@ -21,11 +21,27 @@ final class SafeTrialPromptControllerTests: XCTestCase {
         XCTAssertFalse(UserPreferences.shared.isEnabled(for: textWardenBundleID))
     }
 
-    func testKnownNonWritingSystemAppsNeverRequireSafeTrial() {
+    func testKnownExcludedAppsNeverRequireSafeTrial() {
         let registry = AppRegistry.shared
         let bundleIDs = [
             "com.apple.ActivityMonitor",
+            "com.openai.sky.CUAService",
+            "com.microsoft.errorreporting",
+            "com.apple.Music",
+            "com.readdle.PDFExpert-Mac",
+            "com.apple.Photos",
+            "com.apple.Preview",
+            "com.apple.ProblemReporter",
+            "com.apple.appleseed.FeedbackAssistant",
             "com.apple.AppStore",
+            "com.apple.podcasts",
+            "com.adobe.lightroomCC",
+            "com.TechSmith.Snagit",
+            "com.valvesoftware.steam",
+            "com.valvesoftware.steam.helper",
+            "com.docker.docker",
+            "com.electron.dockerdesktop",
+            "app.omlx",
             "com.apple.finder",
             "com.apple.notificationcenterui",
             "com.apple.printcenter",
@@ -40,6 +56,43 @@ final class SafeTrialPromptControllerTests: XCTestCase {
             "com.apple.DiskUtility",
             "com.apple.Console",
             "com.apple.tcc.AuthorizationPromptService",
+            "com.1password.1password",
+            "2BUA8C4S2C.com.1password.browser-helper",
+            "com.1password.1password-launcher",
+            "com.1password.OP-Updater",
+            "com.1password.1password.helper",
+            "com.1password.1password.helper.GPU",
+            "com.1password.1password.helper.Renderer",
+            "com.1password.1password.helper.Plugin",
+            "org.sparkle-project.Sparkle.Autoupdate",
+            "pro.betterdisplay.BetterDisplay",
+            "com.steipete.codexbar",
+            "com.adobe.acc.AdobeCreativeCloud",
+            "com.adobe.acc.anc.AdobeCreativeCloud",
+            "com.adobe.Creative-Cloud-Desktop-App",
+            "Qisda.DDPM",
+            "com.apple.IconComposer",
+            "com.intego.commonservices.integomenu",
+            "com.intego.virusbarrier.alert",
+            "com.intego.virusbarrier.application",
+            "com.intego.NetUpdate",
+            "com.logi.optionsplus",
+            "com.logi.cp-dev-mgr",
+            "com.fabriceleyne.menubarstats",
+            "com.fabriceleyne.menubarstatshelper",
+            "com.microsoft.autoupdate2",
+            "com.microsoft.autoupdate.fba",
+            "com.microsoft.OneDrive",
+            "wang.jianing.app.OpenInTerminal",
+            "wang.jianing.app.OpenInTerminalHelper",
+            "com.techsmith.snagit.capturehelper",
+            "com.TechSmith.SupportSnagit",
+            "io.tailscale.ipn.macos",
+            "com.tresorit.mac",
+            "com.stonerl.Thaw",
+            "com.apple.universalcontrol",
+            "com.apple.accessibility.universalAccessAuthWarn",
+            "com.electron.wispr-flow.accessibility-mac-app",
         ]
 
         for bundleID in bundleIDs {
@@ -84,11 +137,13 @@ final class SafeTrialPromptControllerTests: XCTestCase {
     func testExclusionsMatchWholeIdentifiersAndPreserveWritingApps() {
         let registry = AppRegistry.shared
         for bundleID in [
-            "com.apple.Preview", "com.apple.iBooksX", "com.apple.Photos",
+            "com.apple.iBooksX",
             "com.apple.Stickies", "com.apple.freeform", "com.apple.journal",
             "com.apple.shortcuts", "com.apple.ScriptEditor2", "com.apple.Automator",
-            "com.apple.appleseed.FeedbackAssistant", "com.apple.ProblemReporter",
             "com.apple.accessibility.LiveSpeech", "com.apple.LinkedNotesUIService",
+            "ai.unsloth.studio", "com.adobe.Photoshop", "com.microsoft.Word",
+            "com.openai.codex", "com.readdle.PDFExpert-Mac.editor",
+            "com.techsmith.snagit.capturehelper.editor", "com.1password.unlisted-editor",
             "com.apple.helpviewer.editor", "com.apple.PasswordsHelper", "com.example.Passwords",
         ] {
             XCTAssertFalse(registry.isIntentionallyDisabled(bundleID), bundleID)
@@ -98,9 +153,10 @@ final class SafeTrialPromptControllerTests: XCTestCase {
         }
     }
 
-    func testTerminalsArePausedByDefaultButStillRequireConsentWhenResumed() {
+    func testDefaultPausesStillAllowOptInAndRequireConsent() throws {
         let registry = AppRegistry.shared
         let bundleIDs = [
+            "app.crynta.terax",
             "com.apple.Terminal",
             "com.googlecode.iterm2",
             "co.zeit.hyper",
@@ -109,13 +165,23 @@ final class SafeTrialPromptControllerTests: XCTestCase {
             "net.kovidgoyal.kitty",
             "com.github.wez.wezterm",
             "com.mitchellh.ghostty",
+            "com.raycast.macos",
+            "com.electron.wispr-flow",
         ]
 
+        let suite = "DefaultPauseTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let preferences = UserPreferences(defaults: defaults)
         XCTAssertEqual(registry.defaultPausedBundleIDs, Set(bundleIDs))
         for bundleID in bundleIDs {
             XCTAssertEqual(registry.policy(for: bundleID), .pausedByDefault)
             XCTAssertFalse(registry.isIntentionallyDisabled(bundleID))
             XCTAssertTrue(registry.requiresSafeTrialConsent(for: bundleID))
+            XCTAssertFalse(preferences.isEnabled(for: bundleID), bundleID)
+            preferences.setPauseDuration(for: bundleID, duration: .active)
+            preferences.allowSafeTrial(for: bundleID)
+            XCTAssertTrue(preferences.isEnabled(for: bundleID), bundleID)
         }
     }
 
