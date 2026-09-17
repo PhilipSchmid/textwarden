@@ -1,5 +1,6 @@
 const extensionAPI = globalThis.browser ?? chrome;
 const sessions = new Map(), clients = new Set();
+const toolbarStates = new Map();
 let native, retryTimer, attempts = 0, ready = false;
 const handshake = crypto.randomUUID();
 const configurationActions = new Set(["status", "connect", "pausePageRule", "resumePage", "pauseSite", "resumeSite", "pauseBrowser", "resumeBrowser", "settings", "websites", "globalPause", "browserPause"]);
@@ -8,6 +9,25 @@ function address(value) {
   const url = new URL(value);
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error();
   return { origin: url.origin, pageURL: url.origin + url.pathname };
+}
+function setToolbar(tabId, state = "Open to check this page") {
+  if (toolbarStates.get(tabId)?.state === state) return;
+  toolbarStates.set(tabId, { state });
+  const paused = state.startsWith("Paused") || state === "Mac app unavailable";
+  const template = extensionAPI.runtime.getURL("").startsWith("safari-web-extension:") ? "-dark" : "";
+  const icon = `toolbar${paused ? "-paused" : ""}${template}`;
+  extensionAPI.action.setIcon({ tabId, path: { 16: `${icon}-16.png`, 32: `${icon}.png` } }).catch(() => {});
+  extensionAPI.action.setTitle({ tabId, title: `TextWarden (${state})` }).catch(() => {});
+}
+async function updateToolbar(entry, message) {
+  const previous = { ...toolbarStates.get(entry.tabID) }, connection = native;
+  toolbarStates.set(entry.tabID, previous);
+  const tab = await extensionAPI.tabs.get(entry.tabID).catch(() => null);
+  if (!ready || native !== connection || !tab || tab.incognito || sessions.get(message.session) !== entry || toolbarStates.get(entry.tabID) !== previous) return;
+  try { if (address(tab.url).pageURL !== entry.pageURL || message.pageURL !== entry.pageURL) return; } catch { return; }
+  const state = message.globalPaused ? "Paused everywhere" : message.appPaused ? "Paused in this browser"
+    : message.siteEnabled === false ? "Paused on this website" : message.pageEnabled === false ? "Paused on this page" : "Checking enabled";
+  setToolbar(entry.tabID, state);
 }
 async function syncPage(tabID) {
   const tab = await extensionAPI.tabs.get(tabID);
@@ -100,6 +120,9 @@ function connectNative(launch = false) {
     if (message.kind === "status" && message.action === "policyChanged") { refreshSessions(connection); return; }
     const entry = sessions.get(message.session);
     if (!entry) return;
+    if (message.version === 1 && message.kind === "configuration" && typeof message.pageEnabled === "boolean") {
+      void updateToolbar(entry, message);
+    }
     if (entry.control && entry.syncPage && message.kind === "configuration" && typeof message.pageEnabled === "boolean") {
       entry.syncPage = false;
       syncPage(entry.tabID).catch(() => {});
@@ -122,6 +145,7 @@ function connectNative(launch = false) {
     clearTimeout(healthTimer);
     if (native !== connection) return;
     native = undefined; ready = false;
+    for (const tabID of toolbarStates.keys()) setToolbar(tabID, "Mac app unavailable");
     notifyConnection("disconnected", connectionError(error));
     // Brief app restarts recover automatically. Missing registration needs setup, not endless retries.
     if (clients.size && attempts < 3 && !/not found|forbidden|not registered/i.test(error)) {
@@ -200,12 +224,17 @@ extensionAPI.runtime.onConnect.addListener((port) => {
 });
 
 extensionAPI.tabs.onUpdated.addListener((tabId, change) => {
+  if (change.status === "loading" || change.url) {
+    toolbarStates.delete(tabId);
+    setToolbar(tabId);
+  }
   if (change.status === "loading") extensionAPI.action.setBadgeText({ tabId, text: "" }).catch(() => {});
   if (change.status === "complete" || change.url) {
     // activeTab grants only the user-authorized origin. Injection fails closed on other sites.
     syncPage(tabId).catch(() => {});
   }
 });
+extensionAPI.tabs.onRemoved.addListener(tabId => toolbarStates.delete(tabId));
 
 extensionAPI.runtime.onMessage.addListener((message, sender, respond) => {
   const page = sender.id === extensionAPI.runtime.id && sender.tab?.id && !sender.tab.incognito && sender.frameId === 0;

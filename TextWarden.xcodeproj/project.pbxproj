@@ -241,6 +241,13 @@
 				"$(PROJECT_DIR)/BrowserExtension/popup.js",
 				"$(PROJECT_DIR)/BrowserExtension/icon.png",
 				"$(PROJECT_DIR)/BrowserExtension/toolbar.png",
+				"$(PROJECT_DIR)/BrowserExtension/toolbar-16.png",
+				"$(PROJECT_DIR)/BrowserExtension/toolbar-dark.png",
+				"$(PROJECT_DIR)/BrowserExtension/toolbar-dark-16.png",
+				"$(PROJECT_DIR)/BrowserExtension/toolbar-paused.png",
+				"$(PROJECT_DIR)/BrowserExtension/toolbar-paused-16.png",
+				"$(PROJECT_DIR)/BrowserExtension/toolbar-paused-dark.png",
+				"$(PROJECT_DIR)/BrowserExtension/toolbar-paused-dark-16.png",
 				"$(PROJECT_DIR)/BrowserNativeHost/main.swift",
 				"$(PROJECT_DIR)/Sources/Browser/BrowserMessage.swift",
 				"$(PROJECT_DIR)/Sources/Browser/BrowserSocket.swift",
@@ -256,6 +263,13 @@
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension/popup.js",
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension/icon.png",
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension/toolbar.png",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension/toolbar-16.png",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension/toolbar-dark.png",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension/toolbar-dark-16.png",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension/toolbar-paused.png",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension/toolbar-paused-16.png",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension/toolbar-paused-dark.png",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension/toolbar-paused-dark-16.png",
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension-Firefox/manifest.json",
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension-Firefox/background.js",
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension-Firefox/content.js",
@@ -264,6 +278,13 @@
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension-Firefox/popup.js",
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension-Firefox/icon.png",
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension-Firefox/toolbar.png",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension-Firefox/toolbar-16.png",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension-Firefox/toolbar-dark.png",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension-Firefox/toolbar-dark-16.png",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension-Firefox/toolbar-paused.png",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension-Firefox/toolbar-paused-16.png",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension-Firefox/toolbar-paused-dark.png",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BrowserExtension-Firefox/toolbar-paused-dark-16.png",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -309,7 +330,7 @@
 			shellPath = /bin/sh;
 			shellScript = "${PROJECT_DIR}/Scripts/build-rust.sh\n";
 		};
-		AABBCCDDEEFF001122330005 = {isa = PBXShellScriptBuildPhase; buildActionMask = 2147483647; files = (); inputPaths = ("$(PROJECT_DIR)/Info.plist", "$(PROJECT_DIR)/Scripts/browser-extension.py", "$(PROJECT_DIR)/BrowserExtension/manifest.json", "$(PROJECT_DIR)/BrowserExtension/background.js", "$(PROJECT_DIR)/BrowserExtension/content.js", "$(PROJECT_DIR)/BrowserExtension/popup.html", "$(PROJECT_DIR)/BrowserExtension/popup.css", "$(PROJECT_DIR)/BrowserExtension/popup.js", "$(PROJECT_DIR)/BrowserExtension/icon.png", "$(PROJECT_DIR)/BrowserExtension/toolbar.png", ); outputPaths = ("$(DERIVED_FILE_DIR)/SafariInfo.plist", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/manifest.json", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/background.js", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/content.js", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/popup.html", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/popup.css", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/popup.js", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/icon.png", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/toolbar.png", ); name = "Prepare Safari Extension"; shellPath = /bin/sh; shellScript = "python3 \"${PROJECT_DIR}/Scripts/browser-extension.py\" prepare-safari \"${PROJECT_DIR}/Info.plist\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\" \"${DERIVED_FILE_DIR}/SafariInfo.plist\"\n"; runOnlyForDeploymentPostprocessing = 0; };
+		AABBCCDDEEFF001122330005 = {isa = PBXShellScriptBuildPhase; buildActionMask = 2147483647; files = (); inputPaths = ("$(PROJECT_DIR)/Info.plist", "$(PROJECT_DIR)/Scripts/browser-extension.py", "$(PROJECT_DIR)/BrowserExtension/manifest.json", "$(PROJECT_DIR)/BrowserExtension/background.js", "$(PROJECT_DIR)/BrowserExtension/content.js", "$(PROJECT_DIR)/BrowserExtension/popup.html", "$(PROJECT_DIR)/BrowserExtension/popup.css", "$(PROJECT_DIR)/BrowserExtension/popup.js", "$(PROJECT_DIR)/BrowserExtension/icon.png", "$(PROJECT_DIR)/BrowserExtension/toolbar.png", "$(PROJECT_DIR)/BrowserExtension/toolbar-16.png", "$(PROJECT_DIR)/BrowserExtension/toolbar-dark.png", "$(PROJECT_DIR)/BrowserExtension/toolbar-dark-16.png", "$(PROJECT_DIR)/BrowserExtension/toolbar-paused.png", "$(PROJECT_DIR)/BrowserExtension/toolbar-paused-16.png", "$(PROJECT_DIR)/BrowserExtension/toolbar-paused-dark.png", "$(PROJECT_DIR)/BrowserExtension/toolbar-paused-dark-16.png", ); outputPaths = ("$(DERIVED_FILE_DIR)/SafariInfo.plist", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/manifest.json", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/background.js", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/content.js", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/popup.html", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/popup.css", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/popup.js", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/icon.png", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/toolbar.png", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/toolbar-16.png", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/toolbar-dark.png", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/toolbar-dark-16.png", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/toolbar-paused.png", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/toolbar-paused-16.png", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/toolbar-paused-dark.png", "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/toolbar-paused-dark-16.png", ); name = "Prepare Safari Extension"; shellPath = /bin/sh; shellScript = "python3 \"${PROJECT_DIR}/Scripts/browser-extension.py\" prepare-safari \"${PROJECT_DIR}/Info.plist\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\" \"${DERIVED_FILE_DIR}/SafariInfo.plist\"\n"; runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */

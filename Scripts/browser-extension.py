@@ -8,7 +8,9 @@ import shutil
 import zipfile
 from pathlib import Path
 
-FILES = ('manifest.json', 'background.js', 'content.js', 'popup.html', 'popup.css', 'popup.js', 'icon.png', 'toolbar.png')
+FILES = ('manifest.json', 'background.js', 'content.js', 'popup.html', 'popup.css', 'popup.js', 'icon.png',
+         'toolbar.png', 'toolbar-16.png', 'toolbar-dark.png', 'toolbar-dark-16.png',
+         'toolbar-paused.png', 'toolbar-paused-16.png', 'toolbar-paused-dark.png', 'toolbar-paused-dark-16.png')
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -53,6 +55,7 @@ def prepare_safari(plist, destination, info_path):
     data.pop('key', None)
     data.pop('minimum_chrome_version', None)
     data.pop('browser_specific_settings', None)
+    data['action']['default_icon'] = {'16': 'toolbar-dark-16.png', '32': 'toolbar-dark.png'}
     data['background'] = {'scripts': ['background.js'], 'persistent': False}
     manifest.write_text(json.dumps(data, indent=2) + '\n')
     app = plistlib.loads(Path(plist).read_bytes())
