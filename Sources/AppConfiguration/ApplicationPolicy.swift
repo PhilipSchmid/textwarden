@@ -225,6 +225,8 @@ enum ApplicationPolicy: Equatable {
         "com.TechSmith.Snagit": .ignored, // Text annotations
         "com.valvesoftware.steam": .ignored, // Chat and reviews
         "com.valvesoftware.steam.helper": .ignored, // Steam web UI can host chat
+        "net.battle.app": .ignored, // Battle.net game launcher
+        "com.blizzard.blizzarderror": .ignored, // Blizzard crash reporter
         "com.docker.docker": .ignored, // Container tooling with AI prompts
         "com.electron.dockerdesktop": .ignored, // Docker Desktop UI
         "app.omlx": .ignored, // Model management with chat access

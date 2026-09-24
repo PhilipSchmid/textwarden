@@ -39,6 +39,8 @@ final class SafeTrialPromptControllerTests: XCTestCase {
             "com.TechSmith.Snagit",
             "com.valvesoftware.steam",
             "com.valvesoftware.steam.helper",
+            "net.battle.app",
+            "com.blizzard.blizzarderror",
             "com.docker.docker",
             "com.electron.dockerdesktop",
             "app.omlx",
@@ -145,6 +147,7 @@ final class SafeTrialPromptControllerTests: XCTestCase {
             "com.openai.codex", "com.readdle.PDFExpert-Mac.editor",
             "com.techsmith.snagit.capturehelper.editor", "com.1password.unlisted-editor",
             "com.apple.helpviewer.editor", "com.apple.PasswordsHelper", "com.example.Passwords",
+            "com.valvesoftware.steam.editor", "net.battle.app.editor",
         ] {
             XCTAssertFalse(registry.isIntentionallyDisabled(bundleID), bundleID)
         }
