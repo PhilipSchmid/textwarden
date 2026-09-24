@@ -197,6 +197,19 @@ final class BrowserMessageTests: XCTestCase {
         XCTAssertThrowsError(try BrowserSetup.register(support: support, app: app))
     }
 
+    func testSignedFirefoxExtensionMustBeARegularFile() throws {
+        let app = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: app) }
+        let extensionURL = app.appendingPathComponent("Contents/Resources/TextWarden-Browser-Extension-Firefox.xpi")
+        try FileManager.default.createDirectory(at: extensionURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        XCTAssertNil(BrowserSetup.signedFirefoxExtension(in: app))
+        try Data("signed fixture".utf8).write(to: extensionURL)
+        XCTAssertEqual(BrowserSetup.signedFirefoxExtension(in: app), extensionURL)
+        try FileManager.default.removeItem(at: extensionURL)
+        try FileManager.default.createSymbolicLink(at: extensionURL, withDestinationURL: extensionURL.deletingLastPathComponent())
+        XCTAssertNil(BrowserSetup.signedFirefoxExtension(in: app))
+    }
+
     func testWritingToolsRequireBoundedSelection() throws {
         for kind in ["compose", "rewrite", "readability"] {
             var message = BrowserMessage(kind: kind, session: UUID().uuidString, revision: 1,

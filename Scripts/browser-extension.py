@@ -93,9 +93,21 @@ def package(app, output, browser='chromium'):
                 archive.write(extension / file, file)
 
 
-def verify(archive, expected_version, expected_numeric, browser='chromium'):
+def verify(archive, expected_version, expected_numeric, browser='chromium', signed=False):
     with zipfile.ZipFile(archive) as zipped:
-        if sorted(zipped.namelist()) != sorted(FILES):
+        names = [name for name in zipped.namelist() if not name.endswith('/')]
+        if len(names) != len(set(names)) or any('\\' in name or Path(name).is_absolute() or '..' in Path(name).parts for name in names):
+            raise ValueError('Unsafe extension package contents')
+        if signed:
+            if browser != 'firefox':
+                raise ValueError('Only Firefox packages can be Mozilla-signed')
+            extras = set(names) - set(FILES)
+            if set(FILES) - set(names) or any(not name.upper().startswith('META-INF/') for name in extras):
+                raise ValueError('Unexpected signed extension package contents')
+            signatures = {name.lower() for name in extras}
+            if not {'meta-inf/cose.sig', 'meta-inf/mozilla.rsa'} & signatures:
+                raise ValueError('Firefox package is missing Mozilla signature metadata')
+        elif sorted(names) != sorted(FILES):
             raise ValueError('Unexpected extension package contents')
         data = json.loads(zipped.read('manifest.json'))
         if data.get('version') != expected_numeric or (browser == 'chromium' and data.get('version_name') != expected_version):
@@ -124,8 +136,9 @@ if __name__ == '__main__':
     check = commands.add_parser('verify')
     check.add_argument('archive'); check.add_argument('version'); check.add_argument('numeric')
     check.add_argument('--browser', choices=['chromium', 'firefox'], default='chromium')
+    check.add_argument('--signed', action='store_true')
     args = parser.parse_args()
     if args.command == 'prepare': prepare(args.plist, args.destination, args.browser)
     elif args.command == 'prepare-safari': prepare_safari(args.plist, args.destination, args.info)
     elif args.command == 'package': package(args.app, args.output, args.browser)
-    else: verify(args.archive, args.version, args.numeric, args.browser)
+    else: verify(args.archive, args.version, args.numeric, args.browser, args.signed)

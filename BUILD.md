@@ -8,6 +8,7 @@ TextWarden combines a Swift macOS app with a Rust static library. The standard b
 - Rust 1.95 or later, installed with [rustup](https://rustup.rs/)
 - The `x86_64-apple-darwin` and `aarch64-apple-darwin` Rust targets
 - [Pandoc](https://pandoc.org/) for the Help Book
+- [`web-ext`](https://extensionworkshop.com/documentation/develop/getting-started-with-web-ext/) and Mozilla API credentials for release builds
 
 The app's deployment target is macOS 14. Apple Intelligence code uses the macOS 26 SDK behind availability checks. Checks also run on macOS 14; newer APIs and their checks are availability-gated.
 
@@ -17,7 +18,7 @@ Install the tools and targets:
 xcode-select --install
 rustup update stable
 rustup target add x86_64-apple-darwin aarch64-apple-darwin
-brew install pandoc
+brew install pandoc web-ext
 ```
 
 SwiftFormat and SwiftLint are also required for the local CI checks:
@@ -72,7 +73,7 @@ Other useful targets:
 
 ## Browser Extension Preview
 
-The app build includes the shared extension files, native messaging helper, and Safari app extension. Run `make run`, then use **Preferences → Browser → Install Extension** to load the preview manually. Chrome/Brave use Developer mode; Firefox/Zen use temporary add-ons. Safari development builds require an appropriate signing identity; unsigned builds additionally require Safari’s development setting for unsigned extensions. See the [extension guide](BrowserExtension/README.md).
+The app build includes the shared extension files, native messaging helper, and Safari app extension. Run `make run`, then use **Preferences → Browser → Install Extension** to load the preview manually. Chrome/Brave use Developer mode, and Firefox/Zen development builds use temporary add-ons. Release builds include a Mozilla-signed Firefox/Zen XPI. Safari development builds require an appropriate signing identity; unsigned builds additionally require Safari’s development setting for unsigned extensions. See the [extension guide](BrowserExtension/README.md).
 
 `make test-browser` checks the browser runtime and packaging with Node.js and Python 3.
 
