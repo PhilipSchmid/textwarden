@@ -38,5 +38,3 @@ main{min-height:0;overflow-y:auto;overscroll-behavior:contain}
 .pause-options button,.resume-action{min-height:34px;border:1px solid var(--line);border-radius:7px;background:var(--bg);padding:7px 5px;font-size:11px}
 .pause-options button:focus-visible,.resume-action:focus-visible{outline-offset:-3px}
 .resume-action{display:block;width:calc(100% - 20px);margin:0 10px 10px;font-size:12px;font-weight:600}
-.selection-action{display:flex;align-items:center;gap:8px;margin-top:12px;padding:8px 10px;width:100%;border:1px solid var(--line);border-radius:8px;background:none;text-align:left;font-size:12px}
-.selection-action svg{color:#af52de;flex-shrink:0}
