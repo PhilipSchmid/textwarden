@@ -30,7 +30,7 @@ enum StyleEngineStatus: Equatable {
         case .deviceNotEligible:
             "Style suggestions require a Mac with Apple Silicon"
         case .modelNotReady:
-            "Apple Intelligence is preparing the language model..."
+            "Apple Intelligence is preparing the language model. TextWarden will check automatically."
         case let .unknown(reason):
             "Style suggestions unavailable: \(reason)"
         }

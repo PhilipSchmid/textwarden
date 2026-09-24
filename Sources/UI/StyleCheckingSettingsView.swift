@@ -7,6 +7,10 @@
 
 import SwiftUI
 
+#if canImport(FoundationModels)
+    import FoundationModels
+#endif
+
 struct StyleCheckingSettingsView: View {
     @ObservedObject private var preferences = UserPreferences.shared
 
@@ -146,6 +150,12 @@ struct StyleCheckingSettingsView: View {
             }
             .onAppear {
                 checkFMAvailability()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                checkFMAvailability()
+            }
+            .background {
+                foundationModelsAvailabilityObserver
             }
 
             // Main toggle and options (no header, continues the section visually)
@@ -292,17 +302,41 @@ struct StyleCheckingSettingsView: View {
 
     // MARK: - Foundation Models Availability
 
+    @ViewBuilder
+    private var foundationModelsAvailabilityObserver: some View {
+        #if canImport(FoundationModels)
+            if #available(macOS 26.0, *) {
+                FoundationModelsAvailabilityObserver(status: $fmStatus)
+            }
+        #endif
+    }
+
     /// Check Foundation Models availability (requires macOS 26+)
     private func checkFMAvailability() {
         if #available(macOS 26.0, *) {
-            let engine = FoundationModelsEngine()
-            engine.checkAvailability()
-            fmStatus = engine.status
+            fmStatus = FoundationModelsEngine().status
         } else {
             fmStatus = .deviceNotEligible
         }
     }
 }
+
+#if canImport(FoundationModels)
+    @available(macOS 26.0, *)
+    private struct FoundationModelsAvailabilityObserver: View {
+        @Binding var status: StyleEngineStatus
+        @State private var model = SystemLanguageModel.default
+
+        var body: some View {
+            Color.clear
+                .frame(width: 0, height: 0)
+                .accessibilityHidden(true)
+                .onChange(of: model.availability, initial: true) {
+                    status = FoundationModelsEngine().status
+                }
+        }
+    }
+#endif
 
 #Preview {
     StyleCheckingSettingsView()
