@@ -84,8 +84,8 @@ test("paused app keeps writing tools disabled and provides a contextual recovery
 
 test("website pause choices send the selected duration and expose a resume action", async () => {
   const h = await harness(); h.reply();
-  h.element("website").listeners.click();
   assert.equal(h.element("sitePauseMenu").hidden, false);
+  assert.equal(h.element("website").hidden, true);
   h.element("Paused for 1 Hour").listeners.click();
   assert.equal(h.sent.at(-1).action, "pauseSite");
   assert.equal(h.sent.at(-1).pause, "Paused for 1 Hour");
@@ -93,6 +93,8 @@ test("website pause choices send the selected duration and expose a resume actio
   h.reply({ siteEnabled: false, pageEnabled: false, sitePausedUntil: Date.now() / 1000 + 3600 });
   assert.match(h.element("siteScope").textContent, /^Paused until /);
   assert.equal(h.element("enabled").disabled, true);
+  assert.equal(h.element("websiteLabel").textContent, "Website paused");
+  assert.equal(h.element("website").hidden, false);
   h.element("website").listeners.click();
   assert.equal(h.sent.at(-1).action, "resumeSite");
 });
@@ -151,8 +153,8 @@ test("rewrite appears only for a selection in an enabled editor; healthy status 
   assert.equal(h.element("rewrite").hidden, false);
   h.reply({ siteEnabled: false, pageEnabled: false });
   assert.equal(h.element("rewrite").hidden, true);
-  assert.equal(h.element("websiteLabel").textContent, "Resume website");
-  assert.equal(h.element("website").dataset.paused, "true");
+  assert.equal(h.element("websiteLabel").textContent, "Website paused");
+  assert.equal(h.element("website").hidden, false);
   assert.equal(h.element("siteScope").textContent, "Paused until resumed");
   assert.equal(h.element("status").hidden, false);
 });
