@@ -33,13 +33,10 @@ main{min-height:0;overflow-y:auto;overscroll-behavior:contain}
 .page-address h1,.page-address small,#siteScope{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 .website-settings{margin-top:12px}
-.website-action{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:11px 12px;text-align:left;border:0;background:none}
-.website-action>span{min-width:0}.website-action svg{flex-shrink:0;color:var(--secondary)}
-.website-action[aria-expanded=true] svg{transform:rotate(180deg)}
-.website-action[data-paused=true] svg{display:none}
-.website-action:focus-visible{outline-offset:-3px}
-.pause-options{display:flex;flex-direction:column;gap:0;padding:4px 0;border-top:1px solid var(--line)}
-.pause-options button{border:0;border-radius:0;background:none;text-align:left;padding:9px 12px;font-size:12px}
-.pause-options button:focus-visible{outline-offset:-3px}
+.website-heading{padding:10px 12px 7px}
+.pause-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:0 10px 10px}
+.pause-options button,.resume-action{min-height:34px;border:1px solid var(--line);border-radius:7px;background:var(--bg);padding:7px 5px;font-size:11px}
+.pause-options button:focus-visible,.resume-action:focus-visible{outline-offset:-3px}
+.resume-action{display:block;width:calc(100% - 20px);margin:0 10px 10px;font-size:12px;font-weight:600}
 .selection-action{display:flex;align-items:center;gap:8px;margin-top:12px;padding:8px 10px;width:100%;border:1px solid var(--line);border-radius:8px;background:none;text-align:left;font-size:12px}
 .selection-action svg{color:#af52de;flex-shrink:0}

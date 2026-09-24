@@ -11,16 +11,15 @@ function render() {
   $("enabled").checked = pageEnabled;
   $("underlines").disabled = !supported || !connected || !pageEnabled;
   $("underlines").checked = page.pageUnderlines;
-  $("websiteLabel").textContent = configuration?.siteEnabled === false ? "Resume website" : "Pause this website…";
-  $("website").dataset.paused = String(configuration?.siteEnabled === false);
-  $("website").disabled = !supported || !connected || configuration.siteInherited;
-  if (!connected || configuration?.siteEnabled === false) {
-    $("sitePauseMenu").hidden = true;
-    $("website").setAttribute("aria-expanded", "false");
-  }
-  $("siteScope").textContent = configuration?.siteEnabled === false && configuration.sitePausedUntil
+  const sitePaused = configuration?.siteEnabled === false, siteInherited = Boolean(configuration?.siteInherited);
+  $("websiteLabel").textContent = sitePaused ? "Website paused" : "Pause this website";
+  $("website").hidden = !sitePaused || siteInherited;
+  $("website").disabled = !supported || !connected || siteInherited;
+  $("sitePauseMenu").hidden = !supported || !connected || sitePaused || siteInherited;
+  for (const button of document.querySelectorAll("[data-pause]")) button.disabled = $("sitePauseMenu").hidden;
+  $("siteScope").textContent = sitePaused && configuration.sitePausedUntil
     ? `Paused until ${new Date(configuration.sitePausedUntil * 1000).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}`
-    : configuration?.siteEnabled === false ? "Paused until resumed"
+    : sitePaused ? "Paused until resumed"
     : origin ? `All pages on ${new URL(origin).host}` : "All pages on this website";
   $("siteScope").title = $("siteScope").textContent;
   $("websiteRules").hidden = !configuration?.siteInherited;
@@ -77,14 +76,9 @@ $("underlines").addEventListener("change", async () => {
   catch { fail("Reload this page to reconnect TextWarden."); }
   render();
 });
-$("website").addEventListener("click", () => {
-  if (configuration?.siteEnabled === false) { configure("resumeSite"); return; }
-  $("sitePauseMenu").hidden = !$("sitePauseMenu").hidden;
-  $("website").setAttribute("aria-expanded", String(!$("sitePauseMenu").hidden));
-});
+$("website").addEventListener("click", () => configure("resumeSite"));
 for (const button of document.querySelectorAll("[data-pause]")) button.addEventListener("click", () => {
   $("sitePauseMenu").hidden = true;
-  $("website").setAttribute("aria-expanded", "false");
   configure("pauseSite", button.dataset.pause);
 });
 $("websiteRules").addEventListener("click", () => configure("websites"));
