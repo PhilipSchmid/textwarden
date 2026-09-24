@@ -2,6 +2,14 @@ import CryptoKit
 import Foundation
 
 enum BrowserSetup {
+    static func signedFirefoxExtension(in app: URL = Bundle.main.bundleURL) -> URL? {
+        let extensionURL = app.appendingPathComponent("Contents/Resources/TextWarden-Browser-Extension-Firefox.xpi")
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: extensionURL.path),
+              attributes[.type] as? FileAttributeType == .typeRegular
+        else { return nil }
+        return extensionURL
+    }
+
     static func extensionFolder(for browser: String) -> URL? {
         let folder = ["org.mozilla.firefox", "app.zen-browser.zen"].contains(browser) ? "BrowserExtension-Firefox" : "BrowserExtension"
         return Bundle.main.resourceURL?.appendingPathComponent(folder, isDirectory: true)

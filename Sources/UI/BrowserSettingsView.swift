@@ -67,6 +67,7 @@ struct BrowserSettingsView: View {
 
     private func extensionSection(_ bundleID: String, name: String, browserURL: URL?) -> some View {
         let connected = integration.connectedBrowsers.contains(bundleID)
+        let isShowingSetup = showingSetup == bundleID
         return
             Section {
                 VStack(alignment: .leading, spacing: 12) {
@@ -102,7 +103,21 @@ struct BrowserSettingsView: View {
                     if !integration.isListening {
                         Button("Try Again") { integration.start() }
                     }
-                    DisclosureGroup("Install Extension", isExpanded: Binding(get: { showingSetup == bundleID }, set: { showingSetup = $0 ? bundleID : nil })) {
+                    Button {
+                        showingSetup = isShowingSetup ? nil : bundleID
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "chevron.right")
+                                .rotationEffect(.degrees(isShowingSetup ? 90 : 0))
+                            Text("Install Extension")
+                            Spacer()
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityValue(isShowingSetup ? "Expanded" : "Collapsed")
+
+                    if isShowingSetup {
                         setup(name: name, bundleID: bundleID)
                             .padding(.top, 8)
                     }
@@ -148,27 +163,37 @@ struct BrowserSettingsView: View {
     private func setup(name: String, bundleID: String) -> some View {
         let isSafari = bundleID == "com.apple.Safari"
         let isGecko = ["org.mozilla.firefox", "app.zen-browser.zen"].contains(bundleID)
+        let signedExtension = isGecko ? BrowserSetup.signedFirefoxExtension() : nil
         return VStack(alignment: .leading, spacing: 12) {
-            Text(isSafari ? "The extension is included with TextWarden. Enable it in Safari’s Extensions settings." : isGecko
-                ? "This preview loads temporarily until you restart the browser. A signed extension will be needed for permanent installation."
-                : "This preview isn’t in the Chrome Web Store yet. Install it once; the connection to TextWarden is automatic.")
+            Text(isSafari ? "The extension is included with TextWarden and appears in Safari automatically. No App Store download is needed." : isGecko
+                ? signedExtension == nil
+                ? "This developer build loads temporarily until you restart the browser. Release builds include a Mozilla-signed extension."
+                : "The Mozilla-signed extension is included with TextWarden. Install or update this copy to keep both on the same version."
+                : "The extension is included with TextWarden. Install it once; the connection is configured automatically.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text(isSafari ? "1. Enable the extension" : "1. Load the extension")
+            Text(isSafari ? "1. Enable the extension" : isGecko && signedExtension != nil ? "1. Install the extension" : "1. Load the extension")
                 .font(.headline)
             Text(isSafari ? "Open Safari Extensions and enable TextWarden Browser Extension (Preview)." : isGecko
+                ? signedExtension == nil
                 ? "Open the folder and \(name)’s Extensions page. Choose Load Temporary Add-on, then select manifest.json in the revealed folder."
+                : "Install the included extension, then approve the prompt in \(name). No add-on search or separate download is needed."
                 : "Open the folder and \(name)’s Extensions page. Turn on Developer mode, choose Load unpacked, then select the BrowserExtension folder.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             HStack {
-                if !isSafari { Button("Reveal Extension Folder") {
-                    guard let folder = BrowserSetup.extensionFolder(for: bundleID), FileManager.default.fileExists(atPath: folder.path) else {
-                        feedback = "The preview is missing from this build. Reinstall TextWarden."; return
+                if let signedExtension {
+                    Button("Install in \(name)") { install(signedExtension, in: bundleID, name: name) }
+                        .buttonStyle(.borderedProminent)
+                } else if !isSafari {
+                    Button("Reveal Extension Folder") {
+                        guard let folder = BrowserSetup.extensionFolder(for: bundleID), FileManager.default.fileExists(atPath: folder.path) else {
+                            feedback = "The preview is missing from this build. Reinstall TextWarden."; return
+                        }
+                        NSWorkspace.shared.activateFileViewerSelecting([folder])
                     }
-                    NSWorkspace.shared.activateFileViewerSelecting([folder])
-                } }
-                Button("Open \(name) Extensions") { openExtensions(bundleID) }
+                }
+                Button("Open \(name) Extensions") { openExtensions(bundleID, temporary: isGecko && signedExtension == nil) }
             }
             if let feedback {
                 Text(feedback)
@@ -194,7 +219,20 @@ struct BrowserSettingsView: View {
         zenURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "app.zen-browser.zen")
     }
 
-    private func openExtensions(_ bundleID: String) {
+    private func install(_ extensionURL: URL, in bundleID: String, name: String) {
+        guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
+            feedback = "Could not find \(name)."
+            return
+        }
+        NSWorkspace.shared.open([extensionURL], withApplicationAt: app, configuration: .init()) { _, error in
+            Task { @MainActor in
+                feedback = error.map { "Could not open the extension: \($0.localizedDescription)" }
+                    ?? "Approve the TextWarden extension installation in \(name)."
+            }
+        }
+    }
+
+    private func openExtensions(_ bundleID: String, temporary: Bool = false) {
         if bundleID == "com.apple.Safari" {
             SFSafariApplication.showPreferencesForExtension(withIdentifier: BrowserWire.safariExtensionID) { error in
                 if let error { Task { @MainActor in feedback = "Could not open Safari Extensions: \(error.localizedDescription)" } }
@@ -202,7 +240,7 @@ struct BrowserSettingsView: View {
             return
         }
         let address = ["org.mozilla.firefox", "app.zen-browser.zen"].contains(bundleID)
-            ? "about:debugging#/runtime/this-firefox"
+            ? temporary ? "about:debugging#/runtime/this-firefox" : "about:addons"
             : bundleID == "com.brave.Browser" ? "brave://extensions" : "chrome://extensions"
         guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID),
               let url = URL(string: address) else { return }

@@ -53,6 +53,7 @@ class PackageTests(unittest.TestCase):
             self.assertEqual(firefox['background'], {'scripts': ['background.js']})
             self.assertNotIn('key', firefox)
             self.assertEqual(firefox['browser_specific_settings']['gecko']['id'], 'browser@textwarden.io')
+            self.assertEqual(firefox['browser_specific_settings']['gecko_android']['strict_min_version'], '142.0')
             for manifest, folder in [(chromium, destination), (firefox, firefox_destination)]:
                 for size, file in manifest['action']['default_icon'].items():
                     self.assertEqual(struct.unpack('>II', (folder / file).read_bytes()[16:24]), (int(size), int(size)))
@@ -78,6 +79,14 @@ class PackageTests(unittest.TestCase):
                 for key in ('key', 'minimum_chrome_version', 'version_name'):
                     self.assertNotIn(key, manifest)
                 self.assertEqual(manifest['background'], {'scripts': ['background.js']})
+            with self.assertRaises(ValueError): extension.verify(archive, '0.6.0', '0.6.0.40', 'firefox', signed=True)
+            signed = root / 'extension.xpi'
+            with zipfile.ZipFile(archive) as source, zipfile.ZipFile(signed, 'w') as target:
+                for name in source.namelist(): target.writestr(name, source.read(name))
+                target.writestr('META-INF/cose.sig', b'signed fixture')
+            extension.verify(signed, '0.6.0', '0.6.0.40', 'firefox', signed=True)
+            with zipfile.ZipFile(signed, 'a') as target: target.writestr('../outside', b'unsafe fixture')
+            with self.assertRaises(ValueError): extension.verify(signed, '0.6.0', '0.6.0.40', 'firefox', signed=True)
             with self.assertRaises(ValueError): extension.verify(archive, '0.6.0', '0.6.0.40')
             write('0.6.1', '41')
             with self.assertRaises(ValueError): extension.package(app, archive)
@@ -94,6 +103,7 @@ class PackageTests(unittest.TestCase):
             archive = root / 'archive'
             app = archive / 'Products/Applications/TextWarden.app'
             safari = app / 'Contents/PlugIns/TextWardenBrowserExtension.appex'
+            (app / 'Contents/Resources').mkdir(parents=True)
             for bundle, identifier in [(safari, 'io.textwarden.fixture.extension'), (app, 'io.textwarden.fixture')]:
                 (bundle / 'Contents/MacOS').mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(binary, bundle / 'Contents/MacOS/fixture')
@@ -110,11 +120,14 @@ class PackageTests(unittest.TestCase):
                 subprocess.run(['codesign', '--force', '--sign', '-', '--entitlements', str(entitlements), str(bundle)], check=True, capture_output=True)
             # Exercise the real export function; ad-hoc signatures cannot use a timestamp server.
             script = 'codesign() { local args=(); for arg in "$@"; do [[ "$arg" == --timestamp ]] || args+=("$arg"); done; /usr/bin/codesign "${args[@]}"; }\n'
-            script += export_function + '\nexport_app "$ARCHIVE"'
+            xpi = root / 'signed.xpi'
+            xpi.write_bytes(b'signed fixture')
+            script += export_function + '\nexport_app "$ARCHIVE" "$XPI"'
             environment = dict(os.environ, PROJECT_ROOT=str(project), RELEASE_DIR=str(root / 'release'),
-                APP_NAME='TextWarden', ENTITLEMENTS='TextWarden.entitlements', DEVELOPER_ID='-', ARCHIVE=str(archive))
+                APP_NAME='TextWarden', ENTITLEMENTS='TextWarden.entitlements', DEVELOPER_ID='-', ARCHIVE=str(archive), XPI=str(xpi))
             subprocess.run(['bash', '-e', '-c', script], env=environment, check=True, capture_output=True)
             exported = root / 'release/export/TextWarden.app'
+            self.assertEqual((exported / 'Contents/Resources/TextWarden-Browser-Extension-Firefox.xpi').read_bytes(), xpi.read_bytes())
             def entitlements(bundle):
                 result = subprocess.run(['codesign', '-d', '--entitlements', '-', '--xml', str(bundle)], check=True, capture_output=True)
                 return plistlib.loads(result.stdout)

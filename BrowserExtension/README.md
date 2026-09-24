@@ -9,10 +9,10 @@ Use a preview-enabled TextWarden build, or build from source with `make run`. Op
 | Browser | Installation | Updates |
 | --- | --- | --- |
 | Chrome / Brave | Enable Developer mode in `chrome://extensions` or `brave://extensions`, then Load unpacked from the revealed folder. | Reload the extension and affected pages after an update. |
-| Firefox / Zen | Load Temporary Add-on in `about:debugging`; select the revealed `manifest.json`. | Load it again after each browser restart. |
+| Firefox / Zen | In a release build, click Install in Firefox/Zen and approve the browser prompt. Development builds use Load Temporary Add-on in `about:debugging`. | Install the included copy again after a TextWarden update. |
 | Safari | Enable TextWarden in Safari → Settings → Extensions. | Updates with the Mac app. |
 
-Signed, notarized Safari builds need no Developer mode. Unsigned builds require [Apple’s development setup](https://developer.apple.com/documentation/safariservices/running-your-safari-web-extension). The preview has no store listings or permanent Mozilla signature.
+Signed, notarized Safari builds need no Developer mode. Unsigned builds require [Apple’s development setup](https://developer.apple.com/documentation/safariservices/running-your-safari-web-extension). Firefox and Zen use the same unlisted, Mozilla-signed XPI; there is no public store listing.
 
 ## Use
 
@@ -44,8 +44,8 @@ python3 -m http.server 8766 --bind 127.0.0.1 --directory BrowserExtension/tests
 
 Open `http://127.0.0.1:8766/editors.html`. Reload the extension and page after JavaScript changes.
 
-`Info.plist` supplies the version. `make release` packages the Chromium preview ZIP and Firefox `-unsigned.zip`; Safari is embedded in the app. `make release-upload` verifies the ZIPs against the release tag before uploading them with the DMG.
+`Info.plist` supplies the version. `make release` uses `web-ext` with `WEB_EXT_API_KEY` and `WEB_EXT_API_SECRET` to request an unlisted Mozilla signature, embeds the resulting XPI in the app, and packages the Chromium ZIP. Safari is embedded in the app. `make release-upload` verifies the ZIP and signed XPI against the release tag before uploading them with the DMG.
 
-Chrome/Brave store distribution requires the Chrome Web Store. Permanent Firefox/Zen installation requires a [Mozilla-signed XPI](https://extensionworkshop.com/documentation/publish/signing-and-distribution-overview/); unlisted signing allows GitHub distribution. The unsigned ZIP is signing input, not an installer. No self-distributed update manifest is configured, so signed XPI updates would remain manual. Keep extension IDs stable when preparing store or signed releases.
+Chrome/Brave continue to load the copy bundled with the Mac app. Firefox and Zen require a [Mozilla-signed XPI](https://extensionworkshop.com/documentation/publish/signing-and-distribution-overview/), which TextWarden embeds and opens for the browser. No remote update manifest is configured, so the browser never advances ahead of the installed Mac app; users install the included XPI again after an app update. Keep extension IDs stable when preparing signed releases.
 
 See [BUILD.md](../BUILD.md) for build prerequisites and [ARCHITECTURE.md](../ARCHITECTURE.md) for the app integration.

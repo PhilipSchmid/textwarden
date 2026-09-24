@@ -37,7 +37,7 @@ validate_environment() {
     local errors=0
 
     # Check required commands
-    local required_cmds=("xcodebuild" "codesign" "hdiutil" "git" "gh" "python3" "cargo" "rustc")
+    local required_cmds=("xcodebuild" "codesign" "hdiutil" "git" "gh" "python3" "cargo" "rustc" "web-ext")
     for cmd in "${required_cmds[@]}"; do
         if ! command -v "$cmd" &>/dev/null; then
             echo -e "${RED}Error: Required command '$cmd' not found${NC}" >&2
@@ -83,6 +83,11 @@ validate_environment() {
     # Check gh CLI is authenticated
     if ! gh auth status &>/dev/null; then
         echo -e "${YELLOW}Warning: GitHub CLI not authenticated (gh release upload will fail)${NC}" >&2
+    fi
+
+    if [[ -z "${WEB_EXT_API_KEY:-}" || -z "${WEB_EXT_API_SECRET:-}" ]]; then
+        echo -e "${RED}Error: WEB_EXT_API_KEY and WEB_EXT_API_SECRET are required for Mozilla signing${NC}" >&2
+        errors=$((errors + 1))
     fi
 
     if [[ $errors -gt 0 ]]; then
@@ -277,9 +282,35 @@ build_archive() {
     echo "$archive_path"
 }
 
+sign_firefox_extension() {
+    local version="$1"
+    local source_dir="$RELEASE_DIR/firefox-source"
+    local artifacts_dir="$RELEASE_DIR/firefox-signing"
+    local output="$RELEASE_DIR/TextWarden-Browser-Extension-Firefox-$version.xpi"
+
+    rm -rf "$source_dir" "$artifacts_dir"
+    python3 "$PROJECT_ROOT/Scripts/browser-extension.py" prepare "$PROJECT_ROOT/Info.plist" "$source_dir" --browser firefox
+    mkdir -p "$artifacts_dir"
+    WEB_EXT_SOURCE_DIR="$source_dir" WEB_EXT_ARTIFACTS_DIR="$artifacts_dir" \
+        WEB_EXT_CHANNEL=unlisted WEB_EXT_NO_INPUT=true web-ext sign >&2
+
+    local signed_files=("$artifacts_dir"/*.xpi)
+    if [[ ${#signed_files[@]} -ne 1 || ! -f "${signed_files[0]}" ]]; then
+        echo -e "${RED}Mozilla signing did not produce exactly one XPI${NC}" >&2
+        return 1
+    fi
+    mv "${signed_files[0]}" "$output"
+    local numeric
+    numeric=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$source_dir/manifest.json")
+    python3 "$PROJECT_ROOT/Scripts/browser-extension.py" verify "$output" "$version" "$numeric" --browser firefox --signed
+    rm -rf "$source_dir" "$artifacts_dir"
+    echo "$output"
+}
+
 # Export app from archive
 export_app() {
     local archive_path="$1"
+    local firefox_xpi="${2:-}"
     local export_path="$RELEASE_DIR/export"
 
     echo -e "${BLUE}Exporting app...${NC}" >&2
@@ -289,6 +320,9 @@ export_app() {
 
     # Copy from archive
     cp -R "$archive_path/Products/Applications/$APP_NAME.app" "$export_path/"
+    if [[ -n "$firefox_xpi" ]]; then
+        cp "$firefox_xpi" "$export_path/$APP_NAME.app/Contents/Resources/TextWarden-Browser-Extension-Firefox.xpi"
+    fi
 
     # Re-sign with Developer ID and entitlements for distribution
     echo -e "${BLUE}Signing app with Developer ID...${NC}" >&2
@@ -754,12 +788,15 @@ do_release() {
     # Build
     local archive_path=$(build_archive)
 
+    # Mozilla signs the self-distributed Firefox/Zen extension before it is embedded.
+    local firefox_xpi
+    firefox_xpi=$(sign_firefox_extension "$version")
+
     # Export
     local app_path
-    app_path=$(export_app "$archive_path")
+    app_path=$(export_app "$archive_path" "$firefox_xpi")
 
     python3 "$PROJECT_ROOT/Scripts/browser-extension.py" package "$app_path" "$RELEASE_DIR/TextWarden-Browser-Extension-$version.zip"
-    python3 "$PROJECT_ROOT/Scripts/browser-extension.py" package "$app_path" "$RELEASE_DIR/TextWarden-Browser-Extension-Firefox-$version-unsigned.zip" --browser firefox
 
     # Create DMG
     local dmg_path=$(create_dmg "$app_path" "$version")
@@ -825,11 +862,11 @@ do_upload() {
     fi
 
     local extension_zip="$RELEASE_DIR/TextWarden-Browser-Extension-$version.zip"
-    local firefox_zip="$RELEASE_DIR/TextWarden-Browser-Extension-Firefox-$version-unsigned.zip"
+    local firefox_zip="$RELEASE_DIR/TextWarden-Browser-Extension-Firefox-$version.xpi"
     local extension_numeric
     extension_numeric=$(git show "v$version:BrowserExtension/manifest.json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')
     python3 "$PROJECT_ROOT/Scripts/browser-extension.py" verify "$extension_zip" "$version" "$extension_numeric"
-    python3 "$PROJECT_ROOT/Scripts/browser-extension.py" verify "$firefox_zip" "$version" "$extension_numeric" --browser firefox
+    python3 "$PROJECT_ROOT/Scripts/browser-extension.py" verify "$firefox_zip" "$version" "$extension_numeric" --browser firefox --signed
     create_github_release "$version" "$dmg_path" "$release_notes" "$is_prerelease" "$extension_zip" "$firefox_zip"
 
     echo ""
