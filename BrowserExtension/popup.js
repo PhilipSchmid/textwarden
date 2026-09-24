@@ -39,8 +39,6 @@ function render() {
     : !pageEnabled ? "Checking is paused for this page."
     : "";
   $("status").hidden = !$("status").textContent;
-  $("rewrite").disabled = !pageEnabled || !page.hasEditor || !page.hasSelection || !connected || paused || !configuration.siteEnabled;
-  $("rewrite").hidden = $("rewrite").disabled;
   document.documentElement.dataset.theme = configuration?.theme ?? "System";
 }
 
@@ -84,14 +82,6 @@ for (const button of document.querySelectorAll("[data-pause]")) button.addEventL
 $("websiteRules").addEventListener("click", () => configure("websites"));
 $("resume").addEventListener("click", () => configure(configuration?.globalPaused ? "settings" : "resumeBrowser"));
 $("settings").addEventListener("click", () => configure("settings"));
-$("rewrite").addEventListener("click", async () => {
-  try {
-    const result = await pageCommand("tool", { tool: "rewrite" });
-    if (!result?.queued) throw new Error();
-    window.close();
-  } catch { fail("Return to the text field and select text, then try again."); }
-});
-
 (async () => {
   [tab] = await extensionAPI.tabs.query({ active: true, currentWindow: true });
   try {
