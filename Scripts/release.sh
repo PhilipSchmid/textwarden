@@ -291,8 +291,10 @@ sign_firefox_extension() {
     rm -rf "$source_dir" "$artifacts_dir"
     python3 "$PROJECT_ROOT/Scripts/browser-extension.py" prepare "$PROJECT_ROOT/Info.plist" "$source_dir" --browser firefox
     mkdir -p "$artifacts_dir"
+    # AMO manual review can exceed web-ext's 15-minute default.
     WEB_EXT_SOURCE_DIR="$source_dir" WEB_EXT_ARTIFACTS_DIR="$artifacts_dir" \
-        WEB_EXT_CHANNEL=unlisted WEB_EXT_NO_INPUT=true web-ext sign >&2
+        WEB_EXT_CHANNEL=unlisted WEB_EXT_NO_INPUT=true \
+        WEB_EXT_APPROVAL_TIMEOUT="${WEB_EXT_APPROVAL_TIMEOUT:-86400000}" web-ext sign >&2
 
     local signed_files=("$artifacts_dir"/*.xpi)
     if [[ ${#signed_files[@]} -ne 1 || ! -f "${signed_files[0]}" ]]; then
