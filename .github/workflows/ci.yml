@@ -58,7 +58,9 @@ jobs:
         run: brew install pandoc
 
       - name: Install SwiftFormat
-        run: brew install swiftformat
+        run: |
+          brew update
+          brew install swiftformat
 
       - name: Install SwiftLint
         run: brew install swiftlint
