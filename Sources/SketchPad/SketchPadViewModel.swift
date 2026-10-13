@@ -1663,8 +1663,8 @@ class SketchPadViewModel: ObservableObject {
         let updatedText = stTextView.text ?? ""
         let textScalarCount = updatedText.unicodeScalars.count
 
-        /// Validates and adjusts position for an item after a fix is applied.
-        /// Returns adjusted (start, end) if valid, nil if item should be removed.
+        // Validates and adjusts position for an item after a fix is applied.
+        // Returns adjusted (start, end) if valid, nil if item should be removed.
         func adjustAndValidate(
             start: Int,
             end: Int,
