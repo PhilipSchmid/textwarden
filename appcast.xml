@@ -3,6 +3,23 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.6.0</title>
+            <pubDate>Tue, 13 Oct 2026 12:32:22 +0200</pubDate>
+            <sparkle:version>40</sparkle:version>
+            <sparkle:shortVersionString>0.6.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;docs: Fix Swift comment formatting (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/b77454d&quot;&gt;&lt;code&gt;b77454d&lt;/code&gt;&lt;/a&gt;) by Philip Schmid&lt;/li&gt;
+&lt;li&gt;deps(rust): Bump rustls from 0.23.40 to 0.23.45 in /GrammarEngine (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/0cc3d78&quot;&gt;&lt;code&gt;0cc3d78&lt;/code&gt;&lt;/a&gt;) by @dependabot[bot]&lt;/li&gt;
+&lt;li&gt;deps(rust): Bump uuid in /GrammarEngine in the rust-minor-patch group (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/42907c8&quot;&gt;&lt;code&gt;42907c8&lt;/code&gt;&lt;/a&gt;) by @dependabot[bot]&lt;/li&gt;
+&lt;li&gt;deps(rust): Bump harper-core from v2.11.0 to v2.12.0 in /GrammarEngine (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/99a9fcf&quot;&gt;&lt;code&gt;99a9fcf&lt;/code&gt;&lt;/a&gt;) by @dependabot[bot]&lt;/li&gt;
+&lt;li&gt;deps(rust): Bump ammonia from 4.1.2 to 4.2.0 in /GrammarEngine (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/ea840b7&quot;&gt;&lt;code&gt;ea840b7&lt;/code&gt;&lt;/a&gt;) by @dependabot[bot]&lt;/li&gt;
+&lt;li&gt;chore: release v0.6.0-beta.1 (&lt;a href=&quot;https://github.com/PhilipSchmid/textwarden/commit/3f98811&quot;&gt;&lt;code&gt;3f98811&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.6.0/TextWarden-0.6.0-Universal.dmg" length="23954706" type="application/octet-stream" sparkle:edSignature="FMyH1XBylKH1A2mBlZHTSm/uZGE0syMIylJmkUu1xVgEmCphaqKtubOgWaljA7IGoGDOZhqoxV5pa416aKKGCQ=="/>
+        </item>
+        <item>
             <title>0.6.0-beta.1</title>
             <pubDate>Thu, 24 Sep 2026 14:51:54 +0200</pubDate>
             <sparkle:version>39</sparkle:version>
