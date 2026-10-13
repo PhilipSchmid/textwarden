@@ -233,7 +233,7 @@ class MilestoneCardWindowController {
             hostingView.wantsLayer = true
             hostingView.layer?.backgroundColor = .clear
 
-            /// Also clear any sublayers that might have backgrounds
+            // Also clear any sublayers that might have backgrounds
             func clearBackgrounds(in layer: CALayer) {
                 layer.backgroundColor = .clear
                 layer.sublayers?.forEach { clearBackgrounds(in: $0) }
