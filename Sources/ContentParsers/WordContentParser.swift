@@ -67,7 +67,7 @@ class WordContentParser: ContentParser {
                     &stringRef
                 ) == .success,
                     let text = stringRef as? String,
-                    !text.isEmpty
+                   !text.isEmpty
                 {
                     Logger.debug("WordContentParser: extractText - got full document via AXStringForRange (\(text.count) chars)", category: Logger.accessibility)
                     return text
