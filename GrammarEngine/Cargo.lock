@@ -2339,8 +2339,8 @@ dependencies = [
 
 [[package]]
 name = "harper-brill"
-version = "2.12.0"
-source = "git+https://github.com/Automattic/harper?tag=v2.12.0#b0ab21f5500da525c76553c56ca1b6b7669c6a78"
+version = "2.13.0"
+source = "git+https://github.com/Automattic/harper?tag=v2.13.0#f4ebc61d77df1fc00b6aa8bc604e91af3534dad1"
 dependencies = [
  "harper-pos-utils",
  "serde_json",
@@ -2348,8 +2348,8 @@ dependencies = [
 
 [[package]]
 name = "harper-core"
-version = "2.12.0"
-source = "git+https://github.com/Automattic/harper?tag=v2.12.0#b0ab21f5500da525c76553c56ca1b6b7669c6a78"
+version = "2.13.0"
+source = "git+https://github.com/Automattic/harper?tag=v2.13.0#f4ebc61d77df1fc00b6aa8bc604e91af3534dad1"
 dependencies = [
  "ammonia",
  "bitflags",
@@ -2384,8 +2384,8 @@ dependencies = [
 
 [[package]]
 name = "harper-pos-utils"
-version = "2.12.0"
-source = "git+https://github.com/Automattic/harper?tag=v2.12.0#b0ab21f5500da525c76553c56ca1b6b7669c6a78"
+version = "2.13.0"
+source = "git+https://github.com/Automattic/harper?tag=v2.13.0#f4ebc61d77df1fc00b6aa8bc604e91af3534dad1"
 dependencies = [
  "burn",
  "burn-ndarray",
@@ -2401,8 +2401,8 @@ dependencies = [
 
 [[package]]
 name = "harper-thesaurus"
-version = "2.12.0"
-source = "git+https://github.com/Automattic/harper?tag=v2.12.0#b0ab21f5500da525c76553c56ca1b6b7669c6a78"
+version = "2.13.0"
+source = "git+https://github.com/Automattic/harper?tag=v2.13.0#f4ebc61d77df1fc00b6aa8bc604e91af3534dad1"
 dependencies = [
  "hashbrown 0.16.1",
  "indexmap",
@@ -6188,27 +6188,27 @@ dependencies = [
 
 [[package]]
 name = "zstd"
-version = "0.13.3"
+version = "0.14.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e91ee311a569c327171651566e07972200e76fcfe2242a4fa446149a3881c08a"
+checksum = "db3ae9bf90af6e40197bef767eeefc46ad6397420fe873830bd85e5fbbfb3c70"
 dependencies = [
  "zstd-safe",
 ]
 
 [[package]]
 name = "zstd-safe"
-version = "7.2.4"
+version = "8.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f49c4d5f0abb602a93fb8736af2a4f4dd9512e36f7f570d66e65ff867ed3b9d"
+checksum = "ded520f16b29e1a9b771c722221b2b0a0398c2316d9bb3c42b458a5414d7434b"
 dependencies = [
  "zstd-sys",
 ]
 
 [[package]]
 name = "zstd-sys"
-version = "2.0.16+zstd.1.5.7"
+version = "2.1.2+zstd.1.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91e19ebc2adc8f83e43039e79776e3fda8ca919132d68a1fed6a5faca2683748"
+checksum = "481ada9c543b2323cbb7bbdbb5249177fbf0188ed959ed2c15e4b22421c84ed3"
 dependencies = [
  "cc",
  "pkg-config",
