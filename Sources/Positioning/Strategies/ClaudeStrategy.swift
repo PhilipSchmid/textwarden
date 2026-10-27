@@ -276,13 +276,13 @@ class ClaudeStrategy: GeometryProvider {
 
         var boundsRef: CFTypeRef?
         guard AXUIElementCopyParameterizedAttributeValue(
-            element,
-            kAXBoundsForRangeParameterizedAttribute as CFString,
-            rangeValue,
-            &boundsRef
-        ) == .success,
-            let bv = boundsRef,
-            CFGetTypeID(bv) == AXValueGetTypeID()
+                  element,
+                  kAXBoundsForRangeParameterizedAttribute as CFString,
+                  rangeValue,
+                  &boundsRef
+              ) == .success,
+              let bv = boundsRef,
+              CFGetTypeID(bv) == AXValueGetTypeID()
         else {
             return nil
         }
