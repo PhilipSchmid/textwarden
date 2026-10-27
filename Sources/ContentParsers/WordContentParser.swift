@@ -61,12 +61,12 @@ class WordContentParser: ContentParser {
             if let rangeValue = AXValueCreate(.cfRange, &range) {
                 var stringRef: CFTypeRef?
                 if AXUIElementCopyParameterizedAttributeValue(
-                    element,
-                    "AXStringForRange" as CFString,
-                    rangeValue,
-                    &stringRef
-                ) == .success,
-                    let text = stringRef as? String,
+                       element,
+                       "AXStringForRange" as CFString,
+                       rangeValue,
+                       &stringRef
+                   ) == .success,
+                   let text = stringRef as? String,
                    !text.isEmpty
                 {
                     Logger.debug("WordContentParser: extractText - got full document via AXStringForRange (\(text.count) chars)", category: Logger.accessibility)

@@ -1231,12 +1231,12 @@ enum AccessibilityBridge {
                 let appElement = AXUIElementCreateApplication(context.processID)
                 var focusedWindowValue: CFTypeRef?
                 guard AXUIElementCopyAttributeValue(
-                    appElement,
-                    kAXFocusedWindowAttribute as CFString,
-                    &focusedWindowValue
-                ) == .success,
-                    let focusedWindowValue,
-                    CFGetTypeID(focusedWindowValue) == AXUIElementGetTypeID()
+                          appElement,
+                          kAXFocusedWindowAttribute as CFString,
+                          &focusedWindowValue
+                      ) == .success,
+                      let focusedWindowValue,
+                      CFGetTypeID(focusedWindowValue) == AXUIElementGetTypeID()
                 else {
                     return nil
                 }
@@ -1260,12 +1260,12 @@ enum AccessibilityBridge {
                 let appElement = AXUIElementCreateApplication(context.processID)
                 var focusedElementValue: CFTypeRef?
                 guard AXUIElementCopyAttributeValue(
-                    appElement,
-                    kAXFocusedUIElementAttribute as CFString,
-                    &focusedElementValue
-                ) == .success,
-                    let focusedElementValue,
-                    CFGetTypeID(focusedElementValue) == AXUIElementGetTypeID()
+                          appElement,
+                          kAXFocusedUIElementAttribute as CFString,
+                          &focusedElementValue
+                      ) == .success,
+                      let focusedElementValue,
+                      CFGetTypeID(focusedElementValue) == AXUIElementGetTypeID()
                 else {
                     return nil
                 }
@@ -1291,12 +1291,12 @@ enum AccessibilityBridge {
                 let appElement = AXUIElementCreateApplication(context.processID)
                 var focusedElementValue: CFTypeRef?
                 guard AXUIElementCopyAttributeValue(
-                    appElement,
-                    kAXFocusedUIElementAttribute as CFString,
-                    &focusedElementValue
-                ) == .success,
-                    let focusedElementValue,
-                    CFGetTypeID(focusedElementValue) == AXUIElementGetTypeID()
+                          appElement,
+                          kAXFocusedUIElementAttribute as CFString,
+                          &focusedElementValue
+                      ) == .success,
+                      let focusedElementValue,
+                      CFGetTypeID(focusedElementValue) == AXUIElementGetTypeID()
                 else {
                     return nil
                 }
@@ -1336,29 +1336,29 @@ enum AccessibilityBridge {
     static func focusedWebAreaFrame(processID: pid_t, pageURL: String) -> CGRect? {
         let app = AXUIElementCreateApplication(processID)
         guard let call = AXClient.perform(
-            bundleID: AXClient.bundleIdentifier(for: app),
-            attribute: "AXFocusedUIElement/AXParent/AXRole",
-            operation: { () -> (AXUIElement, AXUIElement?)? in
-                var value: CFTypeRef?
-                if AXUIElementCopyAttributeValue(app, kAXFocusedUIElementAttribute as CFString, &value) == .success,
-                   let value, CFGetTypeID(value) == AXUIElementGetTypeID(),
-                   let webArea = findAncestor(unsafeBitCast(value, to: AXUIElement.self), withRole: "AXWebArea"),
-                   webAreaMatchesPage(webArea, pageURL: pageURL)
-                {
-                    return (webArea, findAncestor(webArea, withRole: "AXScrollArea"))
-                }
-                // Safari can leave focus on its toolbar after an extension popup closes.
-                // Search only the focused window, matching the authenticated page instead of the popup.
-                guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value) == .success,
-                      let value, CFGetTypeID(value) == AXUIElementGetTypeID()
-                else { return nil }
-                var remaining = 128
-                guard let webArea = findPageWebArea(unsafeBitCast(value, to: AXUIElement.self), pageURL: pageURL,
-                                                    depth: 0, remaining: &remaining) else { return nil }
-                return (webArea, findAncestor(webArea, withRole: "AXScrollArea"))
-            }
-        ), let (webArea, scrollArea) = call.value,
-        let documentFrame = getElementFrame(webArea), let windowFrame = getWindowFrame(webArea)
+                  bundleID: AXClient.bundleIdentifier(for: app),
+                  attribute: "AXFocusedUIElement/AXParent/AXRole",
+                  operation: { () -> (AXUIElement, AXUIElement?)? in
+                      var value: CFTypeRef?
+                      if AXUIElementCopyAttributeValue(app, kAXFocusedUIElementAttribute as CFString, &value) == .success,
+                         let value, CFGetTypeID(value) == AXUIElementGetTypeID(),
+                         let webArea = findAncestor(unsafeBitCast(value, to: AXUIElement.self), withRole: "AXWebArea"),
+                         webAreaMatchesPage(webArea, pageURL: pageURL)
+                      {
+                          return (webArea, findAncestor(webArea, withRole: "AXScrollArea"))
+                      }
+                      // Safari can leave focus on its toolbar after an extension popup closes.
+                      // Search only the focused window, matching the authenticated page instead of the popup.
+                      guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value) == .success,
+                            let value, CFGetTypeID(value) == AXUIElementGetTypeID()
+                      else { return nil }
+                      var remaining = 128
+                      guard let webArea = findPageWebArea(unsafeBitCast(value, to: AXUIElement.self), pageURL: pageURL,
+                                                          depth: 0, remaining: &remaining) else { return nil }
+                      return (webArea, findAncestor(webArea, withRole: "AXScrollArea"))
+                  }
+              ), let (webArea, scrollArea) = call.value,
+              let documentFrame = getElementFrame(webArea), let windowFrame = getWindowFrame(webArea)
         else { return nil }
         return browserViewportFrame(webArea: documentFrame, scrollArea: scrollArea.flatMap(getElementFrame), window: windowFrame)
     }

@@ -2518,12 +2518,12 @@ class SlackContentParser: ContentParser {
         // Get cursor position
         var selectedRangeValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(
-            element,
-            kAXSelectedTextRangeAttribute as CFString,
-            &selectedRangeValue
-        ) == .success,
-            let rangeRef = selectedRangeValue,
-            let selectedRange = safeAXValueGetRange(rangeRef)
+                  element,
+                  kAXSelectedTextRangeAttribute as CFString,
+                  &selectedRangeValue
+              ) == .success,
+              let rangeRef = selectedRangeValue,
+              let selectedRange = safeAXValueGetRange(rangeRef)
         else {
             return nil
         }
