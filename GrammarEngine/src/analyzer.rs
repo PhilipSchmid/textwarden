@@ -1587,10 +1587,10 @@ mod tests {
     fn test_sentence_start_capitalization() {
         // Test that suggestions at sentence start are capitalized
         let test_cases = vec![
-            ("THis is a test.", "THis", "This"),       // Start of text
-            ("Hello. tHat is wrong.", "tHat", "That"), // After period
-            ("Really! wHy not?", "wHy", "Why"),        // After exclamation
-            ("What? iT works.", "iT", "It"),           // After question mark
+            ("sentnce is a test.", "sentnce", "Sentence"), // Start of text
+            ("Hello. sentnce is wrong.", "sentnce", "Sentence"), // After period
+            ("Really! sentnce is wrong.", "sentnce", "Sentence"), // After exclamation
+            ("What? sentnce is wrong.", "sentnce", "Sentence"), // After question mark
         ];
 
         println!("\n=== TESTING SENTENCE START CAPITALIZATION ===");
@@ -1635,7 +1635,7 @@ mod tests {
                     panic!("No suggestions found for '{}' in '{}'", error_word, text);
                 }
             } else {
-                println!("  ⚠️  No error found for '{}'", error_word);
+                panic!("No error found for '{}' in '{}'", error_word, text);
             }
         }
         println!("=== END TEST ===\n");
@@ -4736,10 +4736,10 @@ mod tests {
     fn test_sentence_start_capitalization_toggle_enabled() {
         // Test that sentence-start capitalization works when enabled (TextWarden enhancement)
         let test_cases = vec![
-            ("THis is a test.", "THis", "This"),       // Start of text
-            ("Hello. tHat is wrong.", "tHat", "That"), // After period
-            ("Really! wHy not?", "wHy", "Why"),        // After exclamation
-            ("What? iT works.", "iT", "It"),           // After question mark
+            ("sentnce is a test.", "sentnce", "Sentence"), // Start of text
+            ("Hello. sentnce is wrong.", "sentnce", "Sentence"), // After period
+            ("Really! sentnce is wrong.", "sentnce", "Sentence"), // After exclamation
+            ("What? sentnce is wrong.", "sentnce", "Sentence"), // After question mark
         ];
 
         println!("\n=== SENTENCE START CAPITALIZATION (ENABLED) ===");
@@ -4781,10 +4781,10 @@ mod tests {
                     );
                     println!("  ✓ Correctly suggests '{}'", first_suggestion);
                 } else {
-                    println!("  ⚠️  No suggestions found for '{}'", error_word);
+                    panic!("No suggestions found for '{}' in '{}'", error_word, text);
                 }
             } else {
-                println!("  ⚠️  No error found for '{}'", error_word);
+                panic!("No error found for '{}' in '{}'", error_word, text);
             }
         }
         println!("=== END TEST ===\n");
@@ -4794,8 +4794,8 @@ mod tests {
     fn test_sentence_start_capitalization_toggle_disabled() {
         // Test that sentence-start capitalization is SKIPPED when disabled
         let test_cases = vec![
-            ("THis is a test.", "THis"),       // Start of text
-            ("Hello. tHat is wrong.", "tHat"), // After period
+            ("sentnce is a test.", "sentnce"),       // Start of text
+            ("Hello. sentnce is wrong.", "sentnce"), // After period
         ];
 
         println!("\n=== SENTENCE START CAPITALIZATION (DISABLED) ===");
@@ -4828,24 +4828,14 @@ mod tests {
                 println!("  Error word: '{}'", error_word);
                 println!("  Suggestions: {:?}", error.suggestions);
 
-                // When disabled, suggestions should be lowercase (Harper's original behavior)
-                // The first character should match the original suggestion from Harper
-                if let Some(first_suggestion) = error.suggestions.first() {
-                    // The suggestion should NOT have forced capitalization
-                    // We expect Harper's original suggestion, which would be lowercase for these test cases
-                    if let Some(first_char) = first_suggestion.chars().next() {
-                        println!(
-                            "  First suggestion: '{}', first char: '{}'",
-                            first_suggestion, first_char
-                        );
-                        // This is a negative test - we just verify the function runs without error
-                        println!("  ✓ Capitalization enhancement was not applied");
-                    } else {
-                        println!("  ⚠️  Empty suggestion received");
-                    }
-                }
+                assert_eq!(
+                    error.suggestions.first().map(String::as_str),
+                    Some("sentence"),
+                    "Capitalization should not be forced for '{}'",
+                    text
+                );
             } else {
-                println!("  ⚠️  No error found for '{}'", error_word);
+                panic!("No error found for '{}' in '{}'", error_word, text);
             }
         }
         println!("=== END TEST ===\n");
@@ -4854,7 +4844,7 @@ mod tests {
     #[test]
     fn test_sentence_start_capitalization_toggle_comparison() {
         // Compare the results with the toggle enabled vs disabled
-        let text = "THis is a test.";
+        let text = "sentnce is a test.";
 
         println!("\n=== CAPITALIZATION TOGGLE COMPARISON ===");
         println!("Text: '{}'", text);
@@ -4897,15 +4887,15 @@ mod tests {
             true, // check_dashes
         );
 
-        // Find the error for "THis"
+        // Find the spelling error with each toggle setting.
         let error_enabled = result_enabled
             .errors
             .iter()
-            .find(|e| &text[e.start..e.end] == "THis");
+            .find(|e| &text[e.start..e.end] == "sentnce");
         let error_disabled = result_disabled
             .errors
             .iter()
-            .find(|e| &text[e.start..e.end] == "THis");
+            .find(|e| &text[e.start..e.end] == "sentnce");
 
         if let (Some(err_on), Some(err_off)) = (error_enabled, error_disabled) {
             println!("\nWith enhancement ENABLED:");
@@ -4914,32 +4904,16 @@ mod tests {
             println!("\nWith enhancement DISABLED:");
             println!("  Suggestions: {:?}", err_off.suggestions);
 
-            // When enabled, first suggestion should start with uppercase
-            if let Some(sugg_on) = err_on.suggestions.first() {
-                if let Some(first_char_on) = sugg_on.chars().next() {
-                    assert!(
-                        first_char_on.is_uppercase(),
-                        "With enhancement enabled, first suggestion should be capitalized: '{}'",
-                        sugg_on
-                    );
-                    println!(
-                        "\n✓ Enhancement enabled: suggestion is capitalized: '{}'",
-                        sugg_on
-                    );
-                } else {
-                    panic!("Empty suggestion from Harper - test data error");
-                }
-            }
-
-            // Both should have suggestions, but they may differ in capitalization
-            assert!(
-                !err_on.suggestions.is_empty(),
-                "Should have suggestions when enabled"
+            assert_eq!(
+                err_on.suggestions.first().map(String::as_str),
+                Some("Sentence")
             );
-            assert!(
-                !err_off.suggestions.is_empty(),
-                "Should have suggestions when disabled"
+            assert_eq!(
+                err_off.suggestions.first().map(String::as_str),
+                Some("sentence")
             );
+        } else {
+            panic!("Should find the spelling error with both toggle settings");
         }
 
         println!("=== END COMPARISON ===\n");
@@ -5153,21 +5127,13 @@ mod tests {
 
     #[test]
     fn test_sentence_start_capitalization_with_curly_apostrophe() {
-        // BUG REPRODUCTION: User reported "THis" at sentence start suggesting lowercase "this"
-        // The issue: Curly apostrophe (') is 3 bytes in UTF-8 (U+2019)
-        // Harper uses CHARACTER indices but we need to handle byte offsets correctly
-        //
-        // Text: "I'm testing. THis is wrong." (with curly apostrophe)
-        // ' is RIGHT SINGLE QUOTATION MARK (U+2019) = bytes E2 80 99
+        // A curly apostrophe shifts byte offsets relative to Harper's character indices.
 
-        let text = "I\u{2019}m testing. THis is wrong.";
+        let text = "I\u{2019}m testing. sentnce is wrong.";
 
         println!("\n=== CURLY APOSTROPHE SENTENCE-START TEST ===");
         println!("Text: '{}'", text);
-        println!(
-            "Byte length: {} (27 chars but 29 bytes due to curly apostrophe)",
-            text.len()
-        );
+        println!("Byte length: {}", text.len());
         println!("Char count: {}", text.chars().count());
 
         let result = analyze_text(
@@ -5202,25 +5168,25 @@ mod tests {
             );
         }
 
-        // Find the "THis" error
+        // Find the spelling error after the curly apostrophe.
         let chars: Vec<char> = text.chars().collect();
         let this_error = result.errors.iter().find(|e| {
             if e.start < chars.len() && e.end <= chars.len() {
                 let error_text: String = chars[e.start..e.end].iter().collect();
-                error_text == "THis"
+                error_text == "sentnce"
             } else {
                 false
             }
         });
 
-        assert!(this_error.is_some(), "Should find error for 'THis'");
+        assert!(this_error.is_some(), "Should find error for 'sentnce'");
 
         if let Some(error) = this_error {
-            println!("\nTHis error details:");
+            println!("\nSpelling error details:");
             println!("  Start (char): {}, End (char): {}", error.start, error.end);
             println!("  Suggestions: {:?}", error.suggestions);
 
-            // The first suggestion should be "This" (capitalized) since it's at sentence start
+            // The suggestion should be capitalized since it's at sentence start.
             if let Some(first_sugg) = error.suggestions.first() {
                 let first_char = first_sugg.chars().next().unwrap_or(' ');
                 println!(
@@ -5233,11 +5199,13 @@ mod tests {
                     first_sugg
                 );
                 assert_eq!(
-                    first_sugg, "This",
-                    "Expected 'This' but got '{}'",
+                    first_sugg, "Sentence",
+                    "Expected 'Sentence' but got '{}'",
                     first_sugg
                 );
-                println!("  ✓ Correctly suggests 'This' at sentence start");
+                println!("  ✓ Correctly suggests 'Sentence' at sentence start");
+            } else {
+                panic!("No suggestions found for 'sentnce'");
             }
         }
 
@@ -5433,28 +5401,33 @@ mod tests {
         let test_cases = vec![
             // (text, error_word, expected_suggestion, description)
             (
-                "I\u{2019}m ok. THis wrong.",
-                "THis",
-                "This",
+                "I\u{2019}m ok. sentnce wrong.",
+                "sentnce",
+                "Sentence",
                 "curly apostrophe U+2019 (3 bytes)",
             ),
             (
-                "Café. THis wrong.",
-                "THis",
-                "This",
+                "Café. sentnce wrong.",
+                "sentnce",
+                "Sentence",
                 "e with acute U+00E9 (2 bytes)",
             ),
             (
-                "日本語. THis wrong.",
-                "THis",
-                "This",
+                "日本語. sentnce wrong.",
+                "sentnce",
+                "Sentence",
                 "Japanese (3 bytes each)",
             ),
-            ("🎉! THis wrong.", "THis", "This", "emoji U+1F389 (4 bytes)"),
             (
-                "\u{201C}Hello\u{201D}. THis wrong.",
-                "THis",
-                "This",
+                "🎉! sentnce wrong.",
+                "sentnce",
+                "Sentence",
+                "emoji U+1F389 (4 bytes)",
+            ),
+            (
+                "\u{201C}Hello\u{201D}. sentnce wrong.",
+                "sentnce",
+                "Sentence",
                 "smart quotes (3 bytes each)",
             ),
         ];
@@ -5503,10 +5476,10 @@ mod tests {
                     );
                     println!("  ✓ Pass");
                 } else {
-                    println!("  ⚠️ No suggestions found");
+                    panic!("No suggestions found for '{}'", description);
                 }
             } else {
-                println!("  ⚠️ Error '{}' not found", error_word);
+                panic!("Error '{}' not found for '{}'", error_word, description);
             }
         }
         println!("\n=== END TEST ===\n");
@@ -5522,7 +5495,7 @@ mod tests {
         // We need to ensure ALL errors for a span get sentence-start capitalization applied
         // BEFORE deduplication, so the chosen error has capitalized suggestions
 
-        let text = "THis is wrong.";
+        let text = "sentnce is wrong.";
 
         println!("\n=== DEDUPLICATION SUGGESTION TEST ===");
         println!("Text: '{}'", text);
@@ -5556,17 +5529,17 @@ mod tests {
             );
         }
 
-        // There should be exactly one error for "THis" after deduplication
+        // There should be exactly one error for "sentnce" after deduplication.
         let this_errors: Vec<_> = result
             .errors
             .iter()
-            .filter(|e| &text[e.start..e.end] == "THis")
+            .filter(|e| &text[e.start..e.end] == "sentnce")
             .collect();
 
         assert_eq!(
             this_errors.len(),
             1,
-            "Should have exactly one error for 'THis' after deduplication"
+            "Should have exactly one error for 'sentnce' after deduplication"
         );
 
         let error = this_errors[0];
@@ -5581,6 +5554,8 @@ mod tests {
                 "✓ Deduplicated error has capitalized suggestion: '{}'",
                 first_sugg
             );
+        } else {
+            panic!("No suggestions found for 'sentnce'");
         }
 
         println!("=== END TEST ===\n");
@@ -5591,17 +5566,32 @@ mod tests {
         // Comprehensive test for various sentence boundary patterns
         let test_cases = vec![
             // (text, expected_errors with (word, expected_first_suggestion))
-            ("THis start.", vec![("THis", "This")]),
-            ("Ok. THis after period.", vec![("THis", "This")]),
-            ("Really! THis after exclamation.", vec![("THis", "This")]),
-            ("What? THis after question.", vec![("THis", "This")]),
-            ("Hello...  THis after ellipsis.", vec![("THis", "This")]),
+            ("sentnce start.", vec![("sentnce", "Sentence")]),
+            ("Ok. sentnce after period.", vec![("sentnce", "Sentence")]),
+            (
+                "Really! sentnce after exclamation.",
+                vec![("sentnce", "Sentence")],
+            ),
+            (
+                "What? sentnce after question.",
+                vec![("sentnce", "Sentence")],
+            ),
+            (
+                "Hello...  sentnce after ellipsis.",
+                vec![("sentnce", "Sentence")],
+            ),
             // Middle of sentence - should NOT capitalize
-            ("The THis is wrong.", vec![("THis", "this")]),
-            ("I saw THis yesterday.", vec![("THis", "this")]),
+            ("The sentnce is wrong.", vec![("sentnce", "sentence")]),
+            ("I saw sentnce yesterday.", vec![("sentnce", "sentence")]),
             // After colon/semicolon - typically not sentence start
-            ("Note: THis follows colon.", vec![("THis", "this")]),
-            ("Done; THis follows semicolon.", vec![("THis", "this")]),
+            (
+                "Note: sentnce follows colon.",
+                vec![("sentnce", "sentence")],
+            ),
+            (
+                "Done; sentnce follows semicolon.",
+                vec![("sentnce", "sentence")],
+            ),
         ];
 
         println!("\n=== SENTENCE BOUNDARY COMPREHENSIVE TEST ===");
@@ -5647,9 +5637,11 @@ mod tests {
                             "For '{}' in '{}': expected '{}' but got '{}'",
                             error_word, text, expected_sugg, first_sugg
                         );
+                    } else {
+                        panic!("No suggestions found for '{}' in '{}'", error_word, text);
                     }
                 } else {
-                    println!("  ⚠️ '{}' not flagged as error", error_word);
+                    panic!("'{}' not flagged as error in '{}'", error_word, text);
                 }
             }
         }
