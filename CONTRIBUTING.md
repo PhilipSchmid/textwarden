@@ -44,6 +44,8 @@ open TextWarden.xcodeproj
 
 `make build` compiles the Rust grammar engine for Intel and Apple Silicon, creates a universal static library, generates the Help Book from Markdown, and builds the Swift app. See [BUILD.md](BUILD.md) for individual targets and troubleshooting.
 
+Harper is pinned to a [small security patch on top of 3.0.0](https://github.com/PhilipSchmid/harper/commit/ae6acb45fd6cf10708728bb9e82289dea38154df). It upgrades `zip` to a patched 9.x version, validates archive header consistency, and uses the same Burn inference components directly to remove unused vulnerable backends. Grammar rules and model data are unchanged. Return to an official Harper release once it includes these fixes and no longer resolves `zip` below 9.0.5; rerun the grammar tests, archive security regression, and CPU gate before changing the pin.
+
 ## Repository Layout
 
 ```text
