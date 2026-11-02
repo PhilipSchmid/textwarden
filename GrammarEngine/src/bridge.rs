@@ -95,7 +95,13 @@ mod ffi {
 /// Lightweight helper to read current process memory in bytes
 fn read_process_memory(pid: Option<Pid>) -> u64 {
     if let Some(pid) = pid {
-        let mut sys = System::new();
+        let mut sys = match System::new() {
+            Ok(sys) => sys,
+            Err(error) => {
+                tracing::warn!("Failed to initialize process memory measurement: {error:?}");
+                return 0;
+            }
+        };
         sys.refresh_processes(ProcessesToUpdate::All, false);
         return sys.process(pid).map(|p| p.memory()).unwrap_or(0);
     }
@@ -394,5 +400,17 @@ fn analyze_text(
         document_parse_ms: result.document_parse_ms,
         harper_lint_ms: result.harper_lint_ms,
         post_process_ms: result.post_process_ms,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn process_memory_handles_current_and_missing_pid() {
+        assert_eq!(read_process_memory(None), 0);
+        let pid = sysinfo::get_current_pid().expect("current process ID should be available");
+        assert!(read_process_memory(Some(pid)) > 0);
     }
 }
