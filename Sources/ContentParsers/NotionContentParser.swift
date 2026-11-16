@@ -125,8 +125,8 @@ class NotionContentParser: ContentParser {
         // Use explicit check for letters and digits, ignoring variation selectors and other modifiers
         for scalar in line.unicodeScalars {
             // Skip variation selectors and other invisible modifiers
-            if scalar.value >= 0xFE00 && scalar.value <= 0xFE0F { continue }
-            if scalar.value >= 0xE0100 && scalar.value <= 0xE01EF { continue }
+            if scalar.value >= 0xFE00, scalar.value <= 0xFE0F { continue }
+            if scalar.value >= 0xE0100, scalar.value <= 0xE01EF { continue }
 
             // U+200B (zero-width space) is used as a code block boundary marker
             // Don't treat it as emoji/UI element - let code block detection handle it

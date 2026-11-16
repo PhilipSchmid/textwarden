@@ -738,7 +738,7 @@ class FloatingErrorIndicator: NSPanel {
         self.sourceText = sourceText
 
         // Determine mode based on what we have
-        if !errors.isEmpty && !styleSuggestions.isEmpty {
+        if !errors.isEmpty, !styleSuggestions.isEmpty {
             mode = .both(errors: errors, styleSuggestions: styleSuggestions)
         } else if !styleSuggestions.isEmpty {
             mode = .styleSuggestions(styleSuggestions)
