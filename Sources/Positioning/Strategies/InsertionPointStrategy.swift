@@ -200,7 +200,7 @@ class InsertionPointStrategy: GeometryProvider {
         Logger.debug("InsertionPointStrategy: Y calculation - visualLine=\(adjustedVisualLineNumber), totalLines=\(totalLineCount), proportionalY=\(proportionalY)", category: Logger.ui)
 
         // Sanity check: line height should be reasonable
-        guard adjustedLineHeight >= 14.0 && adjustedLineHeight <= 50.0 else {
+        guard adjustedLineHeight >= 14.0, adjustedLineHeight <= 50.0 else {
             Logger.debug("InsertionPointStrategy: Calculated line height \(adjustedLineHeight) outside reasonable range - failing strategy", category: Logger.ui)
             return nil
         }
@@ -232,7 +232,7 @@ class InsertionPointStrategy: GeometryProvider {
         Logger.debug("InsertionPointStrategy: Quartz bounds: \(quartzBounds) (line \(visualLineNumber))", category: Logger.ui)
 
         // Validate bounds are reasonable
-        guard quartzBounds.width > 0 && quartzBounds.height > 0 else {
+        guard quartzBounds.width > 0, quartzBounds.height > 0 else {
             Logger.debug("InsertionPointStrategy: Invalid bounds dimensions", category: Logger.accessibility)
             return nil
         }

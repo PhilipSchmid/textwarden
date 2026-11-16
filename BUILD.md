@@ -10,7 +10,7 @@ TextWarden combines a Swift macOS app with a Rust static library. The standard b
 - [Pandoc](https://pandoc.org/) for the Help Book
 - [`web-ext`](https://extensionworkshop.com/documentation/develop/getting-started-with-web-ext/) and Mozilla API credentials for release builds
 
-The app's deployment target is macOS 14. Apple Intelligence code uses the macOS 26 SDK behind availability checks. Checks also run on macOS 14; newer APIs and their checks are availability-gated.
+The app's deployment target is macOS 14. Apple Intelligence code uses the macOS 26 SDK behind availability checks. CI builds and tests on macOS 26 (Apple Silicon) and macOS 15 (Intel), retaining the macOS 14 deployment target and Xcode 16.2 compatibility check. GitHub retired macOS 14 runners, so runtime testing on macOS 14 requires a separate Mac. Newer APIs and their checks are availability-gated.
 
 Install the tools and targets:
 

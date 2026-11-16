@@ -12,7 +12,7 @@ env:
 jobs:
   rust-tests:
     name: Rust Tests & Linting
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
 
@@ -107,8 +107,8 @@ jobs:
             CODE_SIGNING_REQUIRED=NO
 
   swift-minimum-os:
-    name: macOS 14 Build & Test
-    runs-on: macos-14
+    name: Intel Build & Test (macOS 14 target)
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v7
 
@@ -135,7 +135,7 @@ jobs:
           mkdir -p target
           cp target/x86_64-apple-darwin/release/libgrammar_engine.a target/libgrammar_engine_universal.a
 
-      - name: Build app at its minimum supported macOS version
+      - name: Build app for its minimum deployment target
         run: |
           xcodebuild build \
             -project TextWarden.xcodeproj \
