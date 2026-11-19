@@ -11,6 +11,7 @@ TextWarden is a private macOS grammar checker and writing assistant. These guide
 | [Apple Mail](MAIL.md) | Subject and compose-body checking with WebKit-aware replacement |
 | [Apple Messages](MESSAGES.md) | Catalyst positioning and conversation-change handling |
 | [Notion](NOTION.md) | Block-aware filtering with partial visual underline coverage |
+| [Obsidian](OBSIDIAN.md) | Grammar checking and underlines in the Markdown note editor |
 | [Microsoft Outlook](OUTLOOK.md) | Subject and message-body checking with Office-safe replacement |
 | [Apple Pages](PAGES.md) | Native document positioning with focused clipboard replacement |
 | [Perplexity](PERPLEXITY.md) | Anchor-based positioning in the Perplexity prompt editor |

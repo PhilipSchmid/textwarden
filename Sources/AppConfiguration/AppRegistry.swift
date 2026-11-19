@@ -115,6 +115,7 @@ final class AppRegistry {
         register(.perplexity)
         register(.browsers)
         register(.notion)
+        register(.obsidian)
         register(.mail)
         register(.messages)
         register(.notes)
@@ -136,6 +137,30 @@ final class AppRegistry {
 // MARK: - Built-in Configurations
 
 extension AppConfiguration {
+    // MARK: - Obsidian
+
+    static let obsidian = AppConfiguration(
+        identifier: "obsidian",
+        displayName: "Obsidian",
+        bundleIDs: ["md.obsidian"],
+        category: .electron,
+        parserType: .obsidian,
+        preferredStrategies: [.obsidian],
+        features: AppFeatures(
+            visualUnderlinesEnabled: true,
+            textReplacementMethod: .browserStyle,
+            requiresTypingPause: false,
+            supportsFormattedText: true,
+            childElementTraversal: false, // Select on the editor, even though positioning uses child runs.
+            delaysAXNotifications: false,
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: true,
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
+        )
+    )
+
     // MARK: - TextWarden
 
     /// TextWarden's own windows are never monitored through Accessibility.

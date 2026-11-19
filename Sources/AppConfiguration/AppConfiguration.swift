@@ -27,6 +27,7 @@ enum ParserType {
     case claude
     case browser
     case notion
+    case obsidian
     case teams
     case mail
     case word
@@ -42,6 +43,7 @@ enum StrategyType: String, CaseIterable {
     case slack // Dedicated strategy for Slack's Quill editor
     case teams // Dedicated strategy for Microsoft Teams' WebView2 compose
     case notion // Dedicated strategy for Notion's block-based editor
+    case obsidian // Child text runs in Obsidian's CodeMirror editor
     case outlook // Dedicated strategy for Microsoft Outlook compose
     case word // Dedicated strategy for Microsoft Word documents
     case powerpoint // Dedicated strategy for Microsoft PowerPoint Notes

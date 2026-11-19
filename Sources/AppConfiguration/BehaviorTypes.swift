@@ -186,6 +186,9 @@ enum AppQuirk: Hashable {
     /// App uses virtualized text (only visible text in DOM/view)
     case virtualizedText(visibilityPercentage: Int)
 
+    /// The accessibility text itself changes as the editor renders a new viewport.
+    case exposesViewportText
+
     /// App returns negative X coordinates for some elements
     case negativeXCoordinates
 
