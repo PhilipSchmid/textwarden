@@ -188,6 +188,7 @@ enum ApplicationPolicy: Equatable {
         "com.1password.1password.helper.GPU": .ignored, // 1Password GPU Helper
         "com.1password.1password.helper.Renderer": .ignored, // 1Password Renderer Helper
         "com.1password.1password.helper.Plugin": .ignored, // 1Password Plugin Helper
+        "com.ledger.live": .ignored, // Ledger Wallet; keep wallet workflows outside monitoring
         "org.sparkle-project.Sparkle.Autoupdate": .ignored, // Sparkle updater
         "pro.betterdisplay.BetterDisplay": .ignored, // BetterDisplay
         "com.steipete.codexbar": .ignored, // CodexBar
@@ -202,6 +203,7 @@ enum ApplicationPolicy: Equatable {
         "com.intego.NetUpdate": .ignored, // Intego NetUpdate
         "com.logi.optionsplus": .ignored, // Logi Options+
         "com.logi.cp-dev-mgr": .ignored, // Logi Options+ agent
+        "com.logi.pluginservice": .ignored, // Logi Plugin Service
         "com.fabriceleyne.menubarstats": .ignored, // MenuBar Stats
         "com.fabriceleyne.menubarstatshelper": .ignored, // MenuBar Stats helper
         "com.microsoft.autoupdate2": .ignored, // Microsoft AutoUpdate
@@ -226,7 +228,14 @@ enum ApplicationPolicy: Equatable {
         "com.valvesoftware.steam": .ignored, // Chat and reviews
         "com.valvesoftware.steam.helper": .ignored, // Steam web UI can host chat
         "net.battle.app": .ignored, // Battle.net game launcher
+        "net.battle.bootstrapper": .ignored, // World of Warcraft Launcher
+        "com.blizzard.worldofwarcraft": .ignored, // World of Warcraft; in-game chat
         "com.blizzard.blizzarderror": .ignored, // Blizzard crash reporter
+        "com.jagex.launcher": .ignored, // Jagex game launcher
+        "com.jagex.RuneScape": .ignored, // RuneScape; in-game chat
+        "com.overwolf.curseforge": .ignored, // CurseForge mod manager
+        "com.spotify.client": .ignored, // Spotify; playlist text
+        "com.vorssaint.utils": .ignored, // Vorssaint menu bar toolkit; text snippets
         "com.docker.docker": .ignored, // Container tooling with AI prompts
         "com.electron.dockerdesktop": .ignored, // Docker Desktop UI
         "app.omlx": .ignored, // Model management with chat access
@@ -240,9 +249,11 @@ enum ApplicationPolicy: Equatable {
         "com.apple.ProblemReporter": .ignored, // Problem Reporter
         "com.apple.appleseed.FeedbackAssistant": .ignored, // Feedback Assistant
 
-        // These two apps have general writing editors: retain an explicit opt-in.
+        // Apps with writing surfaces or testing workflows retain an explicit opt-in.
         "com.raycast.macos": .pausedByDefault, // Notes and AI chat
         "com.electron.wispr-flow": .pausedByDefault, // Dictation with editable notes and transcripts
+        "com.FluidApp.app": .pausedByDefault, // FluidVoice; editable meeting transcripts
+        "com.google.chrome.for.testing": .pausedByDefault, // Browser automation and manual web testing
 
         // Self-monitoring and the existing window-management exclusion.
         "io.textwarden.TextWarden": .ignored,
