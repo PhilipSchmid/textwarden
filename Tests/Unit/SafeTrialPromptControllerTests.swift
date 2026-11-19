@@ -40,7 +40,14 @@ final class SafeTrialPromptControllerTests: XCTestCase {
             "com.valvesoftware.steam",
             "com.valvesoftware.steam.helper",
             "net.battle.app",
+            "net.battle.bootstrapper",
+            "com.blizzard.worldofwarcraft",
             "com.blizzard.blizzarderror",
+            "com.jagex.launcher",
+            "com.jagex.RuneScape",
+            "com.overwolf.curseforge",
+            "com.spotify.client",
+            "com.vorssaint.utils",
             "com.docker.docker",
             "com.electron.dockerdesktop",
             "app.omlx",
@@ -66,6 +73,7 @@ final class SafeTrialPromptControllerTests: XCTestCase {
             "com.1password.1password.helper.GPU",
             "com.1password.1password.helper.Renderer",
             "com.1password.1password.helper.Plugin",
+            "com.ledger.live",
             "org.sparkle-project.Sparkle.Autoupdate",
             "pro.betterdisplay.BetterDisplay",
             "com.steipete.codexbar",
@@ -80,6 +88,7 @@ final class SafeTrialPromptControllerTests: XCTestCase {
             "com.intego.NetUpdate",
             "com.logi.optionsplus",
             "com.logi.cp-dev-mgr",
+            "com.logi.pluginservice",
             "com.fabriceleyne.menubarstats",
             "com.fabriceleyne.menubarstatshelper",
             "com.microsoft.autoupdate2",
@@ -154,6 +163,7 @@ final class SafeTrialPromptControllerTests: XCTestCase {
         for bundleID in ["com.apple.TextEdit", "com.apple.mail", "com.apple.Notes", "com.apple.Safari"] {
             XCTAssertEqual(registry.policy(for: bundleID), .supported, bundleID)
         }
+        XCTAssertEqual(registry.policy(for: "com.apple.freeform"), .safeTrial)
     }
 
     func testDefaultPausesStillAllowOptInAndRequireConsent() throws {
@@ -170,6 +180,8 @@ final class SafeTrialPromptControllerTests: XCTestCase {
             "com.mitchellh.ghostty",
             "com.raycast.macos",
             "com.electron.wispr-flow",
+            "com.FluidApp.app",
+            "com.google.chrome.for.testing",
         ]
 
         let suite = "DefaultPauseTests.\(UUID().uuidString)"
