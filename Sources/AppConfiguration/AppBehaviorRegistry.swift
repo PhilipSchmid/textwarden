@@ -49,6 +49,7 @@ final class AppBehaviorRegistry {
         // Electron/Chromium apps
         register(SlackBehavior())
         register(NotionBehavior())
+        register(ObsidianBehavior())
         register(ClaudeBehavior())
         for bundleID in AppConfiguration.chatgpt.bundleIDs {
             register(ChatGPTBehavior(bundleIdentifier: bundleID))

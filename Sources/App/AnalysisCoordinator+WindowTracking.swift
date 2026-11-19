@@ -753,11 +753,17 @@ extension AnalysisCoordinator {
         // Notify state machine of scroll end
         overlayStateMachine.handle(.scrollEnded)
 
+        guard let element = textMonitor.monitoredElement,
+              let context = textMonitor.currentContext
+        else { return }
+
+        let behavior = AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier)
+        if behavior.knownQuirks.contains(.exposesViewportText) {
+            textMonitor.extractText(from: element)
+        }
+
         // Re-show underlines using cached errors (positions will be recalculated)
-        if let element = textMonitor.monitoredElement,
-           let context = textMonitor.currentContext,
-           !currentErrors.isEmpty
-        {
+        if !currentErrors.isEmpty {
             let underlinesRestored = errorOverlay.update(errors: currentErrors, element: element, context: context)
             Logger.debug("Scroll monitoring: Restored \(underlinesRestored) underlines from \(currentErrors.count) cached errors", category: Logger.analysis)
         }

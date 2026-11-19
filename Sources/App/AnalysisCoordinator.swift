@@ -94,6 +94,10 @@ class AnalysisCoordinator: ObservableObject {
     /// Error overlay window for visual underlines (lazy initialization)
     lazy var errorOverlay: ErrorOverlayWindow = {
         let window = ErrorOverlayWindow()
+        window.analyzedTextForError = { [weak self] error in
+            guard let self else { return nil }
+            return currentErrorSourceStore.sourceText(for: error, among: currentErrors)
+        }
         Logger.debug("AnalysisCoordinator: Error overlay window created", category: Logger.ui)
         return window
     }()

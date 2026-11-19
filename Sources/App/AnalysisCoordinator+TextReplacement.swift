@@ -1840,15 +1840,18 @@ extension AnalysisCoordinator {
                 return .success
             }
 
-            // Convert fallback range to UTF-16 if we have the text
-            // Required for browsers and Mac Catalyst apps that use UTF-16 offsets
-            // Skip for apps that use grapheme indices (like native macOS and Microsoft Office apps)
+            // Grammar suggestions supply Unicode-scalar offsets. Convert directly to the
+            // editor's UTF-16 units so a compound grapheme doesn't shift the selection.
             let appBehaviorForFallback = AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier)
-            if let text = currentText, appBehaviorForFallback.usesUTF16TextIndices {
-                let graphemeRange = NSRange(location: range.location, length: range.length)
-                let utf16Range = TextIndexConverter.graphemeToUTF16Range(graphemeRange, in: text)
-                range = CFRange(location: utf16Range.location, length: utf16Range.length)
-                Logger.debug("Browser selection: Converted fallback range from grapheme [\(graphemeRange.location), \(graphemeRange.length)] to UTF-16 [\(utf16Range.location), \(utf16Range.length)]", category: Logger.analysis)
+            if appBehaviorForFallback.usesUTF16TextIndices {
+                guard let text = currentText,
+                      let utf16Range = TextIndexConverter.scalarRangeToUTF16CFRange(
+                          start: range.location,
+                          end: range.location + range.length,
+                          in: text
+                      )
+                else { return .failed }
+                range = utf16Range
             }
 
             guard let rangeValue = AXValueCreate(.cfRange, &range) else {
@@ -2141,6 +2144,15 @@ extension AnalysisCoordinator {
             return
         }
 
+        let appBehavior = AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier)
+        if appBehavior.knownQuirks.contains(.exposesViewportText),
+           !currentText.utf16.elementsEqual(analyzedText.utf16)
+        {
+            SuggestionPopover.shared.showStatusMessage("Text changed - re-analyzing...")
+            triggerImmediateReanalysis()
+            return
+        }
+
         let scalarCount = currentText.unicodeScalars.count
         if error.end > scalarCount {
             Logger.warning("Keyboard replacement: Stale error positions \(error.start)-\(error.end) exceed text length \(scalarCount)", category: Logger.analysis)
@@ -2177,9 +2189,6 @@ extension AnalysisCoordinator {
             triggerImmediateReanalysis()
             return
         }
-
-        // Get app behavior for quirk checks
-        let appBehavior = AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier)
 
         // SPECIAL HANDLING FOR APPLE MAIL (uses WebKit's AXReplaceRangeWithText API)
         if appBehavior.knownQuirks.contains(.usesMailReplaceRangeAPI) {
@@ -2663,12 +2672,30 @@ extension AnalysisCoordinator {
             }
         }
 
-        // Perform clipboard-based replacement
+        let source = currentErrorSourceStore.sourceText(for: error, among: currentErrors)
+        // Recheck the original note slice and selection immediately before dispatching paste.
+        // A repeated word in a new viewport or a different focused editor can match selected text.
         await performClipboardReplacement(
             suggestion: suggestion,
             currentError: currentError,
             context: context,
-            usesFocusPasteReplacement: usesOfficeStyleReplacement
+            usesFocusPasteReplacement: usesOfficeStyleReplacement,
+            validateSelection: {
+                guard appBehaviorForReplacement.knownQuirks.contains(.exposesViewportText) else { return true }
+                guard !Task.isCancelled,
+                      NSWorkspace.shared.frontmostApplication?.processIdentifier == context.processID,
+                      AccessibilityBridge.isFocusedElement(element, in: context) == true,
+                      let source, let liveText = self.extractTextSynchronously(from: element),
+                      liveText.utf16.elementsEqual(source.utf16),
+                      let range = TextIndexConverter.scalarRangeToUTF16CFRange(
+                          start: currentError.start,
+                          end: currentError.end,
+                          in: source
+                      ),
+                      let selectedRange = AccessibilityBridge.getSelectedTextRange(element)
+                else { return false }
+                return selectedRange.location == range.location && selectedRange.length == range.length
+            }
         )
     }
 
@@ -2855,13 +2882,13 @@ extension AnalysisCoordinator {
 
     /// Perform clipboard-based text replacement with activation, paste, and restore
     @MainActor
-    private func performClipboardReplacement(suggestion: String, currentError: GrammarErrorModel, context: ApplicationContext, usesFocusPasteReplacement: Bool) async {
-        let pasteboard = NSPasteboard.general
-        let originalString = pasteboard.string(forType: .string)
-        let originalChangeCount = pasteboard.changeCount
-        pasteboard.clearContents()
-        pasteboard.setString(suggestion, forType: .string)
-
+    private func performClipboardReplacement(
+        suggestion: String,
+        currentError: GrammarErrorModel,
+        context: ApplicationContext,
+        usesFocusPasteReplacement: Bool,
+        validateSelection: () -> Bool
+    ) async {
         // Activate target app
         let targetApp = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier).first
         targetApp?.activate()
@@ -2873,9 +2900,13 @@ extension AnalysisCoordinator {
         let appBehavior = AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier)
         if appBehavior.knownQuirks.contains(.requiresDirectTypingAtPosition0), currentError.start == 0 {
             Logger.debug("Position 0: Using direct typing to avoid paragraph bug", category: Logger.analysis)
-            await performDirectTyping(suggestion: suggestion, currentError: currentError, pasteboard: pasteboard, originalString: originalString)
+            await performDirectTyping(suggestion: suggestion, currentError: currentError)
             return
         }
+
+        let savedClipboard = ClipboardManager.save()
+        let replacementClipboard = ClipboardManager.setForReplacement(suggestion, savedState: savedClipboard)
+        defer { ClipboardManager.restore(replacementClipboard) }
 
         // Try menu paste first (unless skipped for Catalyst/focus-paste apps)
         var pasteSucceeded = false
@@ -2884,6 +2915,10 @@ extension AnalysisCoordinator {
         if !skipMenuPaste, let app = targetApp {
             let appElement = AXUIElementCreateApplication(app.processIdentifier)
             if let pasteMenuItem = findPasteMenuItem(in: appElement) {
+                guard validateSelection(), ClipboardManager.currentText() == suggestion else {
+                    SuggestionPopover.shared.showStatusMessage("Selection changed - please try again")
+                    return
+                }
                 if AXUIElementPerformAction(pasteMenuItem, kAXPressAction as CFString) == .success {
                     pasteSucceeded = true
                     Logger.debug("Pasted via menu action", category: Logger.analysis)
@@ -2899,13 +2934,8 @@ extension AnalysisCoordinator {
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
 
             // CRITICAL: Verify clipboard still contains our text before pasting
-            let currentClipboard = pasteboard.string(forType: .string)
-            guard currentClipboard == suggestion else {
-                Logger.error("Grammar replacement ABORTED: Clipboard was modified! Expected '\(suggestion.prefix(20))...' but found '\(currentClipboard?.prefix(20) ?? "nil")...'", category: Logger.analysis)
-                if let original = originalString {
-                    pasteboard.clearContents()
-                    pasteboard.setString(original, forType: .string)
-                }
+            guard validateSelection(), ClipboardManager.currentText() == suggestion else {
+                SuggestionPopover.shared.showStatusMessage("Selection changed - please try again")
                 return
             }
 
@@ -2916,16 +2946,6 @@ extension AnalysisCoordinator {
         }
 
         try? await Task.sleep(nanoseconds: UInt64((pasteCompleteDelay + 0.15) * 1_000_000_000))
-
-        // Restore clipboard if unchanged
-        if pasteboard.changeCount == originalChangeCount + 1 {
-            if let original = originalString {
-                pasteboard.clearContents()
-                pasteboard.setString(original, forType: .string)
-            } else {
-                pasteboard.clearContents()
-            }
-        }
 
         // Finalize replacement
         statistics.recordSuggestionApplied(category: currentError.category)
@@ -2943,16 +2963,9 @@ extension AnalysisCoordinator {
 
     /// Handle apps that explicitly require direct keyboard typing instead of clipboard paste.
     @MainActor
-    private func performDirectTyping(suggestion: String, currentError: GrammarErrorModel, pasteboard: NSPasteboard, originalString: String?) async {
+    private func performDirectTyping(suggestion: String, currentError: GrammarErrorModel) async {
         Logger.debug("Using direct keyboard typing", category: Logger.analysis)
         typeTextDirectly(suggestion)
-
-        if let original = originalString {
-            pasteboard.clearContents()
-            pasteboard.setString(original, forType: .string)
-        } else {
-            pasteboard.clearContents()
-        }
 
         let typingDelay = Double(suggestion.count) * 0.01 + 0.1
         try? await Task.sleep(nanoseconds: UInt64(typingDelay * 1_000_000_000))

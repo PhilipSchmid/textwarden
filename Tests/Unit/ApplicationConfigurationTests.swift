@@ -75,6 +75,37 @@ final class ApplicationConfigurationTests: XCTestCase {
         }
     }
 
+    func testObsidianUsesTheNoteEditorAndExactRangePositioning() {
+        let bundleID = "md.obsidian"
+        let config = AppRegistry.shared.configuration(for: bundleID)
+
+        XCTAssertEqual(AppRegistry.shared.policy(for: bundleID), .supported)
+        XCTAssertEqual(config.preferredStrategies, [.obsidian])
+        XCTAssertEqual(config.features.textReplacementMethod, .browserStyle)
+        XCTAssertTrue(config.features.visualUnderlinesEnabled)
+        let behavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
+        XCTAssertTrue(behavior.usesUTF16TextIndices)
+        XCTAssertTrue(behavior.knownQuirks.contains(.exposesViewportText))
+        XCTAssertTrue(ContentParserFactory.shared.parser(for: bundleID) is ObsidianContentParser)
+        XCTAssertTrue(ObsidianContentParser.isNoteEditor(role: "AXTextArea", classes: ["cm-content", "cm-lineWrapping"]))
+        XCTAssertFalse(ObsidianContentParser.isNoteEditor(role: "AXTextArea", classes: ["inline-title"]))
+        XCTAssertFalse(ObsidianContentParser.isNoteEditor(role: "AXTextField", classes: ["cm-content"]))
+    }
+
+    func testObsidianMatchesTextRunsInOrderUsingUTF16Offsets() {
+        let text = "🎉 eror\neror" as NSString
+
+        XCTAssertEqual(ObsidianStrategy.matchRun("🎉 eror", in: text, at: 0), NSRange(location: 0, length: 7))
+        XCTAssertEqual(ObsidianStrategy.matchRun("eror", in: text, at: 7), NSRange(location: 8, length: 4))
+        XCTAssertNil(ObsidianStrategy.matchRun("eror", in: text, at: 0))
+    }
+
+    func testObsidianDistinguishesInlineFormattingFromWrappedLines() {
+        let run = CGRect(x: 10, y: 100, width: 80, height: 20)
+        XCTAssertTrue(ObsidianStrategy.shareLine(run, CGRect(x: 90, y: 98, width: 60, height: 24)))
+        XCTAssertFalse(ObsidianStrategy.shareLine(run, CGRect(x: 10, y: 120, width: 40, height: 20)))
+    }
+
     func testKeyboardDelayForNativeApp() {
         let delay = ApplicationConfiguration.keyboardOperationDelay(for: "com.apple.TextEdit")
         XCTAssertEqual(delay, 0.05, "Native apps should have 50ms delay")

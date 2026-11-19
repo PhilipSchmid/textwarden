@@ -61,6 +61,9 @@ class ErrorOverlayWindow: NSPanel {
     /// Callback when frame stabilizes after resize (to re-show underlines)
     var onFrameStabilized: (() -> Void)?
 
+    /// The analysis source for a displayed grammar error.
+    var analyzedTextForError: ((GrammarErrorModel) -> String?)?
+
     /// Current bundle ID for app-specific behavior
     private var currentBundleID: String?
 
@@ -666,6 +669,15 @@ class ErrorOverlayWindow: NSPanel {
             return 0
         }
         let fullTextValue = extractedText
+        if appBehavior.knownQuirks.contains(.exposesViewportText), let error = errors.first {
+            guard let analyzedText = analyzedTextForError?(error),
+                  fullTextValue.utf16.elementsEqual(analyzedText.utf16)
+            else {
+                lastGeometryFailureReason = "Editor viewport changed since analysis"
+                hide()
+                return 0
+            }
+        }
 
         // Get visible character range to filter out off-screen errors
         // Note: Some apps (like Mail's WebKit) return Int.max for visibleRange which is invalid
