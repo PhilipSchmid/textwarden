@@ -119,7 +119,40 @@ enum GrammarErrorFilter {
             return !isAtStartOfLine(position: error.start, in: sourceText, indices: indices)
         }
 
-        return filteredErrors
+        // The engine retains spacing-only alternatives to spelling errors until
+        // the user's category, dictionary, and ignore preferences have been applied.
+        return preferWordSplits(in: filteredErrors, sourceText: sourceText, indices: indices)
+    }
+
+    private static func preferWordSplits(
+        in errors: [GrammarErrorModel],
+        sourceText: String,
+        indices: [Int: String.Index]
+    ) -> [GrammarErrorModel] {
+        var splits: [NSRange: GrammarErrorModel] = [:]
+        for error in errors where error.category == "Typo" || error.category == "BoundaryError" {
+            guard error.start >= 0, error.end > error.start,
+                  let original = extractErrorText(error: error, sourceText: sourceText, indices: indices),
+                  !original.contains(where: \.isWhitespace),
+                  error.suggestions.contains(where: { suggestion in
+                      let words = suggestion.split(separator: " ", omittingEmptySubsequences: false)
+                      return words.count == 2 && words.allSatisfy { !$0.isEmpty } && words.joined() == original
+                  })
+            else { continue }
+            let range = NSRange(location: error.start, length: error.end - error.start)
+            if splits[range] == nil || error.category == "BoundaryError" {
+                splits[range] = error
+            }
+        }
+
+        guard !splits.isEmpty else { return errors }
+        return errors.filter { error in
+            guard error.start >= 0, error.end > error.start,
+                  ["Spelling", "Typo", "BoundaryError"].contains(error.category),
+                  let split = splits[NSRange(location: error.start, length: error.end - error.start)]
+            else { return true }
+            return error === split
+        }
     }
 
     /// Check if a position is at the start of a line (after a newline or at position 0)

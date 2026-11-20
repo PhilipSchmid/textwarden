@@ -2071,7 +2071,7 @@ class ErrorOverlayWindow: NSPanel {
             NSColor.systemRed
 
         // Grammar and structure: Orange (grammatical correctness)
-        case "Grammar", "Agreement", "BoundaryError", "Capitalization", "Nonstandard", "Punctuation":
+        case "Grammar", "Agreement", "BoundaryError", "Capitalization", "Nonstandard", "Punctuation", "WordOrder":
             NSColor.systemOrange
 
         // Style and enhancement: Blue (style improvements)

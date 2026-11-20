@@ -865,6 +865,8 @@ struct PopoverContentView: View {
             "Capitalization"
         case "grammar":
             "Grammar"
+        case "wordorder":
+            "Word Order"
         case "punctuation":
             "Punctuation"
         case "readability":

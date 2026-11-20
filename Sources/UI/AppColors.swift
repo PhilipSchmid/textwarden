@@ -231,7 +231,7 @@ struct AppColors {
             error
 
         // Grammar and structure: Orange (grammatical correctness)
-        case "Grammar", "Agreement", "BoundaryError", "Capitalization", "Nonstandard", "Punctuation":
+        case "Grammar", "Agreement", "BoundaryError", "Capitalization", "Nonstandard", "Punctuation", "WordOrder":
             warning
 
         // Style and enhancement: Primary blue (style improvements)
@@ -253,7 +253,7 @@ struct AppColors {
         switch category {
         case "Spelling", "Typo":
             errorSubtle
-        case "Grammar", "Agreement", "BoundaryError", "Capitalization", "Nonstandard", "Punctuation":
+        case "Grammar", "Agreement", "BoundaryError", "Capitalization", "Nonstandard", "Punctuation", "WordOrder":
             warningSubtle
         case "Style", "Enhancement", "WordChoice", "Readability", "Redundancy", "Formatting":
             primarySubtle
