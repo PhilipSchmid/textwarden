@@ -6,9 +6,9 @@ use crate::language_filter::LanguageFilter;
 use crate::slang_dict;
 use harper_core::spell::{MergedDictionary, MutableDictionary};
 use harper_core::{
-    linting::{LintGroup, Linter},
+    linting::{Lint, LintGroup, LintKind, Linter, Suggestion},
     parsers::MarkdownOptions,
-    Dialect, Document,
+    Dialect, Document, Punctuation,
 };
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -208,10 +208,164 @@ fn parse_dialect(dialect_str: &str) -> Dialect {
     }
 }
 
-/// Deduplicate errors that have overlapping text ranges.
+fn starts_sentence(prefix: &[char]) -> bool {
+    if prefix.ends_with(&['\n', '\n']) || prefix.ends_with(&['\n', '\r', '\n']) {
+        return true;
+    }
+
+    match prefix.iter().rposition(|c| !c.is_whitespace()) {
+        None => true,
+        Some(index) => match prefix[index] {
+            '!' | '?' => true,
+            // A period attached to the next word may be dot notation.
+            '.' => index + 1 < prefix.len(),
+            _ => false,
+        },
+    }
+}
+
+fn uppercase_first(word: &str) -> String {
+    let mut chars = word.chars();
+    let Some(first) = chars.next() else {
+        return String::new();
+    };
+    first.to_uppercase().chain(chars).collect()
+}
+
+fn contextualize_replacement(
+    replacement: String,
+    original: &[char],
+    kind: LintKind,
+    message: &str,
+    sentence_start: bool,
+) -> String {
+    if kind == LintKind::Spelling {
+        // Harper knows the canonical spelling. Adapt only the casing of ordinary single words.
+        let ordinary_word = replacement
+            .chars()
+            .enumerate()
+            .all(|(i, c)| !c.is_whitespace() && (i == 0 || !c.is_uppercase()));
+        if ordinary_word {
+            let mut letters = original.iter().filter(|c| c.is_alphabetic());
+            if letters.next().is_some_and(|c| c.is_uppercase())
+                && letters.next().is_some_and(|c| c.is_uppercase())
+                && letters.all(|c| c.is_uppercase())
+            {
+                return replacement.to_uppercase();
+            }
+            if sentence_start && replacement.starts_with(char::is_lowercase) {
+                return uppercase_first(&replacement);
+            }
+        }
+    } else if kind == LintKind::Miscellaneous && message == "Try expanding this initialism." {
+        let adjusted = if sentence_start {
+            uppercase_first(&replacement)
+        } else if let Some(first) = replacement.chars().next() {
+            first
+                .to_lowercase()
+                .chain(replacement.chars().skip(1))
+                .collect()
+        } else {
+            replacement
+        };
+        return capitalize_pronoun_i(&adjusted);
+    } else if sentence_start
+        && kind == LintKind::WordOrder
+        && message == "Consider moving the pronoun to before `no longer`."
+    {
+        // Harper moves the capitalized phrase away from the sentence start.
+        return match replacement.strip_suffix(" No longer") {
+            Some(subject) => format!("{} no longer", uppercase_first(subject)),
+            None => uppercase_first(&replacement),
+        };
+    }
+
+    replacement
+}
+
+fn missing_punctuation_space_lints(document: &Document) -> impl Iterator<Item = Lint> + '_ {
+    document.get_tokens().windows(3).filter_map(|tokens| {
+        let [before, mark, after] = tokens else {
+            return None;
+        };
+        let punctuation = mark.kind.as_punctuation()?;
+        if !matches!(
+            punctuation,
+            Punctuation::Period
+                | Punctuation::Bang
+                | Punctuation::Question
+                | Punctuation::Semicolon
+        ) || before.span.end != mark.span.start
+            || mark.span.end != after.span.start
+            || !matches!(before.kind.as_word(), Some(Some(_)))
+            || !matches!(after.kind.as_word(), Some(Some(_)))
+        {
+            return None;
+        }
+
+        // shortcut: limit periods to common sentence starts, expand once prose can be distinguished from bare dot notation.
+        if *punctuation == Punctuation::Period
+            && !matches!(
+                after
+                    .get_ch(document.get_source())
+                    .iter()
+                    .collect::<String>()
+                    .as_str(),
+                "A" | "An"
+                    | "And"
+                    | "But"
+                    | "He"
+                    | "I"
+                    | "It"
+                    | "She"
+                    | "That"
+                    | "The"
+                    | "Then"
+                    | "There"
+                    | "These"
+                    | "They"
+                    | "This"
+                    | "Those"
+                    | "We"
+                    | "You"
+                    | "Next"
+                    | "However"
+                    | "Meanwhile"
+            )
+        {
+            return None;
+        }
+
+        Some(Lint {
+            span: mark.span,
+            lint_kind: LintKind::Formatting,
+            suggestions: vec![Suggestion::InsertAfter(vec![' '])],
+            message: "It looks like you're missing a space here.".to_owned(),
+            priority: 31,
+        })
+    })
+}
+
+fn inserts_word_space(suggestion: &str, source: &[char]) -> bool {
+    let Some((first, second)) = suggestion.split_once(' ') else {
+        return false;
+    };
+    !first.is_empty()
+        && !second.is_empty()
+        && !source.iter().any(|c| c.is_whitespace())
+        && first
+            .chars()
+            .chain(second.chars())
+            .eq(source.iter().copied())
+}
+
+/// Deduplicate errors that share an exact text range.
 /// When multiple errors overlap (e.g., SPELLING and TYPO for the same misspelled word),
-/// keep only the most specific/useful one.
-fn deduplicate_overlapping_errors(mut errors: Vec<GrammarError>) -> Vec<GrammarError> {
+/// keep the most specific one and any spacing-only alternative to spelling.
+fn deduplicate_overlapping_errors(
+    mut errors: Vec<GrammarError>,
+    source: &[char],
+) -> Vec<GrammarError> {
     use std::collections::HashMap;
 
     if errors.len() <= 1 {
@@ -233,9 +387,9 @@ fn deduplicate_overlapping_errors(mut errors: Vec<GrammarError>) -> Vec<GrammarE
     // For each group, pick the best error
     let mut result: Vec<GrammarError> = span_groups
         .into_values()
-        .map(|mut group| {
+        .flat_map(|mut group| {
             if group.len() == 1 {
-                return group.remove(0);
+                return group;
             }
 
             // Priority order for categories (higher = better to keep)
@@ -267,8 +421,22 @@ fn deduplicate_overlapping_errors(mut errors: Vec<GrammarError>) -> Vec<GrammarE
                 })
             });
 
-            // Take the best one (first after sorting)
-            group.remove(0)
+            // Keep spacing-only alternatives until the app applies category and ignore preferences.
+            if group[0].category == "Spelling" {
+                let best = group.remove(0);
+                let original = source.get(best.start..best.end).unwrap_or_default();
+                group.retain(|error| {
+                    matches!(error.category.as_str(), "Typo" | "BoundaryError")
+                        && error
+                            .suggestions
+                            .iter()
+                            .any(|s| inserts_word_space(s, original))
+                });
+                group.insert(0, best);
+            } else {
+                group.truncate(1);
+            }
+            group
         })
         .collect();
 
@@ -712,7 +880,8 @@ pub fn analyze_text(
 
     // Perform linting
     tracing::debug!("Running Harper linter");
-    let lints = linter.lint(&document);
+    let mut lints = linter.lint(&document);
+    lints.extend(missing_punctuation_space_lints(&document));
     let harper_lint_ms = lint_start.elapsed().as_millis() as u64;
     tracing::debug!(
         "Harper linter found {} lints ({}ms)",
@@ -725,6 +894,8 @@ pub fn analyze_text(
 
     // --- PHASE 5: Post-Processing ---
     let post_start = Instant::now();
+
+    let source = document.get_source();
 
     // Convert Harper lints to our GrammarError format
     let mut errors: Vec<GrammarError> = lints
@@ -751,137 +922,35 @@ pub fn analyze_text(
                 .join("_");
             let lint_id = format!("{}::{}", category, message_key);
 
-            // Extract the original text at this span for InsertAfter suggestions
-            // Harper's span uses character indices, but Rust strings use byte offsets
-            // Convert character indices to byte offsets for correct slicing
-            let original_text = {
-                let chars: Vec<char> = text.chars().collect();
-                if span.start < chars.len() && span.end <= chars.len() {
-                    chars[span.start..span.end].iter().collect::<String>()
-                } else {
-                    String::new()
-                }
-            };
+            let original = source.get(span.start..span.end).unwrap_or_default();
+            let sentence_start = enable_sentence_start_capitalization
+                && source.get(..span.start).is_some_and(starts_sentence);
 
-            // Extract suggestions from Harper's lint
-            // Harper provides three suggestion types:
-            // - ReplaceWith: replace the error span with new text
-            // - InsertAfter: insert characters after the span (e.g., Oxford comma)
-            // - Remove: delete the text at the span
+            // Keep Harper's exact ranges and edit types. Only lexical replacements need casing policy.
             let mut suggestions: Vec<String> = lint
                 .suggestions
-                .iter()
+                .into_iter()
                 .map(|suggestion| match suggestion {
-                    harper_core::linting::Suggestion::ReplaceWith(chars) => chars.iter().collect(),
-                    harper_core::linting::Suggestion::InsertAfter(chars) => {
-                        // Construct full replacement: original text + inserted chars
-                        let insert: String = chars.iter().collect();
-                        format!("{}{}", original_text, insert)
+                    Suggestion::ReplaceWith(chars) => {
+                        let replacement = chars.into_iter().collect();
+                        if enable_sentence_start_capitalization {
+                            contextualize_replacement(
+                                replacement,
+                                original,
+                                lint.lint_kind,
+                                &message,
+                                sentence_start,
+                            )
+                        } else {
+                            replacement
+                        }
                     }
-                    harper_core::linting::Suggestion::Remove => {
-                        // Remove suggestion = replace with empty string
-                        String::new()
+                    Suggestion::InsertAfter(chars) => {
+                        original.iter().copied().chain(chars).collect()
                     }
+                    Suggestion::Remove => String::new(),
                 })
                 .collect();
-
-            // Post-process suggestions: capitalize if at sentence start (TextWarden enhancement)
-            // This is only applied if the user has enabled this feature in preferences
-            if enable_sentence_start_capitalization {
-                // Check if this error is at the beginning of a sentence
-                // Harper's span uses CHARACTER indices, but Rust strings use byte offsets
-                // Convert character index to byte offset for correct slicing
-                let chars: Vec<char> = text.chars().collect();
-                let byte_offset = if span.start < chars.len() {
-                    chars[..span.start].iter().collect::<String>().len()
-                } else {
-                    text.len()
-                };
-
-                let is_sentence_start = span.start == 0 || {
-                    // Check if preceded by sentence-ending punctuation (., !, ?)
-                    // OR by paragraph break (multiple newlines, as in Notion blocks)
-                    // BUT NOT if it's dot-notation (e.g., status.learning)
-                    text.get(..byte_offset)
-                        .map(|prefix| {
-                            // Check for paragraph break: 2+ consecutive newlines
-                            let has_paragraph_break = prefix.ends_with("\n\n")
-                                || prefix.ends_with("\r\n\r\n")
-                                || prefix.ends_with("\n\r\n");
-
-                            // Check for sentence-ending punctuation
-                            // For dots, we need to verify it's not dot-notation (no space after dot)
-                            let trimmed = prefix.trim_end();
-                            let has_sentence_end = trimmed
-                                .chars()
-                                .last()
-                                .map(|c| {
-                                    if c == '!' || c == '?' {
-                                        true
-                                    } else if c == '.' {
-                                        // For dots, check if there's whitespace between dot and error
-                                        // If prefix == trimmed (no trailing whitespace), it's dot-notation
-                                        prefix.len() > trimmed.len() // Has trailing whitespace = real sentence
-                                    } else {
-                                        false
-                                    }
-                                })
-                                .unwrap_or(false);
-
-                            has_paragraph_break || has_sentence_end
-                        })
-                        .unwrap_or(false)
-                };
-
-                // If at sentence start, ensure suggestions are capitalized
-                if is_sentence_start {
-                    suggestions = suggestions
-                        .into_iter()
-                        .map(|s| {
-                            // Step 1: Capitalize first letter
-                            let mut chars: Vec<char> = s.chars().collect();
-                            if let Some(first_char) = chars.first_mut() {
-                                *first_char =
-                                    first_char.to_uppercase().next().unwrap_or(*first_char);
-                            }
-                            let capitalized: String = chars.into_iter().collect();
-
-                            // Step 2: Ensure all standalone "I" pronouns are capitalized
-                            // Harper may return "If i recall correctly" with lowercase "i"
-                            capitalize_pronoun_i(&capitalized)
-                        })
-                        .collect();
-                } else {
-                    // If NOT at sentence start, lowercase the first character of suggestions
-                    // but preserve "I" (the pronoun) which is always capitalized in English
-                    suggestions = suggestions
-                        .into_iter()
-                        .map(|s| {
-                            // Step 1: Lowercase the first character (unless it's "I" pronoun)
-                            let lowercased = if s.starts_with("I ")
-                                || s.starts_with("I'")
-                                || s == "I"
-                            {
-                                // Suggestion starts with pronoun "I" - keep as is
-                                s
-                            } else {
-                                let mut chars: Vec<char> = s.chars().collect();
-                                if let Some(first_char) = chars.first_mut() {
-                                    if first_char.is_uppercase() {
-                                        *first_char =
-                                            first_char.to_lowercase().next().unwrap_or(*first_char);
-                                    }
-                                }
-                                chars.into_iter().collect()
-                            };
-
-                            // Step 2: Ensure all standalone "I" pronouns are capitalized
-                            // This handles cases like "if i recall" → "if I recall"
-                            capitalize_pronoun_i(&lowercased)
-                        })
-                        .collect();
-                }
-            }
 
             // Map Harper priority to our ErrorSeverity (kept for backwards compatibility)
             // Higher priority = more severe
@@ -913,7 +982,7 @@ pub fn analyze_text(
     // Deduplicate overlapping errors (e.g., SPELLING and TYPO for the same word)
     // This happens when Harper flags the same span with multiple lint types
     let errors_before_dedupe = errors.len();
-    errors = deduplicate_overlapping_errors(errors);
+    errors = deduplicate_overlapping_errors(errors, source);
     if errors_before_dedupe != errors.len() {
         tracing::debug!(
             "Deduplication: {} errors before, {} after (removed {} duplicates)",
@@ -1019,6 +1088,175 @@ pub fn analyze_text(
 mod tests {
     use super::*;
     use harper_core::DictWordMetadata;
+
+    fn analyze_suggestion_fixture(text: &str) -> AnalysisResult {
+        analyze_text(
+            text,
+            "American",
+            true,
+            false,
+            false,
+            true,
+            true,
+            true,
+            false,
+            vec![],
+            true,
+            true,
+            true,
+            true,
+            true,
+        )
+    }
+
+    #[test]
+    fn test_harper_replacement_case_is_preserved_except_for_explicit_context_rules() {
+        for (text, category, original, expected) in [
+            (
+                "I used the Speling example.",
+                "Spelling",
+                "Speling",
+                "Spelling",
+            ),
+            (
+                "I used the SPELING example.",
+                "Spelling",
+                "SPELING",
+                "SPELLING",
+            ),
+            (
+                "I used the speling example.",
+                "Spelling",
+                "speling",
+                "spelling",
+            ),
+            ("speling is useful.", "Spelling", "speling", "Spelling"),
+            (
+                "👩🏽‍💻 I visited Lnodon last week.",
+                "Spelling",
+                "Lnodon",
+                "London",
+            ),
+            ("I use Github.", "Capitalization", "Github", "GitHub"),
+            (
+                "I installed Macos yesterday.",
+                "Capitalization",
+                "Macos",
+                "macOS",
+            ),
+            (
+                "Well, IIRC it worked.",
+                "Miscellaneous",
+                "IIRC",
+                "if I recall correctly",
+            ),
+            (
+                "No longer I work there.",
+                "WordOrder",
+                "No longer I",
+                "I no longer",
+            ),
+            (
+                "No longer they work there.",
+                "WordOrder",
+                "No longer they",
+                "They no longer",
+            ),
+        ] {
+            let source = text.chars().collect::<Vec<_>>();
+            let result = analyze_suggestion_fixture(text);
+            assert!(
+                result.errors.iter().any(|error| {
+                    error.category == category
+                        && source[error.start..error.end]
+                            .iter()
+                            .copied()
+                            .eq(original.chars())
+                        && error
+                            .suggestions
+                            .iter()
+                            .any(|suggestion| suggestion == expected)
+                }),
+                "{text}: expected {category} correction {original:?} → {expected:?}, got {:?}",
+                result.errors
+            );
+        }
+    }
+
+    #[test]
+    fn test_harper_word_splits_survive_alongside_spelling_until_app_filtering() {
+        for (text, original, split) in [
+            ("👩🏽‍💻 I found thebest example.", "thebest", "the best"),
+            ("Thanks foryour help.", "foryour", "for your"),
+            ("I saw alot of birds.", "alot", "a lot"),
+        ] {
+            let source = text.chars().collect::<Vec<_>>();
+            let dict = harper_core::spell::FstDictionary::curated();
+            let document = Document::new_markdown(text, MarkdownOptions::default(), dict.as_ref());
+            let raw = LintGroup::new_curated(dict, Dialect::American).organized_lints(&document);
+            assert!(raw["SplitWords"].iter().any(|lint| lint.suggestions.iter().any(
+                |suggestion| matches!(suggestion, Suggestion::ReplaceWith(chars) if chars.iter().copied().eq(split.chars()))
+            )), "{text}: Harper must supply the split");
+            let result = analyze_suggestion_fixture(text);
+            let mut matching = result.errors.iter().filter(|error| {
+                source[error.start..error.end]
+                    .iter()
+                    .copied()
+                    .eq(original.chars())
+            });
+            assert!(matching.clone().any(|error| error.category == "Spelling"));
+            assert!(matching.any(|error| matches!(
+                error.category.as_str(),
+                "Typo" | "BoundaryError"
+            ) && error
+                .suggestions
+                .iter()
+                .any(|suggestion| suggestion == split)));
+        }
+    }
+
+    #[test]
+    fn test_punctuation_spacing_uses_prose_and_preserves_the_source_span() {
+        for (text, mark, category) in [
+            ("👩🏽‍💻 We are done.Next comes the review.", '.', "Formatting"),
+            ("Are you ready?Yes, I am.", '?', "Formatting"),
+            ("Wait!Come back.", '!', "Formatting"),
+            ("The night was cold;stars glittered.", ';', "Formatting"),
+            ("Yes,please come in.", ',', "Punctuation"),
+        ] {
+            let source = text.chars().collect::<Vec<_>>();
+            let result = analyze_suggestion_fixture(text);
+            assert!(
+                result.errors.iter().any(|error| {
+                    error.category == category
+                        && source[error.start..error.end] == [mark]
+                        && error.suggestions == [format!("{mark} ")]
+                }),
+                "{text}: {:?}",
+                result.errors
+            );
+        }
+
+        for text in [
+            "We are done. Next comes the review.",
+            "Check config.Path and status.learning.",
+            "Visit example.com and https://example.com/Done.Next.",
+            "Email editor@example.com before noon.",
+            "The version is 1.25 and costs 1,000 dollars.",
+            "Use EXTRA.PDF and report.docx.",
+            "Review `done.Next` and [the link](https://example.com/Done.Next).",
+            "Dr. Smith is here, e.g. for the review.",
+        ] {
+            assert!(
+                !analyze_suggestion_fixture(text)
+                    .errors
+                    .iter()
+                    .any(|error| error.message.contains("missing a space")
+                        || error.message == "Use a space after a comma."),
+                "{text}"
+            );
+        }
+    }
 
     #[test]
     fn test_unicode_prefixes_preserve_spelling_ranges_and_replacements() {

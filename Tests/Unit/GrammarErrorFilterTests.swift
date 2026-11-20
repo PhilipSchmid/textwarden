@@ -22,6 +22,71 @@ final class GrammarErrorFilterTests: XCTestCase {
         GrammarErrorModel(start: start, end: end, message: lint, severity: .warning, category: "Spelling", lintId: lint)
     }
 
+    func testHarperSplitFollowsCategoriesAndIgnoredRules() throws {
+        let text = "👩🏽‍💻 I found thebest example."
+        let start = "👩🏽‍💻 I found ".unicodeScalars.count
+        let errors = GrammarEngine.shared.analyzeText(text).errors
+        let split = try XCTUnwrap(errors.first { $0.category == "Typo" && $0.start == start })
+        let cases: [(enabled: Set<String>, ignored: Set<String>, expected: String)] = [
+            (["Spelling", "Typo"], [], "Typo"),
+            (["Typo"], [], "Typo"),
+            (["Spelling"], [], "Spelling"),
+            (["Spelling", "Typo"], [split.lintId], "Spelling"),
+        ]
+        for test in cases {
+            let config = GrammarFilterConfig(enabledCategories: test.enabled, ignoredRules: test.ignored, ignoredErrorTexts: [], useMacOSDictionary: false)
+            let result = GrammarErrorFilter.filter(errors: errors, sourceText: text, config: config, customVocabulary: Vocabulary())
+            let sameSpan = result.filter { $0.start == start && $0.end == start + "thebest".count }
+            XCTAssertEqual(sameSpan.map(\.category), [test.expected])
+            if test.expected == "Typo" {
+                let correction = try XCTUnwrap(sameSpan.first?.suggestions.first)
+                let range = TextIndexConverter.scalarToUTF16Range(NSRange(location: start, length: "thebest".count), in: text)
+                XCTAssertEqual((text as NSString).replacingCharacters(in: range, with: correction), "👩🏽‍💻 I found the best example.")
+            }
+        }
+
+        let vocabulary = Vocabulary()
+        vocabulary.words = ["thebest"]
+        let config = GrammarFilterConfig(enabledCategories: ["Spelling", "Typo"], ignoredRules: [], ignoredErrorTexts: [], useMacOSDictionary: false)
+        let filtered = GrammarErrorFilter.filter(errors: errors, sourceText: text, config: config, customVocabulary: vocabulary)
+        XCTAssertFalse(filtered.contains { $0.start == start })
+    }
+
+    func testWordOrderIsEnabledForExistingGrammarUsersOnce() throws {
+        XCTAssertTrue(UserPreferences.allCategories.contains("WordOrder"))
+        XCTAssertFalse(UserPreferences.allCategories.contains("Readability"))
+        for grammarEnabled in [true, false] {
+            let suite = "WordOrderPreferencesTests.\(UUID().uuidString)"
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+            defer { defaults.removePersistentDomain(forName: suite) }
+            let previous: Set<String> = grammarEnabled ? ["Spelling", "Grammar"] : ["Spelling"]
+            try defaults.set(JSONEncoder().encode(previous), forKey: "enabledCategories")
+
+            let migrated = UserPreferences(defaults: defaults)
+            XCTAssertEqual(migrated.enabledCategories, grammarEnabled ? previous.union(["WordOrder"]) : previous)
+            migrated.enabledCategories.remove("WordOrder")
+            XCTAssertEqual(UserPreferences(defaults: defaults).enabledCategories, previous)
+        }
+    }
+
+    func testWordOrderAndPunctuationSpacingUseTheirOwnCategorySettings() throws {
+        for (text, category, replacement, expected) in [
+            ("No longer they work there.", "WordOrder", "They no longer", "They no longer work there."),
+            ("We are done.Next comes the review.", "Formatting", ". ", "We are done. Next comes the review."),
+            ("Yes,please come in.", "Punctuation", ", ", "Yes, please come in."),
+        ] {
+            let errors = GrammarEngine.shared.analyzeText(text).errors
+            let disabled = GrammarFilterConfig(enabledCategories: ["Spelling"], ignoredRules: [], ignoredErrorTexts: [], useMacOSDictionary: false)
+            let enabled = GrammarFilterConfig(enabledCategories: [category], ignoredRules: [], ignoredErrorTexts: [], useMacOSDictionary: false)
+            XCTAssertTrue(GrammarErrorFilter.filter(errors: errors, sourceText: text, config: disabled, customVocabulary: Vocabulary()).isEmpty)
+            let accepted = GrammarErrorFilter.filter(errors: errors, sourceText: text, config: enabled, customVocabulary: Vocabulary())
+            let error = try XCTUnwrap(accepted.first { $0.category == category })
+            XCTAssertEqual(error.suggestions.first, replacement)
+            let range = TextIndexConverter.scalarToUTF16Range(NSRange(location: error.start, length: error.end - error.start), in: text)
+            XCTAssertEqual((text as NSString).replacingCharacters(in: range, with: replacement), expected)
+        }
+    }
+
     func testLargeErrorBatchDoesNotRescanTheDocumentPerError() {
         let sentence = "This is a sentnce with a spelling mistke. "
         let text = String(repeating: sentence, count: 1300)

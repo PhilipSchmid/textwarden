@@ -201,6 +201,7 @@ class UserPreferences: ObservableObject {
         "Typo",
         "Usage",
         "WordChoice",
+        "WordOrder",
     ]
 
     // MARK: - Individual Rule Toggles
@@ -981,6 +982,14 @@ class UserPreferences: ObservableObject {
         sketchPadShowInvisibles = defaults.object(forKey: Keys.sketchPadShowInvisibles) as? Bool ?? false
         sketchPadLineWrapping = defaults.object(forKey: Keys.sketchPadLineWrapping) as? Bool ?? true
 
+        if !defaults.bool(forKey: Keys.hasMigratedWordOrder) {
+            if enabledCategories.contains("Grammar"), !enabledCategories.contains("WordOrder") {
+                enabledCategories.insert("WordOrder")
+                persist(enabledCategories, forKey: Keys.enabledCategories)
+            }
+            defaults.set(true, forKey: Keys.hasMigratedWordOrder)
+        }
+
         if pauseDuration == .oneHour, let until = pausedUntil, Date() < until {
             setupResumeTimer(until: until)
         }
@@ -1403,6 +1412,7 @@ class UserPreferences: ObservableObject {
         static let ignoredRules = "ignoredRules"
         static let ignoredErrorTexts = "ignoredErrorTexts"
         static let enabledCategories = "enabledCategories"
+        static let hasMigratedWordOrder = "hasMigratedWordOrder"
         static let openInForeground = "openInForeground"
 
         // Individual Rule Toggles

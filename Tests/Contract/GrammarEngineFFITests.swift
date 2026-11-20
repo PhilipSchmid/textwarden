@@ -9,6 +9,18 @@
 import XCTest
 
 final class GrammarEngineFFITests: XCTestCase {
+    func testSpellingKeepsSourceCasingThroughTheBridge() throws {
+        for (word, correction) in [("speling", "spelling"), ("Speling", "Spelling"), ("SPELING", "SPELLING")] {
+            let text = "👩🏽‍💻 I used the \(word) example."
+            let result = GrammarEngine.shared.analyzeText(text)
+            let start = "👩🏽‍💻 I used the ".unicodeScalars.count
+            let error = try XCTUnwrap(result.errors.first { $0.category == "Spelling" && $0.start == start })
+            XCTAssertEqual(error.suggestions.first, correction)
+            let range = TextIndexConverter.scalarToUTF16Range(NSRange(location: error.start, length: error.end - error.start), in: text)
+            XCTAssertEqual((text as NSString).replacingCharacters(in: range, with: correction), "👩🏽‍💻 I used the \(correction) example.")
+        }
+    }
+
     func testUnicodeRangesAndSuggestionsSurviveBridge() throws {
         for prefix in ["👩🏽‍💻 ", "Cafe\u{0301} ", "日本語 ", "مرحبا ", "\0 "] {
             let text = "\(prefix)This is a sentnce."

@@ -240,6 +240,9 @@ private struct FilteringPreferencesContent: View {
                 Toggle("Grammar", isOn: categoryBinding("Grammar"))
                     .help("Detect grammatical errors and incorrect sentence structure")
 
+                Toggle("Word Order", isOn: categoryBinding("WordOrder"))
+                    .help("Check for words in the wrong order")
+
                 Toggle("Agreement", isOn: categoryBinding("Agreement"))
                     .help("Check subject-verb and pronoun agreement (e.g., 'he go' → 'he goes')")
 
@@ -820,6 +823,9 @@ struct FilteringPreferencesView: View {
 
                 Toggle("Grammar", isOn: categoryBinding("Grammar"))
                     .help("Detect grammatical errors and incorrect sentence structure")
+
+                Toggle("Word Order", isOn: categoryBinding("WordOrder"))
+                    .help("Check for words in the wrong order")
 
                 Toggle("Agreement", isOn: categoryBinding("Agreement"))
                     .help("Check subject-verb and pronoun agreement (e.g., 'he go' → 'he goes')")
