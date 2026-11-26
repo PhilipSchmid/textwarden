@@ -19,6 +19,12 @@ TextWarden is a free, open-source grammar checker and writing assistant for macO
   </a>
 </p>
 
+<p align="center">
+  <img src="docs/screenshots/mail-grammar-dark.png" width="760" alt="Dark-mode Apple Mail draft with a spelling mistake underlined and TextWarden’s floating pill beside the editor.">
+</p>
+
+See more [TextWarden screenshots](docs/SCREENSHOTS.md), including style suggestions, Quick Rewrite, AI Compose, and the browser toolbar popup.
+
 > [!NOTE]
 > TextWarden is under active development. Apps do not all share text with macOS in the same way, so underlines and corrections may work differently from one app to another. If something breaks, please [open a bug report](https://github.com/PhilipSchmid/textwarden/issues/new/choose).
 
@@ -59,6 +65,8 @@ These features are off by default. Grammar checking, spell checking, custom dict
 
 Quick Rewrite uses Apple Intelligence to suggest changes to selected text in supported apps, following your writing style from **Preferences → Style**. Compare the original and rewritten text before applying; nothing changes without your approval. AI can change meaning, so review the result carefully.
 
+<img src="docs/screenshots/quick-rewrite-light.png" width="460" alt="Light-mode Quick Rewrite preview comparing the original wording with a shorter version before Apply.">
+
 See [Quick Rewrite configuration](CONFIGURATION.md#quick-rewrite) for setup, shortcuts, and limits.
 
 ## Requirements
@@ -83,6 +91,10 @@ See the [Configuration Guide](CONFIGURATION.md) for every setting and the [Troub
 ## Browser Extension (Preview)
 
 The extension adds precise underlines and TextWarden’s writing tools to Chrome, Brave, Firefox, Zen, and Safari. Your writing stays on your Mac. Google Docs and complex web editors are not supported yet.
+
+<img src="docs/screenshots/firefox-editor-light.png" width="760" alt="A fictional Firefox newsletter draft with TextWarden’s light floating pill showing spelling and style findings.">
+
+See the [open Firefox extension popup](docs/SCREENSHOTS.md#browser-extension-controls).
 
 Use a preview-enabled TextWarden build and open Preferences → Browser → Install Extension:
 
