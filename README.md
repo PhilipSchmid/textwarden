@@ -1,5 +1,7 @@
 # TextWarden: Private Grammar Checker for macOS
 
+<!-- Temporary docs-only CI verification for PR #170. -->
+
 [![CI](https://github.com/PhilipSchmid/textwarden/actions/workflows/ci.yml/badge.svg)](https://github.com/PhilipSchmid/textwarden/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/PhilipSchmid/textwarden)](https://github.com/PhilipSchmid/textwarden/releases/latest)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
