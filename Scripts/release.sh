@@ -133,11 +133,12 @@ set_build() {
 # Validate semantic versioning format
 # Valid: 1.0.0, 0.2.0-alpha.1, 1.0.0-beta.2, 2.0.0-rc.1
 # Invalid: v1.0.0, 1.0, 1.0.0-alpha, 1.0.0.0
+SEMVER_PATTERN='[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?'
+
 validate_semver() {
     local version="$1"
-    local semver_regex="^[0-9]+\.[0-9]+\.[0-9]+(-((alpha|beta|rc)\.[0-9]+))?$"
 
-    if [[ ! "$version" =~ $semver_regex ]]; then
+    if [[ ! "$version" =~ ^${SEMVER_PATTERN}$ ]]; then
         echo -e "${RED}Error: Invalid semantic version: $version${NC}"
         echo ""
         echo "Valid formats:"
@@ -175,6 +176,7 @@ parse_version_type() {
 generate_release_notes() {
     local from_tag="$1"
     local to_ref="${2:-HEAD}"
+    local release_commit="^chore: release v${SEMVER_PATTERN}$"
 
     echo "## What's Changed"
     echo ""
@@ -189,15 +191,17 @@ generate_release_notes() {
 
     # Format: - Subject ([hash](url)) by @author
     # Look up actual GitHub username via API for each commit
-    git log $log_range --no-merges --pretty=format:"%s|%h|%an" | \
-        grep -v "^Merge" | \
-        grep -v "^WIP" | \
+    git log --no-merges --format="%s|%h|%an" "$log_range" -- | \
         while IFS='|' read -r subject hash local_author; do
+            if [[ "$subject" == Merge* || "$subject" == WIP* || "$subject" =~ $release_commit ]]; then
+                continue
+            fi
+
             # Look up actual GitHub username from commit via API
             # Only use @username for valid GitHub logins (no spaces, not JSON error)
             local api_response
-            api_response=$(gh api "repos/$GITHUB_REPO/commits/$hash" --jq '.author.login' 2>/dev/null)
-            if [[ $? -eq 0 && -n "$api_response" && "$api_response" != "null" && ! "$api_response" =~ [[:space:]] && ! "$api_response" =~ ^\{.*\}$ ]]; then
+            if api_response=$(gh api "repos/$GITHUB_REPO/commits/$hash" --jq '.author.login' 2>/dev/null) &&
+                [[ -n "$api_response" && "$api_response" != "null" && ! "$api_response" =~ [[:space:]] && ! "$api_response" =~ ^\{.*\}$ ]]; then
                 # Valid GitHub username - use @mention
                 echo "- $subject ([\`$hash\`](https://github.com/$GITHUB_REPO/commit/$hash)) by @$api_response"
             else
