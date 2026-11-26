@@ -6,15 +6,52 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  commit-signatures:
+    name: Commit signatures
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { number, head } = context.payload.pull_request;
+            const params = { ...context.repo, pull_number: number };
+            const commits = await github.paginate(github.rest.pulls.listCommits, {
+              ...params,
+              per_page: 100
+            });
+            const { data: pr } = await github.rest.pulls.get(params);
+            const commitIds = new Set(commits.map(commit => commit.sha));
+            if (pr.head.sha !== head.sha || !commitIds.has(head.sha) ||
+                commitIds.size !== commits.length || commits.length !== pr.commits) {
+              core.setFailed("The commit list was incomplete or the PR changed. Check the latest run or split PRs over 250 commits.");
+              return;
+            }
+            const unverified = commits.filter(commit => commit.commit.verification?.verified !== true);
+            for (const { sha } of unverified) {
+              core.error(sha.slice(0, 12) + ": GitHub could not verify this commit's signature.");
+            }
+            if (unverified.length) {
+              core.setFailed("Use git commit -S and register your signing key. See CONTRIBUTING.md.");
+            }
+
   rust-tests:
     name: Rust Tests & Linting
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -45,6 +82,8 @@ jobs:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -115,6 +154,8 @@ jobs:
     runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Install Help Book tools
         run: brew install pandoc
