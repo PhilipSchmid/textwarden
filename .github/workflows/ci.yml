@@ -40,6 +40,8 @@ jobs:
 
   swift-build-test:
     name: Swift Build & Test
+    needs: build-scope
+    if: ${{ !cancelled() && (needs.build-scope.result != 'success' || needs.build-scope.outputs.docs-only != 'true') }}
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v7
@@ -108,6 +110,8 @@ jobs:
 
   swift-minimum-os:
     name: Intel Build & Test (macOS 14 target)
+    needs: build-scope
+    if: ${{ !cancelled() && (needs.build-scope.result != 'success' || needs.build-scope.outputs.docs-only != 'true') }}
     runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v7
@@ -156,3 +160,43 @@ jobs:
             -skip-testing:TextWardenTests/LargeDocumentPerformanceTests \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
+
+  build-scope:
+    name: Detect documentation-only changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    outputs:
+      docs-only: ${{ steps.diff.outputs.docs-only }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Classify changed files
+        id: diff
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # A missing comparison or output leaves both builds enabled.
+          if [[ ! "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            exit 0
+          fi
+          if ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "$BASE_SHA" || exit 0
+          fi
+          changed_files=$(mktemp)
+          trap 'rm -f "$changed_files"' EXIT
+          git diff --no-renames --name-only -z "$BASE_SHA" HEAD -- > "$changed_files" || exit 0
+          [[ -s "$changed_files" ]] || exit 0
+
+          # CONFIGURATION.md and TROUBLESHOOTING.md feed the built Help Book.
+          while IFS= read -r -d '' path; do
+            case "$path" in
+              README.md|CONTRIBUTING.md|AGENTS.md|ARCHITECTURE.md|BUILD.md|CLAUDE.md|docs/*|.github/pull_request_template.md) ;;
+              *) exit 0 ;;
+            esac
+          done < "$changed_files"
+          echo "docs-only=true" >> "$GITHUB_OUTPUT"
