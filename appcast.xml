@@ -3,6 +3,22 @@
     <channel>
         <title>TextWarden Releases</title>
         <item>
+            <title>0.6.4</title>
+            <pubDate>Thu, 26 Nov 2026 11:10:15 +0100</pubDate>
+            <sparkle:version>44</sparkle:version>
+            <sparkle:shortVersionString>0.6.4</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description>&lt;h3&gt;What&amp;#x27;s Changed&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;docs: Mark WeChat support as Full (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/ee78d71"&gt;&lt;code&gt;ee78d71&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;docs: Remove the WeChat README footnote (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/046aeba"&gt;&lt;code&gt;046aeba&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;feat: Add WeChat composer support (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/24c7c97"&gt;&lt;code&gt;24c7c97&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;li&gt;deps(rust): Bump the rust-minor-patch group (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/87f31f8"&gt;&lt;code&gt;87f31f8&lt;/code&gt;&lt;/a&gt;) by @dependabot[bot]&lt;/li&gt;
+&lt;li&gt;chore: release v0.6.3 (&lt;a href="https://github.com/PhilipSchmid/textwarden/commit/1a69c25"&gt;&lt;code&gt;1a69c25&lt;/code&gt;&lt;/a&gt;) by @PhilipSchmid&lt;/li&gt;
+&lt;/ul&gt;</description>
+            <enclosure url="https://github.com/PhilipSchmid/textwarden/releases/download/v0.6.4/TextWarden-0.6.4-Universal.dmg" length="29330621" type="application/octet-stream" sparkle:edSignature="9D1xQDWd9vGiuCMTpC3je9duZc8w9DtMWizUuiVfvF0uGiczaxQ4s6TXknwpvp8FpJ49Vx0Vu9rlhKiAgyQzCg=="/>
+        </item>
+        <item>
             <title>0.6.3</title>
             <pubDate>Fri, 20 Nov 2026 15:07:19 +0100</pubDate>
             <sparkle:version>43</sparkle:version>
