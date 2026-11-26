@@ -121,7 +121,7 @@ TextWarden is tuned for the apps below. Some apps give macOS less information ab
 | Notion | Full | Partial[^notion] |
 | Obsidian | Note editor[^obsidian] | Partial[^obsidian] |
 | Telegram | Full | Full |
-| WeChat | Message composer | Message composer |
+| WeChat | Full | Full |
 | WhatsApp | Full | Full |
 | Webex | Full | Full |
 | Microsoft Word | Full | Full |
