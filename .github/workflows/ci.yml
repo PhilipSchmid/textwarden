@@ -47,6 +47,8 @@ jobs:
 
   rust-tests:
     name: Rust Tests & Linting
+    needs: build-scope
+    if: ${{ !cancelled() && (needs.build-scope.result != 'success' || needs.build-scope.outputs.docs-only != 'true') }}
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
@@ -221,7 +223,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
-          # A missing comparison or output leaves both builds enabled.
+          # A missing comparison or output leaves all three jobs enabled.
           if [[ ! "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
             exit 0
           fi
