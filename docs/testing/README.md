@@ -151,3 +151,5 @@ Debug logs distinguish shortcut requests, activation rejection, generation, unch
 
 - [Apple Mail](MAIL-E2E-CANARIES.md)
 - [Apple Pages](PAGES-E2E-CANARIES.md)
+
+<!-- Temporary GitHub merge-gate fixture. Do not merge. -->
