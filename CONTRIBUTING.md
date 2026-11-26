@@ -34,9 +34,13 @@ pandoc --version
 
 ## Set Up the Project
 
+Fork the repository on GitHub before cloning. If you already have write access,
+you can clone the upstream repository directly.
+
 ```bash
-git clone https://github.com/PhilipSchmid/textwarden.git
+git clone https://github.com/YOUR-USERNAME/textwarden.git
 cd textwarden
+git remote add upstream https://github.com/PhilipSchmid/textwarden.git
 make build
 make test
 open TextWarden.xcodeproj
@@ -72,14 +76,14 @@ Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing module boundaries, depen
 
 Never commit directly to `main`.
 
-1. Create a branch from the current `main` using `<type>/<short-description>`, such as `fix/outlook-positioning` or `feat/app-support`.
+1. Fetch `upstream` and branch from `upstream/main`. Use `<type>/<short-description>`, such as `fix/outlook-positioning` or `feat/app-support`. Use `origin/main` if you cloned the upstream repository directly.
 2. Make one focused change at a time.
 3. Run `make run` after a code change so you test the installed app, not a stale build.
 4. Test the affected host apps manually when Accessibility behavior changes.
 5. Run `make ci-check` before committing. App/runtime and dependency changes also
    require the [local CPU gate](docs/CPU_PROFILING.md#local-regression-gate); use its
    full suite for analysis, AX, timers, overlays, and performance changes.
-6. Create a pull request targeting `main`.
+6. Push your branch and open a pull request targeting `PhilipSchmid/textwarden:main`.
 
 Useful commands:
 
@@ -163,13 +167,17 @@ Use [Conventional Commits](https://www.conventionalcommits.org/) with one of the
 
 `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `chore`, or `ci`.
 
-Write an imperative subject with no period:
+Write an imperative subject of up to 50 characters with no period. Wrap any
+commit body at 72 characters.
 
 ```text
 fix: Correct underline positioning in Slack
 ```
 
-Every commit must be cryptographically signed and include the Developer Certificate of Origin sign-off created by Git:
+Every commit on your pull request needs two things:
+
+- **DCO sign-off.** Read the [Developer Certificate of Origin](https://developercertificate.org/), then add your attestation with `git commit -s`. Use the same email in your Git identity and the commit author. A GitHub-provided noreply email works.
+- **Verified signature.** Configure Git to sign with an SSH, GPG or S/MIME key GitHub can verify, then use `git commit -S`. [Configure your signing key](https://docs.github.com/en/authentication/managing-commit-signature-verification/telling-git-about-your-signing-key)
 
 ```bash
 git commit -s -S -m "fix: Correct underline positioning in Slack"
@@ -177,13 +185,48 @@ git commit -s -S -m "fix: Correct underline positioning in Slack"
 
 Do not type a `Signed-off-by`, `Co-Authored-By`, or other trailer manually.
 
+The **Commit signatures** job shows which commits GitHub could not verify.
+To repair your latest commit after configuring your Git identity and signing key:
+
+```bash
+git commit --amend --no-edit -s -S
+git push --force-with-lease
+```
+
+For earlier commits, use an interactive rebase to amend each affected commit
+you authored. Sign every commit rewritten by the rebase. Push rewritten history
+only on your contribution branch. If a commit still shows **Unverified**, open
+its signature details on GitHub to see what failed.
+
 ## Pull Requests
 
 - Keep the pull request focused and describe the user-visible result.
 - Link the issue when one exists.
 - Include manual test context for app-specific behavior.
 - Make sure `make ci-check` passes.
-- Keep history linear; maintainers use rebase merge.
+- Review each commit's sign-off and wait for CI before merging. Maintainers use rebase merge to keep history linear.
+
+GitHub may ask a maintainer to approve the build and test runs for a first-time
+fork contributor. This also applies to the signature check.
+
+The commit check verifies the original PR commits. GitHub's rebase merge creates
+new commits on `main` and those new commits lose the original signatures.
+[GitHub's rebase and merge behavior](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/about-merge-methods-on-github#rebasing-and-merging-your-commits)
+
+### Maintainer setup
+
+GitHub already requires sign-offs for commits made through its web interface.
+For sign-offs on commits pushed from Git, the [DCO App](https://github.com/apps/dco)
+can provide a separate required check from its own GitHub App identity.
+Someone with repository admin access must install it first. It skips bots and
+merge commits by default. [DCO App configuration](https://github.com/dcoapp/app)
+
+The read-only **Commit signatures** job is contributor feedback. Review
+changes to workflows and verify commit signatures in the PR's **Commits** tab
+when a PR changes CI. GitHub's native [Require signed commits
+rule](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#require-signed-commits)
+is a separate branch control. Adopting it requires a merge strategy that leaves
+verified signatures on `main`.
 
 ## Bug Reports and Feature Requests
 
