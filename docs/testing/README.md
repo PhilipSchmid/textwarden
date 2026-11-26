@@ -151,3 +151,5 @@ Debug logs distinguish shortcut requests, activation rejection, generation, unch
 
 - [Apple Mail](MAIL-E2E-CANARIES.md)
 - [Apple Pages](PAGES-E2E-CANARIES.md)
+
+<!-- Temporary verification of the documentation-only CI path. -->
