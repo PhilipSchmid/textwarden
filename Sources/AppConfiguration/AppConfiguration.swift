@@ -34,6 +34,7 @@ enum ParserType {
     case powerpoint
     case outlook
     case webex
+    case wechat
 }
 
 // MARK: - Strategy Type

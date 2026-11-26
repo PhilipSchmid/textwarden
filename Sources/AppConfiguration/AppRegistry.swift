@@ -125,6 +125,7 @@ final class AppRegistry {
         register(.pages)
         register(.whatsapp)
         register(.telegram)
+        register(.wechat)
         register(.word)
         register(.powerpoint)
         register(.outlook)
@@ -694,6 +695,30 @@ extension AppConfiguration {
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
             requiresFullReanalysisAfterReplacement: false,
+            defersTextExtraction: false,
+            requiresFrameValidation: false,
+            hasTextMarkerIndexOffset: false
+        )
+    )
+
+    // MARK: - WeChat
+
+    static let wechat = AppConfiguration(
+        identifier: "wechat",
+        displayName: "WeChat",
+        bundleIDs: ["com.tencent.xinWeChat"],
+        category: .native,
+        parserType: .wechat,
+        preferredStrategies: [.rangeBounds],
+        features: AppFeatures(
+            visualUnderlinesEnabled: true,
+            textReplacementMethod: .browserStyle,
+            requiresTypingPause: false,
+            supportsFormattedText: false,
+            childElementTraversal: false,
+            delaysAXNotifications: false,
+            focusBouncesDuringPaste: false,
+            requiresFullReanalysisAfterReplacement: true,
             defersTextExtraction: false,
             requiresFrameValidation: false,
             hasTextMarkerIndexOffset: false

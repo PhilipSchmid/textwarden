@@ -34,6 +34,7 @@ final class ContentParserFactory {
             .powerpoint: PowerPointContentParser(),
             .outlook: OutlookContentParser(),
             .webex: WebExContentParser(),
+            .wechat: WeChatContentParser(),
         ]
 
         Logger.info("ContentParserFactory: Initialized with \(parsersByType.count) parser types", category: Logger.analysis)

@@ -147,6 +147,7 @@ final class AppBehaviorRegressionTests: XCTestCase {
 
         // Native apps that use UTF-16 for AX APIs (documented in behavior file)
         let nativeWithUTF16AX: Set = [
+            "com.tencent.xinWeChat", // Composer bounds and selection use UTF-16
             "ru.keepcoder.Telegram", // Uses UTF-16 for AXNumberOfCharacters
         ]
 

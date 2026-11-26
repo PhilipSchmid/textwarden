@@ -75,6 +75,26 @@ final class ApplicationConfigurationTests: XCTestCase {
         }
     }
 
+    func testWeChatSupportsOnlyTheFocusedMessageComposer() {
+        let bundleID = "com.tencent.xinWeChat"
+        let config = AppRegistry.shared.configuration(for: bundleID)
+        let behavior = AppBehaviorRegistry.shared.registeredBehavior(for: bundleID)
+
+        XCTAssertEqual(AppRegistry.shared.policy(for: bundleID), .supported)
+        XCTAssertFalse(AppRegistry.shared.requiresSafeTrialConsent(for: bundleID))
+        XCTAssertEqual(config.preferredStrategies, [.rangeBounds])
+        XCTAssertEqual(config.features.textReplacementMethod, .browserStyle)
+        XCTAssertTrue(config.features.visualUnderlinesEnabled)
+        XCTAssertTrue(behavior?.usesUTF16TextIndices == true)
+        XCTAssertTrue(behavior?.requiresUnchangedTextBeforePaste == true)
+        XCTAssertTrue(ContentParserFactory.shared.parser(for: bundleID) is WeChatContentParser)
+
+        XCTAssertTrue(WeChatContentParser.isFocusedComposer(role: "AXTextArea", identifier: "chat_input_field", focused: true))
+        XCTAssertFalse(WeChatContentParser.isFocusedComposer(role: "AXTextArea", identifier: nil, focused: true))
+        XCTAssertFalse(WeChatContentParser.isFocusedComposer(role: "AXStaticText", identifier: "chat_input_field", focused: true))
+        XCTAssertFalse(WeChatContentParser.isFocusedComposer(role: "AXTextArea", identifier: "chat_input_field", focused: false))
+    }
+
     func testObsidianUsesTheNoteEditorAndExactRangePositioning() {
         let bundleID = "md.obsidian"
         let config = AppRegistry.shared.configuration(for: bundleID)

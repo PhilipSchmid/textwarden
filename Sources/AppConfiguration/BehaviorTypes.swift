@@ -213,6 +213,9 @@ enum AppQuirk: Hashable {
     /// App requires keyboard-based text replacement
     case requiresBrowserStyleReplacement
 
+    /// The editor can retain its AX identity after its text is cleared or replaced.
+    case requiresUnchangedTextBeforePaste
+
     /// App has focus bounce during paste operations
     case focusBouncesDuringPaste
 
