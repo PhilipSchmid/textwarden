@@ -10,7 +10,7 @@ TextWarden is a free, open-source grammar checker and writing assistant for macO
 **Nothing you type is sent anywhere.** Your writing never leaves your Mac: not for grammar checking, not for AI features, and not for analytics. There is no account to create and no subscription.
 
 <p align="center">
-  <img src="Assets/textwarden_logo.svg" alt="TextWarden macOS grammar checker logo" width="320" height="320">
+  <img src="Assets/textwarden_logo.svg" alt="TextWarden macOS grammar checker logo" width="180" height="180">
 </p>
 
 <p align="center">
@@ -19,22 +19,26 @@ TextWarden is a free, open-source grammar checker and writing assistant for macO
   </a>
 </p>
 
-<p align="center">
-  <img src="docs/screenshots/mail-grammar-dark.png" width="760" alt="Dark-mode Apple Mail draft with a spelling mistake underlined and TextWarden’s floating pill beside the editor.">
-</p>
-
-See more [TextWarden screenshots](docs/SCREENSHOTS.md), including style suggestions, Quick Rewrite, AI Compose, and the browser toolbar popup.
-
 > [!NOTE]
 > TextWarden is under active development. Apps do not all share text with macOS in the same way, so underlines and corrections may work differently from one app to another. If something breaks, please [open a bug report](https://github.com/PhilipSchmid/textwarden/issues/new/choose).
 
 ## Why TextWarden?
 
 - **Your writing stays on your Mac:** Grammar checks run locally with [Harper](https://github.com/Automattic/harper), and optional AI features use Apple Intelligence on your Mac. TextWarden never uploads your text or prompts.
-- **Works in many Mac apps:** Check writing in Apple apps, browsers, chat apps, web-based editors, and Microsoft Office.
-- **Fast feedback:** TextWarden underlines errors when an app provides the location of each word. Otherwise, a small floating indicator shows the suggestions.
+- **Works in many Mac apps:** Apple Mail, WeChat, and Firefox are a few of the [supported apps](#supported-apps).
+- **Fast feedback:** TextWarden underlines errors when an app provides the location of each word. In apps without word locations, use the [optional floating pill](docs/SCREENSHOTS.md#the-floating-pill) to review suggestions.
 - **A rewrite without leaving your app:** Improve selected text using your preferred writing style, then review the changes before applying them.
 - **No account or subscription:** Download the app and grant Accessibility permission. Your usage statistics and custom dictionary stay on your Mac.
+
+<p align="center">
+  <a href="docs/screenshots/mail-underline.webp">
+    <picture>
+      <source media="(max-width: 600px)" srcset="docs/screenshots/mail-underline-mobile.webp">
+      <img src="docs/screenshots/mail-underline.webp" width="720" alt="In a Mail draft, the pointer rests on the red underline beneath reccomend. The open popover offers recommend.">
+    </picture>
+  </a><br>
+  <em>Apple Mail · Hover over the underlined word to see the correction in your draft.</em>
+</p>
 
 ## Features
 
@@ -63,11 +67,17 @@ These features are off by default. Grammar checking, spell checking, custom dict
 
 ### Quick Rewrite
 
-Quick Rewrite uses Apple Intelligence to suggest changes to selected text in supported apps, following your writing style from **Preferences → Style**. Compare the original and rewritten text before applying; nothing changes without your approval. AI can change meaning, so review the result carefully.
+With style checking enabled, select a passage in your app and press **Option–Shift–R** (⌥⇧R) to get a rewrite in your chosen style. Compare the wording and check that it keeps your meaning. Choose **Apply** to replace the selection or **Cancel** to keep the original. You can change the [style and shortcut](CONFIGURATION.md#quick-rewrite).
 
-<img src="docs/screenshots/quick-rewrite-light.png" width="460" alt="Light-mode Quick Rewrite preview comparing the original wording with a shorter version before Apply.">
-
-See [Quick Rewrite configuration](CONFIGURATION.md#quick-rewrite) for setup, shortcuts, and limits.
+<p align="center">
+  <a href="docs/screenshots/quick-rewrite.webp">
+    <picture>
+      <source media="(max-width: 600px)" srcset="docs/screenshots/quick-rewrite-mobile.webp">
+      <img src="docs/screenshots/quick-rewrite.webp" width="720" alt="Quick Rewrite shortens a picnic invitation to two sentences: rain moves the picnic indoors, and each guest must bring a chair.">
+    </picture>
+  </a><br>
+  <em>The Concise style shortens the second sentence to “Each guest must bring their own chair.”</em>
+</p>
 
 ## Requirements
 
@@ -88,13 +98,44 @@ The download works on both Intel and Apple Silicon Macs. To avoid overlapping su
 
 See the [Configuration Guide](CONFIGURATION.md) for every setting and the [Troubleshooting Guide](TROUBLESHOOTING.md) if the app, indicator, or underlines do not behave as expected.
 
+<p align="center">
+  <a href="docs/screenshots/settings-general-full.webp">
+    <picture>
+      <source media="(max-width: 600px)" srcset="docs/screenshots/settings-general-mobile.webp">
+      <img src="docs/screenshots/settings-general.webp" width="720" alt="Full TextWarden Settings window on the General tab, showing grammar checking status, launch at login, permissions, and appearance.">
+    </picture>
+  </a><br>
+  <em>General settings · Check that Accessibility permission is granted before you start typing.</em>
+</p>
+
 ## Browser Extension (Preview)
 
 The extension adds precise underlines and TextWarden’s writing tools to Chrome, Brave, Firefox, Zen, and Safari. Your writing stays on your Mac. Google Docs and complex web editors are not supported yet.
 
-<img src="docs/screenshots/firefox-editor-light.png" width="760" alt="A fictional Firefox newsletter draft with TextWarden’s light floating pill showing spelling and style findings.">
+<p align="center">
+  <a href="docs/screenshots/firefox-underline.webp">
+    <picture>
+      <source media="(max-width: 600px)" srcset="docs/screenshots/firefox-underline-mobile.webp">
+      <img src="docs/screenshots/firefox-underline.webp" width="720" alt="A full Firefox window with three marked words in a newsletter draft. The open popover offers trio, trail, and trim for tril.">
+    </picture>
+  </a><br>
+  <em>Firefox · Three words are flagged. For “tril,” the route description makes “trail” the right choice.</em>
+</p>
 
-See the [open Firefox extension popup](docs/SCREENSHOTS.md#browser-extension-controls).
+<details>
+<summary>See the Firefox toolbar popup</summary>
+
+<p align="center">
+  <a href="docs/screenshots/firefox-toolbar.webp">
+    <picture>
+      <source media="(max-width: 600px)" srcset="docs/screenshots/firefox-toolbar-mobile.webp">
+      <img src="docs/screenshots/firefox-toolbar.webp" width="720" alt="The Firefox toolbar feather and its open popup, with a connection to the Mac app, page checking, underline visibility, and site pause controls.">
+    </picture>
+  </a><br>
+  <em>The toolbar feather opens checking and underline controls for the current page.</em>
+</p>
+
+</details>
 
 Use a preview-enabled TextWarden build and open Preferences → Browser → Install Extension:
 
@@ -102,7 +143,7 @@ Use a preview-enabled TextWarden build and open Preferences → Browser → Inst
 - Firefox / Zen: Load Temporary Add-on in `about:debugging` and select `manifest.json`. Repeat after each browser restart.
 - Safari: Enable the bundled extension in Safari → Settings → Extensions. Signed, notarized builds need no Developer mode.
 
-Click the toolbar feather on a page to start checking. Installation is manual during the preview; it is not listed in extension stores. See the [extension guide](BrowserExtension/README.md) for setup and privacy details.
+Click the toolbar feather on a page to start checking. To draft from an instruction, [open AI Compose from the pill](docs/SCREENSHOTS.md#compose-in-firefox). Installation is manual during the preview; it is not listed in extension stores. See the [extension guide](BrowserExtension/README.md) for setup and privacy details.
 
 ## How It Works
 

@@ -1,47 +1,135 @@
 # TextWarden in action
 
-These examples use fictional text.
+Apple Mail, WeChat, and Firefox show how TextWarden works across a few of its [supported apps](../README.md#supported-apps). The drafts are fictional. Click any screenshot to see it at full size.
 
-## Checking an Apple Mail draft
+## Correct a word in place
 
-TextWarden underlines a typo in the message body. The floating pill groups spelling and grammar findings, style suggestions, and AI Compose.
+The spelling popover opens on **reccomend**. Choose **recommend** to replace it in the draft.
 
-<img src="screenshots/mail-grammar-dark.png" width="760" alt="Dark Apple Mail draft with reccomend underlined and TextWarden’s floating pill beside the editor.">
+<p align="center">
+  <a href="screenshots/mail-underline.webp">
+    <picture>
+      <source media="(max-width: 600px)" srcset="screenshots/mail-underline-mobile.webp">
+      <img src="screenshots/mail-underline.webp" width="720" alt="In a Mail draft, the pointer rests on the red underline beneath reccomend. The open popover offers recommend.">
+    </picture>
+  </a>
+</p>
 
-### Grammar suggestions in chat
+## The floating pill
 
-TextWarden highlights the verb and offers a subject–verb agreement correction.
+The pill is optional. Its top control opens grammar, the middle opens style suggestions, and the pencil opens AI Compose.
 
-<img src="screenshots/grammar-agreement-dark.png" width="445" alt="Dark agreement suggestion for a WeChat draft, offering eats as a replacement for eat.">
+<p align="center">
+  <a href="screenshots/floating-pill.webp">
+    <picture>
+      <source media="(max-width: 600px)" srcset="screenshots/floating-pill-mobile.webp">
+      <img src="screenshots/floating-pill.webp" width="720" alt="The optional pill has three controls, from top to bottom: grammar, style suggestions, and AI Compose.">
+    </picture>
+  </a>
+</p>
 
-## Checking a web editor
+### Grammar in Mail
 
-The light-mode browser example shows the floating pill next to a newsletter draft.
+Hover over the red grammar count to see the mistake in its sentence.
 
-<img src="screenshots/firefox-editor-light.png" width="760" alt="A fictional newsletter being edited in Firefox with TextWarden’s light floating pill showing spelling and style findings.">
+<p align="center">
+  <a href="screenshots/mail-grammar.webp">
+    <picture>
+      <source media="(max-width: 600px)" srcset="screenshots/mail-grammar-mobile.webp">
+      <img src="screenshots/mail-grammar.webp" width="720" alt="The top of the pill is tinted red while the spelling panel shows the Mail sentence and offers recommend.">
+    </picture>
+  </a>
+</p>
 
-### Browser extension controls
+### Style in Mail
 
-Open TextWarden from the Firefox toolbar to see its Mac app connection and control checking and underlines for the current page.
+Open the purple count to see the proposed wording. Accept the edit, reject it, or ask for another suggestion.
 
-<img src="screenshots/firefox-toolbar-dark.png" width="380" alt="Open TextWarden Firefox extension popup in dark mode with the Mac app connected and checking and underlines enabled.">
+<p align="center">
+  <a href="screenshots/mail-style.webp">
+    <picture>
+      <source media="(max-width: 600px)" srcset="screenshots/mail-style-mobile.webp">
+      <img src="screenshots/mail-style.webp" width="720" alt="The purple count opens a proposed edit to a Mail draft with Accept, Reject, and Retry controls.">
+    </picture>
+  </a>
+</p>
 
-## Style suggestions
+### Grammar in WeChat
 
-Review the proposed edit and the reason before accepting it. Style suggestions use Apple Intelligence on supported Macs.
+While you’re writing a WeChat message about Saturday’s train tickets, TextWarden underlines **have** and suggests **has**. It also checks chat drafts in WhatsApp, Telegram, and Apple Messages.
 
-<img src="screenshots/style-suggestion-dark.png" width="445" alt="Dark TextWarden style suggestion showing a shorter opening and options to accept, reject, or retry.">
+<p align="center">
+  <a href="screenshots/wechat-agreement.webp">
+    <picture>
+      <source media="(max-width: 600px)" srcset="screenshots/wechat-agreement-mobile.webp">
+      <img src="screenshots/wechat-agreement.webp" width="720" alt="A WeChat draft reads “She have our train tickets for Saturday.” TextWarden underlines have and suggests has.">
+    </picture>
+  </a>
+</p>
+
+## Writing in Firefox
+
+The newsletter has three spelling findings. For **tril**, TextWarden offers **trio**, **trail**, and **trim**. Here, **trail** fits the route description.
+
+<p align="center">
+  <a href="screenshots/firefox-underline.webp">
+    <picture>
+      <source media="(max-width: 600px)" srcset="screenshots/firefox-underline-mobile.webp">
+      <img src="screenshots/firefox-underline.webp" width="720" alt="A full Firefox window with three marked words in a newsletter draft. The open popover offers trio, trail, and trim for tril.">
+    </picture>
+  </a>
+</p>
+
+### Extension controls
+
+Open the toolbar feather to check the connection to the Mac app, toggle underlines, or pause checking for the site.
+
+<p align="center">
+  <a href="screenshots/firefox-toolbar.webp">
+    <picture>
+      <source media="(max-width: 600px)" srcset="screenshots/firefox-toolbar-mobile.webp">
+      <img src="screenshots/firefox-toolbar.webp" width="720" alt="The Firefox toolbar feather and its open popup, with a connection to the Mac app, page checking, underline visibility, and site pause controls.">
+    </picture>
+  </a>
+</p>
+
+### Compose in Firefox
+
+Click the pill’s pencil, describe what you want to write, and choose **Generate**. Review the result before inserting it into the editor.
+
+<p align="center">
+  <a href="screenshots/firefox-compose.webp">
+    <picture>
+      <source media="(max-width: 600px)" srcset="screenshots/firefox-compose-mobile.webp">
+      <img src="screenshots/firefox-compose.webp" width="720" alt="AI Compose opened from the Firefox pill. The instruction asks for a ridge-walk invitation and the result includes the north gate meeting point.">
+    </picture>
+  </a>
+</p>
 
 ## Quick Rewrite
 
-Select text and compare the original with the proposed rewrite before applying it.
+With style checking enabled, select the passage in your app and press **Option–Shift–R** (⌥⇧R by default). The Concise style shortens this picnic invitation. Compare the two versions, then choose **Apply** to replace the selection or **Cancel** to keep it.
 
-<img src="screenshots/quick-rewrite-light.png" width="500" alt="Light Quick Rewrite review showing the original wording and a shorter rewrite for comparison.">
+<p align="center">
+  <a href="screenshots/quick-rewrite.webp">
+    <picture>
+      <source media="(max-width: 600px)" srcset="screenshots/quick-rewrite-mobile.webp">
+      <img src="screenshots/quick-rewrite.webp" width="720" alt="Quick Rewrite shortens a picnic invitation to two sentences: rain moves the picnic indoors, and each guest must bring a chair.">
+    </picture>
+  </a>
+</p>
 
-## AI Compose
+## General settings
 
-Give TextWarden an instruction and choose the tone for a new draft or a rewrite of selected text.
+Open **Settings → General** to check whether grammar checking is active, see which macOS permissions are granted, or choose when TextWarden starts. The tabs across the top lead to the other settings.
 
-<img src="screenshots/ai-compose-dark.png" width="500" alt="Dark AI Compose panel with an instruction field and writing-style controls.">
+<p align="center">
+  <a href="screenshots/settings-general-full.webp">
+    <picture>
+      <source media="(max-width: 600px)" srcset="screenshots/settings-general-mobile.webp">
+      <img src="screenshots/settings-general.webp" width="720" alt="Full TextWarden Settings window on the General tab, showing grammar checking status, launch at login, permissions, and appearance.">
+    </picture>
+  </a>
+</p>
 
 [Back to the README](../README.md)
