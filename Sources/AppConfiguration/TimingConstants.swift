@@ -26,6 +26,11 @@ enum TimingConstants {
     /// Debounce interval for style analysis (2s to avoid excessive LLM calls)
     static let styleDebounce: TimeInterval = 2.0
 
+    /// Debounce interval for the optional external grammar source. Harper runs
+    /// in process and can afford to run per keystroke; a network round trip
+    /// cannot, so this waits for a brief pause in typing.
+    static let externalGrammarSourceDebounce: TimeInterval = 0.6
+
     // MARK: - Cache Expiration
 
     /// Style analysis cache expiration (10 minutes)

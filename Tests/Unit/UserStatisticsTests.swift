@@ -24,6 +24,72 @@ final class UserStatisticsTests: XCTestCase {
         super.tearDown()
     }
 
+    // MARK: - Amending a Session
+
+    /// The external grammar source replies after the session is written, so its
+    /// findings are folded in rather than recorded as a session of their own.
+    func testAmendingAddsErrorsWithoutCountingAnotherSession() {
+        statistics.recordDetailedAnalysisSession(
+            wordsProcessed: 20,
+            errorsFound: 2,
+            bundleIdentifier: "com.apple.TextEdit",
+            categoryBreakdown: ["Spelling": 2],
+            latencyMs: 9
+        )
+
+        statistics.amendLastAnalysisSession(
+            additionalErrors: 3,
+            categoryBreakdown: ["Grammar": 3],
+            bundleIdentifier: "com.apple.TextEdit"
+        )
+
+        XCTAssertEqual(statistics.errorsFound, 5)
+        XCTAssertEqual(statistics.analysisSessions, 1, "Amending must not count a second session")
+        XCTAssertEqual(statistics.wordsAnalyzed, 20, "Words must not be counted twice")
+    }
+
+    func testAmendingIgnoresADifferentApplication() {
+        statistics.recordDetailedAnalysisSession(
+            wordsProcessed: 20,
+            errorsFound: 2,
+            bundleIdentifier: "com.apple.TextEdit",
+            categoryBreakdown: ["Spelling": 2],
+            latencyMs: 9
+        )
+
+        statistics.amendLastAnalysisSession(
+            additionalErrors: 3,
+            categoryBreakdown: ["Grammar": 3],
+            bundleIdentifier: "com.apple.mail"
+        )
+
+        XCTAssertEqual(statistics.errorsFound, 2, "A reply must not land on another app's session")
+    }
+
+    func testAmendingWithNothingToAddIsANoOp() {
+        statistics.recordDetailedAnalysisSession(
+            wordsProcessed: 20,
+            errorsFound: 2,
+            bundleIdentifier: nil,
+            categoryBreakdown: ["Spelling": 2],
+            latencyMs: 9
+        )
+
+        statistics.amendLastAnalysisSession(additionalErrors: 0, categoryBreakdown: [:], bundleIdentifier: nil)
+
+        XCTAssertEqual(statistics.errorsFound, 2)
+    }
+
+    func testAmendingWithNoRecordedSessionIsANoOp() {
+        statistics.amendLastAnalysisSession(
+            additionalErrors: 3,
+            categoryBreakdown: ["Grammar": 3],
+            bundleIdentifier: nil
+        )
+
+        XCTAssertEqual(statistics.errorsFound, 0)
+    }
+
     // MARK: - Initialization Tests
 
     func testInitialStatisticsAreZero() {

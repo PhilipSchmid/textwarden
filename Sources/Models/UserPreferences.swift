@@ -328,6 +328,30 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    // MARK: - External Grammar Source
+
+    /// Send text to a LanguageTool-compatible server the user runs themselves.
+    /// Off by default; TextWarden bundles no server and starts no process.
+    @Published var enableLanguageToolSource: Bool {
+        didSet {
+            defaults.set(enableLanguageToolSource, forKey: Keys.enableLanguageToolSource)
+        }
+    }
+
+    /// Base URL of that server. Any endpoint speaking `/v2/check` works.
+    @Published var languageToolEndpoint: String {
+        didSet {
+            defaults.set(languageToolEndpoint, forKey: Keys.languageToolEndpoint)
+        }
+    }
+
+    /// Language code sent with each request; `auto` defers to the server.
+    @Published var languageToolLanguage: String {
+        didSet {
+            defaults.set(languageToolLanguage, forKey: Keys.languageToolLanguage)
+        }
+    }
+
     // MARK: - Language Detection
 
     /// Enable detection and filtering of non-English words
@@ -740,6 +764,9 @@ class UserPreferences: ObservableObject {
         enablePersonNames = true
         enableLastNames = true
         enableMacOSDictionary = true // Uses NSSpellChecker API, no special permissions
+        enableLanguageToolSource = false // Opt-in; requires a server the user runs
+        languageToolEndpoint = LanguageToolConfiguration.defaultEndpointString
+        languageToolLanguage = LanguageToolConfiguration.defaultLanguage
         enableLanguageDetection = false // Opt-in feature
         excludedLanguages = []
 
@@ -888,6 +915,9 @@ class UserPreferences: ObservableObject {
         enablePersonNames = defaults.object(forKey: Keys.enablePersonNames) as? Bool ?? true
         enableLastNames = defaults.object(forKey: Keys.enableLastNames) as? Bool ?? true
         enableMacOSDictionary = defaults.object(forKey: Keys.enableMacOSDictionary) as? Bool ?? true
+        enableLanguageToolSource = defaults.object(forKey: Keys.enableLanguageToolSource) as? Bool ?? false
+        languageToolEndpoint = defaults.string(forKey: Keys.languageToolEndpoint) ?? LanguageToolConfiguration.defaultEndpointString
+        languageToolLanguage = defaults.string(forKey: Keys.languageToolLanguage) ?? LanguageToolConfiguration.defaultLanguage
         enableLanguageDetection = defaults.object(forKey: Keys.enableLanguageDetection) as? Bool ?? false
         if let data = defaults.data(forKey: Keys.excludedLanguages),
            let set = try? decoder.decode(Set<String>.self, from: data)
@@ -1382,6 +1412,9 @@ class UserPreferences: ObservableObject {
         enablePersonNames = true
         enableLastNames = true
         enableMacOSDictionary = true
+        enableLanguageToolSource = false
+        languageToolEndpoint = LanguageToolConfiguration.defaultEndpointString
+        languageToolLanguage = LanguageToolConfiguration.defaultLanguage
         keyboardShortcutsEnabled = true
         suggestionOpacity = 0.80
         suggestionTextSize = 13.0
@@ -1430,6 +1463,9 @@ class UserPreferences: ObservableObject {
         static let enablePersonNames = "enablePersonNames"
         static let enableLastNames = "enableLastNames"
         static let enableMacOSDictionary = "enableMacOSDictionary"
+        static let enableLanguageToolSource = "enableLanguageToolSource"
+        static let languageToolEndpoint = "languageToolEndpoint"
+        static let languageToolLanguage = "languageToolLanguage"
         static let enableLanguageDetection = "enableLanguageDetection"
         static let excludedLanguages = "excludedLanguages"
 

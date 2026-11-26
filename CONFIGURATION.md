@@ -77,6 +77,22 @@ TextWarden detects language once per semantic segment, such as a sentence, parag
 
 Uncertain detections fail open: TextWarden keeps checking the passage. This is most likely with very short, ambiguous, or closely related language samples. The feature prevents false positives; it does not translate or proofread non-English text.
 
+### External grammar source
+
+TextWarden can add results from a LanguageTool-compatible server that you run on this Mac. The setting is off by default, and TextWarden neither bundles nor starts a server.
+
+| Field | Meaning |
+|---|---|
+| Use an external LanguageTool server | Turns the source on. While it is off, TextWarden makes no network requests for grammar checking. |
+| Server address | Base URL of your server, such as `http://localhost:8081`. An address already ending in `/v2/check` is also accepted. |
+| Language | Language code sent with each request. Use `auto` to let the server decide, or a code such as `en-US`. |
+
+Only addresses on this Mac are accepted: `localhost`, any `127.0.0.0/8` address, or `::1`. A LAN or remote address is rejected, so the text being checked never leaves the device.
+
+Results are added to the built-in checks rather than replacing them. Where both engines flag the same text, the built-in result is kept, so the external source contributes only what Harper did not report. Suggestions from the server are labelled **LanguageTool** so you can tell them apart.
+
+Requests wait for a short pause in typing. If the server is unreachable or slow, TextWarden keeps the built-in results and adds nothing. Use **Test Connection** to check the address.
+
 ## Readability
 
 Readability analysis is on by default and does not require Apple Intelligence. For text with at least 30 words, TextWarden calculates a Flesch Reading Ease score and checks sentence complexity against the selected audience.

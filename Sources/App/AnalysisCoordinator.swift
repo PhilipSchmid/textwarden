@@ -248,6 +248,10 @@ class AnalysisCoordinator: ObservableObject {
     /// Debounce timer for style analysis - prevents queue buildup during rapid typing
     var styleDebounceTimer: Timer?
 
+    /// Debounce timer for the optional external grammar source, so typing does
+    /// not produce one HTTP request per keystroke
+    var externalGrammarSourceTimer: Timer?
+
     /// Debounce delay for style analysis (seconds) - wait for typing to pause
     let styleDebounceDelay: TimeInterval = TimingConstants.styleDebounce
 
@@ -763,6 +767,8 @@ class AnalysisCoordinator: ObservableObject {
         hoverSwitchTimer = nil
         textValidationTimer?.invalidate()
         textValidationTimer = nil
+        externalGrammarSourceTimer?.invalidate()
+        externalGrammarSourceTimer = nil
         styleDebounceTimer?.invalidate()
         styleDebounceTimer = nil
         electronLayoutTimer?.invalidate()
@@ -1733,6 +1739,7 @@ class AnalysisCoordinator: ObservableObject {
     /// Stop monitoring
     private func stopMonitoring() {
         invalidateGrammarAnalysis()
+        cancelExternalGrammarSource()
         textMonitor.stopMonitoring()
         currentErrors = []
         currentSegment = nil

@@ -69,11 +69,14 @@ public enum SuggestionSource: String, Sendable {
     case harper
     /// Apple Intelligence Foundation Models
     case appleIntelligence
+    /// External LanguageTool-compatible server on this Mac
+    case languageTool
 
     public var displayName: String {
         switch self {
         case .harper: "Grammar Check"
         case .appleIntelligence: "Apple Intelligence"
+        case .languageTool: "LanguageTool"
         }
     }
 }
@@ -258,7 +261,9 @@ public extension GrammarErrorModel {
             suggestedText: suggestedText,
             message: message,
             severity: SuggestionSeverity(grammarSeverity: severity),
-            source: .harper,
+            // The lint ID namespace is the only provenance the engine-neutral
+            // error model carries, and it is already load-bearing for dismissals.
+            source: lintId.hasPrefix("\(LanguageToolClient.lintIdPrefix)::") ? .languageTool : .harper,
             lintId: lintId,
             alternatives: suggestions.count > 1 ? Array(suggestions.dropFirst()) : nil
         )

@@ -106,7 +106,7 @@ extension AnalysisCoordinator {
     }
 
     /// Check all mutable inputs that could make a completed result stale.
-    private func isCurrentGrammarAnalysis(_ request: GrammarAnalysisRequest) -> Bool {
+    func isCurrentGrammarAnalysis(_ request: GrammarAnalysisRequest) -> Bool {
         request.matches(
             currentGeneration: grammarAnalysisGeneration,
             currentText: currentSegment?.content,
@@ -234,6 +234,16 @@ extension AnalysisCoordinator {
                 }
 
                 applyFilters(to: result.errors, sourceText: segmentContent, element: capturedElement)
+
+                // Long documents take this path for ordinary edits. Without
+                // this the external results would be dropped on every
+                // keystroke past the incremental threshold.
+                dispatchExternalGrammarSource(
+                    primary: result.errors,
+                    segment: segment,
+                    text: segmentContent,
+                    element: capturedElement
+                )
 
                 // Record statistics with full details
                 let wordCount = segmentContent.split(separator: " ").count
@@ -375,6 +385,15 @@ extension AnalysisCoordinator {
         }
 
         applyFilters(to: errorsWithCachedAI, sourceText: text, element: element)
+
+        // Ask the optional external source for anything Harper missed. Harper's
+        // results are already on screen; this can only add to them.
+        dispatchExternalGrammarSource(
+            primary: errorsWithCachedAI,
+            segment: segment,
+            text: text,
+            element: element
+        )
 
         Logger.debug("AnalysisCoordinator: Grammar analysis complete, UI updated", category: Logger.analysis)
 

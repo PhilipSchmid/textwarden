@@ -24,7 +24,7 @@ TextWarden is a free, open-source grammar checker and writing assistant for macO
 
 ## Why TextWarden?
 
-- **Your writing stays on your Mac:** Grammar checks run locally with [Harper](https://github.com/Automattic/harper), and optional AI features use Apple Intelligence on your Mac. TextWarden never uploads your text or prompts.
+- **Your writing stays on your Mac:** Grammar checks run locally with [Harper](https://github.com/Automattic/harper), and optional AI features use Apple Intelligence on your Mac. You can also add results from a locally hosted LanguageTool server, which TextWarden reaches over a loopback connection. TextWarden never uploads your text or prompts.
 - **Works in many Mac apps:** Apple Mail, WeChat, and Firefox are a few of the [supported apps](#supported-apps).
 - **Fast feedback:** TextWarden underlines errors when an app provides the location of each word. In apps without word locations, use the [optional floating pill](docs/SCREENSHOTS.md#the-floating-pill) to review suggestions.
 - **A rewrite without leaving your app:** Improve selected text using your preferred writing style, then review the changes before applying them.
@@ -149,7 +149,7 @@ Click the toolbar feather on a page to start checking. To draft from an instruct
 
 After you grant permission, TextWarden reads the text field you are typing in and checks it locally with the bundled Harper grammar checker. Suggestions appear as underlines or in a small floating indicator beside the app. If you enable **Ignore selected languages**, TextWarden uses local language detection to skip English grammar checks only in passages it identifies confidently as one of your selected languages.
 
-When Apple Intelligence features are enabled, TextWarden gives the current text or selection to Apple's on-device AI. TextWarden does not operate a grammar or AI server.
+When Apple Intelligence features are enabled, TextWarden gives the current text or selection to Apple's on-device AI. If you turn on the optional external grammar source, TextWarden also sends the text being checked to a locally hosted LanguageTool server that you run yourself; only addresses on this Mac are accepted. TextWarden does not operate a grammar or AI server, and it neither bundles nor starts one.
 
 ## Supported Apps
 
@@ -201,6 +201,8 @@ Terminal apps are paused by default because command output and source code produ
 TextWarden does not send your writing anywhere. It has no cloud grammar service, remote AI model, analytics, telemetry, advertising, or automatic crash reporting. Your text, AI prompts, corrections, custom vocabulary, settings, usage statistics, logs, and diagnostic reports stay on your Mac.
 
 Grammar checks, language detection, and readability scores run inside TextWarden. Optional AI features run on your Mac through Apple Intelligence. Nothing is uploaded for processing.
+
+TextWarden can optionally add results from a locally hosted LanguageTool server. When you enable it, the text being checked is sent to that server over a loopback connection. Only addresses on this Mac are accepted — `localhost`, any `127.0.0.0/8` address, or `::1` — so your writing still never leaves the device. The setting is off by default, and TextWarden neither bundles nor starts a server.
 
 If you enable update checks, TextWarden downloads release information from GitHub. The update check does not upload your writing, prompts, usage data, logs, or diagnostics.
 
