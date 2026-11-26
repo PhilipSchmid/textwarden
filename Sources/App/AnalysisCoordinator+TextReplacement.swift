@@ -37,13 +37,7 @@ extension AnalysisCoordinator {
     ///   - suggestion: The replacement text that was applied
     ///   - lengthDelta: The change in text length (suggestion.count - errorLength)
     func removeErrorAndUpdateUI(_ error: GrammarErrorModel, suggestion: String, lengthDelta: Int = 0) {
-        Logger.debug("removeErrorAndUpdateUI: Removing error at \(error.start)-\(error.end), message: '\(error.message)', lengthDelta: \(lengthDelta)", category: Logger.analysis)
-
-        // Log current errors for debugging position drift
-        Logger.debug("removeErrorAndUpdateUI: currentErrors BEFORE removal (\(currentErrors.count) total):", category: Logger.analysis)
-        for (i, err) in currentErrors.enumerated() {
-            Logger.debug("  [\(i)] \(err.start)-\(err.end): '\(err.message)'", category: Logger.analysis)
-        }
+        Logger.debug("removeErrorAndUpdateUI: Removing error at \(error.start)-\(error.end), lengthDelta: \(lengthDelta)", category: Logger.analysis)
 
         // Capture the canonical source before removing the error. Mail can deliver its AX value
         // change while keyboard replacement is still completing, so currentSegment may already
@@ -81,7 +75,7 @@ extension AnalysisCoordinator {
         }
         let removedCount = beforeCount - currentErrors.count
         if removedCount == 0 {
-            Logger.warning("removeErrorAndUpdateUI: NO MATCH FOUND! Looking for \(error.start)-\(error.end) '\(error.message)' (lintId: \(error.lintId), category: \(error.category))", category: Logger.analysis)
+            Logger.warning("removeErrorAndUpdateUI: No match at \(error.start)-\(error.end) (lintId: \(error.lintId), category: \(error.category))", category: Logger.analysis)
         } else {
             Logger.debug("removeErrorAndUpdateUI: Removed \(removedCount) error(s), \(currentErrors.count) remaining", category: Logger.analysis)
         }
@@ -106,6 +100,16 @@ extension AnalysisCoordinator {
             case .invalidRange:
                 Logger.warning("removeErrorAndUpdateUI: Invalid cached range after successful replacement (error: \(error.start)-\(error.end), scalar count: \(segment.content.unicodeScalars.count)); continuing UI cleanup", category: Logger.analysis)
             }
+        }
+
+        if let analyzedSourceText, let updatedSource = currentSegment?.content {
+            currentErrorSourceStore.advanceUnchangedErrors(
+                currentErrors,
+                replacing: error.start ..< error.end,
+                in: analyzedSourceText,
+                with: suggestion,
+                matching: updatedSource
+            )
         }
 
         // Adjust positions of remaining errors that come after the fixed error
@@ -955,11 +959,10 @@ extension AnalysisCoordinator {
     /// Apply style replacement for browsers
     func applyStyleBrowserReplacement(for suggestion: StyleSuggestionModel, element: AXUIElement, context: ApplicationContext) {
         Logger.debug("Browser style replacement for \(context.applicationName)", category: Logger.analysis)
+        let verifiesDraft = AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier).requiresUnchangedTextBeforePaste
+        let attempt = lastReplacementTime
 
-        // Log full suggestion details for debugging position drift
         Logger.debug("Style replace: suggestion.originalStart=\(suggestion.originalStart), originalEnd=\(suggestion.originalEnd)", category: Logger.analysis)
-        Logger.debug("Style replace: originalText='\(suggestion.originalText.prefix(50))...' (\(suggestion.originalText.count) chars)", category: Logger.analysis)
-        Logger.debug("Style replace: suggestedText='\(suggestion.suggestedText.prefix(50))...' (\(suggestion.suggestedText.count) chars)", category: Logger.analysis)
 
         // Get current text to find position for readability adjustment
         var currentTextRef: CFTypeRef?
@@ -988,14 +991,6 @@ extension AnalysisCoordinator {
                 let utf16Start = (String(text[..<range.lowerBound]) as NSString).length
                 if graphemeStart != utf16Start {
                     Logger.warning("Style replace: Grapheme/UTF-16 mismatch - graphemeStart=\(graphemeStart) vs utf16Start=\(utf16Start) (diff: \(utf16Start - graphemeStart))", category: Logger.analysis)
-                    // Log what characters are causing the mismatch
-                    let prefix = String(text[..<range.lowerBound])
-                    for (idx, char) in prefix.enumerated() {
-                        let charUtf16Count = String(char).utf16.count
-                        if charUtf16Count > 1 {
-                            Logger.trace("Style replace: Multi-UTF16 char at grapheme \(idx): '\(char)' (UTF-16 count: \(charUtf16Count))", category: Logger.analysis)
-                        }
-                    }
                 }
             } else {
                 // CRITICAL: The original text no longer exists in the document!
@@ -1026,7 +1021,7 @@ extension AnalysisCoordinator {
                 if nextChar.unicodeScalars.allSatisfy({ sentenceEndingPunctuation.contains($0) }) {
                     // Extend target text to include the trailing punctuation
                     targetText = suggestion.originalText + String(nextChar)
-                    Logger.debug("Browser style replacement: Extended target to include trailing '\(nextChar)'", category: Logger.analysis)
+                    Logger.debug("Browser style replacement: Extended target to include trailing punctuation", category: Logger.analysis)
                 }
             }
         }
@@ -1040,13 +1035,31 @@ extension AnalysisCoordinator {
         }
         let lengthDelta = suggestion.suggestedText.count - targetText.count
 
-        // Select the text to replace (handles Notion child element traversal internally)
-        let selectionResult = selectTextForReplacement(
-            targetText: targetText,
-            fallbackRange: nil, // Style suggestions use text search, not byte offsets
-            element: element,
-            context: context
-        )
+        let expectedRange: NSRange?
+        let selectionResult: SelectionResult
+        if verifiesDraft {
+            guard let currentText,
+                  currentText.utf16.elementsEqual(styleAnalysisSourceText.utf16),
+                  let target = ReplacementTextMatcher.uniqueLiteralRange(of: targetText, in: currentText),
+                  NSWorkspace.shared.frontmostApplication?.processIdentifier == context.processID,
+                  AccessibilityBridge.isFocusedElement(element, in: context) == true
+            else {
+                suggestionPopover.showCopyFallback(textToCopy: suggestion.suggestedText)
+                return
+            }
+            let range = NSRange(target, in: currentText)
+            expectedRange = range
+            selectionResult = AccessibilityBridge.setSelectedTextRange(element, location: range.location, length: range.length)
+                ? .success : .failedRootOnlyUnreliable
+        } else {
+            expectedRange = nil
+            selectionResult = selectTextForReplacement(
+                targetText: targetText,
+                fallbackRange: nil,
+                element: element,
+                context: context
+            )
+        }
 
         switch selectionResult {
         case .failedRootOnlyUnreliable:
@@ -1071,30 +1084,30 @@ extension AnalysisCoordinator {
             break // Continue with paste
         }
 
-        // Save original pasteboard and copy suggestion
-        let pasteboard = NSPasteboard.general
-        let originalString = pasteboard.string(forType: .string)
+        let clipboard = ClipboardManager.setForReplacement(suggestion.suggestedText, savedState: ClipboardManager.save())
 
-        pasteboard.clearContents()
-        pasteboard.setString(suggestion.suggestedText, forType: .string)
-
-        // Step 3: Activate the browser
-        let apps = NSRunningApplication.runningApplications(withBundleIdentifier: context.bundleIdentifier)
-        if let targetApp = apps.first {
-            targetApp.activate()
+        if !verifiesDraft {
+            NSRunningApplication(processIdentifier: context.processID)?.activate()
         }
 
-        // Step 4: Try paste via menu action or keyboard
-        let expectedText = suggestion.suggestedText // Capture for verification
         DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.longDelay) { [weak self] in
-            // CRITICAL: Verify clipboard still contains our text before pasting
-            let currentClipboard = pasteboard.string(forType: .string)
-            guard currentClipboard == expectedText else {
-                Logger.error("Browser style replacement ABORTED: Clipboard was modified! Expected '\(expectedText.prefix(20))...' but found '\(currentClipboard?.prefix(20) ?? "nil")...'", category: Logger.analysis)
-                if let original = originalString {
-                    pasteboard.clearContents()
-                    pasteboard.setString(original, forType: .string)
-                }
+            guard let self else {
+                ClipboardManager.restore(clipboard)
+                return
+            }
+
+            @MainActor
+            func canPaste() -> Bool {
+                guard ClipboardManager.currentText() == suggestion.suggestedText else { return false }
+                guard verifiesDraft else { return true }
+                guard lastReplacementTime == attempt, let currentText, let expectedRange else { return false }
+                return self.matchesPasteTarget(element, context: context, source: currentText, range: expectedRange)
+            }
+
+            guard canPaste() else {
+                Logger.warning("Style paste cancelled because the target or clipboard changed", category: Logger.analysis)
+                ClipboardManager.restore(clipboard)
+                suggestionPopover.showStatusMessage("Selection changed - please try again")
                 return
             }
 
@@ -1103,7 +1116,7 @@ extension AnalysisCoordinator {
             // Try menu action first
             if let frontmostApp = NSWorkspace.shared.frontmostApplication {
                 let appElement = AXUIElementCreateApplication(frontmostApp.processIdentifier)
-                if let pasteMenuItem = self?.findPasteMenuItem(in: appElement) {
+                if let pasteMenuItem = findPasteMenuItem(in: appElement), canPaste() {
                     let pressResult = AXUIElementPerformAction(pasteMenuItem, kAXPressAction as CFString)
                     if pressResult == .success {
                         pasteSucceeded = true
@@ -1114,27 +1127,28 @@ extension AnalysisCoordinator {
 
             // Fallback to keyboard if menu failed
             if !pasteSucceeded {
-                self?.pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
+                guard canPaste() else {
+                    Logger.warning("Style paste cancelled because the target or clipboard changed", category: Logger.analysis)
+                    ClipboardManager.restore(clipboard)
+                    suggestionPopover.showStatusMessage("Selection changed - please try again")
+                    return
+                }
+                pressKey(key: VirtualKeyCode.v, flags: .maskCommand)
                 Logger.debug("Style pasted via keyboard simulation", category: Logger.analysis)
             }
 
             // Restore original clipboard
-            DispatchQueue.main.asyncAfter(deadline: .now() + TimingConstants.hoverDelay) {
-                if let original = originalString {
-                    pasteboard.clearContents()
-                    pasteboard.setString(original, forType: .string)
-                }
-            }
+            ClipboardManager.restoreAfterDelay(clipboard, delay: TimingConstants.hoverDelay)
 
             // Clear manual style check flag to allow indicator updates
-            self?.isManualStyleCheckActive = false
+            isManualStyleCheckActive = false
 
             // Clear grammar errors - their positions are now invalid after text replacement
-            self?.currentErrors.removeAll()
-            self?.positionResolver.clearCache()
+            currentErrors.removeAll()
+            positionResolver.clearCache()
 
             // Adjust readability positions (preserves analysis, just shifts positions for OTHER sentences)
-            self?.adjustReadabilityPositionsAfterReplacement(
+            adjustReadabilityPositionsAfterReplacement(
                 replacementStart: replacementStart,
                 replacementEnd: replacementEnd,
                 lengthDelta: lengthDelta
@@ -1145,24 +1159,24 @@ extension AnalysisCoordinator {
             // before we redraw. The position-based overlap check in adjustReadabilityPositionsAfterReplacement
             // can fail due to coordinate system mismatches (grapheme clusters vs UTF-16 offsets),
             // so we also remove by text matching which is always reliable.
-            self?.removeSuggestionFromTracking(suggestion)
+            removeSuggestionFromTracking(suggestion)
 
             // Redraw underlines at adjusted positions (grammar is empty, readability is updated)
-            if let element = self?.textMonitor.monitoredElement {
-                self?.redrawUnderlinesAfterStyleReplacement(element: element)
+            if let element = textMonitor.monitoredElement {
+                redrawUnderlinesAfterStyleReplacement(element: element)
             }
 
             // Invalidate style cache since text changed
-            self?.styleCache.removeAll()
-            self?.styleCacheMetadata.removeAll()
+            styleCache.removeAll()
+            styleCacheMetadata.removeAll()
 
             // Update styleAnalysisSourceText to the current text after replacement
             // This prevents remaining style suggestions from being cleared on next text change
-            if let element = self?.textMonitor.monitoredElement {
+            if let element = textMonitor.monitoredElement {
                 var textRef: CFTypeRef?
                 let result = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &textRef)
                 if result == .success, let newText = textRef as? String {
-                    self?.styleAnalysisSourceText = newText
+                    styleAnalysisSourceText = newText
 
                     // Store hash of the ACTUAL text at the replacement position.
                     // This is critical because if there was a selection offset error,
@@ -1173,14 +1187,13 @@ extension AnalysisCoordinator {
                        let endIdx = newText.index(startIdx, offsetBy: replacementLength, limitedBy: newText.endIndex)
                     {
                         let actualReplacedText = String(newText[startIdx ..< endIdx])
-                        self?.suggestionTracker.addActualReplacementText(actualReplacedText)
-                        Logger.debug("Style replace: Stored actual replacement text (browser): '\(actualReplacedText.prefix(50))...'", category: Logger.analysis)
+                        suggestionTracker.addActualReplacementText(actualReplacedText)
                     }
                 }
             }
 
             // Schedule re-analysis after grace period to restore grammar underlines
-            self?.schedulePostStyleReplacementAnalysis()
+            schedulePostStyleReplacementAnalysis()
 
             // Move popover to next suggestion (since we removed auto-move from acceptStyleSuggestion)
             SuggestionPopover.shared.moveToNextStyleSuggestion()
@@ -1405,37 +1418,30 @@ extension AnalysisCoordinator {
         }
     }
 
-    /// Trigger immediate re-analysis when text has changed and positions are stale.
-    /// Called when a replacement attempt fails due to text mismatch to restore overlays.
-    func triggerImmediateReanalysis() {
+    /// Refresh the original editor after replacement finishes.
+    func triggerImmediateReanalysis(keepingCurrentErrors: Bool = false) {
+        guard let context = monitoredContext, let editor = textMonitor.monitoredElement else { return }
+        let attempt = lastReplacementTime
         // Use a very short delay to allow UI updates to process first
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            guard let self else { return }
-            guard let element = textMonitor.monitoredElement else {
-                Logger.debug("Immediate re-analysis: no monitored element", category: Logger.analysis)
-                return
-            }
+            guard let self, !isApplyingReplacement, lastReplacementTime == attempt,
+                  monitoredContext == context, let element = textMonitor.monitoredElement, CFEqual(editor, element),
+                  userPreferences.isEnabled, context.shouldCheck(),
+                  let text = extractTextSynchronously(from: element)
+            else { return }
+            Logger.debug("Immediate re-analysis: triggering (\(text.count) chars)", category: Logger.analysis)
 
-            // Extract current text and trigger analysis
-            if let text = extractTextSynchronously(from: element) {
-                Logger.debug("Immediate re-analysis: triggering (\(text.count) chars)", category: Logger.analysis)
-
-                // Clear errors and caches since positions are invalid
+            // A fresh read of the editor supersedes the optimistic replacement state.
+            lastReplacementTime = nil
+            if !keepingCurrentErrors || text.isEmpty {
                 currentErrors.removeAll()
                 positionResolver.clearCache()
-
-                // Clear previousText to force re-analysis
-                previousText = ""
-
-                let segment = TextSegment(
-                    content: text,
-                    startIndex: 0,
-                    endIndex: text.count,
-                    context: monitoredContext ?? ApplicationContext(bundleIdentifier: "", processID: 0, applicationName: "")
-                )
-                currentSegment = segment
-                analyzeText(segment)
             }
+
+            let segment = TextSegment(content: text, startIndex: 0, endIndex: text.count, context: context)
+            currentSegment = segment
+            previousText = text
+            analyzeFullText(segment)
         }
     }
 
@@ -2145,7 +2151,7 @@ extension AnalysisCoordinator {
         }
 
         let appBehavior = AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier)
-        if appBehavior.knownQuirks.contains(.exposesViewportText),
+        if appBehavior.requiresUnchangedTextBeforePaste,
            !currentText.utf16.elementsEqual(analyzedText.utf16)
         {
             SuggestionPopover.shared.showStatusMessage("Text changed - re-analyzing...")
@@ -2585,7 +2591,7 @@ extension AnalysisCoordinator {
                let selectedText = selectedTextRef as? String
             {
                 if selectedText != targetText {
-                    Logger.warning("Selection mismatch detected: selected '\(selectedText.prefix(30))' but expected '\(targetText.prefix(30))'", category: Logger.analysis)
+                    Logger.warning("Selection mismatch at offsets \(currentError.start)–\(currentError.end) (selected length: \(selectedText.utf16.count), expected length: \(targetText.utf16.count))", category: Logger.analysis)
 
                     // POSITION DRIFT RETRY: Slack and similar apps may have position drift after replacements
                     // where the read API (kAXValueAttribute) and selection API (AXSelectedTextRange) disagree.
@@ -2613,7 +2619,7 @@ extension AnalysisCoordinator {
                                 searchRange = range.upperBound ..< currentText.endIndex
                             }
 
-                            Logger.debug("Position drift retry: Found \(occurrences.count) occurrence(s) of '\(targetText.prefix(20))'", category: Logger.analysis)
+                            Logger.debug("Position drift retry: Found \(occurrences.count) occurrence(s)", category: Logger.analysis)
 
                             // Try each occurrence with offset adjustment
                             for (idx, occurrence) in occurrences.enumerated() {
@@ -2651,13 +2657,13 @@ extension AnalysisCoordinator {
                     }
 
                     if !retrySucceeded {
-                        Logger.error("Selection mismatch - ABORTING to prevent corruption! Selected '\(selectedText.prefix(30))...' but expected '\(targetText.prefix(30))...'", category: Logger.analysis)
+                        Logger.error("Paste cancelled after selection verification failed", category: Logger.analysis)
                         SuggestionPopover.shared.showStatusMessage("Selection error - please try again")
                         triggerImmediateReanalysis()
                         return
                     }
                 } else {
-                    Logger.debug("Selection validated: '\(targetText.prefix(20))...' (\(targetText.count) chars)", category: Logger.analysis)
+                    Logger.debug("Selection validated (\(targetText.utf16.count) UTF-16 units)", category: Logger.analysis)
                 }
             } else {
                 // For apps that don't support AXSelectedText, only abort if they have the quirk
@@ -2673,30 +2679,40 @@ extension AnalysisCoordinator {
         }
 
         let source = currentErrorSourceStore.sourceText(for: error, among: currentErrors)
-        // Recheck the original note slice and selection immediately before dispatching paste.
-        // A repeated word in a new viewport or a different focused editor can match selected text.
+        // A repeated word in a different draft or viewport can match the selected text.
         await performClipboardReplacement(
             suggestion: suggestion,
             currentError: currentError,
             context: context,
             usesFocusPasteReplacement: usesOfficeStyleReplacement,
             validateSelection: {
-                guard appBehaviorForReplacement.knownQuirks.contains(.exposesViewportText) else { return true }
-                guard !Task.isCancelled,
-                      NSWorkspace.shared.frontmostApplication?.processIdentifier == context.processID,
-                      AccessibilityBridge.isFocusedElement(element, in: context) == true,
-                      let source, let liveText = self.extractTextSynchronously(from: element),
-                      liveText.utf16.elementsEqual(source.utf16),
+                guard appBehaviorForReplacement.requiresUnchangedTextBeforePaste else { return true }
+                guard !Task.isCancelled, let source,
                       let range = TextIndexConverter.scalarRangeToUTF16CFRange(
                           start: currentError.start,
                           end: currentError.end,
                           in: source
-                      ),
-                      let selectedRange = AccessibilityBridge.getSelectedTextRange(element)
+                      )
                 else { return false }
-                return selectedRange.location == range.location && selectedRange.length == range.length
+                return matchesPasteTarget(element, context: context, source: source, range: NSRange(location: range.location, length: range.length))
             }
         )
+    }
+
+    private func matchesPasteTarget(
+        _ element: AXUIElement,
+        context: ApplicationContext,
+        source: String,
+        range: NSRange
+    ) -> Bool {
+        guard monitoredContext == context, let editor = textMonitor.monitoredElement, CFEqual(editor, element),
+              NSWorkspace.shared.frontmostApplication?.processIdentifier == context.processID,
+              let liveText = extractTextSynchronously(from: element), liveText.utf16.elementsEqual(source.utf16),
+              let selection = AccessibilityBridge.getSelectedTextRange(element),
+              selection.location == range.location, selection.length == range.length,
+              AccessibilityBridge.isFocusedElement(element, in: context) == true
+        else { return false }
+        return NSWorkspace.shared.frontmostApplication?.processIdentifier == context.processID
     }
 
     /// Find error position in Microsoft Office documents using UTF-16 search
@@ -2792,7 +2808,7 @@ extension AnalysisCoordinator {
             // ALWAYS provide the fallback range with the error's position
             // This is critical for disambiguation when there are multiple occurrences of the same text
             let fallbackRange = CFRange(location: currentError.start, length: currentError.end - currentError.start)
-            Logger.debug("Browser position: Error '\(errorText)' at position \(currentError.start)-\(currentError.end)", category: Logger.analysis)
+            Logger.debug("Browser position: Error at position \(currentError.start)-\(currentError.end)", category: Logger.analysis)
             return (errorText, fallbackRange, currentError)
         } else {
             let fallbackRange = CFRange(location: currentError.start, length: currentError.end - currentError.start)
@@ -2917,6 +2933,7 @@ extension AnalysisCoordinator {
             if let pasteMenuItem = findPasteMenuItem(in: appElement) {
                 guard validateSelection(), ClipboardManager.currentText() == suggestion else {
                     SuggestionPopover.shared.showStatusMessage("Selection changed - please try again")
+                    triggerImmediateReanalysis()
                     return
                 }
                 if AXUIElementPerformAction(pasteMenuItem, kAXPressAction as CFString) == .success {
@@ -2936,6 +2953,7 @@ extension AnalysisCoordinator {
             // CRITICAL: Verify clipboard still contains our text before pasting
             guard validateSelection(), ClipboardManager.currentText() == suggestion else {
                 SuggestionPopover.shared.showStatusMessage("Selection changed - please try again")
+                triggerImmediateReanalysis()
                 return
             }
 
@@ -3178,7 +3196,11 @@ extension AnalysisCoordinator {
             // Don't undo that work! Just schedule delayed re-analysis to verify.
             if isInReplacementMode {
                 Logger.trace("Cache invalidation: in replacement mode, scheduling delayed re-analysis", category: Logger.analysis)
-                scheduleDelayedReanalysis(startTime: Date())
+                if appConfig.features.focusBouncesDuringPaste {
+                    scheduleDelayedReanalysis(startTime: Date())
+                } else {
+                    triggerImmediateReanalysis(keepingCurrentErrors: true)
+                }
                 return
             }
 

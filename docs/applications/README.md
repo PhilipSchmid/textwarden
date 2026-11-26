@@ -20,6 +20,7 @@ TextWarden is a private macOS grammar checker and writing assistant. These guide
 | [Microsoft Teams](TEAMS.md) | Child-element positioning and formatted-content exclusions |
 | [Telegram](TELEGRAM.md) | Native range positioning in the message composer |
 | [Cisco Webex](WEBEX.md) | Compose-field detection that ignores sent messages |
+| [WeChat](WECHAT.md) | Draft-only checking with native range positioning |
 | [WhatsApp](WHATSAPP.md) | Catalyst positioning with stale-text protection |
 | [Microsoft Word](WORD.md) | Direct document-range positioning with Office-safe replacement |
 

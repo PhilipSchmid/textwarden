@@ -121,6 +121,7 @@ TextWarden is tuned for the apps below. Some apps give macOS less information ab
 | Notion | Full | Partial[^notion] |
 | Obsidian | Note editor[^obsidian] | Partial[^obsidian] |
 | Telegram | Full | Full |
+| WeChat | Message composer[^wechat] | Message composer[^wechat] |
 | WhatsApp | Full | Full |
 | Webex | Full | Full |
 | Microsoft Word | Full | Full |
@@ -132,6 +133,7 @@ TextWarden is tuned for the apps below. Some apps give macOS less information ab
 
 [^notion]: Notion does not make every text block available to macOS at once, so some errors appear in the indicator without an underline. See [Notion support notes](docs/applications/NOTION.md).
 [^obsidian]: Obsidian exposes the rendered portion of an editable note to macOS. TextWarden checks that text in Live Preview and Source mode and draws underlines where it can locate the affected text. See [Obsidian support notes](docs/applications/OBSIDIAN.md).
+[^wechat]: TextWarden checks the focused WeChat draft. See [WeChat support notes](docs/applications/WECHAT.md).
 [^powerpoint]: PowerPoint lets TextWarden read speaker notes, but not text boxes on slides. See [PowerPoint support notes](docs/applications/POWERPOINT.md).
 [^browsers]: Without an extension, browser checking uses macOS Accessibility and shows the floating indicator instead of precise underlines. Comet has no extension preview.
 [^extension]: Browser support covers text fields and simple rich-text editors; Google Docs and complex web editors are not supported yet. Precise underlines require the [extension preview](#browser-extension-preview), activated on the page through its toolbar.

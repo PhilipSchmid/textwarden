@@ -7,6 +7,16 @@
 import XCTest
 
 final class ReplacementTextMatcherTests: XCTestCase {
+    func testStyleSelectionRequiresOneLiteralMatchWithUTF16Offsets() {
+        let source = "😊 Begin here. Please proceed."
+        let target = "Please proceed."
+        let range = ReplacementTextMatcher.uniqueLiteralRange(of: target, in: source)
+        XCTAssertEqual(range.map { NSRange($0, in: source) }, NSRange(location: 15, length: 15))
+        XCTAssertNil(ReplacementTextMatcher.uniqueLiteralRange(of: target, in: "\(target) \(target)"))
+        XCTAssertNil(ReplacementTextMatcher.uniqueLiteralRange(of: "aa", in: "aaa"))
+        XCTAssertNil(ReplacementTextMatcher.uniqueLiteralRange(of: "é", in: "e\u{301}"))
+    }
+
     func testSentenceStartCapitalizationMatchesTheOriginalRange() {
         let text = "THis is a test."
         let error = capitalizationError(start: 0, end: 4)
@@ -179,6 +189,28 @@ final class ReplacementTextMatcherTests: XCTestCase {
         store.replace(errors: [error], sourceText: "tHis")
 
         XCTAssertEqual(store.sourceText(for: error, among: [error]), "THis")
+    }
+
+    func testErrorSourceStoreAdvancesOnlyUnchangedSpansAfterCorrection() {
+        let nextError = spellingError(start: 4, end: 9)
+        let overlappingError = spellingError(start: 2, end: 5)
+        let remainingErrors = [nextError, overlappingError]
+        let original = "HEy thois"
+        let corrected = "Hey thois"
+        var store = GrammarErrorSourceStore()
+        store.replace(errors: remainingErrors, sourceText: original)
+
+        store.advanceUnchangedErrors(
+            remainingErrors, replacing: 0 ..< 3, in: original, with: "Hey", matching: "Hey their"
+        )
+        XCTAssertEqual(store.sourceText(for: nextError, among: remainingErrors), original)
+
+        store.advanceUnchangedErrors(
+            remainingErrors, replacing: 0 ..< 3, in: original, with: "Hey", matching: corrected
+        )
+        store.replace(errors: remainingErrors, sourceText: corrected)
+        XCTAssertEqual(store.sourceText(for: nextError, among: remainingErrors), corrected)
+        XCTAssertEqual(store.sourceText(for: overlappingError, among: remainingErrors), original)
     }
 
     private func capitalizationError(

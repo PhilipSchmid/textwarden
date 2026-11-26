@@ -70,6 +70,7 @@ final class AppBehaviorRegistry {
         // Messenger apps
         register(WhatsAppBehavior())
         register(TelegramBehavior())
+        register(WeChatBehavior())
 
         // Microsoft Office
         register(WordBehavior())

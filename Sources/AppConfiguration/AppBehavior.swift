@@ -77,3 +77,9 @@ protocol AppBehavior {
     /// - Native macOS apps: false (use grapheme clusters)
     var usesUTF16TextIndices: Bool { get }
 }
+
+extension AppBehavior {
+    var requiresUnchangedTextBeforePaste: Bool {
+        knownQuirks.contains(.requiresUnchangedTextBeforePaste) || knownQuirks.contains(.exposesViewportText)
+    }
+}

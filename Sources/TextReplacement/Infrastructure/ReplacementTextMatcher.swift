@@ -7,6 +7,14 @@ import Foundation
 
 /// Matches the live error span with the exact text that was analyzed.
 enum ReplacementTextMatcher {
+    static func uniqueLiteralRange(of text: String, in source: String) -> Range<String.Index>? {
+        guard !text.isEmpty,
+              let match = source.range(of: text, options: .literal),
+              source.range(of: text, options: .literal, range: source.index(after: match.lowerBound) ..< source.endIndex) == nil
+        else { return nil }
+        return match
+    }
+
     enum Resolution: Equatable {
         case matched(Range<Int>)
         case ambiguous([Range<Int>])
@@ -132,6 +140,36 @@ struct GrammarErrorSourceStore {
                 error: error,
                 sourceText: existingSource ?? sourceText
             )
+        }
+    }
+
+    /// Advance errors that survived a known edit outside their spans.
+    mutating func advanceUnchangedErrors(
+        _ errors: [GrammarErrorModel],
+        replacing range: Range<Int>,
+        in source: String,
+        with replacement: String,
+        matching updatedSource: String
+    ) {
+        guard !errors.isEmpty,
+              case let .updated(expected) = ReplacementTextMatcher.reconcileSegment(
+                  currentText: source,
+                  analyzedText: nil,
+                  replacing: range,
+                  with: replacement
+              ),
+              expected.utf16.elementsEqual(updatedSource.utf16)
+        else { return }
+
+        // Errors after a length-changing edit get new objects when their offsets shift.
+        let preservesOffsets = replacement.unicodeScalars.count == range.count
+        for error in errors where error.end <= range.lowerBound || (preservesOffsets && error.start >= range.upperBound) {
+            let identifier = ObjectIdentifier(error)
+            guard let entry = entriesByError[identifier],
+                  entry.error === error,
+                  entry.sourceText.utf16.elementsEqual(source.utf16)
+            else { continue }
+            entriesByError[identifier] = Entry(error: error, sourceText: updatedSource)
         }
     }
 
