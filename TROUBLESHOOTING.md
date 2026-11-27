@@ -192,7 +192,7 @@ The exporter anonymizes user-directory paths in logs and removes log lines conta
 
 ## Report a Bug
 
-If you suspect a security issue, [report it privately](https://github.com/PhilipSchmid/textwarden/security/policy).
+If you suspect a security issue, [contact the maintainer privately](https://github.com/PhilipSchmid/textwarden/security/policy).
 
 [Open the bug report form](https://github.com/PhilipSchmid/textwarden/issues/new/choose) and include:
 
