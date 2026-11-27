@@ -10,6 +10,31 @@ import AppKit
 @preconcurrency import ApplicationServices
 import Foundation
 
+/// The last reply from the external source, with the text it describes.
+///
+/// Held because the source answers after a round trip. Without it, every reply
+/// that lands a keystroke late is lost in full, and on a slow server or a long
+/// document the user would see external results only when they stopped typing
+/// altogether.
+struct ExternalGrammarResultCache {
+    let text: String
+    let errors: [GrammarErrorModel]
+    let element: AXUIElement?
+
+    /// Results belong to the field they were collected from; a different field
+    /// has different text at the same offsets.
+    func describes(element current: AXUIElement?) -> Bool {
+        switch (element, current) {
+        case (nil, nil):
+            true
+        case let (expected?, current?):
+            CFEqual(expected, current)
+        default:
+            false
+        }
+    }
+}
+
 extension AnalysisCoordinator {
     /// Build the external source configuration from preferences.
     ///
@@ -21,15 +46,57 @@ extension AnalysisCoordinator {
         return LanguageToolConfiguration(
             endpointString: userPreferences.languageToolEndpoint,
             language: userPreferences.languageToolLanguage,
-            timeout: LanguageToolConfiguration.defaultTimeout
+            timeout: LanguageToolConfiguration.defaultTimeout,
+            characterLimit: userPreferences.languageToolCharacterLimit
         )
     }
 
-    /// Drop any pending external query. Called when monitoring stops so a
-    /// debounced request cannot outlive the field it was collected from.
+    /// Drop any pending or in-flight external query. Called when monitoring
+    /// stops, and on every new dispatch, so a request cannot outlive the field
+    /// it was collected from.
     func cancelExternalGrammarSource() {
         externalGrammarSourceTimer?.invalidate()
         externalGrammarSourceTimer = nil
+        externalGrammarSourceTask?.cancel()
+        externalGrammarSourceTask = nil
+        externalGrammarSourceInFlight = false
+        externalGrammarResultCache = nil
+    }
+
+    /// Add back whatever the previous external reply still says about `text`.
+    ///
+    /// Called on the Harper path, which is the one place holding both fresh
+    /// primary results and the current text. The results it revives are
+    /// replaced wholesale when the next reply arrives, so a stale judgement
+    /// never outlives the round trip that supersedes it.
+    func withRevivedExternalResults(
+        _ primary: [GrammarErrorModel],
+        text: String,
+        element: AXUIElement?
+    ) -> [GrammarErrorModel] {
+        guard userPreferences.enableLanguageToolSource,
+              let cache = externalGrammarResultCache,
+              cache.describes(element: element)
+        else {
+            return primary
+        }
+
+        let revived = GrammarResultRebaser.surviving(
+            cache.errors,
+            computedFor: cache.text,
+            stillValidIn: text
+        )
+        guard !revived.isEmpty else { return primary }
+
+        Logger.debug(
+            "AnalysisCoordinator: Revived \(revived.count) of \(cache.errors.count) external result(s)",
+            category: Logger.analysis
+        )
+        return GrammarResultMerger.merge(
+            primary: primary,
+            secondary: revived,
+            limit: userPreferences.maxErrorsForUnderlines
+        )
     }
 
     /// Ask an external LanguageTool-compatible server for additional results.
@@ -43,7 +110,11 @@ extension AnalysisCoordinator {
         text: String,
         element: AXUIElement?
     ) {
-        cancelExternalGrammarSource()
+        // Supersede a query that has not been sent yet. A request already in
+        // flight is deliberately left running; see armExternalGrammarSourceTimer.
+        externalGrammarSourceTimer?.invalidate()
+        externalGrammarSourceTimer = nil
+
         guard captureLanguageToolConfiguration() != nil else { return }
 
         // Identity of the analysis this request belongs to, taken while it is
@@ -55,20 +126,59 @@ extension AnalysisCoordinator {
             element: element
         )
 
-        // Wait for a pause in typing. Each keystroke replaces the pending
-        // request rather than adding one, so a long edit costs one round trip
-        // instead of dozens of discarded ones.
-        let timer = Timer.scheduledTimer(
-            withTimeInterval: TimingConstants.externalGrammarSourceDebounce,
-            repeats: false
-        ) { [weak self] firedTimer in
+        armExternalGrammarSourceTimer(
+            after: TimingConstants.externalGrammarSourceDebounce,
+            primary: primary,
+            snapshot: snapshot,
+            text: text,
+            element: element
+        )
+    }
+
+    /// Wait for a pause in typing, then send, unless a request is still in
+    /// flight, in which case wait again.
+    ///
+    /// Only one request is ever outstanding. Cancelling an HTTP request does
+    /// not stop the server working on it: a LanguageTool worker has already
+    /// read the body by then and discovers the closed socket only when it tries
+    /// to write the reply, having performed the whole check in the meantime.
+    /// Overlapping requests would therefore queue real work on someone's Mac
+    /// for answers that are obsolete before they arrive.
+    private func armExternalGrammarSourceTimer(
+        after delay: TimeInterval,
+        primary: [GrammarErrorModel],
+        snapshot: GrammarAnalysisRequest,
+        text: String,
+        element: AXUIElement?
+    ) {
+        externalGrammarSourceTimerGeneration &+= 1
+        let generation = externalGrammarSourceTimerGeneration
+        let timer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                // Clear the property only if it still refers to the timer that
-                // fired; a newer one may have replaced it before this ran.
-                if externalGrammarSourceTimer === firedTimer {
+                // Clear the property only if this is still the newest timer; a
+                // newer one may have replaced it before this ran. Comparing
+                // generations rather than timer identity keeps the non-Sendable
+                // `Timer` from crossing into the `@Sendable` closure.
+                if externalGrammarSourceTimerGeneration == generation {
                     externalGrammarSourceTimer = nil
                 }
+
+                // Stop rather than wait again once the analysis is stale: the
+                // next edit arms its own timer with current text.
+                guard isCurrentGrammarAnalysis(snapshot) else { return }
+
+                guard !externalGrammarSourceInFlight else {
+                    armExternalGrammarSourceTimer(
+                        after: TimingConstants.externalGrammarSourceRetryDelay,
+                        primary: primary,
+                        snapshot: snapshot,
+                        text: text,
+                        element: element
+                    )
+                    return
+                }
+
                 queryExternalGrammarSource(
                     primary: primary,
                     snapshot: snapshot,
@@ -102,16 +212,29 @@ extension AnalysisCoordinator {
             category: Logger.analysis
         )
 
-        Task { [weak self] in
-            let external: [GrammarErrorModel]
-            do {
-                external = try await LanguageToolClient.shared.check(text: text, configuration: configuration)
-            } catch {
-                Logger.info("AnalysisCoordinator: External grammar source failed: \(error)", category: Logger.analysis)
-                return
+        externalGrammarSourceInFlight = true
+        externalGrammarSourceTask = Task { [weak self] in
+            let result = await Self.fetchExternalResults(text: text, configuration: configuration)
+
+            // Released on every path, so a failed or empty check does not wedge
+            // the source shut until monitoring restarts.
+            Task { @MainActor in
+                self?.externalGrammarSourceInFlight = false
             }
 
-            guard !external.isEmpty, let self else { return }
+            guard let external = result, let self else { return }
+
+            // Cached even when empty: "this text is clean" is an answer, and
+            // reviving a stale error over it would be a regression.
+            Task { @MainActor [weak self] in
+                self?.externalGrammarResultCache = ExternalGrammarResultCache(
+                    text: text,
+                    errors: external,
+                    element: element
+                )
+            }
+
+            guard !external.isEmpty else { return }
             guard isCurrentGrammarAnalysis(snapshot) else {
                 Logger.debug("AnalysisCoordinator: Discarding stale external grammar result", category: Logger.analysis)
                 return
@@ -143,6 +266,34 @@ extension AnalysisCoordinator {
                 categoryBreakdown: additionBreakdown,
                 bundleIdentifier: monitoredContext?.bundleIdentifier
             )
+        }
+    }
+
+    /// Run one external check, turning every failure into `nil` after logging
+    /// it at the level its cause deserves.
+    private static func fetchExternalResults(
+        text: String,
+        configuration: LanguageToolConfiguration
+    ) async -> [GrammarErrorModel]? {
+        do {
+            return try await LanguageToolClient.shared.check(text: text, configuration: configuration)
+        } catch LanguageToolError.cancelled {
+            return nil
+        } catch let LanguageToolError.textTooLong(characters, limit) {
+            Logger.debug(
+                "AnalysisCoordinator: Skipping external source, \(characters) characters exceeds the \(limit) limit",
+                category: Logger.analysis
+            )
+            return nil
+        } catch LanguageToolError.cooldown {
+            Logger.debug(
+                "AnalysisCoordinator: Skipping external source, server is in failure cooldown",
+                category: Logger.analysis
+            )
+            return nil
+        } catch {
+            Logger.info("AnalysisCoordinator: External grammar source failed: \(error)", category: Logger.analysis)
+            return nil
         }
     }
 }

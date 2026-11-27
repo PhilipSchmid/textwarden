@@ -352,6 +352,17 @@ class UserPreferences: ObservableObject {
         }
     }
 
+    /// Longest text worth sending to that server, in characters.
+    ///
+    /// Stored as typed and clamped where it is used, so a half-entered number
+    /// does not disable the source mid-keystroke. See
+    /// `LanguageToolConfiguration.characterLimitRange`.
+    @Published var languageToolCharacterLimit: Int {
+        didSet {
+            defaults.set(languageToolCharacterLimit, forKey: Keys.languageToolCharacterLimit)
+        }
+    }
+
     // MARK: - Language Detection
 
     /// Enable detection and filtering of non-English words
@@ -767,6 +778,7 @@ class UserPreferences: ObservableObject {
         enableLanguageToolSource = false // Opt-in; requires a server the user runs
         languageToolEndpoint = LanguageToolConfiguration.defaultEndpointString
         languageToolLanguage = LanguageToolConfiguration.defaultLanguage
+        languageToolCharacterLimit = LanguageToolConfiguration.defaultCharacterLimit
         enableLanguageDetection = false // Opt-in feature
         excludedLanguages = []
 
@@ -918,6 +930,8 @@ class UserPreferences: ObservableObject {
         enableLanguageToolSource = defaults.object(forKey: Keys.enableLanguageToolSource) as? Bool ?? false
         languageToolEndpoint = defaults.string(forKey: Keys.languageToolEndpoint) ?? LanguageToolConfiguration.defaultEndpointString
         languageToolLanguage = defaults.string(forKey: Keys.languageToolLanguage) ?? LanguageToolConfiguration.defaultLanguage
+        languageToolCharacterLimit = defaults.object(forKey: Keys.languageToolCharacterLimit) as? Int
+            ?? LanguageToolConfiguration.defaultCharacterLimit
         enableLanguageDetection = defaults.object(forKey: Keys.enableLanguageDetection) as? Bool ?? false
         if let data = defaults.data(forKey: Keys.excludedLanguages),
            let set = try? decoder.decode(Set<String>.self, from: data)
@@ -1415,6 +1429,7 @@ class UserPreferences: ObservableObject {
         enableLanguageToolSource = false
         languageToolEndpoint = LanguageToolConfiguration.defaultEndpointString
         languageToolLanguage = LanguageToolConfiguration.defaultLanguage
+        languageToolCharacterLimit = LanguageToolConfiguration.defaultCharacterLimit
         keyboardShortcutsEnabled = true
         suggestionOpacity = 0.80
         suggestionTextSize = 13.0
@@ -1466,6 +1481,7 @@ class UserPreferences: ObservableObject {
         static let enableLanguageToolSource = "enableLanguageToolSource"
         static let languageToolEndpoint = "languageToolEndpoint"
         static let languageToolLanguage = "languageToolLanguage"
+        static let languageToolCharacterLimit = "languageToolCharacterLimit"
         static let enableLanguageDetection = "enableLanguageDetection"
         static let excludedLanguages = "excludedLanguages"
 

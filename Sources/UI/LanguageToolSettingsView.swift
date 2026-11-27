@@ -58,6 +58,23 @@ struct LanguageToolSettingsView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
 
+                    HStack {
+                        Text("Maximum text size:")
+                            .foregroundColor(.secondary)
+                        TextField(
+                            "",
+                            value: $preferences.languageToolCharacterLimit,
+                            format: .number
+                        )
+                        .frame(width: 90)
+                        Text("characters")
+                            .foregroundColor(.secondary)
+                    }
+
+                    Text("Longer text is checked by the built-in engine alone. Values outside \(LanguageToolConfiguration.characterLimitRange.lowerBound)–\(LanguageToolConfiguration.characterLimitRange.upperBound) are brought back into range.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
                     HStack(spacing: 8) {
                         Button("Test Connection") {
                             testConnection()
@@ -74,7 +91,7 @@ struct LanguageToolSettingsView: View {
             Text("External Grammar Source")
                 .font(.headline)
         }
-        .onChange(of: preferences.languageToolEndpoint) { _ in
+        .onChange(of: preferences.languageToolEndpoint) {
             connectionState = .untested
         }
     }
@@ -105,7 +122,8 @@ struct LanguageToolSettingsView: View {
         guard let configuration = LanguageToolConfiguration(
             endpointString: preferences.languageToolEndpoint,
             language: preferences.languageToolLanguage,
-            timeout: LanguageToolConfiguration.defaultTimeout
+            timeout: LanguageToolConfiguration.defaultTimeout,
+            characterLimit: preferences.languageToolCharacterLimit
         ) else {
             connectionState = .unreachable("Must be a server on this Mac, such as http://localhost:8081.")
             return
@@ -116,7 +134,11 @@ struct LanguageToolSettingsView: View {
             do {
                 let results = try await LanguageToolClient.shared.check(
                     text: "She dont like it.",
-                    configuration: configuration
+                    configuration: configuration,
+                    // A deliberate act by the user, so it must reach a server
+                    // they have just started rather than report the cooldown
+                    // left over from before they started it.
+                    respectCooldown: false
                 )
                 connectionState = .reachable(results.count)
             } catch let LanguageToolError.badStatus(code) {

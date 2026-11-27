@@ -31,6 +31,16 @@ enum TimingConstants {
     /// cannot, so this waits for a brief pause in typing.
     static let externalGrammarSourceDebounce: TimeInterval = 0.6
 
+    /// How long to wait before looking again when the external source still
+    /// has a request in flight. Only one is ever open at a time, because
+    /// cancelling an HTTP request does not stop the server working on it.
+    static let externalGrammarSourceRetryDelay: TimeInterval = 0.3
+
+    /// How long to leave an external source alone after it fails. A server
+    /// that is simply not running would otherwise cost a full timeout at every
+    /// pause in typing, for as long as the user keeps writing.
+    static let externalGrammarSourceFailureCooldown: TimeInterval = 30.0
+
     // MARK: - Cache Expiration
 
     /// Style analysis cache expiration (10 minutes)

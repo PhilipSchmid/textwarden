@@ -79,6 +79,7 @@ protocol UserPreferencesProviding: AnyObject {
     var enableLanguageToolSource: Bool { get }
     var languageToolEndpoint: String { get }
     var languageToolLanguage: String { get }
+    var languageToolCharacterLimit: Int { get }
 
     // Filtering settings
     var enabledCategories: Set<String> { get }

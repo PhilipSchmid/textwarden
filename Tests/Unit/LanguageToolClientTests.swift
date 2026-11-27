@@ -244,4 +244,328 @@ final class LanguageToolClientTests: XCTestCase {
         XCTAssertEqual(LanguageToolClient.severity(forCategory: "STYLE"), .info)
         XCTAssertEqual(LanguageToolClient.severity(forCategory: "CASING"), .warning)
     }
+
+    // MARK: - Issue Type Fallback
+
+    /// LanguageTool's category identifiers are open-ended; `issueType` is set
+    /// per rule and classifies many matches that would otherwise land in
+    /// Miscellaneous.
+    func testIssueTypeClassifiesRulesWithAnUnrecognisedCategory() {
+        XCTAssertEqual(
+            LanguageToolClient.category(forCategory: "SOME_CUSTOM_PACK", issueType: "misspelling"),
+            "Spelling"
+        )
+        XCTAssertEqual(
+            LanguageToolClient.category(forCategory: "SOME_CUSTOM_PACK", issueType: "duplication"),
+            "Repetition"
+        )
+        XCTAssertEqual(
+            LanguageToolClient.category(forCategory: "SOME_CUSTOM_PACK", issueType: "non-conformance"),
+            "Nonstandard"
+        )
+    }
+
+    /// The documented category table is authoritative; issueType only fills the
+    /// gap it leaves, so a known category must never be overridden.
+    func testIssueTypeDoesNotOverrideAKnownCategory() {
+        XCTAssertEqual(
+            LanguageToolClient.category(forCategory: "REDUNDANCY", issueType: "misspelling"),
+            "Redundancy"
+        )
+        XCTAssertEqual(
+            LanguageToolClient.category(forCategory: "TYPOS", issueType: "style"),
+            "Spelling"
+        )
+    }
+
+    func testUnknownCategoryWithoutIssueTypeStaysMiscellaneous() {
+        XCTAssertEqual(LanguageToolClient.category(forCategory: "WHATEVER", issueType: nil), "Miscellaneous")
+        XCTAssertEqual(LanguageToolClient.category(forCategory: "WHATEVER", issueType: ""), "Miscellaneous")
+    }
+
+    func testEveryIssueTypeMappingIsAKnownCategory() {
+        let samples = [
+            "misspelling", "grammar", "terminology", "typographical", "whitespace",
+            "formatting", "duplication", "style", "register", "locale-violation",
+            "locale-specific-content", "non-conformance", "uncategorized",
+            "MISSPELLING", "something-new",
+        ]
+
+        for sample in samples {
+            let mapped = LanguageToolClient.category(forIssueType: sample)
+            XCTAssertTrue(
+                UserPreferences.allCategories.contains(mapped),
+                "\(sample) mapped to unknown category \(mapped)"
+            )
+        }
+    }
+
+    func testIssueTypeSurvivesDecoding() throws {
+        let payload = """
+        {"message":"Problem","offset":0,"length":3,"replacements":[],\
+        "rule":{"id":"CUSTOM_1","category":{"id":"CUSTOM_PACK"},"issueType":"duplication"}}
+        """
+        let errors = try convert(payload, in: "the the cat")
+        XCTAssertEqual(errors.first?.category, "Repetition")
+        XCTAssertEqual(errors.first?.severity, .info)
+    }
+
+    // MARK: - Timeout
+
+    /// A fixed allowance is either too tight for a document or too loose for a
+    /// sentence, so it grows with the text and then stops.
+    func testTimeoutGrowsWithTheTextAndIsCapped() throws {
+        let configuration = try XCTUnwrap(
+            LanguageToolConfiguration(
+                endpointString: "http://localhost:8081",
+                language: "auto",
+                timeout: LanguageToolConfiguration.defaultTimeout
+            )
+        )
+
+        XCTAssertEqual(configuration.timeout(forCharacters: 0), LanguageToolConfiguration.defaultTimeout)
+        XCTAssertEqual(
+            configuration.timeout(forCharacters: 20000),
+            LanguageToolConfiguration.defaultTimeout + 4,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            configuration.timeout(forCharacters: 100_000_000),
+            LanguageToolConfiguration.maximumTimeout
+        )
+    }
+
+    func testRequestCarriesTheGrownTimeout() throws {
+        let configuration = try XCTUnwrap(
+            LanguageToolConfiguration(
+                endpointString: "http://localhost:8081",
+                language: "auto",
+                timeout: LanguageToolConfiguration.defaultTimeout
+            )
+        )
+        let request = LanguageToolClient.makeRequest(
+            text: String(repeating: "a", count: 10000),
+            configuration: configuration
+        )
+
+        XCTAssertEqual(request.timeoutInterval, LanguageToolConfiguration.defaultTimeout + 2, accuracy: 0.001)
+    }
+
+    /// The inactivity timeout restarts whenever a byte arrives, so the session
+    /// needs a total deadline above it to catch a server that trickles.
+    func testResourceCeilingSitsAboveTheGrownTimeout() {
+        XCTAssertGreaterThan(
+            LanguageToolConfiguration.resourceTimeout,
+            LanguageToolConfiguration.maximumTimeout
+        )
+    }
+
+    // MARK: - Character Limit
+
+    func testCharacterLimitIsClampedIntoRange() throws {
+        let tooSmall = try XCTUnwrap(
+            LanguageToolConfiguration(endpointString: "http://localhost:8081", language: "auto", timeout: 2, characterLimit: 1)
+        )
+        XCTAssertEqual(tooSmall.characterLimit, LanguageToolConfiguration.characterLimitRange.lowerBound)
+
+        let tooLarge = try XCTUnwrap(
+            LanguageToolConfiguration(endpointString: "http://localhost:8081", language: "auto", timeout: 2, characterLimit: .max)
+        )
+        XCTAssertEqual(tooLarge.characterLimit, LanguageToolConfiguration.characterLimitRange.upperBound)
+
+        let inRange = try XCTUnwrap(
+            LanguageToolConfiguration(endpointString: "http://localhost:8081", language: "auto", timeout: 2, characterLimit: 5000)
+        )
+        XCTAssertEqual(inRange.characterLimit, 5000)
+    }
+
+    /// The point of the limit is to avoid the round trip, not to discard the
+    /// reply after paying for it.
+    func testTextAboveTheLimitIsNeverSent() async throws {
+        let client = StubbedClient.makeSucceeding()
+        let configuration = try XCTUnwrap(
+            LanguageToolConfiguration(endpointString: "http://localhost:8081", language: "auto", timeout: 2, characterLimit: 1000)
+        )
+
+        do {
+            _ = try await client.check(text: String(repeating: "a", count: 1001), configuration: configuration)
+            XCTFail("Expected textTooLong")
+        } catch let LanguageToolError.textTooLong(characters, limit) {
+            XCTAssertEqual(characters, 1001)
+            XCTAssertEqual(limit, 1000)
+        }
+
+        XCTAssertEqual(StubURLProtocol.requestCount, 0)
+    }
+
+    // MARK: - Failure Cooldown
+
+    func testFailureStartsACooldownThatSuppressesTheNextCheck() async throws {
+        let client = StubbedClient.makeFailing()
+        let configuration = try XCTUnwrap(
+            LanguageToolConfiguration(endpointString: "http://localhost:8081", language: "auto", timeout: 2)
+        )
+
+        do {
+            _ = try await client.check(text: "She dont like it.", configuration: configuration)
+            XCTFail("Expected transport failure")
+        } catch LanguageToolError.transport {}
+
+        do {
+            _ = try await client.check(text: "She dont like it.", configuration: configuration)
+            XCTFail("Expected cooldown")
+        } catch LanguageToolError.cooldown {}
+
+        // One attempt, not two: the second never reached the network.
+        XCTAssertEqual(StubURLProtocol.requestCount, 1)
+    }
+
+    /// Test Connection is how a user confirms they have just fixed the server,
+    /// so it must not replay the failure from before they fixed it.
+    func testCooldownIsBypassedForADeliberateCheck() async throws {
+        let client = StubbedClient.makeFailing()
+        let configuration = try XCTUnwrap(
+            LanguageToolConfiguration(endpointString: "http://localhost:8081", language: "auto", timeout: 2)
+        )
+
+        do {
+            _ = try await client.check(text: "She dont like it.", configuration: configuration)
+            XCTFail("Expected transport failure")
+        } catch LanguageToolError.transport {}
+
+        do {
+            _ = try await client.check(text: "She dont like it.", configuration: configuration, respectCooldown: false)
+            XCTFail("Expected transport failure")
+        } catch LanguageToolError.cooldown {
+            XCTFail("Deliberate check must not be suppressed by the cooldown")
+        } catch LanguageToolError.transport {}
+
+        XCTAssertEqual(StubURLProtocol.requestCount, 2)
+    }
+
+    /// Pointing TextWarden at a different server is a deliberate act and has to
+    /// take effect at once rather than after the wait.
+    func testCooldownDoesNotCarryToADifferentEndpoint() async throws {
+        let client = StubbedClient.makeFailing()
+        let first = try XCTUnwrap(
+            LanguageToolConfiguration(endpointString: "http://localhost:8081", language: "auto", timeout: 2)
+        )
+        let second = try XCTUnwrap(
+            LanguageToolConfiguration(endpointString: "http://localhost:8082", language: "auto", timeout: 2)
+        )
+
+        do {
+            _ = try await client.check(text: "She dont like it.", configuration: first)
+            XCTFail("Expected transport failure")
+        } catch LanguageToolError.transport {}
+
+        do {
+            _ = try await client.check(text: "She dont like it.", configuration: second)
+            XCTFail("Expected transport failure")
+        } catch LanguageToolError.cooldown {
+            XCTFail("A different endpoint must be tried, not suppressed")
+        } catch LanguageToolError.transport {}
+
+        XCTAssertEqual(StubURLProtocol.requestCount, 2)
+    }
+
+    func testSuccessClearsAnEarlierCooldown() async throws {
+        let client = StubbedClient.makeFailing()
+        let configuration = try XCTUnwrap(
+            LanguageToolConfiguration(endpointString: "http://localhost:8081", language: "auto", timeout: 2)
+        )
+
+        do {
+            _ = try await client.check(text: "She dont like it.", configuration: configuration)
+            XCTFail("Expected transport failure")
+        } catch LanguageToolError.transport {}
+
+        StubURLProtocol.handler = { _ in
+            (StubURLProtocol.okResponse(for: "http://localhost:8081"), Data(#"{"matches":[]}"#.utf8))
+        }
+
+        let results = try await client.check(
+            text: "She dont like it.",
+            configuration: configuration,
+            respectCooldown: false
+        )
+        XCTAssertTrue(results.isEmpty)
+
+        // Cleared by the success, so an ordinary check goes through again.
+        let afterRecovery = try await client.check(text: "She dont like it.", configuration: configuration)
+        XCTAssertTrue(afterRecovery.isEmpty)
+        XCTAssertEqual(StubURLProtocol.requestCount, 3)
+    }
+}
+
+// MARK: - Network Stub
+
+/// Builds `LanguageToolClient` instances whose requests are served by
+/// `StubURLProtocol` rather than a real server.
+private enum StubbedClient {
+    static func make() -> LanguageToolClient {
+        StubURLProtocol.reset()
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        return LanguageToolClient(session: URLSession(configuration: configuration))
+    }
+
+    static func makeFailing() -> LanguageToolClient {
+        let client = make()
+        StubURLProtocol.handler = { _ in throw URLError(.cannotConnectToHost) }
+        return client
+    }
+
+    static func makeSucceeding() -> LanguageToolClient {
+        let client = make()
+        StubURLProtocol.handler = { request in
+            (StubURLProtocol.okResponse(for: request.url?.absoluteString ?? ""), Data(#"{"matches":[]}"#.utf8))
+        }
+        return client
+    }
+}
+
+private class StubURLProtocol: URLProtocol {
+    nonisolated(unsafe) static var handler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?
+    nonisolated(unsafe) static var requestCount = 0
+
+    static func reset() {
+        handler = nil
+        requestCount = 0
+    }
+
+    static func okResponse(for urlString: String) -> HTTPURLResponse {
+        HTTPURLResponse(
+            url: URL(string: urlString) ?? URL(fileURLWithPath: "/"),
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        ) ?? HTTPURLResponse()
+    }
+
+    override class func canInit(with _: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        Self.requestCount += 1
+        guard let handler = Self.handler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+        do {
+            let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
 }

@@ -252,6 +252,23 @@ class AnalysisCoordinator: ObservableObject {
     /// not produce one HTTP request per keystroke
     var externalGrammarSourceTimer: Timer?
 
+    /// Identifies the most recently armed debounce timer. A fired timer carries
+    /// its own generation, so it can tell whether a newer one replaced it
+    /// without capturing the non-Sendable `Timer` across an actor hop.
+    var externalGrammarSourceTimerGeneration = 0
+
+    /// The external request currently in flight, held so that monitoring
+    /// stopping can abandon it.
+    var externalGrammarSourceTask: Task<Void, Never>?
+
+    /// Whether an external request is outstanding. A second request is never
+    /// started while this is true; see `armExternalGrammarSourceTimer`.
+    var externalGrammarSourceInFlight = false
+
+    /// The last answer from the external source, kept so that the part of it
+    /// the user's latest edit did not touch survives until the next reply.
+    var externalGrammarResultCache: ExternalGrammarResultCache?
+
     /// Debounce delay for style analysis (seconds) - wait for typing to pause
     let styleDebounceDelay: TimeInterval = TimingConstants.styleDebounce
 
@@ -769,6 +786,8 @@ class AnalysisCoordinator: ObservableObject {
         textValidationTimer = nil
         externalGrammarSourceTimer?.invalidate()
         externalGrammarSourceTimer = nil
+        externalGrammarSourceTask?.cancel()
+        externalGrammarSourceTask = nil
         styleDebounceTimer?.invalidate()
         styleDebounceTimer = nil
         electronLayoutTimer?.invalidate()

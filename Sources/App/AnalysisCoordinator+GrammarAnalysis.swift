@@ -233,7 +233,11 @@ extension AnalysisCoordinator {
                     return
                 }
 
-                applyFilters(to: result.errors, sourceText: segmentContent, element: capturedElement)
+                applyFilters(
+                    to: withRevivedExternalResults(result.errors, text: segmentContent, element: capturedElement),
+                    sourceText: segmentContent,
+                    element: capturedElement
+                )
 
                 // Long documents take this path for ordinary edits. Without
                 // this the external results would be dropped on every
@@ -384,7 +388,11 @@ extension AnalysisCoordinator {
             cleanupStaleReadabilitySuggestions(currentComplexRanges: [])
         }
 
-        applyFilters(to: errorsWithCachedAI, sourceText: text, element: element)
+        applyFilters(
+            to: withRevivedExternalResults(errorsWithCachedAI, text: text, element: element),
+            sourceText: text,
+            element: element
+        )
 
         // Ask the optional external source for anything Harper missed. Harper's
         // results are already on screen; this can only add to them.

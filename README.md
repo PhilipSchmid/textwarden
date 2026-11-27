@@ -202,7 +202,7 @@ TextWarden does not send your writing anywhere. It has no cloud grammar service,
 
 Grammar checks, language detection, and readability scores run inside TextWarden. Optional AI features run on your Mac through Apple Intelligence. Nothing is uploaded for processing.
 
-TextWarden can optionally add results from a locally hosted LanguageTool server. When you enable it, the text being checked is sent to that server over a loopback connection. Only addresses on this Mac are accepted — `localhost`, any `127.0.0.0/8` address, or `::1` — so your writing still never leaves the device. The setting is off by default, and TextWarden neither bundles nor starts a server.
+TextWarden can optionally add results from a locally hosted LanguageTool server. When you enable it, the text being checked is sent to that server over a loopback connection. Only addresses on this Mac are accepted: `localhost`, any `127.0.0.0/8` address, or `::1`. Your writing still never leaves the device. The setting is off by default, and TextWarden neither bundles nor starts a server. See [External grammar source](CONFIGURATION.md#external-grammar-source) for how to run one and turn it on.
 
 If you enable update checks, TextWarden downloads release information from GitHub. The update check does not upload your writing, prompts, usage data, logs, or diagnostics.
 

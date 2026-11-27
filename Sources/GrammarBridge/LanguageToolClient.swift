@@ -21,12 +21,52 @@ struct LanguageToolConfiguration: Sendable, Equatable {
     /// Language code sent with each request. `auto` defers to the server.
     let language: String
 
-    /// Ceiling on how long a response may take before the result is dropped.
+    /// Base allowance for a response before the request is abandoned.
+    ///
+    /// This is the floor, not the whole story: the allowance grows with the
+    /// text, because a chapter legitimately takes a server longer than a
+    /// sentence. See `timeout(forCharacters:)`.
     let timeout: TimeInterval
+
+    /// Longest text, in characters, that is worth sending.
+    ///
+    /// Harper reads the whole document in process; this source re-sends it over
+    /// HTTP after every pause in typing, so the cost grows with the document
+    /// while the benefit does not. Above the limit the request is skipped and
+    /// Harper's results stand on their own.
+    let characterLimit: Int
 
     static let defaultEndpointString = "http://localhost:8081"
     static let defaultLanguage = "auto"
-    static let defaultTimeout: TimeInterval = 2.0
+    /// Allowance for a short passage. A local server answers a sentence in
+    /// tens of milliseconds, so anything near this already means trouble.
+    static let defaultTimeout: TimeInterval = 4.0
+
+    /// Characters of text that buy one further second of patience.
+    static let charactersPerAdditionalSecond = 5000.0
+
+    /// Ceiling on the grown allowance, so a pathological server cannot hold a
+    /// request for as long as the character limit would otherwise permit.
+    static let maximumTimeout: TimeInterval = 15.0
+
+    /// Hard ceiling on a single request, start to finish.
+    ///
+    /// `URLRequest.timeoutInterval` is an inactivity timeout: it restarts every
+    /// time a byte arrives, so a server that answers slowly enough can hold a
+    /// request open indefinitely without ever tripping it. This is the deadline
+    /// that actually bounds one exchange, and it sits above `maximumTimeout`
+    /// so that it only catches the trickling case the other cannot.
+    static let resourceTimeout: TimeInterval = 20.0
+
+    /// LanguageTool's own hosted API refuses longer texts, and a self-hosted
+    /// server slows noticeably well before this, so it is a sane starting point
+    /// rather than a hard constraint.
+    static let defaultCharacterLimit = 20000
+
+    /// Bounds for a user-supplied limit. Below the floor the source would never
+    /// fire on real writing; above the ceiling the request costs more than the
+    /// results are worth.
+    static let characterLimitRange = 1000 ... 1_000_000
 
     /// Build a configuration, rejecting anything that is not a loopback URL.
     ///
@@ -34,7 +74,12 @@ struct LanguageToolConfiguration: Sendable, Equatable {
     /// intact: traffic to 127.0.0.0/8, ::1, or localhost never leaves the Mac.
     /// It also sidesteps App Transport Security, which exempts loopback but
     /// would block cleartext to a LAN or remote host.
-    init?(endpointString: String, language: String, timeout: TimeInterval) {
+    init?(
+        endpointString: String,
+        language: String,
+        timeout: TimeInterval,
+        characterLimit: Int = defaultCharacterLimit
+    ) {
         guard let endpoint = URL(string: endpointString),
               let scheme = endpoint.scheme?.lowercased(),
               scheme == "http" || scheme == "https",
@@ -46,6 +91,10 @@ struct LanguageToolConfiguration: Sendable, Equatable {
         self.endpoint = endpoint
         self.language = language.isEmpty ? Self.defaultLanguage : language
         self.timeout = timeout
+        // Clamped rather than rejected: the limit arrives from a text field the
+        // user is still typing in, and a half-entered number should not switch
+        // the whole source off.
+        self.characterLimit = min(max(characterLimit, Self.characterLimitRange.lowerBound), Self.characterLimitRange.upperBound)
     }
 
     /// Loopback by literal form only. A name that merely *resolves* to loopback
@@ -72,6 +121,16 @@ struct LanguageToolConfiguration: Sendable, Equatable {
         return false
     }
 
+    /// Allowance for a request carrying `characters` of text.
+    ///
+    /// A fixed timeout has to be either too tight for a long document or too
+    /// loose for a sentence. This grows with the text and stops at
+    /// `maximumTimeout`.
+    func timeout(forCharacters characters: Int) -> TimeInterval {
+        let grown = timeout + Double(characters) / Self.charactersPerAdditionalSecond
+        return min(grown, Self.maximumTimeout)
+    }
+
     /// The URL to POST to, tolerating an endpoint that already names the path.
     ///
     /// LanguageTool's own documentation shows the full `/v2/check` URL, so a
@@ -93,6 +152,12 @@ enum LanguageToolError: Error {
     case transport(Error)
     case badStatus(Int)
     case decoding(Error)
+    /// Text longer than the configured limit; nothing was sent.
+    case textTooLong(characters: Int, limit: Int)
+    /// A recent failure against this endpoint is still being waited out.
+    case cooldown
+    /// Superseded by a newer analysis before the reply arrived.
+    case cancelled
 }
 
 // MARK: - Wire Format
@@ -110,6 +175,9 @@ struct LanguageToolMatch: Decodable {
 
         let id: String
         let category: Category
+        /// Internationalization Tag Set classification, set per rule. Optional
+        /// because custom and older rules omit it.
+        let issueType: String?
     }
 
     let message: String
@@ -145,6 +213,37 @@ struct LanguageToolResponse: Decodable {
     }
 }
 
+// MARK: - Failure Cooldown
+
+/// Remembers a recent failure so a server that is not running costs one timeout
+/// rather than one per pause in typing.
+///
+/// Keyed by endpoint, because pointing TextWarden at a different server is a
+/// deliberate act that must take effect at once rather than after the wait.
+private actor FailureCooldown {
+    private var endpoint: URL?
+    private var expiry: Date?
+
+    func isActive(for endpoint: URL, now: Date = Date()) -> Bool {
+        guard self.endpoint == endpoint, let expiry else { return false }
+        guard now < expiry else {
+            clear()
+            return false
+        }
+        return true
+    }
+
+    func recordFailure(for endpoint: URL, duration: TimeInterval, now: Date = Date()) {
+        self.endpoint = endpoint
+        expiry = now.addingTimeInterval(duration)
+    }
+
+    func clear() {
+        endpoint = nil
+        expiry = nil
+    }
+}
+
 // MARK: - Client
 
 /// Sends text to a LanguageTool-compatible server and converts the reply into
@@ -157,12 +256,14 @@ final class LanguageToolClient: Sendable {
     static let shared = LanguageToolClient()
 
     private let session: URLSession
+    private let cooldown = FailureCooldown()
 
     init(session: URLSession? = nil) {
         if let session {
             self.session = session
         } else {
             let configuration = URLSessionConfiguration.ephemeral
+            configuration.timeoutIntervalForResource = LanguageToolConfiguration.resourceTimeout
             configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
             configuration.httpCookieAcceptPolicy = .never
             configuration.httpShouldSetCookies = false
@@ -171,8 +272,28 @@ final class LanguageToolClient: Sendable {
     }
 
     /// Check `text` and return errors in TextWarden's own model.
-    func check(text: String, configuration: LanguageToolConfiguration) async throws -> [GrammarErrorModel] {
+    ///
+    /// - Parameter respectCooldown: Pass `false` for a deliberate user action,
+    ///   such as Test Connection, which must reach a server the user has just
+    ///   fixed rather than report the failure that is still being waited out.
+    func check(
+        text: String,
+        configuration: LanguageToolConfiguration,
+        respectCooldown: Bool = true
+    ) async throws -> [GrammarErrorModel] {
         guard !text.isEmpty else { return [] }
+
+        // Counted before anything is encoded or sent, so an oversized document
+        // costs one length check rather than a round trip.
+        let characters = text.count
+        guard characters <= configuration.characterLimit else {
+            throw LanguageToolError.textTooLong(characters: characters, limit: configuration.characterLimit)
+        }
+
+        let endpoint = configuration.checkURL
+        if respectCooldown, await cooldown.isActive(for: endpoint) {
+            throw LanguageToolError.cooldown
+        }
 
         let request = Self.makeRequest(text: text, configuration: configuration)
 
@@ -181,14 +302,30 @@ final class LanguageToolClient: Sendable {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
+            // Being superseded says nothing about the server, so it must not
+            // start a cooldown that would suppress the next real check.
+            if error is CancellationError || (error as? URLError)?.code == .cancelled {
+                throw LanguageToolError.cancelled
+            }
+            await cooldown.recordFailure(for: endpoint, duration: TimingConstants.externalGrammarSourceFailureCooldown)
             throw LanguageToolError.transport(error)
         }
 
         if let http = response as? HTTPURLResponse, !(200 ..< 300).contains(http.statusCode) {
+            await cooldown.recordFailure(for: endpoint, duration: TimingConstants.externalGrammarSourceFailureCooldown)
             throw LanguageToolError.badStatus(http.statusCode)
         }
 
-        return try Self.convert(responseData: data, in: text)
+        do {
+            let errors = try Self.convert(responseData: data, in: text)
+            await cooldown.clear()
+            return errors
+        } catch {
+            // A reply TextWarden cannot read means this endpoint is not
+            // speaking the expected contract, which retrying will not change.
+            await cooldown.recordFailure(for: endpoint, duration: TimingConstants.externalGrammarSourceFailureCooldown)
+            throw error
+        }
     }
 
     // MARK: - Request
@@ -196,7 +333,7 @@ final class LanguageToolClient: Sendable {
     static func makeRequest(text: String, configuration: LanguageToolConfiguration) -> URLRequest {
         var request = URLRequest(url: configuration.checkURL)
         request.httpMethod = "POST"
-        request.timeoutInterval = configuration.timeout
+        request.timeoutInterval = configuration.timeout(forCharacters: text.count)
         request.setValue("application/x-www-form-urlencoded; charset=utf-8", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.httpBody = formEncodedBody([("text", text), ("language", configuration.language)])
@@ -257,12 +394,14 @@ final class LanguageToolClient: Sendable {
                 return nil
             }
 
+            let category = category(forCategory: match.rule.category.id, issueType: match.rule.issueType)
+
             return GrammarErrorModel(
                 start: start,
                 end: end,
                 message: match.message,
-                severity: severity(forCategory: match.rule.category.id),
-                category: category(forLanguageToolCategory: match.rule.category.id),
+                severity: severity(forTextWardenCategory: category),
+                category: category,
                 lintId: "\(lintIdPrefix)::\(match.rule.id)",
                 suggestions: match.replacements.map(\.value)
             )
@@ -303,12 +442,45 @@ final class LanguageToolClient: Sendable {
         }
     }
 
-    /// LanguageTool has no severity field, so derive one from the category.
-    static func severity(forCategory id: String) -> GrammarErrorSeverity {
-        switch category(forLanguageToolCategory: id) {
+    /// Second signal for a rule whose category TextWarden does not recognise.
+    ///
+    /// `issueType` comes from the Internationalization Tag Set and is set per
+    /// rule, so it frequently classifies a match that arrived under a custom or
+    /// server-specific category grouping. Consulted only after the category map
+    /// has declined, so the documented category behaviour never changes.
+    static func category(forIssueType issueType: String) -> String {
+        switch issueType.lowercased() {
+        case "misspelling": "Spelling"
+        case "grammar": "Grammar"
+        case "terminology": "WordChoice"
+        case "typographical", "whitespace", "formatting": "Formatting"
+        case "duplication": "Repetition"
+        case "style", "register": "Style"
+        case "locale-violation", "locale-specific-content": "Regionalism"
+        case "non-conformance": "Nonstandard"
+        default: "Miscellaneous"
+        }
+    }
+
+    /// Resolve one rule to a TextWarden category, category identifier first.
+    static func category(forCategory id: String, issueType: String?) -> String {
+        let mapped = category(forLanguageToolCategory: id)
+        guard mapped == "Miscellaneous", let issueType, !issueType.isEmpty else { return mapped }
+        return category(forIssueType: issueType)
+    }
+
+    /// LanguageTool has no severity field, so derive one from the category the
+    /// match was folded into.
+    static func severity(forTextWardenCategory category: String) -> GrammarErrorSeverity {
+        switch category {
         case "Spelling", "Grammar": .error
         case "Style", "Redundancy", "Repetition", "Regionalism": .info
         default: .warning
         }
+    }
+
+    /// Severity for a LanguageTool category identifier.
+    static func severity(forCategory id: String) -> GrammarErrorSeverity {
+        severity(forTextWardenCategory: category(forLanguageToolCategory: id))
     }
 }
