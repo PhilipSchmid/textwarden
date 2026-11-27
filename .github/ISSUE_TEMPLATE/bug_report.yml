@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to report a bug! Please fill out the information below to help us investigate.
+        This bug report is public. If you suspect a vulnerability or security incident, [report it privately](https://github.com/PhilipSchmid/textwarden/security/policy).
 
   - type: textarea
     id: description
