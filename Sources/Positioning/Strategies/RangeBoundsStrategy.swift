@@ -12,6 +12,12 @@ import Foundation
 /// Range-based positioning using CFRange API
 /// Traditional approach that works well for native macOS apps
 class RangeBoundsStrategy: GeometryProvider {
+    private let boundsForRange: (CFRange, AXUIElement) -> CGRect?
+
+    init(boundsForRange: @escaping (CFRange, AXUIElement) -> CGRect? = AccessibilityBridge.resolveBoundsUsingRange) {
+        self.boundsForRange = boundsForRange
+    }
+
     var strategyName: String {
         "RangeBounds"
     }
@@ -31,27 +37,15 @@ class RangeBoundsStrategy: GeometryProvider {
     // Uses default canHandle (returns true) - works for most native macOS apps
 
     func calculateGeometry(
-        errorRange: NSRange,
+        errorRange utf16Range: NSRange,
         element: AXUIElement,
-        text: String,
+        text _: String,
         parser: ContentParser
     ) -> GeometryResult? {
-        // Convert filtered coordinates to original coordinates
-        let offset = parser.textReplacementOffset
-        let adjustedRange = NSRange(
-            location: errorRange.location + offset,
-            length: max(1, errorRange.length)
-        )
-
         // Check if parser provides custom bounds calculation (e.g., Mail's WebKit API)
         if parser.getBoundsForRange(range: NSRange(location: 0, length: 1), in: element) != nil {
-            return calculateCustomParserGeometry(adjustedRange: adjustedRange, element: element, parser: parser)
+            return calculateCustomParserGeometry(utf16Range: utf16Range, element: element, parser: parser)
         }
-
-        // Convert grapheme cluster indices to UTF-16 indices for the accessibility API
-        // macOS accessibility APIs use UTF-16 code units, not grapheme clusters
-        // This is critical for text containing emojis (e.g., 😉 = 1 grapheme but 2 UTF-16 units)
-        let utf16Range = TextIndexConverter.graphemeToUTF16Range(adjustedRange, in: text)
 
         let cfRange = CFRange(
             location: utf16Range.location,
@@ -60,8 +54,7 @@ class RangeBoundsStrategy: GeometryProvider {
 
         // Try multi-line bounds first for better accuracy on multi-line errors
         // Use UTF-16 range for the API call
-        let utf16NSRange = NSRange(location: utf16Range.location, length: utf16Range.length)
-        if let quartzLineBounds = AccessibilityBridge.resolveMultiLineBounds(utf16NSRange, in: element),
+        if let quartzLineBounds = AccessibilityBridge.resolveMultiLineBounds(utf16Range, in: element),
            quartzLineBounds.count > 1
         {
             // Multi-line error detected - convert all line bounds to Cocoa coordinates
@@ -95,10 +88,7 @@ class RangeBoundsStrategy: GeometryProvider {
         }
 
         // Fall back to single-range bounds (single line or when line API unavailable)
-        guard let quartzBounds = AccessibilityBridge.resolveBoundsUsingRange(
-            cfRange,
-            in: element
-        ) else {
+        guard let quartzBounds = boundsForRange(cfRange, element) else {
             Logger.debug("RangeBoundsStrategy: Failed to resolve bounds for range \(cfRange.location)-\(cfRange.location + cfRange.length)", category: Logger.ui)
             return nil
         }
@@ -162,16 +152,10 @@ class RangeBoundsStrategy: GeometryProvider {
     /// If the dedicated strategy fails, this provides a secondary path via the parser.
     /// Gets start and end character bounds separately to avoid multi-char range bugs.
     private func calculateCustomParserGeometry(
-        adjustedRange: NSRange,
+        utf16Range: NSRange,
         element: AXUIElement,
         parser: ContentParser
     ) -> GeometryResult? {
-        // For custom parser apps like Mail, we need to convert grapheme cluster indices
-        // to UTF-16 code units. But we must use the ACTUAL text from the AX element,
-        // not the filtered `text` parameter which may be different.
-        // Mail's AXBoundsForRange uses UTF-16 code units from its exact text.
-        let utf16Range = convertToUTF16RangeUsingElement(adjustedRange, in: element)
-
         // Get start character bounds
         let startCharRange = NSRange(location: utf16Range.location, length: 1)
         guard let startCharBounds = parser.getBoundsForRange(range: startCharRange, in: element) else {
@@ -219,31 +203,11 @@ class RangeBoundsStrategy: GeometryProvider {
             strategy: strategyName,
             metadata: [
                 "api": "custom-parser-bounds",
-                "grapheme_location": adjustedRange.location,
-                "grapheme_length": adjustedRange.length,
                 "utf16_location": utf16Range.location,
                 "utf16_length": utf16Range.length,
                 "quartz_screen_bounds": NSStringFromRect(quartzBounds),
                 "cocoa_bounds": NSStringFromRect(cocoaBounds),
             ]
         )
-    }
-
-    // MARK: - UTF-16 Conversion
-
-    /// Convert grapheme cluster indices to UTF-16 code unit indices by fetching text from the AX element.
-    /// This is used for custom parser apps like Mail where the passed `text` parameter might not match
-    /// the accessibility API's text (due to filtering/processing).
-    /// Uses exact text from Mail to preserve its AXBoundsForRange indices.
-    private func convertToUTF16RangeUsingElement(_ range: NSRange, in element: AXUIElement) -> NSRange {
-        guard let text = MailContentParser.exactText(from: element), !text.isEmpty else {
-            Logger.debug("RangeBoundsStrategy: Exact text unavailable, using original range", category: Logger.ui)
-            return range
-        }
-
-        Logger.debug("RangeBoundsStrategy: Fetched \(text.count) characters from AX element for UTF-16 conversion", category: Logger.ui)
-
-        // Now convert using the actual text from the element
-        return TextIndexConverter.graphemeToUTF16Range(range, in: text)
     }
 }

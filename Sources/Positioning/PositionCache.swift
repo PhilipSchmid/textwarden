@@ -153,10 +153,10 @@ struct CacheKey: Hashable {
     let pid: pid_t
     let elementRole: String
     let elementIdentifier: String
-    let range: NSRange
+    let range: PositionRange
     let textHash: Int
 
-    init(element: AXUIElement, range: NSRange, textHash: Int) {
+    init(element: AXUIElement, range: PositionRange, textHash: Int) {
         // Use PID + element attributes for stable identification
         var pid: pid_t = 0
         AXUIElementGetPid(element, &pid)
@@ -211,7 +211,7 @@ struct CacheKey: Hashable {
     }
 
     var description: String {
-        "pid:\(pid) role:\(elementRole) id:\(elementIdentifier) range:(\(range.location),\(range.length)) text:\(textHash)"
+        "pid:\(pid) role:\(elementRole) id:\(elementIdentifier) range:(\(range.source.location),\(range.source.length)) text:\(textHash)"
     }
 }
 

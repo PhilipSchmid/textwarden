@@ -2423,7 +2423,7 @@ class SlackContentParser: ContentParser {
     /// Use the multi-strategy PositionResolver for positioning
     /// This leverages TextMarkerStrategy which works well for Chromium/Electron apps
     func resolvePosition(
-        for errorRange: NSRange,
+        for errorRange: PositionRange,
         in element: AXUIElement,
         text: String
     ) -> GeometryResult {

@@ -107,33 +107,8 @@ class ElementTreeStrategy: GeometryProvider {
         text: String,
         parser: ContentParser
     ) -> GeometryResult? {
-        Logger.debug("ElementTreeStrategy: Starting for range \(errorRange)", category: Logger.ui)
-
-        // Convert filtered coordinates to original coordinates
-        let offset = parser.textReplacementOffset
-        let originalStart = errorRange.location + offset
-        let originalEnd = originalStart + errorRange.length
-
-        Logger.debug("ElementTreeStrategy: Applying offset \(offset): filtered \(errorRange.location) -> original \(originalStart)", category: Logger.ui)
-
-        // Extract the error text using original coordinates
-        let scalarCount = text.unicodeScalars.count
-        let errorStart = min(originalStart, scalarCount)
-        let errorEnd = min(originalEnd, scalarCount)
-
-        guard errorStart < errorEnd else {
-            Logger.debug("ElementTreeStrategy: Invalid range after offset adjustment", category: Logger.accessibility)
-            return nil
-        }
-
-        guard let startIndex = TextIndexConverter.scalarIndexToStringIndex(errorStart, in: text),
-              let endIndex = TextIndexConverter.scalarIndexToStringIndex(errorEnd, in: text),
-              startIndex <= endIndex
-        else {
-            Logger.debug("ElementTreeStrategy: String index out of bounds for error text", category: Logger.accessibility)
-            return nil
-        }
-        let errorText = String(text[startIndex ..< endIndex])
+        guard let indices = Range(errorRange, in: text), !indices.isEmpty else { return nil }
+        let errorText = String(text[indices])
 
         Logger.debug("ElementTreeStrategy: Looking for error text (\(errorText.count) chars)", category: Logger.ui)
 
@@ -178,8 +153,8 @@ class ElementTreeStrategy: GeometryProvider {
         Logger.debug("ElementTreeStrategy: Error at offset \(offsetInElement) in element", category: Logger.ui)
 
         // Try AXBoundsForRange on the child element itself
-        let scalarRange = NSRange(location: offsetInElement, length: errorText.unicodeScalars.count)
-        let childErrorRange = TextIndexConverter.scalarToUTF16Range(scalarRange, in: elementText)
+        let scalarRange = NSRange(location: offsetInElement, length: elementText[range].unicodeScalars.count)
+        let childErrorRange = NSRange(range, in: elementText)
         if let childBounds = getBoundsForRange(childErrorRange, in: targetElement) {
             Logger.debug("ElementTreeStrategy: Got bounds from child element's AXBoundsForRange: \(childBounds)", category: Logger.ui)
 
@@ -353,7 +328,7 @@ class ElementTreeStrategy: GeometryProvider {
 
     // MARK: - Element Traversal
 
-    private func findBestElementContainingText(
+    func findBestElementContainingText(
         _ targetText: String,
         in element: AXUIElement
     ) -> AXUIElement? {

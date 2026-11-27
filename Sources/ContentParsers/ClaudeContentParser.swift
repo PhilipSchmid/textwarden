@@ -67,7 +67,7 @@ class ClaudeContentParser: ContentParser {
     /// Use the multi-strategy PositionResolver for positioning
     /// ChromiumStrategy works well for Electron apps like Claude
     func resolvePosition(
-        for errorRange: NSRange,
+        for errorRange: PositionRange,
         in element: AXUIElement,
         text: String
     ) -> GeometryResult {

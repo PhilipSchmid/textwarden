@@ -161,7 +161,7 @@ protocol ContentParser {
     ///   - actualBundleID: Optional actual bundle ID (use when parser's bundleIdentifier differs from runtime bundle)
     /// - Returns: GeometryResult with bounds and confidence information
     func resolvePosition(
-        for errorRange: NSRange,
+        for errorRange: PositionRange,
         in element: AXUIElement,
         text: String,
         actualBundleID: String?
@@ -331,7 +331,7 @@ extension ContentParser {
     ///   - actualBundleID: Optional actual bundle ID (use when parser's bundleIdentifier differs from runtime bundle)
     /// - Returns: GeometryResult with bounds and confidence information
     func resolvePosition(
-        for errorRange: NSRange,
+        for errorRange: PositionRange,
         in element: AXUIElement,
         text: String,
         actualBundleID: String? = nil
