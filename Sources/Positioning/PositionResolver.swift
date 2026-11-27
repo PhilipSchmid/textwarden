@@ -9,6 +9,77 @@
 import AppKit
 import ApplicationServices
 
+/// Producers keep their native offsets for host-specific strategies. AX queries use UTF-16.
+struct PositionRange: Hashable {
+    let source: NSRange
+    /// Some hosts expose text only through their own AX tree or text markers.
+    let utf16: NSRange?
+
+    init(scalars range: NSRange, in text: String, afterScalarPrefix prefix: Int = 0) {
+        source = range
+        let scalars = text.unicodeScalars
+        guard prefix >= 0, range.location >= 0, range.length > 0,
+              let origin = scalars.index(scalars.startIndex, offsetBy: prefix, limitedBy: scalars.endIndex),
+              let start = scalars.index(origin, offsetBy: range.location, limitedBy: scalars.endIndex),
+              let end = scalars.index(start, offsetBy: range.length, limitedBy: scalars.endIndex),
+              let lower = String.Index(start, within: text), let upper = String.Index(end, within: text)
+        else {
+            utf16 = nil
+            return
+        }
+        utf16 = NSRange(lower ..< upper, in: text)
+    }
+
+    init(characters range: NSRange, in text: String?, afterScalarPrefix prefix: Int = 0) {
+        source = range
+        guard let text, prefix >= 0, range.location >= 0, range.length > 0,
+              let origin = TextIndexConverter.scalarIndexToStringIndex(prefix, in: text),
+              let start = text.index(origin, offsetBy: range.location, limitedBy: text.endIndex),
+              let end = text.index(start, offsetBy: range.length, limitedBy: text.endIndex)
+        else {
+            utf16 = nil
+            return
+        }
+        utf16 = NSRange(start ..< end, in: text)
+    }
+
+    /// Expand a separator to the adjacent words before resolving its geometry.
+    static func grammar(_ source: NSRange, in text: String, afterScalarPrefix prefix: Int = 0) -> Self {
+        let range = Self(scalars: source, in: text, afterScalarPrefix: prefix)
+        guard source.length == 1 else { return range }
+
+        func words(at utf16: NSRange?, after origin: String.Index) -> Range<String.Index>? {
+            guard let utf16, let separator = Range(utf16, in: text),
+                  text[separator.lowerBound].isWhitespace || text[separator.lowerBound].isPunctuation
+            else { return nil }
+            let start = text[origin ..< separator.lowerBound].lastIndex(where: \.isWhitespace).map { text.index(after: $0) } ?? origin
+            let end = text[separator.upperBound...].firstIndex(where: \.isWhitespace) ?? text.endIndex
+            guard start < separator.lowerBound, separator.upperBound < end else { return nil }
+            return start ..< end
+        }
+
+        // Dedicated host strategies historically receive the overlay's character-based expansion.
+        let legacy = Self(characters: source, in: text)
+        let hostRange = words(at: legacy.utf16, after: text.startIndex).map {
+            NSRange(location: text.distance(from: text.startIndex, to: $0.lowerBound), length: text.distance(from: $0.lowerBound, to: $0.upperBound))
+        } ?? source
+        let native = TextIndexConverter.scalarIndexToStringIndex(prefix, in: text).flatMap { words(at: range.utf16, after: $0) }
+        return Self(source: hostRange, utf16: native.map { NSRange($0, in: text) } ?? range.utf16)
+    }
+
+    private init(source: NSRange, utf16: NSRange?) {
+        self.source = source
+        self.utf16 = utf16
+    }
+
+    func range(for strategy: StrategyType) -> NSRange? {
+        switch strategy {
+        case .lineIndex, .rangeBounds, .elementTree: utf16
+        default: source
+        }
+    }
+}
+
 /// Position resolution engine with multiple strategies
 /// Uses AppRegistry to filter and order strategies per app
 class PositionResolver {
@@ -28,11 +99,11 @@ class PositionResolver {
 
     // MARK: - Initialization
 
-    private init() {
-        registerStrategies()
+    init(rangeBounds: RangeBoundsStrategy = RangeBoundsStrategy(), elementTree: ElementTreeStrategy = ElementTreeStrategy()) {
+        registerStrategies(rangeBounds: rangeBounds, elementTree: elementTree)
     }
 
-    private func registerStrategies() {
+    private func registerStrategies(rangeBounds: RangeBoundsStrategy, elementTree: ElementTreeStrategy) {
         // Register all active strategies
         // Note: SelectionBoundsStrategy and NavigationStrategy have been moved to Legacy/
         // as they interfere with typing (manipulate cursor/selection)
@@ -51,11 +122,11 @@ class PositionResolver {
             ClaudeStrategy(), // Fast selection-based strategy for Claude Desktop
             ChromiumStrategy(),
             TextMarkerStrategy(),
-            RangeBoundsStrategy(),
+            rangeBounds,
 
             // Tier: Reliable
             InsertionPointStrategy(), // For Mac Catalyst apps (Messages, etc.)
-            ElementTreeStrategy(),
+            elementTree,
             LineIndexStrategy(),
             OriginStrategy(),
             AnchorSearchStrategy(),
@@ -128,7 +199,7 @@ class PositionResolver {
     /// Tries each strategy in order until one succeeds
     /// Returns an "unavailable" result (confidence 0) if text is not visible or all strategies fail
     func resolvePosition(
-        for errorRange: NSRange,
+        for errorRange: PositionRange,
         in element: AXUIElement,
         text: String,
         parser: ContentParser,
@@ -168,7 +239,7 @@ class PositionResolver {
 
         // Check visibility BEFORE attempting positioning. AccessibilityBridge owns the atomic
         // reservation for this call.
-        let isVisible = AccessibilityBridge.isRangeVisible(errorRange, in: element)
+        let isVisible = errorRange.utf16.map { AccessibilityBridge.isRangeVisible($0, in: element) } ?? true
 
         // FAIL-FAST: If visibility check caused blocklisting (timed out), abort immediately
         // This prevents wasting 50+ seconds trying strategies that will all fail
@@ -214,8 +285,9 @@ class PositionResolver {
             Logger.debug("  Strategy \(strategy.strategyName) can handle - trying calculateGeometry...", category: Logger.ui)
 
             // Try to calculate geometry
+            guard let range = errorRange.range(for: strategy.strategyType) else { continue }
             if let result = strategy.calculateGeometry(
-                errorRange: errorRange,
+                errorRange: range,
                 element: element,
                 text: text,
                 parser: parser

@@ -14,6 +14,13 @@ import Foundation
 /// Line-based positioning strategy
 /// Gets line bounds then calculates X offset within the line
 class LineIndexStrategy: GeometryProvider {
+    typealias CopyAttribute = (AXUIElement, CFString, CFTypeRef, UnsafeMutablePointer<CFTypeRef?>) -> AXError
+    private let copyAttribute: CopyAttribute
+
+    init(copyAttribute: @escaping CopyAttribute = AXUIElementCopyParameterizedAttributeValue) {
+        self.copyAttribute = copyAttribute
+    }
+
     var strategyName: String {
         "LineIndex"
     }
@@ -33,23 +40,14 @@ class LineIndexStrategy: GeometryProvider {
     // Uses default canHandle (returns true) - universal approach, fails gracefully
 
     func calculateGeometry(
-        errorRange: NSRange,
+        errorRange utf16Range: NSRange,
         element: AXUIElement,
         text: String,
         parser: ContentParser
     ) -> GeometryResult? {
-        Logger.debug("LineIndexStrategy: Starting for range \(errorRange)", category: Logger.ui)
-
-        // Convert filtered coordinates to original coordinates (still in grapheme clusters)
-        let offset = parser.textReplacementOffset
-        let originalLocationGrapheme = errorRange.location + offset
-
-        // Convert grapheme cluster index to UTF-16 for accessibility APIs
-        // macOS accessibility APIs (AXLineForIndex, AXRangeForLine, AXBoundsForRange) use UTF-16 code units
-        let originalLocationUTF16 = graphemeToUTF16(originalLocationGrapheme, in: text)
-        let errorLengthUTF16 = graphemeToUTF16(originalLocationGrapheme + errorRange.length, in: text) - originalLocationUTF16
-
-        Logger.debug("LineIndexStrategy: Grapheme location \(originalLocationGrapheme) -> UTF-16 location \(originalLocationUTF16)", category: Logger.ui)
+        let originalLocationUTF16 = utf16Range.location
+        guard let errorIndices = Range(utf16Range, in: text), !errorIndices.isEmpty else { return nil }
+        let errorText = String(text[errorIndices])
 
         // Step 1: Get the line number for the error position (using UTF-16 index)
         guard let lineNumber = getLineForIndex(originalLocationUTF16, in: element) else {
@@ -100,31 +98,11 @@ class LineIndexStrategy: GeometryProvider {
         // Step 4: Calculate X offset within the line
         // All values here are in UTF-16 code units for consistency with accessibility APIs
         let lineStartUTF16 = lineRange.location
-        let lineEndUTF16 = lineRange.location + lineRange.length
         let offsetInLineUTF16 = originalLocationUTF16 - lineStartUTF16
-
-        // Convert UTF-16 indices to String.Index for correct text extraction
-        guard let lineStartIdx = stringIndex(forUTF16Offset: lineStartUTF16, in: text),
-              let lineEndIdx = stringIndex(forUTF16Offset: lineEndUTF16, in: text),
-              lineStartIdx <= lineEndIdx
-        else {
-            Logger.debug("LineIndexStrategy: Failed to convert UTF-16 indices to string indices", category: Logger.accessibility)
-            return nil
-        }
-        let lineText = String(text[lineStartIdx ..< lineEndIdx])
-
-        // Get text before error within the line
-        // offsetInLineUTF16 is the UTF-16 offset within the line, need to convert to grapheme count
-        var textBeforeErrorInLine = if offsetInLineUTF16 > 0 {
-            // Convert the error position to a string index within the line text
-            if let errorPosInLine = stringIndex(forUTF16Offset: offsetInLineUTF16, in: lineText) {
-                String(lineText[..<errorPosInLine])
-            } else {
-                ""
-            }
-        } else {
-            ""
-        }
+        guard offsetInLineUTF16 >= 0, offsetInLineUTF16 <= lineRange.length,
+              let prefix = Range(NSRange(location: lineStartUTF16, length: offsetInLineUTF16), in: text)
+        else { return nil }
+        var textBeforeErrorInLine = String(text[prefix])
 
         // Handle edge case: if textBeforeErrorInLine contains a newline, the error is actually
         // on the next visual line. AXLineForIndex can return the previous line when the error
@@ -138,19 +116,6 @@ class LineIndexStrategy: GeometryProvider {
             Logger.debug("LineIndexStrategy: Adjusted for newline boundary - \(lineOffsetAdjustment) lines down", category: Logger.ui)
         }
 
-        // Get error text (using UTF-16 coordinates)
-        let errorEndUTF16 = originalLocationUTF16 + errorLengthUTF16
-        let errorText: String
-        if let errorStartIdx = stringIndex(forUTF16Offset: originalLocationUTF16, in: text),
-           let errorEndIdx = stringIndex(forUTF16Offset: errorEndUTF16, in: text),
-           errorStartIdx <= errorEndIdx
-        {
-            errorText = String(text[errorStartIdx ..< errorEndIdx])
-        } else {
-            Logger.debug("LineIndexStrategy: String index out of bounds for error text", category: Logger.accessibility)
-            return nil
-        }
-
         Logger.debug("LineIndexStrategy: textBeforeErrorInLine=\(textBeforeErrorInLine.count) chars, errorText=\(errorText.count) chars", category: Logger.ui)
 
         // Calculate widths using font measurement
@@ -160,12 +125,9 @@ class LineIndexStrategy: GeometryProvider {
         let multiplier = parser.spacingMultiplier(context: nil)
 
         // Try to use attributed string measurement for accuracy with formatted text (bold, italic)
-        if let attrMeasurements = measureUsingAttributedString(
-            element: element,
-            textBefore: textBeforeErrorInLine,
-            errorStartUTF16: originalLocationUTF16,
-            errorText: errorText,
-            parser: parser
+        if let attrMeasurements = Self.measureUsingAttributedString(
+            textBefore: textBeforeErrorInLine, errorRange: utf16Range, errorText: errorText,
+            attributedString: { self.attributedString(for: $0, in: element) }
         ) {
             textBeforeWidth = attrMeasurements.textBeforeWidth
             rawErrorWidth = attrMeasurements.errorWidth * multiplier
@@ -246,7 +208,7 @@ class LineIndexStrategy: GeometryProvider {
         }
 
         var lineValue: CFTypeRef?
-        let result = AXUIElementCopyParameterizedAttributeValue(
+        let result = copyAttribute(
             element,
             "AXLineForIndex" as CFString,
             indexRef,
@@ -267,7 +229,7 @@ class LineIndexStrategy: GeometryProvider {
         }
 
         var rangeValue: CFTypeRef?
-        let result = AXUIElementCopyParameterizedAttributeValue(
+        let result = copyAttribute(
             element,
             "AXRangeForLine" as CFString,
             lineRef,
@@ -276,7 +238,7 @@ class LineIndexStrategy: GeometryProvider {
 
         guard result == .success,
               let rv = rangeValue,
-              let range = safeAXValueGetRange(rv)
+              let range = safeAXValueGetRange(rv), range.location >= 0, range.length >= 0
         else {
             return nil
         }
@@ -291,7 +253,7 @@ class LineIndexStrategy: GeometryProvider {
         }
 
         var boundsValue: CFTypeRef?
-        let result = AXUIElementCopyParameterizedAttributeValue(
+        let result = copyAttribute(
             element,
             kAXBoundsForRangeParameterizedAttribute as CFString,
             rangeValue,
@@ -310,85 +272,42 @@ class LineIndexStrategy: GeometryProvider {
 
     // MARK: - Attributed String Measurement
 
-    /// Measurement results from attributed string
-    private struct AttributedMeasurements {
-        let textBeforeWidth: CGFloat
-        let errorWidth: CGFloat
+    static func measureUsingAttributedString(
+        textBefore: String, errorRange: NSRange, errorText: String,
+        attributedString: (NSRange) -> NSAttributedString?
+    ) -> (textBeforeWidth: CGFloat, errorWidth: CGFloat)? {
+        func width(of text: String, in range: NSRange) -> CGFloat? {
+            if text.isEmpty { return 0 }
+            guard let attributed = attributedString(range),
+                  attributed.string.utf16.elementsEqual(text.utf16)
+            else { return nil }
+
+            // AXFont is a dictionary. AppKit measures it using the default font unless we supply .font.
+            var measured: NSMutableAttributedString?
+            attributed.enumerateAttributes(in: NSRange(location: 0, length: attributed.length)) { attributes, run, _ in
+                guard attributes[.font] == nil, let font = font(from: attributes) else { return }
+                if measured == nil { measured = NSMutableAttributedString(attributedString: attributed) }
+                measured?.addAttribute(.font, value: font, range: run)
+            }
+            return (measured ?? attributed).size().width
+        }
+
+        let length = textBefore.utf16.count
+        guard length <= errorRange.location,
+              let before = width(of: textBefore, in: NSRange(location: errorRange.location - length, length: length)),
+              let error = width(of: errorText, in: errorRange)
+        else { return nil }
+        return (before, error)
     }
 
-    /// Measure the run before the error, and the error itself, from the
-    /// application's own attributed string, so that bold, italic and other
-    /// formatted runs are measured as they are drawn.
-    ///
-    /// Both ranges are in UTF-16 code units, because that is what
-    /// AXAttributedStringForRange takes. Measuring the preceding run in
-    /// characters instead shortens the request by one unit for every character
-    /// that is not a single code unit -- a decomposed accent, an emoji -- and
-    /// shifts the error range after it by the same amount, so both requests
-    /// describe text the user never typed there.
-    private func measureUsingAttributedString(
-        element: AXUIElement,
-        textBefore: String,
-        errorStartUTF16: Int,
-        errorText: String,
-        parser _: ContentParser
-    ) -> AttributedMeasurements? {
-        let textBeforeLength = textBefore.utf16.count
-        let textBeforeStartUTF16 = errorStartUTF16 - textBeforeLength
-        guard textBeforeStartUTF16 >= 0 else {
-            Logger.warning(
-                "LineIndexStrategy: text before the error (\(textBeforeLength) units) runs past the start of the value",
-                category: Logger.accessibility
-            )
-            return nil
-        }
-
-        // Get attributed string for the text before error
-        let textBeforeWidth: CGFloat
-        if textBeforeLength > 0 {
-            var cfRange = CFRange(location: textBeforeStartUTF16, length: textBeforeLength)
-            guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else { return nil }
-
-            var attrStringValue: CFTypeRef?
-            let result = AXUIElementCopyParameterizedAttributeValue(
-                element,
-                "AXAttributedStringForRange" as CFString,
-                rangeValue,
-                &attrStringValue
-            )
-
-            guard result == .success,
-                  let attrString = attrStringValue as? NSAttributedString
-            else {
-                return nil
-            }
-
-            textBeforeWidth = attrString.size().width
-        } else {
-            textBeforeWidth = 0
-        }
-
-        // Get attributed string for the error text
-        var errorRange = CFRange(location: errorStartUTF16, length: errorText.utf16.count)
-        guard let errorRangeValue = AXValueCreate(.cfRange, &errorRange) else { return nil }
-
-        var errorAttrStringValue: CFTypeRef?
-        let errorResult = AXUIElementCopyParameterizedAttributeValue(
-            element,
-            "AXAttributedStringForRange" as CFString,
-            errorRangeValue,
-            &errorAttrStringValue
-        )
-
-        guard errorResult == .success,
-              let errorAttrString = errorAttrStringValue as? NSAttributedString
-        else {
-            return nil
-        }
-
-        let errorWidth = errorAttrString.size().width
-
-        return AttributedMeasurements(textBeforeWidth: textBeforeWidth, errorWidth: errorWidth)
+    private func attributedString(for range: NSRange, in element: AXUIElement) -> NSAttributedString? {
+        var cfRange = CFRange(location: range.location, length: range.length)
+        guard let parameter = AXValueCreate(.cfRange, &cfRange) else { return nil }
+        var value: CFTypeRef?
+        guard copyAttribute(
+            element, kAXAttributedStringForRangeParameterizedAttribute as CFString, parameter, &value
+        ) == .success else { return nil }
+        return value as? NSAttributedString
     }
 
     // MARK: - Font Detection
@@ -396,7 +315,9 @@ class LineIndexStrategy: GeometryProvider {
     /// Detect the font being used in the element for accurate text measurement
     private func detectFont(from element: AXUIElement, parser: ContentParser, at position: Int = 0) -> NSFont {
         // Try to get font info from attributed string at the specified position
-        if let font = getAttributedStringFontInfo(from: element, at: position) {
+        if let attributed = attributedString(for: NSRange(location: position, length: 1), in: element),
+           attributed.length > 0, let font = Self.font(from: attributed.attributes(at: 0, effectiveRange: nil))
+        {
             Logger.debug("LineIndexStrategy: Detected font '\(font.fontName)' size \(font.pointSize)", category: Logger.ui)
             return font
         }
@@ -417,51 +338,13 @@ class LineIndexStrategy: GeometryProvider {
         return NSFont.systemFont(ofSize: fontSize)
     }
 
-    /// Get font info from attributed string at a specific position
-    private func getAttributedStringFontInfo(from element: AXUIElement, at position: Int) -> NSFont? {
-        // Try AXAttributedStringForRange with a small range at the given position
-        var cfRange = CFRange(location: position, length: 1)
-        guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else {
-            return nil
-        }
-
-        var attrStringValue: CFTypeRef?
-        let result = AXUIElementCopyParameterizedAttributeValue(
-            element,
-            "AXAttributedStringForRange" as CFString,
-            rangeValue,
-            &attrStringValue
-        )
-
-        guard result == .success,
-              let attrString = attrStringValue as? NSAttributedString,
-              attrString.length > 0
-        else {
-            Logger.trace("LineIndexStrategy: AXAttributedStringForRange unavailable", category: Logger.ui)
-            return nil
-        }
-
-        // Extract font from attributes
-        let attrs = attrString.attributes(at: 0, effectiveRange: nil)
-
-        if let font = attrs[.font] as? NSFont {
-            Logger.trace("LineIndexStrategy: Font from .font attr: \(font.fontName) \(font.pointSize)pt", category: Logger.ui)
-            return font
-        }
-
-        // Try looking for AXFont key in attributed string
-        if let fontDict = attrs[NSAttributedString.Key(rawValue: "AXFont")] as? [String: Any] {
-            if let fontName = fontDict["AXFontName"] as? String,
-               let fontSize = fontDict["AXFontSize"] as? CGFloat
-            {
-                if let font = NSFont(name: fontName, size: fontSize) {
-                    Logger.trace("LineIndexStrategy: Font from AXFont: \(fontName) \(fontSize)pt", category: Logger.ui)
-                    return font
-                }
-            }
-        }
-
-        return nil
+    private static func font(from attributes: [NSAttributedString.Key: Any]) -> NSFont? {
+        if let font = attributes[.font] as? NSFont { return font }
+        guard let axFont = attributes[NSAttributedString.Key("AXFont")] as? [String: Any],
+              let name = axFont["AXFontName"] as? String,
+              let size = axFont["AXFontSize"] as? CGFloat
+        else { return nil }
+        return NSFont(name: name, size: size)
     }
 
     // MARK: - Bounds Estimation Fallback
@@ -501,39 +384,5 @@ class LineIndexStrategy: GeometryProvider {
             width: lineWidth,
             height: lineHeight
         )
-    }
-
-    // MARK: - UTF-16 Index Conversion
-
-    /// Convert a grapheme cluster index to UTF-16 code unit offset.
-    /// Harper provides error positions in grapheme clusters, but macOS accessibility APIs
-    /// (AXLineForIndex, AXRangeForLine, AXBoundsForRange) use UTF-16 code units.
-    /// This matters for text with emojis: 😉 = 1 grapheme but 2 UTF-16 code units.
-    private func graphemeToUTF16(_ graphemeIndex: Int, in string: String) -> Int {
-        let safeIndex = min(graphemeIndex, string.count)
-        guard let stringIndex = string.index(string.startIndex, offsetBy: safeIndex, limitedBy: string.endIndex) else {
-            return graphemeIndex // Fallback to original if conversion fails
-        }
-        let prefix = String(string[..<stringIndex])
-        return (prefix as NSString).length
-    }
-
-    /// Convert a UTF-16 code unit offset to a String.Index (grapheme cluster based)
-    /// macOS accessibility APIs use UTF-16 indices, but Swift String uses grapheme clusters
-    /// This is necessary for correct string slicing when text contains emojis or other
-    /// multi-codepoint characters (e.g., 😉 = 1 grapheme but 2 UTF-16 code units)
-    private func stringIndex(forUTF16Offset utf16Offset: Int, in string: String) -> String.Index? {
-        guard utf16Offset >= 0 else { return nil }
-
-        let nsString = string as NSString
-        guard utf16Offset <= nsString.length else { return nil }
-
-        // NSString range with length 0 at the UTF-16 offset
-        let utf16Range = NSRange(location: utf16Offset, length: 0)
-
-        // Convert to Range<String.Index>
-        guard let range = Range(utf16Range, in: string) else { return nil }
-
-        return range.lowerBound
     }
 }

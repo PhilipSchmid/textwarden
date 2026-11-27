@@ -635,20 +635,7 @@ class ErrorOverlayWindow: NSPanel {
 
         // Extract full text once for all positioning calculations. A rejected reservation means
         // no request is issued, and the native timeout prevents orphaned background work.
-        guard let textCall = AXClient.perform(
-            bundleID: bundleID,
-            attribute: "AXValue",
-            operation: {
-                AXUIElementSetMessagingTimeout(element, 1.0)
-                var textValue: CFTypeRef?
-                let error = AXUIElementCopyAttributeValue(
-                    element,
-                    kAXValueAttribute as CFString,
-                    &textValue
-                )
-                return (error: error, text: textValue as? String)
-            }
-        ) else {
+        guard let textCall = readAXValue(element, bundleID: bundleID) else {
             lastGeometryFailureReason = "Text extraction reservation unavailable"
             hide()
             return 0
@@ -749,26 +736,16 @@ class ErrorOverlayWindow: NSPanel {
         // Clear debug marker (will be set if enabled for parsers with custom bounds)
         underlineView?.firstCharDebugMarker = nil
 
+        let scalarPrefix = parser.textReplacementOffset
         let underlines = errors.compactMap { error -> ErrorUnderline? in
-            var errorRange = NSRange(location: error.start, length: error.end - error.start)
-
-            // Expand single-character errors to include adjacent words for better visibility
-            // e.g., "7 day" -> "7-day" should underline both "7" and "day", not just the space
-            if errorRange.length == 1 {
-                errorRange = expandSingleCharacterError(errorRange, in: fullTextValue)
-            }
+            let source = NSRange(location: error.start, length: error.end - error.start)
+            let errorRange = PositionRange.grammar(source, in: fullTextValue, afterScalarPrefix: scalarPrefix)
 
             // Filter out errors that are completely outside the visible character range
-            if let visibleRange {
-                let errorEnd = error.start + (error.end - error.start)
-                let visibleEnd = visibleRange.location + visibleRange.length
-
-                // Skip if error ends before visible range starts OR error starts after visible range ends
-                if errorEnd < visibleRange.location || error.start > visibleEnd {
-                    Logger.debug("ErrorOverlay: Skipping error at \(error.start)-\(error.end) - outside visible range \(visibleRange.location)-\(visibleEnd)", category: Logger.ui)
-                    skippedDueToVisibility += 1
-                    return nil
-                }
+            if let visibleRange, let utf16 = errorRange.utf16, NSIntersectionRange(utf16, visibleRange).length == 0 {
+                Logger.debug("ErrorOverlay: Skipping error outside visible range \(visibleRange)", category: Logger.ui)
+                skippedDueToVisibility += 1
+                return nil
             }
 
             // Use new multi-strategy positioning system
@@ -1132,6 +1109,18 @@ class ErrorOverlayWindow: NSPanel {
 
         let parser = ContentParserFactory.shared.parser(for: bundleID)
 
+        // Readability offsets refer to the analyzed text, which can omit a host-specific prefix.
+        let prefix = parser.textReplacementOffset
+        let hostText: String? = {
+            guard prefix > 0 else { return text }
+            guard let call = readAXValue(element, bundleID: bundleID), call.value.error == .success,
+                  let original = call.value.text,
+                  let start = TextIndexConverter.scalarIndexToStringIndex(prefix, in: original),
+                  original[start...].utf16.starts(with: text.utf16)
+            else { return nil }
+            return original
+        }()
+
         // ALWAYS query fresh element frame for coordinate conversion.
         // The window frame might be stale or include extension offsets that
         // would cause misalignment between grammar and readability underlines.
@@ -1198,16 +1187,18 @@ class ErrorOverlayWindow: NSPanel {
 
             Logger.debug("ErrorOverlay: Word ranges - first: \(String(describing: wordRanges.first)), last: \(String(describing: wordRanges.last))", category: Logger.ui)
 
-            guard let firstWordsRange = wordRanges.first, let lastWordsRange = wordRanges.last else {
+            guard let first = wordRanges.first, let last = wordRanges.last else {
                 Logger.debug("ErrorOverlay: Could not extract word ranges for segmented underline", category: Logger.ui)
                 continue
             }
+            let firstWordsRange = PositionRange(characters: first, in: hostText, afterScalarPrefix: prefix)
+            let lastWordsRange = PositionRange(characters: last, in: hostText, afterScalarPrefix: prefix)
 
             // Resolve first segment
             let firstResult = parser.resolvePosition(
                 for: firstWordsRange,
                 in: element,
-                text: text,
+                text: hostText ?? text,
                 actualBundleID: bundleID
             )
 
@@ -1215,7 +1206,7 @@ class ErrorOverlayWindow: NSPanel {
             let lastResult = parser.resolvePosition(
                 for: lastWordsRange,
                 in: element,
-                text: text,
+                text: hostText ?? text,
                 actualBundleID: bundleID
             )
 
@@ -1969,68 +1960,21 @@ class ErrorOverlayWindow: NSPanel {
         return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
 
-    // MARK: - Error Range Expansion
-
-    /// Expand single-character errors to include adjacent words for better visibility
-    /// e.g., "7 day" -> "7-day" should underline "7 day" not just the space
-    private func expandSingleCharacterError(_ range: NSRange, in text: String) -> NSRange {
-        guard range.length == 1 else { return range }
-        guard range.location < text.count else { return range }
-
-        let startIndex = text.index(text.startIndex, offsetBy: range.location, limitedBy: text.endIndex) ?? text.endIndex
-        guard startIndex < text.endIndex else { return range }
-
-        let char = text[startIndex]
-        Logger.debug("ErrorOverlay: Single-char error at \(range.location), char='\(char)' (isWhitespace=\(char.isWhitespace), isPunctuation=\(char.isPunctuation))", category: Logger.ui)
-
-        // Expand for whitespace (space that should be hyphen) or punctuation between words
-        // This makes tiny single-character underlines visible by extending to adjacent words
-        guard char.isWhitespace || char.isPunctuation else { return range }
-
-        // Find the word before the character by scanning backward
-        var wordStart = range.location
-        if wordStart > 0 {
-            var idx = text.index(text.startIndex, offsetBy: wordStart - 1, limitedBy: text.endIndex) ?? text.startIndex
-            // Scan backward while character at idx is NOT whitespace/newline
-            while true {
-                let c = text[idx]
-                if c.isWhitespace || c.isNewline {
-                    // Stop here - wordStart should be the position AFTER this whitespace
-                    wordStart = text.distance(from: text.startIndex, to: idx) + 1
-                    break
-                }
-                // This character is part of the word
-                wordStart = text.distance(from: text.startIndex, to: idx)
-                if idx == text.startIndex {
-                    break // Can't go further back
-                }
-                idx = text.index(before: idx)
+    private func readAXValue(_ element: AXUIElement, bundleID: String) -> AXCallExecution<(error: AXError, text: String?)>? {
+        AXClient.perform(
+            bundleID: bundleID,
+            attribute: "AXValue",
+            operation: {
+                AXUIElementSetMessagingTimeout(element, 1.0)
+                var textValue: CFTypeRef?
+                let error = AXUIElementCopyAttributeValue(
+                    element,
+                    kAXValueAttribute as CFString,
+                    &textValue
+                )
+                return (error: error, text: textValue as? String)
             }
-        }
-
-        // Find the word after the character by scanning forward
-        var wordEnd = range.location + 1
-        if wordEnd < text.count {
-            var idx = text.index(text.startIndex, offsetBy: wordEnd, limitedBy: text.endIndex) ?? text.endIndex
-            while idx < text.endIndex {
-                let c = text[idx]
-                if c.isWhitespace || c.isNewline {
-                    break
-                }
-                idx = text.index(after: idx)
-                wordEnd = text.distance(from: text.startIndex, to: idx)
-            }
-        }
-
-        // Only expand if we found words on both sides
-        let expandedLength = wordEnd - wordStart
-        Logger.debug("ErrorOverlay: Single-char expansion check - wordStart=\(wordStart), wordEnd=\(wordEnd), expandedLength=\(expandedLength)", category: Logger.ui)
-        if expandedLength > 1, wordStart < range.location, wordEnd > range.location + 1 {
-            Logger.debug("ErrorOverlay: Expanded single-char error at \(range.location) to \(wordStart)-\(wordEnd) (length \(expandedLength))", category: Logger.ui)
-            return NSRange(location: wordStart, length: expandedLength)
-        }
-
-        return range
+        )
     }
 
     // MARK: - Coordinate Conversion
