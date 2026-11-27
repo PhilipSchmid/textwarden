@@ -161,6 +161,7 @@ TextWarden is tuned for the apps below. Some apps give macOS less information ab
 | Claude | Full | Full |
 | ChatGPT | Full | Full |
 | Perplexity | Full | Full |
+| T3 Code | Prompt composer[^t3code] | Prompt composer[^t3code] |
 | Safari, Chrome, and Brave | Full[^extension] | Extension preview[^extension] |
 | Firefox and Zen | Full[^extension][^gecko] | Extension preview[^extension] |
 | Comet | Full | Indicator only[^browsers] |
@@ -186,6 +187,7 @@ TextWarden is tuned for the apps below. Some apps give macOS less information ab
 
 [^notion]: Notion does not make every text block available to macOS at once, so some errors appear in the indicator without an underline. See [Notion support notes](docs/applications/NOTION.md).
 [^obsidian]: Obsidian exposes the rendered portion of an editable note to macOS. TextWarden checks that text in Live Preview and Source mode and draws underlines where it can locate the affected text. See [Obsidian support notes](docs/applications/OBSIDIAN.md).
+[^t3code]: TextWarden checks unsent prompts in the T3 Code desktop app and draws underlines where macOS exposes their position. For FreeT3 build compatibility and test steps, see [T3 Code support notes](docs/applications/T3CODE.md).
 [^powerpoint]: PowerPoint lets TextWarden read speaker notes, but not text boxes on slides. See [PowerPoint support notes](docs/applications/POWERPOINT.md).
 [^browsers]: Without an extension, browser checking uses macOS Accessibility and shows the floating indicator instead of precise underlines. Comet has no extension preview.
 [^extension]: Browser support covers text fields and simple rich-text editors; Google Docs and complex web editors are not supported yet. Precise underlines require the [extension preview](#browser-extension-preview), activated on the page through its toolbar.
