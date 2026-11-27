@@ -235,11 +235,22 @@ jobs:
           git diff --no-renames --name-only -z "$BASE_SHA" HEAD -- > "$changed_files" || exit 0
           [[ -s "$changed_files" ]] || exit 0
 
-          # CONFIGURATION.md and TROUBLESHOOTING.md feed the built Help Book.
+          help_book=false
           while IFS= read -r -d '' path; do
             case "$path" in
-              README.md|CONTRIBUTING.md|AGENTS.md|ARCHITECTURE.md|BUILD.md|CLAUDE.md|docs/*|.github/pull_request_template.md) ;;
+              README.md|CONTRIBUTING.md|SECURITY.md|AGENTS.md|ARCHITECTURE.md|BUILD.md|CLAUDE.md|docs/*) ;;
+              .github/pull_request_template.md|.github/ISSUE_TEMPLATE/*.yml|.github/ISSUE_TEMPLATE/*.yaml|.github/ISSUE_TEMPLATE/*.md) ;;
+              CONFIGURATION.md|TROUBLESHOOTING.md) help_book=true ;;
               *) exit 0 ;;
             esac
           done < "$changed_files"
+          echo "help-book=$help_book" >> "$GITHUB_OUTPUT"
           echo "docs-only=true" >> "$GITHUB_OUTPUT"
+      - name: Render the bundled Help Book manuals
+        if: steps.diff.outputs.help-book == 'true'
+        run: |
+          if ! command -v pandoc >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends pandoc
+          fi
+          make help-book
