@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#181616">
+  <title>TextWarden — Private grammar checking for Mac</title>
+  <meta name="description" content="Catch English grammar and spelling mistakes as you type. TextWarden is a fast, free, open-source writing assistant that checks your work entirely on your Mac.">
+  <link rel="canonical" href="https://textwarden.io/">
+  <meta property="og:title" content="TextWarden — Private grammar checking for Mac">
+  <meta property="og:description" content="Catch English spelling and grammar mistakes across Mac apps, even offline. TextWarden is free and open source.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://textwarden.io/">
+  <meta property="og:image" content="https://textwarden.io/site/mail-example.webp">
+  <link rel="icon" type="image/svg+xml" href="site/mascot.svg">
+  <link rel="stylesheet" href="site/style.css">
+  <script src="site/site.js" defer></script>
+</head>
+<body id="top">
+  <a class="skip" href="#main">Skip to content</a>
+  <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-github" viewBox="0 0 24 24"><path stroke="none" fill="currentColor" d="M12 .9a11.1 11.1 0 0 0-3.51 21.63c.55.1.75-.24.75-.54v-2.1c-3.06.67-3.7-1.3-3.7-1.3-.5-1.26-1.22-1.6-1.22-1.6-1-.69.08-.68.08-.68 1.1.08 1.69 1.14 1.69 1.14.98 1.68 2.57 1.2 3.2.91.1-.71.38-1.2.7-1.48-2.44-.28-5-1.22-5-5.45 0-1.2.42-2.19 1.13-2.96-.11-.28-.49-1.4.11-2.91 0 0 .93-.3 3.04 1.13a10.6 10.6 0 0 1 5.53 0c2.12-1.43 3.04-1.13 3.04-1.13.6 1.5.22 2.63.11 2.91.71.77 1.13 1.75 1.13 2.96 0 4.24-2.57 5.17-5.02 5.44.4.34.75 1.01.75 2.05v3.07c0 .3.2.65.76.54A11.1 11.1 0 0 0 12 .9Z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-5.2 8.2-8 9-2.8-.8-8-4-8-9V6z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></symbol>
+    <symbol id="i-laptop" viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="12" rx="1.6"/><path d="m4 16.5-2 3h20l-2-3"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="m7.5 7-5 5 5 5m9-10 5 5-5 5M14 4l-4 16"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><path d="M14 4h6v6m0-6-7 7M10 20H4v-6m0 6 7-7"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4.5" width="20" height="15" rx="3"/><path d="m3.5 6.5 8.5 6 8.5-6"/></symbol>
+    <symbol id="i-feather" viewBox="0 0 24 24"><path d="M20.3 3.7c1.8 1.8.7 6.4-2.8 10L12 19l-7 1 1-7 5.3-5.5c3.7-3.6 7.1-5.7 9-3.8ZM3 22 15 10m-5 5h5"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path fill="currentColor" stroke="none" d="m10 8 6 4-6 4z"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M3 4.5c3-1 6-.5 9 1.5 3-2 6-2.5 9-1.5v14c-3-1-6-.5-9 1.5-3-2-6-2.5-9-1.5zm9 1.5v14"/></symbol>
+    <symbol id="i-tune" viewBox="0 0 24 24"><path d="M3 6h7m5 0h6M3 12h2m5 0h11M3 18h10m5 0h3"/><circle cx="12.5" cy="6" r="2.5"/><circle cx="7.5" cy="12" r="2.5"/><circle cx="15.5" cy="18" r="2.5"/></symbol>
+  </svg>
+
+  <header class="masthead">
+    <div class="wrap masthead-inner">
+      <a class="brand" href="#top"><img src="site/mascot.svg" width="40" height="40" alt="">TextWarden</a>
+      <nav aria-label="Main navigation">
+        <a href="#features">Features</a>
+        <a href="#privacy">Privacy</a>
+        <a class="github" href="https://github.com/PhilipSchmid/textwarden"><svg aria-hidden="true"><use href="#i-github"/></svg>GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="ink-ribbon" aria-hidden="true"></div>
+      <div class="wrap hero-layout">
+        <div class="hero-copy">
+          <p class="eyebrow"><span></span> On-device grammar checker</p>
+          <h1 id="hero-title">Better writing.<br><em>Kept private.</em></h1>
+          <p class="intro">Catch English spelling and grammar mistakes as you type in supported Mac apps. Every check runs on your device, even offline.</p>
+          <div class="hero-actions">
+            <a class="download" href="https://github.com/PhilipSchmid/textwarden/releases/latest"><img src="site/download-macos-button.png" width="388" height="131" alt="Download TextWarden for macOS"></a>
+            <a class="explore" href="#features"><svg aria-hidden="true"><use href="#i-play"/></svg>See it in action</a>
+          </div>
+          <p class="compatibility">macOS 14+ <span>·</span> Intel &amp; Apple silicon</p>
+        </div>
+
+        <div class="demo" role="group" aria-label="Interactive example of a spelling correction in Apple Mail">
+          <div class="mail-window">
+            <div class="window-bar">
+              <span class="traffic" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span><svg aria-hidden="true"><use href="#i-mail"/></svg> Apple Mail</span>
+            </div>
+            <div class="mail-content">
+              <p class="mail-subject"><span>Subject</span> Saturday trail cleanup</p>
+              <div class="draft"><p>Bring gloves for the morning walk.</p><p>We <button id="example-word" class="marked-word" aria-expanded="true" aria-controls="native-suggestion" type="button" disabled>reccomend</button> meeting at the east gate.</p></div>
+              <div class="popover-space">
+                <div id="native-suggestion" class="native-suggestion">
+                  <img src="site/spelling-popover.webp" width="482" height="200" alt="TextWarden spelling mistake popover offering recommend, with the Option–1 shortcut.">
+                  <div class="hotspots" hidden>
+                    <button class="hotspot dismiss" type="button" aria-label="Close spelling suggestion"></button>
+                    <button class="hotspot replace" type="button" aria-label="Replace with recommend"></button>
+                    <button class="hotspot more" type="button" aria-label="More suggestion actions" aria-expanded="false" aria-controls="more-actions"></button>
+                  </div>
+                  <div id="more-actions" class="demo-menu" hidden>
+                    <button type="button">Ignore suggestion</button>
+                    <button type="button">Ignore this rule</button>
+                    <button type="button">Add to dictionary</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="demo-caption"><span class="caption-line"></span><span id="demo-hint">Spelling correction <span>/</span> Apple Mail demo</span><button class="replay" type="button" hidden>Replay example</button></div>
+          <span class="sr-only" id="example-status" role="status"></span>
+        </div>
+      </div>
+    </section>
+
+    <div class="proof" id="at-a-glance">
+      <ul class="wrap" role="list" aria-label="TextWarden at a glance">
+        <li>
+          <svg aria-hidden="true"><use href="#i-shield"/></svg>
+          <div><strong>Private proofreading</strong><p>Your Mac checks spelling and grammar even when you’re offline. TextWarden never uploads your draft.</p></div>
+        </li>
+        <li>
+          <svg aria-hidden="true"><use href="#i-code"/></svg>
+          <div><strong>Free and open source</strong><p>Use TextWarden without an account or subscription. Anyone can <a href="https://github.com/PhilipSchmid/textwarden">read the code on GitHub</a>.</p></div>
+        </li>
+        <li>
+          <svg aria-hidden="true"><use href="#i-laptop"/></svg>
+          <div><strong>Exclusively for Mac</strong><p>Review suggestions in supported Mac apps with a floating pill and customizable keyboard shortcuts.</p></div>
+        </li>
+      </ul>
+    </div>
+
+    <section class="wrap showcase section" id="features" aria-labelledby="showcase-title">
+      <div class="section-heading reveal">
+        <div><p class="eyebrow"><span></span> Writing tools</p><h2 id="showcase-title">Right where you <em>write.</em></h2></div>
+        <p>Proofread and revise in <a href="#supported-apps">supported Mac apps</a>.</p>
+      </div>
+      <div class="gallery reveal">
+        <div id="examples" aria-label="TextWarden features"></div>
+        <figure data-tab="Inline corrections" id="mail">
+          <div class="gallery-caption">
+            <h3>Fix mistakes as you type.</h3>
+            <p>Hover over an underline to see what TextWarden spotted. Click a suggestion to correct the word or punctuation in place. Use Fix All to apply every edit that has just one suggested correction.</p>
+            <p>For a faster review, press <kbd>Control–Option–G</kbd> to open grammar suggestions, then <kbd>Tab</kbd> to accept the current one. You can customize these and other <a href="https://github.com/PhilipSchmid/textwarden/blob/main/CONFIGURATION.md#keyboard-shortcuts">keyboard shortcuts</a> in General preferences.</p>
+          </div>
+          <a class="capture" href="site/mail-example.webp" aria-label="Enlarge the inline spelling suggestion in Apple Mail">
+            <span class="capture-bar"><span>Spelling suggestion</span><span>Shown in Apple Mail</span></span>
+            <span class="capture-body"><img src="site/mail-example.webp" width="660" height="307" loading="lazy" alt="TextWarden underlines “reccomend” in an Apple Mail draft and offers “recommend” in its popover."></span>
+            <svg class="expand-icon" aria-hidden="true"><use href="#i-expand"/></svg>
+          </a>
+        </figure>
+        <figure data-tab="Grammar categories" id="messengers">
+          <div class="gallery-caption">
+            <h3>Choose what gets flagged.</h3>
+            <p>Color-coded underlines help you tell a typo from redundant wording at a glance. Choose which categories to check in Grammar preferences. The same settings apply across all supported apps.</p>
+          </div>
+          <a class="capture" href="site/whatsapp-dinner.webp" aria-label="Enlarge the color-coded underlines in WhatsApp">
+            <span class="capture-bar"><span>Typo &amp; redundancy</span><span>Shown in WhatsApp</span></span>
+            <span class="capture-body"><img src="site/whatsapp-dinner.webp" width="968" height="409" loading="lazy" alt="A multiline dinner plan in the WhatsApp composer. Blue underlines “ATM machine.” A pointer rests on the red typo, with one TextWarden popover offering “confirmed that.”"></span>
+            <svg class="expand-icon" aria-hidden="true"><use href="#i-expand"/></svg>
+          </a>
+        </figure>
+        <figure data-tab="Browser extension" id="browser">
+          <div class="gallery-caption">
+            <h3>Proofread in your browser.</h3>
+            <p>The TextWarden extension adds inline suggestions to text fields and simple web editors in these browsers. Click the feather in the toolbar to start checking the current page.</p>
+            <ul class="browsers" aria-label="Browsers with extension support">
+              <li><img src="site/chrome.webp" width="24" height="24" alt="" loading="lazy">Chrome</li>
+              <li><img src="site/brave.webp" width="24" height="24" alt="" loading="lazy">Brave</li>
+              <li><img src="site/firefox.webp" width="24" height="24" alt="" loading="lazy">Firefox</li>
+              <li><img src="site/zen.webp" width="24" height="24" alt="" loading="lazy">Zen</li>
+              <li><img src="site/safari.webp" width="24" height="24" alt="" loading="lazy">Safari</li>
+            </ul>
+            <p class="browser-note">Google Docs and other complex editors are outside the preview’s scope.</p>
+          </div>
+          <a class="capture" href="site/chrome-walk.webp" aria-label="Enlarge the browser extension example in Chrome">
+            <span class="capture-bar"><span>Inline browser checks</span><span>Shown in Chrome</span></span>
+            <span class="capture-body"><img src="site/chrome-walk.webp" width="1604" height="666" loading="lazy" alt="Chrome shows a neighborhood walking group newsletter. TextWarden underlines “tril” in the advice to wear sturdy shoes."></span>
+            <svg class="expand-icon" aria-hidden="true"><use href="#i-expand"/></svg>
+          </a>
+        </figure>
+        <figure data-tab="Quick Rewrite" id="rewrite">
+          <div class="gallery-caption">
+            <h3>Rewrite in your chosen style.</h3>
+            <p>With AI style checking enabled, select a passage in a supported editor and press <kbd>Option–Shift–R</kbd>. TextWarden rewrites it in your preferred style, such as concise or formal. Compare both versions before applying the change.</p>
+          </div>
+          <a class="capture" href="site/rewrite-update.webp" aria-label="Enlarge Quick Rewrite screenshot">
+            <span class="capture-bar"><span>Quick Rewrite</span><span>Original &amp; rewrite</span></span>
+            <span class="capture-body"><img src="site/rewrite-update.webp" width="880" height="358" loading="lazy" alt="TextWarden shortens “in the process of reviewing” to “reviewing” while keeping the count of 17 reports and tomorrow’s deadline. The native window offers Apply and Cancel."></span>
+            <svg class="expand-icon" aria-hidden="true"><use href="#i-expand"/></svg>
+          </a>
+        </figure>
+        <figure data-tab="AI Compose" id="compose">
+          <div class="gallery-caption">
+            <h3>Turn an instruction into a draft.</h3>
+            <p>Open AI Compose from the floating pill or press <kbd>Control–Option–W</kbd>. Describe what you want to write, or select a passage first and ask for a specific change.</p>
+            <p>Choose a tone and generate a draft with Apple Intelligence on your Mac. Review it, then insert it into your editor or copy it.</p>
+          </div>
+          <a class="capture" href="site/ai-compose.webp" aria-label="Enlarge the AI Compose instruction and draft">
+            <span class="capture-bar"><span>AI Compose</span><span>Instruction &amp; draft</span></span>
+            <span class="capture-body"><img src="site/ai-compose.webp" width="800" height="916" loading="lazy" alt="AI Compose turns a request for a one-sentence invitation into “Join us for a Saturday morning ridge walk, meeting at the north gate at nine.” Concise is selected and the draft is ready to insert."></span>
+            <svg class="expand-icon" aria-hidden="true"><use href="#i-expand"/></svg>
+          </a>
+        </figure>
+        <figure data-tab="Sketch Pad" id="sketch-pad">
+          <div class="gallery-caption">
+            <h3>A place to work on a draft.</h3>
+            <p>Open Sketch Pad, TextWarden’s built-in editor, from the menu bar or press <kbd>Control–Option–N</kbd>. Your drafts save automatically on your Mac, so you can come back to them later.</p>
+            <p>Review suggestions beside your text and see how easy it is to read. When you’re ready to share it, copy the draft or export it as Markdown.</p>
+          </div>
+          <a class="capture" href="site/sketch-pad.webp" aria-label="Enlarge the Sketch Pad editor and writing insights">
+            <span class="capture-bar"><span>Sketch Pad</span><span>Draft &amp; insights</span></span>
+            <span class="capture-body"><img src="site/sketch-pad.webp" width="1960" height="1620" loading="lazy" alt="Sketch Pad shows a draft about picking up book club copies at the library. The insights panel beside the draft shows its readability score and suggested edits."></span>
+            <svg class="expand-icon" aria-hidden="true"><use href="#i-expand"/></svg>
+          </a>
+        </figure>
+      </div>
+      <dialog class="viewer" aria-labelledby="viewer-title">
+        <div class="viewer-bar"><h3 id="viewer-title">Screenshot</h3><button class="viewer-zoom" type="button" aria-controls="viewer-image" aria-pressed="false">Actual size</button><button class="viewer-close" type="button" autofocus>Close <span aria-hidden="true">×</span></button></div>
+        <div class="viewer-image" id="viewer-image" role="region" aria-label="Screenshot detail" tabindex="-1"><img src="site/mail-example.webp" loading="lazy" alt=""></div>
+      </dialog>
+      <div class="feature-notes">
+        <article class="reveal" id="word-lists"><svg aria-hidden="true"><use href="#i-book"/></svg><h3>A dictionary that fits</h3><p>Six built-in word lists cover IT terminology, brand and company names, first names, surnames, internet abbreviations, and Gen Z slang. Switch each list on or off in Grammar preferences and add your own words.</p></article>
+        <article class="reveal"><svg aria-hidden="true"><use href="#i-feather"/></svg><h3>Readability feedback</h3><p>Once you’ve written 30 words, TextWarden can score how easy the passage is to read and flag sentences that may be too complex for your audience.</p></article>
+        <article class="reveal"><svg aria-hidden="true"><use href="#i-tune"/></svg><h3>Control by app and site</h3><p>Pause checks in one app, hide its underlines, or exclude a website. TextWarden keeps checking your writing elsewhere.</p></article>
+      </div>
+    </section>
+
+    <section class="wrap section" id="supported-apps" aria-labelledby="apps-title">
+      <div class="section-heading reveal">
+        <h2 id="apps-title">Supported <em>apps.</em></h2>
+        <a class="section-link" href="https://github.com/PhilipSchmid/textwarden#supported-apps">View app compatibility guide</a>
+      </div>
+      <div class="apps-layout">
+        <dl class="app-directory">
+          <div><dt>Email</dt><dd>Apple Mail, Microsoft Outlook, Proton Mail</dd></div>
+          <div><dt>Messaging</dt><dd>Apple Messages, WhatsApp, Telegram, WeChat, Slack, Microsoft Teams, Cisco Webex</dd></div>
+          <div><dt>Documents and notes</dt><dd>Apple Notes, Apple Pages, TextEdit, Microsoft Word, Microsoft PowerPoint (speaker notes), Notion and Obsidian<sup><a href="#underline-note" aria-label="Note 1 about underlines in Notion and Obsidian">1</a></sup></dd></div>
+          <div><dt>Planning</dt><dd>Apple Calendar, Apple Reminders</dd></div>
+          <div><dt>AI assistants</dt><dd>ChatGPT, Claude, Codex, Perplexity</dd></div>
+          <div><dt>Browsers</dt><dd>Chrome, Brave, Firefox, Safari, and Zen support inline checks with the <a href="https://github.com/PhilipSchmid/textwarden/blob/main/BrowserExtension/README.md">extension preview</a>.</dd></div>
+        </dl>
+        <div class="app-options">
+          <h3>Set your preferences per app</h3>
+          <p>Checking is on by default in the apps listed here. In <strong>Preferences → Applications</strong>, pause an app for an hour, for 24 hours, or until you resume it. To hide its underlines while keeping suggestions, turn off <strong>More → Show Underlines</strong>.</p>
+          <h3>Try an unlisted app</h3>
+          <p>TextWarden asks before reading text in an eligible app it doesn’t recognize. Choose <strong>Try Safely</strong> to review suggestions in the floating pill and copy a correction to paste yourself. Choose <strong>Keep Paused</strong> to leave checking off. You can change your choice later in Applications preferences.</p>
+          <p>Want built-in support? <a href="https://github.com/philipschmid/textwarden/discussions/new?category=ideas&amp;title=App%20Support%20Request">Request app support on GitHub</a> and tell us where you write in the app. We’ll consider adding it to the supported list.</p>
+        </div>
+      </div>
+      <p class="apps-note" id="underline-note" role="note" tabindex="-1"><sup>1</sup> Notion and the Obsidian note editor expose only some text positions to macOS. You can review suggestions in the floating pill even when TextWarden can’t underline a passage.</p>
+    </section>
+
+    <section class="controls wrap section" id="controls" aria-labelledby="controls-title">
+      <div class="section-heading reveal">
+        <h2 id="controls-title">Customize <em>TextWarden.</em></h2>
+        <p>Choose what gets flagged and how suggestions look.</p>
+      </div>
+      <div class="control-list">
+        <details name="tool-controls" id="settings" open>
+          <summary>Grammar preferences</summary>
+          <div class="control-detail">
+            <p>Choose from five English dialects and fine-tune punctuation rules, including whether to suggest the Oxford comma. For multilingual drafts, choose which of 69 other languages to skip during English checks.</p>
+            <a class="capture" href="site/settings-checks-full.webp" aria-label="Enlarge TextWarden settings">
+              <span class="capture-bar"><span>TextWarden Settings</span><span>Grammar</span></span>
+              <span class="capture-body"><img src="site/settings-checks.webp" width="1700" height="1080" loading="lazy" alt="The Grammar tab has switches for spelling, typos, word order, agreement, and punctuation."></span>
+              <svg class="expand-icon" aria-hidden="true"><use href="#i-expand"/></svg>
+            </a>
+          </div>
+        </details>
+        <details name="tool-controls" id="appearance">
+          <summary>Suggestion appearance</summary>
+          <div class="control-detail">
+            <dl class="appearance-options">
+              <div><dt>Popovers</dt><dd>Set the text size to 10–20&nbsp;pt. Open suggestions on hover or click.</dd></div>
+              <div><dt>Themes</dt><dd>The settings window can follow macOS or use Light or Dark mode. Choose a separate theme for the floating pill and popovers.</dd></div>
+              <div><dt>Underlines</dt><dd>Choose a line thickness from 1 to 5&nbsp;pt.</dd></div>
+            </dl>
+            <a class="capture" href="site/settings-appearance-full.webp" aria-label="Enlarge popover, theme, and underline settings">
+              <span class="capture-bar"><span>TextWarden Settings</span><span>Appearance</span></span>
+              <span class="capture-body"><img src="site/settings-appearance.webp" width="1456" height="944" loading="lazy" alt="Appearance settings with Show on hover enabled, 13 pt suggestion text, the System window theme, and Dark overlays."></span>
+              <svg class="expand-icon" aria-hidden="true"><use href="#i-expand"/></svg>
+            </a>
+          </div>
+        </details>
+        <details name="tool-controls" id="toolbar">
+          <summary>Browser toolbar</summary>
+          <div class="control-detail">
+            <p>Open the feather menu in a supported browser to show or hide underlines on the current page. You can also pause checking for the whole site.</p>
+            <a class="capture" href="site/chrome-toolbar.webp" aria-label="Enlarge the open browser extension">
+              <span class="capture-bar"><span>Toolbar menu</span><span>Shown in Chrome</span></span>
+              <span class="capture-body"><img src="site/chrome-toolbar.webp" width="900" height="849" loading="lazy" alt="The TextWarden feather in the Chrome toolbar with its menu open. The panel shows page checking, underlines, and site pause controls."></span>
+              <svg class="expand-icon" aria-hidden="true"><use href="#i-expand"/></svg>
+            </a>
+          </div>
+        </details>
+        <details name="tool-controls" id="suggestion-options">
+          <summary>Suggestion options</summary>
+          <div class="control-detail">
+            <p>Open <strong>More</strong> on a suggestion to ignore it once or turn off the rule. For a spelling issue, you can also add a name or specialist term to your dictionary.</p>
+            <a class="capture" href="site/suggestion-options.webp" aria-label="Enlarge the suggestion options">
+              <span class="capture-bar"><span>TextWarden</span><span>More actions</span></span>
+              <span class="capture-body"><img src="site/suggestion-options.webp" width="492" height="494" loading="lazy" alt="The spelling popover with More open, showing Ignore suggestion, Ignore this rule, and Add to dictionary."></span>
+              <svg class="expand-icon" aria-hidden="true"><use href="#i-expand"/></svg>
+            </a>
+          </div>
+        </details>
+        <details name="tool-controls" id="pill">
+          <summary>Floating pill</summary>
+          <div class="control-detail">
+            <p>Click the grammar count to review corrections, even in editors that don’t show underlines. With AI writing tools enabled, the purple count opens style suggestions you can accept, reject, or retry. The compose button starts a draft. Drag the pill to a window edge to dock it. In native Mac apps, TextWarden remembers your placement for each app.</p>
+            <fieldset class="pill-views">
+              <legend>Pill view</legend>
+              <label><input type="radio" name="pill-view" value="right" checked> Right edge</label>
+              <label><input type="radio" name="pill-view" value="top"> Top edge</label>
+              <label><input type="radio" name="pill-view" value="suggestions"> Style suggestions</label>
+              <div class="pill-shots">
+                <a class="capture" data-position="right" href="site/pill-right.webp" aria-label="Enlarge the pill on the right edge">
+                  <span class="capture-bar"><span>Floating pill</span><span>Right edge</span></span>
+                  <span class="capture-body"><img src="site/pill-right.webp" width="1604" height="665" loading="lazy" alt="The writing tools form a vertical pill on the right side of the editor."></span>
+                  <svg class="expand-icon" aria-hidden="true"><use href="#i-expand"/></svg>
+                </a>
+                <a class="capture" data-position="top" href="site/pill-top.webp" aria-label="Enlarge the pill on the top edge">
+                  <span class="capture-bar"><span>Floating pill</span><span>Top edge</span></span>
+                  <span class="capture-body"><img src="site/pill-top.webp" width="1604" height="665" loading="lazy" alt="After dragging to the top, the same writing tools form a horizontal pill above the editor."></span>
+                  <svg class="expand-icon" aria-hidden="true"><use href="#i-expand"/></svg>
+                </a>
+                <a class="capture" data-position="suggestions" href="site/pill-style.webp" aria-label="Enlarge the style suggestion opened from the floating pill">
+                  <span class="capture-bar"><span>Style suggestion</span><span>Floating pill</span></span>
+                  <span class="capture-body"><img src="site/pill-style.webp" width="932" height="302" loading="lazy" alt="The purple style count is selected. TextWarden proposes replacing “extra bags” with “additional bags” and offers Accept, Reject, and Retry."></span>
+                  <svg class="expand-icon" aria-hidden="true"><use href="#i-expand"/></svg>
+                </a>
+              </div>
+            </fieldset>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section class="privacy section" id="privacy" aria-labelledby="privacy-title">
+      <div class="wrap privacy-layout">
+        <div class="reveal"><p class="eyebrow"><span></span> Privacy by design</p><h2 id="privacy-title">Your words stay<br><em>on your Mac.</em></h2><p class="privacy-intro">TextWarden never uploads your drafts or prompts. You can keep proofreading with Wi-Fi switched off.</p></div>
+        <dl class="privacy-details">
+          <div class="reveal"><dt>Fast feedback, entirely local</dt><dd>The bundled Harper engine checks English grammar, spelling, and punctuation as you type, without waiting for a server.</dd></div>
+          <div class="reveal"><dt>Optional AI stays local too</dt><dd>Style suggestions, rewrites, and composition use Apple Intelligence on a compatible M-series Mac with macOS 26 or later. These tools are off by default.</dd></div>
+          <div class="reveal" id="support">
+            <dt>Open code, no tracking</dt>
+            <dd>No account, subscription, or telemetry. Your dictionary and writing statistics stay on your device. Read the <a href="https://github.com/PhilipSchmid/textwarden">source code on GitHub</a> under the Apache 2.0 license.</dd>
+            <dd class="project-support">
+              <p>If TextWarden helps you write, you can support its development.</p>
+              <a class="coffee" href="https://buymeacoffee.com/textwarden"><img src="site/bmc-button-black.png" width="1090" height="306" loading="lazy" alt="Support TextWarden on Buy Me a Coffee"></a>
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="install wrap section" aria-labelledby="download-title">
+      <img class="install-mascot" src="site/mascot.svg" width="80" height="80" loading="lazy" alt="">
+      <h2 id="download-title">At home <em>on your Mac.</em></h2>
+      <p>Looking for an alternative to Grammarly or LanguageTool? TextWarden checks English spelling and grammar for free, entirely on your Mac.</p>
+      <a class="download" href="https://github.com/PhilipSchmid/textwarden/releases/latest"><img src="site/download-macos-button.png" width="388" height="131" alt="Download TextWarden for macOS"></a>
+      <p class="compatibility">Exclusively for macOS 14 or later</p>
+      <p class="install-help">Move TextWarden to Applications and grant Accessibility permission to check writing in other apps. In Preferences → About, check for updates manually or turn on automatic daily checks.</p>
+    </section>
+  </main>
+
+  <footer class="wrap footer">
+    <a class="brand" href="#top"><img src="site/mascot.svg" width="32" height="32" loading="lazy" alt="">TextWarden</a>
+    <nav aria-label="Project links">
+      <a href="#supported-apps">Supported apps</a>
+      <a href="https://github.com/PhilipSchmid/textwarden/releases">Releases</a>
+      <a href="https://github.com/PhilipSchmid/textwarden/discussions">Community</a>
+    </nav>
+  </footer>
+</body>
+</html>
