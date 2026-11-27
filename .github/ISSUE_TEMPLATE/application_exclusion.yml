@@ -7,6 +7,7 @@ body:
       value: |
         To pause an app now, open TextWarden Settings → Applications and choose Paused Until Resumed, or use Pause Another App….
         Share only the app's identity and purpose. Do not include passwords, account details, or private text.
+        If TextWarden exposed sensitive text, [report it privately](https://github.com/PhilipSchmid/textwarden/security/policy).
   - type: input
     id: app
     attributes:

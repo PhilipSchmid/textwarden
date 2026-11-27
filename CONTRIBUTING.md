@@ -233,6 +233,8 @@ verified signatures on `main`.
 
 ## Bug Reports and Feature Requests
 
+For a suspected vulnerability or security incident, follow the [security reporting policy](SECURITY.md) to contact the maintainer privately.
+
 Use the [bug report template](https://github.com/PhilipSchmid/textwarden/issues/new/choose) for defects. Include the TextWarden version, macOS version, host app, exact steps, expected behavior, actual behavior, and a diagnostic export when appropriate.
 
 Use [GitHub Discussions](https://github.com/PhilipSchmid/textwarden/discussions) for feature requests and questions.
