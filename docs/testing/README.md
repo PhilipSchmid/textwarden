@@ -2,6 +2,12 @@
 
 TextWarden's live canaries combine a real host application with a small, text-free state oracle. They test behavior that unit tests cannot reproduce reliably: macOS focus changes, Accessibility notifications, range geometry, global pointer events, scrolling, app activation, and correction insertion.
 
+## Choosing a test session
+
+Routine builds and tests do not need a disposable editor or Mail draft. The Swift suite skips tests that explicitly present Rewrite, Compose, or onboarding windows unless requested. Both macOS CI jobs run them. To inspect those windows locally, run `make test-desktop` in a dedicated GUI session. The normal Swift suite still uses TextWarden as its XCTest host.
+
+For the host-app canaries below, use a dedicated Mac or a macOS VM with its own logged-in desktop and Accessibility permissions. For the [live CPU gate](../CPU_PROFILING.md#local-regression-gate), run baseline and candidate on the same idle Mac. A second Space or Git worktree shares the current login's input focus. If using your daily Mac, reserve an uninterrupted interval for these checks. Reuse the disposable TextEdit document and recipient-free draft for compatible cases, restore the fixture between cases, and close only the test windows afterward.
+
 ## Test layers
 
 1. **Host application:** use macOS Computer Use when available, plus the checked-in native driver for guarded input, to create a disposable local document or unsent self-draft, type a known fixture, inspect the application's Accessibility tree, and capture only the minimum required part of the host window.

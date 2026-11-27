@@ -14,7 +14,7 @@
 
 ## Test and submit
 
-- Use `make test` for automated tests and `make run` after app code changes to test the installed build. For Accessibility changes, exercise the affected host apps using the [live testing guide](docs/testing/README.md). See [BUILD.md](BUILD.md) for setup.
+- Use `make test` for routine local checks. CI covers the visible window tests. Run `make test-desktop`, live CPU captures, and host-app checks on a dedicated test desktop or during a reserved interval on the developer’s Mac. Use `make run` after app code changes to test the installed build. For Accessibility changes, exercise the affected host apps using the [live testing guide](docs/testing/README.md). See [BUILD.md](BUILD.md) for setup.
 - Before committing, run `make ci-check` and fix failures. Runtime and dependency changes also need the CPU smoke gate. Use the full suite for analysis, Accessibility, timers, overlays, or performance changes. Record both revisions and results, and report inconclusive measurements. Documentation-only changes are exempt from the CPU gate.
 - Commit after the user validates the change and requests a commit. Use a [Conventional Commit subject](CONTRIBUTING.md#commit-messages) and `git commit -s -S` for every commit. Let Git generate the DCO sign-off. Omit `Co-Authored-By`, AI attribution, and manual trailers. See [Commit sign-off and signatures](CONTRIBUTING.md#commit-sign-off-and-signatures).
 - Follow the [pull request guidelines](CONTRIBUTING.md#pull-requests). Maintainers rebase-merge approved PRs. For release work, use the [maintainer release procedure](CONTRIBUTING.md#releases).

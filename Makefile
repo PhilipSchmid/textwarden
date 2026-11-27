@@ -3,7 +3,7 @@
 
 .PHONY: help build build-rust build-swift \
         run run-only install uninstall \
-        test test-rust test-swift test-e2e-tools test-browser clean clean-all clean-derived \
+        test test-rust test-swift test-desktop test-e2e-tools test-browser clean clean-all clean-derived \
         ci-check fmt fmt-rust fmt-swift lint lint-rust lint-swift \
         logs kill status reset reset-onboarding xcode version \
         release release-alpha release-beta release-rc release-upload \
@@ -80,7 +80,7 @@ logs: ## Watch app logs
 
 ##@ Testing
 
-test: test-rust test-swift test-e2e-tools test-browser ## Run all tests
+test: test-rust test-swift test-e2e-tools test-browser ## Run the default local tests
 
 test-browser: ## Run browser extension checks (requires Node.js)
 	@node --check BrowserExtension/content.js
@@ -101,6 +101,9 @@ test-swift: ## Run Swift tests (unit tests only, excludes performance benchmarks
 		-skip-testing:TextWardenTests/LargeDocumentPerformanceTests \
 		2>&1 | grep -E '(failed|error:|TEST SUCCEEDED|TEST FAILED)'
 	@echo "$(GREEN)✅ Swift tests passed$(NC)"
+
+test-desktop: ## Run Swift tests including visible Rewrite, Compose, and setup windows
+	@TEST_RUNNER_TEXTWARDEN_TEST_DESKTOP=1 $(MAKE) test-swift
 
 test-e2e-tools: ## Run E2E developer-tool tests
 	@python3 Scripts/e2e-state.py self-test

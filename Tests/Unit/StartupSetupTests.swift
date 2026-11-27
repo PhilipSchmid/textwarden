@@ -15,7 +15,8 @@ final class StartupSetupTests: XCTestCase {
     }
 
     @MainActor
-    func testGrantClosesRecoveryButKeepsFirstRunOpen() {
+    func testGrantClosesRecoveryButKeepsFirstRunOpen() throws {
+        try requireDesktopWindows()
         let delegate = AppDelegate()
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 420),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
@@ -35,6 +36,7 @@ final class StartupSetupTests: XCTestCase {
 
     @MainActor
     func testWindowCloseClearsSetupAndReturnsToMenuBar() async throws {
+        try requireDesktopWindows()
         let preferences = UserPreferences.shared
         let completed = preferences.hasCompletedOnboarding
         let activationPolicy = NSApp.activationPolicy()
