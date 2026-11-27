@@ -4,7 +4,7 @@ The landing page lives in `docs/index.html`. GitHub Pages can serve the `docs` d
 
 ## Preview locally
 
-From the repository root, run `python3 -m http.server 8000 --bind 127.0.0.1 --directory docs` and open [the local preview](http://127.0.0.1:8000). Choose the blue “recommend” suggestion, replay the example, and check the More menu, the feature tabs (including AI Compose and Sketch Pad), and the mobile layout. Open a screenshot, toggle Actual size, and press Escape to return to the gallery. Under Customize TextWarden, expand the toolbar and suggestion menus and switch between the pill positions and the open style suggestion. Disable JavaScript to read the feature tabs in sequence and use the native customization controls.
+From the repository root, run `python3 -m http.server 8000 --bind 127.0.0.1 --directory docs` and open [the local preview](http://127.0.0.1:8000). Open the Apple Mail screenshot in the hero, then check the feature tabs (including AI Compose and Sketch Pad) and the mobile layout. Open a screenshot, toggle Actual size, and press Escape to return to the gallery. Under Customize TextWarden, expand the toolbar and suggestion menus and switch between the pill positions and the open style suggestion. Disable JavaScript to read the feature tabs in sequence and use the native customization controls.
 
 ## Publish on the two domains
 
