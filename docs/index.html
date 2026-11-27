@@ -25,7 +25,6 @@
     <symbol id="i-laptop" viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="12" rx="1.6"/><path d="m4 16.5-2 3h20l-2-3"/></symbol>
     <symbol id="i-code" viewBox="0 0 24 24"><path d="m7.5 7-5 5 5 5m9-10 5 5-5 5M14 4l-4 16"/></symbol>
     <symbol id="i-expand" viewBox="0 0 24 24"><path d="M14 4h6v6m0-6-7 7M10 20H4v-6m0 6 7-7"/></symbol>
-    <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4.5" width="20" height="15" rx="3"/><path d="m3.5 6.5 8.5 6 8.5-6"/></symbol>
     <symbol id="i-feather" viewBox="0 0 24 24"><path d="M20.3 3.7c1.8 1.8.7 6.4-2.8 10L12 19l-7 1 1-7 5.3-5.5c3.7-3.6 7.1-5.7 9-3.8ZM3 22 15 10m-5 5h5"/></symbol>
     <symbol id="i-play" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path fill="currentColor" stroke="none" d="m10 8 6 4-6 4z"/></symbol>
     <symbol id="i-book" viewBox="0 0 24 24"><path d="M3 4.5c3-1 6-.5 9 1.5 3-2 6-2.5 9-1.5v14c-3-1-6-.5-9 1.5-3-2-6-2.5-9-1.5zm9 1.5v14"/></symbol>
@@ -58,35 +57,13 @@
           <p class="compatibility">macOS 14+ <span>·</span> Intel &amp; Apple silicon</p>
         </div>
 
-        <div class="demo" role="group" aria-label="Interactive example of a spelling correction in Apple Mail">
-          <div class="mail-window">
-            <div class="window-bar">
-              <span class="traffic" aria-hidden="true"><i></i><i></i><i></i></span>
-              <span><svg aria-hidden="true"><use href="#i-mail"/></svg> Apple Mail</span>
-            </div>
-            <div class="mail-content">
-              <p class="mail-subject"><span>Subject</span> Saturday trail cleanup</p>
-              <div class="draft"><p>Bring gloves for the morning walk.</p><p>We <button id="example-word" class="marked-word" aria-expanded="true" aria-controls="native-suggestion" type="button" disabled>reccomend</button> meeting at the east gate.</p></div>
-              <div class="popover-space">
-                <div id="native-suggestion" class="native-suggestion">
-                  <img src="site/spelling-popover.webp" width="482" height="200" alt="TextWarden spelling mistake popover offering recommend, with the Option–1 shortcut.">
-                  <div class="hotspots" hidden>
-                    <button class="hotspot dismiss" type="button" aria-label="Close spelling suggestion"></button>
-                    <button class="hotspot replace" type="button" aria-label="Replace with recommend"></button>
-                    <button class="hotspot more" type="button" aria-label="More suggestion actions" aria-expanded="false" aria-controls="more-actions"></button>
-                  </div>
-                  <div id="more-actions" class="demo-menu" hidden>
-                    <button type="button">Ignore suggestion</button>
-                    <button type="button">Ignore this rule</button>
-                    <button type="button">Add to dictionary</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="demo-caption"><span class="caption-line"></span><span id="demo-hint">Spelling correction <span>/</span> Apple Mail demo</span><button class="replay" type="button" hidden>Replay example</button></div>
-          <span class="sr-only" id="example-status" role="status"></span>
-        </div>
+        <figure class="hero-example">
+          <a class="capture hero-capture" href="site/mail-hero.webp" aria-label="Enlarge the meeting update and TextWarden suggestion in Apple Mail">
+            <span class="capture-bar"><span>Apple Mail</span><span>Meeting update</span><svg class="expand-icon" aria-hidden="true"><use href="#i-expand"/></svg></span>
+            <span class="capture-body"><img src="site/mail-hero.webp" width="1010" height="604" alt="In the draft, TextWarden marks “should of” in blue. Beside the floating pill, the popover offers “should have.” Its More menu shows “Ignore suggestion” and “Ignore this rule.”"></span>
+          </a>
+          <figcaption>TextWarden catches <em>should of</em> before you send. Open the floating pill and choose <strong>should have</strong>.</figcaption>
+        </figure>
       </div>
     </section>
 
