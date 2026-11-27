@@ -240,6 +240,7 @@ jobs:
           while IFS= read -r -d '' path; do
             case "$path" in
               README.md|CONTRIBUTING.md|SECURITY.md|AGENTS.md|ARCHITECTURE.md|BUILD.md|CLAUDE.md|docs/*) ;;
+              Assets/textwarden-buy-me-a-coffee-banner.png|Assets/bmc-button-black.png|Assets/download-macos-button.png) ;;
               .github/pull_request_template.md|.github/ISSUE_TEMPLATE/*.yml|.github/ISSUE_TEMPLATE/*.yaml|.github/ISSUE_TEMPLATE/*.md) ;;
               CONFIGURATION.md|TROUBLESHOOTING.md) help_book=true ;;
               *) exit 0 ;;
