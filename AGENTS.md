@@ -1,153 +1,20 @@
-# TextWarden Development Guidelines
+# Working on TextWarden
 
-## Architecture
+## Before editing
 
-**See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architecture documentation, design patterns, dependency injection, and coding principles.** Always consult ARCHITECTURE.md when making structural changes or adding new components.
+- Branch from the latest upstream `main` using `<type>/<short-description>`. All changes go through a pull request targeting `main`. See the [development workflow](CONTRIBUTING.md#development-workflow).
+- Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing module boundaries, Accessibility strategies, or app behavior. For a host integration, follow [Adding or Fixing App Support](CONTRIBUTING.md#adding-or-fixing-app-support).
+- Capture the baseline before editing runtime code or dependencies. Use the [CPU regression guide](docs/CPU_PROFILING.md#local-regression-gate) for the baseline and candidate.
 
-- **Swift**: macOS app with SwiftUI, menu bar interface, Accessibility API integration
-- **Rust**: GrammarEngine library via FFI (swift-bridge), handles grammar analysis via Harper
-- **Apple Intelligence**: Style suggestions via Foundation Models framework (macOS 26+)
-- **Build**: `make build` (Rust first, then Xcode)
+## Implementation
 
-## Swift Guidelines
+- Target macOS 14. Guard macOS 26 features with availability checks. Prefer native SwiftUI controls that respect accessibility and system appearance.
+- Keep UI state on the main actor and blocking work off the main thread. Reuse the Accessibility bridges, text-index converters, and coordinate helpers. Validate underline bounds and verify the source text before applying a correction. See the [design rules](ARCHITECTURE.md#design-rules).
+- Use `Logger` for Swift app logging. Prefer identifiers, lengths, and ranges to user text. Safely unwrap Accessibility values, validate FFI inputs, and propagate Rust errors with `Result`. Add compatibility shims only for an existing file format, setting, or supported workflow. See [code style](CONTRIBUTING.md#code-style) and [logging and privacy](CONTRIBUTING.md#logging-and-privacy).
 
-### Logging
-Use `Logger` (os.log-based), never `print()`:
-```swift
-Logger.info("Message", category: Logger.permissions)
-Logger.debug("Details", category: Logger.ui)
-Logger.error("Failed", category: Logger.analysis)
-```
+## Test and submit
 
-Categories: `general`, `permissions`, `analysis`, `accessibility`, `ffi`, `llm`, `ui`, `performance`, `errors`, `lifecycle`, `rust`
-Levels: `trace` (high-frequency) → `debug` → `info` → `warning` → `error` → `critical`
-
-### Safety & Error Handling
-- No force unwraps (`!`) on AXValue or external data
-- Use `guard let` / `if let` for optionals
-- Handle all error cases explicitly
-
-**Error Handling Patterns:**
-```swift
-// Array access - use .first, .last, or indices.contains()
-guard let first = array.first else { return }
-guard array.indices.contains(index) else { return }
-
-// String indices - use limitedBy: parameter
-guard let endIdx = str.index(str.startIndex, offsetBy: offset, limitedBy: str.endIndex) else { return }
-
-// AXValue types - use safe helper functions (AccessibilityBridge)
-guard let frame = AccessibilityBridge.getElementFrame(element) else { return }
-
-// Optional chaining for nullable properties
-element?.attribute(forKey: key)
-```
-
-**Logging Errors:**
-- Log at appropriate level before returning nil/early
-- Include context: what failed and any relevant identifiers
-```swift
-Logger.warning("Failed to get bounds for element: \(elementRole)", category: Logger.accessibility)
-```
-
-### Thread Safety
-- UI updates on main thread: `DispatchQueue.main.async`
-- Never block main thread with sync operations
-- Use `@MainActor` for SwiftUI state
-
-## Rust Guidelines
-
-### Error Handling
-- Use `Result<T, E>` for fallible operations
-- Propagate errors with `?`, don't panic in library code
-- Log errors before returning them
-
-### FFI
-- Keep FFI boundary minimal and simple
-- Use `swift_bridge` types for cross-language communication
-- Validate all inputs from Swift side
-
-## Code Quality
-
-- Comments should explain "why", not "what"
-- Remove dead code, don't comment it out
-- Keep functions focused and small
-- Prefer editing existing files over creating new ones
-- **Check `Sources/Utilities/` before implementing common operations** (TextIndexConverter, CoordinateMapper, etc.)
-- Avoid compatibility shims unless a current file format, user setting, or supported workflow needs one
-
-## Design
-
-- Follow macOS 26 (Tahoe) design principles from Apple
-- Use native SwiftUI components where possible
-- Respect system appearance and accessibility settings
-
-## Git Workflow
-
-### Branch Protection (MANDATORY)
-
-**NEVER commit directly to `main`.** All changes must go through pull requests.
-
-1. Create a feature branch from `main` before making any changes
-2. Commit to the feature branch
-3. Push the branch and create a pull request targeting `main`
-4. Merge only after review/approval
-
-Branch naming: `<type>/<short-description>` (e.g., `feat/outlook-support`, `fix/underline-positioning`)
-
-### Commit Rules
-
-- Only commit after user validates and explicitly requests it
-- **Always run `make ci-check` and fix all findings before committing**
-- For app/runtime or dependency changes, also run the local CPU smoke gate before committing; see [CPU profiling](docs/CPU_PROFILING.md#local-regression-gate). Use the full suite for analysis, AX, timers, overlays, or performance changes. Docs-only changes are exempt. Record the baseline/candidate revisions and results; missing permissions, stale state, or noisy measurements are inconclusive, not passes. Never replace a baseline just to make the gate pass.
-- Always sign-off git commits (`-s`)
-- **All commits must be cryptographically signed (`-S`).** Never use `--no-gpg-sign` or skip signing.
-- When committing: `git commit -s -S -m "message"`
-
-### Conventional Commits (MANDATORY)
-
-**Always use conventional commit format.** See [CONTRIBUTING.md](CONTRIBUTING.md#commit-messages) for full guidelines.
-
-Format: `<type>: <description>` where type is one of:
-- `feat` | `fix` | `docs` | `refactor` | `perf` | `test` | `chore` | `ci`
-
-Examples:
-- `feat: Add Microsoft Outlook support`
-- `fix: Correct underline positioning in Slack`
-- `docs: Update README with new app support`
-
-## Testing
-
-```bash
-make run            # Build AND restart the app - use after EVERY code change for testing!
-make test           # Run tests
-make ci-check       # Run CI checks - ONLY before committing, not after every change
-```
-
-**Workflow**: Make code changes → `make run` → test manually → repeat. Only run `make ci-check` when ready to commit.
-
-## Releasing
-
-Use the makefile targets to create releases. The release process handles building, code signing, notarization, DMG creation, appcast updates, and GitHub release creation.
-
-**Releases must go through a PR** (direct pushes to `main` are blocked):
-
-```bash
-# 1. Create a release branch from main
-git checkout -b release/vX.Y.Z main
-
-# 2. Run the release target
-make release VERSION=X.Y.Z                 # or release-alpha, release-beta, release-rc
-
-# 3. Push branch and tags, create PR, merge
-git push -u origin HEAD && git push --tags
-gh pr create --title "Release vX.Y.Z" --body "Release vX.Y.Z"
-# After PR is merged:
-make release-upload VERSION=X.Y.Z
-```
-
-Version format follows semver with pre-release suffixes:
-- `0.1.0-alpha.1` → Early testing, expect breaking changes
-- `0.1.0-beta.1` → Feature complete, bug fixes only
-- `0.1.0-rc.1` → Release candidate, final testing
-- `0.1.0` → Stable production release
+- Use `make test` for automated tests and `make run` after app code changes to test the installed build. For Accessibility changes, exercise the affected host apps using the [live testing guide](docs/testing/README.md). See [BUILD.md](BUILD.md) for setup.
+- Before committing, run `make ci-check` and fix failures. Runtime and dependency changes also need the CPU smoke gate. Use the full suite for analysis, Accessibility, timers, overlays, or performance changes. Record both revisions and results, and report inconclusive measurements. Documentation-only changes are exempt from the CPU gate.
+- Commit after the user validates the change and requests a commit. Use a [Conventional Commit subject](CONTRIBUTING.md#commit-messages) and `git commit -s -S` for every commit. Let Git generate the DCO sign-off. Omit `Co-Authored-By`, AI attribution, and manual trailers. See [Commit sign-off and signatures](CONTRIBUTING.md#commit-sign-off-and-signatures).
+- Follow the [pull request guidelines](CONTRIBUTING.md#pull-requests). Maintainers rebase-merge approved PRs. For release work, use the [maintainer release procedure](CONTRIBUTING.md#releases).

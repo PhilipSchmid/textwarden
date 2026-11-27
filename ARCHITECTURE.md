@@ -306,7 +306,7 @@ Most applications start with `DefaultBehavior` plus an automatically generated c
 4. Add regression tests for the discovered AX behavior and for any new app configuration.
 5. Run `make run` for manual testing in the target app, then run `make ci-check` before committing.
 
-Application-specific investigation belongs under `docs/applications/` when future debugging depends on the AX tree or a known third-party app quirk.
+For host-app testing, the README support table, and the indexed app guide, follow the [new application checklist](CONTRIBUTING.md#adding-or-fixing-app-support).
 
 ## Testing and Build Flow
 

@@ -10,6 +10,7 @@ TextWarden is a Swift and Rust macOS grammar checker. Contributions are welcome,
 - Intel and Apple Silicon Rust targets
 - Homebrew
 - SwiftFormat, SwiftLint, and Pandoc
+- Node.js and Python 3 for the browser extension and developer-tool tests
 
 The shipped app targets macOS 14. macOS 26 and Xcode 26 are required for developing and testing its Apple Foundation Models integration.
 
@@ -83,15 +84,15 @@ Never commit directly to `main`.
 5. Run `make ci-check` before committing. App/runtime and dependency changes also
    require the [local CPU gate](docs/CPU_PROFILING.md#local-regression-gate); use its
    full suite for analysis, AX, timers, overlays, and performance changes.
-6. Push your branch and open a pull request targeting `PhilipSchmid/textwarden:main`.
+6. Follow the [commit message](#commit-messages) and [signing requirements](#commit-sign-off-and-signatures) for every commit, including documentation and review fixes. Push your branch and open a pull request targeting `PhilipSchmid/textwarden:main`.
 
 Useful commands:
 
 | Command | Purpose |
 | --- | --- |
 | `make run` | Build, install to `/Applications`, and launch |
-| `make test` | Run Rust and selected Swift tests |
-| `make ci-check` | Run all formatting, linting, testing, and build gates |
+| `make test` | Run Rust, Swift, developer-tool, and browser extension tests |
+| `make ci-check` | Run the pre-commit format, lint, test, and build checks |
 | `make reset-onboarding` | Show onboarding on the next launch |
 | `make fmt` | Format Rust and Swift sources |
 | `make lint` | Run Clippy and SwiftLint |
@@ -119,8 +120,13 @@ When adding an app:
 2. Inspect the editor with Xcode's Accessibility Inspector. Check `AXValue`, selection attributes, range bounds, text-marker support, focus behavior, and what changes while typing or scrolling.
 3. Add the narrowest configuration or behavior needed. Do not copy another app's quirks without confirming them.
 4. Register any new `AppBehavior` and `AppConfiguration` explicitly.
-5. Add regression tests under `Tests/Unit/` and an application note under `docs/applications/`.
-6. Test typing, scrolling, focus changes, multiple windows, replacement, emoji, rich text, and external displays where relevant.
+5. Add regression tests under `Tests/Unit/`. Rebuild with `make run` and test in the host app.
+
+   - Type the same misspelling twice, with an emoji before the second occurrence. Correct the second word and undo the edit. Check both underline positions and the resulting text.
+   - Scroll a long document, move focus away and back, and clear the draft. Check that only visible text has underlines and that the empty editor has none. Exercise rich text, multiple windows, and external displays where relevant. See the [live testing guide](docs/testing/README.md).
+
+6. Update both columns in the [Supported Apps table](README.md#supported-apps). Use `Full` when the feature works throughout the app’s normal writing surface. Reserve narrower labels and footnotes for user-visible limitations.
+7. Add a Markdown guide under `docs/applications/` and link it from the [integration index](docs/applications/README.md). Include the bundle ID, host app and macOS versions tested, editor, known limits, and a short fixture with steps and expected results.
 
 `AppRegistry` resolves application policy from the exact bundle IDs in [`ApplicationPolicy.defaults`](Sources/AppConfiguration/ApplicationPolicy.swift). Edit that single list to add a default exclusion. Terminal apps remain resumable; ignored utilities cannot be enabled by user overrides. Other unknown apps require safe-trial consent before TextWarden reads their text. `UserPreferences` stores the user's choices.
 
@@ -174,29 +180,30 @@ commit body at 72 characters.
 fix: Correct underline positioning in Slack
 ```
 
-Every commit on your pull request needs two things:
+## Commit sign-off and signatures
 
-- **DCO sign-off.** Read the [Developer Certificate of Origin](https://developercertificate.org/), then add your attestation with `git commit -s`. Use the same email in your Git identity and the commit author. A GitHub-provided noreply email works.
-- **Verified signature.** Configure Git to sign with an SSH, GPG or S/MIME key GitHub can verify, then use `git commit -S`. [Configure your signing key](https://docs.github.com/en/authentication/managing-commit-signature-verification/telling-git-about-your-signing-key)
+Every PR commit must pass two independent checks. Use both flags in the same command.
 
 ```bash
 git commit -s -S -m "fix: Correct underline positioning in Slack"
 ```
 
-Do not type a `Signed-off-by`, `Co-Authored-By`, or other trailer manually.
+- **`-s` adds your DCO sign-off.** Git generates one `Signed-off-by` trailer from your configured name and email. For commits you author, use the same identity for the author and the sign-off. A GitHub-provided noreply email works. By signing off you attest to the [Developer Certificate of Origin](https://developercertificate.org/).
+- **`-S` cryptographically signs the commit.** Configure an SSH, GPG, or S/MIME signing key that GitHub can verify. Check the signature on each commit in the PR’s **Commits** tab. [Configure Git’s signing key](https://docs.github.com/en/authentication/managing-commit-signature-verification/telling-git-about-your-signing-key)
 
-The **Commit signatures** job shows which commits GitHub could not verify.
-To repair your latest commit after configuring your Git identity and signing key:
+Use `-s` as the sole way to add your sign-off. Omit `Co-Authored-By` trailers, including ones inserted by an AI assistant. Disable automatic co-author attribution in your commit tool and keep manual trailers out of commit messages. To see exactly what the tool wrote, run `git log -1 --format=%B`.
+
+### Repair a commit on your PR branch
+
+First bring your local PR branch up to date with its remote so you have any commits a maintainer added during review. If the latest commit is yours, amend it after configuring your Git identity and signing key. The editor lets you remove unwanted trailers and keep your Git-generated sign-off.
 
 ```bash
-git commit --amend --no-edit -s -S
-git push --force-with-lease
+git commit --amend -s -S
 ```
 
-For earlier commits, use an interactive rebase to amend each affected commit
-you authored. Sign every commit rewritten by the rebase. Push rewritten history
-only on your contribution branch. If a commit still shows **Unverified**, open
-its signature details on GitHub to see what failed.
+For an earlier commit, start `git rebase -i -S upstream/main` (use `origin/main` in a direct upstream clone). Mark your affected commit as `edit`, run the amend command above, then `git rebase --continue`. The rebase’s `-S` also signs the later commits it replays. Preserve their authors and existing DCO sign-offs.
+
+Review the rewritten messages with `git log --format=full upstream/main..HEAD`, using the same base as above. Coordinate with anyone sharing the branch, then use `git push --force-with-lease` on your PR branch. Check both **DCO** and **Commit signatures** on the new head.
 
 ## Pull Requests
 
@@ -204,7 +211,7 @@ its signature details on GitHub to see what failed.
 - Link the issue when one exists.
 - Include manual test context for app-specific behavior.
 - Make sure `make ci-check` passes.
-- Review each commit's sign-off and wait for CI before merging. Maintainers use rebase merge to keep history linear.
+- Review the trailers and verified signature on every commit. Wait for the required checks before merging. Maintainers use rebase merge to keep history linear.
 
 GitHub may ask a maintainer to approve the build and test runs for a first-time
 fork contributor. This also applies to the signature check.
@@ -213,15 +220,11 @@ The commit check verifies the original PR commits. GitHub's rebase merge creates
 new commits on `main` and those new commits lose the original signatures.
 [GitHub's rebase and merge behavior](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/about-merge-methods-on-github#rebasing-and-merging-your-commits)
 
-### Maintainer setup
+### Required checks on main
 
-GitHub already requires sign-offs for commits made through its web interface.
-For sign-offs on commits pushed from Git, the [DCO App](https://github.com/apps/dco)
-can provide a separate required check from its own GitHub App identity.
-Someone with repository admin access must install it first. It skips bots and
-merge commits by default. [DCO App configuration](https://github.com/dcoapp/app)
+The `main` ruleset requires both the **DCO** check from the DCO App and the **Commit signatures** workflow check. GitHub also requires sign-off for web commits. The DCO App skips bots and merge commits by default. [DCO App configuration](https://github.com/dcoapp/app)
 
-The read-only **Commit signatures** job is contributor feedback. Review
+The read-only **Commit signatures** job checks every original PR commit through GitHub’s verification API. Review
 changes to workflows and verify commit signatures in the PR's **Commits** tab
 when a PR changes CI. GitHub's native [Require signed commits
 rule](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#require-signed-commits)

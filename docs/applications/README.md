@@ -31,3 +31,5 @@ For repeatable host-application checks, driver preflights, cleanup rules, and th
 ## Adding an integration guide
 
 Document behavior that is backed by `AppRegistry`, an `AppBehavior`, a content parser, or a positioning strategy. Include the bundle identifier, monitored editing surface, correction method, known limits, and implementation files. Avoid version guarantees unless the application enforces them at runtime.
+
+Include a repeatable manual check with sample text and the expected result. Link the guide in the table above and update the [Supported Apps table](../../README.md#supported-apps). See the [app contribution checklist](../../CONTRIBUTING.md#adding-or-fixing-app-support).
