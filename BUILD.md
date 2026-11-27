@@ -108,9 +108,12 @@ Targeted commands are also available:
 ```bash
 make test-rust
 make test-swift
+make test-desktop  # Includes tests that open windows on the current desktop
 make lint
 make fmt
 ```
+
+Local Swift tests skip the visible Quick Rewrite, Compose, and onboarding checks by default, including when run from Xcode or `make ci-check`. Both macOS CI test jobs enable those checks. Use `make test-desktop` to include them in a local Swift run. See the [live testing guide](docs/testing/README.md) for checks that drive other apps.
 
 ## Clean Builds
 

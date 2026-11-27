@@ -13,6 +13,7 @@ import XCTest
 final class QuickRewriteTests: XCTestCase {
     @MainActor
     func testStatusFitsWrappedMessages() throws {
+        try requireDesktopWindows()
         let status = QuickRewriteStatus()
         status.show("Text rewritten", completion: .applied)
         let panel = try XCTUnwrap(status.panel)
@@ -145,7 +146,27 @@ final class QuickRewriteTests: XCTestCase {
     }
 
     @MainActor
+    func testNarrowReviewFitsBothWarningsWithoutOpeningAWindow() {
+        let status = QuickRewriteStatus()
+        func reviewSize(_ reason: SelectionRewriteResult.PreviewReason) -> CGSize {
+            let content = QuickRewritePreviewContent(
+                original: "Please reply.", proposed: "Please respond.", reason: reason,
+                status: status, maximumHeight: 320, onDecision: { _ in }
+            )
+            return NSHostingView(rootView: content.frame(width: 320).fixedSize(horizontal: false, vertical: true)).fittingSize
+        }
+
+        let standard = reviewSize(.standard)
+        for reason: SelectionRewriteResult.PreviewReason in [.transformation, .quotationExtraction] {
+            let warning = reviewSize(reason)
+            XCTAssertEqual(warning.width, standard.width, accuracy: 1)
+            XCTAssertGreaterThan(warning.height, standard.height, "The warning needs space above the comparison")
+        }
+    }
+
+    @MainActor
     func testReviewLayoutMatrix() async throws {
+        try requireDesktopWindows(capturing: "TEXTWARDEN_REWRITE_SCREENSHOTS")
         let preferences = UserPreferences.shared
         let originalSize = preferences.suggestionTextSize
         let originalTheme = preferences.overlayTheme
@@ -235,6 +256,7 @@ final class QuickRewriteTests: XCTestCase {
 
     @MainActor
     func testReviewFitsWrappedContent() async throws {
+        try requireDesktopWindows()
         let status = QuickRewriteStatus()
         defer { status.finishPreview(accepted: false) }
         let text = "We are currently in the process of reviewing 17 reports. We will send the summary tomorrow."
@@ -279,6 +301,7 @@ final class QuickRewriteTests: XCTestCase {
 
     @MainActor
     func testReviewIsBoundedAndTimeoutNeverApplies() async throws {
+        try requireDesktopWindows(capturing: "TEXTWARDEN_REWRITE_SCREENSHOTS")
         let screen = try XCTUnwrap(NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main)
         let status = QuickRewriteStatus()
         defer { status.finishPreview(accepted: false) }
@@ -336,6 +359,7 @@ final class QuickRewriteTests: XCTestCase {
 
     @MainActor
     func testRewriteStatusIsCompactAndBottomCentered() async throws {
+        try requireDesktopWindows(capturing: "TEXTWARDEN_REWRITE_SCREENSHOTS")
         let screen = try XCTUnwrap(NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main)
         let existingWindows = Set(NSApplication.shared.windows.map(ObjectIdentifier.init))
         let status = QuickRewriteStatus()

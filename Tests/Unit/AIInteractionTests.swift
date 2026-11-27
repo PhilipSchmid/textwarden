@@ -53,6 +53,7 @@ final class AIInteractionTests: XCTestCase {
 
     @MainActor
     func testComposeStylePickerFitsPanelInsets() async throws {
+        try requireDesktopWindows(capturing: "TEXTWARDEN_COMPOSE_SCREENSHOTS")
         let popover = TextGenerationPopover.shared
         let preferences = UserPreferences.shared
         let originalSize = preferences.suggestionTextSize
@@ -619,6 +620,7 @@ final class AIInteractionTests: XCTestCase {
 
     @MainActor
     func testRewriteReviewWaitsForDecisionAndCancelsSafely() async throws {
+        try requireDesktopWindows()
         guard NSScreen.main != nil else { throw XCTSkip("Review requires a window server") }
         let status = QuickRewriteStatus()
         defer { status.finishPreview(accepted: false) }

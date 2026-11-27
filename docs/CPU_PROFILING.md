@@ -67,6 +67,7 @@ document for every error. The profiler itself uses a bounded circular sample buf
 
 ## Local regression gate
 
+The live captures take foreground focus. Use a dedicated test Mac or reserve an uninterrupted interval on the developer’s Mac.
 Run on an unlocked Mac, on power, with the same displays, app settings, Xcode,
 and macOS build. Close profilers and stop unrelated builds/downloads. Use the same
 test harness for both revisions (copy the test/tool files into an older checkout

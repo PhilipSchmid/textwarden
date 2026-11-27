@@ -9,14 +9,16 @@ wrapping regression reproducible even when the model proposes different wording.
 `QuickRewriteTests.testReviewLayoutMatrix` exercises short, wrapped, expanded,
 multiline, emoji/ZWJ, mixed-script, unbroken, and overflow-length text at 10, 13,
 and 20 points in light and dark appearance. It restores the original preferences.
+A default offscreen test also checks that both rewrite warnings reserve extra height at the narrowest panel width.
 The 48 combinations produce 60 optional captures: one settled image per case,
 hover/resume/hold states at 13 points, and each overflow case scrolled to the end.
 The full command below also captures the one-second countdown and five compact
 feedback states, for 66 images in total.
 
-Run with optional retained native-view captures:
+Both macOS CI jobs run the matrix. `make test-desktop` includes it locally. To run just the Quick Rewrite suite with retained native-view captures:
 
 ```sh
+TEST_RUNNER_TEXTWARDEN_TEST_DESKTOP=1 \
 TEST_RUNNER_TEXTWARDEN_REWRITE_SCREENSHOTS=/tmp/textwarden-rewrite-layout \
   xcodebuild test -scheme TextWarden -destination 'platform=macOS' \
   -parallel-testing-enabled NO \
