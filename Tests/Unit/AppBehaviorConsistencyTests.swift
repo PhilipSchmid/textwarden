@@ -271,14 +271,14 @@ final class AppBehaviorConsistencyTests: XCTestCase {
         }
     }
 
-    func testAppsWithUnreliableScrollEventsDisableHideOnScroll() {
-        for behavior in allBehaviors {
-            if behavior.knownQuirks.contains(.unreliableScrollEvents) {
-                XCTAssertFalse(
-                    behavior.scrollBehavior.hideOnScrollStart,
-                    "\(behavior.bundleIdentifier) has unreliable scroll events but hideOnScrollStart is true"
-                )
+    func testHidingOnUnreliableScrollEventsRequiresPeriodicBoundsChecks() {
+        for behavior in allBehaviors where behavior.knownQuirks.contains(.unreliableScrollEvents) && behavior.scrollBehavior.hideOnScrollStart {
+            // T3 can miss the wheel event entirely. Its native text-run bounds also detect scrolling.
+            guard case let .periodicBoundsCheck(interval) = behavior.scrollBehavior.fallbackDetection else {
+                XCTFail("\(behavior.bundleIdentifier) hides on unreliable scroll events without checking the viewport")
+                continue
             }
+            XCTAssertGreaterThan(interval, 0)
         }
     }
 

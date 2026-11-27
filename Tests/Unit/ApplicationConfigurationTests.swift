@@ -100,7 +100,7 @@ final class ApplicationConfigurationTests: XCTestCase {
         let config = AppRegistry.shared.configuration(for: bundleID)
 
         XCTAssertEqual(AppRegistry.shared.policy(for: bundleID), .supported)
-        XCTAssertEqual(config.preferredStrategies, [.obsidian])
+        XCTAssertEqual(config.preferredStrategies, [.textRuns])
         XCTAssertEqual(config.features.textReplacementMethod, .browserStyle)
         XCTAssertTrue(config.features.visualUnderlinesEnabled)
         let behavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
@@ -112,18 +112,34 @@ final class ApplicationConfigurationTests: XCTestCase {
         XCTAssertFalse(ObsidianContentParser.isNoteEditor(role: "AXTextField", classes: ["cm-content"]))
     }
 
-    func testObsidianMatchesTextRunsInOrderUsingUTF16Offsets() {
-        let text = "🎉 eror\neror" as NSString
-
-        XCTAssertEqual(ObsidianStrategy.matchRun("🎉 eror", in: text, at: 0), NSRange(location: 0, length: 7))
-        XCTAssertEqual(ObsidianStrategy.matchRun("eror", in: text, at: 7), NSRange(location: 8, length: 4))
-        XCTAssertNil(ObsidianStrategy.matchRun("eror", in: text, at: 0))
+    func testT3CodeUsesExactTextRunsAndUTF16EditorSelection() {
+        let bundleID = "com.t3tools.t3code"
+        let config = AppRegistry.shared.configuration(for: bundleID)
+        XCTAssertEqual(config.preferredStrategies, [.textRuns])
+        XCTAssertEqual(config.features.textReplacementMethod, .browserStyle)
+        XCTAssertFalse(config.features.childElementTraversal)
+        let behavior = AppBehaviorRegistry.shared.behavior(for: bundleID)
+        XCTAssertTrue(behavior.usesUTF16TextIndices)
+        XCTAssertTrue(behavior.requiresUnchangedTextBeforePaste)
+        XCTAssertTrue(behavior.knownQuirks.contains(.clearsEmptyDraftImmediately))
+        let parser = ContentParserFactory.shared.parser(for: bundleID)
+        XCTAssertTrue(parser is T3CodeContentParser)
+        XCTAssertEqual(parser.preprocessText("\n"), "")
+        XCTAssertEqual(parser.preprocessText("  📎 draft\n"), "  📎 draft\n")
     }
 
-    func testObsidianDistinguishesInlineFormattingFromWrappedLines() {
+    func testMatchesTextRunsInOrderUsingUTF16Offsets() {
+        let text = "🎉 eror\neror" as NSString
+
+        XCTAssertEqual(TextRunStrategy.matchRun("🎉 eror", in: text, at: 0), NSRange(location: 0, length: 7))
+        XCTAssertEqual(TextRunStrategy.matchRun("eror", in: text, at: 7), NSRange(location: 8, length: 4))
+        XCTAssertNil(TextRunStrategy.matchRun("eror", in: text, at: 0))
+    }
+
+    func testTextRunStrategyDistinguishesInlineFormattingFromWrappedLines() {
         let run = CGRect(x: 10, y: 100, width: 80, height: 20)
-        XCTAssertTrue(ObsidianStrategy.shareLine(run, CGRect(x: 90, y: 98, width: 60, height: 24)))
-        XCTAssertFalse(ObsidianStrategy.shareLine(run, CGRect(x: 10, y: 120, width: 40, height: 20)))
+        XCTAssertTrue(TextRunStrategy.shareLine(run, CGRect(x: 90, y: 98, width: 60, height: 24)))
+        XCTAssertFalse(TextRunStrategy.shareLine(run, CGRect(x: 10, y: 120, width: 40, height: 20)))
     }
 
     func testKeyboardDelayForNativeApp() {

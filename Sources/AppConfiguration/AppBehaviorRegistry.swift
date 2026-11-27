@@ -50,6 +50,7 @@ final class AppBehaviorRegistry {
         register(SlackBehavior())
         register(NotionBehavior())
         register(ObsidianBehavior())
+        register(T3CodeBehavior())
         register(ClaudeBehavior())
         for bundleID in AppConfiguration.chatgpt.bundleIDs {
             register(ChatGPTBehavior(bundleIdentifier: bundleID))

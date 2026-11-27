@@ -27,6 +27,7 @@ final class ContentParserFactory {
             .claude: ClaudeContentParser(),
             .browser: BrowserContentParser(bundleIdentifier: "browser"),
             .notion: NotionContentParser(bundleIdentifier: "notion"),
+            .t3code: T3CodeContentParser(),
             .obsidian: ObsidianContentParser(),
             .teams: TeamsContentParser(),
             .mail: MailContentParser(),

@@ -141,43 +141,23 @@ final class AppRegistry {
 extension AppConfiguration {
     // MARK: - T3 Code
 
-    /// T3 Code is an Electron host. Its composer answers AXBoundsForRange with
-    /// a degenerate rect, but the AXStaticText children beneath it answer the
-    /// same query correctly, so positioning goes through the element-tree
-    /// strategy rather than estimating. Profiled against 0.1.11: lineForIndex
-    /// and rangeForLine supported, boundsForRange invalid on the composer
-    /// itself, AXValue settable.
+    /// The composer reports empty range bounds. Its child text runs expose the exact ranges.
     static let t3code = AppConfiguration(
         identifier: "t3code",
         displayName: "T3 Code",
         bundleIDs: ["com.t3tools.t3code"],
         category: .electron,
-        parserType: .generic,
-        // The composer styles itself text-(length:--font-size-prompt,var(--text-sm))
-        // in ComposerPromptEditorTiptap, so it renders at Tailwind's text-sm:
-        // 0.875rem, or 14px against the 16px default interface size. It is
-        // interface text rather than the monospace used for code blocks, and
-        // the family is the system font, so no override is needed there.
-        fontConfig: FontConfig(
-            defaultSize: 14,
-            fontFamily: nil,
-            spacingMultiplier: 1.0
-        ),
-        // Only consulted if the element-tree strategy fails and positioning
-        // falls back to estimation: the composer insets its text from the
-        // accessibility element's left edge by roughly this much. Observed
-        // against the running application, not declared in a stylesheet.
-        horizontalPadding: 8,
-        preferredStrategies: [.elementTree, .lineIndex, .fontMetrics],
+        parserType: .t3code,
+        preferredStrategies: [.textRuns],
         features: AppFeatures(
             visualUnderlinesEnabled: true,
-            textReplacementMethod: .standard, // AXValue is settable
+            textReplacementMethod: .browserStyle,
             requiresTypingPause: false,
             supportsFormattedText: false,
-            childElementTraversal: true,
+            childElementTraversal: false,
             delaysAXNotifications: false,
             focusBouncesDuringPaste: false,
-            requiresFullReanalysisAfterReplacement: true, // Electron byte offsets are fragile
+            requiresFullReanalysisAfterReplacement: true,
             defersTextExtraction: false,
             requiresFrameValidation: false,
             hasTextMarkerIndexOffset: false
@@ -192,7 +172,7 @@ extension AppConfiguration {
         bundleIDs: ["md.obsidian"],
         category: .electron,
         parserType: .obsidian,
-        preferredStrategies: [.obsidian],
+        preferredStrategies: [.textRuns],
         features: AppFeatures(
             visualUnderlinesEnabled: true,
             textReplacementMethod: .browserStyle,
