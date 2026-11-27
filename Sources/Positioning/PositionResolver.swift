@@ -41,7 +41,7 @@ class PositionResolver {
             SlackStrategy(), // Dedicated strategy for Slack - highest priority
             TeamsStrategy(), // Dedicated strategy for Teams - same tree traversal approach
             NotionStrategy(), // Dedicated strategy for Notion - same tree traversal approach
-            ObsidianStrategy(),
+            TextRunStrategy(),
             OutlookStrategy(), // Dedicated strategy for Outlook compose
             WordStrategy(), // Dedicated strategy for Word documents
             PowerPointStrategy(), // Dedicated strategy for PowerPoint Notes

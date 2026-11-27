@@ -1,21 +1,21 @@
 import AppKit
 import ApplicationServices
 
-struct ObsidianStrategy: GeometryProvider {
-    let strategyName = "Obsidian"
-    let strategyType: StrategyType = .obsidian
+struct TextRunStrategy: GeometryProvider {
+    let strategyName = "TextRuns"
+    let strategyType: StrategyType = .textRuns
     let tier: StrategyTier = .precise
     let tierPriority = 0
 
     func canHandle(element _: AXUIElement, bundleID: String) -> Bool {
-        bundleID == "md.obsidian"
+        AppRegistry.shared.configuration(for: bundleID).preferredStrategies.contains(.textRuns)
     }
 
     func calculateGeometry(
         errorRange: NSRange,
         element: AXUIElement,
         text: String,
-        parser _: ContentParser
+        parser: ContentParser
     ) -> GeometryResult? {
         guard errorRange.length > 0,
               let utf16Range = TextIndexConverter.scalarRangeToUTF16CFRange(
@@ -23,7 +23,7 @@ struct ObsidianStrategy: GeometryProvider {
                   end: NSMaxRange(errorRange),
                   in: text
               ),
-              let token = AXWatchdog.shared.tryBeginCall(bundleID: "md.obsidian", attribute: "ObsidianTextRunBounds")
+              let token = AXWatchdog.shared.tryBeginCall(bundleID: AXClient.bundleIdentifier(for: element), attribute: "TextRunBounds")
         else { return nil }
         defer { AXWatchdog.shared.endCall(token) }
 
@@ -35,7 +35,7 @@ struct ObsidianStrategy: GeometryProvider {
         var coveredLength = 0
         var bounds = CGRect.null
 
-        // CodeMirror gives Chromium range geometry on the text runs, while its editor returns zero bounds.
+        // Chromium can expose precise bounds on static-text children even when the editor returns an empty rect.
         while let run = runs.popLast(), remaining > 0 {
             remaining -= 1
             let role = attribute(kAXRoleAttribute, in: run) as? String
@@ -55,6 +55,9 @@ struct ObsidianStrategy: GeometryProvider {
                 guard let rect = singleLineBounds(for: local, in: run),
                       bounds.isNull || Self.shareLine(bounds, rect)
                 else { return nil }
+                if let composer = parser as? T3CodeContentParser {
+                    composer.scrollAnchor = (element, run, local, rect)
+                }
                 bounds = bounds.union(rect)
                 coveredLength += overlap.length
             }

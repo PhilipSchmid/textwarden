@@ -180,6 +180,9 @@ struct TimingProfile: Equatable {
 
 /// Known quirks/bugs that require special handling
 enum AppQuirk: Hashable {
+    /// A focused composer exposes an empty draft as soon as its prompt is submitted.
+    case clearsEmptyDraftImmediately
+
     /// Chromium apps have emoji width measurement bugs
     case chromiumEmojiWidthBug
 

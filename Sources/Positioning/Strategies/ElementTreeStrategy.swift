@@ -91,7 +91,6 @@ class ElementTreeStrategy: GeometryProvider {
         let targetApps: Set = [
             "com.openai.chat",
             "com.openai.codex",
-            "com.t3tools.t3code",
             "notion.id",
             "com.notion.id",
             "com.google.Chrome",

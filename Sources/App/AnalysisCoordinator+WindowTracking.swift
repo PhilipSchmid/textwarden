@@ -149,6 +149,15 @@ extension AnalysisCoordinator {
                 currentText = await AXAsyncBridge.extractTextValue(from: element, bundleID: bundleID)
             }
 
+            if currentText == lastAnalyzedText, !currentErrors.isEmpty, !overlaysHiddenDueToScroll,
+               let composer = contentParserFactory.parser(for: bundleID) as? T3CodeContentParser,
+               let anchor = composer.scrollAnchor, CFEqual(anchor.editor, element),
+               let bounds = await AXAsyncBridge.boundsForRange(anchor.range, in: anchor.run, bundleID: bundleID),
+               bounds != anchor.bounds, let monitored = textMonitor.monitoredElement, CFEqual(monitored, element)
+            {
+                handleScrollStarted()
+            }
+
             // Return to main actor for UI updates and state changes
             await MainActor.run { [weak self] in
                 guard let self else { return }

@@ -23,6 +23,7 @@ enum AppCategory {
 /// Identifies a parser implementation
 enum ParserType {
     case generic
+    case t3code
     case slack
     case claude
     case browser
@@ -44,7 +45,7 @@ enum StrategyType: String, CaseIterable {
     case slack // Dedicated strategy for Slack's Quill editor
     case teams // Dedicated strategy for Microsoft Teams' WebView2 compose
     case notion // Dedicated strategy for Notion's block-based editor
-    case obsidian // Child text runs in Obsidian's CodeMirror editor
+    case textRuns // Ordered AXStaticText ranges in Chromium editors
     case outlook // Dedicated strategy for Microsoft Outlook compose
     case word // Dedicated strategy for Microsoft Word documents
     case powerpoint // Dedicated strategy for Microsoft PowerPoint Notes

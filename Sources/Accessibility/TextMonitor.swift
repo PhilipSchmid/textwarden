@@ -1132,11 +1132,18 @@ class TextMonitor: ObservableObject {
         // Invalidate existing timer
         debounceTimer?.invalidate()
 
-        debounceTimer = Timer.scheduledTimer(withTimeInterval: debounceInterval, repeats: false) { [weak self] _ in
-            guard let self else { return }
+        if text.isEmpty, AppBehaviorRegistry.shared.behavior(for: context.bundleIdentifier).knownQuirks.contains(.clearsEmptyDraftImmediately) {
+            debounceTimer = nil
+            currentText = text
+            onTextChange?(text, context, nil)
+            return
+        }
+
+        debounceTimer = Timer.scheduledTimer(withTimeInterval: debounceInterval, repeats: false) { [weak self] timer in
+            let identity = ObjectIdentifier(timer)
 
             DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
+                guard let self, debounceTimer.map(ObjectIdentifier.init) == identity else { return }
 
                 // Skip if no monitored element exists when timer fires
                 // This prevents stale callbacks after focus changes cleared the element

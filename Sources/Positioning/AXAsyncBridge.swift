@@ -51,6 +51,17 @@ enum AXAsyncBridge {
         }
     }
 
+    static func boundsForRange(_ range: NSRange, in element: AXUIElement, bundleID: String) async -> CGRect? {
+        await withCheckedContinuation { continuation in
+            axQueue.async {
+                let result = AXClient.perform(bundleID: bundleID, attribute: "AXBoundsForRange") {
+                    AccessibilityBridge.getBoundsForRange(range, in: element)
+                }
+                continuation.resume(returning: result?.value ?? nil)
+            }
+        }
+    }
+
     // MARK: - Text Extraction
 
     /// Extract text value from element asynchronously.
