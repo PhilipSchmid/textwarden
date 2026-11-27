@@ -398,6 +398,132 @@ final class LanguageToolClientTests: XCTestCase {
         XCTAssertEqual(StubURLProtocol.requestCount, 0)
     }
 
+    /// A success against one server must not clear a different server's
+    /// cooldown. The user can change the address while a slow check is still
+    /// running, and the old server answering says nothing about the new one.
+    func testSuccessAgainstOneEndpointLeavesAnotherEndpointsCooldownIntact() async throws {
+        let client = StubbedClient.make()
+        let downEndpoint = try XCTUnwrap(
+            LanguageToolConfiguration(endpointString: "http://127.0.0.2:8081", language: "auto", timeout: 2)
+        )
+        let liveEndpoint = try XCTUnwrap(
+            LanguageToolConfiguration(endpointString: "http://localhost:8081", language: "auto", timeout: 2)
+        )
+
+        StubURLProtocol.handler = { request in
+            if request.url?.host == "127.0.0.2" {
+                throw URLError(.cannotConnectToHost)
+            }
+            return (StubURLProtocol.okResponse(for: request.url?.absoluteString ?? ""), Data(#"{"matches":[]}"#.utf8))
+        }
+
+        do {
+            _ = try await client.check(text: "She dont like it.", configuration: downEndpoint)
+            XCTFail("Expected transport failure")
+        } catch LanguageToolError.transport {}
+
+        // Succeeds, and must leave the other server's cooldown alone.
+        _ = try await client.check(text: "She dont like it.", configuration: liveEndpoint)
+
+        do {
+            _ = try await client.check(text: "She dont like it.", configuration: downEndpoint)
+            XCTFail("Expected the cooldown on the unreachable server to still apply")
+        } catch LanguageToolError.cooldown {}
+    }
+
+    // MARK: - Response Bounds
+
+    /// The request timeout bounds the transfer and the character limit bounds
+    /// what is sent. Neither bounds what comes back, so a fast enormous reply
+    /// would otherwise be decoded in full.
+    func testAnOversizedReplyIsRejectedWithoutDecoding() async throws {
+        let client = StubbedClient.make()
+        StubURLProtocol.handler = { request in
+            let padding = String(repeating: "x", count: LanguageToolConfiguration.maximumResponseBytes + 1)
+            let body = "{\"matches\":[],\"padding\":\"\(padding)\"}"
+            return (StubURLProtocol.okResponse(for: request.url?.absoluteString ?? ""), Data(body.utf8))
+        }
+        let configuration = try XCTUnwrap(
+            LanguageToolConfiguration(endpointString: "http://localhost:8081", language: "auto", timeout: 2)
+        )
+
+        do {
+            _ = try await client.check(text: "She dont like it.", configuration: configuration)
+            XCTFail("Expected responseTooLarge")
+        } catch let LanguageToolError.responseTooLarge(bytes) {
+            XCTAssertGreaterThan(bytes, LanguageToolConfiguration.maximumResponseBytes)
+        }
+    }
+
+    /// Conversion runs per match and the merge runs on the main actor, so a
+    /// reply with far more matches than anyone can see is capped first.
+    func testMatchesBeyondTheCapAreNotConverted() throws {
+        let overflow = LanguageToolConfiguration.maximumMatches + 50
+        let text = String(repeating: "a b ", count: overflow)
+        let matchesJSON = (0 ..< overflow).map { index in
+            """
+            {"message":"m","offset":\(index * 4),"length":1,"replacements":[],\
+            "rule":{"id":"R","category":{"id":"GRAMMAR"},"issueType":"grammar"}}
+            """
+        }.joined(separator: ",")
+
+        let body = "{\"matches\":[\(matchesJSON)]}"
+        let converted = try LanguageToolClient.convert(responseData: Data(body.utf8), in: text)
+
+        XCTAssertLessThanOrEqual(converted.count, LanguageToolConfiguration.maximumMatches)
+    }
+
+    /// Each endpoint keeps its own cooldown, so a failure against one server
+    /// cannot stand in for, or erase, another server's.
+    func testEachEndpointKeepsItsOwnCooldown() async throws {
+        let client = StubbedClient.makeFailing()
+        let first = try XCTUnwrap(
+            LanguageToolConfiguration(endpointString: "http://127.0.0.2:8081", language: "auto", timeout: 2)
+        )
+        let second = try XCTUnwrap(
+            LanguageToolConfiguration(endpointString: "http://127.0.0.3:8081", language: "auto", timeout: 2)
+        )
+
+        do {
+            _ = try await client.check(text: "She dont like it.", configuration: first)
+            XCTFail("Expected transport failure")
+        } catch LanguageToolError.transport {}
+
+        // The second endpoint has no history, so it must still be attempted
+        // rather than inherit the first endpoint's cooldown.
+        do {
+            _ = try await client.check(text: "She dont like it.", configuration: second)
+            XCTFail("Expected transport failure")
+        } catch LanguageToolError.transport {}
+
+        XCTAssertEqual(StubURLProtocol.requestCount, 2, "Both endpoints were tried")
+    }
+
+    // MARK: - Redirects
+
+    /// The loopback check runs once, against the configured address. If a
+    /// redirect were followed, a server could name any host and URLSession
+    /// would resend the document body there, so the promise that the text
+    /// never leaves the Mac would hold only for cooperating servers.
+    func testRedirectIsNotFollowedAndTheBodyNeverReachesTheTarget() async throws {
+        let client = StubbedClient.makeSucceeding()
+        StubURLProtocol.redirectTo = "https://example.com/v2/check"
+        let configuration = try XCTUnwrap(
+            LanguageToolConfiguration(endpointString: "http://localhost:8081", language: "auto", timeout: 2)
+        )
+
+        do {
+            _ = try await client.check(text: "She dont like it.", configuration: configuration)
+            XCTFail("Expected the redirect to be refused")
+        } catch LanguageToolError.redirectRefused {}
+
+        XCTAssertEqual(StubURLProtocol.requestCount, 1, "The redirect target must never be requested")
+        XCTAssertFalse(
+            StubURLProtocol.attemptedURLs.contains { $0.contains("example.com") },
+            "Document text was sent off the loopback: \(StubURLProtocol.attemptedURLs)"
+        )
+    }
+
     // MARK: - Failure Cooldown
 
     func testFailureStartsACooldownThatSuppressesTheNextCheck() async throws {
@@ -528,10 +654,25 @@ private enum StubbedClient {
 private class StubURLProtocol: URLProtocol {
     nonisolated(unsafe) static var handler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?
     nonisolated(unsafe) static var requestCount = 0
+    /// Every URL the session actually attempted, in order.
+    nonisolated(unsafe) static var attemptedURLs: [String] = []
+    /// When set, the first attempt answers with a redirect to this URL.
+    nonisolated(unsafe) static var redirectTo: String?
 
     static func reset() {
         handler = nil
         requestCount = 0
+        attemptedURLs = []
+        redirectTo = nil
+    }
+
+    static func redirectResponse(from urlString: String, to target: String) -> HTTPURLResponse {
+        HTTPURLResponse(
+            url: URL(string: urlString) ?? URL(fileURLWithPath: "/"),
+            statusCode: 307,
+            httpVersion: nil,
+            headerFields: ["Location": target]
+        ) ?? HTTPURLResponse()
     }
 
     static func okResponse(for urlString: String) -> HTTPURLResponse {
@@ -553,6 +694,19 @@ private class StubURLProtocol: URLProtocol {
 
     override func startLoading() {
         Self.requestCount += 1
+        Self.attemptedURLs.append(request.url?.absoluteString ?? "")
+
+        // Offer the session a redirect the way a real server would, so the
+        // delegate that refuses it is exercised rather than bypassed.
+        if let target = Self.redirectTo, let targetURL = URL(string: target) {
+            Self.redirectTo = nil
+            let response = Self.redirectResponse(from: request.url?.absoluteString ?? "", to: target)
+            client?.urlProtocol(self, wasRedirectedTo: URLRequest(url: targetURL), redirectResponse: response)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocolDidFinishLoading(self)
+            return
+        }
+
         guard let handler = Self.handler else {
             client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
             return

@@ -15,6 +15,9 @@ import SwiftUI
 struct LanguageToolSettingsView: View {
     @ObservedObject private var preferences = UserPreferences.shared
     @State private var connectionState: ConnectionState = .untested
+    /// Identifies the newest connection test. A slow test against the previous
+    /// address must not report its result over a newer one.
+    @State private var connectionTestGeneration = 0
 
     private enum ConnectionState: Equatable {
         case untested
@@ -92,6 +95,11 @@ struct LanguageToolSettingsView: View {
                 .font(.headline)
         }
         .onChange(of: preferences.languageToolEndpoint) {
+            connectionTestGeneration &+= 1
+            connectionState = .untested
+        }
+        .onChange(of: preferences.languageToolLanguage) {
+            connectionTestGeneration &+= 1
             connectionState = .untested
         }
     }
@@ -129,8 +137,11 @@ struct LanguageToolSettingsView: View {
             return
         }
 
+        connectionTestGeneration &+= 1
+        let generation = connectionTestGeneration
         connectionState = .checking
         Task {
+            let outcome: ConnectionState
             do {
                 let results = try await LanguageToolClient.shared.check(
                     text: "She dont like it.",
@@ -140,12 +151,22 @@ struct LanguageToolSettingsView: View {
                     // left over from before they started it.
                     respectCooldown: false
                 )
-                connectionState = .reachable(results.count)
+                outcome = .reachable(results.count)
+            } catch LanguageToolError.redirectRefused {
+                outcome = .unreachable("Server tried to redirect the check elsewhere. Redirects are never followed, because the text must stay on this Mac.")
+            } catch let LanguageToolError.responseTooLarge(bytes) {
+                outcome = .unreachable("Server sent an unexpectedly large reply (\(bytes) bytes).")
             } catch let LanguageToolError.badStatus(code) {
-                connectionState = .unreachable("Server answered with HTTP \(code).")
+                outcome = .unreachable("Server answered with HTTP \(code).")
             } catch {
-                connectionState = .unreachable("Could not reach the server.")
+                outcome = .unreachable("Could not reach the server.")
             }
+
+            // The address or language may have changed while this ran, which
+            // already reset the status; reporting now would describe a server
+            // the user is no longer asking about.
+            guard connectionTestGeneration == generation else { return }
+            connectionState = outcome
         }
     }
 }

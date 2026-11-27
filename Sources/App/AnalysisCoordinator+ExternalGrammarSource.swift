@@ -20,6 +20,10 @@ struct ExternalGrammarResultCache {
     let text: String
     let errors: [GrammarErrorModel]
     let element: AXUIElement?
+    /// The settings that produced these results. Another server, or the same
+    /// server asked about another language, disagrees about rules and
+    /// categories, so its predecessor's answers are not its own.
+    let configuration: LanguageToolConfiguration
 
     /// Results belong to the field they were collected from; a different field
     /// has different text at the same offsets.
@@ -59,6 +63,9 @@ extension AnalysisCoordinator {
         externalGrammarSourceTimer = nil
         externalGrammarSourceTask?.cancel()
         externalGrammarSourceTask = nil
+        // Retires the in-flight request as well as the task handle: cancelling
+        // a URLSession task does not stop a reply that is already decoding.
+        externalGrammarSourceRequestGeneration &+= 1
         externalGrammarSourceInFlight = false
         externalGrammarResultCache = nil
     }
@@ -76,10 +83,16 @@ extension AnalysisCoordinator {
     ) -> [GrammarErrorModel] {
         guard userPreferences.enableLanguageToolSource,
               let cache = externalGrammarResultCache,
-              cache.describes(element: element)
+              cache.describes(element: element),
+              let configuration = captureLanguageToolConfiguration(),
+              cache.configuration == configuration
         else {
             return primary
         }
+
+        // Once the document is past the limit nothing will be sent for it
+        // again, so reviving would show results no later reply can correct.
+        guard text.count <= configuration.characterLimit else { return primary }
 
         let revived = GrammarResultRebaser.surviving(
             cache.errors,
@@ -212,29 +225,50 @@ extension AnalysisCoordinator {
             category: Logger.analysis
         )
 
+        externalGrammarSourceRequestGeneration &+= 1
+        let generation = externalGrammarSourceRequestGeneration
         externalGrammarSourceInFlight = true
         externalGrammarSourceTask = Task { [weak self] in
             let result = await Self.fetchExternalResults(text: text, configuration: configuration)
+            guard let self else { return }
+
+            // A cancelled request can still finish decoding after a newer one
+            // has started. Clearing the flag then would let a third request run
+            // beside the newer one, and writing the cache would replace fresher
+            // results with older ones, so a superseded reply touches nothing.
+            guard externalGrammarSourceRequestGeneration == generation else { return }
 
             // Released on every path, so a failed or empty check does not wedge
             // the source shut until monitoring restarts.
-            Task { @MainActor in
-                self?.externalGrammarSourceInFlight = false
+            externalGrammarSourceInFlight = false
+
+            // The settings that authorized this request must still hold. The
+            // user can disable the source, point it at another server, change
+            // the language, or lower the size limit while a reply is on its
+            // way, and the editor snapshot alone says nothing about any of it.
+            guard let settings = captureLanguageToolConfiguration(), settings == configuration else {
+                Logger.debug(
+                    "AnalysisCoordinator: Discarding external result authorized by superseded settings",
+                    category: Logger.analysis
+                )
+                externalGrammarResultCache = nil
+                return
             }
 
-            guard let external = result, let self else { return }
+            guard let external = result else { return }
 
             // Cached even when empty: "this text is clean" is an answer, and
             // reviving a stale error over it would be a regression.
-            Task { @MainActor [weak self] in
-                self?.externalGrammarResultCache = ExternalGrammarResultCache(
-                    text: text,
-                    errors: external,
-                    element: element
-                )
-            }
+            externalGrammarResultCache = ExternalGrammarResultCache(
+                text: text,
+                errors: external,
+                element: element,
+                configuration: configuration
+            )
 
-            guard !external.isEmpty else { return }
+            // An empty reply is still published. Results revived from the
+            // previous reply may be on screen, and returning early here would
+            // leave them there until some later analysis removed them.
             guard isCurrentGrammarAnalysis(snapshot) else {
                 Logger.debug("AnalysisCoordinator: Discarding stale external grammar result", category: Logger.analysis)
                 return
@@ -257,6 +291,7 @@ extension AnalysisCoordinator {
             // the additions into it rather than leaving statistics disagreeing
             // with what the user was shown.
             let additions = merged.filter { $0.lintId.hasPrefix("\(LanguageToolClient.lintIdPrefix)::") }
+            guard !additions.isEmpty else { return }
             var additionBreakdown: [String: Int] = [:]
             for addition in additions {
                 additionBreakdown[addition.category, default: 0] += 1

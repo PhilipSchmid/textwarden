@@ -47,7 +47,11 @@ enum GrammarResultMerger {
         }
 
         let occupied = sorted(primary).map { ($0.start, $0.end) }
-        let candidates = sorted(deduplicate(secondary))
+        // Harper's claim is settled before the external source's own overlaps
+        // are collapsed. Doing it the other way round lets a result that is
+        // about to lose to Harper first displace a neighbour Harper never
+        // covered, so the merge would lose a span no engine objected to.
+        let candidates = sorted(secondary)
 
         var kept: [GrammarErrorModel] = []
         kept.reserveCapacity(candidates.count)
@@ -73,7 +77,7 @@ enum GrammarResultMerger {
             )
         }
 
-        return sorted(primary + trim(kept, toTotalWith: primary.count, limit: limit))
+        return sorted(primary + trim(deduplicate(kept), toTotalWith: primary.count, limit: limit))
     }
 
     /// Keep the earliest secondary results that fit under `limit`.
@@ -86,7 +90,9 @@ enum GrammarResultMerger {
         toTotalWith primaryCount: Int,
         limit: Int?
     ) -> [GrammarErrorModel] {
-        guard let limit, limit >= 0, primaryCount < limit else { return secondary }
+        // `<=`, not `<`: the overlay hides underlines above the ceiling, not at
+        // it, so a primary set sitting exactly on the ceiling has no room left.
+        guard let limit, limit >= 0, primaryCount <= limit else { return secondary }
         let allowance = limit - primaryCount
         guard secondary.count > allowance else { return secondary }
 
@@ -108,7 +114,11 @@ enum GrammarResultMerger {
         var seen = Set<String>()
         for error in sorted(errors) {
             guard seen.insert("\(error.start):\(error.end):\(error.lintId)").inserted else { continue }
-            if kept.contains(where: { $0.start < error.end && error.start < $0.end }) { continue }
+            // Comparing against the last kept result is enough, and keeps a
+            // large reply linear. The input is sorted by start and everything
+            // kept is pairwise disjoint, so their ends increase too: anything
+            // that clears the last one clears all of them.
+            if let last = kept.last, last.start < error.end, error.start < last.end { continue }
             kept.append(error)
         }
         return kept

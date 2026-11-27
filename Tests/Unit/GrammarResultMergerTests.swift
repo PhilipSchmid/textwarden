@@ -173,6 +173,47 @@ final class GrammarResultMergerTests: XCTestCase {
         XCTAssertEqual(merged.map(\.start), [0, 10, 20, 30])
     }
 
+    /// An external result that is going to lose to Harper must not take a
+    /// neighbour with it. Harper covers 0..<4 and says nothing about 6..<9, so
+    /// 6..<9 is exactly the kind of span the external source exists to add.
+    func testExternalResultLosingToHarperDoesNotDisplaceAValidNeighbour() {
+        let merged = GrammarResultMerger.merge(
+            primary: [harper(0, 4)],
+            secondary: [external(3, 8), external(6, 9)],
+            limit: nil
+        )
+
+        XCTAssertEqual(merged.map(\.start), [0, 6])
+        XCTAssertEqual(
+            merged.filter { $0.message == "LanguageTool" }.map(\.start),
+            [6],
+            "6..<9 overlaps no Harper result and must survive"
+        )
+    }
+
+    /// The overlay hides underlines *above* the ceiling, not at it, so a
+    /// primary set sitting exactly on the ceiling has no room for one more.
+    func testNothingIsAddedWhenPrimarySitsExactlyOnTheCeiling() {
+        let primary = (0 ..< 10).map { harper($0 * 10, $0 * 10 + 4) }
+
+        let merged = GrammarResultMerger.merge(primary: primary, secondary: [external(500, 504)], limit: 10)
+
+        XCTAssertEqual(merged.count, 10, "One more result would hide every underline")
+        XCTAssertTrue(merged.allSatisfy { $0.message == "Harper" })
+    }
+
+    /// Collapsing a source's own overlaps has to stay correct when an early
+    /// span is long enough to swallow several later ones.
+    func testDeduplicationHandlesALongLeadingSpan() {
+        let merged = GrammarResultMerger.merge(
+            primary: [],
+            secondary: [external(0, 100), external(10, 20), external(50, 60), external(150, 160)],
+            limit: nil
+        )
+
+        XCTAssertEqual(merged.map(\.start), [0, 150])
+    }
+
     // MARK: - Degenerate Inputs
 
     func testEmptySecondaryReturnsPrimaryInOrder() {

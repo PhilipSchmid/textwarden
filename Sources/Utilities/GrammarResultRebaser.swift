@@ -26,7 +26,11 @@ enum GrammarResultRebaser {
         stillValidIn currentText: String
     ) -> [GrammarErrorModel] {
         guard !errors.isEmpty else { return [] }
-        guard previousText != currentText else { return errors }
+        // Compared as scalars, not as Strings. String equality is canonical
+        // equivalence, so precomposed and decomposed spellings of the same
+        // text compare equal while addressing different scalar offsets, and
+        // returning the results untouched would move every one of them.
+        guard !previousText.unicodeScalars.elementsEqual(currentText.unicodeScalars) else { return errors }
 
         let boundary = unchangedPrefixLength(of: previousText, against: currentText)
         guard boundary > 0 else { return [] }
@@ -60,9 +64,13 @@ enum GrammarResultRebaser {
         }
 
         // Offsets address characters, so the cut must not fall inside a
-        // grapheme cluster even where its scalars are not word scalars.
-        let graphemeBoundaries = TextIndexConverter.stringIndicesByScalarOffset(in: previous)
-        while boundary > 0, graphemeBoundaries[boundary] == nil {
+        // grapheme cluster even where its scalars are not word scalars. Both
+        // texts are checked: an edit can join what preceded it into a longer
+        // cluster, so an offset that was a boundary before the edit is not
+        // necessarily one after it.
+        let previousBoundaries = TextIndexConverter.stringIndicesByScalarOffset(in: previous)
+        let currentBoundaries = TextIndexConverter.stringIndicesByScalarOffset(in: current)
+        while boundary > 0, previousBoundaries[boundary] == nil || currentBoundaries[boundary] == nil {
             boundary -= 1
         }
 

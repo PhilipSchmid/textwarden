@@ -36,6 +36,21 @@ struct LanguageToolConfiguration: Sendable, Equatable {
     /// Harper's results stand on their own.
     let characterLimit: Int
 
+    /// Largest reply worth decoding.
+    ///
+    /// The request timeout bounds how long a transfer may take and the
+    /// character limit bounds what is sent, but neither bounds what comes
+    /// back. A server answering quickly with an enormous body would otherwise
+    /// be decoded in full before anything could reject it.
+    static let maximumResponseBytes = 4 * 1024 * 1024
+
+    /// Most matches worth converting from one reply.
+    ///
+    /// The overlay hides underlines past `maxErrorsForUnderlines`, two orders
+    /// of magnitude below this, so nothing a user can see is lost. It caps the
+    /// per-match conversion and the merge, both of which run on the main actor.
+    static let maximumMatches = 2000
+
     static let defaultEndpointString = "http://localhost:8081"
     static let defaultLanguage = "auto"
     /// Allowance for a short passage. A local server answers a sentence in
@@ -158,6 +173,10 @@ enum LanguageToolError: Error {
     case cooldown
     /// Superseded by a newer analysis before the reply arrived.
     case cancelled
+    /// Reply larger than `LanguageToolConfiguration.maximumResponseBytes`.
+    case responseTooLarge(bytes: Int)
+    /// The server answered with a redirect, which is never followed.
+    case redirectRefused
 }
 
 // MARK: - Wire Format
@@ -220,27 +239,34 @@ struct LanguageToolResponse: Decodable {
 ///
 /// Keyed by endpoint, because pointing TextWarden at a different server is a
 /// deliberate act that must take effect at once rather than after the wait.
+/// Tracks, per endpoint, how long to leave a failing server alone.
+///
+/// Keyed by endpoint rather than holding a single slot: requests against the
+/// old and new addresses overlap whenever the user edits the setting while a
+/// check is running, and whichever finishes last must not speak for the other.
 private actor FailureCooldown {
-    private var endpoint: URL?
-    private var expiry: Date?
+    private var expiries: [URL: Date] = [:]
 
     func isActive(for endpoint: URL, now: Date = Date()) -> Bool {
-        guard self.endpoint == endpoint, let expiry else { return false }
+        guard let expiry = expiries[endpoint] else { return false }
         guard now < expiry else {
-            clear()
+            expiries[endpoint] = nil
             return false
         }
         return true
     }
 
     func recordFailure(for endpoint: URL, duration: TimeInterval, now: Date = Date()) {
-        self.endpoint = endpoint
-        expiry = now.addingTimeInterval(duration)
+        // Expired entries are dropped on the way past, so editing the address
+        // repeatedly cannot accumulate them.
+        expiries = expiries.filter { $0.value > now }
+        expiries[endpoint] = now.addingTimeInterval(duration)
     }
 
-    func clear() {
-        endpoint = nil
-        expiry = nil
+    /// Clears the cooldown for one endpoint. A check against a server that
+    /// works says nothing about a different server that is still down.
+    func clear(for endpoint: URL) {
+        expiries[endpoint] = nil
     }
 }
 
@@ -258,6 +284,28 @@ final class LanguageToolClient: Sendable {
     private let session: URLSession
     private let cooldown = FailureCooldown()
 
+    /// Refuses every redirect.
+    ///
+    /// The loopback guarantee is enforced once, against the address the user
+    /// configured. URLSession follows redirects by default, so a server
+    /// answering 3xx could otherwise have the document body resent to any host
+    /// it named, defeating that check entirely. Passing nil to the completion
+    /// handler ends the task with the redirect response rather than following
+    /// it. Stateless, so sharing one instance across tasks is safe.
+    private final class RedirectRefusing: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+        func urlSession(
+            _: URLSession,
+            task _: URLSessionTask,
+            willPerformHTTPRedirection _: HTTPURLResponse,
+            newRequest _: URLRequest,
+            completionHandler: @escaping (URLRequest?) -> Void
+        ) {
+            completionHandler(nil)
+        }
+    }
+
+    private static let redirectRefusing = RedirectRefusing()
+
     init(session: URLSession? = nil) {
         if let session {
             self.session = session
@@ -267,6 +315,12 @@ final class LanguageToolClient: Sendable {
             configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
             configuration.httpCookieAcceptPolicy = .never
             configuration.httpShouldSetCookies = false
+            // No proxy, ever. A session inherits the system proxy settings, so
+            // a configured HTTP proxy without a bypass entry for the loopback
+            // would receive the cleartext POST before the request ever reached
+            // the local server. The loopback check would then be guarding an
+            // address the body never travelled to.
+            configuration.connectionProxyDictionary = [:]
             self.session = URLSession(configuration: configuration)
         }
     }
@@ -300,7 +354,7 @@ final class LanguageToolClient: Sendable {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await session.data(for: request)
+            (data, response) = try await session.data(for: request, delegate: Self.redirectRefusing)
         } catch {
             // Being superseded says nothing about the server, so it must not
             // start a cooldown that would suppress the next real check.
@@ -313,12 +367,22 @@ final class LanguageToolClient: Sendable {
 
         if let http = response as? HTTPURLResponse, !(200 ..< 300).contains(http.statusCode) {
             await cooldown.recordFailure(for: endpoint, duration: TimingConstants.externalGrammarSourceFailureCooldown)
+            // A 3xx reached here only because the redirect was refused, so say
+            // that rather than reporting a status the user cannot act on.
+            if (300 ..< 400).contains(http.statusCode) {
+                throw LanguageToolError.redirectRefused
+            }
             throw LanguageToolError.badStatus(http.statusCode)
+        }
+
+        guard data.count <= LanguageToolConfiguration.maximumResponseBytes else {
+            await cooldown.recordFailure(for: endpoint, duration: TimingConstants.externalGrammarSourceFailureCooldown)
+            throw LanguageToolError.responseTooLarge(bytes: data.count)
         }
 
         do {
             let errors = try Self.convert(responseData: data, in: text)
-            await cooldown.clear()
+            await cooldown.clear(for: endpoint)
             return errors
         } catch {
             // A reply TextWarden cannot read means this endpoint is not
@@ -367,7 +431,9 @@ final class LanguageToolClient: Sendable {
         } catch {
             throw LanguageToolError.decoding(error)
         }
-        return convert(matches: decoded.matches, in: text)
+        // Capped before conversion, which is per match and runs on the main
+        // actor by the time the results are merged.
+        return convert(matches: Array(decoded.matches.prefix(LanguageToolConfiguration.maximumMatches)), in: text)
     }
 
     /// Convert matches, dropping any whose range cannot be mapped safely onto

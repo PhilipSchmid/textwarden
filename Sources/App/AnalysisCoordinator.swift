@@ -261,6 +261,11 @@ class AnalysisCoordinator: ObservableObject {
     /// stopping can abandon it.
     var externalGrammarSourceTask: Task<Void, Never>?
 
+    /// Identifies the most recently started external request, so a reply that
+    /// a newer request has superseded cannot clear the in-flight flag or
+    /// overwrite the cache behind it.
+    var externalGrammarSourceRequestGeneration = 0
+
     /// Whether an external request is outstanding. A second request is never
     /// started while this is true; see `armExternalGrammarSourceTimer`.
     var externalGrammarSourceInFlight = false

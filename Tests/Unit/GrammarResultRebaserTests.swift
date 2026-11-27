@@ -157,4 +157,73 @@ final class GrammarResultRebaserTests: XCTestCase {
         }
         XCTAssertEqual(survivors.count, 3)
     }
+
+    // MARK: - Normalization
+
+    /// Swift compares Strings by canonical equivalence, so a precomposed and a
+    /// decomposed spelling of the same text are `==` while their scalar
+    /// offsets differ by one from the accent onwards. Returning the results
+    /// untouched would shift every one of them onto the wrong character.
+    func testCanonicallyEquivalentTextIsNotTreatedAsUnchanged() {
+        let precomposed = "\u{00E9}ab"
+        let decomposed = "e\u{0301}ab"
+        XCTAssertEqual(precomposed, decomposed, "Precondition: Swift considers these equal")
+        XCTAssertNotEqual(
+            precomposed.unicodeScalars.count,
+            decomposed.unicodeScalars.count,
+            "Precondition: their scalar offsets differ"
+        )
+
+        // In the precomposed text this is "b"; at the same offsets in the
+        // decomposed text it would be "a".
+        let survivors = GrammarResultRebaser.surviving(
+            [error(2, 3)],
+            computedFor: precomposed,
+            stillValidIn: decomposed
+        )
+
+        XCTAssertTrue(survivors.isEmpty, "A result past the normalization difference must not be kept")
+    }
+
+    /// An earlier word is still safe. The difference has to fall in a later
+    /// word than the result: where it lands inside the same word, the
+    /// word-boundary rule discards that word regardless of normalization.
+    func testResultsInAnEarlierWordSurviveANormalizationDifference() {
+        let previous = "hello caf\u{00E9}"
+        let current = "hello cafe\u{0301}"
+        XCTAssertEqual(previous, current, "Precondition: Swift considers these equal")
+
+        let boundary = GrammarResultRebaser.unchangedPrefixLength(of: previous, against: current)
+        XCTAssertEqual(boundary, 6, "Everything up to the start of the differing word is untouched")
+
+        let survivors = GrammarResultRebaser.surviving([error(0, 5)], computedFor: previous, stillValidIn: current)
+        XCTAssertEqual(survivors.count, 1, "\"hello\" is before the difference")
+    }
+
+    // MARK: - Grapheme Boundaries In The Edited Text
+
+    /// An edit can join what preceded it into a longer grapheme cluster. An
+    /// offset that was a character boundary before the edit is then inside a
+    /// cluster afterwards, and a result ending there addresses half of it.
+    func testBoundaryThatTheEditTurnsIntoAClusterInteriorIsNotKept() {
+        let previous = "\u{1F431}x"
+        let current = "\u{1F431}\u{200D}\u{1F431}x"
+
+        let boundary = GrammarResultRebaser.unchangedPrefixLength(of: previous, against: current)
+        XCTAssertEqual(boundary, 0, "Scalar offset 1 is inside the joined emoji in the edited text")
+
+        let survivors = GrammarResultRebaser.surviving([error(0, 1)], computedFor: previous, stillValidIn: current)
+        XCTAssertTrue(survivors.isEmpty)
+    }
+
+    /// Every surviving result must end on a character boundary of the text it
+    /// will actually be drawn against.
+    func testSurvivingResultsEndOnACharacterBoundaryOfTheCurrentText() {
+        let previous = "caf\u{00E9} \u{1F431} ok"
+        let current = "caf\u{00E9} \u{1F431}\u{200D}\u{1F464} ok"
+
+        let boundary = GrammarResultRebaser.unchangedPrefixLength(of: previous, against: current)
+        let currentBoundaries = TextIndexConverter.stringIndicesByScalarOffset(in: current)
+        XCTAssertNotNil(currentBoundaries[boundary], "The cut must be a character boundary in the edited text")
+    }
 }
