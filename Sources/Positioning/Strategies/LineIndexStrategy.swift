@@ -162,8 +162,8 @@ class LineIndexStrategy: GeometryProvider {
         // Try to use attributed string measurement for accuracy with formatted text (bold, italic)
         if let attrMeasurements = measureUsingAttributedString(
             element: element,
-            lineStartUTF16: lineStartUTF16,
-            textBeforeLength: textBeforeErrorInLine.count,
+            textBefore: textBeforeErrorInLine,
+            errorStartUTF16: originalLocationUTF16,
             errorText: errorText,
             parser: parser
         ) {
@@ -316,19 +316,37 @@ class LineIndexStrategy: GeometryProvider {
         let errorWidth: CGFloat
     }
 
-    /// Measure text widths using AXAttributedStringForRange for accurate formatted text measurement
-    /// This handles bold, italic, and other formatted text correctly
+    /// Measure the run before the error, and the error itself, from the
+    /// application's own attributed string, so that bold, italic and other
+    /// formatted runs are measured as they are drawn.
+    ///
+    /// Both ranges are in UTF-16 code units, because that is what
+    /// AXAttributedStringForRange takes. Measuring the preceding run in
+    /// characters instead shortens the request by one unit for every character
+    /// that is not a single code unit -- a decomposed accent, an emoji -- and
+    /// shifts the error range after it by the same amount, so both requests
+    /// describe text the user never typed there.
     private func measureUsingAttributedString(
         element: AXUIElement,
-        lineStartUTF16: Int,
-        textBeforeLength: Int,
+        textBefore: String,
+        errorStartUTF16: Int,
         errorText: String,
         parser _: ContentParser
     ) -> AttributedMeasurements? {
+        let textBeforeLength = textBefore.utf16.count
+        let textBeforeStartUTF16 = errorStartUTF16 - textBeforeLength
+        guard textBeforeStartUTF16 >= 0 else {
+            Logger.warning(
+                "LineIndexStrategy: text before the error (\(textBeforeLength) units) runs past the start of the value",
+                category: Logger.accessibility
+            )
+            return nil
+        }
+
         // Get attributed string for the text before error
         let textBeforeWidth: CGFloat
         if textBeforeLength > 0 {
-            var cfRange = CFRange(location: lineStartUTF16, length: textBeforeLength)
+            var cfRange = CFRange(location: textBeforeStartUTF16, length: textBeforeLength)
             guard let rangeValue = AXValueCreate(.cfRange, &cfRange) else { return nil }
 
             var attrStringValue: CFTypeRef?
@@ -351,7 +369,6 @@ class LineIndexStrategy: GeometryProvider {
         }
 
         // Get attributed string for the error text
-        let errorStartUTF16 = lineStartUTF16 + textBeforeLength
         var errorRange = CFRange(location: errorStartUTF16, length: errorText.utf16.count)
         guard let errorRangeValue = AXValueCreate(.cfRange, &errorRange) else { return nil }
 
