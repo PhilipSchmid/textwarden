@@ -17,6 +17,7 @@ TextWarden is a private macOS grammar checker and writing assistant. These guide
 | [Perplexity](PERPLEXITY.md) | Anchor-based positioning in the Perplexity prompt editor |
 | [Microsoft PowerPoint](POWERPOINT.md) | Grammar checking in speaker notes |
 | [Slack](SLACK.md) | Rich-text exclusions and format-aware replacement in the message composer |
+| [T3 Code](T3CODE.md) | Grammar checking and child-element underline positioning in the prompt composer |
 | [Microsoft Teams](TEAMS.md) | Child-element positioning and formatted-content exclusions |
 | [Telegram](TELEGRAM.md) | Native range positioning in the message composer |
 | [Cisco Webex](WEBEX.md) | Compose-field detection that ignores sent messages |
