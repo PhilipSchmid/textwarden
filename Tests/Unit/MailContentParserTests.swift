@@ -60,6 +60,14 @@ final class MailContentParserTests: XCTestCase {
         }
     }
 
+    func testLeadingWhitespaceKeepsMailDraftOffsets() {
+        let draft = "\n  This is a sentnce."
+        for suffix in ["", "  \n", "\n\n> Quoted text"] {
+            XCTAssertEqual(MailContentParser.stripQuotedContent(from: draft + suffix), draft)
+        }
+        XCTAssertEqual(MailContentParser.stripQuotedContent(from: "\n  "), "")
+    }
+
     func testLongUnquotedLinesRemainIntactWithoutQuadraticScanning() {
         for repetitions in [4, 50, 1300] {
             let text = String(repeating: "We are reviewing the report tomorrow. ", count: repetitions)
