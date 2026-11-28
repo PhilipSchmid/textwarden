@@ -1070,12 +1070,9 @@ class MailContentParser: ContentParser {
             newTextLines.append(line)
         }
 
-        // Join the lines back together
-        var result = newTextLines.joined(separator: "\n")
-
-        // Trim trailing whitespace/newlines from the user's text
-        result = result.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        return result
+        let result = newTextLines.joined(separator: "\n")
+        // Leading whitespace is part of the compose field’s Accessibility offsets.
+        guard let end = result.lastIndex(where: { !$0.isWhitespace }) else { return "" }
+        return String(result[...end])
     }
 }
