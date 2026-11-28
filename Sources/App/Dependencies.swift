@@ -74,6 +74,13 @@ protocol UserPreferencesProviding: AnyObject {
     var checkUnclosedQuotes: Bool { get }
     var checkDashes: Bool { get }
 
+    // External grammar source (optional, user-run LanguageTool-compatible server)
+    var maxErrorsForUnderlines: Int { get }
+    var enableLanguageToolSource: Bool { get }
+    var languageToolEndpoint: String { get }
+    var languageToolLanguage: String { get }
+    var languageToolCharacterLimit: Int { get }
+
     // Filtering settings
     var enabledCategories: Set<String> { get }
     var ignoredRules: Set<String> { get }
@@ -152,6 +159,11 @@ protocol StatisticsTracking {
         bundleIdentifier: String?,
         categoryBreakdown: [String: Int],
         latencyMs: Double
+    )
+    func amendLastAnalysisSession(
+        additionalErrors: Int,
+        categoryBreakdown: [String: Int],
+        bundleIdentifier: String?
     )
     func recordSuggestionApplied(category: String)
     func recordSuggestionDismissed()

@@ -77,6 +77,80 @@ TextWarden detects language once per semantic segment, such as a sentence, parag
 
 Uncertain detections fail open: TextWarden keeps checking the passage. This is most likely with very short, ambiguous, or closely related language samples. The feature prevents false positives; it does not translate or proofread non-English text.
 
+### External grammar source
+
+TextWarden can add results from a LanguageTool-compatible server that you run on this Mac. The setting is off by default, and TextWarden neither bundles nor starts a server.
+
+#### Running a server on this Mac
+
+The quickest route on macOS is [Homebrew](https://brew.sh):
+
+```sh
+brew install languagetool
+brew services start languagetool
+```
+
+The formula listens on `http://localhost:8081`, which is the address TextWarden uses by default, and `brew services` starts it again at login. To run the server once instead of as a background service:
+
+```sh
+"$(brew --prefix)/opt/languagetool/bin/languagetool-server" \
+  --config "$(brew --prefix)/etc/languagetool/server.properties" \
+  --port 8081 --allow-origin
+```
+
+Homebrew is one option among several. For other installation methods, server configuration, n-gram data, and the full API, see LanguageTool's [HTTP server guide](https://dev.languagetool.org/http-server).
+
+#### Enabling it in TextWarden
+
+Under **Preferences → Grammar**, turn on **Use an external LanguageTool server**, then check the fields below and click **Test Connection**.
+
+| Field | Meaning |
+|---|---|
+| Use an external LanguageTool server | Turns the source on. While it is off, TextWarden makes no network requests for grammar checking. |
+| Server address | Base URL of your server, such as `http://localhost:8081`. An address already ending in `/v2/check` is also accepted. |
+| Language | Language code sent with each request. Use `auto` to let the server decide, or a code such as `en-US`. |
+| Maximum text size | Longest text worth sending, in characters. The built-in engine reads the whole document in process; this source re-sends it after every pause in typing, so the cost grows with the document while the benefit does not. Longer text is checked by the built-in engine alone. The default is 20,000, and values outside 1,000–1,000,000 are brought back into range. |
+
+Only addresses on this Mac are accepted: `localhost`, any `127.0.0.0/8` address, or `::1`. A LAN or remote address is rejected, so the text being checked never leaves the device.
+
+#### How results are combined
+
+Results are added to the built-in checks rather than replacing them. Where both engines flag the same text, the built-in result is kept, so the external source contributes only what Harper did not report. Suggestions from the server are labelled **LanguageTool** so you can tell them apart.
+
+Requests wait for a short pause in typing, and TextWarden keeps at most one open at a time. While a check is outstanding it waits for the answer rather than sending another, because a server that has begun a check finishes it whether or not anyone is still waiting for the result. When the answer arrives, the next request covers whatever you have written by then.
+
+If you have carried on typing by the time an answer arrives, TextWarden keeps the part of it your edit cannot have changed: everything before the first difference, and never a word you were still in the middle of typing. Results from the server therefore stay on screen between round trips instead of disappearing at every keystroke. They are replaced in full by the next answer.
+
+How long TextWarden waits grows with the text, from four seconds for a short passage up to fifteen for a very long one, because a chapter legitimately takes a server longer than a sentence.
+
+If the server is unreachable or slow, TextWarden keeps the built-in results and adds nothing. After a failure it leaves that server alone for 30 seconds rather than waiting out a timeout at every pause, so a server that is not running costs one delay, not one per pause. Changing the address, or clicking **Test Connection**, clears that wait immediately.
+
+#### Category mapping
+
+LanguageTool groups its rules differently from Harper, so each match is folded into a category TextWarden already has. No new category appears in **Preferences → Grammar**, and the category switches you have already set apply to both engines.
+
+| LanguageTool category | TextWarden category | Severity |
+|---|---|---|
+| `TYPOS`, `MISSPELLING`, `COMPOUNDING` | Spelling | Error |
+| `GRAMMAR` | Grammar | Error |
+| `CONFUSED_WORDS`, `FALSE_FRIENDS`, `COLLOCATIONS` | WordChoice | Warning |
+| `CASING` | Capitalization | Warning |
+| `PUNCTUATION` | Punctuation | Warning |
+| `TYPOGRAPHY` | Formatting | Warning |
+| `SEMANTICS`, `IDIOMS` | Usage | Warning |
+| `NONSTANDARD_PHRASES`, `BARBARISM` | Nonstandard | Warning |
+| `REDUNDANCY` | Redundancy | Info |
+| `REPETITIONS`, `REPETITIONS_STYLE` | Repetition | Info |
+| `REGIONALISMS` | Regionalism | Info |
+| `STYLE`, `PLAIN_ENGLISH`, `CREATIVE_WRITING` | Style | Info |
+| Anything else | See below | Warning |
+
+A rule whose category is not in that table, which is mostly custom rule packs and server-specific groupings, is classified a second time by its `issueType`, which LanguageTool sets per rule: `misspelling` becomes Spelling, `grammar` becomes Grammar, `terminology` becomes WordChoice, `typographical`, `whitespace` and `formatting` become Formatting, `duplication` becomes Repetition, `style` and `register` become Style, `locale-violation` and `locale-specific-content` become Regionalism, and `non-conformance` becomes Nonstandard. Anything still unclassified becomes Miscellaneous.
+
+LanguageTool sends no severity of its own, so the severity above is derived from the category the match ends up in.
+
+These Harper categories have no LanguageTool equivalent and stay Harper-only: Agreement, BoundaryError, Eggcorn, Enhancement, Malapropism, Typo, and WordOrder.
+
 ## Readability
 
 Readability analysis is on by default and does not require Apple Intelligence. For text with at least 30 words, TextWarden calculates a Flesch Reading Ease score and checks sentence complexity against the selected audience.

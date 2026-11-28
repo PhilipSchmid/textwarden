@@ -536,6 +536,10 @@ private struct CustomVocabularyContent: View {
                     .font(.headline)
             }
 
+            // MARK: - External Grammar Source Section
+
+            LanguageToolSettingsView()
+
             // MARK: - System Dictionary Section
 
             Section {

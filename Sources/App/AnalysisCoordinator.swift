@@ -248,6 +248,32 @@ class AnalysisCoordinator: ObservableObject {
     /// Debounce timer for style analysis - prevents queue buildup during rapid typing
     var styleDebounceTimer: Timer?
 
+    /// Debounce timer for the optional external grammar source, so typing does
+    /// not produce one HTTP request per keystroke
+    var externalGrammarSourceTimer: Timer?
+
+    /// Identifies the most recently armed debounce timer. A fired timer carries
+    /// its own generation, so it can tell whether a newer one replaced it
+    /// without capturing the non-Sendable `Timer` across an actor hop.
+    var externalGrammarSourceTimerGeneration = 0
+
+    /// The external request currently in flight, held so that monitoring
+    /// stopping can abandon it.
+    var externalGrammarSourceTask: Task<Void, Never>?
+
+    /// Identifies the most recently started external request, so a reply that
+    /// a newer request has superseded cannot clear the in-flight flag or
+    /// overwrite the cache behind it.
+    var externalGrammarSourceRequestGeneration = 0
+
+    /// Whether an external request is outstanding. A second request is never
+    /// started while this is true; see `armExternalGrammarSourceTimer`.
+    var externalGrammarSourceInFlight = false
+
+    /// The last answer from the external source, kept so that the part of it
+    /// the user's latest edit did not touch survives until the next reply.
+    var externalGrammarResultCache: ExternalGrammarResultCache?
+
     /// Debounce delay for style analysis (seconds) - wait for typing to pause
     let styleDebounceDelay: TimeInterval = TimingConstants.styleDebounce
 
@@ -763,6 +789,9 @@ class AnalysisCoordinator: ObservableObject {
         hoverSwitchTimer = nil
         textValidationTimer?.invalidate()
         textValidationTimer = nil
+        // The whole teardown, not just the timer and task: a reply already
+        // decoding would otherwise still write the cache after cleanup.
+        cancelExternalGrammarSource()
         styleDebounceTimer?.invalidate()
         styleDebounceTimer = nil
         electronLayoutTimer?.invalidate()
@@ -1733,6 +1762,7 @@ class AnalysisCoordinator: ObservableObject {
     /// Stop monitoring
     private func stopMonitoring() {
         invalidateGrammarAnalysis()
+        cancelExternalGrammarSource()
         textMonitor.stopMonitoring()
         currentErrors = []
         currentSegment = nil

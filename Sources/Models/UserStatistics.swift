@@ -909,6 +909,42 @@ class UserStatistics: ObservableObject {
         cleanupOldData()
     }
 
+    /// Fold results that arrived after a session was recorded into that session.
+    ///
+    /// The external grammar source replies once Harper's session has already
+    /// been written, so its findings would otherwise never reach statistics.
+    /// Recording a second session instead would double count the words and
+    /// inflate the session total, skewing every per-session average.
+    func amendLastAnalysisSession(
+        additionalErrors: Int,
+        categoryBreakdown: [String: Int],
+        bundleIdentifier: String?
+    ) {
+        guard additionalErrors > 0,
+              let index = detailedSessions.indices.last,
+              detailedSessions[index].bundleIdentifier == bundleIdentifier
+        else {
+            return
+        }
+
+        let existing = detailedSessions[index]
+        var mergedBreakdown = existing.categoryBreakdown
+        for (category, count) in categoryBreakdown {
+            mergedBreakdown[category, default: 0] += count
+        }
+
+        detailedSessions[index] = DetailedAnalysisSession(
+            timestamp: existing.timestamp,
+            wordsProcessed: existing.wordsProcessed,
+            errorsFound: existing.errorsFound + additionalErrors,
+            bundleIdentifier: existing.bundleIdentifier,
+            categoryBreakdown: mergedBreakdown,
+            latencyMs: existing.latencyMs
+        )
+
+        errorsFound += additionalErrors
+    }
+
     /// Record a new analysis session (legacy method for backward compatibility)
     func recordAnalysisSession(wordsProcessed: Int, errorsFound: Int) {
         // Prevent negative values

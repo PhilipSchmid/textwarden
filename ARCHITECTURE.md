@@ -23,7 +23,7 @@ flowchart LR
     Replacement --> App
 ```
 
-The grammar engine and Apple Foundation Models run on the device. TextWarden does not need a hosted grammar or LanguageTool server. Sparkle handles app updates separately from text analysis.
+The grammar engine and Apple Foundation Models run on the device. TextWarden does not need a hosted grammar or LanguageTool server. An optional, off-by-default source can add results from a locally hosted LanguageTool-compatible server; its endpoint is restricted to loopback, so the text being checked stays on the device. Sparkle handles app updates separately from text analysis.
 
 ## Repository Layout
 
