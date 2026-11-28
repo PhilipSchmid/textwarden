@@ -55,22 +55,12 @@ class MailStrategy: GeometryProvider {
         errorRange: NSRange,
         element: AXUIElement,
         text: String,
-        parser: ContentParser
+        parser _: ContentParser
     ) -> GeometryResult? {
         Logger.debug("MailStrategy: Calculating for range \(errorRange) in text length \(text.count)", category: Logger.ui)
 
-        // Convert filtered coordinates to original coordinates
-        let offset = parser.textReplacementOffset
-        let adjustedRange = NSRange(
-            location: errorRange.location + offset,
-            length: max(1, errorRange.length)
-        )
-
-        // Convert grapheme cluster indices to UTF-16 code units
-        // Mail's WebKit AX APIs use UTF-16 indices (critical for emoji support)
-        let utf16Range = convertToUTF16Range(adjustedRange, in: element)
-
-        Logger.debug("MailStrategy: Converted grapheme [\(adjustedRange.location), \(adjustedRange.length)] to UTF-16 [\(utf16Range.location), \(utf16Range.length)]", category: Logger.ui)
+        // PositionResolver supplies the range in Mail’s native UTF-16 coordinates.
+        let utf16Range = errorRange
 
         // Get start character bounds
         let startCharRange = NSRange(location: utf16Range.location, length: 1)
@@ -121,8 +111,6 @@ class MailStrategy: GeometryProvider {
             strategy: strategyName,
             metadata: [
                 "api": "webkit-bounds",
-                "grapheme_location": adjustedRange.location,
-                "grapheme_length": adjustedRange.length,
                 "utf16_location": utf16Range.location,
                 "utf16_length": utf16Range.length,
                 "quartz_bounds": NSStringFromRect(quartzBounds),
@@ -174,23 +162,5 @@ class MailStrategy: GeometryProvider {
 
         // Conversion failed, use as-is
         return rect
-    }
-
-    // MARK: - UTF-16 Index Conversion
-
-    /// Convert grapheme cluster indices to UTF-16 code unit indices for Mail's accessibility API.
-    /// Mail's WebKit APIs (AXBoundsForRange, etc.) use UTF-16 code units,
-    /// while Harper provides error positions in grapheme clusters (Swift String indices).
-    /// This matters for text containing emojis: 👋 = 1 grapheme but 2 UTF-16 code units.
-    private func convertToUTF16Range(_ range: NSRange, in element: AXUIElement) -> NSRange {
-        guard let text = MailContentParser.exactText(from: element), !text.isEmpty else {
-            Logger.debug("MailStrategy: Exact text unavailable, using original range", category: Logger.ui)
-            return range
-        }
-
-        Logger.debug("MailStrategy: Fetched \(text.count) characters from AX element for UTF-16 conversion", category: Logger.ui)
-
-        // Now convert using the actual text from the element
-        return TextIndexConverter.graphemeToUTF16Range(range, in: text)
     }
 }

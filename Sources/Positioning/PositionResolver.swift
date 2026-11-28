@@ -74,7 +74,7 @@ struct PositionRange: Hashable {
 
     func range(for strategy: StrategyType) -> NSRange? {
         switch strategy {
-        case .lineIndex, .rangeBounds, .elementTree: utf16
+        case .lineIndex, .rangeBounds, .elementTree, .mail: utf16
         default: source
         }
     }

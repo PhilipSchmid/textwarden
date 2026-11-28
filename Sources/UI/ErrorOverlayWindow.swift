@@ -706,7 +706,8 @@ class ErrorOverlayWindow: NSPanel {
         // TextMarker returns actual visual bounds while LineIndex uses element frame
         var internalPaddingX: CGFloat = 0
 
-        if !fullTextValue.isEmpty {
+        // Mail's WebKit range bounds already include the compose inset.
+        if !fullTextValue.isEmpty, bundleID != "com.apple.mail" {
             // Use TextMarker API to get the ACTUAL first character position
             // This is more accurate than AXBoundsForRange which often returns element frame X
             let startMarker = AccessibilityBridge.requestOpaqueMarker(at: 0, from: element)
@@ -1966,6 +1967,10 @@ class ErrorOverlayWindow: NSPanel {
             attribute: "AXValue",
             operation: {
                 AXUIElementSetMessagingTimeout(element, 1.0)
+                // Mail's AXValue can be empty while its WebKit text markers contain the draft.
+                if bundleID == "com.apple.mail", let exact = MailContentParser.exactText(from: element) {
+                    return (error: .success, text: exact)
+                }
                 var textValue: CFTypeRef?
                 let error = AXUIElementCopyAttributeValue(
                     element,
