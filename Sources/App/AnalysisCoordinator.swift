@@ -789,10 +789,9 @@ class AnalysisCoordinator: ObservableObject {
         hoverSwitchTimer = nil
         textValidationTimer?.invalidate()
         textValidationTimer = nil
-        externalGrammarSourceTimer?.invalidate()
-        externalGrammarSourceTimer = nil
-        externalGrammarSourceTask?.cancel()
-        externalGrammarSourceTask = nil
+        // The whole teardown, not just the timer and task: a reply already
+        // decoding would otherwise still write the cache after cleanup.
+        cancelExternalGrammarSource()
         styleDebounceTimer?.invalidate()
         styleDebounceTimer = nil
         electronLayoutTimer?.invalidate()

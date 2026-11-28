@@ -67,20 +67,27 @@ enum GrammarResultRebaser {
         // grapheme cluster even where its scalars are not word scalars. Both
         // texts are checked: an edit can join what preceded it into a longer
         // cluster, so an offset that was a boundary before the edit is not
-        // necessarily one after it.
-        let previousBoundaries = TextIndexConverter.stringIndicesByScalarOffset(in: previous)
-        let currentBoundaries = TextIndexConverter.stringIndicesByScalarOffset(in: current)
-        while boundary > 0, previousBoundaries[boundary] == nil || currentBoundaries[boundary] == nil {
+        // necessarily one after it. Probed one offset at a time rather than
+        // mapped in bulk, because this normally tests a single offset and
+        // mapping every boundary in both documents runs on the main actor.
+        while boundary > 0,
+              TextIndexConverter.scalarIndexToStringIndex(boundary, in: previous) == nil
+              || TextIndexConverter.scalarIndexToStringIndex(boundary, in: current) == nil
+        {
             boundary -= 1
         }
 
         return boundary
     }
 
+    /// Alphanumerics together with the marks that combine with them, resolved
+    /// once: this is probed per scalar while walking back over a word.
+    private static let wordScalars = CharacterSet.alphanumerics.union(.nonBaseCharacters)
+
     /// Scalars that can sit inside a word, including the marks that combine
     /// with one.
     private static func isWordScalar(_ scalar: Unicode.Scalar) -> Bool {
-        if CharacterSet.alphanumerics.contains(scalar) || CharacterSet.nonBaseCharacters.contains(scalar) {
+        if wordScalars.contains(scalar) {
             return true
         }
         // An apostrophe or hyphen joins a word rather than ending it, so a
