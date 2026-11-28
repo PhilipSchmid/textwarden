@@ -112,11 +112,13 @@ final class LineIndexStrategyTests: XCTestCase {
         XCTAssertNil(PositionRange(scalars: NSRange(location: 100, length: 1), in: text).utf16)
     }
 
-    func testMailCanPositionFromItsTextMarkersWhenAXValueIsEmpty() {
-        let source = NSRange(location: 10, length: 6)
-        let range = PositionRange(scalars: source, in: "")
-        XCTAssertEqual(range.range(for: .mail), source)
-        XCTAssertNil(range.range(for: .lineIndex))
+    func testMailUsesNativeRangesForGrammarAndReadability() {
+        let text = "\n\n👩🏽‍💻 cafe\u{301} sentnce."
+        let expected = (text as NSString).range(of: "sentnce")
+        let prefix = text.prefix { $0 != "s" }
+        XCTAssertEqual(PositionRange.grammar(NSRange(location: prefix.unicodeScalars.count, length: 7), in: text).range(for: .mail), expected)
+        XCTAssertEqual(PositionRange(characters: NSRange(location: prefix.count, length: 7), in: text).range(for: .mail), expected)
+        XCTAssertNil(PositionRange(scalars: NSRange(location: 10, length: 6), in: "").range(for: .mail))
     }
 
     func testExpandedRangePreservesDedicatedStrategyInput() {
